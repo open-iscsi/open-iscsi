@@ -87,7 +87,8 @@ iscsi_buf_init_sg(struct iscsi_buf *ibuf, struct scatterlist *sg)
 }
 
 static inline void
-iscsi_buf_init_hdr(struct iscsi_conn *conn, struct iscsi_buf *ibuf, char *vbuf, u8 *crc)
+iscsi_buf_init_hdr(struct iscsi_conn *conn, struct iscsi_buf *ibuf,
+		   char *vbuf, u8 *crc)
 {
 	iscsi_buf_init_virt(ibuf, vbuf, sizeof(struct iscsi_hdr));
 	if (conn->hdrdgst_en) {
@@ -212,14 +213,14 @@ iscsi_cmd_rsp(struct iscsi_conn *conn, struct iscsi_cmd_task *ctask)
 	session->exp_cmdsn = exp_cmdsn;
 	conn->exp_statsn = ntohl(rhdr->statsn) + 1;
 
-	sc->result = (DID_OK << 16) | status_byte(rhdr->cmd_status);
+	sc->result = (DID_OK << 16) | (rhdr->cmd_status << 1);
 
 	if (rhdr->response == ISCSI_STATUS_CMD_COMPLETED) {
-		if (status_byte(rhdr->cmd_status) == CHECK_CONDITION &&
+		if (rhdr->cmd_status == SAM_STAT_CHECK_CONDITION &&
 		    conn->senselen) {
 			int sensecopy = min(conn->senselen,
 					    SCSI_SENSE_BUFFERSIZE);
-			memcpy(sc->sense_buffer, conn->data, sensecopy);
+			memcpy(sc->sense_buffer, conn->data + 2, sensecopy);
 			debug_scsi("copied %d bytes of sense\n", sensecopy);
 		}
 
@@ -230,15 +231,14 @@ iscsi_cmd_rsp(struct iscsi_conn *conn, struct iscsi_cmd_task *ctask)
 				    res_count <= sc->request_bufflen) {
 					sc->resid = res_count;
 				} else {
-					sc->result =
-						(DID_BAD_TARGET << 16) |
-						status_byte(rhdr->cmd_status);
+					sc->result = (DID_BAD_TARGET << 16) |
+						     (rhdr->cmd_status << 1);
 					rc = ISCSI_ERR_BAD_TARGET;
 					goto fault;
 				}
 			} else if (rhdr->flags& ISCSI_FLAG_CMD_BIDI_UNDERFLOW) {
 				sc->result = (DID_BAD_TARGET << 16) |
-					     status_byte(rhdr->cmd_status);
+					     (rhdr->cmd_status << 1);
 				rc = ISCSI_ERR_BAD_TARGET;
 				goto fault;
 			} else if (rhdr->flags & ISCSI_FLAG_CMD_OVERFLOW) {
@@ -804,7 +804,7 @@ iscsi_data_recv(struct iscsi_conn *conn)
 		 * check for sense
 		 */
 		conn->in.hdr = &conn->hdr;
-		conn->senselen = ntohs(*(__u16*)conn->data);
+		conn->senselen = (conn->data[0] << 8) | conn->data[1];
 		rc = iscsi_cmd_rsp(conn, conn->in.ctask);
 	}
 	break;
