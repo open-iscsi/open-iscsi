@@ -1758,7 +1758,7 @@ fault:
 	sc->sense_buffer[7] = 0x6;
 	sc->sense_buffer[12] = 0x08;
 	sc->sense_buffer[13] = 0x00;
-	sc->result = DID_NO_CONNECT << 16;
+	sc->result = (DID_NO_CONNECT << 16);
 	switch (sc->cmnd[0]) {
 	case INQUIRY:
 	case REQUEST_SENSE:
@@ -1780,14 +1780,36 @@ iscsi_eh_abort(struct scsi_cmnd *sc)
 {
 	struct iscsi_cmd_task *ctask = (struct iscsi_cmd_task *)sc->SCp.ptr;
 	struct iscsi_conn *conn = ctask->conn;
+	struct iscsi_session *session = conn->session;
 
 	debug_scsi("abort [sc %lx itt 0x%x]\n", (long)sc, ctask->itt);
 
-	if (conn->c_stage == ISCSI_CNX_CLEANUP_WAIT) {
-		iscsi_ctask_cleanup(conn, ctask);
-		return FAILED;
+	/*
+	 * two cases for ERL=0 here:
+	 *
+	 * 1) connection-level failure
+	 * 2) recovery due protocol error
+	 */
+	if (session->state != ISCSI_STATE_LOGGED_IN) {
+		if (session->state == ISCSI_STATE_TERMINATE)
+			goto failed;
+		/*
+		 * block eh thread until will get command from control
+		 * plane on what to do next or unblocking signal.
+		 */
+		if (down_interruptible(&conn->ehsema)) {
+			/* shutdown.. */
+			session->state = ISCSI_STATE_TERMINATE;
+			goto failed;
+		}
+		if (session->state == ISCSI_STATE_TERMINATE)
+			goto failed;
+		BUG_ON(session->state != ISCSI_STATE_LOGGED_IN);
 	}
 	return SUCCESS;
+failed:
+	iscsi_ctask_cleanup(conn, ctask);
+	return FAILED;
 }
 
 static int
@@ -1850,40 +1872,15 @@ iscsi_pool_free(struct iscsi_queue *q, void **items)
  */
 static iscsi_cnx_h
 iscsi_conn_create(iscsi_snx_h snxh, iscsi_cnx_h handle,
-			uint32_t transport_fd, uint32_t conn_idx)
+			 uint32_t conn_idx)
 {
 	struct iscsi_session *session = iscsi_ptr(snxh);
-	struct tcp_opt *tp;
-	struct sock *sk;
 	struct iscsi_conn *conn = NULL;
-	struct socket *sock;
-	int err;
-
-	if (!(sock = sockfd_lookup(transport_fd, &err))) {
-		printk("iSCSI: sockfd_lookup failed %d\n", err);
-		goto sockfd_lookup_fault;
-	}
 
 	conn = kmalloc(sizeof(struct iscsi_conn), GFP_KERNEL);
 	if (conn == NULL)
 		goto conn_alloc_fault;
 	memset(conn, 0, sizeof(struct iscsi_conn));
-
-	/* bind iSCSI connection and socket */
-	conn->sock = sock;
-
-	/* setup Socket parameters */
-	sk = sock->sk;
-	sk->sk_reuse = 1;
-	sk->sk_sndtimeo = 15 * HZ; /* FIXME: make it configurable */
-	sk->sk_allocation |= GFP_ATOMIC;
-
-	/* disable Nagle's algorithm */
-	tp = tcp_sk(sk);
-	tp->nonagle = 1;
-
-	/* Intercept TCP callbacks for sendfile like receive processing. */
-	iscsi_conn_set_callbacks(conn);
 
 	conn->c_stage = ISCSI_CNX_INITIAL_STAGE;
 	conn->in_progress = IN_PROGRESS_WAIT_HEADER;
@@ -1936,6 +1933,7 @@ iscsi_conn_create(iscsi_snx_h snxh, iscsi_cnx_h handle,
 		goto max_recv_dlenght_alloc_fault;
 
 	init_MUTEX(&conn->xmitsema);
+	init_MUTEX_LOCKED(&conn->ehsema);
 
 	return iscsi_handle(conn);
 
@@ -1953,7 +1951,6 @@ rspqueue_alloc_fault:
 xmitqueue_alloc_fault:
 	kfree(conn);
 conn_alloc_fault:
-sockfd_lookup_fault:
 	return iscsi_handle(NULL);
 }
 
@@ -1972,6 +1969,15 @@ iscsi_conn_destroy(iscsi_cnx_h cnxh)
 	iscsi_conn_restore_callbacks(conn);
 	sock_put(conn->sock->sk);
 	sock_release(conn->sock);
+
+	if (session->leadconn == conn) {
+		/*
+		 * Control plane decided to destroy leading connection?
+		 * Its a signal for us to give up on recovery.
+		 */
+		session->state = ISCSI_STATE_TERMINATE; wmb();
+		up(&conn->ehsema);
+	}
 
 	/*
 	 * Block control plane caller (a thread coming from
@@ -2031,10 +2037,36 @@ iscsi_conn_destroy(iscsi_cnx_h cnxh)
 }
 
 static int
-iscsi_conn_bind(iscsi_snx_h snxh, iscsi_cnx_h cnxh, int is_leading)
+iscsi_conn_bind(iscsi_snx_h snxh, iscsi_cnx_h cnxh, uint32_t transport_fd,
+		int is_leading)
 {
 	struct iscsi_session *session = iscsi_ptr(snxh);
 	struct iscsi_conn *conn = iscsi_ptr(cnxh);
+	struct tcp_opt *tp;
+	struct sock *sk;
+	struct socket *sock;
+	int err;
+
+	if (!(sock = sockfd_lookup(transport_fd, &err))) {
+		printk("iSCSI: sockfd_lookup failed %d\n", err);
+		return -EEXIST;
+	}
+
+	/* bind iSCSI connection and socket */
+	conn->sock = sock;
+
+	/* setup Socket parameters */
+	sk = sock->sk;
+	sk->sk_reuse = 1;
+	sk->sk_sndtimeo = 15 * HZ; /* FIXME: make it configurable */
+	sk->sk_allocation |= GFP_ATOMIC;
+
+	/* disable Nagle's algorithm */
+	tp = tcp_sk(sk);
+	tp->nonagle = 1;
+
+	/* Intercept TCP callbacks for sendfile like receive processing. */
+	iscsi_conn_set_callbacks(conn);
 
 	/*
 	 * bind new iSCSI connection to session
@@ -2073,6 +2105,9 @@ iscsi_conn_start(iscsi_cnx_h cnxh)
 	session->state = ISCSI_STATE_LOGGED_IN;
 	session->conn_cnt++;
 	spin_unlock_bh(&session->lock);
+
+	/* ERL=0: recovery complete */
+	up(&conn->ehsema);
 
 	return 0;
 }

@@ -55,12 +55,12 @@ struct iscsi_uevent {
 		struct msg_create_cnx {
 			uint64_t	session_handle;
 			uint64_t	cnx_handle;
-			uint32_t	transport_fd;
 			uint32_t	cid;
 		} c_cnx;
 		struct msg_bind_cnx {
 			uint64_t	session_handle;
 			uint64_t	cnx_handle;
+			uint32_t	transport_fd;
 			uint32_t	is_leading;
 		} b_cnx;
 		struct msg_destroy_cnx {

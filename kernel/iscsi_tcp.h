@@ -25,6 +25,7 @@
 #define ISCSI_STATE_FREE	1
 #define ISCSI_STATE_LOGGED_IN	2
 #define ISCSI_STATE_FAILED	3
+#define ISCSI_STATE_TERMINATE	4
 
 /* Connection's states */
 #define ISCSI_CNX_INITIAL_STAGE		0
@@ -145,6 +146,7 @@ struct iscsi_conn {
 	struct iscsi_mgmt_task	*mtask;		/* xmit mtask in progress */
 	struct iscsi_cmd_task	*ctask;		/* xmit ctask in progress */
 	struct semaphore	xmitsema;
+	struct semaphore	ehsema;
 
 	/* configuration */
 	int			max_recv_dlength;

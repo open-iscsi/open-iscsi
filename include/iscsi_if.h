@@ -91,14 +91,15 @@ typedef uint64_t iscsi_cnx_h;		/* iSCSI Data-Path connection handle */
 #define CAP_TEXT_NEGO		0x80
 
 /**
- * struct iscsi_transport
+ * struct iscsi_transport - down calls
  *
  * @name: transport name
  * @caps: iSCSI Data-Path capabilities
  * @create_snx: create new iSCSI session object
  * @destroy_snx: destroy existing iSCSI session object
- * @create_cnx: create new iSCSI connection using specified transport
- * @bind_cnx: associate this connection with existing iSCSI session
+ * @create_cnx: create new iSCSI connection
+ * @bind_cnx: associate this connection with existing iSCSI session and
+ *            specified transport descriptor
  * @destroy_cnx: destroy inactive iSCSI connection
  * @set_param: set iSCSI Data-Path operational parameter
  * @start_cnx: set connection to be operational
@@ -115,9 +116,9 @@ struct iscsi_transport {
 			uint32_t initial_cmdsn, uint32_t *sid);
 	void (*destroy_session) (iscsi_snx_h dp_snx);
 	iscsi_cnx_h (*create_cnx) (iscsi_snx_h dp_snx, iscsi_cnx_h cp_cnx,
-			uint32_t transport_fd, uint32_t cid);
+			uint32_t cid);
 	int (*bind_cnx) (iscsi_snx_h dp_snx, iscsi_cnx_h dp_cnx,
-			int is_leading);
+			uint32_t transport_fd, int is_leading);
 	int (*start_cnx) (iscsi_cnx_h dp_cnx);
 	void (*stop_cnx) (iscsi_cnx_h dp_cnx);
 	void (*destroy_cnx) (iscsi_cnx_h dp_cnx);
@@ -127,6 +128,9 @@ struct iscsi_transport {
 			 char *data, uint32_t data_size);
 };
 
+/*
+ * up calls
+ */
 int iscsi_register_transport(struct iscsi_transport *ops, int id);
 void iscsi_unregister_transport(int id);
 int iscsi_control_recv_pdu(iscsi_cnx_h cp_cnx, struct iscsi_hdr *hdr,

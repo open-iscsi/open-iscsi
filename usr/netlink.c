@@ -252,7 +252,6 @@ ksession_cnx_create(int ctrl_fd, iscsi_session_t *session, iscsi_conn_t *conn)
 	ev.transport_id = 0; /* FIXME: hardcoded */
 	ev.u.c_cnx.session_handle = session->handle;
 	ev.u.c_cnx.cnx_handle = (ulong_t)conn;
-	ev.u.c_cnx.transport_fd = conn->socket_fd;
 	ev.u.c_cnx.cid = conn->id;
 
 	if ((rc = __ksession_call(ctrl_fd, &ev, sizeof(ev))) < 0) {
@@ -304,6 +303,7 @@ ksession_cnx_bind(int ctrl_fd, iscsi_session_t *session, iscsi_conn_t *conn)
 	ev.transport_id = 0; /* FIXME: hardcoded */
 	ev.u.b_cnx.session_handle = session->handle;
 	ev.u.b_cnx.cnx_handle = conn->handle;
+	ev.u.b_cnx.transport_fd = conn->socket_fd;
 	ev.u.b_cnx.is_leading = (conn->id == 0);
 
 	if ((rc = __ksession_call(ctrl_fd, &ev, sizeof(ev))) < 0) {

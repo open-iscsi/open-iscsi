@@ -143,7 +143,7 @@ iscsi_if_recv_msg(struct sk_buff *skb, struct nlmsghdr *nlh)
 		ev->r.handle = transport->create_cnx(
 			ev->u.c_cnx.session_handle,
 			ev->u.c_cnx.cnx_handle,
-			 ev->u.c_cnx.transport_fd, ev->u.c_cnx.cid);
+			ev->u.c_cnx.cid);
 		break;
 	case ISCSI_UEVENT_DESTROY_CNX:
 		transport->destroy_cnx(ev->u.d_cnx.cnx_handle);
@@ -152,6 +152,7 @@ iscsi_if_recv_msg(struct sk_buff *skb, struct nlmsghdr *nlh)
 		ev->r.retcode = transport->bind_cnx(
 			ev->u.b_cnx.session_handle,
 			ev->u.b_cnx.cnx_handle,
+			ev->u.b_cnx.transport_fd,
 			ev->u.b_cnx.is_leading);
 		break;
 	case ISCSI_UEVENT_SET_PARAM:
