@@ -2131,12 +2131,16 @@ iscsi_send_pdu(iscsi_cnx_h cnxh, struct iscsi_hdr *hdr, char *data,
 			return -ENOSPC;
 		}
 
+		/*
+		 * Check previous ExpStatSN. Free associated resources.
+		 */
 		exp_statsn = ((struct iscsi_nopout*)&mtask->hdr)->exp_statsn;
 		if ((int)(conn->exp_statsn - exp_statsn) <= 0) {
-			__kfifo_put(session->immpool.queue, (void*)&mtask,
-				    sizeof(void*));
-			spin_unlock_bh(&session->lock);
-			return -ENOSPC;
+			if (mtask->data) {
+				kfree(mtask->data);
+				mtask->data = NULL;
+				mtask->data_count = 0;
+			}
 		}
 	} else {
 		/*
