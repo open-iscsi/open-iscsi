@@ -46,7 +46,7 @@ MODULE_DESCRIPTION("iSCSI/TCP data-path");
 MODULE_LICENSE("GPL");
 
 /* #define DEBUG_TCP */
-/* #define DEBUG_SCSI */
+#define DEBUG_SCSI
 #define DEBUG_ASSERT
 
 #ifdef DEBUG_TCP
@@ -201,6 +201,7 @@ iscsi_ctask_cleanup(struct iscsi_conn *conn, struct iscsi_cmd_task *ctask)
 		}
 		spin_unlock(&conn->lock);
 	}
+	sc->SCp.Status = SUCCESS;
 	ctask->in_progress = IN_PROGRESS_IDLE;
 	__kfifo_put(session->cmdpool.queue, (void*)&ctask, sizeof(void*));
 	spin_unlock(&session->lock);
@@ -248,19 +249,16 @@ iscsi_cmd_rsp(struct iscsi_conn *conn, struct iscsi_cmd_task *ctask)
 				} else {
 					sc->result = (DID_BAD_TARGET << 16) |
 						     rhdr->cmd_status;
-					goto fault;
 				}
 			} else if (rhdr->flags& ISCSI_FLAG_CMD_BIDI_UNDERFLOW) {
 				sc->result = (DID_BAD_TARGET << 16) |
 					     rhdr->cmd_status;
-				goto fault;
 			} else if (rhdr->flags & ISCSI_FLAG_CMD_OVERFLOW) {
 				sc->resid = ntohl(rhdr->residual_count);
 			}
 		}
 	} else {
 		sc->result = (DID_ERROR << 16);
-		goto fault;
 	}
 
 fault:
@@ -315,17 +313,18 @@ iscsi_data_rsp(struct iscsi_conn *conn, struct iscsi_cmd_task *ctask)
 			if (res_count > 0 &&
 			    res_count <= sc->request_bufflen) {
 				sc->resid = res_count;
+				sc->result = (DID_OK << 16) | rhdr->cmd_status;
 			} else {
 				sc->result = (DID_BAD_TARGET << 16) |
 					rhdr->cmd_status;
-				return 0;
 			}
-		} else if (rhdr->flags& ISCSI_FLAG_CMD_BIDI_UNDERFLOW) {
-			sc->result = (DID_BAD_TARGET << 16) |
-				rhdr->cmd_status;
-			return 0;
+		} else if (rhdr->flags & ISCSI_FLAG_CMD_BIDI_UNDERFLOW) {
+			sc->result = (DID_BAD_TARGET << 16) | rhdr->cmd_status;
 		} else if (rhdr->flags & ISCSI_FLAG_CMD_OVERFLOW) {
 			sc->resid = ntohl(rhdr->residual_count);
+			sc->result = (DID_OK << 16) | rhdr->cmd_status;
+		} else {
+			sc->result = (DID_OK << 16) | rhdr->cmd_status;
 		}
 	}
 
@@ -813,7 +812,6 @@ iscsi_data_recv(struct iscsi_conn *conn)
 		    debug_scsi("done [sc %lx res %d itt 0x%x]\n",
 			       (long)sc, sc->result, ctask->itt);
 		    iscsi_ctask_cleanup(conn, ctask);
-		    sc->result = conn->in.cmd_status;
 		    sc->scsi_done(sc);
 	    }
 	}
@@ -992,9 +990,11 @@ iscsi_tcp_state_change(struct sock *sk)
 	conn = (struct iscsi_conn*)sk->sk_user_data;
 	session = conn->session;
 
+printk("iscsi_tcp_state_change: sk->sk_state %d\n", sk->sk_state);
+
 	if (sk->sk_state == TCP_CLOSE_WAIT ||
 	    sk->sk_state == TCP_CLOSE) {
-		debug_tcp("iscsi_tcp_state_change: TCP_CLOSE\n");
+		debug_tcp("iscsi_tcp_state_change: TCP_CLOSE|TCP_CLOSE_WAIT\n");
 		conn->c_stage = ISCSI_CNX_CLEANUP_WAIT;
 		spin_lock_bh(&session->conn_lock);
 		if (session->conn_cnt == 1 ||
@@ -1741,6 +1741,7 @@ iscsi_queuecommand(struct scsi_cmnd *sc, void (*done)(struct scsi_cmnd *))
 	}
 
 	__kfifo_get(session->cmdpool.queue, (void*)&ctask, sizeof(void*));
+	sc->SCp.Status = QUEUED;
 	spin_unlock(&session->lock);
 
 	BUG_ON(!ctask);
@@ -2342,6 +2343,21 @@ iscsi_eh_abort(struct scsi_cmnd *sc)
 		struct iscsi_tm *hdr = &conn->tmhdr;
 
 		/*
+		 * Still LOGGED_IN...
+		 */
+
+		spin_lock_bh(&session->lock);
+		if (sc->SCp.Status == SUCCESS) {
+			/*
+			 * ctask completed before time out. But session
+			 * is still ok => Happy Retry.
+			 */
+			spin_unlock_bh(&session->lock);
+			goto success;
+		}
+		spin_unlock_bh(&session->lock);
+
+		/*
 		 * ctask timed out but session is OK
 		 * ERL=0 requires task mgmt abort to be issued on each
 		 * failed command. requests must be serialized.
@@ -2404,6 +2420,17 @@ iscsi_eh_abort(struct scsi_cmnd *sc)
 		if (conn->tmabort_state == TMABORT_TIMEDOUT ||
 		    conn->tmabort_state == TMABORT_FAILED) {
 			conn->tmabort_state = TMABORT_INITIAL;
+			spin_lock_bh(&session->lock);
+			if (sc->SCp.Status == SUCCESS) {
+				/*
+				 * ctask completed before tmf abort response or
+				 * time out.
+				 * But session is still ok => Happy Retry.
+				 */
+				spin_unlock_bh(&session->lock);
+				break;
+			}
+			spin_unlock_bh(&session->lock);
 			session->state = ISCSI_STATE_FAILED;
 			iscsi_control_cnx_error(conn->handle,
 				ISCSI_ERR_CNX_FAILED);
@@ -2413,6 +2440,7 @@ iscsi_eh_abort(struct scsi_cmnd *sc)
 		break;
 	}
 
+success:
 	debug_scsi("abort success [sc %lx itt 0x%x]\n", (long)sc, ctask->itt);
 	BUG_ON(session->state != ISCSI_STATE_LOGGED_IN);
 	spin_lock_irq(session->host->host_lock);
