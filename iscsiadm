@@ -2,7 +2,7 @@
 #
 # iSCSI Configuration Utility
 # Copyright (C) 2004 Dmitry Yusupov, Alex Aizman
-# maintained by simple-iscsi-devel@lists.sourceforge.net
+# maintained by open-iscsi@@googlegroups.com
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published
@@ -19,6 +19,7 @@
 
 use Cwd;
 use Getopt::Std;
+use File::Basename;
 use Socket;
 use strict;
 
@@ -67,6 +68,72 @@ my $exp_cmdsn;
 my $max_cmdsn;
 
 my $iscsiadm_path;
+my ($filename, $dirname) = fileparse($0);
+
+dirname
+
+#
+# path where is looking for rc file
+#
+my @RC_PATH = (
+  # actual directory
+  "./",
+  # home directory
+  (getpwuid($>))[7]."/",
+  # program directory
+  $dirname,
+  # parent directory
+  "../",
+  # default config directory
+  "/etc/"
+);
+
+# separator keys and values
+my $RC_SEPARATOR = '=';
+
+# allow for multiple values of a single name
+my $MULTI_VALUES = 1;
+
+sub get_rc {
+	my ($rc_name) = @_;
+	my %rc_input;
+	my ( $key, $value, $rc_file );
+
+	foreach ( @RC_PATH ){
+		$rc_file = "$_"."$rc_name",last if ( -e "$_"."$rc_name") ;
+	}
+
+	fatal("file $rc_name doesn't exist") if ( !$rc_file );
+	fatal("can't read file $rc_name") unless ( -r $rc_file || -R $rc_file) ;
+
+	open (RC,"$rc_file") || fatal("can't open file $rc_file: $!");
+	while (<RC>) {
+		chomp;
+		# Skip blank text entry fields and comment
+		next if ( /^\s*#/ || /^\s*$/ || /^\s*\;/);
+
+		# Allow for multiple line values 
+		if (s/\\$//) {
+			$_ .= <RC>;
+		redo;
+	}
+	($key,$value) = /\s*(.*?)\s*${RC_SEPARATOR}\s*(.*)\s*/;
+
+	# skip empty values
+	# next if ( !$value || !$key );
+
+	# Allow for multiple values of a single name
+	if ($rc_input{"$key"} && $MULTI_VALUES) {
+		$rc_input{"$key"} .= ", " ;
+		$rc_input{"$key"} .= $value;
+	} else {
+		$rc_input{"$key"} = $value;
+	}
+	}
+	close(RC);
+	fatal("can't close file $rc_file: $1") if $?;
+	return %rc_input;
+}
 
 sub fatal {
 	print "iscsiadm: @_", "\n";
@@ -622,6 +689,31 @@ sub add_conn {
 
 ############################## end of library #################################
 
+sub config_read {
+	my ($file) = @_;
+
+	my %conf = get_rc($file);
+	$initiator_name = $conf{initiator_name};
+	$initiator_alias = $conf{initiator_alias};
+	@isid = $conf{isid};
+	$first_burst = $conf{first_burst};
+	$max_recv_dlength = $conf{max_recv_dlength};
+	$max_burst = $conf{max_burst};
+	$max_r2t = $conf{max_r2t};
+	$max_cnx = $conf{max_cnx};
+	$erl = $conf{erl};
+	$initial_r2t_en = $conf{initial_r2t_en};
+	$imm_data_en  = $conf{imm_data_en};
+	$hdrdgst_en = $conf{hdrdgst_en};
+	$datadgst_en = $conf{datadgst_en};
+	$ifmarker_en = $conf{ifmarker_en};
+	$ofmarker_en = $conf{ofmarker_en};
+	$pdu_inorder_en = $conf{pdu_inorder_en};
+	$dataseq_inorder_en = $conf{dataseq_inorder_en};
+	$time2wait = $conf{time2wait};
+	$time2retain = $conf{time2retain};
+}
+
 sub discovery_list_cb {
 	my ($id, $target_name, $target_portal) = @_;
 	printf "#%d %s [%s]\n", $id, $target_name, $target_portal;
@@ -762,11 +854,8 @@ sub hotplug_event() {
 
 init();
 hotplug_agent_check();
-if ($opt{f}) {
-	#
-	# Read Configuration
-	#
-	printf "not implemented\n";
+if (defined($opt{f})) {
+	config_read($opt{f});
 }
 if ($opt{a}) {
 	hotplug_event();

@@ -1,7 +1,7 @@
 /*
  * iSCSI Initiator Control Path
  * Copyright (C) 2004 Dmitry Yusupov, Alex Aizman
- * maintained by linux-storage-devel@lists.sourceforge.net
+ * maintained by open-iscsi@@googlegroups.com
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published
