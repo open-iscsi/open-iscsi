@@ -2,7 +2,7 @@
  * iSCSI Initiator Daemon
  *
  * Copyright (C) 2004 Dmitry Yusupov, Alex Aizman
- * maintained by open-iscsi@@googlegroups.com
+ * maintained by open-iscsi@googlegroups.com
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published
@@ -90,7 +90,7 @@ void event_loop(void)
 	poll_array[POLL_IPC].events = POLLIN;
 
 	while (1) {
-		res = poll(poll_array, POLL_MAX, SCHED_RESOLUTION);
+		res = poll(poll_array, POLL_MAX, ACTOR_RESOLUTION);
 		if (res <= 0) {
 			if (res == 0) {
 				actor_poll();

@@ -2,7 +2,7 @@
  * iSCSI usermode single-threaded scheduler
  *
  * Copyright (C) 2004 Dmitry Yusupov, Alex Aizman
- * maintained by open-iscsi@@googlegroups.com
+ * maintained by open-iscsi@googlegroups.com
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published
@@ -38,9 +38,9 @@ static uint64_t actor_jiffies = 0;
         __ret; \
 })
 
-#define SCHED_TICKS		actor_jiffies
-#define SCHED_TICKS_10MS(_a)	(_a)
-#define SCHED_MS_TO_TICKS(_a)	((_a)/SCHED_RESOLUTION)
+#define ACTOR_TICKS		actor_jiffies
+#define ACTOR_TICKS_10MS(_a)	(_a)
+#define ACTOR_MS_TO_TICKS(_a)	((_a)/ACTOR_RESOLUTION)
 
 static uint32_t
 actor_diff_time(actor_t *thread, uint32_t current_time)
@@ -70,7 +70,7 @@ actor_new(actor_t *thread, void (*callback)(void *), void *data)
 {
 	thread->item.q_forw = &thread->item;
 	thread->item.q_back = &thread->item;
-	thread->state = SCHED_NOTSCHEDULED;
+	thread->state = ACTOR_NOTSCHEDULED;
 	thread->callback = callback;
 	thread->data = data;
 }
@@ -79,15 +79,15 @@ void
 actor_delete(actor_t *thread)
 {
 	switch(thread->state) {
-	case SCHED_SCHEDULED:
-	case SCHED_WAITING:
+	case ACTOR_SCHEDULED:
+	case ACTOR_WAITING:
 		log_debug(1, "deleting a scheduled/waiting thread!");
 		remque(&thread->item);
 		break;
 	default:
 		break;
 	}
-	thread->state = SCHED_NOTSCHEDULED;
+	thread->state = ACTOR_NOTSCHEDULED;
 }
 
 static void
@@ -97,29 +97,29 @@ actor_schedule_private(actor_t *thread, uint32_t ttschedule)
 	struct qelem *next_item;
 	actor_t *next_thread;
 
-	delay_time = SCHED_MS_TO_TICKS(ttschedule);
-	current_time = SCHED_TICKS;
+	delay_time = ACTOR_MS_TO_TICKS(ttschedule);
+	current_time = ACTOR_TICKS;
 
 	/* convert ttscheduled msecs in 10s of msecs by dividing for now.
 	 * later we will change param to 10s of msecs */
 	switch(thread->state) {
-	case SCHED_WAITING:
+	case ACTOR_WAITING:
 		log_error("rescheduling a waiting thread!");
-	case SCHED_NOTSCHEDULED:
+	case ACTOR_NOTSCHEDULED:
 		/* if ttschedule is 0, put in scheduled queue and change
 		 * state to scheduled, else add current time to ttschedule and
 		 * insert in the queue at the correct point */
 		if (delay_time == 0) {
 			if (poll_in_progress) {
-				thread->state = SCHED_POLL_WAITING;
+				thread->state = ACTOR_POLL_WAITING;
 				insque(&thread->item, &poll_list);
 			} else {
-				thread->state = SCHED_SCHEDULED;
+				thread->state = ACTOR_SCHEDULED;
 				insque(&thread->item, &actor_list);
 			}
 		}
 		else {
-			thread->state = SCHED_WAITING;
+			thread->state = ACTOR_WAITING;
 			thread->ttschedule = delay_time;
 			thread->scheduled_at = current_time;
 
@@ -139,8 +139,8 @@ actor_schedule_private(actor_t *thread, uint32_t ttschedule)
 			insque(&thread->item, next_item);
 		}
 		break;
-	case SCHED_POLL_WAITING:
-	case SCHED_SCHEDULED:
+	case ACTOR_POLL_WAITING:
+	case ACTOR_SCHEDULED:
 		// don't do anything
 		break;
 	}
@@ -164,7 +164,7 @@ actor_timer(actor_t *thread, uint32_t timeout, void (*callback)(void *),
 int
 actor_timer_mod(actor_t *thread, uint32_t timeout, void *data)
 {
-	if (thread->state == SCHED_WAITING) {
+	if (thread->state == ACTOR_WAITING) {
 		remque(&thread->item);
 		thread->data = data;
 		actor_schedule_private(thread, timeout);
@@ -192,10 +192,10 @@ actor_check(uint32_t current_time)
 			  thread->ttschedule, current_time);
 
 		if (poll_in_progress) {
-			thread->state = SCHED_POLL_WAITING;
+			thread->state = ACTOR_POLL_WAITING;
 			insque(&thread->item, &poll_list);
 		} else {
-			thread->state = SCHED_SCHEDULED;
+			thread->state = ACTOR_SCHEDULED;
 			insque(&thread->item, &actor_list);
 		}
 	}
@@ -214,13 +214,13 @@ actor_poll(void)
 	/* don't check wait list every single poll.
 	 * get new time. Shift it to make 10s of msecs approx
 	 * if new time is not same as old time */
-	if (scheduler_loops++ > SCHED_MAX_LOOPS) {
+	if (scheduler_loops++ > ACTOR_MAX_LOOPS) {
 		/* try coming in about every 100 msecs */
-		current_time = SCHED_TICKS;
+		current_time = ACTOR_TICKS;
 		scheduler_loops = 0;
 		/* checking whether we are in the same tick... */
-		if ( SCHED_TICKS_10MS(current_time) !=
-		     SCHED_TICKS_10MS(previous_time)) {
+		if ( ACTOR_TICKS_10MS(current_time) !=
+		     ACTOR_TICKS_10MS(previous_time)) {
 			previous_time = current_time;
 			actor_check(current_time);
 		}
@@ -230,10 +230,10 @@ actor_poll(void)
 	poll_in_progress = 1;
 	while (actor_list.q_forw != &actor_list) {
 		actor_t *thread = (actor_t *)actor_list.q_forw;
-		if (thread->state != SCHED_SCHEDULED)
+		if (thread->state != ACTOR_SCHEDULED)
 			log_debug(1, "actor_list: thread state corrupted!");
 		remque(actor_list.q_forw);
-		thread->state = SCHED_NOTSCHEDULED;
+		thread->state = ACTOR_NOTSCHEDULED;
 		thread->callback(thread->data);
 	}
 	poll_in_progress = 0;
@@ -241,11 +241,11 @@ actor_poll(void)
 	while (poll_list.q_forw != &poll_list) {
 		actor_t *thread = (actor_t *)poll_list.q_forw;
 		remque(poll_list.q_forw);
-		if (thread->state != SCHED_POLL_WAITING)
+		if (thread->state != ACTOR_POLL_WAITING)
 			log_debug(1, "poll_list: thread state corrupted!");
-		thread->state = SCHED_SCHEDULED;
+		thread->state = ACTOR_SCHEDULED;
 		insque(&thread->item, &actor_list);
 	}
 
-	SCHED_TICKS++;
+	ACTOR_TICKS++;
 }
