@@ -157,6 +157,7 @@ typedef struct iscsi_conn {
 	int			in_progress_xmit; /* xmit state machine */
 	struct iscsi_mgmt_task	*login_mtask;	/* mtask used for login/text */
 	spinlock_t		lock;		/* general connection lock */
+	volatile int		suspend;
 
 	/* configuration */
 	int			max_recv_dlength;
@@ -273,6 +274,7 @@ typedef struct iscsi_cmd_task {
 	volatile int		in_progress;		/* State machine */
 	int			imm_count;		/* Imm-Data bytes */
 	int			imm_data_count;		/* Imm-Data-Out bytes */
+	int			r2t_data_count;		/* R2T Data-Out bytes */
 	int			data_count;		/* Remaining Data-Out */
 	struct scsi_cmnd	*sc;			/* Assoc. SCSI cmnd */
 	int			total_length;
