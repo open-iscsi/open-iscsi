@@ -36,14 +36,14 @@ function update_cfg() {
 
 function disktest_run() {
 	for bs in 512 1024 2048 4096 8192 16384 32768 65536 131072 1000000; do
-		echo -n "disktest -T2 -K8 -B$bs -r -ID /dev/sda: "
-		if ! disktest -T2 -K8 -B$bs -r -ID /dev/sda >/dev/null; then
+		echo -n "disktest -T2 -K8 -B$bs -r -ID $device: "
+		if ! disktest -T2 -K8 -B$bs -r -ID $device >/dev/null; then
 			echo "FAILED"
 			return 1;
 		fi
 		echo "PASSED"
-		echo -n "disktest -T2 -K8 -B$bs -E16 -w -ID /dev/sda: "
-		if ! disktest -T2 -K8 -B$bs -E16 -w -ID /dev/sda >/dev/null;then
+		echo -n "disktest -T2 -K8 -B$bs -E16 -w -ID $device: "
+		if ! disktest -T2 -K8 -B$bs -E16 -w -ID $device >/dev/null;then
 			echo "FAILED"
 			return 1;
 		fi
@@ -54,6 +54,7 @@ function disktest_run() {
 
 function fatal() {
 	echo "regression.sh: $1"
+	echo "Usage: regression.sh <node record> <device> [test#]"
 	exit 1
 }
 
@@ -62,11 +63,12 @@ function fatal() {
 test ! -e regression.dat && fatal "can not find regression.dat"
 test ! -e disktest && fatal "can not find disktest"
 test ! -e iscsiadm && fatal "can not find iscsiadm"
-test x$1 = x && fatal "parameter error
-	Usage: regression.sh <node record> [test#]"
+test x$1 = x && fatal "node record parameter error"
+test x$2 = x && fatal "SCSI device parameter error"
 
 record=$1
-test x$2 != x && begin=$2
+device=$2
+test x$3 != x && begin=$3
 
 i=0
 cat regression.dat | while read line; do
