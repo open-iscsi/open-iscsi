@@ -2518,7 +2518,7 @@ iscsi_session_create(iscsi_snx_h handle, uint32_t initial_cmdsn,
 
 	host = scsi_host_alloc(&iscsi_sht, sizeof(struct iscsi_session));
 	if (host == NULL) {
-		printk("can not allocate SCSI host for session %p\n",
+		printk("iSCSI: can not allocate SCSI host for session %p\n",
 			iscsi_ptr(handle));
 		goto host_alloc_fault;
 	}
@@ -2567,12 +2567,18 @@ iscsi_session_create(iscsi_snx_h handle, uint32_t initial_cmdsn,
 
 	res = scsi_add_host(host, NULL);
 	if (res) {
-		printk("can not add host_no %d (%d)\n", *host_no, res);
+		printk("iSCSI: can not add host_no %d (%d)\n", *host_no, res);
 		goto add_host_fault;
+	}
+
+	if (!try_module_get(THIS_MODULE)) {
+		printk("iSCSI: can not reserve module\n");
+		goto module_get_fault;
 	}
 
 	return iscsi_handle(session);
 
+module_get_fault:
 add_host_fault:
 	iscsi_r2tpool_free(session);
 r2tpool_alloc_fault:
@@ -2612,6 +2618,7 @@ iscsi_session_destroy(iscsi_snx_h snxh)
 	iscsi_pool_free(&session->immpool, (void**)session->imm_cmds);
 	iscsi_pool_free(&session->cmdpool, (void**)session->cmds);
 	scsi_host_put(session->host);
+	module_put(THIS_MODULE);
 }
 
 static int

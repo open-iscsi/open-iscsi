@@ -36,3 +36,5 @@ fixme:
 * send_pdu() should use new "anon" poll of mtasks. the anon-mtask will be freed
   right after its xmited
 * make InitiatorAlias configurable: see get_iscsi_initiatorname()
+* Ming> ./usr/iscsiadm -m discovery -t st -p littleboy.iplink.net
+        iscsiadm: cannot resolve host name littleboy.iplink
