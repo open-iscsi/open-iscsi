@@ -2185,38 +2185,17 @@ iscsi_send_pdu(iscsi_cnx_t cnxh, struct iscsi_hdr *hdr, char *data,
 	struct iscsi_conn *conn = iscsi_ptr(cnxh);
 	struct iscsi_session *session = conn->session;
 	struct iscsi_mgmt_task *mtask;
-	char *pdu_data = NULL;
 
 	/* FIXME: non-immediate control commands are not supported yet */
 	BUG_ON(!(hdr->opcode & ISCSI_OP_IMMEDIATE));
 
-	if (data_size) {
-		pdu_data = kmalloc(data_size, GFP_KERNEL);
-		if (!pdu_data)
-			return -ENOMEM;
-	}
-
 	spin_lock_bh(&session->lock);
 	if (conn->c_stage != ISCSI_CNX_INITIAL_STAGE && /* ! initial login */
 	    conn->c_stage != ISCSI_CNX_STOPPED) { /* ! re-open login */
-		int exp_statsn;
-
 		if (!__kfifo_get(session->immpool.queue, (void*)&mtask,
 				 sizeof(void*))) {
 			spin_unlock_bh(&session->lock);
 			return -ENOSPC;
-		}
-
-		/*
-		 * Check previous ExpStatSN. Free associated resources.
-		 */
-		exp_statsn = ((struct iscsi_nopout*)&mtask->hdr)->exp_statsn;
-		if ((int)(conn->exp_statsn - exp_statsn) <= 0) {
-			if (mtask->data) {
-				kfree(mtask->data);
-				mtask->data = NULL;
-				mtask->data_count = 0;
-			}
 		}
 	} else {
 		/*
@@ -2254,17 +2233,11 @@ iscsi_send_pdu(iscsi_cnx_t cnxh, struct iscsi_hdr *hdr, char *data,
 	}
 	spin_unlock_bh(&session->lock);
 
-	if (mtask->data) {
-		kfree(mtask->data);
-		mtask->data = NULL;
-		mtask->data_count = 0;
-	}
-
 	if (data_size) {
-		memcpy(pdu_data, data, data_size);
-		mtask->data = pdu_data;
+		memcpy(mtask->data, data, data_size);
 		mtask->data_count = data_size;
-	}
+	} else
+		mtask->data_count = 0;
 
 	mtask->xmstate = XMSTATE_IMM_HDR;
 
@@ -2565,9 +2538,18 @@ iscsi_session_create(iscsi_snx_t handle, uint32_t initial_cmdsn,
 		(void***)&session->imm_cmds, sizeof(struct iscsi_mgmt_task))) {
 		goto immpool_alloc_fault;
 	}
+
 	/* pre-format immediate cmds pool with ITT */
 	for (cmd_i = 0; cmd_i < session->imm_max; cmd_i++) {
 		session->imm_cmds[cmd_i]->itt = ISCSI_IMM_ITT_OFFSET + cmd_i;
+		session->imm_cmds[cmd_i]->data = kmalloc(
+			DEFAULT_MAX_RECV_DATA_SEGMENT_LENGTH, GFP_KERNEL);
+		if (!session->imm_cmds[cmd_i]->data) {
+			int j;
+			for (j = 0; j < cmd_i; j++)
+				kfree(session->imm_cmds[j]->data);
+			goto immdata_alloc_fault;
+		}
 	}
 
 	if (iscsi_r2tpool_alloc(session))
@@ -2583,7 +2565,10 @@ iscsi_session_create(iscsi_snx_t handle, uint32_t initial_cmdsn,
 module_get_fault:
 	iscsi_r2tpool_free(session);
 r2tpool_alloc_fault:
+	for (cmd_i = 0; cmd_i < session->imm_max; cmd_i++)
+		kfree(session->imm_cmds[cmd_i]->data);
 	iscsi_pool_free(&session->immpool, (void**)session->imm_cmds);
+immdata_alloc_fault:
 immpool_alloc_fault:
 	iscsi_pool_free(&session->cmdpool, (void**)session->cmds);
 cmdpool_alloc_fault:
@@ -2605,10 +2590,8 @@ iscsi_session_destroy(iscsi_snx_t snxh)
 		}
 	}
 
-	for (cmd_i = 0; cmd_i < session->imm_max; cmd_i++) {
-		if (session->imm_cmds[cmd_i]->data)
-			kfree(session->imm_cmds[cmd_i]->data);
-	}
+	for (cmd_i = 0; cmd_i < session->imm_max; cmd_i++)
+		kfree(session->imm_cmds[cmd_i]->data);
 
 	iscsi_r2tpool_free(session);
 	iscsi_pool_free(&session->immpool, (void**)session->imm_cmds);
