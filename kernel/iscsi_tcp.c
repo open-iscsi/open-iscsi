@@ -47,7 +47,7 @@ MODULE_LICENSE("GPL");
 
 /* #define DEBUG_TCP */
 /* #define DEBUG_SCSI */
-/* #define DEBUG_ASSERT */
+#define DEBUG_ASSERT
 
 #ifdef DEBUG_TCP
 #define debug_tcp(fmt...) printk("tcp: " fmt)
@@ -1241,7 +1241,7 @@ iscsi_unsolicit_data_init(struct iscsi_conn *conn, struct iscsi_cmd_task *ctask)
 /*
  * Initialize iSCSI SCSI_READ or SCSI_WRITE commands
  */
-static int
+static void
 iscsi_cmd_init(struct iscsi_conn *conn, struct iscsi_cmd_task *ctask,
 		struct scsi_cmnd *sc)
 {
@@ -1328,8 +1328,6 @@ iscsi_cmd_init(struct iscsi_conn *conn, struct iscsi_cmd_task *ctask,
 				    ctask->imm_count -
 				    ctask->imm_data_count;
 		if (ctask->imm_data_count) {
-			if (iscsi_unsolicit_data_init(conn, ctask))
-				return -ENOMEM;
 			ctask->in_progress |= IN_PROGRESS_UNSOLICIT_HEAD;
 		} else if (ctask->r2t_data_count) {
 			ctask->in_progress |= IN_PROGRESS_R2T_WAIT;
@@ -1349,7 +1347,6 @@ iscsi_cmd_init(struct iscsi_conn *conn, struct iscsi_cmd_task *ctask,
 			    (u8 *)ctask->hdrext);
 
 	ctask->in_progress |= IN_PROGRESS_HEAD;
-	return 0;
 }
 
 /*
@@ -1436,12 +1433,20 @@ iscsi_ctask_xmit(struct iscsi_conn *conn, struct iscsi_cmd_task *ctask)
 			iscsi_buf_init_sg(&ctask->sendbuf,
 				 &ctask->sg[ctask->sg_count++]);
 		}
+		if (ctask->imm_data_count) {
+			if (iscsi_unsolicit_data_init(conn, ctask))
+				return -ENOMEM;
+		}
 		ctask->in_progress &= ~IN_PROGRESS_BEGIN_WRITE_IMM;
 		if (p_state & IN_PROGRESS_R2T_WAIT)
 			return 0;
 	} else if (ctask->in_progress & IN_PROGRESS_BEGIN_WRITE) {
 		if (iscsi_sendhdr(conn, &ctask->headbuf))
 			return -EAGAIN;
+		if (ctask->imm_data_count) {
+			if (iscsi_unsolicit_data_init(conn, ctask))
+				return -ENOMEM;
+		}
 		ctask->in_progress &= ~IN_PROGRESS_BEGIN_WRITE;
 		if (p_state & IN_PROGRESS_R2T_WAIT)
 			return 0;

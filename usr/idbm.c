@@ -1169,6 +1169,7 @@ idbm_new_discovery(idbm_t *db, char *ip, int port,
 	 * !
 	 */
 	ptr = newinfo = strdup(info);
+	log_debug(6, "parsing discovery info:\n---\n%s\n---", ptr);
 	while (*ptr) {
 		char *dp;
 
@@ -1180,7 +1181,7 @@ idbm_new_discovery(idbm_t *db, char *ip, int port,
 		/* separate name and value */
 		if ((dp = strchr(ptr, '='))) {
 			*dp = '\0'; dp++;
-			if (!strcmp(ptr, "DTN")) {
+			if (!strcmp(ptr, "DTN") || !strcmp(ptr, "TN")) {
 				strncpy(nrec->name, dp, TARGET_NAME_MAXLEN);
 			} else if (!strcmp(ptr, "TT")) {
 				nrec->tpgt = strtoul(dp, NULL, 10);
@@ -1203,7 +1204,7 @@ idbm_new_discovery(idbm_t *db, char *ip, int port,
 					goto out;
 				}
 			} else {
-				log_error("can not parse discovery info value."
+				log_error("can not parse discovery info value. "
 					  "Bug?");
 				free(drec);
 				drec = NULL;
@@ -1211,14 +1212,17 @@ idbm_new_discovery(idbm_t *db, char *ip, int port,
 			}
 			log_debug(7, "discovery info key %s value %s", ptr, dp);
 			ptr = dp + strlen(dp) + 1;
-		} else if (*ptr == ';') {
+		} else if (*ptr == ';' && *(ptr+1) == '\0' && *(ptr+2) == '!') {
+			/* end of discovery info */
+			ptr += 3;
+		} else if (*ptr == ';' && *(ptr+1) == '\0') {
 			/* end of entry */
 			ptr += 2;
-		} else if (*ptr == '!') {
-			/* end of discovery info */
-			ptr += 2;
+		} else if (*ptr == '\0') {
+			ptr++;
 		} else {
-			log_error("can not parse discovery info key. Bug?");
+			log_error("can not parse discovery info key '..%s' "
+				  "Bug?", ptr);
 			free(drec);
 			drec = NULL;
 			goto out;

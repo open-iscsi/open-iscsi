@@ -469,10 +469,10 @@ process_sendtargets_response(struct string_buffer *sendtargets,
 		if (final) {
 			record_begin = 0;
 		}
-		log_debug(4, "sent %d targets to parent daemon", num_targets);
+		log_debug(4, "sent %d targets to the parent", num_targets);
 		return 1;
 	} else {
-		log_error("couldn't send %d targets to parent",
+		log_error("couldn't send %d targets to the parent",
 		       num_targets);
 		return 0;
 	}
