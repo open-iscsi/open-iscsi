@@ -1,5 +1,5 @@
 /*
- * iSCSI Configuration Reader
+ * iSCSI Configuration Reader/Updater
  *
  * Copyright (C) 2002 Cisco Systems, Inc.
  * maintained by linux-iscsi-devel@lists.sourceforge.net
@@ -30,7 +30,7 @@
 
 #define CHAP_AUTHENTICATION     1
 
-static void
+void
 iscsi_init_config_defaults(struct iscsi_config_defaults *defaults)
 {
 	/* enabled/disabled */

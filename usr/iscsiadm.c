@@ -26,14 +26,17 @@
 #include <unistd.h>
 #include <string.h>
 
+#include <sys/utsname.h>
 #include <sys/ioctl.h>
 #include <sys/socket.h>
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <sys/un.h>
 
-#include "iscsid.h"
+#include "initiator.h"
 #include "iscsiadm.h"
+#include "config.h"
+#include "log.h"
 
 static char program_name[] = "iscsiadm";
 
@@ -68,7 +71,35 @@ iSCSI Administration Utility.\n\
 int
 main(int argc, char **argv)
 {
+	struct utsname host_info; /* will use to compound initiator alias */
+	struct iscsi_config config;
 	int ch, longindex;
+
+	/* enable stdout logging */
+	log_daemon = 0;
+	log_init(program_name);
+
+	/* initialize configuration defaults */
+	memset(&config, 0, sizeof (config));
+	iscsi_init_config_defaults(&config.defaults);
+
+	memset(&daemon_config, 0, sizeof (daemon_config));
+	daemon_config.pid_file = PID_FILE;
+	daemon_config.config_file = CONFIG_FILE;
+	daemon_config.initiator_name_file = INITIATOR_NAME_FILE;
+	daemon_config.initiator_name =
+	    get_iscsi_initiatorname(daemon_config.initiator_name_file);
+	if (daemon_config.initiator_name == NULL) {
+		log_warning("exiting due to configuration error");
+		exit(1);
+	}
+
+	/* optional InitiatorAlias */
+	memset(&host_info, 0, sizeof (host_info));
+	if (uname(&host_info) >= 0) {
+		daemon_config.initiator_alias = strdup(host_info.nodename);
+	}
+
 
 	while ((ch = getopt_long(argc, argv, "v:h:",
 				 long_options, &longindex)) >= 0) {

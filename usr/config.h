@@ -332,6 +332,8 @@ extern void free_session_config(struct iscsi_session_config *config);
 
 extern void free_portal_descriptors(struct iscsi_portal_descriptor *portals);
 
+extern void iscsi_init_config_defaults(struct iscsi_config_defaults *defaults);
+
 /* comparisons */
 extern int same_portal_descriptor(struct iscsi_portal_descriptor *p1,
 				  struct iscsi_portal_descriptor *p2);

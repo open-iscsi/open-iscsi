@@ -8,17 +8,18 @@
 #include <stdarg.h>
 #include <stdio.h>
 #include <syslog.h>
-#include <sys/time.h>
 
 #include "log.h"
 
+char *log_name;
 int log_daemon = 1;
 int log_level = 0;
 
-void log_init(void)
+void log_init(char *program_name)
 {
+	log_name = program_name;
 	if (log_daemon)
-		openlog("iscsid", 0, LOG_DAEMON);
+		openlog(log_name, 0, LOG_DAEMON);
 }
 
 static void dolog(int prio, const char *fmt, va_list ap)
@@ -26,10 +27,7 @@ static void dolog(int prio, const char *fmt, va_list ap)
 	if (log_daemon)
 		vsyslog(prio, fmt, ap);
 	else {
-		struct timeval time;
-
-		gettimeofday(&time, NULL);
-		fprintf(stderr, "%ld.%06ld: ", time.tv_sec, time.tv_usec);
+		fprintf(stderr, "%s: ", log_name);
 		vfprintf(stderr, fmt, ap);
 		fprintf(stderr, "\n");
 		fflush(stderr);

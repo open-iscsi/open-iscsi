@@ -19,6 +19,8 @@
 #ifndef ISCSIADM_H
 #define ISCSIADM_H
 
+#include "types.h"
+
 /* ipc.c */
 #define ISCSIADM_NAMESPACE	"ISCSIADM_ABSTRACT_NAMESPACE"
 #define ISCSIADM_NAME_LEN	128

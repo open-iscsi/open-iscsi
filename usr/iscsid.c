@@ -31,8 +31,6 @@
 #include "iscsiadm.h"
 #include "log.h"
 
-#define CONFIG_FILE		"/etc/iscsid.conf"
-#define PID_FILE		"/var/run/iscsid.pid"
 #define SESSION_MAX		256
 #define POLL_MAX		(SESSION_MAX + 2)
 #define POLL_CTRL		0
@@ -187,7 +185,7 @@ main(int argc, char *argv[])
 		exit(-1);
 	}
 
-	log_init();
+	log_init(program_name);
 	if (log_daemon) {
 		char buf[64];
 		pid_t pid;

@@ -29,7 +29,7 @@
 extern int log_daemon;
 extern int log_level;
 
-extern void log_init(void);
+extern void log_init(char *program_name);
 extern void log_warning(const char *fmt, ...)
 	__attribute__ ((format (printf, 1, 2)));
 extern void log_error(const char *fmt, ...)

@@ -35,12 +35,6 @@ typedef struct iscsi_pdu {
 	unsigned int datasize;
 } iscsi_pdu_t;
 
-#define version()							\
-do {									\
-	printf("%s version %s\n", program_name, ISCSI_VERSION_STR);	\
-	exit(0);							\
-} while (0)
-
 /* ctldev.c */
 extern int ctrl_fd;
 
