@@ -1,0 +1,51 @@
+Introduction
+-------------
+Open iSCSI Projects is a high performance, transport independent,
+multi-platform implementation of iSCSI protocol (RFC3720).
+
+The Open-iSCSI is a from-scratch project licensed under GPL.
+
+Installation
+-------------
+As of today, the Open-iSCSI Initiator requires a host running the
+Linux operating system with a kernel version of 2.6.9. You need to
+enable "Cryptographic API" under "Cryptographic options" in the
+kernel config. You also need to enable "CRC32c CRC algorithm" if
+you use header or data digests. They are the kernel options,
+CONFIG_CRYPTO and CONFIG_CRYPTO_CRC32C, respectively.
+
+The Open-iSCSI Initiator consists of kernel modules, a user space
+daemon and management tools. The compilation of the kernel modules
+require the path to above kernel sources:
+
+	make KSRC=<kernel-src>
+
+Configuration
+-------------
+The default configuration file is /etc/iscsid.conf. This file contains
+only default configuration which might be overwritten with Discovery
+or manualy updated via iscsiadm utility.
+
+See the man page and the example file for the current syntax.
+(no man page yet...)
+
+Starting
+-------------
+
+Right now there is no installation script. Just load the module with
+command:
+
+	insmod iscsi_tcp.ko
+
+after that start daemon:
+
+	iscsid &
+
+and use administration utility to add/remove/update Discovery records,
+iSCSI Node records or monitor active iSCSI sessions:
+
+	./iscsiadm --help
+
+
+This file is not complete. We will appreciate if one could help us to
+finilize it! Thanks a lot!

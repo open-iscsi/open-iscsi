@@ -1,8 +1,8 @@
 #!/bin/bash
 #
-# iSCSI Regression Test Utility
-# Copyright (C) 2004 Dmitry Yusupov, Alex Aizman
-# maintained by open-iscsi@@googlegroups.com
+# Open-iSCSI Regression Test Utility
+# Copyright (C) 2004 Dmitry Yusupov
+# maintained by open-iscsi@googlegroups.com
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published
@@ -19,28 +19,19 @@
 
 PATH=$PATH:.
 
-function write_cfg() {
-cat << EOF > iscsi.conf
-initiator_name = iqn.com.dima
-initiator_alias = dima-um
-isid = '012345'
-first_burst = $first_burst
-max_recv_dlength = $max_recv_dlength
-max_burst = $max_burst
-max_r2t = $max_r2t
-max_cnx = $max_cnx
-erl = 0
-initial_r2t_en = $initial_r2t_en
-imm_data_en  = $imm_data_en
-hdrdgst_en = 0
-datadgst_en = 0
-ifmarker_en = 0
-ofmarker_en = 0
-pdu_inorder_en = 1
-dataseq_inorder_en = 1
-time2wait = 5
-time2retain = 20
-EOF
+function update_cfg() {
+./iscsiadm -m node -r $record -o update \
+	-n node.session.iscsi.ImmediateData -v $imm_data_en
+./iscsiadm -m node -r $record -o update \
+	-n node.session.iscsi.InitialR2T -v $initial_r2t_en
+./iscsiadm -m node -r $record -o update \
+	-n node.cnx[0].iscsi.HeaderDigest -v $hdrdgst_en
+./iscsiadm -m node -r $record -o update \
+	-n node.session.iscsi.FirstBurstLength -v $first_burst
+./iscsiadm -m node -r $record -o update \
+	-n node.session.iscsi.MaxBurstLength -v $max_burst
+./iscsiadm -m node -r $record -o update \
+	-n node.cnx[0].iscsi.MaxRecvDataSegmentLength -v $max_recv_dlength
 }
 
 function disktest_run() {
@@ -72,9 +63,9 @@ test ! -e regression.dat && fatal "can not find regression.dat"
 test ! -e disktest && fatal "can not find disktest"
 test ! -e iscsiadm && fatal "can not find iscsiadm"
 test x$1 = x && fatal "parameter error
-	Usage: regression.sh <ipaddr:port> [test#]"
+	Usage: regression.sh <node record> [test#]"
 
-portal=$1
+record=$1
 test x$2 != x && begin=$2
 
 i=0
@@ -85,25 +76,23 @@ cat regression.dat | while read line; do
 			continue
 		fi
 	fi
-	imm_data_en=`echo $line | awk '/^[0-9]/ {print $1}'`
+	imm_data_en=`echo $line | awk '/^[YesNo]+/ {print $1}'`
 	if test x$imm_data_en = x; then continue; fi
-	initial_r2t_en=`echo $line | awk '/^[0-9]/ {print $2}'`
-	first_burst=`echo $line | awk '/^[0-9]/ {print $3}'`
-	max_burst=`echo $line | awk '/^[0-9]/ {print $4}'`
-	max_recv_dlength=`echo $line | awk '/^[0-9]/ {print $5}'`
-	max_r2t=`echo $line | awk '/^[0-9]/ {print $6}'`
-	max_cnx=`echo $line | awk '/^[0-9]/ {print $7}'`
-	write_cfg
+	initial_r2t_en=`echo $line | awk '{print $2}'`
+	hdrdgst_en=`echo $line | awk '{print $3}'`
+	first_burst=`echo $line | awk '{print $4}'`
+	max_burst=`echo $line | awk '{print $5}'`
+	max_recv_dlength=`echo $line | awk '{print $6}'`
+	max_r2t=`echo $line | awk '{print $7}'`
+	update_cfg
 	echo "================== TEST #$i BEGIN ===================="
 	echo "imm_data_en = $imm_data_en"
 	echo "initial_r2t_en = $initial_r2t_en"
+	echo "hdrdgst_en = $hdrdgst_en"
 	echo "first_burst = $first_burst"
 	echo "max_burst = $max_burst"
 	echo "max_recv_dlength = $max_recv_dlength"
 	echo "max_r2t = $max_r2t"
-	echo "max_cnx = $max_cnx"
-	iscsiadm -f iscsi.conf -r1
-	iscsiadm -f iscsi.conf -d $portal
 	if ! disktest_run; then break; fi
 	let i=i+1
 done

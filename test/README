@@ -1,0 +1,7 @@
+This directory contains regression suite.
+
+I would appreciate if developer will run it at least once after
+modifications done before commit or mailing list submit.
+
+Thanks!
+Dmitry

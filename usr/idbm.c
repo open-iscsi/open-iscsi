@@ -547,7 +547,7 @@ idbm_open(char *filename, int flags)
 		if (access(dirname, F_OK) != 0) {
 			if (mkdir(dirname, 0755) != 0) {
 				free(dirname);
-				log_error("mkdir '%s' error", dirname);
+				log_error("can't create file '%s'", filename);
 				return NULL;
 			}
 		}
