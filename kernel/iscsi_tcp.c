@@ -17,8 +17,7 @@
  * See the file COPYING included with this distribution for more details.
  *
  * Credits:
- * Christoph Hellwig	: For reviewing SCSI MidLayer interface, adding
- *			  clear register/unregister interface
+ * Christoph Hellwig	: For reviewing the code, for comments and suggestions.
  */
 
 #include <linux/types.h>
@@ -112,8 +111,8 @@ iscsi_hdr_extract(struct iscsi_conn *conn)
 	if (conn->in.copy >= conn->hdr_size &&
 	    conn->in_progress != IN_PROGRESS_HEADER_GATHER) {
 		/*
-		 * Zero-copy PDU Header. Using connection's context
-		 * to store pointer for incomming PDU Header.
+		 * Zero-copy PDU Header: using connection context
+		 * to store header pointer.
 		 */
 		if (skb_shinfo(skb)->frag_list == NULL &&
 		    !skb_shinfo(skb)->nr_frags) {
@@ -133,10 +132,8 @@ iscsi_hdr_extract(struct iscsi_conn *conn)
 		int copylen;
 
 		/*
-		 * Oops... got PDU Header scattered accross SKB's.
-		 * Not much we can do but only copy Header into
-		 * the connection PDU Header placeholder.
-		 */
+		 * PDU header scattered accross SKB's,
+		 * copying it... This'll happen quite rarely. */
 		if (conn->in_progress == IN_PROGRESS_WAIT_HEADER) {
 			skb_copy_bits(skb, conn->in.offset,
 				&conn->hdr, conn->in.copy);
@@ -181,7 +178,7 @@ iscsi_ctask_cleanup(struct iscsi_conn *conn, struct iscsi_cmd_task *ctask)
 	BUG_ON(ctask->in_progress == IN_PROGRESS_IDLE);
 	if (sc->sc_data_direction == DMA_TO_DEVICE) {
 		struct iscsi_data_task *dtask, *n;
-		/* for WRITE, clean up Data-Out's if any */
+		/* WRITE: cleanup Data-Out's if any */
 		spin_lock(&conn->lock);
 		list_for_each_entry_safe(dtask, n, &ctask->dataqueue, item) {
 			list_del(&dtask->item);
@@ -277,7 +274,7 @@ iscsi_data_rsp(struct iscsi_conn *conn, struct iscsi_cmd_task *ctask)
 	int exp_cmdsn = ntohl(rhdr->exp_cmdsn);
 
 	/*
-	 * setup Data-In decrimental counter
+	 * setup Data-In byte counter (gets decremented..)
 	 */
 	ctask->data_count = conn->in.datalen;
 
@@ -332,7 +329,7 @@ iscsi_data_rsp(struct iscsi_conn *conn, struct iscsi_cmd_task *ctask)
  * Initialize first Data-Out within this R2T sequence and finds
  * proper data_offset within this SCSI command.
  *
- * This function called when connection lock taken.
+ * This function is called with connection lock taken.
  */
 static int
 iscsi_solicit_data_init(struct iscsi_conn *conn, struct iscsi_cmd_task *ctask,
@@ -435,7 +432,7 @@ iscsi_r2t_rsp(struct iscsi_conn *conn, struct iscsi_cmd_task *ctask)
 	session->max_cmdsn = max_cmdsn;
 	session->exp_cmdsn = exp_cmdsn;
 
-	/* FIXME: detect missing R2T by using R2TSN */
+	/* FIXME: use R2TSN to detect missing R2T */
 
 	/* fill-in new R2T associated with the task */
 	if (!__kfifo_get(ctask->r2tpool.queue, (void*)&r2t, sizeof(void*))) {
@@ -483,7 +480,7 @@ iscsi_hdr_recv(struct iscsi_conn *conn)
 
 	hdr = conn->in.hdr;
 
-	/* check for malformed pdu */
+	/* verify PDY length */
 	conn->in.datalen = ntoh24(hdr->dlength);
 	if (conn->in.datalen > conn->max_recv_dlength) {
 		printk("iSCSI: datalen %d > %d\n", conn->in.datalen,
@@ -524,7 +521,7 @@ iscsi_hdr_recv(struct iscsi_conn *conn)
 				     conn->in.ahslen);
 	}
 
-	/* save opcode & itt for later processing */
+	/* save opcode & itt for later */
 	conn->in.opcode = hdr->opcode;
 	conn->in.itt = ntohl(hdr->itt);
 
@@ -557,7 +554,7 @@ iscsi_hdr_recv(struct iscsi_conn *conn)
 				if (!conn->in.datalen) {
 					rc = iscsi_cmd_rsp(conn, ctask);
 				} else {
-					/* have sense or response data
+					/* got sense or response data;
 					 * copying PDU Header to the
 					 * connection's header
 					 * placeholder */
@@ -569,7 +566,7 @@ iscsi_hdr_recv(struct iscsi_conn *conn)
 			}
 			break;
 		case ISCSI_OP_SCSI_DATA_IN:
-			/* save flags for nonexception status */
+			/* save flags for non-exceptional status */
 			conn->in.flags = hdr->flags;
 			/* save cmd_status for sense data */
 			conn->in.cmd_status =
@@ -584,7 +581,7 @@ iscsi_hdr_recv(struct iscsi_conn *conn)
 		case ISCSI_OP_LOGOUT_RSP:
 		case ISCSI_OP_ASYNC_EVENT:
 		case ISCSI_OP_REJECT:
-			/* all PDU's above carry statsn. update it at once */
+			/* update ExpStatSN */
 			conn->exp_statsn = ntohl(hdr->statsn) + 1;
 			if (!conn->in.datalen) {
 				struct iscsi_mgmt_task *mtask;
@@ -653,8 +650,8 @@ iscsi_hdr_recv(struct iscsi_conn *conn)
 /*
  * iscsi_ctask_copy - copy skb bits to the destanation cmd task
  *
- * Function using iSCSI connection to keep copy counters and states.
- * In addition, cmd task keeps total "sent" counter across multiple Data-In's.
+ * The function calls skb_copy_bits() and updates per-connection and
+ * per-cmd byte counters.
  */
 static inline int
 iscsi_ctask_copy(struct iscsi_conn *conn, struct iscsi_cmd_task *ctask,
@@ -686,8 +683,7 @@ iscsi_ctask_copy(struct iscsi_conn *conn, struct iscsi_cmd_task *ctask,
 
 	rc = skb_copy_bits(conn->in.skb, conn->in.offset,
 			   (char*)buf + conn->data_copied, size);
-	/* we must always fit into skb->len, otherwise we have
-	 * a bug */
+	/* must fit into skb->len */
 	BUG_ON(rc);
 
 	conn->in.offset += size;
@@ -717,7 +713,7 @@ iscsi_ctask_copy(struct iscsi_conn *conn, struct iscsi_cmd_task *ctask,
 /*
  * iscsi_tcp_copy - copy skb bits to the destanation buffer
  *
- * Function using iSCSI connection to keep copy counters and states.
+ * The function calls skb_copy_bits() and updates per-connection byte counters.
  */
 static inline int
 iscsi_tcp_copy(struct iscsi_conn *conn, void *buf, int buf_size)
@@ -758,7 +754,7 @@ iscsi_data_recv(struct iscsi_conn *conn)
 	    BUG_ON(!(ctask->in_progress & IN_PROGRESS_READ &&
 		     conn->in_progress == IN_PROGRESS_DATA_RECV));
 	    /*
-	     * Copying Data-In to the Scsi_Cmnd
+	     * copying Data-In into the Scsi_Cmnd
 	     */
 	    if (sc->use_sg) {
 		int i;
@@ -769,7 +765,7 @@ iscsi_data_recv(struct iscsi_conn *conn)
 						sg[i].offset;
 			if ((rc = iscsi_ctask_copy(conn, ctask, dest,
 					     sg->length)) == -EAGAIN) {
-				/* continue with next SKB/PDU */
+				/* continue with the next SKB/PDU */
 				goto exit;
 			}
 			if (!rc) {
@@ -792,7 +788,7 @@ iscsi_data_recv(struct iscsi_conn *conn)
 		rc = 0;
 	    }
 
-	    /* check for nonexceptional status */
+	    /* check for non-exceptional status */
 	    if (conn->in.flags & ISCSI_FLAG_DATA_STATUS) {
 		    debug_scsi("done [sc %lx res %d itt 0x%x]\n",
 			       (long)sc, sc->result, ctask->itt);
@@ -804,9 +800,8 @@ iscsi_data_recv(struct iscsi_conn *conn)
 	break;
 	case ISCSI_OP_SCSI_CMD_RSP: {
 		/*
-		 * SCSI Sense Data.
-		 * copying the whole Data Segment to the connection's data
-		 * placeholder.
+		 * SCSI Sense Data:
+		 * copying the entire Data Segment.
 		 */
 		if (iscsi_tcp_copy(conn, conn->data, conn->in.datalen)) {
 			rc = -EAGAIN;
@@ -814,7 +809,7 @@ iscsi_data_recv(struct iscsi_conn *conn)
 		}
 
 		/*
-		 * Check for sense data
+		 * check for sense
 		 */
 		conn->in.hdr = &conn->hdr;
 		conn->senselen = ntohs(*(__u16*)conn->data);
@@ -860,7 +855,7 @@ exit:
 }
 
 /*
- * TCP record receive routine
+ * TCP receive
  */
 static int
 iscsi_tcp_data_recv(read_descriptor_t *rd_desc, struct sk_buff *skb,
@@ -887,20 +882,13 @@ more:
 
 	if (conn->in_progress == IN_PROGRESS_WAIT_HEADER ||
 	    conn->in_progress == IN_PROGRESS_HEADER_GATHER) {
-		/*
-		 * Extract PDU Header. It will be Zero-Copy in most
-		 * cases but in some cases it will be memcpy. For example
-		 * when PDU Header will be scattered across SKB's.
-		 */
 		rc = iscsi_hdr_extract(conn);
 		if (rc == -EAGAIN) {
 			goto nomore;
 		}
 
 		/*
-		 * Incomming PDU Header processing.
-		 * At this stage we process only common parts, like ITT,
-		 * DataSegmentLength, etc.
+		 * Verify and process incoming PDU header.
 		 */
 		rc = iscsi_hdr_recv(conn);
 		if (!rc && conn->in.datalen) {
@@ -964,7 +952,7 @@ iscsi_tcp_data_ready(struct sock *sk, int flag)
 
 	read_lock(&sk->sk_callback_lock);
 
-	/* We use rd_desc to pass 'conn' to iscsi_tcp_data_recv */
+	/* use rd_desc to pass 'conn' to iscsi_tcp_data_recv */
 	iscsi_conn_set(&rd_desc, conn);
 	rd_desc.count = 0;
 	tcp_read_sock(sk, &rd_desc, iscsi_tcp_data_recv);
@@ -1028,7 +1016,7 @@ iscsi_conn_restore_callbacks(struct iscsi_conn *conn)
 {
 	struct sock *sk = conn->sock->sk;
 
-	/* restore old callbacks */
+	/* restore socket callbacks, see also: iscsi_conn_set_callbacks() */
 	write_lock_bh(&sk->sk_callback_lock);
 	sk->sk_user_data    = NULL;
 	sk->sk_data_ready   = conn->old_data_ready;
@@ -1040,10 +1028,7 @@ iscsi_conn_restore_callbacks(struct iscsi_conn *conn)
 
 /*
  * iscsi_sendhdr - send PDU Header via tcp_sendpage()
- *
- * This function used for fast path send. Outgoing data presents
- * as struct iscsi_buf helper structure. This function is just light version
- * of iscsi_sendpage.
+ * (Tx, Fast Path)
  */
 static inline int
 iscsi_sendhdr(struct iscsi_conn *conn, struct iscsi_buf *buf)
@@ -1059,7 +1044,7 @@ iscsi_sendhdr(struct iscsi_conn *conn, struct iscsi_buf *buf)
 		flags |= MSG_MORE;
 	}
 
-	/* tcp_sendpage, do_tcp_sendpages, tcp_sendmsg */
+	/* sendpage */
 	res = sk->ops->sendpage(sk, buf->sg.page, offset, size, flags);
 	debug_tcp("sendhdr %lx %d bytes at offset %d sent %d res %d\n",
 		(long)page_address(buf->sg.page), size, offset, buf->sent, res);
@@ -1080,10 +1065,8 @@ iscsi_sendhdr(struct iscsi_conn *conn, struct iscsi_buf *buf)
 }
 
 /*
- * iscsi_sendpage - send one page of iSCSI Data-Out buffer
- *
- * This function used for fast path send. Outgoing data presents
- * as struct iscsi_buf helper structure.
+ * iscsi_sendpage - send one page of iSCSI Data-Out.
+ * (Tx, Fast Path)
  */
 static inline int
 iscsi_sendpage(struct iscsi_conn *conn, struct iscsi_buf *buf,
@@ -1137,7 +1120,7 @@ iscsi_sendpage(struct iscsi_conn *conn, struct iscsi_buf *buf,
  * Initialize next Data-Out within this R2T sequence and continue
  * to process next Scatter-Gather element(if any) of this SCSI command.
  *
- * This function called when connection lock taken.
+ * Called under connection lock.
  */
 static int
 iscsi_solicit_data_cont(struct iscsi_conn *conn, struct iscsi_cmd_task *ctask,
@@ -1346,7 +1329,7 @@ iscsi_cmd_init(struct iscsi_conn *conn, struct iscsi_cmd_task *ctask,
  * iscsi_mtask_xmit - xmit management(immediate) task
  *
  * The function can return -EAGAIN in which case caller must
- * call it again later or recover. '0' return code means successful
+ * call it again later, or recover. '0' return code means successful
  * xmit.
  *
  * Management xmit state machine consists of two states:
@@ -1371,8 +1354,9 @@ iscsi_mtask_xmit(struct iscsi_conn *conn, struct iscsi_mgmt_task *mtask)
 
 	if (mtask->in_progress == IN_PROGRESS_IMM_DATA) {
 		/* FIXME: implement.
-		 *        Keep in mind that virtual buffer
-		 *        spreaded accross multiple pages... */
+		 * Virtual buffer could be spreaded accross
+		   multiple pages...
+		*/
 		do {
 			if (iscsi_sendpage(conn, &mtask->sendbuf,
 					   &mtask->data_count,
@@ -1400,9 +1384,6 @@ iscsi_ctask_xmit(struct iscsi_conn *conn, struct iscsi_cmd_task *ctask)
 	debug_scsi("ctask deq [cid %d state %x itt 0x%x]\n",
 		conn->id, ctask->in_progress, ctask->itt);
 
-	/*
-	 * make sure state machine is not screwed.
-	 */
 	BUG_ON(!(ctask->in_progress &
 		 (IN_PROGRESS_HEAD|IN_PROGRESS_BEGIN_WRITE_IMM|
 		  IN_PROGRESS_BEGIN_WRITE|IN_PROGRESS_UNSOLICIT_HEAD|
@@ -1414,7 +1395,7 @@ iscsi_ctask_xmit(struct iscsi_conn *conn, struct iscsi_cmd_task *ctask)
 			return -EAGAIN;
 		}
 		if (ctask->hdr.flags & ISCSI_FLAG_CMD_READ) {
-			/* wait for DATA_RSP */
+			/* wait for Read data */
 			return 0;
 		}
 	}
@@ -1485,8 +1466,8 @@ _unsolicit_head_again:
 		}
 
 		/*
-		 * done with Data-Out's payload. Check if we have
-		 * to send another unsolicit Data-Out.
+		 * Done with the Data-Out. Next, check if we need
+		 * to send another unsolicited Data-Out.
 		 */
 		BUG_ON(ctask->imm_data_count < 0);
 		if (ctask->imm_data_count) {
@@ -1518,10 +1499,10 @@ _solicit_head_again:
 		if (r2t->cont_bit) {
 			BUG_ON(r2t->data_length - r2t->sent <= 0);
 			/*
-			 * we failed to fill-in Data-Out last time
-			 * due to memory allocation failure most likely
-			 * try it again until we succeed. Once we
-			 * succeed, reset cont_bit.
+			 * Failed to fill-in Data-Out last time
+			 * due to memory allocation failure (most likely);
+			 * try again. Once we succeed, reset
+			 * cont_bit.
 			 */
 			if (iscsi_solicit_data_cont(conn, ctask, r2t,
 				r2t->data_length - r2t->sent)) {
@@ -1541,14 +1522,13 @@ _solicit_head_again:
 		r2t = ctask->r2t;
 _solicit_again:
 		/*
-		 * send Data-Out's payload whitnin this R2T sequence.
+		 * send Data-Out whitnin this R2T sequence.
 		 */
 		if (r2t->data_count) {
 			if (iscsi_sendpage(conn, &r2t->sendbuf,
 					   &r2t->data_count,
 					   &r2t->sent)) {
-				/* do not insert back to the queue.
-				 * ctask will continue from current! r2t */
+				/* will continue with this ctask later.. */
 				return -EAGAIN;
 			}
 			if (r2t->data_count) {
@@ -1561,8 +1541,8 @@ _solicit_again:
 		}
 
 		/*
-		 * done with Data-Out's payload. Check if we have
-		 * to send another Data-Out whithin this R2T sequence.
+		 * Done with this Data-Out. Next, check if we have
+		 * to send another Data-Out for this R2T.
 		 */
 		BUG_ON(r2t->data_length - r2t->sent < 0);
 		left = r2t->data_length - r2t->sent;
@@ -1578,8 +1558,8 @@ _solicit_again:
 		}
 
 		/*
-		 * done with this R2T sequence. Check if we have
-		 * more outstanding R2T's ready to send.
+		 * Done with this R2T. Check if there are more
+		 * outstanding R2Ts ready to be processed.
 		 */
 		BUG_ON(ctask->r2t_data_count - r2t->data_length < 0);
 		ctask->r2t_data_count -= r2t->data_length;
@@ -1607,7 +1587,7 @@ _solicit_again:
 /*
  * iscsi_data_xmit - xmit any command into the scheduled connection
  *
- * The function can return -EAGAIN in which case caller must
+ * The function can return -EAGAIN in which case the caller must
  * re-schedule it again later or recover. '0' return code means successful
  * xmit.
  *
@@ -1619,11 +1599,11 @@ static int
 iscsi_data_xmit(struct iscsi_conn *conn)
 {
 	/*
-	 * Xmit Logic:
+	 * Transmit in the following order:
 	 *
-	 * 1) finish in progress task
-	 * 2) consume write responses if any
-	 * 3) consume new read/write request
+	 * 1) in progress task
+	 * 2) write responses, if any
+	 * 3) new read/write requests
 	 */
 
 	/* process non-immediate(command) queue */
@@ -1666,7 +1646,7 @@ iscsi_data_xmit(struct iscsi_conn *conn)
 			spin_unlock_bh(&session->lock);
 		}
 
-		/* done with current mtask */
+		/* done with the current mtask */
 		conn->mtask = NULL;
 
 		if (__kfifo_len(conn->xmitqueue) ||
@@ -1688,7 +1668,7 @@ iscsi_xmitworker(void *data)
 	struct iscsi_conn *conn = data;
 
 	/*
-	 * We serialize Xmit worker on per-connection basis.
+	 * serialize Xmit worker on a per-connection basis.
 	 */
 	down(&conn->xmitsema);
 	if (iscsi_data_xmit(conn)) {
@@ -1736,9 +1716,7 @@ iscsi_queuecommand(struct scsi_cmnd *sc, void (*done)(struct scsi_cmnd *))
 	}
 
 	/*
-	 * Check for iSCSI window and taking care of CmdSN wrap-around
-	 * issue. Assuming that running platform will guarantee atomic
-	 * double-word memory write operation.
+	 * Check for iSCSI window and take care of CmdSN wrap-around
 	 */
 	if ((int)(session->max_cmdsn - session->cmdsn) < 0) {
 		reason = FAILURE_WINDOW_CLOSED;
@@ -1891,8 +1869,8 @@ iscsi_pool_free(struct iscsi_queue *q, void **items)
 }
 
 /*
- * Allocate new connection within the session and bind it to
- * the provided socket
+ * Allocate a new connection within the session and bind it to
+ * the given socket.
  */
 static iscsi_cnx_h
 iscsi_conn_create(iscsi_snx_h snxh, iscsi_cnx_h handle,
@@ -1929,7 +1907,7 @@ iscsi_conn_create(iscsi_snx_h snxh, iscsi_cnx_h handle,
 	tp = tcp_sk(sk);
 	tp->nonagle = 1;
 
-	/* Intercepts TCP callbacks for sendfile like receive processing. */
+	/* Intercept TCP callbacks for sendfile like receive processing. */
 	iscsi_conn_set_callbacks(conn);
 
 	conn->c_stage = ISCSI_CNX_INITIAL_STAGE;
@@ -1939,7 +1917,7 @@ iscsi_conn_create(iscsi_snx_h snxh, iscsi_cnx_h handle,
 	conn->exp_statsn = 0;
 	conn->handle = handle;
 
-	/* some initial operational parameters */
+	/* initial operational parameters */
 	conn->hdr_size = sizeof(struct iscsi_hdr);
 	conn->max_recv_dlength = DEFAULT_MAX_RECV_DATA_SEGMENT_LENGTH;
 
@@ -2009,7 +1987,7 @@ sockfd_lookup_fault:
 }
 
 /*
- * Terminate connection queues, free all associated resources
+ * Terminate connection queues, free all associated resources.
  */
 static void
 iscsi_conn_destroy(iscsi_cnx_h cnxh)
@@ -2025,11 +2003,9 @@ iscsi_conn_destroy(iscsi_cnx_h cnxh)
 	sock_release(conn->sock);
 
 	/*
-	 * to simplify recovery, we'll block caller(which is essentialy
-	 * user's control plane ioctl/syscall/socket) until all commands
-	 * for this connection timed out. When command is timed out or
-	 * failed it must be returned back to the original pool (immediate
-	 * or command's pool).
+	 * Block control plane caller (a thread coming from
+	 * a user space) until all the in-progress commands for this connection
+	 * time out or fail.
 	 */
 	conn->c_stage = ISCSI_CNX_CLEANUP_WAIT; wmb();
 	while (1) {
@@ -2050,7 +2026,7 @@ iscsi_conn_destroy(iscsi_cnx_h cnxh)
 			crypto_free_tfm(conn->rx_tfm);
 	}
 
-	/* now free MaxRecvDataSegmentLength */
+	/* free conn->data, size = MaxRecvDataSegmentLength */
 	if (conn->max_recv_dlength <= PAGE_SIZE)
 		kfree(conn->data);
 	else
@@ -2090,7 +2066,7 @@ iscsi_conn_bind(iscsi_snx_h snxh, iscsi_cnx_h cnxh, int is_leading)
 	struct iscsi_conn *conn = iscsi_ptr(cnxh);
 
 	/*
-	 * Bind iSCSI connection and session
+	 * bind new iSCSI connection to session
 	 */
 	conn->session = session;
 
@@ -2157,7 +2133,7 @@ iscsi_send_pdu(iscsi_cnx_h cnxh, struct iscsi_hdr *hdr, char *data,
 	struct iscsi_mgmt_task *mtask;
 	char *pdu_data = NULL;
 
-	/* non-immediate control commands are not supported yet */
+	/* FIXME: non-immediate control commands are not supported yet */
 	BUG_ON(!(hdr->opcode & ISCSI_OP_IMMEDIATE));
 
 	if (data_size) {
@@ -2185,9 +2161,8 @@ iscsi_send_pdu(iscsi_cnx_h cnxh, struct iscsi_hdr *hdr, char *data,
 		}
 	} else {
 		/*
-		 * If connection is about to start but not started yet
-		 * than we preserve ITT for all requests within this
-		 * login and text negotiation sequence. mtask is
+		 * Preserve ITT for all requests within this
+		 * login or text negotiation sequence. Note that mtask is
 		 * preallocated at cnx_create() and will be released
 		 * at cnx_start() or cnx_destroy().
 		 */
@@ -2195,7 +2170,7 @@ iscsi_send_pdu(iscsi_cnx_h cnxh, struct iscsi_hdr *hdr, char *data,
 	}
 
 	/*
-	 * pre-format CmdSN and ExpStatSN for outgoing PDU's.
+	 * pre-format CmdSN and ExpStatSN for outgoing PDU.
 	 */
 	if (hdr->itt != ISCSI_RESERVED_TAG) {
 		hdr->itt = htonl(mtask->itt);
@@ -2237,9 +2212,9 @@ iscsi_send_pdu(iscsi_cnx_h cnxh, struct iscsi_hdr *hdr, char *data,
 	if (mtask->data_count) {
 		iscsi_buf_init_virt(&mtask->sendbuf, (char*)mtask->data,
 				    mtask->data_count);
-		/* FIXME: implement convertion of mtask->data into 1st
+		/* FIXME: implement: convertion of mtask->data into 1st
 		 *        mtask->sendbuf. Keep in mind that virtual buffer
-		 *        spreaded accross multiple pages... */
+		 *        could be spreaded accross multiple pages... */
 		if(mtask->sendbuf.sg.offset + mtask->data_count > PAGE_SIZE) {
 			if (conn->c_stage == ISCSI_CNX_STARTED) {
 				spin_lock_bh(&session->lock);
@@ -2266,18 +2241,19 @@ iscsi_r2tpool_alloc(struct iscsi_session *session)
 	int i;
 	int cmd_i;
 
-	/* initialize per-task R2T queue with size based on
-	 * session's login result MaxOutstandingR2T */
+	/*
+	 * initialize per-task: R2T pool and xmit queue
+	 */
 	for (cmd_i = 0; cmd_i < session->cmds_max; cmd_i++) {
-		struct iscsi_cmd_task *ctask = session->cmds[cmd_i];
+	        struct iscsi_cmd_task *ctask = session->cmds[cmd_i];
 
-		/* now initialize per-task R2T pool */
+		/* R2T pool */
 		if (iscsi_pool_init(&ctask->r2tpool, session->max_r2t,
 			(void***)&ctask->r2ts, sizeof(struct iscsi_r2t_info))) {
 			goto r2t_alloc_fault;
 		}
 
-		/* now initialize per-task R2T queue */
+		/* R2T xmit queue */
 		ctask->r2tqueue = kfifo_alloc(session->max_r2t * sizeof(void*),
 						GFP_KERNEL, NULL);
 		if (ctask->r2tqueue == ERR_PTR(-ENOMEM)) {
@@ -2286,9 +2262,9 @@ iscsi_r2tpool_alloc(struct iscsi_session *session)
 		}
 
 		/*
-		 * since under some configurations number of
-		 * Data-Out PDU's within R2T-sequence can be quite big
-		 * we are using mempool
+		 * number of
+		 * Data-Out PDU's within R2T-sequence can be quite big;
+		 * using mempool
 		 */
 		ctask->datapool = mempool_create(ISCSI_CMD_DATAPOOL_SIZE,
 						 mempool_alloc_slab,
@@ -2350,7 +2326,7 @@ iscsi_session_create(iscsi_snx_h handle, uint32_t initial_cmdsn,
 	struct Scsi_Host *host;
 	int res;
 
-	/* FIXME: verify "uniqueness" of session's handle */
+	/* FIXME: verify "unique-ness" of the session's handle */
 
 	if ((host = scsi_host_alloc(&iscsi_sht,
 			    sizeof(struct iscsi_session))) == NULL) {
@@ -2388,7 +2364,7 @@ iscsi_session_create(iscsi_snx_h handle, uint32_t initial_cmdsn,
 	spin_lock_init(&session->conn_lock);
 	INIT_LIST_HEAD(&session->connections);
 
-	/* initialize immediate commands pool */
+	/* initialize immediate command pool */
 	if (iscsi_pool_init(&session->immpool, session->imm_max,
 		(void***)&session->imm_cmds, sizeof(struct iscsi_mgmt_task))) {
 		goto immpool_alloc_fault;
