@@ -337,8 +337,8 @@ session_create(node_rec_t *rec)
 	}
 
 	/* initalize per-session event processor */
-	sched_new(&session->mainloop, __session_mainloop, session);
-	sched_schedule(&session->mainloop);
+	actor_new(&session->mainloop, __session_mainloop, session);
+	actor_schedule(&session->mainloop);
 
 	/* session's operational parameters */
 	session->initial_r2t = rec->session.iscsi.InitialR2T;
@@ -373,7 +373,7 @@ session_destroy(iscsi_session_t *session)
 {
 	queue_flush(session->queue);
 	queue_destroy(session->queue);
-	sched_delete(&session->mainloop);
+	actor_delete(&session->mainloop);
 	free(session);
 }
 
@@ -395,11 +395,12 @@ __session_cnx_poll(queue_item_t *item)
 		if (rc == 0) {
 			/* timedout: poll again */
 			queue_produce(session->queue, EV_CNX_POLL, qtask, 0, 0);
-			sched_schedule(&session->mainloop);
+			actor_schedule(&session->mainloop);
 		} else if (rc > 0) {
 			/* connected! proceed to the next step */
 			iscsi_login_context_t *c = &conn->login_context;
 
+			c->kernel_io = 1;
 			c->cid = conn->id;
 			c->buffer = calloc(1,
 					DEFAULT_MAX_RECV_DATA_SEGMENT_LENGTH);

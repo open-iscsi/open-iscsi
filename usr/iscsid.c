@@ -28,7 +28,7 @@
 #include <sys/utsname.h>
 
 #include "iscsid.h"
-#include "sched.h"
+#include "actor.h"
 #include "ipc.h"
 #include "log.h"
 
@@ -39,6 +39,7 @@
 /* global config info */
 struct iscsi_daemon_config daemon_config;
 struct iscsi_daemon_config *dconfig = &daemon_config;
+iscsi_provider_t provider[PROVIDER_MAX];
 
 static char program_name[] = "iscsid";
 int ctrl_fd, ipc_fd;
@@ -143,7 +144,7 @@ event_loop(void)
 		res = poll(poll_array, POLL_MAX, SCHED_RESOLUTION);
 		if (res <= 0) {
 			if (res == 0) {
-				sched_poll();
+				actor_poll();
 				continue;
 			}
 			if (res < 0 && errno != EINTR) {
@@ -283,10 +284,17 @@ main(int argc, char *argv[])
 	log_warning("version %s variant (%s)",
 		ISCSI_VERSION_STR, ISCSI_DATE_STR);
 
+	/* FIXME: implement Provider Discovery */
+	provider[0].type = PROVIDER_SOFT_TCP;
+	provider[0].status = PROVIDER_STATUS_OPERATIONAL;
+	strcpy(provider[0].name, "Linux SoftNET TCP");
+	provider[0].sessions.q_forw = &provider[0].sessions;
+	provider[0].sessions.q_back = &provider[0].sessions;
+
 	/*
 	 * Start Main Event Loop
 	 */
-	sched_init();
+	actor_init();
 	event_loop();
 
 	/* we're done */

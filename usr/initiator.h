@@ -27,7 +27,7 @@
 #include "auth.h"
 #include "ipc.h"
 #include "config.h"
-#include "sched.h"
+#include "actor.h"
 #include "queue.h"
 
 #define CONFIG_FILE		"/etc/iscsid.conf"
@@ -90,6 +90,7 @@ typedef struct iscsi_login_context {
 	int timeout;
 	int final;
 	enum iscsi_login_status ret;
+	int kernel_io;
 } iscsi_login_context_t;
 
 struct iscsi_session;
@@ -101,7 +102,7 @@ typedef struct iscsi_conn {
 	iscsi_login_context_t login_context;
 	uint8_t *rx_buffer;
 	iscsi_cnx_state_e state;
-	sched_t connect_timer;
+	actor_t connect_timer;
 
 	/* login state machine */
 	int current_stage;
@@ -201,9 +202,37 @@ typedef struct iscsi_session {
 	iscsi_conn_t cnx[ISCSI_CNX_MAX];
 
 	/* session's processing */
-	sched_t mainloop;
+	actor_t mainloop;
 	queue_t *queue;
 } iscsi_session_t;
+
+#define PROVIDER_MAX		16
+#define PROVIDER_NAME_MAXLEN	64
+
+typedef enum iscsi_provider_e {
+	PROVIDER_UNKNOWN		= 0,
+	PROVIDER_SOFT_TCP		= 1,
+	PROVIDER_SOFT_ISER		= 2,
+	PROVIDER_ISER			= 3,
+	PROVIDER_ACCEL_ISCSI		= 4,
+} iscsi_provider_e;
+
+typedef enum iscsi_provider_status_e {
+	PROVIDER_STATUS_UNKNOWN		= 0,
+	PROVIDER_STATUS_OPERATIONAL	= 1,
+	PROVIDER_STATUS_FAILED		= 2,
+} iscsi_provider_status_e;
+
+/* represents data path provider */
+typedef struct iscsi_provider_t {
+	iscsi_provider_e type;
+	iscsi_provider_status_e status;
+	char name[PROVIDER_NAME_MAXLEN];
+	struct qelem sessions;
+} iscsi_provider_t;
+
+/* iscsid.c */
+extern iscsi_provider_t provider[PROVIDER_MAX];
 
 /* login.c */
 

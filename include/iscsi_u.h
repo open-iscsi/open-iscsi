@@ -20,21 +20,28 @@
 #ifndef ISCSI_U_H
 #define ISCSI_U_H
 
-#define UEVENT_IN_BASE		10
-#define UEVENT_OUT_BASE		100
+#define UEVENT_BASE		10
+#define KEVENT_BASE		100
 
+/* up events */
 typedef enum iscsi_uevent_e {
-	ISCSI_UEVENT_UNKNOWN			= 0,
-	ISCSI_UEVENT_OUT_CNX_ERROR		= UEVENT_OUT_BASE + 1,
-	ISCSI_UEVENT_OUT_RECV_PDU		= UEVENT_OUT_BASE + 2,
-	ISCSI_UEVENT_IN_CREATE_SESSION		= UEVENT_IN_BASE + 1,
-	ISCSI_UEVENT_IN_DESTROY_SESSION		= UEVENT_IN_BASE + 2,
-	ISCSI_UEVENT_IN_CREATE_CNX		= UEVENT_IN_BASE + 3,
-	ISCSI_UEVENT_IN_DESTROY_CNX		= UEVENT_IN_BASE + 4,
+	ISCSI_UEVENT_UNKNOWN		= 0,
+	ISCSI_UEVENT_CREATE_SESSION	= UEVENT_BASE + 1,
+	ISCSI_UEVENT_DESTROY_SESSION	= UEVENT_BASE + 2,
+	ISCSI_UEVENT_CREATE_CNX		= UEVENT_BASE + 3,
+	ISCSI_UEVENT_DESTROY_CNX	= UEVENT_BASE + 4,
+	ISCSI_UEVENT_SEND_PDU		= UEVENT_BASE + 4,
 } iscsi_uevent_e;
 
+/* down events */
+typedef enum iscsi_kevent_e {
+	ISCSI_KEVENT_UNKNOWN		= 0,
+	ISCSI_KEVENT_CNX_ERROR		= KEVENT_BASE + 1,
+	ISCSI_KEVENT_RECV_PDU		= KEVENT_BASE + 2,
+} iscsi_kevent_e;
+
 typedef struct iscsi_uevent {
-	iscsi_uevent_e type;
+	int type; /* k/u events type */
 
 	union {
 		/* messages */

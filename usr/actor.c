@@ -18,18 +18,18 @@
  */
 
 #include <search.h>
-#include "sched.h"
+#include "actor.h"
 #include "log.h"
 
 static struct qelem pend_list;
 static struct qelem poll_list;
-static struct qelem sched_list;
+static struct qelem actor_list;
 static uint32_t previous_time;
 static uint32_t scheduler_loops;
 static int poll_in_progress;
-static uint64_t sched_jiffies = 0;
+static uint64_t actor_jiffies = 0;
 
-#define sched_diff(_time1, _time2) ({ \
+#define actor_diff(_time1, _time2) ({ \
         uint32_t __ret; \
         if ((_time2) >= (_time1)) \
            __ret = (_time2) - (_time1); \
@@ -38,35 +38,35 @@ static uint64_t sched_jiffies = 0;
         __ret; \
 })
 
-#define SCHED_TICKS		sched_jiffies
+#define SCHED_TICKS		actor_jiffies
 #define SCHED_TICKS_10MS(_a)	(_a)
 #define SCHED_MS_TO_TICKS(_a)	((_a)/SCHED_RESOLUTION)
 
 static uint32_t
-sched_diff_time(sched_t *thread, uint32_t current_time)
+actor_diff_time(actor_t *thread, uint32_t current_time)
 {
-	uint32_t diff_time = sched_diff(thread->scheduled_at, current_time);
+	uint32_t diff_time = actor_diff(thread->scheduled_at, current_time);
 	if(diff_time >= thread->ttschedule)
 		return 0;
 	return (thread->ttschedule - diff_time);
 }
 
 void
-sched_init(void)
+actor_init(void)
 {
 	poll_in_progress = 0;
 	previous_time = 0;
 	scheduler_loops = 0;
 	pend_list.q_forw = &pend_list;
 	pend_list.q_back = &pend_list;
-	sched_list.q_forw = &sched_list;
-	sched_list.q_back = &sched_list;
+	actor_list.q_forw = &actor_list;
+	actor_list.q_back = &actor_list;
 	poll_list.q_forw = &poll_list;
 	poll_list.q_back = &poll_list;
 }
 
 void
-sched_new(sched_t *thread, void (*callback)(void *), void *data)
+actor_new(actor_t *thread, void (*callback)(void *), void *data)
 {
 	thread->item.q_forw = &thread->item;
 	thread->item.q_back = &thread->item;
@@ -76,7 +76,7 @@ sched_new(sched_t *thread, void (*callback)(void *), void *data)
 }
 
 void
-sched_delete(sched_t *thread)
+actor_delete(actor_t *thread)
 {
 	switch(thread->state) {
 	case SCHED_SCHEDULED:
@@ -91,11 +91,11 @@ sched_delete(sched_t *thread)
 }
 
 static void
-sched_schedule_private(sched_t *thread, uint32_t ttschedule)
+actor_schedule_private(actor_t *thread, uint32_t ttschedule)
 {
 	uint32_t delay_time, current_time, diff_time;
 	struct qelem *next_item;
-	sched_t *next_thread;
+	actor_t *next_thread;
 
 	delay_time = SCHED_MS_TO_TICKS(ttschedule);
 	current_time = SCHED_TICKS;
@@ -115,7 +115,7 @@ sched_schedule_private(sched_t *thread, uint32_t ttschedule)
 				insque(&thread->item, &poll_list);
 			} else {
 				thread->state = SCHED_SCHEDULED;
-				insque(&thread->item, &sched_list);
+				insque(&thread->item, &actor_list);
 			}
 		}
 		else {
@@ -126,8 +126,8 @@ sched_schedule_private(sched_t *thread, uint32_t ttschedule)
 			/* insert new entry in sort order */
 			next_item = pend_list.q_forw;
 			while (next_item != &pend_list) {
-				next_thread = (sched_t *)next_item;
-				diff_time = sched_diff(
+				next_thread = (actor_t *)next_item;
+				diff_time = actor_diff(
 				      next_thread->scheduled_at, current_time);
 				if ((diff_time - next_thread->ttschedule) >
 				     delay_time)
@@ -148,38 +148,38 @@ sched_schedule_private(sched_t *thread, uint32_t ttschedule)
 }
 
 void
-sched_schedule(sched_t *thread)
+actor_schedule(actor_t *thread)
 {
-	sched_schedule_private(thread, 0);
+	actor_schedule_private(thread, 0);
 }
 
 void
-sched_timer(sched_t *thread, uint32_t timeout, void (*callback)(void *),
+actor_timer(actor_t *thread, uint32_t timeout, void (*callback)(void *),
 	    void *data)
 {
-	sched_new(thread, callback, data);
-	sched_schedule_private(thread, timeout);
+	actor_new(thread, callback, data);
+	actor_schedule_private(thread, timeout);
 }
 
 int
-sched_timer_mod(sched_t *thread, uint32_t timeout, void *data)
+actor_timer_mod(actor_t *thread, uint32_t timeout, void *data)
 {
 	if (thread->state == SCHED_WAITING) {
 		remque(&thread->item);
 		thread->data = data;
-		sched_schedule_private(thread, timeout);
+		actor_schedule_private(thread, timeout);
 		return 1;
 	}
 	return 0;
 }
 
 void
-sched_check(uint32_t current_time)
+actor_check(uint32_t current_time)
 {
 	while (pend_list.q_forw != &pend_list) {
-		sched_t *thread = (sched_t *)pend_list.q_forw;
+		actor_t *thread = (actor_t *)pend_list.q_forw;
 
-		if (sched_diff_time(thread, current_time)) {
+		if (actor_diff_time(thread, current_time)) {
 			/* wait some more */
 			break;
 		}
@@ -196,19 +196,19 @@ sched_check(uint32_t current_time)
 			insque(&thread->item, &poll_list);
 		} else {
 			thread->state = SCHED_SCHEDULED;
-			insque(&thread->item, &sched_list);
+			insque(&thread->item, &actor_list);
 		}
 	}
 }
 
 void
-sched_poll(void)
+actor_poll(void)
 {
 	uint32_t current_time;
 
 	/* check that there are no any concurrency */
 	if (poll_in_progress) {
-		log_error("concurrent sched_poll() is not allowed");
+		log_error("concurrent actor_poll() is not allowed");
 	}
 
 	/* don't check wait list every single poll.
@@ -222,29 +222,29 @@ sched_poll(void)
 		if ( SCHED_TICKS_10MS(current_time) !=
 		     SCHED_TICKS_10MS(previous_time)) {
 			previous_time = current_time;
-			sched_check(current_time);
+			actor_check(current_time);
 		}
 	}
 
 	/* the following code to check in the main data path */
 	poll_in_progress = 1;
-	while (sched_list.q_forw != &sched_list) {
-		sched_t *thread = (sched_t *)sched_list.q_forw;
+	while (actor_list.q_forw != &actor_list) {
+		actor_t *thread = (actor_t *)actor_list.q_forw;
 		if (thread->state != SCHED_SCHEDULED)
-			log_debug(1, "sched_list: thread state corrupted!");
-		remque(sched_list.q_forw);
+			log_debug(1, "actor_list: thread state corrupted!");
+		remque(actor_list.q_forw);
 		thread->state = SCHED_NOTSCHEDULED;
 		thread->callback(thread->data);
 	}
 	poll_in_progress = 0;
 
 	while (poll_list.q_forw != &poll_list) {
-		sched_t *thread = (sched_t *)poll_list.q_forw;
+		actor_t *thread = (actor_t *)poll_list.q_forw;
 		remque(poll_list.q_forw);
 		if (thread->state != SCHED_POLL_WAITING)
 			log_debug(1, "poll_list: thread state corrupted!");
 		thread->state = SCHED_SCHEDULED;
-		insque(&thread->item, &sched_list);
+		insque(&thread->item, &actor_list);
 	}
 
 	SCHED_TICKS++;

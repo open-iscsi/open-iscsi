@@ -1463,6 +1463,7 @@ iscsi_login(iscsi_session_t *session, int cid, char *buffer, size_t bufsize,
 	iscsi_conn_t *conn = &session->cnx[cid];
 	iscsi_login_context_t *c = &conn->login_context;
 
+	c->kernel_io = 0;
 	c->cid = cid;
 	c->buffer = buffer;
 	c->bufsize = bufsize;

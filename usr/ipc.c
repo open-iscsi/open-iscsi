@@ -83,7 +83,7 @@ __connect_timedout(void *data)
 
 	if (conn->state == STATE_WAIT_CONNECT) {
 		queue_produce(session->queue, EV_CNX_TIMER, qtask, 0, 0);
-		sched_schedule(&session->mainloop);
+		actor_schedule(&session->mainloop);
 	}
 }
 
@@ -137,8 +137,8 @@ ipc_session_login(queue_task_t *qtask, int rid)
 
 	conn->state = STATE_WAIT_CONNECT;
 	queue_produce(session->queue, EV_CNX_POLL, qtask, 0, 0);
-	sched_schedule(&session->mainloop);
-	sched_timer(&conn->connect_timer, conn->login_timeout*100,
+	actor_schedule(&session->mainloop);
+	actor_timer(&conn->connect_timer, conn->login_timeout*100,
 		    __connect_timedout, qtask);
 	return IPC_OK;
 }

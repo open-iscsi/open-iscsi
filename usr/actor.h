@@ -24,29 +24,29 @@
 #define SCHED_RESOLUTION	250	/* in millis */
 #define SCHED_MAX_LOOPS		1
 
-typedef enum sched_state_e {
+typedef enum actor_state_e {
     SCHED_WAITING,
     SCHED_SCHEDULED,
     SCHED_NOTSCHEDULED,
     SCHED_POLL_WAITING
-} sched_state_e;
+} actor_state_e;
 
-typedef struct sched {
+typedef struct actor {
     struct qelem item;
-    sched_state_e state;
+    actor_state_e state;
     void *data;
     void (*callback)(void * );
     uint32_t scheduled_at;
     uint32_t ttschedule;
-} sched_t;
+} actor_t;
 
-extern void sched_new(sched_t *thread, void (*callback)(void *), void * data);
-extern void sched_delete(sched_t *thread);
-extern void sched_schedule(sched_t *thread);
-extern void sched_timer(sched_t *thread, uint32_t timeout,
+extern void actor_new(actor_t *thread, void (*callback)(void *), void * data);
+extern void actor_delete(actor_t *thread);
+extern void actor_schedule(actor_t *thread);
+extern void actor_timer(actor_t *thread, uint32_t timeout,
 			void (*callback)(void *), void *data);
-extern int sched_timer_mod(sched_t *thread, uint32_t new_timeout, void *data);
-extern void sched_poll(void);
-extern void sched_init(void);
+extern int actor_timer_mod(actor_t *thread, uint32_t new_timeout, void *data);
+extern void actor_poll(void);
+extern void actor_init(void);
 
 #endif
