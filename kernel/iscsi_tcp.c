@@ -56,10 +56,11 @@ MODULE_LICENSE("GPL");
 #define debug_scsi(fmt...)
 #endif
 
-#ifdef DEBUG_ASSERT
-#define __BUG_ON BUG_ON
-#else
-#define __BUG_ON(expr)
+#ifndef DEBUG_ASSERT
+#ifdef BUG_ON
+#undef BUG_ON
+#endif
+#define BUG_ON(expr)
 #endif
 
 /* global data */
@@ -92,7 +93,7 @@ __enqueue(iscsi_queue_t *queue, void *data)
 	if (queue->prod == queue->max) {
 		queue->prod = 0;
 	}
-	__BUG_ON(queue->prod + 1 == queue->cons);
+	BUG_ON(queue->prod + 1 == queue->cons);
 	queue->pool[queue->prod++] = data;
 }
 
@@ -169,6 +170,8 @@ iscsi_hdr_extract(iscsi_conn_t *conn)
 			conn->in.hdr = (iscsi_hdr_t *)
 				((char*)skb->data + conn->in.offset);
 		} else {
+			/* ignoring return code since we checked
+			 * in.copy before */
 			(void)skb_copy_bits(skb, conn->in.offset,
 				&conn->hdr, conn->hdr_size);
 			conn->in.hdr = &conn->hdr;
@@ -225,7 +228,7 @@ iscsi_ctask_cleanup(iscsi_conn_t *conn, iscsi_cmd_task_t *ctask)
 	struct scsi_cmnd *sc = ctask->sc;
 	iscsi_session_t *session = conn->session;
 
-	__BUG_ON(ctask->in_progress == IN_PROGRESS_IDLE);
+	BUG_ON(ctask->in_progress == IN_PROGRESS_IDLE);
 	if (sc->sc_data_direction == DMA_TO_DEVICE) {
 		struct list_head *lh, *n;
 		/* for WRITE, clean up Data-Out's if any */
@@ -443,7 +446,7 @@ iscsi_solicit_data_init(iscsi_conn_t *conn, iscsi_cmd_task_t *ctask,
 			}
 			sg_count += sg->length;
 		}
-		__BUG_ON(r2t->sg == NULL);
+		BUG_ON(r2t->sg == NULL);
 	} else {
 		iscsi_buf_init_virt(&ctask->sendbuf,
 			    (char*)sc->request_buffer + r2t->data_offset,
@@ -460,7 +463,7 @@ iscsi_solicit_data_init(iscsi_conn_t *conn, iscsi_cmd_task_t *ctask,
 static int
 iscsi_r2t_rsp(iscsi_conn_t *conn, iscsi_cmd_task_t *ctask)
 {
-	int rc;
+	int rc = 0;
 	iscsi_r2t_info_t *r2t;
 	iscsi_session_t *session = conn->session;
 	iscsi_r2t_rsp_t *rhdr = (iscsi_r2t_rsp_t *)conn->in.hdr;
@@ -491,35 +494,34 @@ iscsi_r2t_rsp(iscsi_conn_t *conn, iscsi_cmd_task_t *ctask)
 	spin_lock(&conn->lock);
 	r2t = __dequeue(&ctask->r2tpool);
 	if (r2t == NULL) {
-		spin_unlock(&conn->lock);
-		return ISCSI_ERR_PROTO;
+		rc = ISCSI_ERR_PROTO;
+		goto out;
 	}
 	r2t->exp_statsn = rhdr->statsn;
 	r2t->data_length = ntohl(rhdr->data_length);
 	if (r2t->data_length == 0 ||
 	    r2t->data_length > session->max_burst) {
 		__enqueue(&ctask->r2tpool, r2t);
-		spin_unlock(&conn->lock);
-		return ISCSI_ERR_DATALEN;
+		rc = ISCSI_ERR_DATALEN;
+		goto out;
 	}
 	if (ctask->hdr.lun[1] != rhdr->lun[1]) {
 		__enqueue(&ctask->r2tpool, r2t);
-		spin_unlock(&conn->lock);
-		return ISCSI_ERR_LUN;
+		rc = ISCSI_ERR_LUN;
+		goto out;
 	}
 	r2t->data_offset = ntohl(rhdr->data_offset);
 	if (r2t->data_offset + r2t->data_length > ctask->total_length) {
 		__enqueue(&ctask->r2tpool, r2t);
-		spin_unlock(&conn->lock);
-		return ISCSI_ERR_DATALEN;
+		rc = ISCSI_ERR_DATALEN;
+		goto out;
 	}
 	r2t->ttt = rhdr->ttt; /* no flip */
 	r2t->solicit_datasn = 0;
 
 	if ((rc = iscsi_solicit_data_init(conn, ctask, r2t))) {
 		__enqueue(&ctask->r2tpool, r2t);
-		spin_unlock(&conn->lock);
-		return rc;
+		goto out;
 	}
 
 	ctask->exp_r2tsn = r2tsn + 1;
@@ -530,9 +532,9 @@ iscsi_r2t_rsp(iscsi_conn_t *conn, iscsi_cmd_task_t *ctask)
 
 	schedule_work(&conn->xmitwork);
 
+out:
 	spin_unlock(&conn->lock);
-
-	return 0;
+	return rc;
 }
 
 static int
@@ -737,15 +739,17 @@ iscsi_ctask_copy(iscsi_conn_t *conn, iscsi_cmd_task_t *ctask,
 	 */
 
 	size = min(size, ctask->data_count);
-	__BUG_ON(size <= 0);
-	__BUG_ON(ctask->sent + size > ctask->total_length);
+	BUG_ON(size <= 0);
+	BUG_ON(ctask->sent + size > ctask->total_length);
 
 	debug_tcp("ctask_copy %d bytes at offset %d copied %d\n",
 	       size, conn->in.offset, conn->in.copied);
 
 	rc = skb_copy_bits(conn->in.skb, conn->in.offset,
 			   (char*)buf + conn->data_copied, size);
-	__BUG_ON(rc);
+	/* we must always fit into skb->len, otherwise we have
+	 * a bug */
+	BUG_ON(rc);
 
 	conn->in.offset += size;
 	conn->in.copy -= size;
@@ -754,12 +758,12 @@ iscsi_ctask_copy(iscsi_conn_t *conn, iscsi_cmd_task_t *ctask,
 	ctask->sent += size;
 	ctask->data_count -= size;
 
-	__BUG_ON(conn->in.copy < 0);
-	__BUG_ON(ctask->data_count < 0);
+	BUG_ON(conn->in.copy < 0);
+	BUG_ON(ctask->data_count < 0);
 
 	if (buf_size != conn->data_copied) {
 		if (!ctask->data_count) {
-			__BUG_ON(buf_size - conn->data_copied < 0);
+			BUG_ON(buf_size - conn->data_copied < 0);
 			/* done with this PDU */
 			return buf_size - conn->data_copied;
 		}
@@ -788,7 +792,7 @@ iscsi_tcp_copy(iscsi_conn_t *conn, void *buf, int buf_size)
 
 	rc = skb_copy_bits(conn->in.skb, conn->in.offset,
 			   (char*)buf + conn->data_copied, size);
-	__BUG_ON(rc);
+	BUG_ON(rc);
 
 	conn->in.offset += size;
 	conn->in.copy -= size;
@@ -812,7 +816,7 @@ iscsi_data_recv(iscsi_conn_t *conn)
 	case ISCSI_OP_SCSI_DATA_IN: {
 	    iscsi_cmd_task_t *ctask = conn->in.ctask;
 	    struct scsi_cmnd *sc = ctask->sc;
-	    __BUG_ON(!(ctask->in_progress & IN_PROGRESS_READ &&
+	    BUG_ON(!(ctask->in_progress & IN_PROGRESS_READ &&
 		     conn->in_progress == IN_PROGRESS_DATA_RECV));
 	    /*
 	     * Copying Data-In to the Scsi_Cmnd
@@ -909,7 +913,7 @@ iscsi_data_recv(iscsi_conn_t *conn)
 	}
 	break;
 	default:
-		__BUG_ON(1);
+		BUG_ON(1);
 	}
 exit:
 	return rc;
@@ -934,7 +938,7 @@ iscsi_tcp_data_recv(read_descriptor_t *rd_desc, struct sk_buff *skb,
 	conn->in.offset = offset;
 	conn->in.skb = skb;
 	conn->in.len = conn->in.copy;
-	__BUG_ON(conn->in.copy <= 0);
+	BUG_ON(conn->in.copy <= 0);
 	debug_tcp("in %d bytes\n", conn->in.copy);
 
 more:
@@ -991,7 +995,7 @@ more:
 
 	debug_tcp("f, processed %d from out of %d padding %d\n",
 	       conn->in.offset - offset, len, conn->in.padding);
-	__BUG_ON(conn->in.offset - offset > len);
+	BUG_ON(conn->in.offset - offset > len);
 
 	if (conn->in.offset - offset != len) {
 		debug_tcp("continue to process %d bytes\n",
@@ -1000,14 +1004,14 @@ more:
 	}
 
 nomore:
-	__BUG_ON(conn->in.offset - offset == 0);
+	BUG_ON(conn->in.offset - offset == 0);
 	return conn->in.offset - offset;
 
 again:
 	debug_tcp("c, processed %d from out of %d rd_desc_cnt %d\n",
 	          conn->in.offset - offset, len, rd_desc->count);
-	__BUG_ON(conn->in.offset - offset == 0);
-	__BUG_ON(conn->in.offset - offset > len);
+	BUG_ON(conn->in.offset - offset == 0);
+	BUG_ON(conn->in.offset - offset > len);
 
 	return conn->in.offset - offset;
 }
@@ -1109,7 +1113,7 @@ iscsi_sendhdr(iscsi_conn_t *conn, iscsi_buf_t *buf)
 
 	offset = buf->sg.offset + buf->sent;
 	size = buf->sg.length - buf->sent;
-	__BUG_ON(buf->sent + size > buf->sg.length);
+	BUG_ON(buf->sent + size > buf->sg.length);
 	if (buf->sent + size != buf->sg.length) {
 		flags |= MSG_MORE;
 	}
@@ -1146,7 +1150,7 @@ iscsi_sendpage(iscsi_conn_t *conn, iscsi_buf_t *buf, int *count, int *sent)
 	int res, offset, size;
 
 	size = buf->sg.length - buf->sent;
-	__BUG_ON(buf->sent + size > buf->sg.length);
+	BUG_ON(buf->sent + size > buf->sg.length);
 	if (size > *count) {
 		size = *count;
 	}
@@ -1158,10 +1162,6 @@ iscsi_sendpage(iscsi_conn_t *conn, iscsi_buf_t *buf, int *count, int *sent)
 
 	/* tcp_sendpage */
 	sendpage = sk->ops->sendpage ? : sock_no_sendpage;
-
-	/* Hmm... We might be dealing with highmem pages */
-	if (PageHighMem(buf->sg.page))
-		sendpage = sock_no_sendpage;
 
 	res = sendpage(sk, buf->sg.page, offset, size, flags);
 	debug_tcp("sendpage %lx %d bytes, boff %d bsent %d "
@@ -1233,7 +1233,7 @@ iscsi_solicit_data_cont(iscsi_conn_t *conn, iscsi_cmd_task_t *ctask,
 			   (u8 *)dtask->hdrext);
 
 	if (sc->use_sg) {
-		__BUG_ON(ctask->bad_sg == r2t->sg);
+		BUG_ON(ctask->bad_sg == r2t->sg);
 		iscsi_buf_init_sg(&r2t->sendbuf, r2t->sg);
 		r2t->sg += 1;
 	} else {
@@ -1324,7 +1324,7 @@ iscsi_cmd_init(iscsi_conn_t *conn, iscsi_cmd_task_t *ctask,
 		ctask->exp_r2tsn = 0;
 		ctask->hdr.flags |= ISCSI_FLAG_CMD_WRITE;
 		ctask->in_progress = IN_PROGRESS_WRITE;
-		__BUG_ON(ctask->total_length == 0);
+		BUG_ON(ctask->total_length == 0);
 		if (sc->use_sg) {
 			struct scatterlist *sg = (struct scatterlist *)
 							sc->request_buffer;
@@ -1334,7 +1334,7 @@ iscsi_cmd_init(iscsi_conn_t *conn, iscsi_cmd_task_t *ctask,
 		} else {
 			iscsi_buf_init_virt(&ctask->sendbuf, sc->request_buffer,
 					sc->request_bufflen);
-			__BUG_ON(sc->request_bufflen > PAGE_SIZE);
+			BUG_ON(sc->request_bufflen > PAGE_SIZE);
 		}
 
 		/*
@@ -1460,13 +1460,11 @@ iscsi_ctask_xmit(iscsi_conn_t *conn, iscsi_cmd_task_t *ctask)
 	/*
 	 * make sure state machine is not screwed.
 	 */
-	__BUG_ON(!(ctask->in_progress & IN_PROGRESS_HEAD) &&
-		 !(ctask->in_progress & IN_PROGRESS_BEGIN_WRITE_IMM) &&
-		 !(ctask->in_progress & IN_PROGRESS_BEGIN_WRITE) &&
-		 !(ctask->in_progress & IN_PROGRESS_UNSOLICIT_HEAD) &&
-		 !(ctask->in_progress & IN_PROGRESS_UNSOLICIT_WRITE) &&
-		 !(ctask->in_progress & IN_PROGRESS_SOLICIT_HEAD) &&
-		 !(ctask->in_progress & IN_PROGRESS_SOLICIT_WRITE));
+	BUG_ON(!(ctask->in_progress &
+		 (IN_PROGRESS_HEAD|IN_PROGRESS_BEGIN_WRITE_IMM|
+		  IN_PROGRESS_BEGIN_WRITE|IN_PROGRESS_UNSOLICIT_HEAD|
+		  IN_PROGRESS_UNSOLICIT_WRITE|IN_PROGRESS_SOLICIT_HEAD|
+		  IN_PROGRESS_SOLICIT_WRITE)));
 
 	if (ctask->in_progress & IN_PROGRESS_HEAD) {
 		if (iscsi_sendhdr(conn, &ctask->headbuf)) {
@@ -1534,7 +1532,7 @@ _unsolicit_head_again:
 				ctask->imm_data_count -= ctask->sent - start;
 				return -EAGAIN;
 			}
-			__BUG_ON(ctask->sent > ctask->total_length);
+			BUG_ON(ctask->sent > ctask->total_length);
 			ctask->imm_data_count -= ctask->sent - start;
 			if (!ctask->data_count) {
 				break;
@@ -1547,7 +1545,7 @@ _unsolicit_head_again:
 		 * done with Data-Out's payload. Check if we have
 		 * to send another unsolicit Data-Out.
 		 */
-		__BUG_ON(ctask->imm_data_count < 0);
+		BUG_ON(ctask->imm_data_count < 0);
 		if (ctask->imm_data_count) {
 			if (iscsi_unsolicit_data_init(conn, ctask)) {
 				return -EAGAIN;
@@ -1571,9 +1569,9 @@ _unsolicit_head_again:
 		r2t = __dequeue(&ctask->r2tqueue);
 		spin_unlock_bh(&conn->lock);
 _solicit_head_again:
-		__BUG_ON(r2t == NULL);
+		BUG_ON(r2t == NULL);
 		if (r2t->cont_bit) {
-			__BUG_ON(r2t->data_length - r2t->sent <= 0);
+			BUG_ON(r2t->data_length - r2t->sent <= 0);
 			/*
 			 * we failed to fill-in Data-Out last time
 			 * due to memory allocation failure most likely
@@ -1612,8 +1610,8 @@ _solicit_again:
 				return -EAGAIN;
 			}
 			if (r2t->data_count) {
-				__BUG_ON(ctask->bad_sg == r2t->sg);
-				__BUG_ON(ctask->sc->use_sg == 0);
+				BUG_ON(ctask->bad_sg == r2t->sg);
+				BUG_ON(ctask->sc->use_sg == 0);
 				iscsi_buf_init_sg(&r2t->sendbuf, r2t->sg);
 				r2t->sg += 1;
 				goto _solicit_again;
@@ -1624,7 +1622,7 @@ _solicit_again:
 		 * done with Data-Out's payload. Check if we have
 		 * to send another Data-Out whithin this R2T sequence.
 		 */
-		__BUG_ON(r2t->data_length - r2t->sent < 0);
+		BUG_ON(r2t->data_length - r2t->sent < 0);
 		left = r2t->data_length - r2t->sent;
 		if (left) {
 			ctask->in_progress = IN_PROGRESS_WRITE |
@@ -1642,7 +1640,7 @@ _solicit_again:
 		 * done with this R2T sequence. Check if we have
 		 * more outstanding R2T's ready to send.
 		 */
-		__BUG_ON(ctask->r2t_data_count - r2t->data_length < 0);
+		BUG_ON(ctask->r2t_data_count - r2t->data_length < 0);
 		ctask->r2t_data_count -= r2t->data_length;
 		spin_lock_bh(&conn->lock);
 		__enqueue(&ctask->r2tpool, r2t);
@@ -1856,7 +1854,7 @@ iscsi_queuecommand(struct scsi_cmnd *sc, void (*done)(struct scsi_cmnd *))
 	}
 
 	ctask = __dequeue(&session->cmdpool);
-	__BUG_ON(ctask->in_progress = IN_PROGRESS_IDLE);
+	BUG_ON(ctask->in_progress = IN_PROGRESS_IDLE);
 
 	sc->SCp.ptr = (char*)ctask;
 	iscsi_cmd_init(conn, ctask, sc);
@@ -2113,7 +2111,7 @@ iscsi_conn_destroy(iscsi_cnx_h cnxh)
 	iscsi_conn_t *conn = cnxh;
 	iscsi_session_t *session = conn->session;
 
-	__BUG_ON(conn->sock == NULL);
+	BUG_ON(conn->sock == NULL);
 
 	sock_hold(conn->sock->sk);
 	iscsi_conn_restore_callbacks(conn);
