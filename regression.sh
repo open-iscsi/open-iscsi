@@ -43,11 +43,22 @@ time2retain = 20
 EOF
 }
 
-function disktest() {
-	for bs in "512 1024 2048 4096 8192 16384 32768 65536 131072 1000000"; do
-		disktest -T2 -K8 -B65536 -r -ID /dev/sda
-		disktest -T2 -K8 -B65536 -E16 -w -ID /dev/sda
+function disktest_run() {
+	for bs in 512 1024 2048 4096 8192 16384 32768 65536 131072 1000000; do
+		echo -n "disktest -T2 -K8 -B$bs -r -ID /dev/sda: "
+		if ! disktest -T2 -K8 -B$bs -r -ID /dev/sda >/dev/null; then
+			echo "FAILED"
+			return 1;
+		fi
+		echo "PASSED"
+		echo -n "disktest -T2 -K8 -B$bs -E16 -w -ID /dev/sda: "
+		if ! disktest -T2 -K8 -B$bs -E16 -w -ID /dev/sda >/dev/null;then
+			echo "FAILED"
+			return 1;
+		fi
+		echo "PASSED"
 	done
+	return 0;
 }
 
 function fatal() {
@@ -82,7 +93,8 @@ cat regression.dat | while read line; do
 	echo "max_cnx = $max_cnx"
 	iscsiadm -f iscsi.conf -r1
 	iscsiadm -f iscsi.conf -d 172.10.7.7:3260
-	disktest
+	if ! disktest_run; then break; fi
 	let i=i+1
 done
+echo
 echo "===================== THE END ========================"
