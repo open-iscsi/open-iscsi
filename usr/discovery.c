@@ -1190,12 +1190,18 @@ reconnect:
 		 */
 		goto set_address;
 	}
+
 	log_debug(1, "connected to discovery address %u.%u.%u.%u",
 	       session->cnx[0].ip_address[0], session->cnx[0].ip_address[1],
 	       session->cnx[0].ip_address[2], session->cnx[0].ip_address[3]);
 
 	log_debug(4, "discovery session to %s:%d starting iSCSI login on fd %d",
 		 config->address, config->port, session->cnx[0].socket_fd);
+
+	/* In case of discovery, we using socket's descriptor as ctrl. */
+	session->ctrl_fd = session->cnx[0].socket_fd;
+	session->cnx[0].session = session;
+
 	status_class = 0;
 	status_detail = 0;
 	switch (iscsi_login(session, 0, buffer_data(&sendtargets),

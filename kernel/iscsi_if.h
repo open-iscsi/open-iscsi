@@ -102,7 +102,7 @@ int iscsi_control_recv_pdu(iscsi_cnx_h cp_cnx, iscsi_hdr_t *hdr,
 				char *data, int data_size);
 void iscsi_control_cnx_error(iscsi_cnx_h cp_cnx, iscsi_err_e error);
 
-/* FIXME: generic register/unregister interface needed */
+/* iscsi_tcp.c: */
 extern int iscsi_tcp_register(iscsi_ops_t *ops, iscsi_caps_t *caps);
 extern void iscsi_tcp_unregister(void);
 

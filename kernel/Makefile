@@ -5,7 +5,7 @@
 EXTRA_CFLAGS += -I$(obj) -I$(obj)/../include
 
 obj-m = iscsi.o
-iscsi-y = iscsi_tcp.o iscsi_mgr.o
+iscsi-y = iscsi_tcp.o iscsi_if.o
 
 KSRC ?= /lib/modules/`uname -r`/build
 

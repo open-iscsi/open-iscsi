@@ -42,7 +42,7 @@ struct iscsi_daemon_config *dconfig = &daemon_config;
 iscsi_provider_t provider[ISCSI_PROVIDER_MAX];
 
 static char program_name[] = "iscsid";
-int ctrl_fd, ipc_fd;
+int control_fd, ipc_fd;
 static struct pollfd poll_array[POLL_MAX];
 
 static struct option const long_options[] = {
@@ -82,7 +82,7 @@ event_loop(void)
 {
 	int res;
 
-	poll_array[POLL_CTRL].fd = ctrl_fd;
+	poll_array[POLL_CTRL].fd = control_fd;
 	poll_array[POLL_CTRL].events = POLLIN;
 	poll_array[POLL_IPC].fd = ipc_fd;
 	poll_array[POLL_IPC].events = POLLIN;
@@ -99,11 +99,14 @@ event_loop(void)
 					  "exiting", res, errno);
 				exit(1);
 			}
+			log_debug(6, "poll result %d", res);
 			continue;
 		}
 
+		log_debug(6, "detected poll event %d", res);
+
 		if (poll_array[POLL_CTRL].revents)
-			ctldev_handle(ctrl_fd);
+			ctldev_handle(control_fd);
 
 		if (poll_array[POLL_IPC].revents)
 			ipc_handle(ipc_fd);
@@ -153,7 +156,7 @@ main(int argc, char *argv[])
 	/* initialize logger */
 	log_init(program_name);
 
-	if ((ctrl_fd = ctldev_open()) < 0) {
+	if ((control_fd = ctldev_open()) < 0) {
 		exit(-1);
 	}
 

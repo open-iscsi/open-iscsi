@@ -36,10 +36,13 @@ typedef struct iscsi_pdu {
 	unsigned int datasize;
 } iscsi_pdu_t;
 
-/* ctldev.c */
+/* ctldev: Ioctl/IPC/NETLINK/etc */
 extern int ctldev_open(void);
 extern void ctldev_close(int fd);
 extern int ctldev_handle(int fd);
+extern int ctldev_writev(int fd, iscsi_uevent_e type, struct iovec *iov,
+			int count);
+extern int ctldev_read(int fd, char *data, int count);
 
 /* iscsid.c: daemon config */
 struct iscsi_daemon_config {
@@ -50,5 +53,6 @@ struct iscsi_daemon_config {
 	char *initiator_alias;
 };
 extern struct iscsi_daemon_config *dconfig;
+extern int control_fd;
 
 #endif	/* ISCSID_H */

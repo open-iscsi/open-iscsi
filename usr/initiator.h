@@ -104,13 +104,14 @@ typedef struct iscsi_login_context {
 struct iscsi_session;
 struct iscsi_conn;
 
-typedef int (*send_pdu_begin_f)(struct iscsi_session *session,
-			struct iscsi_conn *conn, int hdr_size, int data_size);
-typedef int (*send_pdu_end_f)(struct iscsi_session *session,
-			struct iscsi_conn *conn);
-typedef int (*recv_pdu_begin_f)(struct iscsi_conn *conn, ulong_t recv_handle,
-				ulong_t *pdu_handle, int *pdu_size);
-typedef int (*recv_pdu_end_f)(struct iscsi_conn *conn, ulong_t pdu_handle);
+typedef int (*send_pdu_begin_f)(int ctrl_fd, struct iscsi_session *session,
+		struct iscsi_conn *conn, int hdr_size, int data_size);
+typedef int (*send_pdu_end_f)(int ctrl_fd, struct iscsi_session *session,
+		struct iscsi_conn *conn);
+typedef int (*recv_pdu_begin_f)(int ctrl_fd, struct iscsi_conn *conn,
+		ulong_t recv_handle, ulong_t *pdu_handle, int *pdu_size);
+typedef int (*recv_pdu_end_f)(int ctrl_fd, struct iscsi_conn *conn,
+		ulong_t pdu_handle);
 
 /* daemon's connection structure */
 typedef struct iscsi_conn {
@@ -125,7 +126,6 @@ typedef struct iscsi_conn {
 	actor_t connect_timer;
 
 	int kernel_io;
-	int ctrl_fd;
 	send_pdu_begin_f send_pdu_begin;
 	send_pdu_end_f send_pdu_end;
 	recv_pdu_begin_f recv_pdu_begin;
@@ -231,6 +231,7 @@ typedef struct iscsi_session {
 	uint8_t password_in[AUTH_STR_MAX_LEN];
 	int password_length_in;
 	iscsi_conn_t cnx[ISCSI_CNX_MAX];
+	int ctrl_fd;
 
 	/* session's processing */
 	actor_t mainloop;
@@ -261,7 +262,6 @@ typedef struct iscsi_provider_t {
 
 /* iscsid.c */
 extern iscsi_provider_t provider[ISCSI_PROVIDER_MAX];
-extern int ctrl_fd;
 
 /* login.c */
 
@@ -317,5 +317,26 @@ extern int iscsi_recv_pdu(iscsi_conn_t *conn, iscsi_hdr_t *hdr,
 extern int session_login_task(node_rec_t *rec, queue_task_t *qtask);
 extern int session_logout_task(iscsi_session_t *session, queue_task_t *qtask);
 extern iscsi_session_t* session_find_by_rec(node_rec_t *rec);
+
+/* transport API Ioctl/IPC/NETLINK/etc */
+extern int ksession_create(int ctrl_fd, iscsi_session_t *session);
+extern int ksession_destroy(int ctrl_fd, iscsi_session_t *session);
+extern int ksession_cnx_create(int ctrl_fd, iscsi_session_t *session,
+		iscsi_conn_t *conn);
+extern int ksession_cnx_destroy(int ctrl_fd, iscsi_conn_t *conn);
+extern int ksession_cnx_bind(int ctrl_fd, iscsi_session_t *session,
+		iscsi_conn_t *conn);
+extern int ksession_send_pdu_begin(int ctrl_fd, iscsi_session_t *session,
+		iscsi_conn_t *conn, int hdr_size, int data_size);
+extern int ksession_send_pdu_end(int ctrl_fd, iscsi_session_t *session,
+		iscsi_conn_t *conn);
+extern int ksession_set_param(int ctrl_fd, iscsi_conn_t *conn,
+		iscsi_param_e param, uint32_t value);
+extern int ksession_stop_cnx(int ctrl_fd, iscsi_conn_t *conn);
+extern int ksession_start_cnx(int ctrl_fd, iscsi_conn_t *conn);
+extern int ksession_recv_pdu_begin(int ctrl_fd, iscsi_conn_t *conn,
+		ulong_t recv_handle, ulong_t *pdu_handle, int *pdu_size);
+extern int ksession_recv_pdu_end(int ctrl_fd, iscsi_conn_t *conn,
+		ulong_t pdu_handle);
 
 #endif /* INITIATOR_H */

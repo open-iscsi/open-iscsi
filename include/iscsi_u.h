@@ -86,6 +86,7 @@ typedef enum iscsi_uevent_e {
 	ISCSI_UEVENT_START_CNX		= UEVENT_BASE + 12,
 	ISCSI_UEVENT_STOP_CNX		= UEVENT_BASE + 13,
 	ISCSI_UEVENT_CNX_ERROR		= UEVENT_BASE + 14,
+	ISCSI_UEVENT_SEND_PDU		= UEVENT_BASE + 15,
 
 	/* up events */
 	ISCSI_KEVENT_RECV_PDU		= KEVENT_BASE + 1,
@@ -120,6 +121,11 @@ typedef struct iscsi_uevent {
 		struct msg_destroy_cnx {
 			ulong_t		cnx_handle;
 		} d_cnx;
+		struct msg_send_pdu {
+			int		hdr_size;
+			int		data_size;
+			ulong_t		cnx_handle;
+		} send_pdu;
 		struct msg_sp_begin {
 			int		hdr_size;
 			int		data_size;
@@ -161,6 +167,7 @@ typedef struct iscsi_uevent {
 			ulong_t		cnx_handle;
 		} recv_req;
 		struct msg_cnx_error {
+			ulong_t		cnx_handle;
 			iscsi_err_e	error;
 		} cnxerror;
 		struct msg_rp_begin_rsp {

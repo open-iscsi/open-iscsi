@@ -209,6 +209,18 @@ iscsid_connect(void)
 	return fd;
 }
 
+int
+ctldev_read(int ctrl_fd, char *data, int count)
+{
+	return read(ctrl_fd, data, count);
+}
+
+int
+ctldev_writev(int ctrl_fd, iscsi_uevent_e type, struct iovec *iovp, int count)
+{
+	return writev(ctrl_fd, iovp, count);
+}
+
 static int
 iscsid_request(int fd, iscsiadm_req_t *req)
 {
