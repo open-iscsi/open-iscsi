@@ -18,17 +18,16 @@
  */
 
 #include <linux/module.h>
+#include <net/tcp.h>
+#include <iscsi_if.h>
+#include <iscsi_ifev.h>
 
-#include "iscsi_proto.h"
-#include "iscsi_if.h"
-#include "iscsi_u.h"
-
-struct iscsi_kprovider {
-	char			name[ISCSI_PROVIDER_NAME_MAXLEN];
+struct iscsi_transport {
+	char			name[ISCSI_TRANSPORT_NAME_MAXLEN];
 	struct iscsi_ops	ops;
 	struct iscsi_caps	caps;
 };
-static struct iscsi_kprovider provider_table[ISCSI_PROVIDER_MAX];
+static struct iscsi_transport transport_table[ISCSI_TRANSPORT_MAX];
 static struct sock *nls = NULL;
 static int daemon_pid = 0;
 
@@ -87,7 +86,7 @@ iscsi_control_recv_pdu(iscsi_cnx_h cp_cnx, iscsi_hdr_t *hdr,
 	nlh = __nlmsg_put(skb, daemon_pid, 0, 0, (len - sizeof(*nlh)));
 	ev = NLMSG_DATA(nlh);
 	memset(ev, 0, sizeof(*ev));
-	ev->provider_id = 0;
+	ev->transport_id = 0;
 	ev->type = ISCSI_KEVENT_RECV_PDU;
 	ev->r.recv_req.cnx_handle = (ulong_t)cp_cnx;
 	pdu = (char*)ev + sizeof(*ev);
@@ -115,7 +114,7 @@ iscsi_control_cnx_error(iscsi_cnx_h cp_cnx, iscsi_err_e error)
 
 	nlh = __nlmsg_put(skb, daemon_pid, 0, 0, (len - sizeof(*nlh)));
 	ev = NLMSG_DATA(nlh);
-	ev->provider_id = 0;
+	ev->transport_id = 0;
 	ev->type = ISCSI_KEVENT_CNX_ERROR;
 	ev->r.cnxerror.error = error;
 	ev->r.cnxerror.cnx_handle = (ulong_t)cp_cnx;
@@ -125,13 +124,13 @@ iscsi_control_cnx_error(iscsi_cnx_h cp_cnx, iscsi_err_e error)
 	schedule_work(&nlwork);
 }
 
-static struct iscsi_kprovider*
-iscsi_if_provider_lookup(int id)
+static struct iscsi_transport*
+iscsi_if_transport_lookup(int id)
 {
-	/* FIXME: implement provider's container */
+	/* FIXME: implement transport's container */
 	if (id != 0)
 		return NULL;
-	return &provider_table[id];
+	return &transport_table[id];
 }
 
 static int
@@ -160,26 +159,26 @@ static int
 iscsi_if_recv_msg(struct sk_buff *skb, struct nlmsghdr *nlh)
 {
 	int err = 0;
-	struct iscsi_kprovider *provider;
+	struct iscsi_transport *transport;
 	u32 pid  = NETLINK_CREDS(skb)->pid;
 	u32 seq  = nlh->nlmsg_seq;
 	struct iscsi_uevent *ev = NLMSG_DATA(nlh);
 
-	if ((provider = iscsi_if_provider_lookup(ev->provider_id)) == NULL)
+	if ((transport = iscsi_if_transport_lookup(ev->transport_id)) == NULL)
 		return -EEXIST;
 
 	daemon_pid = pid;
 
 	switch (nlh->nlmsg_type) {
 	case ISCSI_UEVENT_CREATE_SESSION:
-		ev->r.handle = (ulong_t)provider->ops.create_session(
+		ev->r.handle = (ulong_t)transport->ops.create_session(
 		       (void*)ev->u.c_session.session_handle,
 		       ev->u.c_session.sid, ev->u.c_session.initial_cmdsn);
 		err = iscsi_if_send_reply(pid, seq, nlh->nlmsg_type, 0, 0,
 					       ev, sizeof(*ev));
 		break;
 	case ISCSI_UEVENT_DESTROY_SESSION:
-		provider->ops.destroy_session(
+		transport->ops.destroy_session(
 			(void*)ev->u.d_session.session_handle);
 		netlink_ack(skb, nlh, 0);
 		break;
@@ -189,42 +188,42 @@ iscsi_if_recv_msg(struct sk_buff *skb, struct nlmsghdr *nlh)
 		if (!(sock = sockfd_lookup(ev->u.c_cnx.socket_fd, &err))) {
 			break;
 		}
-		ev->r.handle = (ulong_t)provider->ops.create_cnx(
+		ev->r.handle = (ulong_t)transport->ops.create_cnx(
 			(void*)ev->u.c_cnx.session_handle,
 			(void*)ev->u.c_cnx.cnx_handle, sock, ev->u.c_cnx.cid);
 		err = iscsi_if_send_reply(pid, seq, nlh->nlmsg_type, 0, 0,
 					ev, sizeof(*ev));
 	} break;
 	case ISCSI_UEVENT_DESTROY_CNX:
-		provider->ops.destroy_cnx((void*)ev->u.d_cnx.cnx_handle);
+		transport->ops.destroy_cnx((void*)ev->u.d_cnx.cnx_handle);
 		netlink_ack(skb, nlh, 0);
 		break;
 	case ISCSI_UEVENT_BIND_CNX:
-		ev->r.retcode = (ulong_t)provider->ops.bind_cnx(
+		ev->r.retcode = (ulong_t)transport->ops.bind_cnx(
 			(void*)ev->u.b_cnx.session_handle,
 			(void*)ev->u.b_cnx.cnx_handle, ev->u.b_cnx.is_leading);
 		err = iscsi_if_send_reply(pid, seq, nlh->nlmsg_type, 0, 0,
 					ev, sizeof(*ev));
 		break;
 	case ISCSI_UEVENT_SET_PARAM:
-		ev->r.retcode = provider->ops.set_param(
+		ev->r.retcode = transport->ops.set_param(
 			(void*)ev->u.set_param.cnx_handle,
 			ev->u.set_param.param, ev->u.set_param.value);
 		err = iscsi_if_send_reply(pid, seq, nlh->nlmsg_type, 0, 0,
 					ev, sizeof(*ev));
 		break;
 	case ISCSI_UEVENT_START_CNX:
-		ev->r.retcode = provider->ops.start_cnx(
+		ev->r.retcode = transport->ops.start_cnx(
 			(void*)ev->u.start_cnx.cnx_handle);
 		err = iscsi_if_send_reply(pid, seq, nlh->nlmsg_type, 0, 0,
 					ev, sizeof(*ev));
 		break;
 	case ISCSI_UEVENT_STOP_CNX:
-		provider->ops.stop_cnx((void*)ev->u.stop_cnx.cnx_handle);
+		transport->ops.stop_cnx((void*)ev->u.stop_cnx.cnx_handle);
 		netlink_ack(skb, nlh, 0);
 		break;
 	case ISCSI_UEVENT_SEND_PDU:
-		ev->r.retcode = provider->ops.send_immpdu(
+		ev->r.retcode = transport->ops.send_immpdu(
 		       (void*)ev->u.send_pdu.cnx_handle,
 		       (iscsi_hdr_t*)((char*)ev + sizeof(*ev)),
 		       (char*)ev + sizeof(*ev) + ev->u.send_pdu.hdr_size,
@@ -290,9 +289,9 @@ iscsi_if_init(void)
 
 	spin_lock_init(&nlwork_lock);
 
-	strcpy(provider_table[0].name, "tcp");
-	rc = iscsi_tcp_register(&provider_table[0].ops,
-				 &provider_table[0].caps);
+	strcpy(transport_table[0].name, "tcp");
+	rc = iscsi_tcp_register(&transport_table[0].ops,
+				&transport_table[0].caps);
 	if (rc) {
 		sock_release(nls->sk_socket);
 		return rc;
