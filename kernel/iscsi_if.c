@@ -184,7 +184,6 @@ static void
 iscsi_if_rx(struct sock *sk, int len)
 {
 	struct sk_buff *skb;
-
 	while ((skb = skb_dequeue(&sk->sk_receive_queue)) != NULL) {
 		while (skb->len >= NLMSG_SPACE(0)) {
 			int err;

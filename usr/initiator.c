@@ -419,6 +419,7 @@ __send_pdu_timer_add(struct iscsi_conn *conn, int timeout)
 		conn->send_pdu_in_progress = 1;
 		actor_timer(&conn->send_pdu_timer, timeout*1000,
 			    __send_pdu_timedout, c->qtask);
+		log_debug(7, "send_pdu timer added %d secs", timeout);
 	}
 }
 
@@ -428,6 +429,7 @@ __send_pdu_timer_remove(struct iscsi_conn *conn)
 	if (conn->send_pdu_in_progress) {
 		actor_delete(&conn->send_pdu_timer);
 		conn->send_pdu_in_progress = 0;
+		log_debug(7, "send_pdu timer removed");
 	}
 }
 
@@ -732,9 +734,11 @@ __session_cnx_timer(queue_item_t *item)
 	iscsi_session_t *session = conn->session;
 
 	if (conn->state == STATE_XPT_WAIT) {
+		log_debug(6, "cnx_timer popped at XPT_WAIT ");
 		/* timeout during connect. clean connection. write rsp */
 		__session_ipc_login_cleanup(qtask, IPC_ERR_TCP_TIMEOUT);
 	} else if (conn->state == STATE_IN_LOGIN) {
+		log_debug(6, "cnx_timer popped at IN_LOGIN");
 		/* send pdu timeout. clean connection. write rsp */
 		if (ksession_cnx_destroy(session->ctrl_fd, conn)) {
 			log_error("can not safely destroy connection %d",

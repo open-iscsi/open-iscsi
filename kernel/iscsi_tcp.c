@@ -1064,7 +1064,7 @@ iscsi_write_space(struct sock *sk)
 {
 	struct iscsi_conn *conn = (struct iscsi_conn*)sk->sk_user_data;
 	conn->old_write_space(sk);
-	debug_tcp("iscsi_write_space\n");
+	debug_tcp("iscsi_write_space: cid %d\n", conn->id);
 	conn->suspend = 0; wmb();
 }
 
@@ -1133,6 +1133,9 @@ iscsi_sendhdr(struct iscsi_conn *conn, struct iscsi_buf *buf)
 		return 0;
 	} else if (res == -EAGAIN) {
 		conn->suspend = 1;
+	} else if (res == -EPIPE) {
+		conn->suspend = 1;
+		iscsi_control_cnx_error(conn->handle, ISCSI_ERR_CNX_FAILED);
 	}
 
 	return res;
@@ -1182,6 +1185,9 @@ iscsi_sendpage(struct iscsi_conn *conn, struct iscsi_buf *buf,
 		return 0;
 	} else if (res == -EAGAIN) {
 		conn->suspend = 1;
+	} else if (res == -EPIPE) {
+		conn->suspend = 1;
+		iscsi_control_cnx_error(conn->handle, ISCSI_ERR_CNX_FAILED);
 	}
 
 	return res;
@@ -1825,7 +1831,7 @@ iscsi_queuecommand(struct scsi_cmnd *sc, void (*done)(struct scsi_cmnd *))
 	}
 
 	ctask = __dequeue(&session->cmdpool);
-	BUG_ON(ctask);
+	BUG_ON(!ctask);
 	BUG_ON(ctask->in_progress = IN_PROGRESS_IDLE);
 
 	sc->SCp.ptr = (char*)ctask;
@@ -2086,9 +2092,7 @@ iscsi_conn_destroy(iscsi_cnx_h cnxh)
 	conn->c_stage = ISCSI_CNX_CLEANUP_WAIT; wmb();
 	while (1) {
 		spin_lock_bh(&conn->lock);
-		if (conn->immqueue.cons == conn->immqueue.prod &&
-		    conn->xmitqueue.cons == conn->xmitqueue.prod &&
-		    !session->host->host_busy) { /* OK for ERL == 0 */
+		if (!session->host->host_busy) { /* OK for ERL == 0 */
 			spin_unlock_bh(&conn->lock);
 			break;
 		}
