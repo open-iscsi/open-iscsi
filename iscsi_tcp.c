@@ -381,9 +381,10 @@ iscsi_sendpage(iscsi_conn_t *conn, iscsi_buf_t *buf, int size)
 
 
 	if (res > 0) {
-#define ISCSI_XMIT_NAGLE_THRES  512
+#define ISCSI_XMIT_NAGLE_THRES  64
 #define ISCSI_XMIT_WEIGHT_MAX   100
 		buf->sent += res;
+#if AUTO_NAGLE
 		conn->weight_xmit += res;
 		if (conn->weight++ > ISCSI_XMIT_WEIGHT_MAX) {
 			struct tcp_opt *tp = tcp_sk(sk->sk);
@@ -395,7 +396,7 @@ iscsi_sendpage(iscsi_conn_t *conn, iscsi_buf_t *buf, int size)
 			}
 			conn->weight = conn->weight_xmit = 0;
 		}
-
+#endif
 	}
 
 	return res;
