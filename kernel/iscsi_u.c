@@ -24,56 +24,105 @@
 #include <linux/poll.h>
 #include <asm/uaccess.h>
 
-/* Must go: for scsi_transport... */
-#include <scsi/scsi_host.h>
-
 #include "iscsi_proto.h"
 #include "iscsi_if.h"
 #include "iscsi_u.h"
+
+#define CTRL_RECV_ALLOWED	16
 
 typedef struct iscsi_kprovider {
 	char		name[ISCSI_PROVIDER_NAME_MAXLEN];
 	iscsi_ops_t	ops;
 	iscsi_caps_t	caps;
 } iscsi_kprovider_t;
+static iscsi_kprovider_t provider_table[ISCSI_PROVIDER_MAX];
 
-typedef enum sp_state_e {
-	SP_STATE_INVALID	= 0,
-	SP_STATE_BUSY	= 1,
-	SP_STATE_READY	= 2,
-} sp_state_e;
+typedef enum pdu_state_e {
+	PDU_STATE_INVALID	= 0,
+	PDU_STATE_READY		= 1,
+	PDU_STATE_BUSY		= 2,
+} pdu_state_e;
 
-typedef struct sp_item {
-	struct list_head item;
-	sp_state_e state;
-	char pdu[DEFAULT_MAX_RECV_DATA_SEGMENT_LENGTH+sizeof(iscsi_hdr_t)+4];
-} sp_item_t;
-
-typedef struct sp_context {
+typedef struct xmit_context {
 	ulong_t cnxh;
-	sp_state_e state;
-	sp_item_t *spb;
+	pdu_state_e state;
+	char *pdu;
 	int hdr_size;
 	int data_size;
 	int curr_off;
-} sp_context_t;
+} xmit_context_t;
 
-static struct list_head sp_head;
-static sp_context_t sp_ctxt;
-static iscsi_kprovider_t provider_table[ISCSI_PROVIDER_MAX];
-static spinlock_t event_queue_lock = SPIN_LOCK_UNLOCKED;
-static LIST_HEAD(event_queue);
-DECLARE_WAIT_QUEUE_HEAD(event_wait);
+typedef struct recv_context {
+	struct list_head item;
+	iscsi_uevent_e type;
+	ulong_t cp_cnxh;
+	char *pdu;
+	int pdu_size;
+	pdu_state_e state;
+	int curr_off;
+} recv_context_t;
 
-typedef struct kevent {
-	iscsi_uevent_t ev;
-	struct list_head list;
-} kevent_t;
+static xmit_context_t xmit;
+static recv_context_t *recv = NULL;
+static struct list_head evqueue;
+static struct list_head evqueue_busy;
+static spinlock_t evqueue_lock;
+static int recv_entry_cnt = 0;
+DECLARE_WAIT_QUEUE_HEAD(evwait);
+
+static recv_context_t*
+recv_entry_get(int del)
+{
+	recv_context_t *entry = ERR_PTR(-EAGAIN);
+
+	spin_lock_bh(&evqueue_lock);
+	if (list_empty(&evqueue))
+		goto out;
+
+	entry = list_entry(evqueue.next, recv_context_t, item);
+	if (del) {
+		list_del(&entry->item);
+		recv_entry_cnt--;
+	}
+out:
+	spin_unlock_bh(&evqueue_lock);
+
+	return entry;
+}
 
 int
-iscsi_control_recv_pdu(iscsi_cnx_h cp_cnx, iscsi_hdr_t *hdr, char *data)
+iscsi_control_recv_pdu(iscsi_cnx_h cp_cnx, iscsi_hdr_t *hdr,
+				char *data, int data_size)
 {
-	BUG_ON(1);
+	recv_context_t *entry;
+
+	if (recv_entry_cnt >= CTRL_RECV_ALLOWED)
+		return -EPERM;
+
+	entry = kmalloc(sizeof(*entry), GFP_ATOMIC);
+	if (!entry)
+		return -ENOMEM;
+	memset(entry, 0, sizeof(*entry));
+
+	entry->pdu = kmalloc(data_size + sizeof(iscsi_hdr_t), GFP_KERNEL);
+	if (!entry->pdu) {
+		kfree(entry);
+		return -ENOMEM;
+	}
+	memcpy(entry->pdu, hdr, sizeof(iscsi_hdr_t));
+	if (data)
+		memcpy(entry->pdu + sizeof(iscsi_hdr_t), data, data_size);
+	entry->type = ISCSI_KEVENT_RECV_PDU;
+	entry->state = PDU_STATE_BUSY;
+	entry->curr_off = 0;
+	entry->cp_cnxh = (ulong_t)cp_cnx;
+	entry->pdu_size = sizeof(iscsi_hdr_t) + data_size;
+
+	spin_lock_bh(&evqueue_lock);
+	recv_entry_cnt++;
+	list_add(&entry->item, &evqueue);
+	spin_unlock_bh(&evqueue_lock);
+
 	return 0;
 }
 
@@ -82,65 +131,20 @@ iscsi_control_cnx_error(iscsi_cnx_h cp_cnx, int error)
 {
 }
 
-kevent_t*
-iscsi_event_get(int del)
-{
-	kevent_t *kevent = ERR_PTR(-EAGAIN);
-
-	spin_lock(&event_queue_lock);
-	if (list_empty(&event_queue))
-		goto out;
-
-	kevent = list_entry(event_queue.next, kevent_t, list);
-	if (del)
-		list_del(&kevent->list);
-out:
-	spin_unlock(&event_queue_lock);
-
-	return kevent;
-}
-
-int
-iscsi_event_put(iscsi_uevent_e type, int atomic)
-{
-	kevent_t *kevent;
-
-	if (atomic) {
-		kevent = kmalloc(sizeof(*kevent), GFP_ATOMIC);
-		if (!kevent)
-			return -ENOMEM;
-	} else {
-		do {
-			kevent = kmalloc(sizeof(*kevent), GFP_KERNEL);
-			if (!kevent)
-				yield();
-		} while (!kevent);
-	}
-
-	memset(kevent, 0, sizeof(*kevent));
-	INIT_LIST_HEAD(&kevent->list);
-
-	kevent->ev.type = type;
-
-	spin_lock(&event_queue_lock);
-	list_add(&kevent->list, &event_queue);
-	spin_unlock(&event_queue_lock);
-
-	return 0;
-}
-
 static ssize_t
 write(struct file *file, const char __user *buf, size_t count, loff_t *ppos)
 {
-	if (sp_ctxt.state != SP_STATE_BUSY)
+	if (xmit.state != PDU_STATE_BUSY)
 		return -EBUSY;
 
-	if (sp_ctxt.curr_off + count > sp_ctxt.hdr_size + sp_ctxt.data_size)
+	if (xmit.curr_off + count > xmit.hdr_size + xmit.data_size)
 		return -EPERM;
 
-	if (copy_from_user(&sp_ctxt.spb->pdu[sp_ctxt.curr_off], buf, count))
-			count = -EFAULT;
-	sp_ctxt.curr_off += count;
+	if (copy_from_user(&xmit.pdu[xmit.curr_off], buf, count)) {
+		count = -EFAULT;
+	} else {
+		xmit.curr_off += count;
+	}
 
 	return count;
 }
@@ -148,19 +152,12 @@ write(struct file *file, const char __user *buf, size_t count, loff_t *ppos)
 static ssize_t
 read(struct file *file, char *buf, size_t count, loff_t *ppos)
 {
-	kevent_t *kevent;
-
-	if (count != sizeof(iscsi_uevent_t))
-		return -EIO;
-
-	kevent = iscsi_event_get(1);
-	if (IS_ERR(kevent))
-		return -EAGAIN;
-
-	if (copy_to_user(buf, &kevent->ev, count))
+	if (copy_to_user(buf, recv->pdu +
+			 recv->curr_off, count)) {
 		count = -EFAULT;
-
-	kfree(kevent);
+	} else {
+		recv->curr_off += count;
+	}
 
 	return count;
 }
@@ -180,9 +177,9 @@ close(struct inode *inode, struct file *file)
 static unsigned int
 poll(struct file *filp, poll_table *wait)
 {
-	poll_wait(filp, &event_wait, wait);
+	poll_wait(filp, &evwait, wait);
 
-	return IS_ERR(iscsi_event_get(0)) ? 0 : POLLIN | POLLRDNORM;
+	return IS_ERR(recv_entry_get(0)) ? 0 : POLLIN | POLLRDNORM;
 }
 
 static iscsi_kprovider_t*
@@ -207,7 +204,7 @@ __create_session(unsigned long ptr)
 		return -EEXIST;
 
 	handle = (ulong_t)provider->ops.create_session(
-		       (void*)ev.u.c_session.handle, ev.u.c_session.sid,
+		       (void*)ev.u.c_session.session_handle, ev.u.c_session.sid,
 		       ev.u.c_session.initial_cmdsn);
 	if (!handle) {
 		return -EIO;
@@ -242,7 +239,7 @@ __create_cnx(unsigned long ptr)
 	}
 
 	handle = (ulong_t)provider->ops.create_cnx(
-	       (void*)ev.u.c_cnx.session_handle, (void*)ev.u.c_cnx.handle,
+	       (void*)ev.u.c_cnx.session_handle, (void*)ev.u.c_cnx.cnx_handle,
 	       sock, ev.u.c_cnx.cid);
 	if (!handle) {
 		return -EIO;
@@ -290,38 +287,24 @@ __send_pdu_begin(unsigned long ptr)
 {
 	int rc;
 	iscsi_uevent_t ev;
-	struct list_head *lh;
 
 	if ((rc = copy_from_user(&ev, (void *)ptr, sizeof(ev))) < 0)
 		return rc;
 
-	if (ev.u.sp_begin.hdr_size + ev.u.sp_begin.data_size >
-	    DEFAULT_MAX_RECV_DATA_SEGMENT_LENGTH + sizeof(iscsi_hdr_t) + 4)
-		return -EPERM;
-
-	if (sp_ctxt.state != SP_STATE_READY)
+	if (xmit.state != PDU_STATE_READY)
 		return -EBUSY;
 
-	sp_ctxt.spb = NULL;
-	list_for_each(lh, &sp_head) {
-		sp_item_t *spb;
-		spb = list_entry(lh, sp_item_t, item);
-		if (spb && spb->state == SP_STATE_READY) {
-			spb->state = SP_STATE_BUSY;
-			sp_ctxt.spb = spb;
-			break;
-		}
-	}
-	if (sp_ctxt.spb == NULL) {
-		/* FIXME: allocate up to configured max. */
+	xmit.pdu = kmalloc(ev.u.sp_begin.hdr_size + ev.u.sp_begin.data_size,
+			   GFP_KERNEL);
+	if (xmit.pdu == NULL) {
 		return -ENOMEM;
 	}
 
-	sp_ctxt.cnxh = ev.u.sp_begin.cnx_handle;
-	sp_ctxt.state = SP_STATE_BUSY;
-	sp_ctxt.hdr_size = ev.u.sp_begin.hdr_size;
-	sp_ctxt.data_size = ev.u.sp_begin.data_size;
-	sp_ctxt.curr_off = 0;
+	xmit.cnxh = ev.u.sp_begin.cnx_handle;
+	xmit.state = PDU_STATE_BUSY;
+	xmit.hdr_size = ev.u.sp_begin.hdr_size;
+	xmit.data_size = ev.u.sp_begin.data_size;
+	xmit.curr_off = 0;
 
 	return 0;
 }
@@ -339,23 +322,158 @@ __send_pdu_end(unsigned long ptr)
 	if ((provider = __provider_lookup(ev.provider_id)) == NULL)
 		return -EEXIST;
 
-	if (sp_ctxt.state != SP_STATE_BUSY)
+	if (xmit.state != PDU_STATE_BUSY)
 		return -EPERM;
 
-	if (sp_ctxt.cnxh != ev.u.sp_end.cnx_handle)
+	if (xmit.cnxh != ev.u.sp_end.cnx_handle)
 		return -EPERM;
 
 	rc = (ulong_t)provider->ops.send_immpdu(
-	       (void*)ev.u.sp_end.cnx_handle, (iscsi_hdr_t*)sp_ctxt.spb->pdu,
-		sp_ctxt.spb->pdu + sp_ctxt.hdr_size, sp_ctxt.data_size);
+	       (void*)ev.u.sp_end.cnx_handle, (iscsi_hdr_t*)xmit.pdu,
+		xmit.pdu + xmit.hdr_size, xmit.data_size);
 	if (rc) {
 		return -EIO;
 	}
+
+	kfree(xmit.pdu);
+	xmit.state = PDU_STATE_READY;
 
 	if ((rc = copy_to_user(&((iscsi_uevent_t*)ptr)->r.retcode, &rc,
 			       sizeof(int))) < 0) {
 		return rc;
 	}
+
+	return 0;
+}
+
+static int
+__recv_pdu_begin(unsigned long ptr)
+{
+	int rc;
+	iscsi_uevent_t ev;
+	recv_context_t *entry = NULL;
+	struct list_head *lh;
+
+	if ((rc = copy_from_user(&ev, (void *)ptr, sizeof(ev))) < 0)
+		return rc;
+
+	list_for_each(lh, &evqueue_busy) {
+		entry = list_entry(lh, recv_context_t, item);
+		if (entry && entry == (void*)ev.u.rp_begin.recv_handle) {
+			spin_lock_bh(&evqueue_lock);
+			list_del(&entry->item);
+			spin_unlock_bh(&evqueue_lock);
+			break;
+		}
+	}
+	if (entry != (void*)ev.u.rp_begin.recv_handle)
+		return -EIO;
+
+	ev.r.rp_begin.pdu_handle = (ulong_t)entry->pdu;
+	ev.r.rp_begin.pdu_size = entry->pdu_size;
+
+	if ((rc = copy_to_user((void*)ptr, &ev, sizeof(ev))) < 0) {
+		spin_lock_bh(&evqueue_lock);
+		list_add(&entry->item, &evqueue_busy);
+		spin_unlock_bh(&evqueue_lock);
+		return rc;
+	}
+
+	recv = entry;
+
+	return 0;
+}
+
+static int
+__recv_pdu_end(unsigned long ptr)
+{
+	int rc;
+	iscsi_uevent_t ev;
+
+	if (recv == NULL)
+		return -EIO;
+
+	if ((rc = copy_from_user(&ev, (void *)ptr, sizeof(ev))) < 0)
+		return rc;
+
+	if (ev.u.rp_end.cpcnx_handle != (ulong_t)recv->cp_cnxh)
+		return -EPERM;
+
+	if (ev.u.rp_end.pdu_handle != (ulong_t)recv->pdu)
+		return -EPERM;
+
+	kfree(recv->pdu);
+	kfree(recv);
+	recv = NULL;
+
+	return 0;
+}
+
+static int
+__recv_req(unsigned long ptr)
+{
+	int rc;
+	iscsi_uevent_t ev;
+	recv_context_t *entry;
+
+	if ((rc = copy_from_user(&ev, (void *)ptr, sizeof(ev))) < 0)
+		return rc;
+
+	entry = recv_entry_get(1);
+	if (IS_ERR(entry))
+		return -EPERM;
+
+	spin_lock_bh(&evqueue_lock);
+	list_add(&entry->item, &evqueue_busy);
+	spin_unlock_bh(&evqueue_lock);
+
+	ev.type = entry->type;
+	ev.r.recv_req.recv_handle = (ulong_t)entry;
+	ev.r.recv_req.cnx_handle = (ulong_t)entry->cp_cnxh;
+
+	if ((rc = copy_to_user((void*)ptr, &ev, sizeof(ev))) < 0)
+		return rc;
+
+	return 0;
+}
+
+static int
+__set_param(unsigned long ptr)
+{
+	int rc;
+	iscsi_uevent_t ev;
+	iscsi_kprovider_t *provider;
+
+	if ((rc = copy_from_user(&ev, (void *)ptr, sizeof(ev))) < 0)
+		return rc;
+
+	if ((provider = __provider_lookup(ev.provider_id)) == NULL)
+		return -EEXIST;
+
+	rc = provider->ops.set_param((void*)ev.u.set_param.cnx_handle,
+				ev.u.set_param.param, ev.u.set_param.value);
+	if (rc)
+		return rc;
+
+	return 0;
+}
+
+static int
+__start_cnx(unsigned long ptr)
+{
+	int rc;
+	iscsi_uevent_t ev;
+	iscsi_kprovider_t *provider;
+
+	if ((rc = copy_from_user(&ev, (void *)ptr, sizeof(ev))) < 0)
+		return rc;
+
+	if ((provider = __provider_lookup(ev.provider_id)) == NULL)
+		return -EEXIST;
+
+	rc = provider->ops.start_cnx((void*)ev.u.set_param.cnx_handle);
+	if (rc)
+		return rc;
 
 	return 0;
 }
@@ -376,6 +494,11 @@ ioctl(struct inode *inode, struct file *file,
 	case ISCSI_UEVENT_BIND_CNX: return __bind_cnx(arg);
 	case ISCSI_UEVENT_SEND_PDU_BEGIN: return __send_pdu_begin(arg);
 	case ISCSI_UEVENT_SEND_PDU_END: return __send_pdu_end(arg);
+	case ISCSI_UEVENT_RECV_PDU_BEGIN: return __recv_pdu_begin(arg);
+	case ISCSI_UEVENT_RECV_PDU_END: return __recv_pdu_end(arg);
+	case ISCSI_UEVENT_RECV_REQ: return __recv_req(arg);
+	case ISCSI_UEVENT_SET_PARAM: return __set_param(arg);
+	case ISCSI_UEVENT_START_CNX: return __start_cnx(arg);
 	default: return -EPERM;
 	}
 
@@ -399,25 +522,17 @@ static int __init
 iscsi_init(void)
 {
 	int rc;
-	sp_item_t *spb;
 
 	printk(KERN_INFO "Open-iSCSI Provider Manager, version "
 			ISCSI_VERSION_STR " variant (" ISCSI_DATE_STR ")\n");
 
-	INIT_LIST_HEAD(&sp_head);
-
-	spb = kmalloc(sizeof(sp_item_t), GFP_KERNEL);
-	if (spb == NULL) {
-		printk("failed to allocate send pdu buffer\n");
-		return -ENOMEM;
-	}
-	list_add(&spb->item, &sp_head);
-	spb->state = SP_STATE_READY;
-	sp_ctxt.state = SP_STATE_READY;
+	INIT_LIST_HEAD(&evqueue);
+	INIT_LIST_HEAD(&evqueue_busy);
+	evqueue_lock = SPIN_LOCK_UNLOCKED;
+	xmit.state = PDU_STATE_READY;
 
 	ctr_major = register_chrdev(0, ctr_name, &ctr_fops);
 	if (ctr_major < 0) {
-		kfree(spb);
 		printk("failed to register the control device %d\n", ctr_major);
 		return ctr_major;
 	}
@@ -427,7 +542,6 @@ iscsi_init(void)
 	rc = iscsi_tcp_register(&provider_table[0].ops,
 				 &provider_table[0].caps);
 	if (rc) {
-		kfree(spb);
 		unregister_chrdev(ctr_major, ctr_name);
 		return rc;
 	}
@@ -438,17 +552,8 @@ iscsi_init(void)
 static void __exit
 iscsi_exit(void)
 {
-	struct list_head *lh, *n;
 	iscsi_tcp_unregister();
 	unregister_chrdev(ctr_major, ctr_name);
-	list_for_each_safe(lh, n, &sp_head) {
-		sp_item_t *spb;
-		spb = list_entry(lh, sp_item_t, item);
-		if (spb) {
-			list_del(&spb->item);
-			kfree(spb);
-		}
-	}
 }
 
 module_init(iscsi_init);

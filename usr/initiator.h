@@ -61,7 +61,7 @@ enum iscsi_login_status {
 typedef enum iscsi_cnx_state_e {
 	STATE_IDLE			= 0,
 	STATE_WAIT_CONNECT		= 1,
-	STATE_WAIT_PDU_RSP		= 2,
+	STATE_WAIT_LOGIN_RSP		= 2,
 } iscsi_cnx_state_e;
 
 typedef enum iscsi_event_e {
@@ -75,6 +75,8 @@ typedef struct iscsi_event {
 	queue_item_t item;
 	char payload[EVENT_PAYLOAD_MAX];
 } iscsi_event_t;
+
+struct queue_task;
 
 typedef struct iscsi_login_context {
 	int cid;
@@ -91,6 +93,7 @@ typedef struct iscsi_login_context {
 	int timeout;
 	int final;
 	enum iscsi_login_status ret;
+	struct queue_task *qtask;
 } iscsi_login_context_t;
 
 struct iscsi_session;
@@ -100,11 +103,16 @@ typedef int (*send_pdu_begin_f)(struct iscsi_session *session,
 			struct iscsi_conn *conn, int hdr_size, int data_size);
 typedef int (*send_pdu_end_f)(struct iscsi_session *session,
 			struct iscsi_conn *conn);
+typedef int (*recv_pdu_begin_f)(struct iscsi_conn *conn, ulong_t recv_handle,
+				ulong_t *pdu_handle, int *pdu_size);
+typedef int (*recv_pdu_end_f)(struct iscsi_conn *conn, ulong_t pdu_handle);
 
 /* daemon's connection structure */
 typedef struct iscsi_conn {
+	struct qelem item; /* must stay at the top */
 	int id;
 	ulong_t handle;
+	ulong_t recv_handle;
 	struct iscsi_session *session;
 	iscsi_login_context_t login_context;
 	uint8_t *rx_buffer;
@@ -115,6 +123,8 @@ typedef struct iscsi_conn {
 	int ctrl_fd;
 	send_pdu_begin_f send_pdu_begin;
 	send_pdu_end_f send_pdu_end;
+	recv_pdu_begin_f recv_pdu_begin;
+	recv_pdu_end_f recv_pdu_end;
 
 	/* login state machine */
 	int current_stage;
@@ -142,10 +152,10 @@ typedef struct iscsi_conn {
 	uint32_t exp_statsn;
 
 	/* negotiated parameters */
-	int header_digest;
-	int data_digest;
-	int max_recv_data_segment_len;	/* the value we declare */
-	int max_xmit_data_segment_len;	/* the value declared by the target */
+	int hdrdgst_en;
+	int datadgst_en;
+	int max_recv_dlength;	/* the value we declare */
+	int max_xmit_dlength;	/* the value declared by the target */
 } iscsi_conn_t;
 
 typedef struct queue_task {
@@ -163,13 +173,14 @@ typedef struct queue_task {
 			int ipc_fd;
 		} logout;
 		/* iSCSI requests originated via CTL */
-		struct ctlreq_async_ev {
-		} async_ev;
+		struct ctlreq_recv_pdu {
+		} recv_pdu;
 	} u;
 } queue_task_t;
 
 /* daemon's session structure */
 typedef struct iscsi_session {
+	struct qelem item; /* must stay at the top */
 	int id;
 	ulong_t handle;
 	node_rec_t nrec; /* copy of original Node record in database */
@@ -180,12 +191,12 @@ typedef struct iscsi_session {
 	uint32_t cmdsn;
 	uint32_t exp_cmdsn;
 	uint32_t max_cmdsn;
-	int immediate_data;
-	int initial_r2t;
-	int first_burst_len;
-	int max_burst_len;
-	int data_pdu_in_order;
-	int data_seq_in_order;
+	int imm_data_en;
+	int initial_r2t_en;
+	int first_burst;
+	int max_burst;
+	int pdu_inorder_en;
+	int dataseq_inorder_en;
 	int def_time2wait;
 	int def_time2retain;
 	int type;

@@ -21,8 +21,6 @@
 #define IDBM_H
 
 #include <sys/types.h>
-#define DB_DBM_HSEARCH 1
-#include <db.h>
 #include "initiator.h"
 #include "config.h"
 
@@ -46,8 +44,8 @@ typedef struct recinfo {
 } recinfo_t;
 
 typedef struct idbm {
-	DBM		*discdb;
-	DBM		*nodedb;
+	void		*discdb;
+	void		*nodedb;
 	char		*configfile;
 	node_rec_t	nrec;
 	recinfo_t	ninfo[MAX_KEYS];

@@ -997,7 +997,6 @@ iscsi_hdr_recv(iscsi_conn_t *conn)
 					 * placeholder */
 					memcpy(&conn->hdr, conn->in.hdr,
 					       sizeof(iscsi_hdr_t));
-					conn->data_copied = 0;
 				}
 			} else if (cstate == IN_PROGRESS_WRITE) {
 				rc = iscsi_cmd_rsp(conn, ctask);
@@ -1024,15 +1023,13 @@ iscsi_hdr_recv(iscsi_conn_t *conn)
 				iscsi_mgmt_task_t *mtask;
 
 				rc = iscsi_control_recv_pdu(
-					conn->handle, hdr, NULL);
+					conn->handle, hdr, NULL, 0);
 				mtask = (iscsi_mgmt_task_t *)
 					session->imm_cmds[conn->in.itt -
 						ISCSI_IMM_ITT_OFFSET];
 				if (conn->c_stage == ISCSI_CNX_STARTED) {
 					iscsi_enqueue(&session->immpool, mtask);
 				}
-			} else {
-				conn->data_copied = 0;
 			}
 			break;
 		default:
@@ -1047,19 +1044,18 @@ iscsi_hdr_recv(iscsi_conn_t *conn)
 						ISCSI_IMM_ITT_OFFSET];
 
 		debug_scsi("immrsp [op 0x%x cid %d itt 0x%x len %d]\n",
-			   hdr->opcode, conn->id, mtask->itt, conn->in.datalen);
+			   conn->in.opcode, conn->id, mtask->itt,
+			   conn->in.datalen);
 
 		switch(conn->in.opcode) {
 		case ISCSI_OP_LOGIN_RSP:
 		case ISCSI_OP_TEXT_RSP:
 			if (!conn->in.datalen) {
 				rc = iscsi_control_recv_pdu(
-					conn->handle, hdr, NULL);
+					conn->handle, hdr, NULL, 0);
 				if (conn->c_stage == ISCSI_CNX_STARTED) {
 					iscsi_enqueue(&session->immpool, mtask);
 				}
-			} else {
-				conn->data_copied = 0;
 			}
 			break;
 		default:
@@ -1067,11 +1063,10 @@ iscsi_hdr_recv(iscsi_conn_t *conn)
 			break;
 		}
 	} else if (conn->in.itt == ISCSI_RESERVED_TAG) {
-		conn->data_copied = 0;
 		if (conn->in.opcode == ISCSI_OP_NOOP_IN &&
 		    !conn->in.datalen) {
 			rc = iscsi_control_recv_pdu(
-					conn->handle, hdr, NULL);
+					conn->handle, hdr, NULL, 0);
 		} else {
 			rc = ISCSI_ERR_BAD_OPCODE;
 		}
@@ -1187,12 +1182,13 @@ iscsi_data_recv(iscsi_conn_t *conn)
 		}
 
 		rc = iscsi_control_recv_pdu(conn->handle,
-				conn->in.hdr, conn->data);
+				conn->in.hdr, conn->data, conn->in.datalen);
 
 		if (mtask && conn->c_stage == ISCSI_CNX_STARTED) {
 			iscsi_enqueue(&session->immpool, mtask);
 		}
 	}
+	break;
 	default:
 		__BUG_ON(1);
 	}
@@ -1450,6 +1446,7 @@ iscsi_mtask_xmit(iscsi_conn_t *conn, iscsi_mgmt_task_t *mtask)
 		}
 		if (mtask->data_count == 0 &&
 		    mtask->hdr.itt == ISCSI_RESERVED_TAG) {
+			up(&mtask->xmitsema);
 			return 0;
 		} else if (mtask->data_count) {
 			mtask->in_progress = IN_PROGRESS_IMM_DATA;
@@ -1469,6 +1466,7 @@ iscsi_mtask_xmit(iscsi_conn_t *conn, iscsi_mgmt_task_t *mtask)
 		} while (mtask->data_count);
 	}
 
+	up(&mtask->xmitsema);
 	return 0;
 }
 
@@ -1708,9 +1706,9 @@ iscsi_data_xmit(iscsi_conn_t *conn)
 
 	/* process immediate queue */
 	while ((mtask = __dequeue(&conn->immqueue)) != NULL) {
-		iscsi_session_t *session = conn->session;
+//		iscsi_session_t *session = conn->session;
 
-		__enqueue(&session->immpool, mtask);
+//		__enqueue(&session->immpool, mtask);
 		if (conn->c_stage == ISCSI_CNX_STOPPED) {
 			__insert(&conn->immqueue, mtask);
 			spin_unlock_bh(&conn->lock);
@@ -1893,12 +1891,12 @@ iscsi_eh_abort(struct scsi_cmnd *sc)
 	debug_scsi("abort [sc %lx itt 0x%x]\n", (long)sc, ctask->itt);
 
 	if (iscsi_control_recv_pdu(conn->handle,
-			(iscsi_hdr_t*)&ctask->hdr, NULL)) {
+			(iscsi_hdr_t*)&ctask->hdr, NULL, 0)) {
 		return FAILED;
 	}
 #if 0
-	iscsi_session_t *session = conn->session;
 	iscsi_mgmt_task_t *mtask;
+	iscsi_session_t *session = conn->session;
 
 	debug_scsi("abort [sc %lx itt 0x%x]\n", (long)sc, ctask->itt);
 
@@ -1915,7 +1913,7 @@ iscsi_eh_abort(struct scsi_cmnd *sc)
 	iscsi_enqueue(&conn->immqueue, mtask);
 	schedule_work(&conn->xmitwork);
 
-	down(&session->tmsema);
+	down(&mtask->xmitsema);
 #endif
 	return SUCCESS;
 }
@@ -2056,6 +2054,10 @@ iscsi_conn_create(iscsi_snx_h snxh, iscsi_cnx_h handle,
 	conn->id = conn_idx;
 	conn->exp_statsn = 0;
 	conn->handle = handle;
+
+	/* some initial operational parameters */
+	conn->hdr_size = sizeof(iscsi_hdr_t);
+	conn->max_recv_dlength = DEFAULT_MAX_RECV_DATA_SEGMENT_LENGTH;
 
 	spin_lock_init(&conn->lock);
 
@@ -2253,11 +2255,10 @@ iscsi_send_immpdu(iscsi_cnx_h cnxh, iscsi_hdr_t *hdr, char *data,
 			    sizeof(iscsi_hdr_t));
 
 	if (mtask->data_count) {
-		iscsi_buf_init_virt(&mtask->sendbuf, (char*)&mtask->data,
+		iscsi_buf_init_virt(&mtask->sendbuf, (char*)mtask->data,
 				    mtask->data_count);
 		/* FIXME: implement convertion of mtask->data into 1st
-		 *        mtask->sendbuf.
-		 *        Keep in mind that virtual buffer
+		 *        mtask->sendbuf. Keep in mind that virtual buffer
 		 *        spreaded accross multiple pages... */
 		if(mtask->sendbuf.offset + mtask->data_count > PAGE_SIZE) {
 			if (conn->c_stage == ISCSI_CNX_STARTED) {
@@ -2269,6 +2270,7 @@ iscsi_send_immpdu(iscsi_cnx_h cnxh, iscsi_hdr_t *hdr, char *data,
 
 	iscsi_enqueue(&conn->immqueue, mtask);
 	schedule_work(&conn->xmitwork);
+	down(&mtask->xmitsema);
 
 	return 0;
 }
@@ -2423,6 +2425,7 @@ iscsi_session_create(iscsi_snx_h handle, int host_no, int initial_cmdsn)
 	/* pre-format immediate cmds pool with ITT */
 	for (cmd_i=0; cmd_i<session->imm_max; cmd_i++) {
 		session->imm_cmds[cmd_i]->itt = ISCSI_IMM_ITT_OFFSET + cmd_i;
+		init_MUTEX_LOCKED(&session->imm_cmds[cmd_i]->xmitsema);
 	}
 
 	if (iscsi_r2tpool_alloc(session)) {
@@ -2480,10 +2483,10 @@ iscsi_set_param(iscsi_cnx_h cnxh, iscsi_param_e param, int value)
 
 	if (conn->c_stage == ISCSI_CNX_INITIAL_STAGE) {
 		switch(param) {
-		case ISCSI_PARAM_MAX_RECV_DLENGH:
+		case ISCSI_PARAM_MAX_RECV_DLENGTH:
 			conn->max_recv_dlength = value;
 			break;
-		case ISCSI_PARAM_MAX_XMIT_DLENGH:
+		case ISCSI_PARAM_MAX_XMIT_DLENGTH:
 			conn->max_xmit_dlength = value;
 			break;
 		case ISCSI_PARAM_HDRDGST_EN:

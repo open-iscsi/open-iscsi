@@ -671,12 +671,10 @@ init_new_session(struct iscsi_sendtargets_config *config)
 	session->cnx[0].ping_timeout = config->cnx_timeo.ping_timeout;
 	session->send_async_text = config->continuous ?
 						config->send_async_text : -1;
-	session->cnx[0].header_digest = ISCSI_DIGEST_NONE;
-	session->cnx[0].data_digest = ISCSI_DIGEST_NONE;
-	session->cnx[0].max_recv_data_segment_len =
-		DEFAULT_MAX_RECV_DATA_SEGMENT_LENGTH;
-	session->cnx[0].max_xmit_data_segment_len =
-		DEFAULT_MAX_RECV_DATA_SEGMENT_LENGTH;
+	session->cnx[0].hdrdgst_en = ISCSI_DIGEST_NONE;
+	session->cnx[0].datadgst_en = ISCSI_DIGEST_NONE;
+	session->cnx[0].max_recv_dlength = DEFAULT_MAX_RECV_DATA_SEGMENT_LENGTH;
+	session->cnx[0].max_xmit_dlength = DEFAULT_MAX_RECV_DATA_SEGMENT_LENGTH;
 
 	/* OUI and uniqifying number */
 	session->isid[0] = DRIVER_ISID_0;

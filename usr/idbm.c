@@ -24,6 +24,8 @@
 #include <fcntl.h>
 #include <sys/stat.h>
 #include <sys/file.h>
+#define DB_DBM_HSEARCH 1
+#include <db.h>
 
 #include "idbm.h"
 #include "log.h"

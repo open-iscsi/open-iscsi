@@ -337,9 +337,9 @@ get_op_params_text_keys(iscsi_session_t *session, int cid,
 					 &value_end)) {
 		if (session->type == ISCSI_SESSION_TYPE_NORMAL) {
 			if (value && (strcmp(value, "Yes") == 0))
-				session->initial_r2t = 1;
+				session->initial_r2t_en = 1;
 			else
-				session->initial_r2t = 0;
+				session->initial_r2t_en = 0;
 		} else
 			session->irrelevant_keys_bitmap |=
 						IRRELEVANT_INITIALR2T;
@@ -348,21 +348,21 @@ get_op_params_text_keys(iscsi_session_t *session, int cid,
 					 &value_end)) {
 		if (session->type == ISCSI_SESSION_TYPE_NORMAL) {
 			if (value && (strcmp(value, "Yes") == 0))
-				session->immediate_data = 1;
+				session->imm_data_en = 1;
 			else
-				session->immediate_data = 0;
+				session->imm_data_en = 0;
 		} else
 			session->irrelevant_keys_bitmap |=
 						IRRELEVANT_IMMEDIATEDATA;
 		text = value_end;
 	} else if (iscsi_find_key_value("MaxRecvDataSegmentLength", text, end,
 				     &value, &value_end)) {
-		conn->max_xmit_data_segment_len = strtoul(value, NULL, 0);
+		conn->max_xmit_dlength = strtoul(value, NULL, 0);
 		text = value_end;
 	} else if (iscsi_find_key_value("FirstBurstLength", text, end, &value,
 					 &value_end)) {
 		if (session->type == ISCSI_SESSION_TYPE_NORMAL)
-			session->first_burst_len = strtoul(value, NULL, 0);
+			session->first_burst = strtoul(value, NULL, 0);
 		else
 			session->irrelevant_keys_bitmap |=
 						IRRELEVANT_FIRSTBURSTLENGTH;
@@ -374,7 +374,7 @@ get_op_params_text_keys(iscsi_session_t *session, int cid,
 		 * R2Ts, but record it anwyay
 		 */
 		if (session->type == ISCSI_SESSION_TYPE_NORMAL)
-			session->max_burst_len = strtoul(value, NULL, 0);
+			session->max_burst = strtoul(value, NULL, 0);
 		else
 			session->irrelevant_keys_bitmap |=
 						IRRELEVANT_MAXBURSTLENGTH;
@@ -382,8 +382,8 @@ get_op_params_text_keys(iscsi_session_t *session, int cid,
 	} else if (iscsi_find_key_value("HeaderDigest", text, end, &value,
 					 &value_end)) {
 		if (strcmp(value, "None") == 0) {
-			if (conn->header_digest != ISCSI_DIGEST_CRC32C)
-				conn->header_digest = ISCSI_DIGEST_NONE;
+			if (conn->hdrdgst_en != ISCSI_DIGEST_CRC32C)
+				conn->hdrdgst_en = ISCSI_DIGEST_NONE;
 			else {
 				log_error("Login negotiation "
 					       "failed, HeaderDigest=CRC32C "
@@ -392,8 +392,8 @@ get_op_params_text_keys(iscsi_session_t *session, int cid,
 				return LOGIN_NEGOTIATION_FAILED;
 			}
 		} else if (strcmp(value, "CRC32C") == 0) {
-			if (conn->header_digest != ISCSI_DIGEST_NONE)
-				conn->header_digest = ISCSI_DIGEST_CRC32C;
+			if (conn->hdrdgst_en != ISCSI_DIGEST_NONE)
+				conn->hdrdgst_en = ISCSI_DIGEST_CRC32C;
 			else {
 				log_error("Login negotiation "
 				       "failed, HeaderDigest=None is "
@@ -409,8 +409,8 @@ get_op_params_text_keys(iscsi_session_t *session, int cid,
 	} else if (iscsi_find_key_value("DataDigest", text, end, &value,
 					 &value_end)) {
 		if (strcmp(value, "None") == 0) {
-			if (conn->data_digest != ISCSI_DIGEST_CRC32C)
-				conn->data_digest = ISCSI_DIGEST_NONE;
+			if (conn->datadgst_en != ISCSI_DIGEST_CRC32C)
+				conn->datadgst_en = ISCSI_DIGEST_NONE;
 			else {
 				log_error("Login negotiation "
 				       "failed, DataDigest=CRC32C "
@@ -418,8 +418,8 @@ get_op_params_text_keys(iscsi_session_t *session, int cid,
 				return LOGIN_NEGOTIATION_FAILED;
 			}
 		} else if (strcmp(value, "CRC32C") == 0) {
-			if (conn->data_digest != ISCSI_DIGEST_NONE)
-				conn->data_digest = ISCSI_DIGEST_CRC32C;
+			if (conn->datadgst_en != ISCSI_DIGEST_NONE)
+				conn->datadgst_en = ISCSI_DIGEST_CRC32C;
 			else {
 				log_error("Login negotiation "
 				       "failed, DataDigest=None is "
@@ -460,9 +460,9 @@ get_op_params_text_keys(iscsi_session_t *session, int cid,
 					 &value_end)) {
 		if (session->type == ISCSI_SESSION_TYPE_NORMAL) {
 			if (value && strcmp(value, "Yes") == 0)
-				session->data_pdu_in_order = 1;
+				session->pdu_inorder_en = 1;
 			else
-				session->data_pdu_in_order = 0;
+				session->pdu_inorder_en = 0;
 		} else
 			session->irrelevant_keys_bitmap |=
 						IRRELEVANT_DATAPDUINORDER;
@@ -471,9 +471,9 @@ get_op_params_text_keys(iscsi_session_t *session, int cid,
 					 &value, &value_end)) {
 		if (session->type == ISCSI_SESSION_TYPE_NORMAL)
 			if (value && strcmp(value, "Yes") == 0)
-				session->data_seq_in_order = 1;
+				session->dataseq_inorder_en = 1;
 			else
-				session->data_seq_in_order = 0;
+				session->dataseq_inorder_en = 0;
 		else
 			session->irrelevant_keys_bitmap |=
 						IRRELEVANT_DATASEQUENCEINORDER;
@@ -724,20 +724,20 @@ add_params_normal_session(iscsi_session_t *session, iscsi_hdr_t *pdu,
 
 	/* these are only relevant for normal sessions */
 	if (!iscsi_add_text(pdu, data, max_data_length, "InitialR2T",
-			    session->initial_r2t ? "Yes" : "No"))
+			    session->initial_r2t_en ? "Yes" : "No"))
 		return 0;
 
 	if (!iscsi_add_text(pdu, data, max_data_length,
 			    "ImmediateData",
-			    session->immediate_data ? "Yes" : "No"))
+			    session->imm_data_en ? "Yes" : "No"))
 		return 0;
 
-	sprintf(value, "%d", session->max_burst_len);
+	sprintf(value, "%d", session->max_burst);
 	if (!iscsi_add_text(pdu, data, max_data_length,
 			    "MaxBurstLength", value))
 		return 0;
 
-	sprintf(value, "%d",session->first_burst_len);
+	sprintf(value, "%d",session->first_burst);
 	if (!iscsi_add_text(pdu, data, max_data_length,
 			    "FirstBurstLength", value))
 		return 0;
@@ -864,7 +864,7 @@ static int
 fill_crc_digest_text(iscsi_conn_t *conn, iscsi_hdr_t *pdu,
 		     char *data, int max_data_length)
 {
-	switch (conn->header_digest) {
+	switch (conn->hdrdgst_en) {
 	case ISCSI_DIGEST_NONE:
 		if (!iscsi_add_text(pdu, data, max_data_length,
 		    "HeaderDigest", "None"))
@@ -888,7 +888,7 @@ fill_crc_digest_text(iscsi_conn_t *conn, iscsi_hdr_t *pdu,
 		break;
 	}
 
-	switch (conn->data_digest) {
+	switch (conn->datadgst_en) {
 	case ISCSI_DIGEST_NONE:
 		if (!iscsi_add_text(pdu, data, max_data_length,
 		    "DataDigest", "None"))
@@ -939,7 +939,7 @@ fill_op_params_text(iscsi_session_t *session, int cid, iscsi_hdr_t *pdu,
 		if (!fill_crc_digest_text(conn, pdu, data, max_data_length))
 			return 0;
 
-		sprintf(value, "%d", conn->max_recv_data_segment_len);
+		sprintf(value, "%d", conn->max_recv_dlength);
 		if (!iscsi_add_text(pdu, data, max_data_length,
 		    "MaxRecvDataSegmentLength", value))
 			return 0;
@@ -1039,9 +1039,9 @@ fill_security_params_text(iscsi_session_t *session, int cid, iscsi_hdr_t *pdu,
 		 * keys, or want to offer vendor-specific keys
 		 */
 		if (session->type == ISCSI_SESSION_TYPE_DISCOVERY)
-			if ((conn->header_digest != ISCSI_DIGEST_NONE) ||
-			    (conn->data_digest != ISCSI_DIGEST_NONE) ||
-			    (conn->max_recv_data_segment_len !=
+			if ((conn->hdrdgst_en != ISCSI_DIGEST_NONE) ||
+			    (conn->datadgst_en != ISCSI_DIGEST_NONE) ||
+			    (conn->max_recv_dlength !=
 			    DEFAULT_MAX_RECV_DATA_SEGMENT_LENGTH) ||
 			    session->vendor_specific_keys)
 				conn->next_stage =
@@ -1365,7 +1365,7 @@ iscsi_login_req(iscsi_session_t *session, iscsi_login_context_t *c)
 		goto done;
 	}
 
-	conn->state = STATE_WAIT_PDU_RSP;
+	conn->state = STATE_WAIT_LOGIN_RSP;
 	return 0;
 
  done:

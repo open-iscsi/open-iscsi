@@ -37,29 +37,50 @@
 int
 ctldev_handle(int fd)
 {
-	iscsi_uevent_t event;
-	int res;
+	int rc;
+	iscsi_uevent_t ev;
+	struct qelem *item;
+	iscsi_session_t *session = NULL;
+	iscsi_conn_t *conn = NULL;
 
-	while (1) {
-		res = read(fd, &event, sizeof(event));
-		if (res < 0) {
-			if (errno == EAGAIN)
-				return 0;
-			if (errno == EINTR)
-				continue;
-			log_error("got error (%d) when read ctrl_fd", errno);
-			return 1;
-		}
-
-		log_debug(1, "got event, type %u", event.type);
-
-		switch (event.type) {
-		default:
-			log_error("%s(%d) %u\n", __FUNCTION__, __LINE__,
-			       event.type);
-			return -1;
-		}
+	if ((rc = ioctl(fd, ISCSI_UEVENT_RECV_REQ, &ev)) < 0) {
+		log_error("can't fetch recv event information "
+			  "(%d), retcode %d", errno, rc);
+		return rc;
 	}
+
+	if (ev.type == ISCSI_KEVENT_RECV_PDU) {
+
+		/* verify connection */
+		item = provider[0].sessions.q_forw;
+		while (item != &provider[0].sessions) {
+			int i;
+			session = (iscsi_session_t *)item;
+			for (i=0; i<ISCSI_CNX_MAX; i++) {
+				if (&session->cnx[i] == (iscsi_conn_t*)
+						ev.r.recv_req.cnx_handle) {
+					conn = &session->cnx[i];
+					break;
+				}
+			}
+			item = item->q_forw;
+		}
+		if (conn == NULL) {
+			log_error("could not verify connection 0x%llx for "
+				  "event RECV_PDU", (uint64_t)(ulong_t)conn);
+			return -ENXIO;
+		}
+
+		/* produce an event, so session manager will handle */
+		queue_produce(session->queue, EV_CNX_RECV_PDU, conn,
+			sizeof(ulong_t), (void*)&ev.r.recv_req.recv_handle);
+		actor_schedule(&session->mainloop);
+
+	} else if (ev.type == ISCSI_KEVENT_CNX_ERROR) {
+	} else {
+		log_error("unknown kernel event %d", ev.type);
+	}
+
 	return 0;
 }
 

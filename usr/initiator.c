@@ -17,6 +17,7 @@
  * See the file COPYING included with this distribution for more details.
  */
 
+#include <search.h>
 #include <string.h>
 #include <stdlib.h>
 #include <netdb.h>
@@ -232,16 +233,15 @@ session_cnx_create(iscsi_session_t *session, int cid)
 	conn->ping_timeout = cnx->timeo.ping_timeout;
 
 	/* operational parameters */
-	conn->max_recv_data_segment_len =
+	conn->max_recv_dlength =
 			cnx->iscsi.MaxRecvDataSegmentLength;
 	/*
 	 * iSCSI default, unless declared otherwise by the
 	 * target during login
 	 */
-	conn->max_xmit_data_segment_len =
-			DEFAULT_MAX_RECV_DATA_SEGMENT_LENGTH;
-	conn->header_digest = cnx->iscsi.HeaderDigest;
-	conn->data_digest = cnx->iscsi.DataDigest;
+	conn->max_xmit_dlength = DEFAULT_MAX_RECV_DATA_SEGMENT_LENGTH;
+	conn->hdrdgst_en = cnx->iscsi.HeaderDigest;
+	conn->datadgst_en = cnx->iscsi.DataDigest;
 
 	/* TCP options */
 	conn->tcp_window_size = cnx->tcp.window_size;
@@ -344,10 +344,10 @@ session_create(node_rec_t *rec)
 	actor_schedule(&session->mainloop);
 
 	/* session's operational parameters */
-	session->initial_r2t = rec->session.iscsi.InitialR2T;
-	session->immediate_data = rec->session.iscsi.ImmediateData;
-	session->first_burst_len = rec->session.iscsi.FirstBurstLength;
-	session->max_burst_len = rec->session.iscsi.MaxBurstLength;
+	session->initial_r2t_en = rec->session.iscsi.InitialR2T;
+	session->imm_data_en = rec->session.iscsi.ImmediateData;
+	session->first_burst = rec->session.iscsi.FirstBurstLength;
+	session->max_burst = rec->session.iscsi.MaxBurstLength;
 	session->def_time2wait = rec->session.iscsi.DefaultTime2Wait;
 	session->def_time2retain = rec->session.iscsi.DefaultTime2Retain;
 	session->portal_group_tag = rec->tpgt;
@@ -368,12 +368,15 @@ session_create(node_rec_t *rec)
 	/* setup authentication variables for the session*/
 	setup_authentication(session, &rec->session.auth);
 
+	insque(&session->item, &provider[0].sessions);
+
 	return session;
 }
 
 void
 session_destroy(iscsi_session_t *session)
 {
+	remque(&session->item);
 	queue_flush(session->queue);
 	queue_destroy(session->queue);
 	actor_delete(&session->mainloop);
@@ -390,7 +393,7 @@ __ksession_create(iscsi_session_t *session)
 
 	ev.type = ISCSI_UEVENT_CREATE_SESSION;
 	ev.provider_id = 0; /* FIXME: hardcoded */
-	ev.u.c_session.handle = (ulong_t)session;
+	ev.u.c_session.session_handle = (ulong_t)session;
 	ev.u.c_session.sid = session->id;
 	ev.u.c_session.initial_cmdsn = session->nrec.session.initial_cmdsn;
 
@@ -418,7 +421,7 @@ __ksession_cnx_create(iscsi_session_t *session, iscsi_conn_t *conn)
 	ev.type = ISCSI_UEVENT_CREATE_CNX;
 	ev.provider_id = 0; /* FIXME: hardcoded */
 	ev.u.c_cnx.session_handle = session->handle;
-	ev.u.c_cnx.handle = (ulong_t)conn;
+	ev.u.c_cnx.cnx_handle = (ulong_t)conn;
 	ev.u.c_cnx.socket_fd = conn->socket_fd;
 	ev.u.c_cnx.cid = conn->id;
 
@@ -569,8 +572,280 @@ __ksession_send_pdu_end(iscsi_session_t *session, iscsi_conn_t *conn)
 #endif
 
 static void
+__session_ipc_login_cleanup(queue_task_t *qtask, ipc_err_e err)
+{
+	iscsi_conn_t *conn = qtask->conn;
+	iscsi_session_t *session = conn->session;
+
+	qtask->u.login.rsp.err = err;
+	write(qtask->u.login.ipc_fd, &qtask->u.login.rsp,
+		sizeof(qtask->u.login.rsp));
+	close(qtask->u.login.ipc_fd);
+	free(qtask);
+	if (conn->login_context.buffer)
+		free(conn->login_context.buffer);
+	session_cnx_destroy(session, conn->id);
+	if (conn->id == 0)
+		session_destroy(session);
+}
+
+static int
+__ksession_set_param(iscsi_conn_t *conn, iscsi_param_e param, uint32_t value)
+{
+	int rc;
+	iscsi_uevent_t ev;
+
+	memset(&ev, 0, sizeof(iscsi_uevent_t));
+
+	ev.type = ISCSI_UEVENT_SET_PARAM;
+	ev.provider_id = 0; /* FIXME: hardcoded */
+	ev.u.set_param.cnx_handle = (ulong_t)conn->handle;
+	ev.u.set_param.param = param;
+	ev.u.set_param.value = value;
+
+	if ((rc = ioctl(ctrl_fd, ISCSI_UEVENT_SET_PARAM, &ev)) < 0) {
+		log_error("can't set operational parameter %d for cnx with "
+			  "id = %d (%d)", param, conn->id, errno);
+		return rc;
+	}
+
+	log_debug(3, "set operational parameter %d to %u",
+			param, value);
+
+	return 0;
+}
+
+static int
+__ksession_start_cnx(iscsi_conn_t *conn)
+{
+	int rc;
+	iscsi_uevent_t ev;
+
+	memset(&ev, 0, sizeof(iscsi_uevent_t));
+
+	ev.type = ISCSI_UEVENT_SET_PARAM;
+	ev.provider_id = 0; /* FIXME: hardcoded */
+	ev.u.start_cnx.cnx_handle = (ulong_t)conn->handle;
+
+	if ((rc = ioctl(ctrl_fd, ISCSI_UEVENT_START_CNX, &ev)) < 0) {
+		log_error("can't start connection 0x%llx with "
+			  "id = %d (%d)", (uint64_t)conn->handle,
+			  conn->id, errno);
+		return rc;
+	}
+
+	log_debug(3, "connection 0x%llx operational now",
+			(uint64_t)conn->handle);
+
+	return 0;
+}
+
+static int
+__ksession_recv_pdu_begin(iscsi_conn_t *conn, ulong_t recv_handle,
+				ulong_t *pdu_handle, int *pdu_size)
+{
+	int rc;
+	iscsi_uevent_t ev;
+
+	memset(&ev, 0, sizeof(iscsi_uevent_t));
+
+	ev.type = ISCSI_UEVENT_RECV_PDU_BEGIN;
+	ev.provider_id = 0; /* FIXME: hardcoded */
+	ev.u.rp_begin.cpcnx_handle = (ulong_t)conn;
+	ev.u.rp_begin.recv_handle = recv_handle;
+
+	if ((rc = ioctl(ctrl_fd, ISCSI_UEVENT_RECV_PDU_BEGIN, &ev)) < 0) {
+		log_error("can't initiate recv PDU operation for cnx with "
+			  "id = %d (%d)", conn->id, errno);
+		return rc;
+	}
+
+	*pdu_handle = ev.r.rp_begin.pdu_handle;
+	*pdu_size = ev.r.rp_begin.pdu_size;
+
+	log_debug(3, "recv PDU began, pdu handle 0x%llx size %d",
+		  (uint64_t)*pdu_handle, *pdu_size);
+
+	return 0;
+}
+
+static int
+__ksession_recv_pdu_end(iscsi_conn_t *conn, ulong_t pdu_handle)
+{
+	int rc;
+	iscsi_uevent_t ev;
+
+	memset(&ev, 0, sizeof(iscsi_uevent_t));
+
+	ev.type = ISCSI_UEVENT_RECV_PDU_END;
+	ev.provider_id = 0; /* FIXME: hardcoded */
+	ev.u.rp_end.cpcnx_handle = (ulong_t)conn;
+	ev.u.rp_end.pdu_handle = pdu_handle;
+
+	if ((rc = ioctl(ctrl_fd, ISCSI_UEVENT_RECV_PDU_END, &ev)) < 0) {
+		log_error("can't finish recv PDU operation for cnx with "
+			  "id = %d (%d)", conn->id, errno);
+		return rc;
+	}
+
+	log_debug(3, "recv PDU finished for pdu handle 0x%llx",
+		  (uint64_t)pdu_handle);
+
+	return 0;
+}
+
+static void
 __session_cnx_recv_pdu(queue_item_t *item)
 {
+	ulong_t recv_handle = *(ulong_t*)queue_item_data(item);
+	iscsi_conn_t *conn = item->context;
+	iscsi_session_t *session = conn->session;
+
+	if (conn->state == STATE_WAIT_LOGIN_RSP) {
+		iscsi_login_context_t *c = &conn->login_context;
+
+		conn->recv_handle = recv_handle;
+
+		if (iscsi_login_rsp(session, c)) {
+			__session_ipc_login_cleanup(c->qtask,
+					IPC_ERR_LOGIN_FAILURE);
+			return;
+		}
+
+		if (conn->current_stage != ISCSI_FULL_FEATURE_PHASE) {
+			/* more nego. needed! */
+			conn->state = STATE_WAIT_LOGIN_RSP;
+			if (iscsi_login_req(session, c)) {
+				__session_ipc_login_cleanup(c->qtask,
+						IPC_ERR_LOGIN_FAILURE);
+				return;
+			}
+		} else {
+			/* almost! entered full-feature phase */
+
+			if (login_response_status(conn, c->ret) !=
+						CNX_LOGIN_SUCCESS) {
+				__session_ipc_login_cleanup(c->qtask,
+						IPC_ERR_LOGIN_FAILURE);
+				return;
+			}
+
+			/* check the login status */
+			if (check_iscsi_status_class(session, conn->id,
+				c->status_class, c->status_detail) !=
+							CNX_LOGIN_SUCCESS) {
+				__session_ipc_login_cleanup(c->qtask,
+						IPC_ERR_LOGIN_FAILURE);
+				return;
+			}
+
+			/* Entered full-feature phase! */
+
+			if (__ksession_set_param(conn,
+				ISCSI_PARAM_MAX_RECV_DLENGTH,
+				conn->max_recv_dlength)) {
+				__session_ipc_login_cleanup(c->qtask,
+						IPC_ERR_LOGIN_FAILURE);
+				return;
+			}
+			if (__ksession_set_param(conn,
+				ISCSI_PARAM_MAX_XMIT_DLENGTH,
+				conn->max_xmit_dlength)) {
+				__session_ipc_login_cleanup(c->qtask,
+						IPC_ERR_LOGIN_FAILURE);
+				return;
+			}
+			if (__ksession_set_param(conn,
+				ISCSI_PARAM_HDRDGST_EN, conn->hdrdgst_en)) {
+				__session_ipc_login_cleanup(c->qtask,
+						IPC_ERR_LOGIN_FAILURE);
+				return;
+			}
+			if (__ksession_set_param(conn,
+				ISCSI_PARAM_DATADGST_EN, conn->datadgst_en)) {
+				__session_ipc_login_cleanup(c->qtask,
+						IPC_ERR_LOGIN_FAILURE);
+				return;
+			}
+			if (conn->id == 0) {
+				/* setup session's op. parameters just once */
+				if (__ksession_set_param(conn,
+					ISCSI_PARAM_INITIAL_R2T_EN,
+					session->initial_r2t_en)) {
+					__session_ipc_login_cleanup(c->qtask,
+							IPC_ERR_LOGIN_FAILURE);
+					return;
+				}
+				if (__ksession_set_param(conn,
+					ISCSI_PARAM_MAX_R2T,
+					1 /* FIXME: session->max_r2t */)) {
+					__session_ipc_login_cleanup(c->qtask,
+							IPC_ERR_LOGIN_FAILURE);
+					return;
+				}
+				if (__ksession_set_param(conn,
+					ISCSI_PARAM_IMM_DATA_EN,
+					session->imm_data_en)) {
+					__session_ipc_login_cleanup(c->qtask,
+							IPC_ERR_LOGIN_FAILURE);
+					return;
+				}
+				if (__ksession_set_param(conn,
+					ISCSI_PARAM_FIRST_BURST,
+					session->first_burst)) {
+					__session_ipc_login_cleanup(c->qtask,
+							IPC_ERR_LOGIN_FAILURE);
+					return;
+				}
+				if (__ksession_set_param(conn,
+					ISCSI_PARAM_MAX_BURST,
+					session->max_burst)) {
+					__session_ipc_login_cleanup(c->qtask,
+							IPC_ERR_LOGIN_FAILURE);
+					return;
+				}
+				if (__ksession_set_param(conn,
+					ISCSI_PARAM_PDU_INORDER_EN,
+					session->pdu_inorder_en)) {
+					__session_ipc_login_cleanup(c->qtask,
+							IPC_ERR_LOGIN_FAILURE);
+					return;
+				}
+				if (__ksession_set_param(conn,
+					ISCSI_PARAM_DATASEQ_INORDER_EN,
+					session->dataseq_inorder_en)) {
+				}
+				if (__ksession_set_param(conn,
+					ISCSI_PARAM_ERL,
+					0 /* FIXME: session->erl */)) {
+					__session_ipc_login_cleanup(c->qtask,
+							IPC_ERR_LOGIN_FAILURE);
+					return;
+				}
+				if (__ksession_set_param(conn,
+					ISCSI_PARAM_IFMARKER_EN,
+					0 /* FIXME: session->ifmarker_en */)) {
+					__session_ipc_login_cleanup(c->qtask,
+							IPC_ERR_LOGIN_FAILURE);
+					return;
+				}
+				if (__ksession_set_param(conn,
+					ISCSI_PARAM_OFMARKER_EN,
+					0 /* FIXME: session->ofmarker_en */)) {
+					__session_ipc_login_cleanup(c->qtask,
+							IPC_ERR_LOGIN_FAILURE);
+					return;
+				}
+
+			}
+
+			if (__ksession_start_cnx(conn)) {
+				__session_ipc_login_cleanup(c->qtask,
+						IPC_ERR_INTERNAL);
+				return;
+			}
+		}
+	}
 }
 
 static void
@@ -592,68 +867,67 @@ __session_cnx_poll(queue_item_t *item)
 
 			/* connected! */
 
+			memset(c, 0, sizeof(iscsi_login_context_t));
+
 			actor_delete(&conn->connect_timer);
 
 			if (conn->id == 0 && __ksession_create(session)) {
-				qtask->u.login.rsp.err = IPC_ERR_INTERNAL;
-				goto err;
+				__session_ipc_login_cleanup(qtask,
+						IPC_ERR_INTERNAL);
+				return;
 			}
 
 			if (__ksession_cnx_create(session, conn)) {
-				qtask->u.login.rsp.err = IPC_ERR_INTERNAL;
-				goto err;
+				__session_ipc_login_cleanup(qtask,
+						IPC_ERR_INTERNAL);
+				return;
 			}
 
 			if (__ksession_cnx_bind(session, conn)) {
-				qtask->u.login.rsp.err = IPC_ERR_INTERNAL;
-				goto err;
+				__session_ipc_login_cleanup(qtask,
+						IPC_ERR_INTERNAL);
+				return;
 			}
 
 			conn->kernel_io = 1;
 			conn->ctrl_fd = ctrl_fd;
 			conn->send_pdu_begin = __ksession_send_pdu_begin;
 			conn->send_pdu_end = __ksession_send_pdu_end;
+			conn->recv_pdu_begin = __ksession_recv_pdu_begin;
+			conn->recv_pdu_end = __ksession_recv_pdu_end;
 
+			c->qtask = qtask;
 			c->cid = conn->id;
 			c->buffer = calloc(1,
 					DEFAULT_MAX_RECV_DATA_SEGMENT_LENGTH);
 			if (!c->buffer) {
 				log_error("failed to allocate recv "
 					  "data buffer");
-				qtask->u.login.rsp.err = IPC_ERR_NOMEM;
-				goto err;
+				__session_ipc_login_cleanup(qtask,
+						IPC_ERR_NOMEM);
+				return;
 			}
 			c->bufsize = DEFAULT_MAX_RECV_DATA_SEGMENT_LENGTH;
 
 			if (iscsi_login_begin(session, c)) {
-				qtask->u.login.rsp.err = IPC_ERR_LOGIN_FAILURE;
-				goto err;
+				__session_ipc_login_cleanup(qtask,
+						IPC_ERR_LOGIN_FAILURE);
+				return;
 			}
 
+			conn->state = STATE_WAIT_LOGIN_RSP;
 			if (iscsi_login_req(session, c)) {
-				qtask->u.login.rsp.err = IPC_ERR_LOGIN_FAILURE;
-				goto err;
+				__session_ipc_login_cleanup(qtask,
+						IPC_ERR_LOGIN_FAILURE);
+				return;
 			}
-			conn->state = STATE_WAIT_PDU_RSP;
 		} else {
 			actor_delete(&conn->connect_timer);
 			/* error during connect */
-			qtask->u.login.rsp.err = IPC_ERR_TCP_FAILURE;
-			goto err;
+			__session_ipc_login_cleanup(qtask,
+						IPC_ERR_TCP_FAILURE);
 		}
 	}
-
-	return;
-
-err:
-	/* clean connection. write rsp. cleanup session if needed */
-	write(qtask->u.login.ipc_fd, &qtask->u.login.rsp,
-		sizeof(qtask->u.login.rsp));
-	close(qtask->u.login.ipc_fd);
-	free(qtask);
-	session_cnx_destroy(session, conn->id);
-	if (conn->id == 0)
-		session_destroy(session);
 }
 
 static void
@@ -661,18 +935,11 @@ __session_cnx_timer(queue_item_t *item)
 {
 	queue_task_t *qtask = item->context;
 	iscsi_conn_t *conn = qtask->conn;
-	iscsi_session_t *session = conn->session;
 
 	if (conn->state == STATE_WAIT_CONNECT) {
 		/* timeout during connect. clean connection. write rsp */
-		qtask->u.login.rsp.err = IPC_ERR_TCP_TIMEOUT;
-		write(qtask->u.login.ipc_fd, &qtask->u.login.rsp,
-			sizeof(qtask->u.login.rsp));
-		close(qtask->u.login.ipc_fd);
-		free(qtask);
-		session_cnx_destroy(session, conn->id);
-		if (conn->id == 0)
-			session_destroy(session);
+		__session_ipc_login_cleanup(qtask, IPC_ERR_TCP_TIMEOUT);
+		return;
 	}
 }
 

@@ -31,3 +31,7 @@ fixme:
 * support residual_count in case of scatter-gather Data-In. As of today, only
   non-sg Scsi_Cmnd's are working. But I can amazing some target which will
   send residual_count in the middle of scatter-gather Data-In.
+
+* daemon should manage its own ITT-space
+* send_pdu() should use new "anon" poll of mtasks. the anon-mtask will be freed
+  right after its xmited

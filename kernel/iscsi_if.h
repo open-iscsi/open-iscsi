@@ -21,33 +21,16 @@
 
 #include <net/tcp.h>
 #include <iscsi_proto.h>
+#include <iscsi_u.h>
 
 typedef void* iscsi_snx_h;		/* iSCSI Data-Path session handle */
 typedef void* iscsi_cnx_h;		/* iSCSI Data-Path connection handle */
-typedef void* iscsi_pdu_h;		/* iSCSI Control-Path PDU handle */
 
 typedef enum {
 	ISCSI_STATE_FREE	= 1,
 	ISCSI_STATE_LOGGED_IN	= 2,
 	ISCSI_STATE_FAILED	= 3,
 } iscsi_session_state_e;
-
-typedef enum {
-	ISCSI_PARAM_MAX_RECV_DLENGH	= 0,
-	ISCSI_PARAM_MAX_XMIT_DLENGH	= 1,
-	ISCSI_PARAM_HDRDGST_EN		= 2,
-	ISCSI_PARAM_DATADGST_EN		= 3,
-	ISCSI_PARAM_INITIAL_R2T_EN	= 4,
-	ISCSI_PARAM_MAX_R2T		= 5,
-	ISCSI_PARAM_IMM_DATA_EN		= 6,
-	ISCSI_PARAM_FIRST_BURST		= 7,
-	ISCSI_PARAM_MAX_BURST		= 8,
-	ISCSI_PARAM_PDU_INORDER_EN	= 9,
-	ISCSI_PARAM_DATASEQ_INORDER_EN	= 10,
-	ISCSI_PARAM_ERL			= 11,
-	ISCSI_PARAM_IFMARKER_EN		= 12,
-	ISCSI_PARAM_OFMARKER_EN		= 13,
-} iscsi_param_e;
 
 #define ISCSI_CTRL_ERR_BASE	100
 #define ISCSI_DP_ERR_BASE	1000
@@ -139,7 +122,8 @@ typedef struct iscsi_ops {
 					   int data_size);
 } iscsi_ops_t;
 
-int iscsi_control_recv_pdu(iscsi_cnx_h cp_cnx, iscsi_hdr_t *hdr, char *data);
+int iscsi_control_recv_pdu(iscsi_cnx_h cp_cnx, iscsi_hdr_t *hdr,
+				char *data, int data_size);
 void iscsi_control_cnx_error(iscsi_cnx_h cp_cnx, int error);
 
 /* FIXME: generic register/unregister interface needed */

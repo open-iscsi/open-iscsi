@@ -233,6 +233,7 @@ typedef struct iscsi_mgmt_task {
 	iscsi_buf_t	sendbuf;		/* in progress buffer */
 	int		sent;
 	uint32_t	itt;			/* this ITT */
+	struct semaphore xmitsema;
 } iscsi_mgmt_task_t;
 
 typedef union iscsi_union_task {

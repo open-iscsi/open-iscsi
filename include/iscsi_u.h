@@ -29,9 +29,27 @@
 #define UEVENT_BASE			10
 #define KEVENT_BASE			100
 
-/* up events */
+typedef enum {
+	ISCSI_PARAM_MAX_RECV_DLENGTH	= 0,
+	ISCSI_PARAM_MAX_XMIT_DLENGTH	= 1,
+	ISCSI_PARAM_HDRDGST_EN		= 2,
+	ISCSI_PARAM_DATADGST_EN		= 3,
+	ISCSI_PARAM_INITIAL_R2T_EN	= 4,
+	ISCSI_PARAM_MAX_R2T		= 5,
+	ISCSI_PARAM_IMM_DATA_EN		= 6,
+	ISCSI_PARAM_FIRST_BURST		= 7,
+	ISCSI_PARAM_MAX_BURST		= 8,
+	ISCSI_PARAM_PDU_INORDER_EN	= 9,
+	ISCSI_PARAM_DATASEQ_INORDER_EN	= 10,
+	ISCSI_PARAM_ERL			= 11,
+	ISCSI_PARAM_IFMARKER_EN		= 12,
+	ISCSI_PARAM_OFMARKER_EN		= 13,
+} iscsi_param_e;
+
 typedef enum iscsi_uevent_e {
 	ISCSI_UEVENT_UNKNOWN		= 0,
+
+	/* down events */
 	ISCSI_UEVENT_CREATE_SESSION	= UEVENT_BASE + 1,
 	ISCSI_UEVENT_DESTROY_SESSION	= UEVENT_BASE + 2,
 	ISCSI_UEVENT_CREATE_CNX		= UEVENT_BASE + 3,
@@ -39,14 +57,16 @@ typedef enum iscsi_uevent_e {
 	ISCSI_UEVENT_BIND_CNX		= UEVENT_BASE + 5,
 	ISCSI_UEVENT_SEND_PDU_BEGIN	= UEVENT_BASE + 6,
 	ISCSI_UEVENT_SEND_PDU_END	= UEVENT_BASE + 7,
-} iscsi_uevent_e;
+	ISCSI_UEVENT_RECV_PDU_BEGIN	= UEVENT_BASE + 8,
+	ISCSI_UEVENT_RECV_PDU_END	= UEVENT_BASE + 9,
+	ISCSI_UEVENT_RECV_REQ		= UEVENT_BASE + 10,
+	ISCSI_UEVENT_SET_PARAM		= UEVENT_BASE + 11,
+	ISCSI_UEVENT_START_CNX		= UEVENT_BASE + 12,
 
-/* down events */
-typedef enum iscsi_kevent_e {
-	ISCSI_KEVENT_UNKNOWN		= 0,
-	ISCSI_KEVENT_CNX_ERROR		= KEVENT_BASE + 1,
-	ISCSI_KEVENT_RECV_PDU		= KEVENT_BASE + 2,
-} iscsi_kevent_e;
+	/* up events */
+	ISCSI_KEVENT_RECV_PDU		= KEVENT_BASE + 1,
+	ISCSI_KEVENT_CNX_ERROR		= KEVENT_BASE + 2,
+} iscsi_uevent_e;
 
 typedef struct iscsi_uevent {
 	int type; /* k/u events type */
@@ -55,7 +75,7 @@ typedef struct iscsi_uevent {
 	union {
 		/* messages u -> k */
 		struct msg_create_session {
-			ulong_t		handle;
+			ulong_t		session_handle;
 			unsigned int	sid;
 			unsigned int	initial_cmdsn;
 		} c_session;
@@ -64,7 +84,7 @@ typedef struct iscsi_uevent {
 		} d_session;
 		struct msg_create_cnx {
 			ulong_t		session_handle;
-			ulong_t		handle;
+			ulong_t		cnx_handle;
 			int		socket_fd;
 			unsigned int	cid;
 		} c_cnx;
@@ -84,32 +104,39 @@ typedef struct iscsi_uevent {
 		struct msg_sp_end {
 			ulong_t		cnx_handle;
 		} sp_end;
+		struct msg_rp_begin {
+			ulong_t		cpcnx_handle;
+			ulong_t		recv_handle;
+		} rp_begin;
+		struct msg_rp_end_req {
+			ulong_t		cpcnx_handle;
+			ulong_t		pdu_handle;
+		} rp_end;
+		struct msg_set_param {
+			ulong_t		cnx_handle;
+			iscsi_param_e	param;
+			unsigned int	value;
+		} set_param;
+		struct msg_start_cnx {
+			ulong_t		cnx_handle;
+		} start_cnx;
 	} u;
 	union {
-		/* results */
+		/* messages k -> u */
 		ulong_t			handle;
 		int			retcode;
-	} r;
-} iscsi_uevent_t;
-
-typedef struct iscsi_kevent {
-	int type; /* k/u events type */
-
-	union {
-		/* messages k -> u */
+		struct msg_recv_req {
+			ulong_t		recv_handle;
+			ulong_t		cnx_handle;
+		} recv_req;
 		struct msg_cnx_error {
 			unsigned int	cid;
 		} cnxerror;
-		struct msg_recv_pdu {
-			unsigned int	cid;
-			unsigned int	pdulen;
-		} recvpdu;
-	} u;
-	union {
-		/* results */
-		ulong_t			handle;
-		int			retcode;
+		struct msg_rp_begin_rsp {
+			ulong_t		pdu_handle;
+			unsigned int	pdu_size;
+		} rp_begin;
 	} r;
-} iscsi_kevent_t;
+} iscsi_uevent_t;
 
 #endif /* ISCSI_U_H */

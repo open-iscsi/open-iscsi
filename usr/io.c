@@ -434,24 +434,35 @@ iscsi_recv_pdu(iscsi_conn_t *conn, iscsi_hdr_t *hdr,
 	char *end = data + max_data_length;
 	struct sigaction action;
 	struct sigaction old;
+	ulong_t pdu_handle;
+	int pdu_size;
 
 	/* set a timeout, since the socket calls may take a long
 	 * time to timeout on their own
 	 */
-	memset(data, 0, max_data_length);
-	memset(&action, 0, sizeof (struct sigaction));
-	memset(&old, 0, sizeof (struct sigaction));
-	action.sa_sigaction = NULL;
-	action.sa_flags = 0;
-	action.sa_handler = sigalarm_handler;
-	sigaction(SIGALRM, &action, &old);
-	timedout = 0;
-	alarm(timeout);
+	if (!conn->kernel_io) {
+		memset(data, 0, max_data_length);
+		memset(&action, 0, sizeof (struct sigaction));
+		memset(&old, 0, sizeof (struct sigaction));
+		action.sa_sigaction = NULL;
+		action.sa_flags = 0;
+		action.sa_handler = sigalarm_handler;
+		sigaction(SIGALRM, &action, &old);
+		timedout = 0;
+		alarm(timeout);
+	} else {
+		if (conn->recv_pdu_begin(conn, conn->recv_handle,
+					 &pdu_handle, &pdu_size)) {
+			failed = 1;
+			goto done;
+		}
+	}
 
 	/* read a response header */
 	do {
 		rlen =
-		    read(conn->socket_fd, header, sizeof (*hdr) - h_bytes);
+		    read(conn->kernel_io ? conn->ctrl_fd : conn->socket_fd,
+			 header, sizeof (*hdr) - h_bytes);
 		if (timedout) {
 			log_error("socket %d header read timed out",
 			       conn->socket_fd);
@@ -505,7 +516,8 @@ iscsi_recv_pdu(iscsi_conn_t *conn, iscsi_hdr_t *hdr,
 	d_bytes = 0;
 	while (d_bytes < dlength) {
 		rlen =
-		    read(conn->socket_fd, data + d_bytes, dlength - d_bytes);
+		    read(conn->kernel_io ? conn->ctrl_fd : conn->socket_fd,
+			 data + d_bytes, dlength - d_bytes);
 		if (timedout) {
 			log_error("socket %d data read timed out",
 			       conn->socket_fd);
@@ -525,9 +537,10 @@ iscsi_recv_pdu(iscsi_conn_t *conn, iscsi_hdr_t *hdr,
 		}
 	}
 
-	/* handle PDU data padding */
+	/* handle PDU data padding.
+	 * data is padded in case of kernel_io */
 	pad = dlength % PAD_WORD_LEN;
-	if (pad) {
+	if (pad && !conn->kernel_io) {
 		int pad_bytes = pad = PAD_WORD_LEN - pad;
 		char bytes[PAD_WORD_LEN];
 
@@ -590,13 +603,24 @@ iscsi_recv_pdu(iscsi_conn_t *conn, iscsi_hdr_t *hdr,
 		}
 	}
 
-      done:
-	alarm(0);
-	sigaction(SIGALRM, &old, NULL);
+done:
+	if (!conn->kernel_io) {
+		alarm(0);
+		sigaction(SIGALRM, &old, NULL);
+	} else {
+		/* zero Pad area */
+		if (pad)
+			memset(data+dlength, 0, pad);
+		/* finalyze receive transaction */
+		if (conn->recv_pdu_end(conn, pdu_handle)) {
+			failed = 1;
+		}
+	}
+
 	if (timedout || failed) {
 		timedout = 0;
 		return 0;
-	} else {
-		return h_bytes + ahs_bytes + d_bytes;
 	}
+
+	return h_bytes + ahs_bytes + d_bytes;
 }
