@@ -94,6 +94,7 @@ iscsi_buf_left(struct iscsi_buf *ibuf)
 
 	rc = ibuf->sg.length - ibuf->sent;
 	BUG_ON(rc < 0);
+	return rc;
 }
 
 static inline void
