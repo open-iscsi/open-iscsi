@@ -34,8 +34,8 @@
 
 /* caller is assumed to be well-behaved and passing NUL terminated strings */
 int
-iscsi_add_text(iscsi_session_t *session, iscsi_hdr_t *pdu, char *data,
-	       int max_data_length, char *param, char *value)
+iscsi_add_text(iscsi_hdr_t *pdu, char *data, int max_data_length,
+		char *param, char *value)
 {
 	int param_len = strlen(param);
 	int value_len = strlen(value);
@@ -160,7 +160,7 @@ get_auth_key_type(struct iscsi_acl *auth_client, char **data, char *end)
  * provided
  */
 int
-iscsi_update_address(iscsi_session_t *session, char *address)
+iscsi_update_address(iscsi_conn_t *conn, char *address)
 {
 	char *port;
 	char *tag;
@@ -181,21 +181,21 @@ iscsi_update_address(iscsi_session_t *session, char *address)
 		return 0;
 	}
 
-	memcpy(session->ip_address, hostn->h_addr,
-	       MIN(sizeof (session->ip_address), hostn->h_length));
-	session->ip_length = hostn->h_length;
+	memcpy(conn->ip_address, hostn->h_addr,
+	       MIN(sizeof (conn->ip_address), hostn->h_length));
+	conn->ip_length = hostn->h_length;
 
 	if (port) {
-		session->port = atoi(port);
+		conn->port = atoi(port);
 	} else {
-		session->port = ISCSI_LISTEN_PORT;
+		conn->port = ISCSI_LISTEN_PORT;
 	}
 
 	return 1;
 }
 
 static enum iscsi_login_status
-get_security_text_keys(iscsi_session_t *session, char **data,
+get_security_text_keys(iscsi_session_t *session, int cid, char **data,
 		       struct iscsi_acl *auth_client, char *end)
 {
 	char *text = *data;
@@ -228,10 +228,10 @@ get_security_text_keys(iscsi_session_t *session, char **data,
 					 &value_end)) {
 		/*
 		 * if possible, change the session's
-		 * ip_address and port to the new
-		 * TargetAddress
+		 * ip_address and port to the new TargetAddress for
+		 * leading connection
 		 */
-		if (iscsi_update_address(session, value)) {
+		if (iscsi_update_address(&session->cnx[cid], value)) {
 			text = value_end;
 		} else {
 			log_error("Login redirection failed, "
@@ -276,12 +276,14 @@ get_security_text_keys(iscsi_session_t *session, char **data,
 }
 
 static enum iscsi_login_status
-get_op_params_text_keys(iscsi_session_t *session, char **data, char *end)
+get_op_params_text_keys(iscsi_session_t *session, int cid,
+			char **data, char *end)
 {
 	char *text = *data;
 	char *value = NULL;
 	char *value_end = NULL;
 	size_t size;
+	iscsi_conn_t *conn = &session->cnx[cid];
 
 	if (iscsi_find_key_value("TargetAlias", text, end, &value,
 				 &value_end)) {
@@ -305,7 +307,7 @@ get_op_params_text_keys(iscsi_session_t *session, char **data, char *end)
 		text = value_end;
 	} else if (iscsi_find_key_value("TargetAddress", text, end, &value,
 					 &value_end)) {
-		if (iscsi_update_address(session, value))
+		if (iscsi_update_address(conn, value))
 			text = value_end;
 		else {
 			log_error("Login redirection failed, "
@@ -355,14 +357,12 @@ get_op_params_text_keys(iscsi_session_t *session, char **data, char *end)
 		text = value_end;
 	} else if (iscsi_find_key_value("MaxRecvDataSegmentLength", text, end,
 				     &value, &value_end)) {
-		session->max_xmit_data_segment_len =
-					    strtoul(value, NULL, 0);
+		conn->max_xmit_data_segment_len = strtoul(value, NULL, 0);
 		text = value_end;
 	} else if (iscsi_find_key_value("FirstBurstLength", text, end, &value,
 					 &value_end)) {
 		if (session->type == ISCSI_SESSION_TYPE_NORMAL)
-			session->first_burst_len =
-					    	strtoul(value, NULL, 0);
+			session->first_burst_len = strtoul(value, NULL, 0);
 		else
 			session->irrelevant_keys_bitmap |=
 						IRRELEVANT_FIRSTBURSTLENGTH;
@@ -382,8 +382,8 @@ get_op_params_text_keys(iscsi_session_t *session, char **data, char *end)
 	} else if (iscsi_find_key_value("HeaderDigest", text, end, &value,
 					 &value_end)) {
 		if (strcmp(value, "None") == 0) {
-			if (session->header_digest != ISCSI_DIGEST_CRC32C)
-				session->header_digest = ISCSI_DIGEST_NONE;
+			if (conn->header_digest != ISCSI_DIGEST_CRC32C)
+				conn->header_digest = ISCSI_DIGEST_NONE;
 			else {
 				log_error("Login negotiation "
 					       "failed, HeaderDigest=CRC32C "
@@ -392,8 +392,8 @@ get_op_params_text_keys(iscsi_session_t *session, char **data, char *end)
 				return LOGIN_NEGOTIATION_FAILED;
 			}
 		} else if (strcmp(value, "CRC32C") == 0) {
-			if (session->header_digest != ISCSI_DIGEST_NONE)
-				session->header_digest = ISCSI_DIGEST_CRC32C;
+			if (conn->header_digest != ISCSI_DIGEST_NONE)
+				conn->header_digest = ISCSI_DIGEST_CRC32C;
 			else {
 				log_error("Login negotiation "
 				       "failed, HeaderDigest=None is "
@@ -409,8 +409,8 @@ get_op_params_text_keys(iscsi_session_t *session, char **data, char *end)
 	} else if (iscsi_find_key_value("DataDigest", text, end, &value,
 					 &value_end)) {
 		if (strcmp(value, "None") == 0) {
-			if (session->data_digest != ISCSI_DIGEST_CRC32C)
-				session->data_digest = ISCSI_DIGEST_NONE;
+			if (conn->data_digest != ISCSI_DIGEST_CRC32C)
+				conn->data_digest = ISCSI_DIGEST_NONE;
 			else {
 				log_error("Login negotiation "
 				       "failed, DataDigest=CRC32C "
@@ -418,8 +418,8 @@ get_op_params_text_keys(iscsi_session_t *session, char **data, char *end)
 				return LOGIN_NEGOTIATION_FAILED;
 			}
 		} else if (strcmp(value, "CRC32C") == 0) {
-			if (session->data_digest != ISCSI_DIGEST_NONE)
-				session->data_digest = ISCSI_DIGEST_CRC32C;
+			if (conn->data_digest != ISCSI_DIGEST_NONE)
+				conn->data_digest = ISCSI_DIGEST_CRC32C;
 			else {
 				log_error("Login negotiation "
 				       "failed, DataDigest=None is "
@@ -583,7 +583,7 @@ check_security_stage_status(iscsi_session_t *session,
  * size, and then appending a NULL to the PDU.
  */
 static enum iscsi_login_status
-iscsi_process_login_response(iscsi_session_t *session,
+iscsi_process_login_response(iscsi_session_t *session, int cid,
 			     iscsi_login_rsp_t *login_rsp,
 			     char *data, int max_data_length)
 {
@@ -593,6 +593,7 @@ iscsi_process_login_response(iscsi_session_t *session,
 	int pdu_current_stage, pdu_next_stage;
 	enum iscsi_login_status ret;
 	struct iscsi_acl *auth_client;
+	iscsi_conn_t *conn = &session->cnx[cid];
 
 	auth_client = (session->auth_buffers && session->num_auth_buffers) ?
 		(struct iscsi_acl *)session->auth_buffers[0].address : NULL;
@@ -624,10 +625,10 @@ iscsi_process_login_response(iscsi_session_t *session,
 		/* make sure the current stage matches */
 		pdu_current_stage = (login_rsp->flags &
 				    ISCSI_FLAG_LOGIN_CURRENT_STAGE_MASK) >> 2;
-		if (pdu_current_stage != session->current_stage) {
+		if (pdu_current_stage != conn->current_stage) {
 			log_error("Received invalid login PDU, "
 				       "current stage mismatch, session %d, "
-				       "response %d", session->current_stage,
+				       "response %d", conn->current_stage,
 				       pdu_current_stage);
 			return LOGIN_INVALID_PDU;
 		}
@@ -637,11 +638,11 @@ iscsi_process_login_response(iscsi_session_t *session,
 		 */
 		pdu_next_stage = login_rsp->flags &
 				 ISCSI_FLAG_LOGIN_NEXT_STAGE_MASK;
-		if (transit && (pdu_next_stage <= session->current_stage))
+		if (transit && (pdu_next_stage <= conn->current_stage))
 			return LOGIN_INVALID_PDU;
 	}
 
-	if (session->current_stage == ISCSI_SECURITY_NEGOTIATION_STAGE) {
+	if (conn->current_stage == ISCSI_SECURITY_NEGOTIATION_STAGE) {
 		if (acl_recv_begin(auth_client) != AUTH_STATUS_NO_ERROR) {
 			log_error("Login failed because "
 				       "acl_recv_begin failed");
@@ -665,17 +666,17 @@ iscsi_process_login_response(iscsi_session_t *session,
 			break;
 
 		/* handle keys appropriate for each stage */
-		switch (session->current_stage) {
+		switch (conn->current_stage) {
 		case ISCSI_SECURITY_NEGOTIATION_STAGE:{
-				ret = get_security_text_keys(session, &text,
-							     auth_client, end);
+				ret = get_security_text_keys(session, cid,
+						&text, auth_client, end);
 				if (ret != LOGIN_OK)
 					return ret;
 				break;
 			}
 		case ISCSI_OP_PARMS_NEGOTIATION_STAGE:{
-				ret = get_op_params_text_keys(session, &text,
-							      end);
+				ret = get_op_params_text_keys(session, cid,
+						&text, end);
 				if (ret != LOGIN_OK)
 					return ret;
 				break;
@@ -685,7 +686,7 @@ iscsi_process_login_response(iscsi_session_t *session,
 		}
 	}
 
-	if (session->current_stage == ISCSI_SECURITY_NEGOTIATION_STAGE) {
+	if (conn->current_stage == ISCSI_SECURITY_NEGOTIATION_STAGE) {
 		ret = check_security_stage_status(session, auth_client);
 		if (ret != LOGIN_OK)
 			return ret;
@@ -695,12 +696,12 @@ iscsi_process_login_response(iscsi_session_t *session,
 	session->exp_cmdsn = ntohl(login_rsp->exp_cmdsn);
 	session->max_cmdsn = ntohl(login_rsp->max_cmdsn);
 	if (login_rsp->status_class == ISCSI_STATUS_CLS_SUCCESS)
-		session->exp_statsn = ntohl(login_rsp->statsn) + 1;
+		conn->exp_statsn = ntohl(login_rsp->statsn) + 1;
 
 	if (transit) {
 		/* advance to the next stage */
-		session->partial_response = 0;
-		session->current_stage = login_rsp->flags &
+		conn->partial_response = 0;
+		conn->current_stage = login_rsp->flags &
 					 ISCSI_FLAG_LOGIN_NEXT_STAGE_MASK;
 		session->irrelevant_keys_bitmap = 0;
 	} else
@@ -708,7 +709,7 @@ iscsi_process_login_response(iscsi_session_t *session,
 		 * we got a partial response, don't advance,
 		 * more negotiation to do
 		 */
-		session->partial_response = 1;
+		conn->partial_response = 1;
 
 	return LOGIN_OK;	/* this PDU is ok, though the login process
 				 * may not be done yet
@@ -722,36 +723,36 @@ add_params_normal_session(iscsi_session_t *session, iscsi_hdr_t *pdu,
 	char value[AUTH_STR_MAX_LEN];
 
 	/* these are only relevant for normal sessions */
-	if (!iscsi_add_text(session, pdu, data, max_data_length, "InitialR2T",
+	if (!iscsi_add_text(pdu, data, max_data_length, "InitialR2T",
 			    session->initial_r2t ? "Yes" : "No"))
 		return 0;
 
-	if (!iscsi_add_text(session, pdu, data, max_data_length,
+	if (!iscsi_add_text(pdu, data, max_data_length,
 			    "ImmediateData",
 			    session->immediate_data ? "Yes" : "No"))
 		return 0;
 
 	sprintf(value, "%d", session->max_burst_len);
-	if (!iscsi_add_text(session, pdu, data, max_data_length,
+	if (!iscsi_add_text(pdu, data, max_data_length,
 			    "MaxBurstLength", value))
 		return 0;
 
 	sprintf(value, "%d",session->first_burst_len);
-	if (!iscsi_add_text(session, pdu, data, max_data_length,
+	if (!iscsi_add_text(pdu, data, max_data_length,
 			    "FirstBurstLength", value))
 		return 0;
 
 	/* these we must have */
-	if (!iscsi_add_text(session, pdu, data, max_data_length,
+	if (!iscsi_add_text(pdu, data, max_data_length,
 			    "MaxOutstandingR2T", "1"))
 		return 0;
-	if (!iscsi_add_text(session, pdu, data, max_data_length,
+	if (!iscsi_add_text(pdu, data, max_data_length,
 			    "MaxConnections", "1"))
 		return 0;
-	if (!iscsi_add_text(session, pdu, data, max_data_length,
+	if (!iscsi_add_text(pdu, data, max_data_length,
 			    "DataPDUInOrder", "Yes"))
 		return 0;
-	if (!iscsi_add_text(session, pdu, data, max_data_length,
+	if (!iscsi_add_text(pdu, data, max_data_length,
 			    "DataSequenceInOrder", "Yes"))
 		return 0;
 
@@ -759,10 +760,11 @@ add_params_normal_session(iscsi_session_t *session, iscsi_hdr_t *pdu,
 }
 
 static int
-add_vendor_specific_text(iscsi_session_t *session, iscsi_hdr_t *pdu,
+add_vendor_specific_text(iscsi_session_t *session, int cid, iscsi_hdr_t *pdu,
                     char *data, int max_data_length)
 {
 	char value[AUTH_STR_MAX_LEN];
+	iscsi_conn_t *conn = &session->cnx[cid];
 
 	/*
 	 * adjust the target's PingTimeout for normal sessions,
@@ -770,15 +772,15 @@ add_vendor_specific_text(iscsi_session_t *session, iscsi_hdr_t *pdu,
 	 * network probably has the same latency in both
 	 * directions, so the values ought to match.
 	 */
-	if (session->ping_timeout >= 0) {
-		sprintf(value, "%d", session->ping_timeout);
-		if (!iscsi_add_text(session, pdu, data, max_data_length,
+	if (conn->ping_timeout >= 0) {
+		sprintf(value, "%d", conn->ping_timeout);
+		if (!iscsi_add_text(pdu, data, max_data_length,
 				    "X-com.cisco.PingTimeout", value))
 			return 0;
 	}
 
 	if (session->send_async_text >= 0)
-		if (!iscsi_add_text(session, pdu, data, max_data_length,
+		if (!iscsi_add_text(pdu, data, max_data_length,
 				    "X-com.cisco.sendAsyncText",
 				    session->send_async_text ? "Yes" : "No"))
 			return 0;
@@ -800,7 +802,7 @@ add_vendor_specific_text(iscsi_session_t *session, iscsi_hdr_t *pdu,
 	 * the RFC and draft20 are using the same active version number,
 	 * but have non-trivial differences.
 	 */
-	if (!iscsi_add_text(session, pdu, data, max_data_length,
+	if (!iscsi_add_text(pdu, data, max_data_length,
 			     "X-com.cisco.protocol", "draft20"))
 		return 0;
 
@@ -816,42 +818,42 @@ check_irrelevant_keys(iscsi_session_t *session, iscsi_hdr_t *pdu,
 	 */
 
 	if (session->irrelevant_keys_bitmap & IRRELEVANT_MAXCONNECTIONS)
-		if (!iscsi_add_text(session, pdu, data, max_data_length,
+		if (!iscsi_add_text(pdu, data, max_data_length,
 				    "MaxConnections", "Irrelevant"))
 			return 0;
 
 	if (session->irrelevant_keys_bitmap & IRRELEVANT_INITIALR2T)
-		if (!iscsi_add_text(session, pdu, data, max_data_length,
+		if (!iscsi_add_text(pdu, data, max_data_length,
 				    "InitialR2T", "Irrelevant"))
 			return 0;
 
 	if (session->irrelevant_keys_bitmap & IRRELEVANT_IMMEDIATEDATA)
-		if (!iscsi_add_text(session, pdu, data, max_data_length,
+		if (!iscsi_add_text(pdu, data, max_data_length,
 				    "ImmediateData", "Irrelevant"))
 			return 0;
 
 	if (session->irrelevant_keys_bitmap & IRRELEVANT_MAXBURSTLENGTH)
-		if (!iscsi_add_text(session, pdu, data, max_data_length,
+		if (!iscsi_add_text(pdu, data, max_data_length,
 				    "MaxBurstLength", "Irrelevant"))
 			return 0;
 
 	if (session->irrelevant_keys_bitmap & IRRELEVANT_FIRSTBURSTLENGTH)
-		if (!iscsi_add_text(session, pdu, data, max_data_length,
+		if (!iscsi_add_text(pdu, data, max_data_length,
 				    "FirstBurstLength", "Irrelevant"))
 			return 0;
 
 	if (session->irrelevant_keys_bitmap & IRRELEVANT_MAXOUTSTANDINGR2T)
-		if (!iscsi_add_text(session, pdu, data, max_data_length,
+		if (!iscsi_add_text(pdu, data, max_data_length,
 				    "MaxOutstandingR2T", "Irrelevant"))
 			return 0;
 
 	if (session->irrelevant_keys_bitmap & IRRELEVANT_DATAPDUINORDER)
-		if (!iscsi_add_text(session, pdu, data, max_data_length,
+		if (!iscsi_add_text(pdu, data, max_data_length,
 				    "DataPDUInOrder", "Irrelevant"))
 			return 0;
 
 	if (session->irrelevant_keys_bitmap & IRRELEVANT_DATASEQUENCEINORDER )
-		if (!iscsi_add_text(session, pdu, data, max_data_length,
+		if (!iscsi_add_text(pdu, data, max_data_length,
 				    "DataSequenceInOrder", "Irrelevant"))
 			return 0;
 
@@ -859,52 +861,52 @@ check_irrelevant_keys(iscsi_session_t *session, iscsi_hdr_t *pdu,
 }
 
 static int
-fill_crc_digest_text(iscsi_session_t *session, iscsi_hdr_t *pdu,
+fill_crc_digest_text(iscsi_conn_t *conn, iscsi_hdr_t *pdu,
 		     char *data, int max_data_length)
 {
-	switch (session->header_digest) {
+	switch (conn->header_digest) {
 	case ISCSI_DIGEST_NONE:
-		if (!iscsi_add_text(session, pdu, data, max_data_length,
+		if (!iscsi_add_text(pdu, data, max_data_length,
 		    "HeaderDigest", "None"))
 			return 0;
 		break;
 	case ISCSI_DIGEST_CRC32C:
-		if (!iscsi_add_text(session, pdu, data, max_data_length,
+		if (!iscsi_add_text(pdu, data, max_data_length,
 		    "HeaderDigest", "CRC32C"))
 			return 0;
 		break;
 	case ISCSI_DIGEST_CRC32C_NONE:
-		if (!iscsi_add_text(session, pdu, data, max_data_length,
+		if (!iscsi_add_text(pdu, data, max_data_length,
 		    "HeaderDigest", "CRC32C,None"))
 			return 0;
 		break;
 	default:
 	case ISCSI_DIGEST_NONE_CRC32C:
-		if (!iscsi_add_text(session, pdu, data, max_data_length,
+		if (!iscsi_add_text(pdu, data, max_data_length,
 		    "HeaderDigest", "None,CRC32C"))
 			return 0;
 		break;
 	}
 
-	switch (session->data_digest) {
+	switch (conn->data_digest) {
 	case ISCSI_DIGEST_NONE:
-		if (!iscsi_add_text(session, pdu, data, max_data_length,
+		if (!iscsi_add_text(pdu, data, max_data_length,
 		    "DataDigest", "None"))
 			return 0;
 		break;
 	case ISCSI_DIGEST_CRC32C:
-		if (!iscsi_add_text(session, pdu, data, max_data_length,
+		if (!iscsi_add_text(pdu, data, max_data_length,
 		    "DataDigest", "CRC32C"))
 			return 0;
 		break;
 	case ISCSI_DIGEST_CRC32C_NONE:
-		if (!iscsi_add_text(session, pdu, data, max_data_length,
+		if (!iscsi_add_text(pdu, data, max_data_length,
 		    "DataDigest", "CRC32C,None"))
 			return 0;
 		break;
 	default:
 	case ISCSI_DIGEST_NONE_CRC32C:
-		if (!iscsi_add_text(session, pdu, data, max_data_length,
+		if (!iscsi_add_text(pdu, data, max_data_length,
 		    "DataDigest", "None,CRC32C"))
 			return 0;
 		break;
@@ -913,14 +915,15 @@ fill_crc_digest_text(iscsi_session_t *session, iscsi_hdr_t *pdu,
 }
 
 static int
-fill_op_params_text(iscsi_session_t *session, iscsi_hdr_t *pdu,
+fill_op_params_text(iscsi_session_t *session, int cid, iscsi_hdr_t *pdu,
 		    char *data, int max_data_length, int *transit)
 {
 	char value[AUTH_STR_MAX_LEN];
+	iscsi_conn_t *conn = &session->cnx[cid];
 
 	/* we always try to go from op params to full feature stage */
-	session->current_stage = ISCSI_OP_PARMS_NEGOTIATION_STAGE;
-	session->next_stage = ISCSI_FULL_FEATURE_PHASE;
+	conn->current_stage = ISCSI_OP_PARMS_NEGOTIATION_STAGE;
+	conn->next_stage = ISCSI_FULL_FEATURE_PHASE;
 	*transit = 1;
 
 	/*
@@ -928,38 +931,38 @@ fill_op_params_text(iscsi_session_t *session, iscsi_hdr_t *pdu,
 	 * here, or we just switched to this stage, and need to start offering
 	 * keys.
 	 */
-	if (!session->partial_response) {
+	if (!conn->partial_response) {
 		/*
 		 * request the desired settings the first time
 		 * we are in this stage
 		 */
-		if (!fill_crc_digest_text(session, pdu, data, max_data_length))
+		if (!fill_crc_digest_text(conn, pdu, data, max_data_length))
 			return 0;
 
-		sprintf(value, "%d", session->max_recv_data_segment_len);
-		if (!iscsi_add_text(session, pdu, data, max_data_length,
+		sprintf(value, "%d", conn->max_recv_data_segment_len);
+		if (!iscsi_add_text(pdu, data, max_data_length,
 		    "MaxRecvDataSegmentLength", value))
 			return 0;
 
 		sprintf(value, "%d", session->def_time2wait);
-		if (!iscsi_add_text(session, pdu, data, max_data_length,
+		if (!iscsi_add_text(pdu, data, max_data_length,
 				    "DefaultTime2Wait", value))
 			return 0;
 
 		sprintf(value, "%d", session->def_time2retain);
-		if (!iscsi_add_text(session, pdu, data, max_data_length,
+		if (!iscsi_add_text(pdu, data, max_data_length,
 				    "DefaultTime2Retain", value))
 			return 0;
 
-		if (!iscsi_add_text(session, pdu, data, max_data_length,
+		if (!iscsi_add_text(pdu, data, max_data_length,
 				    "IFMarker", "No"))
 			return 0;
 
-		if (!iscsi_add_text(session, pdu, data, max_data_length,
+		if (!iscsi_add_text(pdu, data, max_data_length,
 				    "OFMarker", "No"))
 			return 0;
 
-		if (!iscsi_add_text(session, pdu, data, max_data_length,
+		if (!iscsi_add_text(pdu, data, max_data_length,
 				    "ErrorRecoveryLevel", "0"))
 			return 0;
 
@@ -974,7 +977,7 @@ fill_op_params_text(iscsi_session_t *session, iscsi_hdr_t *pdu,
 		 * these on a discovery session.
 		 */
 		if (session->vendor_specific_keys)
-			if (!add_vendor_specific_text(session, pdu, data,
+			if (!add_vendor_specific_text(session, cid, pdu, data,
 						      max_data_length))
 				return 0;
 	} else if (!check_irrelevant_keys(session, pdu, data, max_data_length))
@@ -1017,12 +1020,13 @@ enum_auth_keys(struct iscsi_acl *auth_client, iscsi_hdr_t *pdu,
 }
 
 static int
-fill_security_params_text(iscsi_session_t *session, iscsi_hdr_t *pdu,
+fill_security_params_text(iscsi_session_t *session, int cid, iscsi_hdr_t *pdu,
 			  struct iscsi_acl *auth_client, char *data,
 			  int max_data_length, int *transit)
 {
 	int keytype = AUTH_KEY_TYPE_NONE;
 	int rc = acl_send_transit_bit(auth_client, transit);
+	iscsi_conn_t *conn = &session->cnx[cid];
 
 	/* see if we're ready for a stage change */
 	if (rc != AUTH_STATUS_NO_ERROR)
@@ -1035,19 +1039,19 @@ fill_security_params_text(iscsi_session_t *session, iscsi_hdr_t *pdu,
 		 * keys, or want to offer vendor-specific keys
 		 */
 		if (session->type == ISCSI_SESSION_TYPE_DISCOVERY)
-			if ((session->header_digest != ISCSI_DIGEST_NONE) ||
-			    (session->data_digest != ISCSI_DIGEST_NONE) ||
-			    (session-> max_recv_data_segment_len !=
+			if ((conn->header_digest != ISCSI_DIGEST_NONE) ||
+			    (conn->data_digest != ISCSI_DIGEST_NONE) ||
+			    (conn->max_recv_data_segment_len !=
 			    DEFAULT_MAX_RECV_DATA_SEGMENT_LENGTH) ||
 			    session->vendor_specific_keys)
-				session->next_stage =
+				conn->next_stage =
 					    ISCSI_OP_PARMS_NEGOTIATION_STAGE;
 			else
-				session->next_stage = ISCSI_FULL_FEATURE_PHASE;
+				conn->next_stage = ISCSI_FULL_FEATURE_PHASE;
 		else
-			session->next_stage = ISCSI_OP_PARMS_NEGOTIATION_STAGE;
+			conn->next_stage = ISCSI_OP_PARMS_NEGOTIATION_STAGE;
 	} else
-		session->next_stage = ISCSI_SECURITY_NEGOTIATION_STAGE;
+		conn->next_stage = ISCSI_SECURITY_NEGOTIATION_STAGE;
 
 	/* enumerate all the keys the auth code might want to send */
 	while (acl_get_next_key_type(&keytype) == AUTH_STATUS_NO_ERROR)
@@ -1070,13 +1074,14 @@ fill_security_params_text(iscsi_session_t *session, iscsi_hdr_t *pdu,
  *
  **/
 static int
-iscsi_make_login_pdu(iscsi_session_t *session, iscsi_hdr_t *hdr,
+iscsi_make_login_pdu(iscsi_session_t *session, int cid, iscsi_hdr_t *hdr,
 		     char *data, int max_data_length)
 {
 	int transit = 0;
 	int ret;
 	iscsi_login_t *login_hdr = (iscsi_login_t *)hdr;
 	struct iscsi_acl *auth_client;
+	iscsi_conn_t *conn = &session->cnx[cid];
 
 	auth_client = (session->auth_buffers && session->num_auth_buffers) ?
 		(struct iscsi_acl *)session->auth_buffers[0].address : NULL;
@@ -1093,15 +1098,15 @@ iscsi_make_login_pdu(iscsi_session_t *session, iscsi_hdr_t *hdr,
 	login_hdr->max_version = ISCSI_DRAFT20_VERSION;
 
 	/* we have to send 0 until full-feature stage */
-	login_hdr->exp_statsn = htonl(session->exp_statsn);
+	login_hdr->exp_statsn = htonl(conn->exp_statsn);
 
 	/*
 	 * the very first Login PDU has some additional requirements,
 	 * and we need to decide what stage to start in.
 	 */
-	if (session->current_stage == ISCSI_INITIAL_LOGIN_STAGE) {
+	if (conn->current_stage == ISCSI_INITIAL_LOGIN_STAGE) {
 		if (session->initiator_name && session->initiator_name[0]) {
-			if (!iscsi_add_text(session, hdr, data, max_data_length,
+			if (!iscsi_add_text(hdr, data, max_data_length,
 			     "InitiatorName", session->initiator_name))
 				return 0;
 		} else {
@@ -1110,47 +1115,46 @@ iscsi_make_login_pdu(iscsi_session_t *session, iscsi_hdr_t *hdr,
 			return 0;
 		}
 		if (session->initiator_alias && session->initiator_alias[0]) {
-			if (!iscsi_add_text(session, hdr, data, max_data_length,
+			if (!iscsi_add_text(hdr, data, max_data_length,
 			     "InitiatorAlias", session->initiator_alias))
 				return 0;
 		}
 
 		if ((session->target_name && session->target_name[0]) &&
 		    (session->type == ISCSI_SESSION_TYPE_NORMAL)) {
-			if (!iscsi_add_text(session, hdr, data, max_data_length,
+			if (!iscsi_add_text(hdr, data, max_data_length,
 			    "TargetName", session->target_name))
 				return 0;
 		}
 
-		if (!iscsi_add_text(session, hdr, data, max_data_length,
+		if (!iscsi_add_text(hdr, data, max_data_length,
 		    "SessionType", (session->type ==
 		      ISCSI_SESSION_TYPE_DISCOVERY) ? "Discovery" : "Normal"))
 			return 0;
 
 		if (auth_client)
 			/* we're prepared to do authentication */
-			session->current_stage = session->next_stage =
+			conn->current_stage = conn->next_stage =
 			    ISCSI_SECURITY_NEGOTIATION_STAGE;
 		else
 			/* can't do any authentication, skip that stage */
-			session->current_stage = session->next_stage =
+			conn->current_stage = conn->next_stage =
 			    ISCSI_OP_PARMS_NEGOTIATION_STAGE;
 	}
 
 	/* fill in text based on the stage */
-	switch (session->current_stage) {
+	switch (conn->current_stage) {
 	case ISCSI_OP_PARMS_NEGOTIATION_STAGE:{
-			ret = fill_op_params_text(session, hdr, data,
+			ret = fill_op_params_text(session, cid, hdr, data,
 						  max_data_length, &transit);
 			if (!ret)
 				return ret;
 			break;
 		}
 	case ISCSI_SECURITY_NEGOTIATION_STAGE:{
-			ret = fill_security_params_text(session, hdr,
-							auth_client, data,
-							max_data_length,
-							&transit);
+			ret = fill_security_params_text(session, cid, hdr,
+					auth_client, data, max_data_length,
+					&transit);
 			if (!ret)
 				return ret;
 			break;
@@ -1161,20 +1165,20 @@ iscsi_make_login_pdu(iscsi_session_t *session, iscsi_hdr_t *hdr,
 		return 0;
 	default:
 		log_error("Can't send login PDUs in unknown "
-			       "stage %d", session->current_stage);
+			       "stage %d", conn->current_stage);
 		return 0;
 	}
 
 	/* fill in the flags */
 	login_hdr->flags = 0;
-	login_hdr->flags |= session->current_stage << 2;
+	login_hdr->flags |= conn->current_stage << 2;
 	if (transit) {
 		/* transit to the next stage */
-		login_hdr->flags |= session->next_stage;
+		login_hdr->flags |= conn->next_stage;
 		login_hdr->flags |= ISCSI_FLAG_LOGIN_TRANSIT;
 	} else
 		/* next == current */
-		login_hdr->flags |= session->current_stage;
+		login_hdr->flags |= conn->current_stage;
 
 	return 1;
 }
@@ -1230,7 +1234,7 @@ check_for_authentication(iscsi_session_t *session,
 }
 
 static enum iscsi_login_status
-check_status_login_response(iscsi_session_t *session,
+check_status_login_response(iscsi_session_t *session, int cid,
 			    iscsi_login_rsp_t *login_rsp,
 			    char *data, int max_data_length, int *final)
 {
@@ -1239,7 +1243,7 @@ check_status_login_response(iscsi_session_t *session,
 	switch (login_rsp->status_class) {
 	case ISCSI_STATUS_CLS_SUCCESS:
 		/* process this response and possibly continue sending PDUs */
-		ret = iscsi_process_login_response(session, login_rsp,
+		ret = iscsi_process_login_response(session, cid, login_rsp,
 						   data, max_data_length);
 		if (ret != LOGIN_OK)	/* pass back whatever
 					 * error we discovered
@@ -1252,7 +1256,7 @@ check_status_login_response(iscsi_session_t *session,
 		 * TargetAddress of the redirect, but we don't care
 		 * about the return code.
 		 */
-		iscsi_process_login_response(session, login_rsp,
+		iscsi_process_login_response(session, cid, login_rsp,
 					     data, max_data_length);
 		ret = LOGIN_OK;
 		*final = 1;
@@ -1293,28 +1297,30 @@ check_status_login_response(iscsi_session_t *session,
  *     that we don't have any policy logic here.
  **/
 enum iscsi_login_status
-iscsi_login(iscsi_session_t *session, char *buffer, size_t bufsize,
+iscsi_login(iscsi_session_t *session, int cid, char *buffer, size_t bufsize,
 	    uint8_t * status_class, uint8_t * status_detail)
 {
 	struct iscsi_acl *auth_client = NULL;
 	iscsi_hdr_t pdu;
-	iscsi_login_rsp_t *login_rsp =
-				(iscsi_login_rsp_t *)&pdu;
+	iscsi_login_rsp_t *login_rsp = (iscsi_login_rsp_t *)&pdu;
 	char *data;
 	int received_pdu = 0;
 	int max_data_length;
 	int timeout = 0;
 	int final = 0;
 	enum iscsi_login_status ret = LOGIN_FAILED;
+	iscsi_conn_t *conn = &session->cnx[cid];
 
-	/* prepare the session */
-	session->cmdsn = 1;
-	session->exp_cmdsn = 1;
-	session->max_cmdsn = 1;
-	session->exp_statsn = 0;
+	/* prepare the session of the connection is leading */
+	if (cid ==0) {
+		session->cmdsn = 1;
+		session->exp_cmdsn = 1;
+		session->max_cmdsn = 1;
+	}
 
-	session->current_stage = ISCSI_INITIAL_LOGIN_STAGE;
-	session->partial_response = 0;
+	conn->exp_statsn = 0;
+	conn->current_stage = ISCSI_INITIAL_LOGIN_STAGE;
+	conn->partial_response = 0;
 
 	if (session->auth_buffers && session->num_auth_buffers) {
 		ret = check_for_authentication(session, auth_client);
@@ -1343,17 +1349,17 @@ iscsi_login(iscsi_session_t *session, char *buffer, size_t bufsize,
 		 * tacacs or RADIUS server (which may or may not be
 		 * responding).
 		 */
-		if (received_pdu && (session->current_stage ==
+		if (received_pdu && (conn->current_stage ==
 			ISCSI_SECURITY_NEGOTIATION_STAGE))
-			timeout = session->auth_timeout;
+			timeout = conn->auth_timeout;
 		else
-			timeout = session->login_timeout;
+			timeout = conn->login_timeout;
 
 		/*
 		 * fill in the PDU header and text data based on the login
 		 * stage that we're in
 		 */
-		if (!iscsi_make_login_pdu(session, &pdu, data,
+		if (!iscsi_make_login_pdu(session, cid, &pdu, data,
 					  max_data_length)) {
 			log_error("login failed, couldn't make a login PDU");
 			ret = LOGIN_FAILED;
@@ -1361,7 +1367,7 @@ iscsi_login(iscsi_session_t *session, char *buffer, size_t bufsize,
 		}
 
 		/* send a PDU to the target */
-		if (!iscsi_send_pdu(session, &pdu, ISCSI_DIGEST_NONE,
+		if (!iscsi_send_pdu(conn, &pdu, ISCSI_DIGEST_NONE,
 				    data, ISCSI_DIGEST_NONE, timeout)) {
 			/*
 			 * FIXME: caller might want us to distinguish I/O
@@ -1374,7 +1380,7 @@ iscsi_login(iscsi_session_t *session, char *buffer, size_t bufsize,
 		}
 
 		/* read the target's response into the same buffer */
-		if (!iscsi_recv_pdu(session, &pdu, ISCSI_DIGEST_NONE, data,
+		if (!iscsi_recv_pdu(conn, &pdu, ISCSI_DIGEST_NONE, data,
 				    max_data_length, ISCSI_DIGEST_NONE,
 				    timeout)) {
 			/*
@@ -1414,11 +1420,11 @@ iscsi_login(iscsi_session_t *session, char *buffer, size_t bufsize,
 			*status_class = login_rsp->status_class;
 		if (status_detail)
 			*status_detail = login_rsp->status_detail;
-		ret = check_status_login_response(session, login_rsp, data,
+		ret = check_status_login_response(session, cid, login_rsp, data,
 						    max_data_length, &final);
 		if (final)
 			goto done;
-	} while (session->current_stage != ISCSI_FULL_FEATURE_PHASE);
+	} while (conn->current_stage != ISCSI_FULL_FEATURE_PHASE);
 
 	ret = LOGIN_OK;
 

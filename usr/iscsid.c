@@ -27,8 +27,8 @@
 #include <sys/poll.h>
 #include <sys/utsname.h>
 
-#include "iscsi_u.h"
 #include "iscsid.h"
+#include "sched.h"
 #include "ipc.h"
 #include "log.h"
 
@@ -131,36 +131,6 @@ get_iscsi_initiatorname(char *pathname)
 }
 
 void
-iscsi_events_handle(void)
-{
-	iscsi_uevent_t event;
-	int res;
-
-	while (1) {
-		res = read(ctrl_fd, &event, sizeof(event));
-		if (res < 0) {
-			if (errno == EAGAIN)
-				return;
-			if (errno == EINTR)
-				continue;
-			log_error("read ctrl_fd (%d)", errno);
-			exit(1);
-		}
-
-		log_debug(1, "event cid %u sid %d state %u",
-			  event.cid, event.sid, event.state);
-
-		switch (event.state) {
-		default:
-			log_error("%s(%d) %u\n", __FUNCTION__, __LINE__,
-			       event.state);
-			exit(-1);
-			break;
-		}
-	}
-}
-
-void
 event_loop(void)
 {
 	int res, i;
@@ -176,8 +146,12 @@ event_loop(void)
 	}
 
 	while (1) {
-		res = poll(poll_array, POLL_MAX, -1);
+		res = poll(poll_array, POLL_MAX, SCHED_RESOLUTION);
 		if (res <= 0) {
+			if (res == 0) {
+				sched_poll();
+				continue;
+			}
 			if (res < 0 && errno != EINTR) {
 				log_error("got poll() error (%d), errno (%d), "
 					  "exiting", res, errno);
@@ -186,8 +160,8 @@ event_loop(void)
 			continue;
 		}
 
-	//	if (poll_array[POLL_CTRL].revents)
-	//		iscsi_events_handle();
+		if (poll_array[POLL_CTRL].revents)
+			ctldev_handle(ctrl_fd);
 
 		if (poll_array[POLL_IPC].revents)
 			ipc_handle(ipc_fd);
@@ -318,6 +292,7 @@ main(int argc, char *argv[])
 	/*
 	 * Start Main Event Loop
 	 */
+	sched_init();
 	event_loop();
 
 	/* we're done */

@@ -1,5 +1,5 @@
 /*
- * iSCSI kernel/user interface
+ * iSCSI Kernel/User Interface
  *
  * Copyright (C) 2004 Dmitry Yusupov, Alex Aizman
  * maintained by open-iscsi@@googlegroups.com
@@ -20,15 +20,46 @@
 #ifndef ISCSI_U_H
 #define ISCSI_U_H
 
-typedef enum iscsi_uevent_type {
-	ISCSI_UEVENT_UNKNOWN	= 0,
-	ISCSI_UEVENT_CONN_FAIL	= 1,
-} iscsi_uevent_type_e;
+#define UEVENT_IN_BASE		10
+#define UEVENT_OUT_BASE		100
+
+typedef enum iscsi_uevent_e {
+	ISCSI_UEVENT_UNKNOWN			= 0,
+	ISCSI_UEVENT_OUT_CNX_ERROR		= UEVENT_OUT_BASE + 1,
+	ISCSI_UEVENT_OUT_RECV_PDU		= UEVENT_OUT_BASE + 2,
+	ISCSI_UEVENT_IN_CREATE_SESSION		= UEVENT_IN_BASE + 1,
+	ISCSI_UEVENT_IN_DESTROY_SESSION		= UEVENT_IN_BASE + 2,
+	ISCSI_UEVENT_IN_CREATE_CNX		= UEVENT_IN_BASE + 3,
+	ISCSI_UEVENT_IN_DESTROY_CNX		= UEVENT_IN_BASE + 4,
+} iscsi_uevent_e;
 
 typedef struct iscsi_uevent {
-	unsigned int sid;
-	unsigned int cid;
-	iscsi_uevent_type_e state;
+	iscsi_uevent_e type;
+
+	union {
+		/* messages */
+		struct msg_recv_pdu {
+			unsigned int	cid;
+			unsigned int	pdulen;
+		} recvpdu;
+		struct msg_cnx_error {
+			unsigned int	cid;
+		} cnxerror;
+		struct msg_create_session {
+			unsigned int	sid;
+			unsigned int	initial_cmdsn;
+		} c_session;
+		struct msg_destroy_session {
+			unsigned int	sid;
+		} d_session;
+		struct msg_create_cnx {
+			unsigned int	sid;
+			unsigned int	cid;
+		} c_cnx;
+		struct msg_destroy_cnx {
+			unsigned int	cid;
+		} d_cnx;
+	} u;
 } iscsi_uevent_t;
 
 #endif /* ISCSI_U_H */

@@ -21,14 +21,24 @@
 
 #include "types.h"
 
-#define ISCSIADM_NAME_LEN	128
 #define ISCSIADM_NAMESPACE	"ISCSIADM_ABSTRACT_NAMESPACE"
 
+typedef enum ipc_err {
+	IPC_OK			= 0,
+	IPC_ERR			= 1,
+	IPC_ERR_NOT_FOUND	= 2,
+	IPC_ERR_NOMEM		= 3,
+	IPC_ERR_IO_FAILURE	= 4,
+	IPC_ERR_LOGIN_FAILURE	= 5,
+	IPC_ERR_IDBM_FAILURE	= 6,
+} ipc_err_e;
+
 typedef enum iscsiadm_cmd {
-	IPC_SESSION_LOGIN,
-	IPC_SESSION_LOGOUT,
-	IPC_CONN_ADD,
-	IPC_CONN_REMOVE,
+	IPC_UNKNOWN		= 0,
+	IPC_SESSION_LOGIN	= 1,
+	IPC_SESSION_LOGOUT	= 2,
+	IPC_CONN_ADD		= 3,
+	IPC_CONN_REMOVE		= 4,
 } iscsiadm_cmd_e;
 
 /* IPC Request */
@@ -41,7 +51,7 @@ typedef struct iscsiadm_req {
 			int rid;
 		} session;
 		struct msg_conn {
-			int rec_id;
+			int rid;
 			int cid;
 		} conn;
 	} u;
@@ -49,7 +59,7 @@ typedef struct iscsiadm_req {
 
 /* IPC Response */
 typedef struct iscsiadm_rsp {
-	int err;
+	ipc_err_e err;
 } iscsiadm_rsp_t;
 
 int ipc_handle(int accept_fd);

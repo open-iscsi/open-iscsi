@@ -36,10 +36,9 @@ typedef struct iscsi_pdu {
 } iscsi_pdu_t;
 
 /* ctldev.c */
-extern int ctrl_fd;
-
 extern int ctldev_open(void);
 extern void ctldev_close(int fd);
+extern int ctldev_handle(int fd);
 
 /* iscsid.c: daemon config */
 struct iscsi_daemon_config {

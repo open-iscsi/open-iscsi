@@ -292,6 +292,20 @@ do_sendtargets(idbm_t *db, struct iscsi_sendtargets_config *cfg)
 	return rc;
 }
 
+static void
+iscsid_handle_error(int err)
+{
+	static char *err_msgs[] = {
+		/* 0 */ "",
+		/* 1 */ "unknown error",
+		/* 2 */ "not found",
+		/* 3 */ "no available memory",
+		/* 4 */ "encountered connection failure",
+		/* 5 */ "encountered iSCSI login failure",
+	};
+	log_error("iscsid reported error (%d - %s)", err, err_msgs[err]);
+}
+
 int
 main(int argc, char **argv)
 {
@@ -426,12 +440,12 @@ main(int argc, char **argv)
 			node_rec_t rec;
 
 			if (idbm_node_read(db, rid, &rec)) {
-				log_error("discovery record [%06x] "
-					  "not found!", rid);
+				log_error("node record [%06x] not found!", rid);
 				rc = -1;
 				goto out;
 			}
-			if (session_login(rid, &rec)) {
+			if ((rc = session_login(rid, &rec)) > 0) {
+				iscsid_handle_error(rc);
 				rc = -1;
 				goto out;
 			}

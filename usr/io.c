@@ -31,10 +31,10 @@
 #include "initiator.h"
 #include "log.h"
 
-#define LOG_CONN_CLOSED(session) \
-	log_error("Connection to Discovery Address %u.%u.%u.%u closed", session->ip_address[0], session->ip_address[1], session->ip_address[2], session->ip_address[3])
-#define LOG_CONN_FAIL(session) \
-	log_error("Connection to Discovery Address %u.%u.%u.%u failed", session->ip_address[0], session->ip_address[1], session->ip_address[2], session->ip_address[3])
+#define LOG_CONN_CLOSED(conn) \
+	log_error("Connection to Discovery Address %u.%u.%u.%u closed", conn->ip_address[0], conn->ip_address[1], conn->ip_address[2], conn->ip_address[3])
+#define LOG_CONN_FAIL(conn) \
+	log_error("Connection to Discovery Address %u.%u.%u.%u failed", conn->ip_address[0], conn->ip_address[1], conn->ip_address[2], conn->ip_address[3])
 
 static int timedout;
 
@@ -45,15 +45,15 @@ sigalarm_handler(int unused)
 }
 
 int
-iscsi_connect(iscsi_session_t *session)
+iscsi_connect(iscsi_conn_t *conn)
 {
 	int ret, rc, sock, onearg;
 	struct sockaddr_in addr;
 	struct sigaction action;
 	struct sigaction old;
 
-	/* set a timeout, since the socket calls may take a long time to 
-	 * timeout on their own 
+	/* set a timeout, since the socket calls may take a long time to
+	 * timeout on their own
 	 */
 	memset(&action, 0, sizeof (struct sigaction));
 	memset(&old, 0, sizeof (struct sigaction));
@@ -62,7 +62,7 @@ iscsi_connect(iscsi_session_t *session)
 	action.sa_handler = sigalarm_handler;
 	sigaction(SIGALRM, &action, &old);
 	timedout = 0;
-	alarm(session->login_timeout);
+	alarm(conn->login_timeout);
 
 	/* create a socket */
 	sock = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
@@ -83,8 +83,8 @@ iscsi_connect(iscsi_session_t *session)
 	}
 
 	/* optionally set the window sizes */
-	if (session->tcp_window_size) {
-		int window_size = session->tcp_window_size;
+	if (conn->tcp_window_size) {
+		int window_size = conn->tcp_window_size;
 		socklen_t arglen = sizeof (window_size);
 
 		if (setsockopt
@@ -98,10 +98,10 @@ iscsi_connect(iscsi_session_t *session)
 			 &arglen) >= 0) {
 			log_debug(4, "set TCP recv window size to %u, "
 				 "actually got %u\n",
-				 session->tcp_window_size, window_size);
+				 conn->tcp_window_size, window_size);
 		}
 
-		window_size = session->tcp_window_size;
+		window_size = conn->tcp_window_size;
 		arglen = sizeof (window_size);
 
 		if (setsockopt
@@ -115,7 +115,7 @@ iscsi_connect(iscsi_session_t *session)
 			 &arglen) >= 0) {
 			log_debug(4, "set TCP send window size to %u, "
 				 "actually got %u\n",
-				 session->tcp_window_size, window_size);
+				 conn->tcp_window_size, window_size);
 		}
 	}
 
@@ -124,11 +124,11 @@ iscsi_connect(iscsi_session_t *session)
 	 */
 	memset(&addr, 0, sizeof (addr));
 	addr.sin_family = AF_INET;
-	addr.sin_port = htons(session->port);
-	memcpy(&addr.sin_addr.s_addr, session->ip_address,
-	       MIN(sizeof (addr.sin_addr.s_addr), session->ip_length));
-	log_debug(1, "connecting to %s:%d", inet_ntoa(addr.sin_addr),
-		 session->port);
+	addr.sin_port = htons(conn->port);
+	memcpy(&addr.sin_addr.s_addr, conn->ip_address,
+	       MIN(sizeof (addr.sin_addr.s_addr), conn->ip_length));
+	log_debug(1, "connecting to %s:%d ip_length %d",
+		  inet_ntoa(addr.sin_addr), conn->port, conn->ip_length);
 	rc = connect(sock, (struct sockaddr *) &addr, sizeof (addr));
 	if (timedout) {
 		log_debug(1, "socket %d connect timed out", sock);
@@ -136,7 +136,7 @@ iscsi_connect(iscsi_session_t *session)
 		goto done;
 	} else if (rc < 0) {
 		log_error("cannot make connection to %s:%d",
-			 inet_ntoa(addr.sin_addr), session->port);
+			 inet_ntoa(addr.sin_addr), conn->port);
 		close(sock);
 		ret = 0;
 		goto done;
@@ -147,7 +147,7 @@ iscsi_connect(iscsi_session_t *session)
 		if (getsockname(sock, (struct sockaddr *) &local, &len) >= 0) {
 			log_debug(1, "connected local port %d to %s:%d",
 				 ntohs(local.sin_port),
-				 inet_ntoa(addr.sin_addr), session->port);
+				 inet_ntoa(addr.sin_addr), conn->port);
 		}
 	}
 
@@ -156,18 +156,18 @@ iscsi_connect(iscsi_session_t *session)
       done:
 	alarm(0);
 	sigaction(SIGALRM, &old, NULL);
-	session->socket_fd = sock;
+	conn->socket_fd = sock;
 	return ret;
 }
 
 void
-iscsi_disconnect(iscsi_session_t *session)
+iscsi_disconnect(iscsi_conn_t *conn)
 {
-	if (session->socket_fd >= 0) {
-		log_debug(1, "disconnecting session %p, fd %d", session,
-			 session->socket_fd);
-		close(session->socket_fd);
-		session->socket_fd = -1;
+	if (conn->socket_fd >= 0) {
+		log_debug(1, "disconnecting conn %p, fd %d", conn,
+			 conn->socket_fd);
+		close(conn->socket_fd);
+		conn->socket_fd = -1;
 	}
 }
 
@@ -187,7 +187,7 @@ iscsi_log_text(iscsi_hdr_t *pdu, char *data)
 }
 
 int
-iscsi_send_pdu(iscsi_session_t *session, iscsi_hdr_t *hdr,
+iscsi_send_pdu(iscsi_conn_t *conn, iscsi_hdr_t *hdr,
 	       int hdr_digest, char *data, int data_digest, int timeout)
 {
 	int rc, ret = 0;
@@ -201,8 +201,8 @@ iscsi_send_pdu(iscsi_session_t *session, iscsi_hdr_t *hdr,
 	struct sigaction action;
 	struct sigaction old;
 
-	/* set a timeout, since the socket calls may take a long time 
-	 * to timeout on their own 
+	/* set a timeout, since the socket calls may take a long time
+	 * to timeout on their own
 	 */
 	memset(&action, 0, sizeof (struct sigaction));
 	memset(&old, 0, sizeof (struct sigaction));
@@ -278,14 +278,14 @@ iscsi_send_pdu(iscsi_session_t *session, iscsi_hdr_t *hdr,
 		vec[0].iov_base = header;
 		vec[0].iov_len = end - header;
 
-		rc = writev(session->socket_fd, vec, 1);
+		rc = writev(conn->socket_fd, vec, 1);
 		if (timedout) {
 			log_error("socket %d write timed out",
-			       session->socket_fd);
+			       conn->socket_fd);
 			ret = 0;
 			goto done;
 		} else if ((rc <= 0) && (errno != EAGAIN)) {
-			LOG_CONN_FAIL(session);
+			LOG_CONN_FAIL(conn);
 			ret = 0;
 			goto done;
 		} else if (rc > 0) {
@@ -309,14 +309,14 @@ iscsi_send_pdu(iscsi_session_t *session, iscsi_hdr_t *hdr,
 		vec[1].iov_base = (void *) &pad;
 		vec[1].iov_len = pad_bytes;
 
-		rc = writev(session->socket_fd, vec, 2);
+		rc = writev(conn->socket_fd, vec, 2);
 		if (timedout) {
 			log_error("socket %d write timed out",
-			       session->socket_fd);
+			       conn->socket_fd);
 			ret = 0;
 			goto done;
 		} else if ((rc <= 0) && (errno != EAGAIN)) {
-			LOG_CONN_FAIL(session);
+			LOG_CONN_FAIL(conn);
 			ret = 0;
 			goto done;
 		} else if (rc > 0) {
@@ -340,7 +340,7 @@ iscsi_send_pdu(iscsi_session_t *session, iscsi_hdr_t *hdr,
 }
 
 int
-iscsi_recv_pdu(iscsi_session_t *session, iscsi_hdr_t *hdr,
+iscsi_recv_pdu(iscsi_conn_t *conn, iscsi_hdr_t *hdr,
 	       int hdr_digest, char *data, int max_data_length, int data_digest,
 	       int timeout)
 {
@@ -373,18 +373,18 @@ iscsi_recv_pdu(iscsi_session_t *session, iscsi_hdr_t *hdr,
 	/* read a response header */
 	do {
 		rlen =
-		    read(session->socket_fd, header, sizeof (*hdr) - h_bytes);
+		    read(conn->socket_fd, header, sizeof (*hdr) - h_bytes);
 		if (timedout) {
 			log_error("socket %d header read timed out",
-			       session->socket_fd);
+			       conn->socket_fd);
 			failed = 1;
 			goto done;
 		} else if (rlen == 0) {
-			LOG_CONN_CLOSED(session);
+			LOG_CONN_CLOSED(conn);
 			failed = 1;
 			goto done;
 		} else if ((rlen < 0) && (errno != EAGAIN)) {
-			LOG_CONN_FAIL(session);
+			LOG_CONN_FAIL(conn);
 			failed = 1;
 			goto done;
 		} else if (rlen > 0) {
@@ -415,7 +415,7 @@ iscsi_recv_pdu(iscsi_session_t *session, iscsi_hdr_t *hdr,
 	/* if we only expected to receive a header, exit */
 	if (dlength == 0)
 		goto done;
-    
+
 	if (data + dlength >= end) {
 		log_warning("buffer size %u too small for data length %u",
 		       max_data_length, dlength);
@@ -427,18 +427,18 @@ iscsi_recv_pdu(iscsi_session_t *session, iscsi_hdr_t *hdr,
 	d_bytes = 0;
 	while (d_bytes < dlength) {
 		rlen =
-		    read(session->socket_fd, data + d_bytes, dlength - d_bytes);
+		    read(conn->socket_fd, data + d_bytes, dlength - d_bytes);
 		if (timedout) {
 			log_error("socket %d data read timed out",
-			       session->socket_fd);
+			       conn->socket_fd);
 			failed = 1;
 			goto done;
 		} else if (rlen == 0) {
-			LOG_CONN_CLOSED(session);
+			LOG_CONN_CLOSED(conn);
 			failed = 1;
 			goto done;
 		} else if ((rlen < 0 && errno != EAGAIN)) {
-			LOG_CONN_FAIL(session);
+			LOG_CONN_FAIL(conn);
 			failed = 1;
 			goto done;
 		} else if (rlen > 0) {
@@ -454,18 +454,18 @@ iscsi_recv_pdu(iscsi_session_t *session, iscsi_hdr_t *hdr,
 		char bytes[PAD_WORD_LEN];
 
 		while (pad_bytes > 0) {
-			rlen = read(session->socket_fd, &bytes, pad_bytes);
+			rlen = read(conn->socket_fd, &bytes, pad_bytes);
 			if (timedout) {
 				log_error("socket %d pad read timed out",
-				       session->socket_fd);
+				       conn->socket_fd);
 				failed = 1;
 				goto done;
 			} else if (rlen == 0) {
-				LOG_CONN_CLOSED(session);
+				LOG_CONN_CLOSED(conn);
 				failed = 1;
 				goto done;
 			} else if ((rlen < 0 && errno != EAGAIN)) {
-				LOG_CONN_FAIL(session);
+				LOG_CONN_FAIL(conn);
 				failed = 1;
 				goto done;
 			} else if (rlen > 0) {

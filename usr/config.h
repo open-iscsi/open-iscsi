@@ -128,8 +128,8 @@ struct iscsi_sendtargets_config {
 	int port;
 	int continuous;
 	int send_async_text;
-	struct iscsi_auth_config auth_options;
-	struct iscsi_connection_timeout_config connection_timeout_options;
+	struct iscsi_auth_config auth;
+	struct iscsi_connection_timeout_config cnx_timeo;
 };
 
 struct iscsi_slp_config {
@@ -139,7 +139,7 @@ struct iscsi_slp_config {
 	char *interfaces;	/* for multicast, list of interfaces names,
 				 * "all", or "none" */
 	int poll_interval;
-	struct iscsi_auth_config auth_options;
+	struct iscsi_auth_config auth;
 };
 
 #endif /* CONFIG_H */

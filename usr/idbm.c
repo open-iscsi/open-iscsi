@@ -134,29 +134,29 @@ idbm_update_discovery(discovery_rec_t *rec, discovery_rec_t *newrec)
 	__update_rec_int(rec, newrec, u.sendtargets.port);
 	__update_rec_int(rec, newrec, u.sendtargets.continuous);
 	__update_rec_int(rec, newrec, u.sendtargets.send_async_text);
-	__update_rec_int(rec, newrec, u.sendtargets.auth_options.authmethod);
-	__update_rec_str(rec, newrec,u.sendtargets.auth_options.username,
+	__update_rec_int(rec, newrec, u.sendtargets.auth.authmethod);
+	__update_rec_str(rec, newrec,u.sendtargets.auth.username,
 			 AUTH_STR_MAX_LEN);
-	__update_rec_str(rec, newrec, u.sendtargets.auth_options.password,
-			 AUTH_STR_MAX_LEN);
-	__update_rec_int(rec, newrec,
-			 u.sendtargets.auth_options.password_length);
-	__update_rec_str(rec, newrec,u.sendtargets.auth_options.username_in,
-			 AUTH_STR_MAX_LEN);
-	__update_rec_str(rec, newrec, u.sendtargets.auth_options.password_in,
+	__update_rec_str(rec, newrec, u.sendtargets.auth.password,
 			 AUTH_STR_MAX_LEN);
 	__update_rec_int(rec, newrec,
-			 u.sendtargets.auth_options.password_length_in);
+			 u.sendtargets.auth.password_length);
+	__update_rec_str(rec, newrec,u.sendtargets.auth.username_in,
+			 AUTH_STR_MAX_LEN);
+	__update_rec_str(rec, newrec, u.sendtargets.auth.password_in,
+			 AUTH_STR_MAX_LEN);
 	__update_rec_int(rec, newrec,
-		 u.sendtargets.connection_timeout_options.login_timeout);
+			 u.sendtargets.auth.password_length_in);
 	__update_rec_int(rec, newrec,
-		 u.sendtargets.connection_timeout_options.auth_timeout);
+		 u.sendtargets.cnx_timeo.login_timeout);
 	__update_rec_int(rec, newrec,
-		 u.sendtargets.connection_timeout_options.active_timeout);
+		 u.sendtargets.cnx_timeo.auth_timeout);
 	__update_rec_int(rec, newrec,
-		 u.sendtargets.connection_timeout_options.idle_timeout);
+		 u.sendtargets.cnx_timeo.active_timeout);
 	__update_rec_int(rec, newrec,
-		 u.sendtargets.connection_timeout_options.ping_timeout);
+		 u.sendtargets.cnx_timeo.idle_timeout);
+	__update_rec_int(rec, newrec,
+		 u.sendtargets.cnx_timeo.ping_timeout);
 }
 
 static char*
@@ -336,30 +336,30 @@ idbm_recinfo_discovery(discovery_rec_t *r, recinfo_t *ri)
 		__recinfo_int("discovery.sendtargets.send_async_text", ri, r,
 			u.sendtargets.send_async_text, SHOW, num);
 		__recinfo_int_o2("discovery.sendtargets.auth.authmethod", ri, r,
-			u.sendtargets.auth_options.authmethod,
+			u.sendtargets.auth.authmethod,
 			SHOW, "None", "CHAP", num);
 		__recinfo_str("discovery.sendtargets.auth.username", ri, r,
-			u.sendtargets.auth_options.username, SHOW, num);
+			u.sendtargets.auth.username, SHOW, num);
 		__recinfo_str("discovery.sendtargets.auth.password", ri, r,
-			u.sendtargets.auth_options.password, MASKED, num);
+			u.sendtargets.auth.password, MASKED, num);
 		__recinfo_str("discovery.sendtargets.auth.username_in", ri, r,
-			u.sendtargets.auth_options.username_in, SHOW, num);
+			u.sendtargets.auth.username_in, SHOW, num);
 		__recinfo_str("discovery.sendtargets.auth.password_in", ri, r,
-			u.sendtargets.auth_options.password_in, MASKED, num);
+			u.sendtargets.auth.password_in, MASKED, num);
 		__recinfo_int("discovery.sendtargets.timeo.login_timeout",ri, r,
-			u.sendtargets.connection_timeout_options.login_timeout,
+			u.sendtargets.cnx_timeo.login_timeout,
 			SHOW, num);
 		__recinfo_int("discovery.sendtargets.timeo.auth_timeout", ri, r,
-			u.sendtargets.connection_timeout_options.auth_timeout,
+			u.sendtargets.cnx_timeo.auth_timeout,
 			SHOW, num);
 		__recinfo_int("discovery.sendtargets.timeo.active_timeout",ri,r,
-			u.sendtargets.connection_timeout_options.active_timeout,
+			u.sendtargets.cnx_timeo.active_timeout,
 			SHOW, num);
 		__recinfo_int("discovery.sendtargets.timeo.idle_timeout", ri, r,
-			u.sendtargets.connection_timeout_options.idle_timeout,
+			u.sendtargets.cnx_timeo.idle_timeout,
 			SHOW, num);
 		__recinfo_int("discovery.sendtargets.timeo.ping_timeout", ri, r,
-			u.sendtargets.connection_timeout_options.ping_timeout,
+			u.sendtargets.cnx_timeo.ping_timeout,
 			SHOW, num);
 	}
 }
@@ -624,19 +624,19 @@ idbm_discovery_setup_defaults(discovery_rec_t *rec, discovery_type_e type)
 	if (type == DISCOVERY_TYPE_SENDTARGETS) {
 		rec->u.sendtargets.continuous = 0;
 		rec->u.sendtargets.send_async_text = 0;
-		rec->u.sendtargets.auth_options.authmethod = 0;
-		rec->u.sendtargets.connection_timeout_options.login_timeout=15;
-		rec->u.sendtargets.connection_timeout_options.auth_timeout = 45;
-		rec->u.sendtargets.connection_timeout_options.active_timeout=5;
-		rec->u.sendtargets.connection_timeout_options.idle_timeout = 60;
-		rec->u.sendtargets.connection_timeout_options.ping_timeout = 5;
+		rec->u.sendtargets.auth.authmethod = 0;
+		rec->u.sendtargets.cnx_timeo.login_timeout=15;
+		rec->u.sendtargets.cnx_timeo.auth_timeout = 45;
+		rec->u.sendtargets.cnx_timeo.active_timeout=5;
+		rec->u.sendtargets.cnx_timeo.idle_timeout = 60;
+		rec->u.sendtargets.cnx_timeo.ping_timeout = 5;
 	} else if (type == DISCOVERY_TYPE_SLP) {
 		rec->u.slp.interfaces = NULL;
 		rec->u.slp.scopes = NULL;
 		rec->u.slp.poll_interval = 5 * 60;	/* 5 minutes */
-		rec->u.slp.auth_options.authmethod = 0;
-		rec->u.slp.auth_options.password_length = 0;
-		rec->u.slp.auth_options.password_length_in = 0;
+		rec->u.slp.auth.authmethod = 0;
+		rec->u.slp.auth.password_length = 0;
+		rec->u.slp.auth.password_length_in = 0;
 	} else if (type == DISCOVERY_TYPE_ISNS) {
 		/* to be implemented */
 	}
@@ -786,18 +786,18 @@ idbm_sync_config(idbm_t *db)
 	idbm_recinfo_config(db->ninfo, f);
 
 	/* update password lengths */
-	if (*db->drec_st.u.sendtargets.auth_options.password)
-		db->drec_st.u.sendtargets.auth_options.password_length =
-			strlen(db->drec_st.u.sendtargets.auth_options.password);
-	if (*db->drec_st.u.sendtargets.auth_options.password_in)
-		db->drec_st.u.sendtargets.auth_options.password_length_in =
-		     strlen(db->drec_st.u.sendtargets.auth_options.password_in);
-	if (*db->drec_slp.u.slp.auth_options.password)
-		db->drec_slp.u.slp.auth_options.password_length =
-			strlen(db->drec_slp.u.slp.auth_options.password);
-	if (*db->drec_slp.u.slp.auth_options.password_in)
-		db->drec_slp.u.slp.auth_options.password_length_in =
-			strlen(db->drec_slp.u.slp.auth_options.password_in);
+	if (*db->drec_st.u.sendtargets.auth.password)
+		db->drec_st.u.sendtargets.auth.password_length =
+			strlen(db->drec_st.u.sendtargets.auth.password);
+	if (*db->drec_st.u.sendtargets.auth.password_in)
+		db->drec_st.u.sendtargets.auth.password_length_in =
+		     strlen(db->drec_st.u.sendtargets.auth.password_in);
+	if (*db->drec_slp.u.slp.auth.password)
+		db->drec_slp.u.slp.auth.password_length =
+			strlen(db->drec_slp.u.slp.auth.password);
+	if (*db->drec_slp.u.slp.auth.password_in)
+		db->drec_slp.u.slp.auth.password_length_in =
+			strlen(db->drec_slp.u.slp.auth.password_in);
 	if (*db->nrec.session.auth.password)
 		db->nrec.session.auth.password_length =
 			strlen(db->nrec.session.auth.password);
@@ -806,6 +806,23 @@ idbm_sync_config(idbm_t *db)
 			strlen(db->nrec.session.auth.password_in);
 
 	fclose(f);
+}
+
+static char*
+idbm_id2hash(DBM *dbm, int rec_id)
+{
+	datum key, data;
+
+	(void)idbm_lock(dbm);
+	for (key=dbm_firstkey(dbm); key.dptr != NULL; key=dbm_nextkey(dbm)) {
+		data = dbm_fetch(dbm, key);
+		if (idbm_uniq_id(key.dptr) == rec_id) {
+			idbm_unlock(dbm);
+			return strdup(key.dptr);
+		}
+	}
+	idbm_unlock(dbm);
+	return NULL;
 }
 
 int
@@ -874,6 +891,33 @@ idbm_node_read(idbm_t *db, int rec_id, node_rec_t *out_rec)
 		return 0;
 	}
 	return 1;
+}
+
+int
+idbm_node_write(idbm_t *db, int rec_id, node_rec_t *rec)
+{
+	char *hash;
+	DBM *dbm = db->nodedb;
+
+	hash = idbm_id2hash(dbm, rec_id);
+	if (!hash)
+		return 1;
+
+	if (idbm_lock(dbm)) {
+		free(hash);
+		return 1;
+	}
+
+	if (idbm_write(dbm, rec, sizeof(node_rec_t), hash)) {
+		idbm_unlock(dbm);
+		free(hash);
+		return 1;
+	}
+
+	idbm_unlock(dbm);
+
+	free(hash);
+	return 0;
 }
 
 int

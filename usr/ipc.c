@@ -72,6 +72,26 @@ ipc_close(int fd)
 static void
 __ipc_handle(iscsiadm_req_t *req, iscsiadm_rsp_t *rsp)
 {
+	log_debug(1, "got request, command %d", req->command);
+
+	switch(req->command) {
+	case IPC_SESSION_LOGIN:
+		rsp->err = ipc_session_login(req->u.session.rid);
+		break;
+	case IPC_SESSION_LOGOUT:
+		rsp->err = ipc_session_logout(req->u.session.rid);
+		break;
+	case IPC_CONN_ADD:
+		rsp->err = ipc_conn_add(req->u.conn.rid, req->u.conn.cid);
+		break;
+	case IPC_CONN_REMOVE:
+		rsp->err = ipc_conn_remove(req->u.conn.rid, req->u.conn.cid);
+		break;
+	default:
+		log_error("unknown request: %s(%d) %u",
+			  __FUNCTION__, __LINE__, req->command);
+		break;
+	}
 }
 
 int

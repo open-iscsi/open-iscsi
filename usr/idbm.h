@@ -78,10 +78,10 @@ typedef struct discovery_rec {
 #define TYPE_INT	0
 #define TYPE_INT_O	1
 #define TYPE_STR	2
-#define MAX_KEYS	256
-#define NAME_MAXVAL	128
-#define VALUE_MAXVAL	256
-#define OPTS_MAXVAL	32
+#define MAX_KEYS	256   /* number of keys total(including CNX_MAX) */
+#define NAME_MAXVAL	128   /* the maximum length of key name */
+#define VALUE_MAXVAL	256   /* the maximum length of 223 bytes in the RFC. */
+#define OPTS_MAXVAL	8
 typedef struct recinfo {
 	int		type;
 	char		name[NAME_MAXVAL];
@@ -120,5 +120,6 @@ extern void idbm_sendtargets_defaults(idbm_t *db,
 extern void idbm_slp_defaults(idbm_t *db, struct iscsi_slp_config *cfg);
 extern int idbm_discovery_read(idbm_t *db, int rec_id, discovery_rec_t *rec);
 extern int idbm_node_read(idbm_t *db, int rec_id, node_rec_t *rec);
+extern int idbm_node_write(idbm_t *db, int rec_id, node_rec_t *rec);
 
 #endif /* IDBM_H */

@@ -1,5 +1,5 @@
 /*
- * Ioctl and SysFS control
+ * iSCSI Ioctl and SysFS control
  *
  * Copyright (C) 2004 Dmitry Yusupov, Alex Aizman
  * maintained by open-iscsi@@googlegroups.com
@@ -27,11 +27,41 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 
+#include "iscsi_u.h"
 #include "iscsid.h"
 #include "log.h"
 
 #define CTL_DEVICE	"/dev/iscsictl"
 #define SYSFS_ROOT	"/sysfs/class/iscsi"
+
+int
+ctldev_handle(int fd)
+{
+	iscsi_uevent_t event;
+	int res;
+
+	while (1) {
+		res = read(fd, &event, sizeof(event));
+		if (res < 0) {
+			if (errno == EAGAIN)
+				return 0;
+			if (errno == EINTR)
+				continue;
+			log_error("got error (%d) when read ctrl_fd", errno);
+			return 1;
+		}
+
+		log_debug(1, "got event, type %u", event.type);
+
+		switch (event.type) {
+		default:
+			log_error("%s(%d) %u\n", __FUNCTION__, __LINE__,
+			       event.type);
+			return -1;
+		}
+	}
+	return 0;
+}
 
 int ctldev_open(void)
 {
@@ -55,7 +85,7 @@ int ctldev_open(void)
 		if (sscanf(buf, "%d %s", &devn, devname) != 2) {
 			continue;
 		}
-		if (!strcmp(devname, "ietctl")) {
+		if (!strcmp(devname, "iscsictl")) {
 			break;
 		}
 		devn = 0;
@@ -65,8 +95,7 @@ int ctldev_open(void)
 	if (!devn) {
 		log_error("cannot find iscsictl in /proc/devices - "
 		     "make sure the module is loaded");
-		//return -1;
-		return 1;
+		return -1;
 	}
 
 	unlink(CTL_DEVICE);
@@ -81,7 +110,7 @@ int ctldev_open(void)
 		return -1;
 	}
 
-	log_debug(1, CTL_DEVICE " opened!");
+	log_debug(1, CTL_DEVICE " is opened!");
 
 	return ctlfd;
 }

@@ -25,6 +25,7 @@
 #include "types.h"
 #include "iscsi_proto.h"
 #include "auth.h"
+#include "ipc.h"
 
 #define ISCSI_SESSION_MAX	256
 #define ISCSI_CNX_MAX		16
@@ -35,14 +36,52 @@
 #define DISCOVERY_FILE		"/var/db/iscsi/discovery"
 #define NODE_FILE		"/var/db/iscsi/node"
 
-/* daemon's session structure */
-typedef struct iscsi_session {
+typedef enum cnx_login_status_e {
+	CNX_LOGIN_SUCCESS,
+	CNX_LOGIN_FAILED,
+	CNX_LOGIN_IO_ERR,
+	CNX_LOGIN_RETRY,
+	CNX_LOGIN_IMM_RETRY,
+	CNX_LOGIN_IMM_REDIRECT_RETRY,
+} cnx_login_status_e;
+
+/* daemon's connection structure */
+typedef struct iscsi_conn {
+	int id;
+
+	/* login state machine */
+	int current_stage;
+	int next_stage;
+	int partial_response;
+	cnx_login_status_e status;
+
+	/* tcp/socket settings */
 	int socket_fd;
+	uint8_t ip_address[16];
+	int ip_length;
+	int port;
+	int tcp_window_size;
+	int type_of_service;
+
+	/* timeouts */
 	int login_timeout;
 	int auth_timeout;
 	int active_timeout;
 	int idle_timeout;
 	int ping_timeout;
+
+	/* sequencing */
+	uint32_t exp_statsn;
+
+	/* negotiated parameters */
+	int header_digest;
+	int data_digest;
+	int max_recv_data_segment_len;	/* the value we declare */
+	int max_xmit_data_segment_len;	/* the value declared by the target */
+} iscsi_conn_t;
+
+/* daemon's session structure */
+typedef struct iscsi_session {
 	int vendor_specific_keys;
 	unsigned int irrelevant_keys_bitmap;
 	int send_async_text;
@@ -50,23 +89,15 @@ typedef struct iscsi_session {
 	uint32_t cmdsn;
 	uint32_t exp_cmdsn;
 	uint32_t max_cmdsn;
-	uint32_t exp_statsn;
 	int immediate_data;
 	int initial_r2t;
-	int max_recv_data_segment_len;	/* the value we declare */
-	int max_xmit_data_segment_len;	/* the value declared by the target */
 	int first_burst_len;
 	int max_burst_len;
 	int data_pdu_in_order;
 	int data_seq_in_order;
 	int def_time2wait;
 	int def_time2retain;
-	int header_digest;
-	int data_digest;
 	int type;
-	int current_stage;
-	int next_stage;
-	int partial_response;
 	int portal_group_tag;
 	uint8_t isid[6];
 	uint16_t tsih;
@@ -76,10 +107,6 @@ typedef struct iscsi_session {
 	char *target_alias;
 	char *initiator_name;
 	char *initiator_alias;
-	int ip_length;
-	uint8_t ip_address[16];
-	int port;
-	int tcp_window_size;
 	struct auth_str_block auth_recv_string_block;
 	struct auth_str_block auth_send_string_block;
 	struct auth_large_binary auth_recv_binary_block;
@@ -95,8 +122,8 @@ typedef struct iscsi_session {
 	char username_in[AUTH_STR_MAX_LEN];
 	uint8_t password_in[AUTH_STR_MAX_LEN];
 	int password_length_in;
+	iscsi_conn_t cnx[ISCSI_CNX_MAX];
 } iscsi_session_t;
-extern int iscsi_update_address(iscsi_session_t *session, char *address);
 
 /* login.c */
 
@@ -135,14 +162,12 @@ enum iscsi_login_status {
 };
 
 /* implemented in iscsi-login.c for use on all platforms */
-extern int iscsi_add_text(iscsi_session_t *session, iscsi_hdr_t *hdr,
-			  char *data, int max_data_length, char *param,
-			  char *value);
-extern enum iscsi_login_status iscsi_login(iscsi_session_t *session,
-					   char *buffer, uint32_t bufsize,
-					   uint8_t * status_class,
-					   uint8_t * status_detail);
-extern int iscsi_update_address(iscsi_session_t *session, char *address);
+extern int iscsi_add_text(iscsi_hdr_t *hdr, char *data, int max_data_length,
+			char *param, char *value);
+extern enum iscsi_login_status iscsi_login(iscsi_session_t *session, int cid,
+		   char *buffer, uint32_t bufsize, uint8_t * status_class,
+		   uint8_t * status_detail);
+extern int iscsi_update_address(iscsi_conn_t *conn, char *address);
 
 /* Digest types */
 #define ISCSI_DIGEST_NONE  0
@@ -160,12 +185,18 @@ extern int iscsi_update_address(iscsi_session_t *session, char *address);
 #define IRRELEVANT_DATASEQUENCEINORDER	0x80
 
 /* io.c */
-extern int iscsi_connect(iscsi_session_t *session);
-extern void iscsi_disconnect(iscsi_session_t *session);
-extern int iscsi_send_pdu(iscsi_session_t *session, iscsi_hdr_t *hdr,
+extern int iscsi_connect(iscsi_conn_t *conn);
+extern void iscsi_disconnect(iscsi_conn_t *conn);
+extern int iscsi_send_pdu(iscsi_conn_t *conn, iscsi_hdr_t *hdr,
 	       int hdr_digest, char *data, int data_digest, int timeout);
-extern int iscsi_recv_pdu(iscsi_session_t *session, iscsi_hdr_t *hdr,
+extern int iscsi_recv_pdu(iscsi_conn_t *conn, iscsi_hdr_t *hdr,
 	int hdr_digest, char *data, int max_data_length, int data_digest,
 	int timeout);
+
+/* initiator.c */
+extern ipc_err_e ipc_session_login(int rid);
+extern ipc_err_e ipc_session_logout(int rid);
+extern ipc_err_e ipc_conn_add(int rid, int cid);
+extern ipc_err_e ipc_conn_remove(int rid, int cid);
 
 #endif /* INITIATOR_H */
