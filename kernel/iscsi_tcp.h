@@ -73,7 +73,8 @@
 #define ISCSI_PAD_LEN		4
 #define ISCSI_DRAFT20_VERSION	0x00
 #define ISCSI_R2T_MAX		16
-#define ISCSI_IMM_CMDS_MAX	32
+#define ISCSI_XMIT_CMDS_MAX	128		/* must be power of 2 */
+#define ISCSI_IMM_CMDS_MAX	32		/* must be power of 2 */
 #define ISCSI_IMM_ITT_OFFSET	0x1000
 #define ISCSI_CMD_DATAPOOL_SIZE	32
 
@@ -130,8 +131,9 @@ struct iscsi_conn {
 	struct socket           *sock;          /* BSD socket layer */
 	struct iscsi_session	*session;	/* Parent session */
 	struct list_head	item;		/* item's list of connections */
-	struct iscsi_queue	immqueue;	/* Immediate xmit queue */
-	struct iscsi_queue	xmitqueue;	/* Data-path queue */
+	struct kfifo		*rspqueue;	/* Write response xmit queue */
+	struct kfifo		*immqueue;	/* Immediate xmit queue */
+	struct kfifo		*xmitqueue;	/* Data-path queue */
 	struct work_struct	xmitwork;	/* per-conn. xmit workqueue */
 	volatile int		c_stage;	/* Connection state */
 	iscsi_cnx_h		handle;		/* CP connection handle */
@@ -141,6 +143,8 @@ struct iscsi_conn {
 	volatile int		suspend;	/* connection suspended */
 	struct crypto_tfm	*tx_tfm;
 	struct crypto_tfm	*rx_tfm;
+	struct iscsi_mgmt_task	*mtask;		/* xmit mtask in progress */
+	struct iscsi_cmd_task	*ctask;		/* xmit ctask in progress */
 
 	/* configuration */
 	int			max_recv_dlength;
