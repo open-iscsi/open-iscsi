@@ -1784,8 +1784,7 @@ iscsi_queuecommand(struct scsi_cmnd *sc, void (*done)(struct scsi_cmnd *))
 	session = (struct iscsi_session*)host->hostdata;
 	BUG_ON(host->host_no != session->id);
 
-	spin_unlock_irq(host->host_lock);
-	spin_lock_bh(&session->lock);
+	spin_lock(&session->lock);
 
 	if (session->state != ISCSI_STATE_LOGGED_IN) {
 		if (session->state == ISCSI_STATE_FAILED) {
@@ -1810,7 +1809,7 @@ iscsi_queuecommand(struct scsi_cmnd *sc, void (*done)(struct scsi_cmnd *))
 		struct iscsi_conn *cnx;
 		int cpu = smp_processor_id();
 
-		spin_lock_bh(&session->conn_lock);
+		spin_lock(&session->conn_lock);
 		list_for_each_entry(cnx, &session->connections, item) {
 			if (cnx->busy) {
 				conn = cnx;
@@ -1823,7 +1822,7 @@ iscsi_queuecommand(struct scsi_cmnd *sc, void (*done)(struct scsi_cmnd *))
 				break;
 			}
 		}
-		spin_unlock_bh(&session->conn_lock);
+		spin_unlock(&session->conn_lock);
 		if (conn == NULL)
 			conn = session->leadconn;
 	} else {
@@ -1836,11 +1835,11 @@ iscsi_queuecommand(struct scsi_cmnd *sc, void (*done)(struct scsi_cmnd *))
 
 	sc->SCp.ptr = (char*)ctask;
 	iscsi_cmd_init(conn, ctask, sc);
-	spin_unlock_bh(&session->lock);
+	spin_unlock(&session->lock);
 
-	spin_lock_bh(&conn->lock);
+	spin_lock(&conn->lock);
 	__enqueue(&conn->xmitqueue, ctask);
-	spin_unlock_bh(&conn->lock);
+	spin_unlock(&conn->lock);
 	debug_scsi(
 		"queued [%s cid %d sc %lx itt 0x%x len %d cmdsn %d win %d]\n",
 		sc->sc_data_direction == DMA_TO_DEVICE ? "write" : "read",
@@ -1849,18 +1848,15 @@ iscsi_queuecommand(struct scsi_cmnd *sc, void (*done)(struct scsi_cmnd *))
 
 	schedule_delayed_work_on(conn->id, &conn->xmitwork, 0);
 
-	spin_lock_irq(host->host_lock);
 	return 0;
 
 reject:
-	spin_unlock_bh(&session->lock);
-	spin_lock_irq(host->host_lock);
+	spin_unlock(&session->lock);
 	debug_scsi("cmd 0x%x rejected (%d)\n", sc->cmnd[0], reason);
 	return SCSI_MLQUEUE_HOST_BUSY;
 
 fault:
-	spin_unlock_bh(&session->lock);
-	spin_lock_irq(host->host_lock);
+	spin_unlock(&session->lock);
 	printk("iSCSI: cmd 0x%x is not queued (%d)\n", sc->cmnd[0], reason);
 	sc->sense_buffer[0] = 0x70;
 	sc->sense_buffer[2] = NOT_READY;
