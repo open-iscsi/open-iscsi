@@ -143,7 +143,7 @@ struct iscsi_conn {
 	struct kfifo		*xmitqueue;	/* Data-path queue */
 	struct work_struct	xmitwork;	/* per-conn. xmit workqueue */
 	volatile int		c_stage;	/* Connection state */
-	iscsi_cnx_h		handle;		/* CP connection handle */
+	iscsi_cnx_t		handle;		/* CP connection handle */
 	struct iscsi_mgmt_task	*login_mtask;	/* mtask used for login/text */
 	spinlock_t		lock;		/* general connection lock */
 	volatile int		suspend;	/* connection suspended */
@@ -199,7 +199,7 @@ struct iscsi_session {
 	volatile int		state;
 	struct list_head	item;
 	void			*auth_client;
-	iscsi_snx_h		handle;		/* CP session handle */
+	iscsi_snx_t		handle;		/* CP session handle */
 	int			conn_cnt;
 
 	struct list_head	connections;	/* list of connects. */

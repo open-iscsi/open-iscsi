@@ -93,21 +93,19 @@ iscsi_unicast_skb(struct sk_buff *skb, int len)
 	return 0;
 }
 
-int
-iscsi_control_recv_pdu(iscsi_cnx_h cp_cnx, struct iscsi_hdr *hdr,
+int iscsi_control_recv_pdu(iscsi_cnx_t cp_cnx, struct iscsi_hdr *hdr,
 				char *data, uint32_t data_size)
 {
 	struct nlmsghdr	*nlh;
-	struct sk_buff	*skb;
+	struct sk_buff *skb;
 	struct iscsi_uevent *ev;
 	char *pdu;
 	int len = NLMSG_SPACE(sizeof(*ev) + sizeof(struct iscsi_hdr) +
 			      data_size);
 
 	skb = iscsi_alloc_skb(len);
-	if (!skb) {
+	if (!skb)
 		return -ENOMEM;
-	}
 
 	nlh = __nlmsg_put(skb, daemon_pid, 0, 0, (len - sizeof(*nlh)));
 	ev = NLMSG_DATA(nlh);
@@ -123,8 +121,7 @@ iscsi_control_recv_pdu(iscsi_cnx_h cp_cnx, struct iscsi_hdr *hdr,
 }
 EXPORT_SYMBOL_GPL(iscsi_control_recv_pdu);
 
-void
-iscsi_control_cnx_error(iscsi_cnx_h cp_cnx, iscsi_err_e error)
+void iscsi_control_cnx_error(iscsi_cnx_t cp_cnx, enum iscsi_err error)
 {
 	struct nlmsghdr	*nlh;
 	struct sk_buff	*skb;
@@ -184,7 +181,8 @@ iscsi_if_recv_msg(struct sk_buff *skb, struct nlmsghdr *nlh)
 	struct iscsi_transport *transport;
 	struct iscsi_uevent *ev = NLMSG_DATA(nlh);
 
-	if ((transport = iscsi_if_transport_lookup(ev->transport_id)) == NULL)
+	transport = iscsi_if_transport_lookup(ev->transport_id);
+	if (!transport)
 		return -EEXIST;
 
 	daemon_pid = NETLINK_CREDS(skb)->pid;

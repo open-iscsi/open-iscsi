@@ -827,7 +827,7 @@ static void
 __session_cnx_error(queue_item_t *item)
 {
 	int stop_flag;
-	iscsi_err_e error = *(iscsi_err_e *)queue_item_data(item);
+	enum iscsi_err error = *(enum iscsi_err *)queue_item_data(item);
 	iscsi_conn_t *conn = item->context;
 	iscsi_session_t *session = conn->session;
 

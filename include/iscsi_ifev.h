@@ -20,7 +20,7 @@
 #ifndef ISCSI_IFEV_H
 #define ISCSI_IFEV_H
 
-typedef enum iscsi_uevent_e {
+enum iscsi_uevent_e {
 	ISCSI_UEVENT_UNKNOWN		= 0,
 
 	/* down events */
@@ -37,7 +37,7 @@ typedef enum iscsi_uevent_e {
 	/* up events */
 	ISCSI_KEVENT_RECV_PDU		= KEVENT_BASE + 1,
 	ISCSI_KEVENT_CNX_ERROR		= KEVENT_BASE + 2,
-} iscsi_uevent_e;
+};
 
 struct iscsi_uevent {
 	uint32_t type; /* k/u events type */
@@ -73,7 +73,7 @@ struct iscsi_uevent {
 		} send_pdu;
 		struct msg_set_param {
 			uint64_t	cnx_handle;
-			uint32_t	param; /* iscsi_param_e */
+			uint32_t	param; /* enum iscsi_param */
 			uint32_t	value;
 		} set_param;
 		struct msg_start_cnx {
@@ -98,7 +98,7 @@ struct iscsi_uevent {
 		} recv_req;
 		struct msg_cnx_error {
 			uint64_t	cnx_handle;
-			uint32_t	error; /* iscsi_err_e */
+			uint32_t	error; /* enum iscsi_err */
 		} cnxerror;
 	} r;
 };

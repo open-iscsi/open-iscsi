@@ -103,15 +103,10 @@ iscsi_buf_init_hdr(struct iscsi_conn *conn, struct iscsi_buf *ibuf,
 {
 	iscsi_buf_init_virt(ibuf, vbuf, sizeof(struct iscsi_hdr));
 	if (conn->hdrdgst_en) {
-		crypto_digest_init(conn->tx_tfm);
-		crypto_digest_update(conn->tx_tfm, &ibuf->sg, 1);
-		crypto_digest_final(conn->tx_tfm, crc);
+		crypto_digest_digest(conn->tx_tfm, &ibuf->sg, 1, crc);
 		ibuf->sg.length += sizeof(uint32_t);
 	}
 }
-
-#define iscsi_conn_get(rdd) (struct iscsi_conn*)(rdd)->arg.data
-#define iscsi_conn_set(rdd, conn) (rdd)->arg.data = conn
 
 static int
 iscsi_hdr_extract(struct iscsi_conn *conn)
@@ -142,7 +137,7 @@ iscsi_hdr_extract(struct iscsi_conn *conn)
 		int copylen;
 
 		/*
-		 * PDU header scattered accross SKB's,
+		 * PDU header scattered across SKB's,
 		 * copying it... This'll happen quite rarely.
 		 */
 		if (conn->in_progress == IN_PROGRESS_WAIT_HEADER) {
@@ -349,13 +344,11 @@ iscsi_solicit_data_init(struct iscsi_conn *conn, struct iscsi_cmd_task *ctask,
 
 	dtask = mempool_alloc(ctask->datapool, GFP_ATOMIC);
 	hdr = &dtask->hdr;
-	hdr->rsvd2[0] = hdr->rsvd2[1] = hdr->rsvd3 =
-		hdr->rsvd4 = hdr->rsvd5 = hdr->rsvd6 = 0;
+	memset(hdr, 0, sizeof(struct iscsi_data));
 	hdr->ttt = r2t->ttt;
 	hdr->datasn = htonl(r2t->solicit_datasn);
 	r2t->solicit_datasn++;
 	hdr->opcode = ISCSI_OP_SCSI_DATA_OUT;
-	memset(hdr->lun, 0, 8);
 	hdr->lun[1] = ctask->hdr.lun[1];
 	hdr->itt = ctask->hdr.itt;
 	hdr->exp_statsn = r2t->exp_statsn;
@@ -513,9 +506,7 @@ iscsi_hdr_recv(struct iscsi_conn *conn)
 
 		sg_init_one(&sg, (u8 *)hdr,
 			    sizeof(struct iscsi_hdr) + conn->in.ahslen);
-		crypto_digest_init(conn->rx_tfm);
-		crypto_digest_update(conn->rx_tfm, &sg, 1);
-		crypto_digest_final(conn->rx_tfm, (u8 *)&cdgst);
+		crypto_digest_digest(conn->rx_tfm, &sg, 1, (u8 *)&cdgst);
 		rdgst = *(uint32_t*)((char*)hdr + sizeof(struct iscsi_hdr) +
 				     conn->in.ahslen);
 	}
@@ -767,7 +758,7 @@ iscsi_data_recv(struct iscsi_conn *conn)
 	    struct scsi_cmnd *sc = ctask->sc;
 	    BUG_ON(!(ctask->in_progress & IN_PROGRESS_READ &&
 		     conn->in_progress == IN_PROGRESS_DATA_RECV));
-	    BUG_ON(ctask != (void*)sc->SCp.ptr);
+	    BUG_ON((void*)ctask != sc->SCp.ptr);
 
 	    /*
 	     * copying Data-In into the Scsi_Cmnd
@@ -880,7 +871,7 @@ iscsi_tcp_data_recv(read_descriptor_t *rd_desc, struct sk_buff *skb,
 		unsigned int offset, size_t len)
 {
 	int rc;
-	struct iscsi_conn *conn = iscsi_conn_get(rd_desc);
+	struct iscsi_conn *conn = rd_desc->arg.data;
 	int start = skb_headlen(skb);
 
 	/*
@@ -965,13 +956,13 @@ again:
 static void
 iscsi_tcp_data_ready(struct sock *sk, int flag)
 {
-	struct iscsi_conn *conn = (struct iscsi_conn*)sk->sk_user_data;
+	struct iscsi_conn *conn = sk->sk_user_data;
 	read_descriptor_t rd_desc;
 
 	read_lock(&sk->sk_callback_lock);
 
 	/* use rd_desc to pass 'conn' to iscsi_tcp_data_recv */
-	iscsi_conn_set(&rd_desc, conn);
+	rd_desc.arg.data = conn;
 	rd_desc.count = 0;
 	tcp_read_sock(sk, &rd_desc, iscsi_tcp_data_recv);
 
@@ -1019,7 +1010,7 @@ iscsi_write_space(struct sock *sk)
 	struct iscsi_conn *conn = (struct iscsi_conn*)sk->sk_user_data;
 	conn->old_write_space(sk);
 	debug_tcp("iscsi_write_space: cid %d\n", conn->id);
-	conn->suspend = 0; wmb();
+	conn->suspend = 0;
 	schedule_work(&conn->xmitwork);
 }
 
@@ -1075,8 +1066,8 @@ iscsi_sendhdr(struct iscsi_conn *conn, struct iscsi_buf *buf, int datalen)
 
 	/* sendpage */
 	res = sk->ops->sendpage(sk, buf->sg.page, offset, size, flags);
-	debug_tcp("sendhdr %lx %d bytes at offset %d sent %d res %d\n",
-		(long)page_address(buf->sg.page), size, offset, buf->sent, res);
+	debug_tcp("sendhdr %p %d bytes at offset %d sent %d res %d\n",
+		page_address(buf->sg.page), size, offset, buf->sent, res);
 	if (res >= 0) {
 		buf->sent += res;
 		if (size != res)
@@ -1120,9 +1111,9 @@ iscsi_sendpage(struct iscsi_conn *conn, struct iscsi_buf *buf,
 	sendpage = sk->ops->sendpage ? : sock_no_sendpage;
 
 	res = sendpage(sk, buf->sg.page, offset, size, flags);
-	debug_tcp("sendpage %lx %d bytes, boff %d bsent %d "
+	debug_tcp("sendpage %p %d bytes, boff %d bsent %d "
 		  "left %d sent %d res %d\n",
-		  (long)page_address(buf->sg.page), size, offset,
+		  page_address(buf->sg.page), size, offset,
 		  buf->sent, *count, *sent, res);
 	if (res >= 0) {
 		buf->sent += res;
@@ -1160,14 +1151,11 @@ iscsi_solicit_data_cont(struct iscsi_conn *conn, struct iscsi_cmd_task *ctask,
 
 	dtask = mempool_alloc(ctask->datapool, GFP_ATOMIC);
 	hdr = &dtask->hdr;
-	hdr->flags = 0;
-	hdr->rsvd2[0] = hdr->rsvd2[1] = hdr->rsvd3 =
-		hdr->rsvd4 = hdr->rsvd5 = hdr->rsvd6 = 0;
+	memset(hdr, 0, sizeof(struct iscsi_data));
 	hdr->ttt = r2t->ttt;
 	hdr->datasn = htonl(r2t->solicit_datasn);
 	r2t->solicit_datasn++;
 	hdr->opcode = ISCSI_OP_SCSI_DATA_OUT;
-	memset(hdr->lun, 0, 8);
 	hdr->lun[1] = ctask->hdr.lun[1];
 	hdr->itt = ctask->hdr.itt;
 	hdr->exp_statsn = r2t->exp_statsn;
@@ -1208,13 +1196,11 @@ iscsi_unsolicit_data_init(struct iscsi_conn *conn, struct iscsi_cmd_task *ctask)
 
 	dtask = mempool_alloc(ctask->datapool, GFP_ATOMIC);
 	hdr = &dtask->hdr;
-	hdr->rsvd2[0] = hdr->rsvd2[1] = hdr->rsvd3 =
-		hdr->rsvd4 = hdr->rsvd5 = hdr->rsvd6 = 0;
+	memset(hdr, 0, sizeof(struct iscsi_data));
 	hdr->ttt = ISCSI_RESERVED_TAG;
 	hdr->datasn = htonl(ctask->unsol_datasn);
 	ctask->unsol_datasn++;
 	hdr->opcode = ISCSI_OP_SCSI_DATA_OUT;
-	memset(hdr->lun, 0, 8);
 	hdr->lun[1] = ctask->hdr.lun[1];
 	hdr->itt = ctask->hdr.itt;
 	hdr->exp_statsn = htonl(conn->exp_statsn);
@@ -1376,7 +1362,7 @@ iscsi_mtask_xmit(struct iscsi_conn *conn, struct iscsi_mgmt_task *mtask)
 		BUG_ON(!mtask->data_count);
 		mtask->xmstate &= ~XMSTATE_IMM_DATA;
 		/* FIXME: implement.
-		 * Virtual buffer could be spreaded accross multiple pages...
+		 * Virtual buffer could be spreaded across multiple pages...
 		 */
 		do {
 			if (iscsi_sendpage(conn, &mtask->sendbuf,
@@ -1420,7 +1406,7 @@ iscsi_ctask_xmit(struct iscsi_conn *conn, struct iscsi_cmd_task *ctask)
 	if (ctask->xmstate & XMSTATE_IMM_DATA) {
 		BUG_ON(!ctask->imm_count);
 		ctask->xmstate &= ~XMSTATE_IMM_DATA;
-		while (1) {
+		for (;;) {
 			if (iscsi_sendpage(conn, &ctask->sendbuf,
 					   &ctask->imm_count, &ctask->sent)) {
 				ctask->xmstate |= XMSTATE_IMM_DATA;
@@ -1455,7 +1441,7 @@ _unsolicit_head_again:
 	if (ctask->xmstate & XMSTATE_UNS_DATA) {
 		BUG_ON(!ctask->data_count);
 		ctask->xmstate &= ~XMSTATE_UNS_DATA;
-		while (1) {
+		for (;;) {
 			int start = ctask->sent;
 			if (iscsi_sendpage(conn, &ctask->sendbuf,
 					   &ctask->data_count,
@@ -1847,8 +1833,8 @@ iscsi_pool_free(struct iscsi_queue *q, void **items)
  * Allocate a new connection within the session and bind it to
  * the given socket.
  */
-static iscsi_cnx_h
-iscsi_conn_create(iscsi_snx_h snxh, iscsi_cnx_h handle,
+static iscsi_cnx_t
+iscsi_conn_create(iscsi_snx_t snxh, iscsi_cnx_t handle,
 			 uint32_t conn_idx)
 {
 	struct iscsi_session *session = iscsi_ptr(snxh);
@@ -1937,7 +1923,7 @@ conn_alloc_fault:
  * Terminate connection queues, free all associated resources.
  */
 static void
-iscsi_conn_destroy(iscsi_cnx_h cnxh)
+iscsi_conn_destroy(iscsi_cnx_t cnxh)
 {
 	struct iscsi_conn *conn = iscsi_ptr(cnxh);
 	struct iscsi_session *session = conn->session;
@@ -1971,7 +1957,7 @@ iscsi_conn_destroy(iscsi_cnx_h cnxh)
 	 */
 	down(&conn->xmitsema);
 	conn->c_stage = ISCSI_CNX_CLEANUP_WAIT;
-	while (1) {
+	for (;;) {
 		spin_lock_bh(&conn->lock);
 		if (!session->host->host_busy) { /* OK for ERL == 0 */
 			spin_unlock_bh(&conn->lock);
@@ -2024,7 +2010,7 @@ iscsi_conn_destroy(iscsi_cnx_h cnxh)
 }
 
 static int
-iscsi_conn_bind(iscsi_snx_h snxh, iscsi_cnx_h cnxh, uint32_t transport_fd,
+iscsi_conn_bind(iscsi_snx_t snxh, iscsi_cnx_t cnxh, uint32_t transport_fd,
 		int is_leading)
 {
 	struct iscsi_session *session = iscsi_ptr(snxh);
@@ -2096,7 +2082,7 @@ iscsi_conn_bind(iscsi_snx_h snxh, iscsi_cnx_h cnxh, uint32_t transport_fd,
 }
 
 static int
-iscsi_conn_start(iscsi_cnx_h cnxh)
+iscsi_conn_start(iscsi_cnx_t cnxh)
 {
 	struct iscsi_conn *conn = iscsi_ptr(cnxh);
 	struct iscsi_session *session = conn->session;
@@ -2134,7 +2120,7 @@ iscsi_conn_start(iscsi_cnx_h cnxh)
 }
 
 static void
-iscsi_conn_stop(iscsi_cnx_h cnxh, int flag)
+iscsi_conn_stop(iscsi_cnx_t cnxh, int flag)
 {
 	struct iscsi_conn *conn = iscsi_ptr(cnxh);
 	struct iscsi_session *session = conn->session;
@@ -2190,7 +2176,7 @@ iscsi_conn_stop(iscsi_cnx_h cnxh, int flag)
 }
 
 static int
-iscsi_send_pdu(iscsi_cnx_h cnxh, struct iscsi_hdr *hdr, char *data,
+iscsi_send_pdu(iscsi_cnx_t cnxh, struct iscsi_hdr *hdr, char *data,
 		  uint32_t data_size)
 {
 	struct iscsi_conn *conn = iscsi_ptr(cnxh);
@@ -2284,7 +2270,7 @@ iscsi_send_pdu(iscsi_cnx_h cnxh, struct iscsi_hdr *hdr, char *data,
 				    mtask->data_count);
 		/* FIXME: implement: convertion of mtask->data into 1st
 		 *        mtask->sendbuf. Keep in mind that virtual buffer
-		 *        could be spreaded accross multiple pages... */
+		 *        could be spreaded across multiple pages... */
 		if(mtask->sendbuf.sg.offset + mtask->data_count > PAGE_SIZE) {
 			if (conn->c_stage == ISCSI_CNX_STARTED) {
 				spin_lock_bh(&session->lock);
@@ -2398,7 +2384,7 @@ iscsi_eh_abort(struct scsi_cmnd *sc)
 	 * 3) session re-opened;
 	 * 4) session terminated;
 	 */
-	while (1) {
+	for (;;) {
 		int p_state = session->state;
 		rc = wait_event_interruptible(conn->ehwait,
 			(p_state == ISCSI_STATE_LOGGED_IN ?
@@ -2534,8 +2520,8 @@ static struct scsi_host_template iscsi_sht = {
 	.this_id		= -1,
 };
 
-static iscsi_snx_h
-iscsi_session_create(iscsi_snx_h handle, uint32_t initial_cmdsn,
+static iscsi_snx_t
+iscsi_session_create(iscsi_snx_t handle, uint32_t initial_cmdsn,
 		     uint32_t *host_no)
 {
 	int cmd_i;
@@ -2623,7 +2609,7 @@ host_alloc_fault:
 }
 
 static void
-iscsi_session_destroy(iscsi_snx_h snxh)
+iscsi_session_destroy(iscsi_snx_t snxh)
 {
 	int cmd_i;
 	struct iscsi_data_task *dtask, *n;
@@ -2652,7 +2638,7 @@ iscsi_session_destroy(iscsi_snx_h snxh)
 }
 
 static int
-iscsi_set_param(iscsi_cnx_h cnxh, iscsi_param_e param, uint32_t value)
+iscsi_set_param(iscsi_cnx_t cnxh, enum iscsi_param param, uint32_t value)
 {
 	struct iscsi_conn *conn = iscsi_ptr(cnxh);
 	struct iscsi_session *session = conn->session;

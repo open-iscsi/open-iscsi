@@ -95,7 +95,8 @@ nlpayload_read(int ctrl_fd, char *data, int count, int flags)
 }
 
 int
-ctldev_writev(int ctrl_fd, iscsi_uevent_e type, struct iovec *iovp, int count)
+ctldev_writev(int ctrl_fd, enum iscsi_uevent_e type, struct iovec *iovp,
+	      int count)
 {
 	int i, rc;
 	struct nlmsghdr *nlh;
@@ -153,7 +154,7 @@ __ksession_call(int ctrl_fd, void *iov_base, int iov_len)
 	int rc;
 	struct iovec iov;
 	struct iscsi_uevent *ev = iov_base;
-	iscsi_uevent_e type = ev->type;
+	enum iscsi_uevent_e type = ev->type;
 
 	iov.iov_base = iov_base;
 	iov.iov_len = iov_len;
@@ -404,7 +405,7 @@ err:
 }
 
 int
-ksession_set_param(int ctrl_fd, iscsi_conn_t *conn, iscsi_param_e param,
+ksession_set_param(int ctrl_fd, iscsi_conn_t *conn, enum iscsi_param param,
 		   uint32_t value)
 {
 	int rc;

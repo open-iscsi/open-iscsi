@@ -227,7 +227,8 @@ ctldev_read(int ctrl_fd, char *data, int count)
 }
 
 int
-ctldev_writev(int ctrl_fd, iscsi_uevent_e type, struct iovec *iovp, int count)
+ctldev_writev(int ctrl_fd, enum iscsi_uevent_e type, struct iovec *iovp,
+	      int count)
 {
 	return writev(ctrl_fd, iovp, count);
 }

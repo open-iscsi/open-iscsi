@@ -351,7 +351,7 @@ extern int ksession_send_pdu_begin(int ctrl_fd, iscsi_session_t *session,
 extern int ksession_send_pdu_end(int ctrl_fd, iscsi_session_t *session,
 		iscsi_conn_t *conn);
 extern int ksession_set_param(int ctrl_fd, iscsi_conn_t *conn,
-		iscsi_param_e param, uint32_t value);
+		enum iscsi_param param, uint32_t value);
 extern int ksession_stop_cnx(int ctrl_fd, iscsi_conn_t *conn, int flag);
 extern int ksession_start_cnx(int ctrl_fd, iscsi_conn_t *conn);
 extern int ksession_recv_pdu_begin(int ctrl_fd, iscsi_conn_t *conn,

@@ -40,7 +40,7 @@ typedef struct iscsi_pdu {
 extern int ctldev_open(void);
 extern void ctldev_close(int fd);
 extern int ctldev_handle(int fd);
-extern int ctldev_writev(int fd, iscsi_uevent_e type, struct iovec *iov,
+extern int ctldev_writev(int fd, enum iscsi_uevent_e type, struct iovec *iov,
 			int count);
 extern int ctldev_read(int fd, char *data, int count);
 
