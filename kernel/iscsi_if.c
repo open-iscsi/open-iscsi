@@ -113,7 +113,7 @@ iscsi_if_send_reply(int pid, int seq, int type, int done, int multi,
 	nlh = __nlmsg_put(skb, pid, seq, t, (len - sizeof(*nlh)));
 	nlh->nlmsg_flags = flags;
 	memcpy(NLMSG_DATA(nlh), payload, size);
-	(void)netlink_unicast(nls, skb, pid, MSG_DONTWAIT);
+	netlink_unicast(nls, skb, pid, MSG_DONTWAIT);
 	return 0;
 }
 
