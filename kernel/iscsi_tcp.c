@@ -87,6 +87,15 @@ iscsi_buf_init_sg(struct iscsi_buf *ibuf, struct scatterlist *sg)
 	ibuf->sent = 0;
 }
 
+static inline int
+iscsi_buf_left(struct iscsi_buf *ibuf)
+{
+	int rc;
+
+	rc = ibuf->sg.length - ibuf->sent;
+	BUG_ON(rc < 0);
+}
+
 static inline void
 iscsi_buf_init_hdr(struct iscsi_conn *conn, struct iscsi_buf *ibuf,
 		   char *vbuf, u8 *crc)
@@ -377,11 +386,19 @@ iscsi_solicit_data_init(struct iscsi_conn *conn, struct iscsi_cmd_task *ctask,
 		for (i = 0; i < sc->use_sg; i++, sg += 1) {
 			/* FIXME: prefetch ? */
 			if (sg_count + sg->length > r2t->data_offset) {
-				int page_offset = r2t->data_offset - sg_count;
+				int page_offset;
+
 				/* sg page found! */
+
+				/* offset within this page */
+				page_offset = r2t->data_offset - sg_count;
+
+				/* fill in this buffer */
 				iscsi_buf_init_sg(&r2t->sendbuf, sg);
 				r2t->sendbuf.sg.offset += page_offset;
 				r2t->sendbuf.sg.length -= page_offset;
+
+				/* xmit logic will continue with next one */
 				r2t->sg = sg + 1;
 				break;
 			}
@@ -1170,8 +1187,10 @@ iscsi_solicit_data_cont(struct iscsi_conn *conn, struct iscsi_cmd_task *ctask,
 
 	if (sc->use_sg) {
 		BUG_ON(ctask->bad_sg == r2t->sg);
-		iscsi_buf_init_sg(&r2t->sendbuf, r2t->sg);
-		r2t->sg += 1;
+		if (!iscsi_buf_left(&r2t->sendbuf)) {
+			iscsi_buf_init_sg(&r2t->sendbuf, r2t->sg);
+			r2t->sg += 1;
+		}
 	} else {
 		iscsi_buf_init_virt(&ctask->sendbuf,
 			    (char*)sc->request_buffer + new_offset,
@@ -1507,11 +1526,15 @@ _solicit_again:
 				/* will continue with this ctask later.. */
 				return -EAGAIN;
 			}
+			BUG_ON(r2t->data_count < 0);
 			if (r2t->data_count) {
 				BUG_ON(ctask->bad_sg == r2t->sg);
 				BUG_ON(ctask->sc->use_sg == 0);
-				iscsi_buf_init_sg(&r2t->sendbuf, r2t->sg);
-				r2t->sg += 1;
+				if (!iscsi_buf_left(&r2t->sendbuf)) {
+					iscsi_buf_init_sg(&r2t->sendbuf,
+							  r2t->sg);
+					r2t->sg += 1;
+				}
 				goto _solicit_again;
 			}
 		}
