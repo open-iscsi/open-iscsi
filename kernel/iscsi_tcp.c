@@ -1554,7 +1554,11 @@ _unsolicit_head_again:
 	}
 
 	if (ctask->in_progress & IN_PROGRESS_SOLICIT_HEAD) {
-		__kfifo_get(ctask->r2tqueue, (void*)&r2t, sizeof(void*));
+		if (!ctask->r2t) {
+			__kfifo_get(ctask->r2tqueue, (void*)&r2t,
+				    sizeof(void*));
+			ctask->r2t = r2t;
+		}
 _solicit_head_again:
 		BUG_ON(r2t == NULL);
 		if (r2t->cont_bit) {
@@ -1574,7 +1578,6 @@ _solicit_head_again:
 		if (iscsi_sendhdr(conn, &r2t->headbuf)) {
 			return -EAGAIN;
 		}
-		ctask->r2t = r2t;
 		ctask->in_progress = IN_PROGRESS_WRITE |
 				     IN_PROGRESS_SOLICIT_WRITE;
 	}
@@ -1626,10 +1629,12 @@ _solicit_again:
 		 */
 		BUG_ON(ctask->r2t_data_count - r2t->data_length < 0);
 		ctask->r2t_data_count -= r2t->data_length;
+		ctask->r2t = NULL;
 		spin_lock_bh(&conn->lock);
 		__enqueue(&ctask->r2tpool, r2t);
 		spin_unlock_bh(&conn->lock);
 		if (__kfifo_get(ctask->r2tqueue, (void*)&r2t, sizeof(void*))) {
+			ctask->r2t = r2t;
 			ctask->in_progress = IN_PROGRESS_WRITE |
 					     IN_PROGRESS_SOLICIT_HEAD;
 			goto _solicit_head_again;
