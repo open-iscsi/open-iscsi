@@ -31,7 +31,8 @@
 
 #include "initiator.h"
 #include "iscsid.h"
-#include "iscsi_u.h"
+#include "iscsi_if.h"
+#include "iscsi_ifev.h"
 #include "ipc.h"
 #include "idbm.h"
 #include "log.h"

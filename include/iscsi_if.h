@@ -121,7 +121,7 @@ struct iscsi_ops {
 
 	iscsi_cnx_h	(*create_cnx)	  (iscsi_snx_h dp_snx,
 					   iscsi_cnx_h cp_cnx,
-					   struct socket *sock,
+					   int transport_fd,
 					   int cid);
 
 	int		(*bind_cnx)	  (iscsi_snx_h dp_snx,

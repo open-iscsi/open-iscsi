@@ -24,7 +24,8 @@
 
 #include "types.h"
 #include "iscsi_proto.h"
-#include "iscsi_u.h"
+#include "iscsi_if.h"
+#include "iscsi_ifev.h"
 #include "auth.h"
 #include "ipc.h"
 #include "config.h"
@@ -262,12 +263,12 @@ typedef enum iscsi_provider_status_e {
 typedef struct iscsi_provider_t {
 	iscsi_provider_e type;
 	iscsi_provider_status_e status;
-	char name[ISCSI_PROVIDER_NAME_MAXLEN];
+	char name[ISCSI_TRANSPORT_NAME_MAXLEN];
 	struct qelem sessions;
 } iscsi_provider_t;
 
 /* iscsid.c */
-extern iscsi_provider_t provider[ISCSI_PROVIDER_MAX];
+extern iscsi_provider_t provider[ISCSI_TRANSPORT_MAX];
 
 /* login.c */
 

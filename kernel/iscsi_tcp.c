@@ -1964,12 +1964,19 @@ iscsi_pool_free(struct iscsi_queue *q, void **items)
  */
 static iscsi_cnx_h
 iscsi_conn_create(iscsi_snx_h snxh, iscsi_cnx_h handle,
-			struct socket *sock, int conn_idx)
+			int transport_fd, int conn_idx)
 {
 	struct iscsi_session *session = snxh;
 	struct tcp_opt *tp;
 	struct sock *sk;
 	struct iscsi_conn *conn;
+	struct socket *sock;
+	int err;
+
+	if (!(sock = sockfd_lookup(transport_fd, &err))) {
+		printk("iSCSI: sockfd_lookup failed %d\n", err);
+		return NULL;
+	}
 
 	conn = kmalloc(sizeof(struct iscsi_conn), GFP_KERNEL);
 	if (conn == NULL) {

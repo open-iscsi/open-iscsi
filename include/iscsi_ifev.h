@@ -62,7 +62,7 @@ typedef struct iscsi_uevent {
 		struct msg_create_cnx {
 			ulong_t		session_handle;
 			ulong_t		cnx_handle;
-			int		socket_fd;
+			int		transport_fd;
 			unsigned int	cid;
 		} c_cnx;
 		struct msg_bind_cnx {

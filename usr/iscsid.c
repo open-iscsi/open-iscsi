@@ -39,7 +39,7 @@
 /* global config info */
 struct iscsi_daemon_config daemon_config;
 struct iscsi_daemon_config *dconfig = &daemon_config;
-iscsi_provider_t provider[ISCSI_PROVIDER_MAX];
+iscsi_provider_t provider[ISCSI_TRANSPORT_MAX];
 
 static char program_name[] = "iscsid";
 int control_fd, ipc_fd;

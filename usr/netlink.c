@@ -26,7 +26,12 @@
 #include <sys/types.h>
 #include <linux/netlink.h>
 
-#include "iscsi_u.h"
+typedef		__u8		uint8_t;
+typedef		__u16		uint16_t;
+typedef		__u32		uint32_t;
+
+#include "iscsi_if.h"
+#include "iscsi_ifev.h"
 #include "iscsid.h"
 #include "log.h"
 
@@ -164,21 +169,41 @@ ctldev_writev(int ctrl_fd, iscsi_uevent_e type, struct iovec *iovp, int count)
 }
 
 static int
-__ksession_call(int ctrl_fd, iscsi_uevent_t *ev)
+__ksession_call(int ctrl_fd, void *iov_base, int iov_len)
 {
 	int rc;
 	struct iovec iov;
+	iscsi_uevent_t *ev = iov_base;
+	iscsi_uevent_e type = ev->type;
 
-	iov.iov_base = (void*)ev;
-	iov.iov_len = sizeof(*ev);
+	iov.iov_base = iov_base;
+	iov.iov_len = iov_len;
 
-	if ((rc = ctldev_writev(ctrl_fd, ev->type, &iov, 1)) < 0) {
+	if ((rc = ctldev_writev(ctrl_fd, type, &iov, 1)) < 0) {
 		return rc;
 	}
 
-	if ((rc = nlpayload_read(ctrl_fd, (void*)ev, sizeof(*ev), 0)) < 0) {
-		return rc;
-	}
+	do {
+		if ((rc = nlpayload_read(ctrl_fd, (void*)ev,
+					 sizeof(*ev), MSG_PEEK)) < 0) {
+			return rc;
+		}
+		if (ev->type != type) {
+			/*
+			 * receive and queue async. event which as of
+			 * today could be:
+			 *	- CNX_ERROR
+			 *	- RECV_PDU
+			 */
+			ctldev_handle(ctrl_fd);
+		} else {
+			if ((rc = nlpayload_read(ctrl_fd, (void*)ev,
+						 sizeof(*ev), 0)) < 0) {
+				return rc;
+			}
+			break;
+		}
+	} while (ev->type != type);
 
 	return rc;
 }
@@ -192,12 +217,12 @@ ksession_create(int ctrl_fd, iscsi_session_t *session)
 	memset(&ev, 0, sizeof(iscsi_uevent_t));
 
 	ev.type = ISCSI_UEVENT_CREATE_SESSION;
-	ev.provider_id = 0; /* FIXME: hardcoded */
+	ev.transport_id = 0; /* FIXME: hardcoded */
 	ev.u.c_session.session_handle = (ulong_t)session;
 	ev.u.c_session.sid = session->id;
 	ev.u.c_session.initial_cmdsn = session->nrec.session.initial_cmdsn;
 
-	if ((rc = __ksession_call(ctrl_fd, &ev)) < 0) {
+	if ((rc = __ksession_call(ctrl_fd, &ev, sizeof(ev))) < 0) {
 		log_error("can't create session with id = %d (%d)",
 			  session->id, errno);
 		return rc;
@@ -221,10 +246,10 @@ ksession_destroy(int ctrl_fd, iscsi_session_t *session)
 	memset(&ev, 0, sizeof(iscsi_uevent_t));
 
 	ev.type = ISCSI_UEVENT_DESTROY_SESSION;
-	ev.provider_id = 0; /* FIXME: hardcoded */
+	ev.transport_id = 0; /* FIXME: hardcoded */
 	ev.u.d_session.session_handle = session->handle;
 
-	if ((rc = __ksession_call(ctrl_fd, &ev)) < 0) {
+	if ((rc = __ksession_call(ctrl_fd, &ev, sizeof(ev))) < 0) {
 		log_error("can't destroy session with id = %d (%d)",
 			  session->id, errno);
 		return rc;
@@ -245,13 +270,13 @@ ksession_cnx_create(int ctrl_fd, iscsi_session_t *session, iscsi_conn_t *conn)
 	memset(&ev, 0, sizeof(iscsi_uevent_t));
 
 	ev.type = ISCSI_UEVENT_CREATE_CNX;
-	ev.provider_id = 0; /* FIXME: hardcoded */
+	ev.transport_id = 0; /* FIXME: hardcoded */
 	ev.u.c_cnx.session_handle = session->handle;
 	ev.u.c_cnx.cnx_handle = (ulong_t)conn;
-	ev.u.c_cnx.socket_fd = conn->socket_fd;
+	ev.u.c_cnx.transport_fd = conn->socket_fd;
 	ev.u.c_cnx.cid = conn->id;
 
-	if ((rc = __ksession_call(ctrl_fd, &ev)) < 0) {
+	if ((rc = __ksession_call(ctrl_fd, &ev, sizeof(ev))) < 0) {
 		log_error("can't create cnx with id = %d (%d)",
 			  conn->id, errno);
 		return rc;
@@ -274,10 +299,10 @@ ksession_cnx_destroy(int ctrl_fd, iscsi_conn_t *conn)
 	memset(&ev, 0, sizeof(iscsi_uevent_t));
 
 	ev.type = ISCSI_UEVENT_DESTROY_CNX;
-	ev.provider_id = 0; /* FIXME: hardcoded */
+	ev.transport_id = 0; /* FIXME: hardcoded */
 	ev.u.d_cnx.cnx_handle = conn->handle;
 
-	if ((rc = __ksession_call(ctrl_fd, &ev)) < 0) {
+	if ((rc = __ksession_call(ctrl_fd, &ev, sizeof(ev))) < 0) {
 		log_error("can't destroy cnx with id = %d (%d)",
 			  conn->id, errno);
 		return rc;
@@ -297,12 +322,12 @@ ksession_cnx_bind(int ctrl_fd, iscsi_session_t *session, iscsi_conn_t *conn)
 	memset(&ev, 0, sizeof(iscsi_uevent_t));
 
 	ev.type = ISCSI_UEVENT_BIND_CNX;
-	ev.provider_id = 0; /* FIXME: hardcoded */
+	ev.transport_id = 0; /* FIXME: hardcoded */
 	ev.u.b_cnx.session_handle = session->handle;
 	ev.u.b_cnx.cnx_handle = conn->handle;
 	ev.u.b_cnx.is_leading = (conn->id == 0);
 
-	if ((rc = __ksession_call(ctrl_fd, &ev)) < 0) {
+	if ((rc = __ksession_call(ctrl_fd, &ev, sizeof(ev))) < 0) {
 		log_error("can't bind a cnx with id = %d (%d)",
 			  conn->id, errno);
 		return rc;
@@ -338,7 +363,7 @@ ksession_send_pdu_begin(int ctrl_fd, iscsi_session_t *session,
 	ev = xmitbuf;
 	memset(ev, 0, sizeof(*ev));
 	ev->type = ISCSI_UEVENT_SEND_PDU;
-	ev->provider_id = 0; /* FIXME: hardcoded */
+	ev->transport_id = 0; /* FIXME: hardcoded */
 	ev->u.send_pdu.cnx_handle = conn->handle;
 	ev->u.send_pdu.hdr_size = hdr_size;
 	ev->u.send_pdu.data_size = data_size;
@@ -371,12 +396,8 @@ ksession_send_pdu_end(int ctrl_fd, iscsi_session_t *session, iscsi_conn_t *conn)
 	iov.iov_base = xmitbuf;
 	iov.iov_len = xmitlen;
 
-	if ((rc = ctldev_writev(ctrl_fd, ev->type, &iov, 1)) < 0) {
+	if ((rc = __ksession_call(ctrl_fd, xmitbuf, xmitlen)) < 0)
 		goto err;
-	}
-	if ((rc = nlpayload_read(ctrl_fd, (void*)ev, sizeof(*ev), 0)) < 0) {
-		goto err;
-	}
 	if (ev->r.retcode)
 		goto err;
 	if (ev->type != ISCSI_UEVENT_SEND_PDU) {
@@ -413,12 +434,12 @@ ksession_set_param(int ctrl_fd, iscsi_conn_t *conn, iscsi_param_e param,
 	memset(&ev, 0, sizeof(iscsi_uevent_t));
 
 	ev.type = ISCSI_UEVENT_SET_PARAM;
-	ev.provider_id = 0; /* FIXME: hardcoded */
+	ev.transport_id = 0; /* FIXME: hardcoded */
 	ev.u.set_param.cnx_handle = (ulong_t)conn->handle;
 	ev.u.set_param.param = param;
 	ev.u.set_param.value = value;
 
-	if ((rc = __ksession_call(ctrl_fd, &ev)) < 0) {
+	if ((rc = __ksession_call(ctrl_fd, &ev, sizeof(ev))) < 0) {
 		log_error("can't set operational parameter %d for cnx with "
 			  "id = %d (%d)", param, conn->id, errno);
 		return rc;
@@ -443,10 +464,10 @@ ksession_stop_cnx(int ctrl_fd, iscsi_conn_t *conn)
 	memset(&ev, 0, sizeof(iscsi_uevent_t));
 
 	ev.type = ISCSI_UEVENT_STOP_CNX;
-	ev.provider_id = 0; /* FIXME: hardcoded */
+	ev.transport_id = 0; /* FIXME: hardcoded */
 	ev.u.stop_cnx.cnx_handle = conn->handle;
 
-	if ((rc = __ksession_call(ctrl_fd, &ev)) < 0) {
+	if ((rc = __ksession_call(ctrl_fd, &ev, sizeof(ev))) < 0) {
 		log_error("can't stop connection 0x%p with "
 			  "id = %d (%d)", (void*)conn->handle,
 			  conn->id, errno);
@@ -467,10 +488,10 @@ ksession_start_cnx(int ctrl_fd, iscsi_conn_t *conn)
 	memset(&ev, 0, sizeof(iscsi_uevent_t));
 
 	ev.type = ISCSI_UEVENT_START_CNX;
-	ev.provider_id = 0; /* FIXME: hardcoded */
+	ev.transport_id = 0; /* FIXME: hardcoded */
 	ev.u.start_cnx.cnx_handle = conn->handle;
 
-	if ((rc = __ksession_call(ctrl_fd, &ev)) < 0) {
+	if ((rc = __ksession_call(ctrl_fd, &ev, sizeof(ev))) < 0) {
 		log_error("can't start connection 0x%p with "
 			  "id = %d (%d)", (void*)conn->handle,
 			  conn->id, errno);
@@ -562,7 +583,9 @@ ctldev_handle(int ctrl_fd)
 		session = (iscsi_session_t *)item;
 		for (i=0; i<ISCSI_CNX_MAX; i++) {
 			if (&session->cnx[i] == (iscsi_conn_t*)
-					ev->r.recv_req.cnx_handle) {
+					ev->r.recv_req.cnx_handle ||
+			    &session->cnx[i] == (iscsi_conn_t*)
+					ev->r.cnxerror.cnx_handle) {
 				conn = &session->cnx[i];
 				break;
 			}
