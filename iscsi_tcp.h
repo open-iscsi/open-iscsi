@@ -267,7 +267,7 @@ typedef struct iscsi_cmd_task {
 	int			solicit_count;
 	iscsi_data_task_t	**unsolicit_data;	/* Unsolicited PDU's */
 	int			unsolicit_count;
-	int			in_progress;		/* State machine */
+	volatile int		in_progress;		/* State machine */
 	int			imm_count;		/* Imm-Data bytes */
 	int			imm_data_count;		/* Imm-Data-Out bytes */
 	int			data_count;		/* Remaining Data-Out */

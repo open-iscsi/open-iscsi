@@ -24,8 +24,8 @@ MODULE_DESCRIPTION("iSCSI/TCP data-path");
 MODULE_LICENSE("GPL");
 
 #define DEBUG_PREV_PDU
-#define DEBUG_TCP
-#define DEBUG_SCSI
+// #define DEBUG_TCP
+// #define DEBUG_SCSI
 #define DEBUG_ASSERT
 
 #ifdef DEBUG_TCP
@@ -1202,10 +1202,11 @@ iscsi_r2t_rsp(iscsi_conn_t *conn, iscsi_cmd_task_t *ctask)
 		return rc;
 	}
 
+	ctask->solicit_count = 0;
 	ctask->in_progress |= IN_PROGRESS_SOLICIT_HEAD;
 	__enqueue(&ctask->r2tqueue, r2t);
-
 	__enqueue(&conn->xmitqueue, ctask);
+
 	schedule_work(&conn->xmitwork);
 
 	spin_unlock(&conn->lock);
@@ -1425,6 +1426,19 @@ iscsi_ctask_xmit(iscsi_conn_t *conn, iscsi_cmd_task_t *ctask)
 #ifdef DEBUG_ASSERT
 	iscsi_session_t *session = conn->session;
 #endif
+	debug_scsi("dequeued [cid %d state %x itt 0x%x]\n",
+		conn->id, ctask->in_progress, ctask->itt);
+
+	/*
+	 * make sure state machine is not screwed.
+	 */
+	__BUG_ON(!(ctask->in_progress & IN_PROGRESS_HEAD) &&
+		 !(ctask->in_progress & IN_PROGRESS_BEGIN_WRITE_IMM) &&
+		 !(ctask->in_progress & IN_PROGRESS_BEGIN_WRITE) &&
+		 !(ctask->in_progress & IN_PROGRESS_UNSOLICIT_HEAD) &&
+		 !(ctask->in_progress & IN_PROGRESS_UNSOLICIT_WRITE) &&
+		 !(ctask->in_progress & IN_PROGRESS_SOLICIT_HEAD) &&
+		 !(ctask->in_progress & IN_PROGRESS_SOLICIT_WRITE));
 
 	if (ctask->in_progress & IN_PROGRESS_HEAD) {
 		if (iscsi_sendhdr(conn, &ctask->headbuf)) {
@@ -1729,6 +1743,8 @@ iscsi_queuecommand(struct scsi_cmnd *sc, void (*done)(struct scsi_cmnd *))
 	}
 
 	ctask = __dequeue(&session->cmdpool);
+	__BUG_ON(ctask->in_progress = IN_PROGRESS_IDLE);
+
 	sc->SCp.ptr = (char*)ctask;
 	iscsi_cmd_init(conn, ctask, sc);
 	spin_unlock_irq(host->host_lock);
