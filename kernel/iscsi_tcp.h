@@ -203,6 +203,7 @@ struct iscsi_session {
 	void			*auth_client;
 	iscsi_snx_t		handle;		/* CP session handle */
 	int			conn_cnt;
+	volatile int		generation;
 
 	struct list_head	connections;	/* list of connects. */
 	int			cmds_max;	/* size of cmds array */

@@ -1728,6 +1728,7 @@ iscsi_queuecommand(struct scsi_cmnd *sc, void (*done)(struct scsi_cmnd *))
 
 	__kfifo_get(session->cmdpool.queue, (void*)&ctask, sizeof(void*));
 	sc->SCp.Status = QUEUED;
+	sc->SCp.phase = session->generation;
 	spin_unlock(&session->lock);
 
 	BUG_ON(!ctask);
@@ -2107,7 +2108,6 @@ iscsi_conn_start(iscsi_cnx_t cnxh)
 	conn->cpu = session->conn_cnt % num_online_cpus();
 	session->state = ISCSI_STATE_LOGGED_IN;
 	session->conn_cnt++;
-	spin_unlock_bh(&session->lock);
 
 	if (conn->stop_stage == STOP_CNX_RECOVER) {
 		/*
@@ -2115,9 +2115,11 @@ iscsi_conn_start(iscsi_cnx_t cnxh)
 		 * commands after successful recovery
 		 */
 		conn->stop_stage = 0;
+		session->generation++;
 		wake_up(&conn->ehwait);
 	} else
 		conn->stop_stage = 0;
+	spin_unlock_bh(&session->lock);
 
 	return 0;
 }
@@ -2337,10 +2339,12 @@ iscsi_eh_abort(struct scsi_cmnd *sc)
 		 */
 
 		spin_lock_bh(&session->lock);
-		if (sc->SCp.Status == SUCCESS) {
+		if (sc->SCp.Status == SUCCESS ||
+		    sc->SCp.phase != session->generation) {
 			/*
-			 * ctask completed before time out. But session
-			 * is still ok => Happy Retry.
+			 * 1) ctask completed before time out. But session
+			 *    is still ok => Happy Retry.
+			 * 2) session was re-open during time out of ctask.
 			 */
 			spin_unlock_bh(&session->lock);
 			goto success;
