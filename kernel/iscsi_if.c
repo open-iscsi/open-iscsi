@@ -65,6 +65,15 @@ iscsi_alloc_skb(int len)
 	/* complete receive tasks if any */
 	iscsi_recvpool_complete();
 
+	/*
+	 * Note: its a very slow path here.
+	 *
+	 * Most of the time allocation will be done from mempool
+	 * context and not directly from the slab, therefore events will
+	 * be delivered to the user-space more/less reliably.
+	 * If it is not delivered due to OOM, daemon will get the latest
+	 * error via heartbeat.
+	 */
 	skb = len < ISCSI_CTRL_PDU_MAX ?
 		mempool_alloc(recvpool, gfp_any()) : alloc_skb(len, gfp_any());
 	return skb;
@@ -282,7 +291,7 @@ iscsi_if_rx(struct sock *sk, int len)
 	}
 	up(&callsema);
 
-	/* now complete receive tasks */
+	/* now complete receive tasks if any */
 	iscsi_recvpool_complete();
 }
 

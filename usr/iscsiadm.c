@@ -441,7 +441,7 @@ main(int argc, char **argv)
 	iname = get_iscsi_initiatorname(INITIATOR_NAME_FILE);
 	if (!iname) {
 		log_warning("exiting due to configuration error");
-		exit(1);
+		return -1;
 	}
 	strncpy(initiator_name, iname, TARGET_NAME_MAXLEN);
 
@@ -457,7 +457,7 @@ main(int argc, char **argv)
 			if (op < 0) {
 				log_error("can not recognize operation: '%s'",
 					optarg);
-				exit(1);
+				return -1;
 			}
 			break;
 		case 'n':
@@ -487,15 +487,17 @@ main(int argc, char **argv)
 		case 'V':
 			printf("%s version %s\n", program_name,
 				ISCSI_VERSION_STR);
-			exit(0);
+			return 0;
 		case 'h':
 			usage(0);
 			break;
 		}
 	}
 
-	if (optopt)
+	if (optopt) {
+		log_error("unrecognized character '%c'", optopt);
 		return -1;
+	}
 
 	if (mode < 0) {
 		mode = MODE_SESSION;
@@ -503,6 +505,7 @@ main(int argc, char **argv)
 
 	db = idbm_init(CONFIG_FILE);
 	if (!db) {
+		log_warning("exiting due to idbm configuration error");
 		return -1;
 	}
 
