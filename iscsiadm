@@ -17,6 +17,7 @@
 # See the file COPYING included with this distribution for more details.
 #
 
+use Digest::MD5 qw(md5_hex);
 use Cwd;
 use Getopt::Std;
 use File::Basename;
@@ -28,6 +29,7 @@ my $reopen_attempts = 0;
 my $reopen_timeout = 3;
 my $recv_timeout = 5;
 my $sysfs_path = "/sys/class/iscsi";
+my $pprefix = "iscsiadm:";
 
 #
 # Default Configuration
@@ -53,6 +55,7 @@ my $time2wait = 5;
 my $time2retain = 20;
 my $auth_en = 0;
 my $cmdsn = 1;
+my $exp_statsn = 1;
 
 #
 # Response Configuration
@@ -66,6 +69,9 @@ my $max_xmit_dlength = 8192;
 my $tsih = 0;
 my $exp_cmdsn;
 my $max_cmdsn;
+
+my $login_user;
+my $login_password;
 
 my $iscsiadm_path;
 my ($filename, $dirname) = fileparse($0);
@@ -140,7 +146,7 @@ sub get_rc {
 }
 
 sub fatal {
-	print "iscsiadm: @_", "\n";
+	print "$pprefix @_", "\n";
 	exit;
 }
 
@@ -170,11 +176,11 @@ sub padding {
 # Send Login PDU
 #
 sub send_login_req {
-	my ($cmdsn, $exp_statsn, $flags, $cid, $data) = @_;
+	my ($flags, $cid, $data) = @_;
 	my $dlength = length($data);
 	my $loginpdu = pack('CCCCCCCCCnCnnNnccNNNNNN',
 		    0x43,			# C: opcode: Login + Immediate
-		    0x87,			# C: flags T, OP, FF
+		    $flags,			# C: flags T, OP, FF
 		    0,				# C: max ver
 		    0,				# C: min ver
 		    0,				# C: hlength
@@ -197,7 +203,7 @@ sub send_login_req {
 # Send Text PDU
 #
 sub send_text_req {
-	my ($cmdsn, $exp_statsn, $ttt, $data) = @_;
+	my ($ttt, $data) = @_;
 	my $dlength = length($data);
 	my $textpdu = pack('CCsCCCCNNNNNNNNNN',
 		    0x4,			# C: opcode: Text
@@ -295,66 +301,23 @@ sub login_text_rsp_parse {
 }
 
 #
-# Do SendTargets discovery, on good result either automaticaly
-# login or just show the result
+# Do SendTargets discovery on good result call $callback
+# function which can either automatically login and create new
+# session(s) or just display the result
 #
 sub sendtargets_discovery {
-	my ($callback, $ipaddr_port) = @_;
-	my $rsp;
-	my $dlength;
-	my $ipaddr;
-	my $port;
-	if ($ipaddr_port =~ /^([0-9]+\.[0-9]+\.[0-9]+\.[0-9]+):([0-9]+)$/) {
-		$ipaddr = $1;
-		$port = $2;
-	} else {
-		fatal("bad discovery format: $ipaddr_port, ".
-		      "expecting <ipaddr>:<port>");
-	}
-
-	socket(SOCK, PF_INET, SOCK_STREAM,
-	       getprotobyname('tcp')) || fatal("socket: $!");
-	connect(SOCK, sockaddr_in($port,
-			  inet_aton($ipaddr))) || fatal("connect: $!");
-	select(SOCK); $| = 1; select(STDOUT);    # use unbuffemiles i/o.
-
-	my $cmdsn = 1;
-	my $exp_statsn = 1;
-	my $data = "InitiatorName=$initiator_name\0SessionType=Discovery";
-	while(1) {
-		send_login_req($cmdsn, $exp_statsn, 0x87, 0, $data);
-		$rsp = recv_pdu(48);
-		my ($opcode, $flags, $junk, $len0, $len1, $len2, $junk,
-			$statsn, $junk, $class, $detail, $junk) =
-			unpack('CCa3CCCa16Na8CCa*', $rsp);
-		$opcode == 0x23 || fatal("bad login_rsp opcode ($opcode)");
-		$dlength = (($len0 << 16) | ($len1 << 8) | $len2);
-		if ($dlength%4 != 0) { $dlength += 4 - $dlength%4 };
-		$rsp = recv_pdu($dlength);
-
-		$class == 1 && fatal("redirection is not supported ($detail)");
-		$class == 2 && fatal("initiator error ($detail)");
-		$class == 3 && fatal("target error ($detail)");
-
-		#
-		# stop if T-bit is set
-		#
-		last if ($flags & 0x80);
-
-		$data = login_text_rsp_parse($rsp);
-		$exp_statsn = $statsn + 1;
-	}
-
+	my ($callback) = @_;
 	my $ttt = 0xffffffff;
 	my $i = 0;
 	my $data = "SendTargets=All\0";
+
 	while(1) {
-		send_text_req($cmdsn++, $exp_statsn, $ttt, $data);
+		send_text_req($ttt, $data);
 		my $rsp = recv_pdu(48);
 		my ($opcode, $flags, $junk, $len0, $len1, $len2, $junk,
 			$ttt, $statsn, $junk) = unpack('CCa3CCCa12NNa*', $rsp);
 		$opcode == 0x24 || fatal("bad text_rsp opcode ($opcode)");
-		$dlength = (($len0 << 16) | ($len1 << 8) | $len2);
+		my $dlength = (($len0 << 16) | ($len1 << 8) | $len2);
 		if ($dlength%4 != 0) { $dlength += 4 - $dlength%4; }
 
 		#
@@ -377,6 +340,7 @@ sub sendtargets_discovery {
 		last if ($flags & 0x80);
 
 		$exp_statsn = $statsn + 1;
+		$cmdsn++;
 	};
 
 	close(SOCK);
@@ -404,27 +368,36 @@ sub connection_login {
 	}
 
 	socket(SOCK, PF_INET, SOCK_STREAM, getprotobyname('tcp')) ||
-				printf("socket: $!\n") && return 0;
+				printf($pprefix."socket: $!\n") && return 0;
 	setsockopt(SOCK, SOL_SOCKET, SO_SNDBUF, 500*1024);
 	setsockopt(SOCK, SOL_SOCKET, SO_RCVBUF, 500*1024);
 	connect(SOCK, sockaddr_in($port, inet_aton($ipaddr))) ||
-				printf("connect: $!") && return 0;
+				printf($pprefix."connect: $!\n") && return 0;
 	select(SOCK); $| = 1; select(STDOUT);    # use unbuffemiles i/o.
 
-	my $exp_statsn = 1;
 	my $data;
 	my $data_initial;
 	my $flags;
 	my $c_stage = -1;
 	my $n_stage = -1;
+	my $a_stage = -1;
 	my $transit = 0;
 	my $partial_rsp = 0;
 	do {
 		if ($c_stage == -1) {
-			$data_initial = "InitiatorName=$initiator_name\0".
+			if ($target_name) {
+				# Normal session
+				$data_initial =
+					"InitiatorName=$initiator_name\0".
 					"InitiatorAlias=$initiator_alias\0".
 					"TargetName=$target_name\0".
 					"SessionType=Normal" if $cid == 0;
+			} else {
+				# Discovery session
+				$data_initial =
+					"InitiatorName=$initiator_name\0".
+					"SessionType=Discovery";
+			}
 			if ($auth_en) {
 				# we're prepared to do authentication
 				$c_stage = $n_stage = 0;
@@ -437,11 +410,16 @@ sub connection_login {
 
 		if ($c_stage == 0) {
 			# negotiate security...
-			# to be done...
+			if (!$partial_rsp) {
+				$data =
+				      $data_initial."\0AuthMethod=CHAP,None\0";
+			}
 		} elsif ($c_stage == 1) {
 			$n_stage = 3;
 			$transit = 1;
-			if (!$partial_rsp) {
+			if (!$partial_rsp && $target_name eq "") {
+				$data = $data_initial."\0";
+			} elsif (!$partial_rsp) {
 				$data = $data_initial."\0".
 		        "HeaderDigest=".($hdrdgst_en?"CRC32C,None":"None")."\0".
 		        "DataDigest=".($datadgst_en?"CRC32C,None":"None")."\0".
@@ -479,7 +457,7 @@ sub connection_login {
 			# next == current
 			$flags |= $c_stage;
 		}
-		send_login_req($cmdsn, $exp_statsn, $flags, $cid, $data);
+		send_login_req($flags, $cid, $data);
 		$rsp = recv_pdu(48);
 		my ($opcode, $flags, $vmax, $vactive,
                     $junk, $len0, $len1, $len2, $junk, $_tsih, $junk,
@@ -511,12 +489,6 @@ sub connection_login {
 		    fatal("protocol error: next stage is not advancing\n") &&
 			return 0;
 
-		if ($c_stage == 0) {
-			# to be implemented...
-		} elsif ($c_stage == 1) {
-			$data = login_text_rsp_parse($rsp);
-		}
-
 		if ($transit) {
 			# advance to the next stage
 			$partial_rsp = 0;
@@ -525,6 +497,67 @@ sub connection_login {
 			# we got a partial response, don't advance,
 			# more negotiation to do
 			$partial_rsp = 1;
+		}
+
+		if ($c_stage == 0) {
+			my @pairs = split(/\0/, $rsp);
+			my $i = 0;
+			my $chap_id = -1;
+			my $chap_ch = "";
+
+			$data = "";
+
+			while (@pairs[$i]) {
+				if ($a_stage < 2 &&
+				    @pairs[$i] =~ /.*CHAP_I=(.*)/) {
+					$chap_id = $1;
+					$data = $data.@pairs[$i]."\0";
+					$a_stage++;
+				} elsif ($a_stage < 2 &&
+					 @pairs[$i] =~ /.*CHAP_C=(.*)/) {
+					$chap_ch = $1;
+					$data = $data.@pairs[$i]."\0";
+					$a_stage++;
+				} elsif ($a_stage < 0 &&
+					 @pairs[$i] =~ /.*AuthMethod=(.*)/) {
+					if ($1 eq "CHAP") {
+						$data = $data."CHAP_A=5\0";
+						$a_stage = 0;
+					} elsif ($1 eq "None") {
+						$n_stage = 1;
+						$transit = 1;
+						$data = $data.@pairs[$i]."\0";
+					}
+				} elsif ($a_stage < 0) {
+					$data = $data.@pairs[$i]."\0";
+				}
+				$i++
+	 		}
+			if ($a_stage == 2) {
+				my $md5;
+
+				$chap_ch =~ s/["']//g;
+				$chap_ch =~ s/^0x//;
+				$chap_ch = pack("H*", $chap_ch);
+				$chap_id =~ s/["']//g;
+				$chap_id =~ s/^0x//;
+				$chap_id = pack("H*", $chap_id);
+
+				$md5 = new Digest::MD5;
+				$md5->reset;
+				$md5->add(substr($chap_id,0,1));
+				$md5->add($login_password);
+				$md5->add($chap_ch);
+				$data = $data."CHAP_N=$login_user\0";
+				$data = $data."CHAP_R=0x".
+						$md5->hexdigest()."\0";
+
+				$n_stage = 1;
+				$transit = 1;
+				$a_stage++;
+			}
+		} elsif ($c_stage == 1) {
+			$data = login_text_rsp_parse($rsp);
 		}
 
 		# record some fields for later use
@@ -716,6 +749,9 @@ sub config_read {
 	my %conf = get_rc($file);
 	$target_name = $conf{target_name};
 	$target_portal = $conf{target_portal};
+	$login_user = $conf{login_user};
+	$auth_en = 1 if defined($login_user);
+	$login_password = $conf{login_password};
 	$initiator_name = $conf{initiator_name};
 	$initiator_alias = $conf{initiator_alias};
 	@isid = read_isid($conf{isid});
@@ -908,7 +944,13 @@ if ($opt{v}) {
 		#
 		# Do SendTargets method discovery (verbose)
 		#
-		sendtargets_discovery(\&discovery_list_cb, $opt{d});
+		my $sock_fd = connection_login("", $opt{d}.",1", 0);
+		if ($sock_fd) {
+			sendtargets_discovery(\&discovery_list_cb, $opt{d});
+			require 'sys/syscall.ph';
+			syscall(&SYS_close, $sock_fd + 0);
+		}
+		exit;
 	} else {
 		usage();
 	}
@@ -918,7 +960,12 @@ if ($opt{v}) {
 		#
 		# Do SendTargets method discovery
 		#
-		sendtargets_discovery(\&discovery_login_cb, $opt{d});
+		my $sock_fd = connection_login("", $opt{d}.",1", 0);
+		if ($sock_fd) {
+			sendtargets_discovery(\&discovery_login_cb, $opt{d});
+			require 'sys/syscall.ph';
+			syscall(&SYS_close, $sock_fd + 0);
+		}
 		exit;
 	}
 }
