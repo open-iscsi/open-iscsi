@@ -20,17 +20,12 @@
 #include <string.h>
 #include <stdlib.h>
 #include <unistd.h>
+#include <stdint.h>
 #include <errno.h>
 #include <asm/types.h>
 #include <sys/socket.h>
 #include <sys/types.h>
 #include <linux/netlink.h>
-
-/* FIXME: must go */
-typedef	__u8	uint8_t;
-typedef	__u16	uint16_t;
-typedef	__u32	uint32_t;
-typedef	__u64	uint64_t;
 
 #include "iscsi_if.h"
 #include "iscsi_ifev.h"

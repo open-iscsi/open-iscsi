@@ -7,12 +7,13 @@ all:
 	make -C kernel
 	@echo
 	@echo "Compilation complete                Output file"
-	@echo "--------------------------------    ----------------"
-	@echo "Built iSCSI Linux kernel module:    kernel/iscsi.ko"
+	@echo "----------------------------------- ----------------"
+	@echo "Built iSCSI Open Interface module:  kernel/iscsi_if.ko"
+	@echo "Built iSCSI over TCP kernel module: kernel/iscsi_tcp.ko"
 	@echo "Built iSCSI daemon:                 usr/iscsid"
 	@echo "Built mangement application:        usr/iscsiadm"
 	@echo
-	@echo Read INSTALL file for detailed information.
+	@echo Read README file for detailed information.
 
 clean:
 	make -C usr clean
