@@ -40,14 +40,14 @@ typedef enum iscsi_uevent_e {
 } iscsi_uevent_e;
 
 struct iscsi_uevent {
-	int type; /* k/u events type */
-	int transport_id;
+	uint32_t type; /* k/u events type */
+	uint32_t transport_id;
 
 	union {
 		/* messages u -> k */
 		struct msg_create_session {
 			uint64_t	session_handle;
-			unsigned int	initial_cmdsn;
+			uint32_t	initial_cmdsn;
 		} c_session;
 		struct msg_destroy_session {
 			uint64_t	session_handle;
@@ -55,26 +55,26 @@ struct iscsi_uevent {
 		struct msg_create_cnx {
 			uint64_t	session_handle;
 			uint64_t	cnx_handle;
-			int		transport_fd;
-			unsigned int	cid;
+			uint32_t	transport_fd;
+			uint32_t	cid;
 		} c_cnx;
 		struct msg_bind_cnx {
 			uint64_t	session_handle;
 			uint64_t	cnx_handle;
-			int		is_leading;
+			uint32_t	is_leading;
 		} b_cnx;
 		struct msg_destroy_cnx {
 			uint64_t	cnx_handle;
 		} d_cnx;
 		struct msg_send_pdu {
-			int		hdr_size;
-			int		data_size;
+			uint32_t	hdr_size;
+			uint32_t	data_size;
 			uint64_t	cnx_handle;
 		} send_pdu;
 		struct msg_set_param {
 			uint64_t	cnx_handle;
-			iscsi_param_e	param;
-			unsigned int	value;
+			uint32_t	param; /* iscsi_param_e */
+			uint32_t	value;
 		} set_param;
 		struct msg_start_cnx {
 			uint64_t	cnx_handle;
@@ -89,7 +89,7 @@ struct iscsi_uevent {
 		int			retcode;
 		struct msg_create_session_ret {
 			uint64_t	handle;
-			int		sid;
+			uint32_t	sid;
 		} c_session_ret;
 		struct msg_recv_req {
 			uint64_t	recv_handle;
@@ -97,7 +97,7 @@ struct iscsi_uevent {
 		} recv_req;
 		struct msg_cnx_error {
 			uint64_t	cnx_handle;
-			iscsi_err_e	error;
+			uint32_t	error; /* iscsi_err_e */
 		} cnxerror;
 	} r;
 };

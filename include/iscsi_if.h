@@ -112,24 +112,25 @@ struct iscsi_transport {
 	unsigned int    caps;
 	unsigned int    max_cnx;
 	iscsi_snx_h (*create_session) (iscsi_snx_h cp_snx,
-			int initial_cmdsn, int *sid);
+			uint32_t initial_cmdsn, uint32_t *sid);
 	void (*destroy_session) (iscsi_snx_h dp_snx);
 	iscsi_cnx_h (*create_cnx) (iscsi_snx_h dp_snx, iscsi_cnx_h cp_cnx,
-			int transport_fd, int cid);
+			uint32_t transport_fd, uint32_t cid);
 	int (*bind_cnx) (iscsi_snx_h dp_snx, iscsi_cnx_h dp_cnx,
 			int is_leading);
 	int (*start_cnx) (iscsi_cnx_h dp_cnx);
 	void (*stop_cnx) (iscsi_cnx_h dp_cnx);
 	void (*destroy_cnx) (iscsi_cnx_h dp_cnx);
-	int (*set_param) (iscsi_cnx_h dp_cnx, iscsi_param_e param, int value);
+	int (*set_param) (iscsi_cnx_h dp_cnx, iscsi_param_e param,
+			  uint32_t value);
 	int (*send_pdu) (iscsi_cnx_h dp_cnx, struct iscsi_hdr *hdr,
-			 char *data, int data_size);
+			 char *data, uint32_t data_size);
 };
 
 int iscsi_register_transport(struct iscsi_transport *ops, int id);
 void iscsi_unregister_transport(int id);
 int iscsi_control_recv_pdu(iscsi_cnx_h cp_cnx, struct iscsi_hdr *hdr,
-				char *data, int data_size);
+				char *data, uint32_t data_size);
 void iscsi_control_cnx_error(iscsi_cnx_h cp_cnx, iscsi_err_e error);
 
 #endif

@@ -1718,7 +1718,7 @@ iscsi_data_xmit(struct iscsi_conn *conn)
 			return -EAGAIN;
 		}
 
-		if (mtask->itt == ISCSI_RESERVED_TAG) {
+		if (mtask->hdr.itt == ISCSI_RESERVED_TAG) {
 			spin_lock_bh(&session->lock);
 			__enqueue(&session->immpool, mtask);
 			spin_unlock_bh(&session->lock);
@@ -1778,6 +1778,9 @@ iscsi_queuecommand(struct scsi_cmnd *sc, void (*done)(struct scsi_cmnd *))
 	session = (struct iscsi_session*)host->hostdata;
 	BUG_ON(host->host_no != session->id);
 
+	spin_unlock_irq(host->host_lock);
+	spin_lock_bh(&session->lock);
+
 	if (session->state != ISCSI_STATE_LOGGED_IN) {
 		if (session->state == ISCSI_STATE_FAILED) {
 			reason = FAILURE_SESSION_FAILED;
@@ -1796,9 +1799,6 @@ iscsi_queuecommand(struct scsi_cmnd *sc, void (*done)(struct scsi_cmnd *))
 		reason = FAILURE_WINDOW_CLOSED;
 		goto reject;
 	}
-
-	spin_lock_bh(&session->lock);
-	spin_unlock_irq(host->host_lock);
 
 	if (session->conn_cnt > 1) {
 		struct iscsi_conn *cnx;
@@ -1846,10 +1846,14 @@ iscsi_queuecommand(struct scsi_cmnd *sc, void (*done)(struct scsi_cmnd *))
 	return 0;
 
 reject:
+	spin_unlock_bh(&session->lock);
+	spin_lock_irq(host->host_lock);
 	debug_scsi("cmd 0x%x rejected (%d)\n", sc->cmnd[0], reason);
 	return SCSI_MLQUEUE_HOST_BUSY;
 
 fault:
+	spin_unlock_bh(&session->lock);
+	spin_lock_irq(host->host_lock);
 	printk("iSCSI: cmd 0x%x is not queued (%d)\n", sc->cmnd[0], reason);
 	sc->sense_buffer[0] = 0x70;
 	sc->sense_buffer[2] = NOT_READY;
@@ -1961,7 +1965,7 @@ iscsi_pool_free(struct iscsi_queue *q, void **items)
  */
 static iscsi_cnx_h
 iscsi_conn_create(iscsi_snx_h snxh, iscsi_cnx_h handle,
-			int transport_fd, int conn_idx)
+			uint32_t transport_fd, uint32_t conn_idx)
 {
 	struct iscsi_session *session = iscsi_ptr(snxh);
 	struct tcp_opt *tp;
@@ -2197,7 +2201,7 @@ iscsi_conn_stop(iscsi_cnx_h cnxh)
 
 static int
 iscsi_send_pdu(iscsi_cnx_h cnxh, struct iscsi_hdr *hdr, char *data,
-		  int data_size)
+		  uint32_t data_size)
 {
 	struct iscsi_conn *conn = iscsi_ptr(cnxh);
 	struct iscsi_session *session = conn->session;
@@ -2222,6 +2226,7 @@ iscsi_send_pdu(iscsi_cnx_h cnxh, struct iscsi_hdr *hdr, char *data,
 
 		if ((int)(conn->exp_statsn - exp_statsn) <= 0) {
 			__insert(&session->immpool, mtask);
+			spin_unlock_bh(&session->lock);
 			return -ENOSPC;
 		}
 	} else {
@@ -2382,7 +2387,8 @@ static struct scsi_host_template iscsi_sht = {
 };
 
 static iscsi_snx_h
-iscsi_session_create(iscsi_snx_h handle, int initial_cmdsn, int *host_no)
+iscsi_session_create(iscsi_snx_h handle, uint32_t initial_cmdsn,
+		     uint32_t *host_no)
 {
 	int cmd_i;
 	struct iscsi_session *session;
@@ -2490,7 +2496,7 @@ iscsi_session_destroy(iscsi_snx_h snxh)
 }
 
 static int
-iscsi_set_param(iscsi_cnx_h cnxh, iscsi_param_e param, int value)
+iscsi_set_param(iscsi_cnx_h cnxh, iscsi_param_e param, uint32_t value)
 {
 	struct iscsi_conn *conn = iscsi_ptr(cnxh);
 	struct iscsi_session *session = conn->session;

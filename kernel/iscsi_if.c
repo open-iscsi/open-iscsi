@@ -28,7 +28,7 @@ static int daemon_pid;
 
 int
 iscsi_control_recv_pdu(iscsi_cnx_h cp_cnx, struct iscsi_hdr *hdr,
-				char *data, int data_size)
+				char *data, uint32_t data_size)
 {
 	struct nlmsghdr	*nlh;
 	struct sk_buff	*skb;
