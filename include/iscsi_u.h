@@ -1,5 +1,5 @@
 /*
- * iSCSI Kernel/User Interface
+ * iSCSI Kernel/User Interface Events
  *
  * Copyright (C) 2004 Dmitry Yusupov, Alex Aizman
  * maintained by open-iscsi@@googlegroups.com
@@ -17,56 +17,8 @@
  * See the file COPYING included with this distribution for more details.
  */
 
-#ifndef ISCSI_U_H
-#define ISCSI_U_H
-
-#ifndef ulong_t
-#define ulong_t unsigned long
-#endif
-
-#define ISCSI_PROVIDER_NAME_MAXLEN	64
-#define ISCSI_PROVIDER_MAX		16
-#define UEVENT_BASE			10
-#define KEVENT_BASE			100
-#define ISCSI_DP_ERR_BASE		1000
-
-typedef enum {
-	ISCSI_OK			= 0,
-
-	ISCSI_ERR_BAD_TARGET		= ISCSI_DP_ERR_BASE + 1,
-	ISCSI_ERR_DATASN		= ISCSI_DP_ERR_BASE + 2,
-	ISCSI_ERR_DATA_OFFSET		= ISCSI_DP_ERR_BASE + 3,
-	ISCSI_ERR_MAX_CMDSN		= ISCSI_DP_ERR_BASE + 4,
-	ISCSI_ERR_EXP_CMDSN		= ISCSI_DP_ERR_BASE + 5,
-	ISCSI_ERR_BAD_OPCODE		= ISCSI_DP_ERR_BASE + 6,
-	ISCSI_ERR_DATALEN		= ISCSI_DP_ERR_BASE + 7,
-	ISCSI_ERR_AHSLEN		= ISCSI_DP_ERR_BASE + 8,
-	ISCSI_ERR_PROTO			= ISCSI_DP_ERR_BASE + 9,
-	ISCSI_ERR_LUN			= ISCSI_DP_ERR_BASE + 10,
-	ISCSI_ERR_BAD_ITT		= ISCSI_DP_ERR_BASE + 11,
-	ISCSI_ERR_CNX_FAILED		= ISCSI_DP_ERR_BASE + 12,
-	ISCSI_ERR_R2TSN			= ISCSI_DP_ERR_BASE + 13,
-	ISCSI_ERR_SNX_FAILED		= ISCSI_DP_ERR_BASE + 14,
-	ISCSI_ERR_HDR_DGST		= ISCSI_DP_ERR_BASE + 15,
-	ISCSI_ERR_DATA_DGST		= ISCSI_DP_ERR_BASE + 16,
-} iscsi_err_e;
-
-typedef enum {
-	ISCSI_PARAM_MAX_RECV_DLENGTH	= 0,
-	ISCSI_PARAM_MAX_XMIT_DLENGTH	= 1,
-	ISCSI_PARAM_HDRDGST_EN		= 2,
-	ISCSI_PARAM_DATADGST_EN		= 3,
-	ISCSI_PARAM_INITIAL_R2T_EN	= 4,
-	ISCSI_PARAM_MAX_R2T		= 5,
-	ISCSI_PARAM_IMM_DATA_EN		= 6,
-	ISCSI_PARAM_FIRST_BURST		= 7,
-	ISCSI_PARAM_MAX_BURST		= 8,
-	ISCSI_PARAM_PDU_INORDER_EN	= 9,
-	ISCSI_PARAM_DATASEQ_INORDER_EN	= 10,
-	ISCSI_PARAM_ERL			= 11,
-	ISCSI_PARAM_IFMARKER_EN		= 12,
-	ISCSI_PARAM_OFMARKER_EN		= 13,
-} iscsi_param_e;
+#ifndef ISCSI_IFEV_H
+#define ISCSI_IFEV_H
 
 typedef enum iscsi_uevent_e {
 	ISCSI_UEVENT_UNKNOWN		= 0,
@@ -177,4 +129,4 @@ typedef struct iscsi_uevent {
 	} r;
 } iscsi_uevent_t;
 
-#endif /* ISCSI_U_H */
+#endif /* ISCSI_IFEV_H */
