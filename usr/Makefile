@@ -1,12 +1,13 @@
 CFLAGS += -O2 -fno-inline -Wall -Wstrict-prototypes -g -I../include
 PROGRAMS = iscsid iscsiadm
+COMMON_SRCS = io.o auth.o login.o ctldev.o log.o md5.o sha1.o
 
 all: $(PROGRAMS)
 
-iscsid: io.o auth.o login.o iscsid.o ctldev.o log.o md5.o sha1.o ipc.o
+iscsid: $(COMMON_SRCS) iscsid.o ipc.o
 	$(CC) $^ -o $@
 
-iscsiadm: iscsiadm.o ctldev.o
+iscsiadm: $(COMMON_SRCS) strings.o config.o discovery.o iscsiadm.o
 	$(CC) $^ -o $@
 
 clean:

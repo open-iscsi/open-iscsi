@@ -99,7 +99,7 @@ acl_chap_auth_request(struct iscsi_acl *client, char *username, unsigned int id,
 		      unsigned char *response_data,
 		      unsigned int rsp_length)
 {
-	struct iscsi_session *session = client->session_handle;
+	iscsi_session_t *session = client->session_handle;
 	struct MD5Context context;
 	unsigned char verify_data[16];
 
@@ -1323,7 +1323,7 @@ acl_recv_begin(struct iscsi_acl *client)
 }
 
 int
-acl_recv_end(struct iscsi_acl *client, struct iscsi_session *session_handle)
+acl_recv_end(struct iscsi_acl *client, iscsi_session_t *session_handle)
 {
 	int next_phase_flag = 0;
 
@@ -1337,7 +1337,7 @@ acl_recv_end(struct iscsi_acl *client, struct iscsi_session *session_handle)
 		client->phase = AUTH_PHASE_ERROR;
 		return AUTH_STATUS_ERROR;
 	}
-	
+
 	if (client->recv_end_count > AUTH_RECV_END_MAX_COUNT) {
 		client->rmt_auth_status = AUTH_STATUS_FAIL;
 		client->phase = AUTH_PHASE_DONE;

@@ -37,6 +37,10 @@
 
 static char program_name[] = "iscsiadm";
 
+/* global config info */
+struct iscsi_daemon_config daemon_config;
+struct iscsi_daemon_config *dconfig = &daemon_config;
+
 static struct option const long_options[] =
 {
 	{"version", no_argument, 0, 'v'},

@@ -77,7 +77,7 @@ CONFIG_FILE ").\n\
 }
 
 void
-handle_iscsi_events(void)
+iscsi_events_handle(void)
 {
 	iscsi_uevent_t event;
 	int res;
@@ -132,11 +132,10 @@ event_loop(void)
 		}
 
 		if (poll_array[POLL_CTRL].revents)
-			handle_iscsi_events();
+			iscsi_events_handle();
 
 		if (poll_array[POLL_IPC].revents)
 			ipc_handle(ipc_fd);
-
 	}
 }
 

@@ -24,7 +24,7 @@
 #define MD5_H
 
 #include <string.h>
-#include <sys/types.h>		
+#include <sys/types.h>
 #include <netinet/in.h>
 #include <stdint.h>
 #if (__BYTE_ORDER == __BIG_ENDIAN)

@@ -45,7 +45,7 @@ sigalarm_handler(int unused)
 }
 
 int
-iscsi_connect(struct iscsi_session *session)
+iscsi_connect(iscsi_session_t *session)
 {
 	int ret, rc, sock, onearg;
 	struct sockaddr_in addr;
@@ -161,7 +161,7 @@ iscsi_connect(struct iscsi_session *session)
 }
 
 void
-iscsi_disconnect(struct iscsi_session *session)
+iscsi_disconnect(iscsi_session_t *session)
 {
 	if (session->socket_fd >= 0) {
 		log_debug(1, "disconnecting session %p, fd %d", session,
@@ -172,7 +172,7 @@ iscsi_disconnect(struct iscsi_session *session)
 }
 
 static void
-iscsi_log_text(struct iscsi_hdr *pdu, char *data)
+iscsi_log_text(iscsi_hdr_t *pdu, char *data)
 {
 	int dlength = ntoh24(pdu->dlength);
 	char *text = data;
@@ -187,7 +187,7 @@ iscsi_log_text(struct iscsi_hdr *pdu, char *data)
 }
 
 int
-iscsi_send_pdu(struct iscsi_session *session, struct iscsi_hdr *hdr,
+iscsi_send_pdu(iscsi_session_t *session, iscsi_hdr_t *hdr,
 	       int hdr_digest, char *data, int data_digest, int timeout)
 {
 	int rc, ret = 0;
@@ -340,7 +340,7 @@ iscsi_send_pdu(struct iscsi_session *session, struct iscsi_hdr *hdr,
 }
 
 int
-iscsi_recv_pdu(struct iscsi_session *session, struct iscsi_hdr *hdr,
+iscsi_recv_pdu(iscsi_session_t *session, iscsi_hdr_t *hdr,
 	       int hdr_digest, char *data, int max_data_length, int data_digest,
 	       int timeout)
 {
@@ -357,8 +357,8 @@ iscsi_recv_pdu(struct iscsi_session *session, struct iscsi_hdr *hdr,
 	struct sigaction action;
 	struct sigaction old;
 
-	/* set a timeout, since the socket calls may take a long 
-	 * time to timeout on their own 
+	/* set a timeout, since the socket calls may take a long
+	 * time to timeout on their own
 	 */
 	memset(data, 0, max_data_length);
 	memset(&action, 0, sizeof (struct sigaction));

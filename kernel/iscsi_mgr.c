@@ -20,7 +20,7 @@
 #include <scsi/scsi_device.h>
 #include <scsi/scsi_transport.h>
 #include <iscsi_if.h>
-#include <iscsi_control.h>
+#include <iscsi_mgr.h>
 
 static iscsi_provider_t provider_table[ISCSI_PROVIDER_MAX];
 
@@ -715,7 +715,7 @@ iscsi_control_recv_pdu(iscsi_cnx_h handle, iscsi_hdr_t *hdr, char *data)
 		case ISCSI_OP_TEXT_RSP:
 		case ISCSI_OP_LOGOUT_RSP:
 		case ISCSI_OP_ASYNC_EVENT:
-		case ISCSI_OP_REJECT_MSG:
+		case ISCSI_OP_REJECT:
 		break;
 		default:
 			return -EPERM;

@@ -34,7 +34,7 @@
 
 /* caller is assumed to be well-behaved and passing NUL terminated strings */
 int
-iscsi_add_text(struct iscsi_session *session, struct iscsi_hdr *pdu, char *data,
+iscsi_add_text(iscsi_session_t *session, iscsi_hdr_t *pdu, char *data,
 	       int max_data_length, char *param, char *value)
 {
 	int param_len = strlen(param);
@@ -156,12 +156,12 @@ get_auth_key_type(struct iscsi_acl *auth_client, char **data, char *end)
 	return LOGIN_NEGOTIATION_FAILED;
 }
 
-/* 
- * try to reset the session's IP address and port, based on the TargetAddress 
- * provided 
+/*
+ * try to reset the session's IP address and port, based on the TargetAddress
+ * provided
  */
 int
-iscsi_update_address(struct iscsi_session *session, char *address)
+iscsi_update_address(iscsi_session_t *session, char *address)
 {
 	char *port;
 	char *tag;
@@ -196,7 +196,7 @@ iscsi_update_address(struct iscsi_session *session, char *address)
 }
 
 static enum iscsi_login_status
-get_security_text_keys(struct iscsi_session *session, char **data,
+get_security_text_keys(iscsi_session_t *session, char **data,
 		       struct iscsi_acl *auth_client, char *end)
 {
 	char *text = *data;
@@ -277,7 +277,7 @@ get_security_text_keys(struct iscsi_session *session, char **data,
 }
 
 static enum iscsi_login_status
-get_op_params_text_keys(struct iscsi_session *session, char **data, char *end)
+get_op_params_text_keys(iscsi_session_t *session, char **data, char *end)
 {
 	char *text = *data;
 	char *value = NULL;
@@ -547,7 +547,7 @@ get_op_params_text_keys(struct iscsi_session *session, char **data, char *end)
 }
 
 static enum iscsi_login_status
-check_security_stage_status(struct iscsi_session *session,
+check_security_stage_status(iscsi_session_t *session,
 			    struct iscsi_acl *auth_client)
 {
 	int debug_status = 0;
@@ -588,7 +588,7 @@ check_security_stage_status(struct iscsi_session *session,
  * size, and then appending a NULL to the PDU.
  */
 static enum iscsi_login_status
-iscsi_process_login_response(struct iscsi_session *session,
+iscsi_process_login_response(iscsi_session_t *session,
 			     iscsi_login_rsp_t *login_rsp,
 			     char *data, int max_data_length)
 {
@@ -721,7 +721,7 @@ iscsi_process_login_response(struct iscsi_session *session,
 }
 
 static int
-add_params_normal_session(struct iscsi_session *session, struct iscsi_hdr *pdu,
+add_params_normal_session(iscsi_session_t *session, iscsi_hdr_t *pdu,
                     char *data, int max_data_length)
 {
 	char value[AUTH_STR_MAX_LEN];
@@ -764,7 +764,7 @@ add_params_normal_session(struct iscsi_session *session, struct iscsi_hdr *pdu,
 }
 
 static int
-add_vendor_specific_text(struct iscsi_session *session, struct iscsi_hdr *pdu,
+add_vendor_specific_text(iscsi_session_t *session, iscsi_hdr_t *pdu,
                     char *data, int max_data_length)
 {
 	char value[AUTH_STR_MAX_LEN];
@@ -813,7 +813,7 @@ add_vendor_specific_text(struct iscsi_session *session, struct iscsi_hdr *pdu,
 }
 
 static int
-check_irrelevant_keys(struct iscsi_session *session, struct iscsi_hdr *pdu,
+check_irrelevant_keys(iscsi_session_t *session, iscsi_hdr_t *pdu,
                     char *data, int max_data_length)
 {
 	/* If you receive irrelevant keys, just check them from the irrelevant
@@ -864,7 +864,7 @@ check_irrelevant_keys(struct iscsi_session *session, struct iscsi_hdr *pdu,
 }
 
 static int
-fill_crc_digest_text(struct iscsi_session *session, struct iscsi_hdr *pdu,
+fill_crc_digest_text(iscsi_session_t *session, iscsi_hdr_t *pdu,
 		     char *data, int max_data_length)
 {
 	switch (session->header_digest) {
@@ -918,7 +918,7 @@ fill_crc_digest_text(struct iscsi_session *session, struct iscsi_hdr *pdu,
 }
 
 static int
-fill_op_params_text(struct iscsi_session *session, struct iscsi_hdr *pdu,
+fill_op_params_text(iscsi_session_t *session, iscsi_hdr_t *pdu,
 		    char *data, int max_data_length, int *transit)
 {
 	char value[AUTH_STR_MAX_LEN];
@@ -989,7 +989,7 @@ fill_op_params_text(struct iscsi_session *session, struct iscsi_hdr *pdu,
 }
 
 static void
-enum_auth_keys(struct iscsi_acl *auth_client, struct iscsi_hdr *pdu,
+enum_auth_keys(struct iscsi_acl *auth_client, iscsi_hdr_t *pdu,
 	       char *data, int max_data_length, int keytype)
 {
 	int present = 0, rc;
@@ -1022,7 +1022,7 @@ enum_auth_keys(struct iscsi_acl *auth_client, struct iscsi_hdr *pdu,
 }
 
 static int
-fill_security_params_text(struct iscsi_session *session, struct iscsi_hdr *pdu,
+fill_security_params_text(iscsi_session_t *session, iscsi_hdr_t *pdu,
 			  struct iscsi_acl *auth_client, char *data,
 			  int max_data_length, int *transit)
 {
@@ -1075,7 +1075,7 @@ fill_security_params_text(struct iscsi_session *session, struct iscsi_hdr *pdu,
  *
  **/
 static int
-iscsi_make_login_pdu(struct iscsi_session *session, struct iscsi_hdr *hdr,
+iscsi_make_login_pdu(iscsi_session_t *session, iscsi_hdr_t *hdr,
 		     char *data, int max_data_length)
 {
 	int transit = 0;
@@ -1092,7 +1092,7 @@ iscsi_make_login_pdu(struct iscsi_session *session, struct iscsi_hdr *hdr,
 	login_hdr->cid = 0;
 	memcpy(login_hdr->isid, session->isid, sizeof(session->isid));
 	login_hdr->tsih = 0;
-	login_hdr->cmdsn = htonl(session->cmdsn);	
+	login_hdr->cmdsn = htonl(session->cmdsn);
 	/* don't increment on immediate */
 	login_hdr->min_version = ISCSI_DRAFT20_VERSION;
 	login_hdr->max_version = ISCSI_DRAFT20_VERSION;
@@ -1185,7 +1185,7 @@ iscsi_make_login_pdu(struct iscsi_session *session, struct iscsi_hdr *hdr,
 }
 
 static enum iscsi_login_status
-check_for_authentication(struct iscsi_session *session,
+check_for_authentication(iscsi_session_t *session,
 			 struct iscsi_acl *auth_client)
 {
 	enum iscsi_login_status ret = LOGIN_FAILED;
@@ -1199,7 +1199,7 @@ check_for_authentication(struct iscsi_session *session,
 		return LOGIN_FAILED;
 	}
 
-	if (session->username && 
+	if (session->username &&
 	    (acl_set_user_name(auth_client, session->username) !=
 	    AUTH_STATUS_NO_ERROR)) {
 		log_error("Couldn't set username\n");
@@ -1236,7 +1236,7 @@ check_for_authentication(struct iscsi_session *session,
 }
 
 static enum iscsi_login_status
-check_status_login_response(struct iscsi_session *session,
+check_status_login_response(iscsi_session_t *session,
 			    iscsi_login_rsp_t *login_rsp,
 			    char *data, int max_data_length, int *final)
 {
@@ -1300,11 +1300,11 @@ check_status_login_response(struct iscsi_session *session,
  *     that we don't have any policy logic here.
  **/
 enum iscsi_login_status
-iscsi_login(struct iscsi_session *session, char *buffer, size_t bufsize,
+iscsi_login(iscsi_session_t *session, char *buffer, size_t bufsize,
 	    uint8_t * status_class, uint8_t * status_detail)
 {
 	struct iscsi_acl *auth_client = NULL;
-	struct iscsi_hdr pdu;
+	iscsi_hdr_t pdu;
 	iscsi_login_rsp_t *login_rsp =
 				(iscsi_login_rsp_t *)&pdu;
 	char *data;
@@ -1362,8 +1362,7 @@ iscsi_login(struct iscsi_session *session, char *buffer, size_t bufsize,
 		 */
 		if (!iscsi_make_login_pdu(session, &pdu, data,
 					  max_data_length)) {
-			log_error("login failed, couldn't make "
-				       "a login PDU\n");
+			log_error("login failed, couldn't make a login PDU\n");
 			ret = LOGIN_FAILED;
 			goto done;
 		}
@@ -1374,11 +1373,9 @@ iscsi_login(struct iscsi_session *session, char *buffer, size_t bufsize,
 			/*
 			 * FIXME: caller might want us to distinguish I/O
 			 * error and timeout. Might want to switch portals on
-			 * timeouts, but
-			 * not I/O errors.
+			 * timeouts, but not I/O errors.
 			 */
-			log_error("Login I/O error, failed to "
-				       "send a PDU\n");
+			log_error("Login I/O error, failed to send a PDU\n");
 			ret = LOGIN_IO_ERROR;
 			goto done;
 		}
@@ -1392,8 +1389,7 @@ iscsi_login(struct iscsi_session *session, char *buffer, size_t bufsize,
 			 * error and timeout. Might want to switch portals on
 			 * timeouts, but not I/O errors.
 			 */
-			log_error("Login I/O error, failed to "
-				       "receive a PDU\n");
+			log_error("Login I/O error, failed to receive a PDU\n");
 			ret = LOGIN_IO_ERROR;
 			goto done;
 		}

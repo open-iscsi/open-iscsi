@@ -2,7 +2,7 @@
 # Makefile for the Linux Kernel iSCSI Initiator
 #
 
-EXTRA_CFLAGS += -I$(obj)
+EXTRA_CFLAGS += -I$(obj) -I$(obj)/../include
 
 obj-m = iscsi.o
 iscsi-y = iscsi_mgr.o iscsi_tcp.o

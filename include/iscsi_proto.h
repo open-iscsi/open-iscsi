@@ -85,7 +85,7 @@ typedef struct iscsi_hdr {
 #define ISCSI_OP_LOGOUT_RSP		0x26
 #define ISCSI_OP_R2T			0x31
 #define ISCSI_OP_ASYNC_EVENT		0x32
-#define ISCSI_OP_REJECT_MSG		0x3f
+#define ISCSI_OP_REJECT			0x3f
 
 /* SCSI Command Header */
 typedef struct iscsi_cmd {
@@ -168,13 +168,13 @@ typedef struct iscsi_async {
 	uint8_t rsvd5[4];
 } iscsi_async_t;
 
-/* iSCSI Event Indicator values */
-#define ASYNC_EVENT_SCSI_EVENT                  0
-#define ASYNC_EVENT_REQUEST_LOGOUT              1
-#define ASYNC_EVENT_DROPPING_CONNECTION         2
-#define ASYNC_EVENT_DROPPING_ALL_CONNECTIONS	3
-#define ASYNC_EVENT_PARAM_NEGOTIATION	        4
-#define ASYNC_EVENT_VENDOR_SPECIFIC             255
+/* iSCSI Event Codes */
+#define ISCSI_ASYNC_MSG_SCSI_EVENT			0
+#define ISCSI_ASYNC_MSG_REQUEST_LOGOUT			1
+#define ISCSI_ASYNC_MSG_DROPPING_CONNECTION		2
+#define ISCSI_ASYNC_MSG_DROPPING_ALL_CONNECTIONS	3
+#define ISCSI_ASYNC_MSG_PARAM_NEGOTIATION		4
+#define ISCSI_ASYNC_MSG_VENDOR_SPECIFIC			255
 
 /* NOP-Out Message */
 typedef struct iscsi_nopout {
@@ -556,7 +556,7 @@ typedef struct iscsi_snack {
 #define ISCSI_FLAG_SNACK_TYPE_MASK          0x0F	/* 4 bits */
 
 /* Reject Message Header */
-typedef struct iscsi_reject_rsp {
+typedef struct iscsi_reject {
 	uint8_t opcode;
 	uint8_t flags;
 	uint8_t reason;
@@ -570,7 +570,7 @@ typedef struct iscsi_reject_rsp {
 	uint32_t datasn;
 	uint8_t rsvd5[8];
 	/* Text - Rejected hdr */
-} iscsi_reject_rsp_t;
+} iscsi_reject_t;
 
 /* Reason for Reject */
 #define CMD_BEFORE_LOGIN        1

@@ -22,11 +22,12 @@
 
 #include <stdint.h>
 
+#include "types.h"
 #include "iscsi_proto.h"
 #include "auth.h"
 
 /* daemon's session structure */
-struct iscsi_session {
+typedef struct iscsi_session {
 	int socket_fd;
 	int login_timeout;
 	int auth_timeout;
@@ -85,8 +86,8 @@ struct iscsi_session {
 	char username_in[AUTH_STR_MAX_LEN];
 	uint8_t password_in[AUTH_STR_MAX_LEN];
 	int password_length_in;
-};
-extern int iscsi_update_address(struct iscsi_session *session, char *address);
+} iscsi_session_t;
+extern int iscsi_update_address(iscsi_session_t *session, char *address);
 
 /* login.c */
 
@@ -125,13 +126,14 @@ enum iscsi_login_status {
 };
 
 /* implemented in iscsi-login.c for use on all platforms */
-extern int iscsi_add_text(struct iscsi_session *session, struct iscsi_hdr *pdu,
+extern int iscsi_add_text(iscsi_session_t *session, iscsi_hdr_t *hdr,
 			  char *data, int max_data_length, char *param,
 			  char *value);
-extern enum iscsi_login_status iscsi_login(struct iscsi_session *session,
+extern enum iscsi_login_status iscsi_login(iscsi_session_t *session,
 					   char *buffer, uint32_t bufsize,
 					   uint8_t * status_class,
 					   uint8_t * status_detail);
+extern int iscsi_update_address(iscsi_session_t *session, char *address);
 
 /* Digest types */
 #define ISCSI_DIGEST_NONE  0
@@ -147,5 +149,14 @@ extern enum iscsi_login_status iscsi_login(struct iscsi_session *session,
 #define IRRELEVANT_MAXOUTSTANDINGR2T	0x20
 #define IRRELEVANT_DATAPDUINORDER	0x40
 #define IRRELEVANT_DATASEQUENCEINORDER	0x80
+
+/* io.c */
+extern int iscsi_connect(iscsi_session_t *session);
+extern void iscsi_disconnect(iscsi_session_t *session);
+extern int iscsi_send_pdu(iscsi_session_t *session, iscsi_hdr_t *hdr,
+	       int hdr_digest, char *data, int data_digest, int timeout);
+extern int iscsi_recv_pdu(iscsi_session_t *session, iscsi_hdr_t *hdr,
+	int hdr_digest, char *data, int max_data_length, int data_digest,
+	int timeout);
 
 #endif /* INITIATOR_H */

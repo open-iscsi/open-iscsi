@@ -23,8 +23,7 @@
 #include <sys/types.h>
 #include <sys/ioctl.h>
 
-#include "types.h"
-#include "iscsi_proto.h"
+#include "initiator.h"
 
 #define BHS_SIZE	48
 
@@ -36,15 +35,17 @@ typedef struct iscsi_pdu {
 	unsigned int datasize;
 } iscsi_pdu_t;
 
-/* ctldev.c */
-extern int ctrl_fd;
-
-extern int ctldev_open(void);
-
 #define version()							\
 do {									\
 	printf("%s version %s\n", program_name, ISCSI_VERSION_STR);	\
 	exit(0);							\
 } while (0)
+
+/* ctldev.c */
+extern int ctrl_fd;
+
+extern int ctldev_open(void);
+extern void ctldev_close(int fd);
+
 
 #endif	/* ISCSID_H */

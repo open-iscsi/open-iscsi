@@ -20,7 +20,7 @@
 #define ISCSI_IF_H
 
 #include <net/tcp.h>
-#include <iscsi.h>
+#include <iscsi_proto.h>
 
 typedef void* iscsi_snx_h;		/* iSCSI Data-Path session handle */
 typedef void* iscsi_cnx_h;		/* iSCSI Data-Path connection handle */
