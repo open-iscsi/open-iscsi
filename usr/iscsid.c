@@ -26,6 +26,7 @@
 #include <string.h>
 #include <sys/mman.h>
 #include <sys/poll.h>
+#include <sys/io.h>
 #include <sys/utsname.h>
 
 #include "iscsid.h"
@@ -247,6 +248,10 @@ main(int argc, char *argv[])
 		log_error("failed to mlockall, exiting...");
 		exit(1);
 	}
+
+	/* oom will not kill us at the night... */
+	iopl(4);
+	nice(-5);
 
 	/*
 	 * Start Main Event Loop
