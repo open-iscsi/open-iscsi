@@ -1581,7 +1581,9 @@ _unsolicit_head_again:
 	}
 
 	if (ctask->in_progress & IN_PROGRESS_SOLICIT_HEAD) {
+		spin_lock_bh(&conn->lock);
 		r2t = __dequeue(&ctask->r2tqueue);
+		spin_unlock_bh(&conn->lock);
 _solicit_head_again:
 		__BUG_ON(r2t == NULL);
 		if (r2t->cont_bit) {
@@ -1656,12 +1658,15 @@ _solicit_again:
 		 */
 		__BUG_ON(ctask->r2t_data_count - r2t->data_length < 0);
 		ctask->r2t_data_count -= r2t->data_length;
+		spin_lock_bh(&conn->lock);
 		__enqueue(&ctask->r2tpool, r2t);
 		if ((r2t = __dequeue(&ctask->r2tqueue))) {
+			spin_unlock_bh(&conn->lock);
 			ctask->in_progress = IN_PROGRESS_WRITE |
 					     IN_PROGRESS_SOLICIT_HEAD;
 			goto _solicit_head_again;
 		} else {
+			spin_unlock_bh(&conn->lock);
 			if (ctask->r2t_data_count) {
 				ctask->in_progress = IN_PROGRESS_WRITE |
 						     IN_PROGRESS_R2T_WAIT;
@@ -1692,16 +1697,22 @@ iscsi_data_xmit(iscsi_conn_t *conn)
 	iscsi_cmd_task_t *ctask;
 	iscsi_mgmt_task_t *mtask;
 
+	down(&conn->xmitsema);
+
 	/* process non-immediate(command) queue */
 	spin_lock_bh(&conn->lock);
 	while (conn->in_progress_xmit == IN_PROGRESS_XMIT_SCSI &&
 	       (ctask = __dequeue(&conn->xmitqueue)) != NULL) {
+		spin_unlock_bh(&conn->lock);
 
 		if (iscsi_ctask_xmit(conn, ctask)) {
+			spin_lock_bh(&conn->lock);
 			__insert(&conn->xmitqueue, ctask);
 			spin_unlock_bh(&conn->lock);
+			up(&conn->xmitsema);
 			return -EAGAIN;
 		}
+		spin_lock_bh(&conn->lock);
 
 		/* check if we have something for immediate delivery */
 		if (conn->immqueue.cons != conn->immqueue.prod) {
@@ -1714,20 +1725,23 @@ iscsi_data_xmit(iscsi_conn_t *conn)
 		iscsi_session_t *session = conn->session;
 
 		conn->in_progress_xmit = IN_PROGRESS_XMIT_IMM;
+		spin_unlock_bh(&conn->lock);
 
 		if (iscsi_mtask_xmit(conn, mtask)) {
+			spin_lock_bh(&conn->lock);
 			__insert(&conn->immqueue, mtask);
 			spin_unlock_bh(&conn->lock);
+			up(&conn->xmitsema);
 			return -EAGAIN;
 		}
 
 		if (mtask->itt == ISCSI_RESERVED_TAG) {
-			spin_unlock_bh(&conn->lock);
 			spin_lock_bh(&session->lock);
 			__enqueue(&session->immpool, mtask);
 			spin_unlock_bh(&session->lock);
-			spin_lock_bh(&conn->lock);
 		}
+
+		spin_lock_bh(&conn->lock);
 
 		/* re-schedule xmitqueue. have to do that in case
 		 * when immediate PDU interrupts xmitqueue loop */
@@ -1738,6 +1752,7 @@ iscsi_data_xmit(iscsi_conn_t *conn)
 	spin_unlock_bh(&conn->lock);
 
 	conn->in_progress_xmit = IN_PROGRESS_XMIT_SCSI;
+	up(&conn->xmitsema);
 
 	return 0;
 }
@@ -2153,6 +2168,7 @@ iscsi_conn_create(iscsi_snx_h snxh, iscsi_cnx_h handle,
 		kfree(conn);
 		return NULL;
 	}
+	init_MUTEX(&conn->xmitsema);
 
 	return conn;
 }
