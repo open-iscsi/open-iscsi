@@ -42,7 +42,7 @@ MODULE_LICENSE("GPL");
 /* -------------------- */
 /* #define DEBUG_TCP    */
 /* #define DEBUG_SCSI   */
-/* #define DEBUG_ASSERT */
+#define DEBUG_ASSERT
 
 #ifdef DEBUG_TCP
 #define debug_tcp(fmt...) printk("tcp: " fmt)
@@ -230,12 +230,10 @@ iscsi_ctask_cleanup(iscsi_conn_t *conn, iscsi_cmd_task_t *ctask)
 
 	BUG_ON(ctask->in_progress == IN_PROGRESS_IDLE);
 	if (sc->sc_data_direction == DMA_TO_DEVICE) {
-		struct list_head *lh, *n;
+		iscsi_data_task_t *dtask, *n;
 		/* for WRITE, clean up Data-Out's if any */
 		spin_lock(&conn->lock);
-		list_for_each_safe(lh, n, &ctask->dataqueue) {
-			iscsi_data_task_t *dtask;
-			dtask = list_entry(lh, iscsi_data_task_t, item);
+		list_for_each_entry_safe(dtask, n, &ctask->dataqueue, item) {
 			if (dtask) {
 				list_del(&dtask->item);
 				mempool_free(dtask, ctask->datapool);
@@ -1759,11 +1757,9 @@ iscsi_xmitworker(void *data)
 }
 
 #define FAILURE_BAD_HOST		1
-#define FAILURE_BAD_SESSION		2
-#define FAILURE_BAD_SESSID		3
-#define FAILURE_SESSION_FAILED		4
-#define FAILURE_SESSION_FREED		5
-#define FAILURE_WINDOW_CLOSED		6
+#define FAILURE_SESSION_FAILED		2
+#define FAILURE_SESSION_FREED		3
+#define FAILURE_WINDOW_CLOSED		4
 
 int
 iscsi_queuecommand(struct scsi_cmnd *sc, void (*done)(struct scsi_cmnd *))
@@ -1773,7 +1769,6 @@ iscsi_queuecommand(struct scsi_cmnd *sc, void (*done)(struct scsi_cmnd *))
 	iscsi_session_t *session;
 	iscsi_conn_t *conn = NULL;
 	iscsi_cmd_task_t *ctask;
-	struct list_head *lh;
 
 	sc->scsi_done = done;
 	sc->result = 0;
@@ -1782,16 +1777,8 @@ iscsi_queuecommand(struct scsi_cmnd *sc, void (*done)(struct scsi_cmnd *))
 		reason = FAILURE_BAD_HOST;
 		goto fault;
 	}
-
-	if (!(session = (iscsi_session_t*)*host->hostdata)) {
-		reason = FAILURE_BAD_SESSION;
-		goto fault;
-	}
-
-	if (host->host_no != session->id) {
-		reason = FAILURE_BAD_SESSID;
-		goto fault;
-	}
+	session = (iscsi_session_t*)*host->hostdata;
+	BUG_ON(host->host_no != session->id);
 
 	if (session->state != ISCSI_STATE_LOGGED_IN) {
 		if (session->state == ISCSI_STATE_FAILED) {
@@ -1816,20 +1803,17 @@ iscsi_queuecommand(struct scsi_cmnd *sc, void (*done)(struct scsi_cmnd *))
 	spin_unlock_irq(host->host_lock);
 
 	if (session->conn_cnt > 1) {
+		iscsi_conn_t *cnx;
 		int cpu = smp_processor_id();
 
 		spin_lock_bh(&session->conn_lock);
-		list_for_each(lh, &session->connections) {
-			iscsi_conn_t *cnx;
-
-			cnx = list_entry(lh, iscsi_conn_t, item);
+		list_for_each_entry(cnx, &session->connections, item) {
 			if (cnx->busy) {
 				conn = cnx;
 				conn->busy--;
 				break;
 			}
-			if (cnx->cpu == cpu && cpu_online(cpu) &&
-			    !cnx->busy) {
+			if (cnx->cpu == cpu && cpu_online(cpu) && !cnx->busy) {
 				conn = cnx;
 				conn->busy = 16;
 				break;
@@ -2486,14 +2470,12 @@ static void
 iscsi_session_destroy(iscsi_snx_h snxh)
 {
 	int cmd_i;
-	struct list_head *lh, *n;
+	iscsi_data_task_t *dtask, *n;
 	iscsi_session_t *session = snxh;
 
 	for (cmd_i=0; cmd_i<session->cmds_max; cmd_i++) {
 		iscsi_cmd_task_t *ctask = session->cmds[cmd_i];
-		list_for_each_safe(lh, n, &ctask->dataqueue) {
-			iscsi_data_task_t *dtask;
-			dtask = list_entry(lh, iscsi_data_task_t, item);
+		list_for_each_entry_safe(dtask, n, &ctask->dataqueue, item) {
 			if (dtask) {
 				list_del(&dtask->item);
 				mempool_free(dtask, ctask->datapool);
