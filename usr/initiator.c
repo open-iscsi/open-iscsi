@@ -382,18 +382,20 @@ __session_ipc_login_cleanup(queue_task_t *qtask, ipc_err_e err, int cnx_cleanup)
 	iscsi_conn_t *conn = qtask->conn;
 	iscsi_session_t *session = conn->session;
 
+	if (cnx_cleanup) {
+		iscsi_disconnect(conn);
+		__session_cnx_cleanup(conn);
+	} else {
+		session_cnx_destroy(session, conn->id);
+		if (conn->id == 0)
+			__session_destroy(session);
+	}
+
 	qtask->u.login.rsp.err = err;
 	write(qtask->u.login.ipc_fd, &qtask->u.login.rsp,
 		sizeof(qtask->u.login.rsp));
 	close(qtask->u.login.ipc_fd);
 	free(qtask);
-	if (cnx_cleanup)
-		__session_cnx_cleanup(conn);
-	else {
-		session_cnx_destroy(session, conn->id);
-		if (conn->id == 0)
-			__session_destroy(session);
-	}
 }
 
 static int

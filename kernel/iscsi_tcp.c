@@ -46,7 +46,7 @@ MODULE_DESCRIPTION("iSCSI/TCP data-path");
 MODULE_LICENSE("GPL");
 
 /* #define DEBUG_TCP */
-#define DEBUG_SCSI
+/* #define DEBUG_SCSI */
 #define DEBUG_ASSERT
 
 #ifdef DEBUG_TCP
@@ -1941,6 +1941,17 @@ iscsi_conn_destroy(iscsi_cnx_h cnxh)
 {
 	struct iscsi_conn *conn = iscsi_ptr(cnxh);
 	struct iscsi_session *session = conn->session;
+
+	if (conn->c_stage == ISCSI_CNX_INITIAL_STAGE) {
+		/*
+		 * conn_start() was never been called!
+		 * we must cleanup socket.
+		 */
+		sock_hold(conn->sock->sk);
+		iscsi_conn_restore_callbacks(conn);
+		sock_put(conn->sock->sk);
+		sock_release(conn->sock);
+	}
 
 	del_timer_sync(&conn->tmabort_timer);
 	if (session->leadconn == conn) {
