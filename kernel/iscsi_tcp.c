@@ -1326,8 +1326,10 @@ iscsi_cmd_init(struct iscsi_conn *conn, struct iscsi_cmd_task *ctask,
 			   ctask->itt, ctask->total_length, ctask->imm_count,
 			   ctask->unsol_count, ctask->r2t_data_count);
 	} else {
+		ctask->hdr.flags |= ISCSI_FLAG_CMD_FINAL;
+		if (sc->sc_data_direction == DMA_FROM_DEVICE)
+			ctask->hdr.flags |= ISCSI_FLAG_CMD_READ;
 		ctask->datasn = 0;
-		ctask->hdr.flags |= ISCSI_FLAG_CMD_READ | ISCSI_FLAG_CMD_FINAL;
 		ctask->in_progress = IN_PROGRESS_READ;
 		ctask->xmstate = XMSTATE_R_HDR;
 		zero_data(ctask->hdr.dlength);
