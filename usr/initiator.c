@@ -286,37 +286,6 @@ session_cnx_destroy(iscsi_session_t *session, int cid)
 	free(conn->rx_buffer);
 }
 
-#if 0
-cnx_login_status_e
-establish_cnx(iscsi_session_t *session, iscsi_conn_t *conn, cnx_rec_t *cnx) {
-	uint8_t status_class;
-	uint8_t status_detail;
-	enum iscsi_login_status login_status;
-	cnx_login_status_e rc;
-
-
-	login_status = iscsi_login(session, conn->id, rx_buffer,
-			   DEFAULT_MAX_RECV_DATA_SEGMENT_LENGTH, &status_class,
-			   &status_detail);
-	rc = login_response_status(conn, login_status);
-	if (rc != CNX_LOGIN_SUCCESS) {
-		free(rx_buffer);
-		return rc;
-	}
-
-	/* check the login status */
-	rc = check_iscsi_status_class(session, conn->id, status_class,
-				status_detail);
-	if (rc != CNX_LOGIN_SUCCESS) {
-		free(rx_buffer);
-		return rc;
-	}
-
-	free(rx_buffer);
-	return CNX_LOGIN_SUCCESS;
-}
-#endif
-
 iscsi_session_t*
 session_create(node_rec_t *rec)
 {
@@ -517,59 +486,6 @@ __ksession_send_pdu_end(iscsi_session_t *session, iscsi_conn_t *conn)
 
 	return 0;
 }
-
-#if 0
-	/* the only leading connection */
-	if (cid == 0) {
-		session->leadcnx = cnx;
-		/* setup session's parameters once */
-		if (provider->ops.set_param(cnx->handle,
-			ISCSI_PARAM_INITIAL_R2T_EN,
-			initiator.sp.initial_r2t_en))
-			goto setparam_fail;
-		if (provider->ops.set_param(cnx->handle,
-			ISCSI_PARAM_MAX_R2T, initiator.sp.max_r2t))
-			goto setparam_fail;
-		if (provider->ops.set_param(cnx->handle,
-			ISCSI_PARAM_IMM_DATA_EN, initiator.sp.imm_data_en))
-			goto setparam_fail;
-		if (provider->ops.set_param(cnx->handle,
-			ISCSI_PARAM_FIRST_BURST, initiator.sp.first_burst))
-			goto setparam_fail;
-		if (provider->ops.set_param(cnx->handle,
-			ISCSI_PARAM_MAX_BURST, initiator.sp.max_burst))
-			goto setparam_fail;
-		if (provider->ops.set_param(cnx->handle,
-			ISCSI_PARAM_PDU_INORDER_EN,
-			initiator.sp.pdu_inorder_en))
-			goto setparam_fail;
-		if (provider->ops.set_param(cnx->handle,
-			ISCSI_PARAM_DATASEQ_INORDER_EN,
-			initiator.sp.dataseq_inorder_en))
-			goto setparam_fail;
-		if (provider->ops.set_param(cnx->handle,
-			ISCSI_PARAM_ERL, initiator.sp.erl))
-			goto setparam_fail;
-		if (provider->ops.set_param(cnx->handle,
-			ISCSI_PARAM_IFMARKER_EN, initiator.sp.ifmarker_en))
-			goto setparam_fail;
-		if (provider->ops.set_param(cnx->handle,
-			ISCSI_PARAM_OFMARKER_EN, initiator.sp.ofmarker_en))
-			goto setparam_fail;
-	}
-	if (provider->ops.set_param(cnx->handle,
-		ISCSI_PARAM_MAX_RECV_DLENGH, initiator.cp.max_recv_dlength))
-		goto setparam_fail;
-	if (provider->ops.set_param(cnx->handle,
-		ISCSI_PARAM_MAX_XMIT_DLENGH, initiator.cp.max_xmit_dlength))
-		goto setparam_fail;
-	if (provider->ops.set_param(cnx->handle,
-		ISCSI_PARAM_HDRDGST_EN, initiator.cp.hdrdgst_en))
-		goto setparam_fail;
-	if (provider->ops.set_param(cnx->handle,
-		ISCSI_PARAM_DATADGST_EN, initiator.cp.datadgst_en))
-		goto setparam_fail;
-#endif
 
 static void
 __session_ipc_login_cleanup(queue_task_t *qtask, ipc_err_e err)
@@ -844,6 +760,12 @@ __session_cnx_recv_pdu(queue_item_t *item)
 						IPC_ERR_INTERNAL);
 				return;
 			}
+
+			c->qtask->u.login.rsp.err = IPC_OK;
+			write(c->qtask->u.login.ipc_fd, &c->qtask->u.login.rsp,
+				sizeof(c->qtask->u.login.rsp));
+			close(c->qtask->u.login.ipc_fd);
+			free(c->qtask);
 		}
 	}
 }

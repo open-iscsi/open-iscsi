@@ -136,7 +136,6 @@ get_auth_key_type(struct iscsi_acl *auth_client, char **data, char *end)
 
 	while (acl_get_next_key_type(&keytype) == AUTH_STATUS_NO_ERROR) {
 		key = (char *)acl_get_key_name(keytype);
-
 		if (key && iscsi_find_key_value(key, text, end, &value,
 						&value_end)) {
 			if (acl_recv_key_value(auth_client, keytype, value) !=

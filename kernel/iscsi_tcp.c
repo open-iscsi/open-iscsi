@@ -23,10 +23,10 @@ MODULE_AUTHOR("Dmitry Yusupov <dmitry_yus@yahoo.com>, "
 MODULE_DESCRIPTION("iSCSI/TCP data-path");
 MODULE_LICENSE("GPL");
 
-#define DEBUG_PREV_PDU
-#define DEBUG_TCP
-#define DEBUG_SCSI
-#define DEBUG_ASSERT
+//#define DEBUG_PREV_PDU
+//#define DEBUG_TCP
+//#define DEBUG_SCSI
+//#define DEBUG_ASSERT
 
 #ifdef DEBUG_TCP
 #define debug_tcp(fmt...) printk("tcp: " fmt)
@@ -566,7 +566,7 @@ iscsi_buf_init_sg(iscsi_buf_t *ibuf, struct scatterlist *sg)
 /*
  * iscsi_solicit_data_cont - initialize next Data-Out
  *
- * Initialize first Data-Out within this R2T sequence and continue
+ * Initialize next Data-Out within this R2T sequence and continue
  * to process next Scatter-Gather element(if any) of this SCSI command.
  *
  * This function called when connection lock taken.
@@ -597,7 +597,7 @@ iscsi_solicit_data_cont(iscsi_conn_t *conn, iscsi_cmd_task_t *ctask,
 	memset(hdr->lun, 0, 8);
 	hdr->lun[1] = ctask->hdr.lun[1];
 	hdr->itt = ctask->hdr.itt;
-	hdr->exp_statsn = htonl(conn->exp_statsn);
+	hdr->exp_statsn = r2t->exp_statsn;
 	new_offset = r2t->data_offset + r2t->sent;
 	hdr->offset = htonl(new_offset);
 	if (left > conn->max_xmit_dlength) {
@@ -657,7 +657,7 @@ iscsi_solicit_data_init(iscsi_conn_t *conn, iscsi_cmd_task_t *ctask,
 	memset(hdr->lun, 0, 8);
 	hdr->lun[1] = ctask->hdr.lun[1];
 	hdr->itt = ctask->hdr.itt;
-	hdr->exp_statsn = htonl(conn->exp_statsn);
+	hdr->exp_statsn = r2t->exp_statsn;
 	hdr->offset = htonl(r2t->data_offset);
 	if (r2t->data_length > conn->max_xmit_dlength) {
 		hton24(hdr->dlength, conn->max_xmit_dlength);
@@ -1117,7 +1117,7 @@ iscsi_data_recv(iscsi_conn_t *conn)
 			}
 			if (!conn->in.copy) {
 				rc = -EAGAIN;
-				break;
+				goto exit;
 			}
 		}
 	    } else {
@@ -1206,8 +1206,8 @@ iscsi_r2t_rsp(iscsi_conn_t *conn, iscsi_cmd_task_t *ctask)
 	iscsi_r2t_info_t *r2t;
 	iscsi_session_t *session = conn->session;
 	iscsi_r2t_rsp_t *rhdr = (iscsi_r2t_rsp_t *)conn->in.hdr;
-	int max_cmdsn = ntohl(rhdr->max_cmdsn);
-	int exp_cmdsn = ntohl(rhdr->exp_cmdsn);
+	uint32_t max_cmdsn = ntohl(rhdr->max_cmdsn);
+	uint32_t exp_cmdsn = ntohl(rhdr->exp_cmdsn);
 	int r2tsn = ntohl(rhdr->r2tsn);
 
 	if (conn->in.ahslen) {
@@ -1226,7 +1226,6 @@ iscsi_r2t_rsp(iscsi_conn_t *conn, iscsi_cmd_task_t *ctask)
 	}
 	session->max_cmdsn = max_cmdsn;
 	session->exp_cmdsn = exp_cmdsn;
-	conn->exp_statsn = ntohl(rhdr->statsn) + 1;
 
 	/* FIXME: detect missing R2T by using R2TSN */
 
@@ -1237,6 +1236,7 @@ iscsi_r2t_rsp(iscsi_conn_t *conn, iscsi_cmd_task_t *ctask)
 		spin_unlock(&conn->lock);
 		return ISCSI_ERR_PROTO;
 	}
+	r2t->exp_statsn = rhdr->statsn;
 	r2t->data_length = ntohl(rhdr->data_length);
 	if (r2t->data_length == 0 ||
 	    r2t->data_length > session->max_burst) {
@@ -2242,9 +2242,9 @@ iscsi_send_immpdu(iscsi_cnx_h cnxh, iscsi_hdr_t *hdr, char *data,
 
 	if (hdr->itt != ISCSI_RESERVED_TAG) {
 		hdr->itt = htonl(mtask->itt);
-	} else {
-		hdr->exp_statsn = htonl(conn->exp_statsn);
 	}
+	((iscsi_nopout_t*)hdr)->exp_statsn = htonl(conn->exp_statsn);
+	((iscsi_nopout_t*)hdr)->cmdsn = htonl(session->cmdsn);
 
 	memcpy(&mtask->hdr, hdr, sizeof(iscsi_hdr_t));
 	mtask->data = data;
@@ -2386,6 +2386,7 @@ iscsi_session_create(iscsi_snx_h handle, int host_no, int initial_cmdsn)
 	host->host_no = session->id = host_no;
 	host->max_id = 1;
 	host->max_channel  = 0;
+	*(unsigned long*)host->hostdata = (unsigned long)session;
 	session->host = host;
 	session->state = ISCSI_STATE_LOGGED_IN;
 	session->imm_max = ISCSI_IMM_CMDS_MAX;

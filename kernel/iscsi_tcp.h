@@ -242,7 +242,8 @@ typedef union iscsi_union_task {
 } iscsi_union_task_t;
 
 typedef struct iscsi_r2t_info {
-	int			ttt;		/* copied from R2T */
+	uint32_t		ttt;		/* copied from R2T */
+	uint32_t		exp_statsn;	/* copeid and incr. from R2T */
 	int			data_length;	/* copied from R2T */
 	int			data_offset;	/* copied from R2T */
 	iscsi_buf_t		headbuf;	/* Data-Out Header Buffer */

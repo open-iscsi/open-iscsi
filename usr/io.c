@@ -437,11 +437,12 @@ iscsi_recv_pdu(iscsi_conn_t *conn, iscsi_hdr_t *hdr,
 	ulong_t pdu_handle;
 	int pdu_size;
 
+	memset(data, 0, max_data_length);
+
 	/* set a timeout, since the socket calls may take a long
 	 * time to timeout on their own
 	 */
 	if (!conn->kernel_io) {
-		memset(data, 0, max_data_length);
 		memset(&action, 0, sizeof (struct sigaction));
 		memset(&old, 0, sizeof (struct sigaction));
 		action.sa_sigaction = NULL;
@@ -608,9 +609,6 @@ done:
 		alarm(0);
 		sigaction(SIGALRM, &old, NULL);
 	} else {
-		/* zero Pad area */
-		if (pad)
-			memset(data+dlength, 0, pad);
 		/* finalyze receive transaction */
 		if (conn->recv_pdu_end(conn, pdu_handle)) {
 			failed = 1;
