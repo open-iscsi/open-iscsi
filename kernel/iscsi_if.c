@@ -24,9 +24,9 @@
 #include "iscsi_u.h"
 
 struct iscsi_kprovider {
-	char		name[ISCSI_PROVIDER_NAME_MAXLEN];
-	iscsi_ops_t	ops;
-	iscsi_caps_t	caps;
+	char			name[ISCSI_PROVIDER_NAME_MAXLEN];
+	struct iscsi_ops	ops;
+	struct iscsi_caps	caps;
 };
 static struct iscsi_kprovider provider_table[ISCSI_PROVIDER_MAX];
 static struct sock *nls = NULL;

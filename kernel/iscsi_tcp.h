@@ -21,7 +21,12 @@
 
 #include <iscsi_if.h>
 
-/* Connection states */
+/* Session's states */
+#define ISCSI_STATE_FREE	1
+#define ISCSI_STATE_LOGGED_IN	2
+#define ISCSI_STATE_FAILED	3
+
+/* Connection's states */
 #define ISCSI_CNX_INITIAL_STAGE		0
 #define ISCSI_CNX_STARTED		1
 #define ISCSI_CNX_STOPPED		2
@@ -72,25 +77,19 @@
 #define ISCSI_IMM_ITT_OFFSET	0x1000
 #define ISCSI_CMD_DATAPOOL_SIZE	32
 
-typedef struct iscsi_portal {
-	unsigned char		ipaddr[16];
-	int			port;
-	int			tag;
-} iscsi_portal_t;
-
-typedef struct iscsi_queue {
+struct iscsi_queue {
 	void			**pool;		/* Queue pool */
 	int			cons;		/* Queue consumer pointer */
 	int			prod;		/* Queue producer pointer */
 	int			max;		/* Max number of elements */
-} iscsi_queue_t;
+};
 
 struct iscsi_session;
 struct iscsi_cmd_task;
 struct iscsi_mgmt_task;
 
 /* Socket connection recieve helper */
-typedef struct iscsi_tcp_recv {
+struct iscsi_tcp_recv {
 	iscsi_hdr_t		*hdr;
 	struct sk_buff		*skb;
 	int			offset;
@@ -108,14 +107,12 @@ typedef struct iscsi_tcp_recv {
 	int			ahslen;
 	int			datalen;
 	uint32_t		itt;
-} iscsi_tcp_recv_t;
+};
 
-typedef struct iscsi_conn {
+struct iscsi_conn {
 	iscsi_hdr_t		hdr;		/* Header placeholder */
 	char			hdrext[4*sizeof(__u16) +
 				    sizeof(__u32)];
-
-	/* FIXME: do dynamic allocation by size max_recv_dlength */
 	char			*data;		/* Data placeholder */
 	int			data_copied;
 
@@ -128,13 +125,13 @@ typedef struct iscsi_conn {
 	int			cpu;		/* binded CPU */
 	int			busy;
 	int			id;		/* iSCSI CID */
-	iscsi_tcp_recv_t	in;		/* TCP receive context */
+	struct iscsi_tcp_recv	in;		/* TCP receive context */
 	int			in_progress;	/* Connection state machine */
 	struct socket           *sock;          /* BSD socket layer */
 	struct iscsi_session	*session;	/* Parent session */
 	struct list_head	item;		/* item's list of connections */
-	iscsi_queue_t		immqueue;	/* Immediate xmit queue */
-	iscsi_queue_t		xmitqueue;	/* Data-path queue */
+	struct iscsi_queue	immqueue;	/* Immediate xmit queue */
+	struct iscsi_queue	xmitqueue;	/* Data-path queue */
 	struct work_struct	xmitwork;	/* per-conn. xmit workqueue */
 	volatile int		c_stage;	/* Connection state */
 	iscsi_cnx_h		handle;		/* CP connection handle */
@@ -156,100 +153,100 @@ typedef struct iscsi_conn {
 	void			(*old_data_ready)(struct sock *, int);
 	void			(*old_state_change)(struct sock *);
 	void			(*old_write_space)(struct sock *);
-} iscsi_conn_t;
+};
 
-typedef struct iscsi_session {
+struct iscsi_session {
 	/* iSCSI session-wide sequencing */
-	uint32_t			cmdsn;
-	uint32_t			exp_cmdsn;
-	uint32_t			max_cmdsn;
+	uint32_t		cmdsn;
+	uint32_t		exp_cmdsn;
+	uint32_t		max_cmdsn;
 
 	/* configuration */
-	int				initial_r2t_en;
-	int				max_r2t;
-	int				imm_data_en;
-	int				first_burst;
-	int				max_burst;
-	int				time2wait;
-	int				time2retain;
-	int				pdu_inorder_en;
-	int				dataseq_inorder_en;
-	int				erl;
-	int				ifmarker_en;
-	int				ofmarker_en;
+	int			initial_r2t_en;
+	int			max_r2t;
+	int			imm_data_en;
+	int			first_burst;
+	int			max_burst;
+	int			time2wait;
+	int			time2retain;
+	int			pdu_inorder_en;
+	int			dataseq_inorder_en;
+	int			erl;
+	int			ifmarker_en;
+	int			ofmarker_en;
 
 	/* control data */
-	struct Scsi_Host		*host;
-	int				id;
-	iscsi_conn_t			*leadconn;	/* Leading Conn. */
-	spinlock_t			conn_lock;
-	spinlock_t			lock;
-	volatile iscsi_session_state_e	state;
-	struct list_head		item;
-	void				*auth_client;
-	iscsi_snx_h			handle;		/* CP session handle */
-	int				conn_cnt;
+	struct Scsi_Host	*host;
+	int			id;
+	struct iscsi_conn	*leadconn;	/* Leading Conn. */
+	spinlock_t		conn_lock;
+	spinlock_t		lock;
+	volatile int		state;
+	struct list_head	item;
+	void			*auth_client;
+	iscsi_snx_h		handle;		/* CP session handle */
+	int			conn_cnt;
 
-	struct list_head		connections;	/* list of connects. */
-	int				cmds_max;	/* size of cmds array */
-	struct iscsi_cmd_task		**cmds;		/* Original Cmds arr */
-	iscsi_queue_t			cmdpool;	/* PDU's pool */
-	int				imm_max;	/* size of Imm array */
-	struct iscsi_mgmt_task		**imm_cmds;	/* Original Imm arr */
-	iscsi_queue_t			immpool;	/* Imm PDU's pool */
-} iscsi_session_t;
+	struct list_head	connections;	/* list of connects. */
+	int			cmds_max;	/* size of cmds array */
+	struct iscsi_cmd_task	**cmds;		/* Original Cmds arr */
+	struct iscsi_queue	cmdpool;	/* PDU's pool */
+	int			imm_max;	/* size of Imm array */
+	struct iscsi_mgmt_task	**imm_cmds;	/* Original Imm arr */
+	struct iscsi_queue	immpool;	/* Imm PDU's pool */
+};
 
-typedef struct iscsi_buf {
+struct iscsi_buf {
 	struct scatterlist	sg;
 	unsigned int		sent;
-} iscsi_buf_t;
+};
 
-typedef struct iscsi_data_task {
+struct iscsi_data_task {
 	iscsi_data_t		hdr;			/* PDU */
 	char			hdrext[sizeof(__u32)];	/* Header-Digest */
 	struct list_head	item;			/* data queue item */
-} iscsi_data_task_t;
+};
 
-typedef struct iscsi_mgmt_task {
+struct iscsi_mgmt_task {
 	iscsi_hdr_t	hdr;			/* mgmt. PDU */
 	char		hdrext[sizeof(__u32)];	/* Header-Digest */
 	char		*data;			/* mgmt payload */
 	int		in_progress;		/* mgmt xmit progress */
 	int		data_count;		/* counts data to be sent */
-	iscsi_buf_t	headbuf;		/* Header Buffer */
-	iscsi_buf_t	sendbuf;		/* in progress buffer */
+	struct iscsi_buf headbuf;		/* Header Buffer */
+	struct iscsi_buf sendbuf;		/* in progress buffer */
 	int		sent;
 	uint32_t	itt;			/* this ITT */
 	struct semaphore xmitsema;
-} iscsi_mgmt_task_t;
+};
 
-typedef union iscsi_union_task {
-	iscsi_data_task_t	dtask;
-	iscsi_mgmt_task_t	mtask;
-} iscsi_union_task_t;
+union iscsi_union_task {
+	struct iscsi_data_task	dtask;
+	struct iscsi_mgmt_task	mtask;
+};
 
-typedef struct iscsi_r2t_info {
+struct iscsi_r2t_info {
 	uint32_t		ttt;		/* copied from R2T */
 	uint32_t		exp_statsn;	/* copeid and incr. from R2T */
 	int			data_length;	/* copied from R2T */
 	int			data_offset;	/* copied from R2T */
-	iscsi_buf_t		headbuf;	/* Data-Out Header Buffer */
-	iscsi_buf_t		sendbuf;	/* Data-Out in progress buffer*/
+	struct iscsi_buf	headbuf;	/* Data-Out Header Buffer */
+	struct iscsi_buf	sendbuf;	/* Data-Out in progress buffer*/
 	int			sent;		/* R2T sequence progress */
 	int			cont_bit;	/* Data-Out cont. faulure */
 	int			data_count;	/* DATA-Out payload progress */
 	struct scatterlist	*sg;		/* per-R2T SG list */
 	int			solicit_datasn;
-} iscsi_r2t_info_t;
+};
 
-typedef struct iscsi_cmd_task {
+struct iscsi_cmd_task {
 	iscsi_cmd_t		hdr;			/* orig. SCSI PDU */
 	char			hdrext[4*sizeof(__u16)+	/* one AHS */
 				    sizeof(__u32)];	/* Header-Digest */
 	int			itt;			/* this ITT */
 	int			datasn;			/* DataSN numbering */
-	iscsi_buf_t		headbuf;		/* Header Buffer */
-	iscsi_buf_t		sendbuf;		/* in progress buffer */
+	struct iscsi_buf	headbuf;		/* Header Buffer */
+	struct iscsi_buf	sendbuf;		/* in progress buffer */
 	int			sent;
 	struct scatterlist	*sg;			/* per-cmd SG list */
 	struct scatterlist	*bad_sg;		/* assert statement */
@@ -264,14 +261,14 @@ typedef struct iscsi_cmd_task {
 	struct scsi_cmnd	*sc;			/* Assoc. SCSI cmnd */
 	int			total_length;
 	int			data_offset;
-	iscsi_conn_t		*conn;			/* used connection */
+	struct iscsi_conn	*conn;			/* used connection */
 
-	iscsi_r2t_info_t	*r2t;			/* in progress R2T */
-	iscsi_queue_t		r2tpool;
-	iscsi_queue_t		r2tqueue;
-	iscsi_r2t_info_t	**r2ts;
+	struct iscsi_r2t_info	*r2t;			/* in progress R2T */
+	struct iscsi_queue	r2tpool;
+	struct iscsi_queue	r2tqueue;
+	struct iscsi_r2t_info	**r2ts;
 	struct list_head	dataqueue;		/* Data-Out dataqueue */
 	mempool_t		*datapool;
-} iscsi_cmd_task_t;
+};
 
 #endif /* ISCSI_H */

@@ -26,12 +26,6 @@
 typedef void* iscsi_snx_h;		/* iSCSI Data-Path session handle */
 typedef void* iscsi_cnx_h;		/* iSCSI Data-Path connection handle */
 
-typedef enum {
-	ISCSI_STATE_FREE	= 1,
-	ISCSI_STATE_LOGGED_IN	= 2,
-	ISCSI_STATE_FAILED	= 3,
-} iscsi_session_state_e;
-
 /*
  * These flags presents iSCSI Data-Path capabilities.
  */
@@ -44,10 +38,10 @@ typedef enum {
 #define CAP_MULTI_CNX		0x40
 #define CAP_TEXT_NEGO		0x80
 
-typedef struct iscsi_caps {
+struct iscsi_caps {
 	int	flags;
 	int	max_cnx;
-} iscsi_caps_t;
+};
 
 /**
  * struct iscsi_ops
@@ -65,7 +59,7 @@ typedef struct iscsi_caps {
  *
  * API provided by generic iSCSI Data Path module
  */
-typedef struct iscsi_ops {
+struct iscsi_ops {
 
 	iscsi_snx_h	(*create_session) (iscsi_snx_h cp_snx,
 					   int host_on,
@@ -96,14 +90,14 @@ typedef struct iscsi_ops {
 					   iscsi_hdr_t *hdr,
 					   char *data,
 					   int data_size);
-} iscsi_ops_t;
+};
 
 int iscsi_control_recv_pdu(iscsi_cnx_h cp_cnx, iscsi_hdr_t *hdr,
 				char *data, int data_size);
 void iscsi_control_cnx_error(iscsi_cnx_h cp_cnx, iscsi_err_e error);
 
 /* iscsi_tcp.c: */
-extern int iscsi_tcp_register(iscsi_ops_t *ops, iscsi_caps_t *caps);
+extern int iscsi_tcp_register(struct iscsi_ops *ops, struct iscsi_caps *caps);
 extern void iscsi_tcp_unregister(void);
 
 #endif
