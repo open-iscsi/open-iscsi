@@ -790,6 +790,9 @@ __session_cnx_error(queue_item_t *item)
 			}
 			r_stage = R_STAGE_SESSION_CLEANUP;
 		}
+	} else if (conn->state == STATE_IN_LOGIN) {
+		log_debug(1, "ignoring cnx error in login. let it timeout");
+		return;
 	}
 
 	if (r_stage == R_STAGE_SESSION_REOPEN) {
