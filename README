@@ -67,6 +67,11 @@ or cross-compilation:
 
 4. Open-iSCSI daemon
 ====================
+
+The daemon is implementing control path of iSCSI protocol plus some management
+facilities. For example, it could be configured to automatically re-start
+discovery, nodes, etc during boot based on persistent iSCSI database.
+
 	./iscsid --help
 
 Usage: iscsid [OPTION]
@@ -83,6 +88,15 @@ Usage: iscsid [OPTION]
 
 5. Open-iSCSI Configuration Utility
 ===================================
+
+The utility presents set of operations on persistent iSCSI database.
+Usual place for iSCSI database files is:
+
+	/var/db/iscsi/*.db
+
+The utility performs iSCSI Node, iSCSI Discovery and iSCSI active sessions
+operations. Some of the iSCSI Node and iSCSI Discovery operations could
+be completed without iSCSI Daemon.
 
 	./iscsiadm --help
 
@@ -147,6 +161,17 @@ Usage: iscsiadm [OPTION]
 	    ./iscsiadm -m node --op new --portal 192.168.0.1:3260
 	    new iSCSI node record added: [0a45f8]
 
+    6) Removing iSCSI Node:
+
+	    ./iscsiadm -m node --op delete --record 0a45f8
+
+    7) Display iSCSI Node configuration:
+
+	    ./iscsiadm -m node --record 0a45f8
+
+	or
+
+	    ./iscsiadm -m node --op show --record 0a45f8
 
 
 6. Configuration
@@ -171,15 +196,17 @@ command:
 
 after that start iSCSI daemon process:
 
-	iscsid
+	./iscsid
 
 or alrenatively, start it with debug enabled and with output
 redirected to the current console:
 
-	iscsid -d8 -f &
+	./iscsid -d8 -f &
 
 and use configuration utility to add/remove/update Discovery records,
 iSCSI Node records or monitor active iSCSI sessions:
+
+	./iscsiadm
 
 
 8. TBD
