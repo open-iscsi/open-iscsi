@@ -27,7 +27,7 @@
 #include <linux/crypto.h>
 #include <linux/delay.h>
 #include <linux/kfifo.h>
-#include <asm/io.h>
+#include <linux/scatterlist.h>
 #include <net/tcp.h>
 #include <scsi/scsi_cmnd.h>
 #include <scsi/scsi_device.h>
@@ -73,9 +73,7 @@ static kmem_cache_t *taskcache;
 static inline void
 iscsi_buf_init_virt(struct iscsi_buf *ibuf, char *vbuf, int size)
 {
-	ibuf->sg.page = virt_to_page(vbuf);
-	ibuf->sg.offset = offset_in_page(vbuf);
-	ibuf->sg.length = size;
+	sg_init_one(&ibuf->sg, (u8 *)vbuf, size);
 	ibuf->sent = 0;
 }
 
@@ -507,9 +505,8 @@ iscsi_hdr_recv(struct iscsi_conn *conn)
 	if (conn->hdrdgst_en) {
 		struct scatterlist sg;
 
-		sg.page = virt_to_page(hdr);
-		sg.offset = offset_in_page(hdr);
-		sg.length = sizeof(struct iscsi_hdr) + conn->in.ahslen;
+		sg_init_one(&sg, (u8 *)hdr,
+			    sizeof(struct iscsi_hdr) + conn->in.ahslen);
 		crypto_digest_init(conn->rx_tfm);
 		crypto_digest_update(conn->rx_tfm, &sg, 1);
 		crypto_digest_final(conn->rx_tfm, (u8 *)&cdgst);
