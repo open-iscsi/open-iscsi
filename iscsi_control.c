@@ -745,7 +745,7 @@ iscsi_control_cnx_error(iscsi_cnx_h handle, int error)
  *
  * Usage: cat .../iscsi/parameters
  */
-static int
+static ssize_t
 iscsi_host_class_initiator_parameters_show(struct class *class, char * buf)
 {
 	int count=0, i;
@@ -773,7 +773,7 @@ iscsi_host_class_initiator_parameters_show(struct class *class, char * buf)
  *	#1		- an iSCSI text key
  *	#2		- value
  */
-static int
+static ssize_t
 iscsi_host_class_initiator_parameters_store(struct class *class,
 				const char * buf, size_t count)
 {
@@ -830,7 +830,7 @@ static CLASS_ATTR(initiator_parameters, S_IWUSR | S_IRUGO,
  *	echo "tcp session add 0" > /sys/class/iscsi/session_operation
  *	echo "tcp connection remove 0 0 5" > /sys/class/iscsi/session_operation
  */
-static int
+static ssize_t
 iscsi_host_class_session_operation_store(struct class *class,
 			 const char * buf, size_t count)
 {
