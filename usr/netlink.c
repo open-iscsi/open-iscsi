@@ -26,32 +26,15 @@
 #include <sys/types.h>
 #include <linux/netlink.h>
 
-typedef		__u8		uint8_t;
-typedef		__u16		uint16_t;
-typedef		__u32		uint32_t;
+/* FIXME: must go */
+typedef	__u8	uint8_t;
+typedef	__u16	uint16_t;
+typedef	__u32	uint32_t;
 
 #include "iscsi_if.h"
 #include "iscsi_ifev.h"
 #include "iscsid.h"
 #include "log.h"
-
-#if 0
-static void
-dump(char *data)
-{
-log_warning("\n%08x\n%08x\n%08x\n%08x\n%08x\n%08x\n%08x\n%08x\n%08x\n%08x\n...",
-	    *(int*)(data + 0),
-	    *(int*)(data + 4),
-	    *(int*)(data + 8),
-	    *(int*)(data + 12),
-	    *(int*)(data + 16),
-	    *(int*)(data + 20),
-	    *(int*)(data + 24),
-	    *(int*)(data + 28),
-	    *(int*)(data + 32),
-	    *(int*)(data + 36));
-}
-#endif
 
 static struct sockaddr_nl src_addr, dest_addr;
 static void *xmitbuf = NULL;

@@ -64,7 +64,7 @@ static void usage(int status)
 	else {
 		printf("Usage: %s [OPTION]\n", program_name);
 		printf("\
-iSCSI initiator daemon.\n\
+Open-iSCSI initiator daemon.\n\
   -c, --config=[path]     Execute in the config file (" CONFIG_FILE ").\n\
   -f, --foreground        make the program run in the foreground\n\
   -d, --debug debuglevel  print debugging information\n\
