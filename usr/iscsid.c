@@ -247,13 +247,13 @@ main(int argc, char *argv[])
 	provider[0].sessions.q_forw = &provider[0].sessions;
 	provider[0].sessions.q_back = &provider[0].sessions;
 
-	/* we don't want our session to be paged out... */
+	/* we don't want our active sessions to be paged out... */
 	if (mlockall(MCL_CURRENT | MCL_FUTURE)) {
 		log_error("failed to mlockall, exiting...");
 		exit(1);
 	}
 
-	/* oom will not kill us at the night... */
+	/* oom-killer will not kill us at the night... */
 	iopl(4);
 	nice(-5);
 

@@ -20,9 +20,11 @@
 #include <unistd.h>
 #include <search.h>
 #include <string.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <netdb.h>
 #include <errno.h>
+#include <fcntl.h>
 #include <sys/socket.h>
 #include <sys/param.h>
 #include <netinet/in.h>
@@ -37,6 +39,33 @@
 #include "log.h"
 
 static void __session_mainloop(void *data);
+
+static char sysfs_file[PATH_MAX];
+
+/*
+ * To sync caches before actual scsi_remove_host() we
+ * need manually walk through the sysfs scsi host and delete
+ * all related LUNs.
+ */
+static void
+__session_delete_luns(iscsi_session_t *session)
+{
+	int lu = 0;
+
+	do {
+		int fd;
+
+		sprintf(sysfs_file, "/sys/class/scsi_host/host%d/"
+			"device/target%d:0:0/%d:0:0:%d/delete",
+			session->id, session->id, session->id, lu);
+		fd = open(sysfs_file, O_WRONLY);
+		if (fd < 0)
+			continue;
+		log_debug(4, "deleting device using %s", sysfs_file);
+		write(fd, "1\n", 3);
+		close(fd);
+	} while (++lu < 256); /* FIXME: hardcoded */
+}
 
 static cnx_login_status_e
 __login_response_status(iscsi_conn_t *conn,
@@ -1001,6 +1030,8 @@ session_logout_task(iscsi_session_t *session, queue_task_t *qtask)
 	}
 
 	/* FIXME: implement Logout Request */
+
+	__session_delete_luns(session);
 
 	/* stop if connection is logged in */
 	if (conn->state == STATE_LOGGED_IN &&
