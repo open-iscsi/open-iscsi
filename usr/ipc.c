@@ -106,6 +106,25 @@ ipc_session_login(queue_task_t *qtask, int rid)
 }
 
 static ipc_err_e
+ipc_session_activelist(queue_task_t *qtask, iscsiadm_rsp_t *rsp)
+{
+	iscsi_session_t *session;
+	struct qelem *item;
+
+	rsp->u.activelist.cnt = 0;
+	item = provider[0].sessions.q_forw;
+	while (item != &provider[0].sessions) {
+		session = (iscsi_session_t *)item;
+		rsp->u.activelist.rids[rsp->u.activelist.cnt]= session->nrec.id;
+		rsp->u.activelist.sids[rsp->u.activelist.cnt]= session->id;
+		rsp->u.activelist.cnt++;
+		item = item->q_forw;
+	}
+
+	return IPC_OK;
+}
+
+static ipc_err_e
 ipc_session_logout(queue_task_t *qtask, int rid)
 {
 	ipc_err_e rc;
@@ -141,7 +160,7 @@ ipc_handle(int accept_fd)
 {
 	struct sockaddr addr;
 	struct ucred cred;
-	int fd, rc, len;
+	int fd, rc, len, immrsp = 0;
 	iscsiadm_req_t req;
 	iscsiadm_rsp_t rsp;
 	queue_task_t *qtask = NULL;
@@ -176,6 +195,7 @@ ipc_handle(int accept_fd)
 		close(fd);
 		return rc;
 	}
+	rsp.command = req.command;
 
 	qtask = calloc(1, sizeof(queue_task_t));
 	if (!qtask) {
@@ -193,6 +213,10 @@ ipc_handle(int accept_fd)
 	case IPC_SESSION_LOGOUT:
 		rsp.err = ipc_session_logout(qtask, req.u.session.rid);
 		break;
+	case IPC_SESSION_ACTIVELIST:
+		rsp.err = ipc_session_activelist(qtask, &rsp);
+		immrsp = 1;
+		break;
 	case IPC_CONN_ADD:
 		rsp.err = ipc_conn_add(qtask, req.u.conn.rid, req.u.conn.cid);
 		break;
@@ -205,7 +229,7 @@ ipc_handle(int accept_fd)
 		break;
 	}
 
-	if (rsp.err == IPC_OK)
+	if (rsp.err == IPC_OK && !immrsp)
 		return 0;
 
 err:

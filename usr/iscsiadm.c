@@ -108,7 +108,7 @@ iSCSI Administration Utility.\n\
                           [update], you have to provide [name] and [value]\n\
                           you wish to update\n\
   -m session              display all active sessions and connections\n\
-  -m session --record=[id[:cid]] [--login|--logout]\n\
+  -m session --record=[id[:cid]] [--logout]\n\
                           perform operation for specific session with\n\
 			  record [id] or display statistics if no operation\n\
 			  specified. Operation will affect one connection\n\
@@ -245,23 +245,22 @@ iscsid_request(int fd, iscsiadm_req_t *req)
 }
 
 static int
-iscsid_response(int fd)
+iscsid_response(int fd, iscsiadm_rsp_t *rsp)
 {
 	int err;
-	iscsiadm_rsp_t rsp;
 
-	if ((err = read(fd, &rsp, sizeof(rsp))) != sizeof(rsp)) {
+	if ((err = read(fd, rsp, sizeof(*rsp))) != sizeof(*rsp)) {
 		log_error("got read error (%d), daemon died?", err);
 		if (err >= 0)
 			err = -EIO;
 	} else
-		err = rsp.err;
+		err = rsp->err;
 
 	return err;
 }
 
 static int
-do_iscsid(iscsiadm_req_t *req)
+do_iscsid(iscsiadm_req_t *req, iscsiadm_rsp_t *rsp)
 {
 	int fd = -1, err;
 
@@ -273,7 +272,9 @@ do_iscsid(iscsiadm_req_t *req)
 	if ((err = iscsid_request(fd, req)) < 0)
 		goto out;
 
-	err = iscsid_response(fd);
+	err = iscsid_response(fd, rsp);
+	if (!err && req->command != rsp->command)
+		err = -EIO;
 out:
 	if (fd > 0)
 		close(fd);
@@ -285,26 +286,63 @@ static int
 session_login(int rid, node_rec_t *rec)
 {
 	iscsiadm_req_t req;
+	iscsiadm_rsp_t rsp;
 
 	memset(&req, 0, sizeof(req));
 	req.command = IPC_SESSION_LOGIN;
 	req.u.session.rid = rid;
 
-	return do_iscsid(&req);
+	return do_iscsid(&req, &rsp);
 }
 
 static int
 session_logout(int rid, node_rec_t *rec)
 {
 	iscsiadm_req_t req;
+	iscsiadm_rsp_t rsp;
 
 	memset(&req, 0, sizeof(req));
 	req.command = IPC_SESSION_LOGOUT;
 	req.u.session.rid = rid;
 
-	return do_iscsid(&req);
+	return do_iscsid(&req, &rsp);
 }
 
+static int compint(const void *i1, const void *i2) {
+	return *(int*)i1 >= *(int*)i2;
+}
+
+static int
+session_activelist(idbm_t *db)
+{
+	int rc, i;
+	iscsiadm_req_t req;
+	iscsiadm_rsp_t rsp;
+
+	memset(&req, 0, sizeof(req));
+	req.command = IPC_SESSION_ACTIVELIST;
+
+	rc = do_iscsid(&req, &rsp);
+	if (rc)
+		return rc;
+	/* display all active sessions */
+	qsort(rsp.u.activelist.sids, rsp.u.activelist.cnt,
+	      sizeof(int), compint);
+	for (i = 0; i < rsp.u.activelist.cnt; i++) {
+		node_rec_t rec;
+
+		if (idbm_node_read(db, rsp.u.activelist.rids[i], &rec)) {
+			log_error("no record [%06x] found!",
+				  rsp.u.activelist.rids[i]);
+			return -1;
+		}
+		printf("[%02d:%06x] %s:%d,%d %s\n",
+			rsp.u.activelist.sids[i], rec.id, rec.cnx[0].address,
+			rec.cnx[0].port, rec.tpgt, rec.name);
+	}
+
+	return i;
+}
 
 /*
  * start sendtargets discovery process based on the
@@ -561,9 +599,14 @@ main(int argc, char **argv)
 		}
 	} else if (mode == MODE_SESSION) {
 		printf("Active sessions:\n");
-		log_error("operation is not supported.");
-		rc = -1;
-		goto out;
+		if ((rc = session_activelist(db)) < 0) {
+			log_error("can not get list of active sessions (%d)",
+				  rc);
+			rc = -1;
+			goto out;
+		} else if (!rc) {
+			printf("\tno active sessions\n");
+		}
 	} else {
 		log_error("This mode is not yet supported");
 	}

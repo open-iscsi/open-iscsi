@@ -42,8 +42,10 @@ typedef enum iscsiadm_cmd {
 	IPC_UNKNOWN		= 0,
 	IPC_SESSION_LOGIN	= 1,
 	IPC_SESSION_LOGOUT	= 2,
-	IPC_CONN_ADD		= 3,
-	IPC_CONN_REMOVE		= 4,
+	IPC_SESSION_ACTIVELIST  = 3,
+	IPC_SESSION_ACTIVESTAT  = 4,
+	IPC_CONN_ADD            = 5,
+	IPC_CONN_REMOVE         = 6,
 } iscsiadm_cmd_e;
 
 /* IPC Request */
@@ -64,7 +66,17 @@ typedef struct iscsiadm_req {
 
 /* IPC Response */
 typedef struct iscsiadm_rsp {
+	iscsiadm_cmd_e command;
 	ipc_err_e err;
+
+	union {
+		struct msg_activelist {
+#define IPC_ACTIVELIST_MAX		64
+			int sids[IPC_ACTIVELIST_MAX];
+			int rids[IPC_ACTIVELIST_MAX];
+			int cnt;
+		} activelist;
+	} u;
 } iscsiadm_rsp_t;
 
 int ipc_handle(int accept_fd);
