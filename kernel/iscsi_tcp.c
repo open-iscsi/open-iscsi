@@ -2344,7 +2344,7 @@ static struct scsi_host_template iscsi_sht = {
 	.max_sectors		= 128,
 	.cmd_per_lun		= 128,
         .eh_abort_handler       = iscsi_eh_abort,
-        .use_clustering         = ENABLE_CLUSTERING,
+        .use_clustering         = DISABLE_CLUSTERING,
 	.proc_name		= "iscsi_tcp",
 	.this_id		= -1,
 };
@@ -2451,7 +2451,6 @@ iscsi_session_destroy(iscsi_snx_h snxh)
 	iscsi_r2tpool_free(session);
 	iscsi_pool_free(&session->cmdpool, (void**)session->cmds);
 	scsi_remove_host(session->host);
-	kfree(session);
 }
 
 static int
