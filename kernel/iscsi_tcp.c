@@ -71,43 +71,6 @@ MODULE_LICENSE("GPL");
 /* global data */
 static kmem_cache_t *taskcache;
 
-/*
- * Enqueue back to the queue using producer pointer
- */
-static void
-__enqueue(struct iscsi_queue *queue, void *data)
-{
-	if (queue->prod == queue->max) {
-		queue->prod = 0;
-	}
-	BUG_ON(queue->prod + 1 == queue->cons);
-	queue->pool[queue->prod++] = data;
-}
-
-/*
- * Dequeue from the queue using consumer pointer
- *
- * Returns void* or NULL on empty queue
- */
-static void*
-__dequeue(struct iscsi_queue *queue)
-{
-	void *data;
-
-	if (queue->cons == queue->prod) {
-		return NULL;
-	}
-	if (queue->cons == queue->max) {
-		queue->cons = 0;
-	}
-	data = queue->pool[queue->cons];
-	if (queue->max > 1)
-		queue->cons++;
-	else
-		queue->prod = 0;
-	return data;
-}
-
 static inline void
 iscsi_buf_init_virt(struct iscsi_buf *ibuf, char *vbuf, int size)
 {
@@ -228,7 +191,7 @@ iscsi_ctask_cleanup(struct iscsi_conn *conn, struct iscsi_cmd_task *ctask)
 	}
 	ctask->in_progress = IN_PROGRESS_IDLE;
 	spin_lock(&session->lock);
-	__enqueue(&session->cmdpool, ctask);
+	__kfifo_put(session->cmdpool.queue, (void*)&ctask, sizeof(void*));
 	spin_unlock(&session->lock);
 }
 
@@ -475,37 +438,27 @@ iscsi_r2t_rsp(struct iscsi_conn *conn, struct iscsi_cmd_task *ctask)
 	/* FIXME: detect missing R2T by using R2TSN */
 
 	/* fill-in new R2T associated with the task */
-	spin_lock(&conn->lock);
-	r2t = __dequeue(&ctask->r2tpool);
-	if (r2t == NULL) {
-		rc = ISCSI_ERR_PROTO;
-		goto out;
+	if (!__kfifo_get(ctask->r2tpool.queue, (void*)&r2t, sizeof(void*))) {
+		return ISCSI_ERR_PROTO;
 	}
 	r2t->exp_statsn = rhdr->statsn;
 	r2t->data_length = ntohl(rhdr->data_length);
 	if (r2t->data_length == 0 ||
 	    r2t->data_length > session->max_burst) {
-		__enqueue(&ctask->r2tpool, r2t);
-		rc = ISCSI_ERR_DATALEN;
-		goto out;
+		return ISCSI_ERR_DATALEN;
 	}
 	if (ctask->hdr.lun[1] != rhdr->lun[1]) {
-		__enqueue(&ctask->r2tpool, r2t);
-		rc = ISCSI_ERR_LUN;
-		goto out;
+		return ISCSI_ERR_LUN;
 	}
 	r2t->data_offset = ntohl(rhdr->data_offset);
 	if (r2t->data_offset + r2t->data_length > ctask->total_length) {
-		__enqueue(&ctask->r2tpool, r2t);
-		rc = ISCSI_ERR_DATALEN;
-		goto out;
+		return ISCSI_ERR_DATALEN;
 	}
 	r2t->ttt = rhdr->ttt; /* no flip */
 	r2t->solicit_datasn = 0;
 
 	if ((rc = iscsi_solicit_data_init(conn, ctask, r2t))) {
-		__enqueue(&ctask->r2tpool, r2t);
-		goto out;
+		return rc;
 	}
 
 	ctask->exp_r2tsn = r2tsn + 1;
@@ -516,8 +469,6 @@ iscsi_r2t_rsp(struct iscsi_conn *conn, struct iscsi_cmd_task *ctask)
 
 	schedule_work(&conn->xmitwork);
 
-out:
-	spin_unlock(&conn->lock);
 	return rc;
 }
 
@@ -645,7 +596,8 @@ iscsi_hdr_recv(struct iscsi_conn *conn)
 						ISCSI_IMM_ITT_OFFSET];
 				if (conn->login_mtask != mtask) {
 					spin_lock(&session->lock);
-					__enqueue(&session->immpool, mtask);
+					__kfifo_put(session->immpool.queue,
+					    (void*)&mtask, sizeof(void*));
 					spin_unlock(&session->lock);
 				}
 			}
@@ -673,7 +625,8 @@ iscsi_hdr_recv(struct iscsi_conn *conn)
 					conn->handle, hdr, NULL, 0);
 				if (conn->login_mtask != mtask) {
 					spin_lock(&session->lock);
-					__enqueue(&session->immpool, mtask);
+					__kfifo_put(session->immpool.queue,
+					    (void*)&mtask, sizeof(void*));
 					spin_unlock(&session->lock);
 				}
 			}
@@ -893,7 +846,8 @@ iscsi_data_recv(struct iscsi_conn *conn)
 
 		if (mtask && conn->login_mtask != mtask) {
 			spin_lock(&session->lock);
-			__enqueue(&session->immpool, mtask);
+			__kfifo_put(session->immpool.queue, (void*)&mtask,
+				    sizeof(void*));
 			spin_unlock(&session->lock);
 		}
 	}
@@ -1630,9 +1584,7 @@ _solicit_again:
 		BUG_ON(ctask->r2t_data_count - r2t->data_length < 0);
 		ctask->r2t_data_count -= r2t->data_length;
 		ctask->r2t = NULL;
-		spin_lock_bh(&conn->lock);
-		__enqueue(&ctask->r2tpool, r2t);
-		spin_unlock_bh(&conn->lock);
+		__kfifo_put(ctask->r2tpool.queue, (void*)&r2t, sizeof(void*));
 		if (__kfifo_get(ctask->r2tqueue, (void*)&r2t, sizeof(void*))) {
 			ctask->r2t = r2t;
 			ctask->in_progress = IN_PROGRESS_WRITE |
@@ -1709,7 +1661,8 @@ iscsi_data_xmit(struct iscsi_conn *conn)
 
 		if (conn->mtask->hdr.itt == ISCSI_RESERVED_TAG) {
 			spin_lock_bh(&session->lock);
-			__enqueue(&session->immpool, conn->mtask);
+			__kfifo_put(session->immpool.queue, (void*)&conn->mtask,
+				    sizeof(void*));
 			spin_unlock_bh(&session->lock);
 		}
 
@@ -1762,7 +1715,7 @@ iscsi_queuecommand(struct scsi_cmnd *sc, void (*done)(struct scsi_cmnd *))
 	int reason = 0;
 	struct iscsi_session *session;
 	struct iscsi_conn *conn = NULL;
-	struct iscsi_cmd_task *ctask;
+	struct iscsi_cmd_task *ctask = NULL;
 
 	sc->scsi_done = done;
 	sc->result = 0;
@@ -1816,13 +1769,14 @@ iscsi_queuecommand(struct scsi_cmnd *sc, void (*done)(struct scsi_cmnd *))
 		conn = session->leadconn;
 	}
 
-	ctask = __dequeue(&session->cmdpool);
+	__kfifo_get(session->cmdpool.queue, (void*)&ctask, sizeof(void*));
+	spin_unlock(&session->lock);
+
 	BUG_ON(!ctask);
 	BUG_ON(ctask->in_progress = IN_PROGRESS_IDLE);
 
 	sc->SCp.ptr = (char*)ctask;
 	iscsi_cmd_init(conn, ctask, sc);
-	spin_unlock(&session->lock);
 
 	__kfifo_put(conn->xmitqueue, (void*)&ctask, sizeof(void*));
 	debug_scsi(
@@ -1896,6 +1850,15 @@ iscsi_pool_init(struct iscsi_queue *q, int max, void ***items, int item_size)
 		kfree(*items);
 		return -ENOMEM;
 	}
+
+	q->queue = kfifo_init((void*)q->pool, max * sizeof(void*),
+			      GFP_KERNEL, NULL);
+	if (q->queue == ERR_PTR(-ENOMEM)) {
+		kfree(q->pool);
+		kfree(*items);
+		return -ENOMEM;
+	}
+
 	for (i = 0; i < max; i++) {
 		q->pool[i] = kmalloc(item_size, GFP_KERNEL);
 		if (q->pool[i] == NULL) {
@@ -1903,15 +1866,15 @@ iscsi_pool_init(struct iscsi_queue *q, int max, void ***items, int item_size)
 			for (j = 0; j < i; j++) {
 				kfree(q->pool[j]);
 			}
+			kfifo_free(q->queue);
 			kfree(q->pool);
+			kfree(*items);
 			return -ENOMEM;
 		}
 		memset(q->pool[i], 0, item_size);
 		(*items)[i] = q->pool[i];
+		__kfifo_put(q->queue, (void*)&q->pool[i], sizeof(void*));
 	}
-	/* queue's pool is full initially */
-	q->cons = 1;
-	q->prod = 0;
 	return 0;
 }
 
@@ -2006,8 +1969,8 @@ iscsi_conn_create(iscsi_snx_h snxh, iscsi_cnx_h handle,
 
 	/* allocate login_mtask used for initial login/text sequence */
 	spin_lock_bh(&session->lock);
-	conn->login_mtask = __dequeue(&session->immpool);
-	if (!conn->login_mtask) {
+	if (!__kfifo_get(session->immpool.queue, (void*)&conn->login_mtask,
+			 sizeof(void*))) {
 		spin_unlock_bh(&session->lock);
 		goto login_mtask_alloc_fault;
 	}
@@ -2029,7 +1992,8 @@ iscsi_conn_create(iscsi_snx_h snxh, iscsi_cnx_h handle,
 
 max_recv_dlenght_alloc_fault:
 	spin_lock_bh(&session->lock);
-	__enqueue(&session->immpool, conn->login_mtask);
+	__kfifo_put(session->immpool.queue, (void*)&conn->login_mtask,
+		    sizeof(void*));
 	spin_unlock_bh(&session->lock);
 login_mtask_alloc_fault:
 	kfifo_free(conn->immqueue);
@@ -2094,7 +2058,8 @@ iscsi_conn_destroy(iscsi_cnx_h cnxh)
 					get_order(conn->max_recv_dlength));
 
 	spin_lock_bh(&session->lock);
-	__enqueue(&session->immpool, conn->login_mtask);
+	__kfifo_put(session->immpool.queue, (void*)&conn->login_mtask,
+		    sizeof(void*));
 	spin_unlock_bh(&session->lock);
 
 	kfifo_free(conn->xmitqueue);
@@ -2205,15 +2170,16 @@ iscsi_send_pdu(iscsi_cnx_h cnxh, struct iscsi_hdr *hdr, char *data,
 	if (conn->c_stage != ISCSI_CNX_INITIAL_STAGE) {
 		int exp_statsn;
 
-		mtask = __dequeue(&session->immpool);
-		if (!mtask) {
+		if (!__kfifo_get(session->immpool.queue, (void*)&mtask,
+				 sizeof(void*))) {
 			spin_unlock_bh(&session->lock);
 			return -ENOSPC;
 		}
 
 		exp_statsn = ((struct iscsi_nopout*)&mtask->hdr)->exp_statsn;
 		if ((int)(conn->exp_statsn - exp_statsn) <= 0) {
-			__enqueue(&session->immpool, mtask);
+			__kfifo_put(session->immpool.queue, (void*)&mtask,
+				    sizeof(void*));
 			spin_unlock_bh(&session->lock);
 			return -ENOSPC;
 		}
@@ -2277,7 +2243,8 @@ iscsi_send_pdu(iscsi_cnx_h cnxh, struct iscsi_hdr *hdr, char *data,
 		if(mtask->sendbuf.sg.offset + mtask->data_count > PAGE_SIZE) {
 			if (conn->c_stage == ISCSI_CNX_STARTED) {
 				spin_lock_bh(&session->lock);
-				__enqueue(&session->immpool, mtask);
+				__kfifo_put(session->immpool.queue,
+					    (void*)&mtask, sizeof(void*));
 				spin_unlock_bh(&session->lock);
 			}
 			return -ENOMEM;
@@ -2291,19 +2258,6 @@ iscsi_send_pdu(iscsi_cnx_h cnxh, struct iscsi_hdr *hdr, char *data,
 	schedule_work(&conn->xmitwork);
 
 	return 0;
-}
-
-static void
-iscsi_r2tpool_free(struct iscsi_session *session)
-{
-	int i;
-
-	for (i = 0; i < session->cmds_max; i++) {
-		mempool_destroy(session->cmds[i]->datapool);
-		kfifo_free(session->cmds[i]->r2tqueue);
-		iscsi_pool_free(&session->cmds[i]->r2tpool,
-				(void**)session->cmds[i]->r2ts);
-	}
 }
 
 static int
@@ -2358,6 +2312,19 @@ r2t_alloc_fault:
 				(void**)session->cmds[i]->r2ts);
 	}
 	return -ENOMEM;
+}
+
+static void
+iscsi_r2tpool_free(struct iscsi_session *session)
+{
+	int i;
+
+	for (i = 0; i < session->cmds_max; i++) {
+		mempool_destroy(session->cmds[i]->datapool);
+		kfifo_free(session->cmds[i]->r2tqueue);
+		iscsi_pool_free(&session->cmds[i]->r2tpool,
+				(void**)session->cmds[i]->r2ts);
+	}
 }
 
 static struct scsi_host_template iscsi_sht = {
@@ -2548,12 +2515,12 @@ iscsi_set_param(iscsi_cnx_h cnxh, iscsi_param_e param, uint32_t value)
 			session->initial_r2t_en = value;
 			break;
 		case ISCSI_PARAM_MAX_R2T:
+			iscsi_r2tpool_free(session);
 			session->max_r2t = value;
 			if (session->max_r2t & (session->max_r2t - 1)) {
 				session->max_r2t =
 					roundup_pow_of_two(session->max_r2t);
 			}
-			iscsi_r2tpool_free(session);
 			if (iscsi_r2tpool_alloc(session)) {
 				return -ENOMEM;
 			}

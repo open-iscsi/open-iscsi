@@ -79,9 +79,8 @@
 #define ISCSI_CMD_DATAPOOL_SIZE	32
 
 struct iscsi_queue {
-	void			**pool;		/* Queue pool */
-	int			cons;		/* Queue consumer pointer */
-	int			prod;		/* Queue producer pointer */
+	struct kfifo		*queue;		/* FIFO Queue */
+	void			**pool;		/* Pool of elements */
 	int			max;		/* Max number of elements */
 };
 
