@@ -378,6 +378,10 @@ iscsi_sendhdr(iscsi_conn_t *conn, iscsi_buf_t *buf)
 	res = sk->ops->sendpage(sk, buf->page, offset, size, flags);
 	if (res > 0) {
 		buf->sent += res;
+		if (size != res) {
+			return -EAGAIN;
+		}
+		return 0;
 	}
 
 	return res;
@@ -409,9 +413,6 @@ iscsi_sendpage(iscsi_conn_t *conn, iscsi_buf_t *buf, int *count, int *sent)
 
 	offset = buf->offset + buf->sent;
 
-	debug_tcp("sendpage %lx %d bytes at offset %d sent %d\n",
-	       (long)page_address(buf->page), size, offset, buf->sent);
-
 	/* tcp_sendpage */
 	sendpage = sk->ops->sendpage ? : sock_no_sendpage;
 
@@ -420,6 +421,10 @@ iscsi_sendpage(iscsi_conn_t *conn, iscsi_buf_t *buf, int *count, int *sent)
 		sendpage = sock_no_sendpage;
 
 	res = sendpage(sk, buf->page, offset, size, flags);
+	debug_tcp("sendpage %lx %d bytes, boff %d bsent %d "
+		  "left %d sent %d res %d\n",
+		  (long)page_address(buf->page), size, offset,
+		  buf->sent, *count, *sent, res);
 	if (res > 0) {
 		buf->sent += res;
 		*count -= res;
@@ -719,17 +724,8 @@ iscsi_cmd_init(iscsi_conn_t *conn, iscsi_cmd_task_t *ctask,
 	ctask->conn = conn;
 	ctask->hdr.opcode = ISCSI_OP_SCSI_CMD;
 	ctask->hdr.flags = ISCSI_ATTR_SIMPLE;
-	if (sc->sc_data_direction == DMA_TO_DEVICE) {
-		ctask->hdr.flags |= ISCSI_FLAG_CMD_WRITE;
-	} else if (sc->sc_data_direction == DMA_FROM_DEVICE) {
-		ctask->hdr.flags |= ISCSI_FLAG_CMD_READ | ISCSI_FLAG_CMD_FINAL;
-	} else {
-		/* assume read op */
-		ctask->hdr.flags |= ISCSI_FLAG_CMD_FINAL;
-	}
 	ctask->hdr.lun[1] = sc->device->lun;
 	ctask->hdr.itt = htonl(ctask->itt);
-	__BUG_ON(sc->request_bufflen == 0); /* check that zero-write allowed */
 	ctask->hdr.data_length = htonl(sc->request_bufflen);
 	ctask->hdr.cmdsn = htonl(session->cmdsn); session->cmdsn++;
 	ctask->hdr.exp_statsn = htonl(conn->exp_statsn);
@@ -741,10 +737,19 @@ iscsi_cmd_init(iscsi_conn_t *conn, iscsi_cmd_task_t *ctask,
 	ctask->datasn = 0;
 	ctask->sg_count = 0;
 
+	ctask->total_length = sc->request_bufflen;
+
 	iscsi_buf_init_virt(&ctask->headbuf, (char*)&ctask->hdr,
 			    sizeof(iscsi_hdr_t));
 
-	if (sc->sc_data_direction == DMA_TO_DEVICE) {
+	if (sc->sc_data_direction == DMA_FROM_DEVICE) {
+		ctask->hdr.flags |= ISCSI_FLAG_CMD_READ | ISCSI_FLAG_CMD_FINAL;
+		ctask->in_progress = IN_PROGRESS_READ;
+	} else if (sc->sc_data_direction == DMA_TO_DEVICE) {
+		ctask->hdr.flags |= ISCSI_FLAG_CMD_WRITE;
+		ctask->in_progress = IN_PROGRESS_WRITE;
+		/* TODO: check that zero-writes are allowed by spec. */
+		__BUG_ON(ctask->total_length == 0);
 		if (sc->use_sg) {
 			struct scatterlist *sg = (struct scatterlist *)
 							sc->request_buffer;
@@ -756,40 +761,49 @@ iscsi_cmd_init(iscsi_conn_t *conn, iscsi_cmd_task_t *ctask,
 					sc->request_bufflen);
 			__BUG_ON(sc->request_bufflen > PAGE_SIZE);
 		}
-		ctask->in_progress = IN_PROGRESS_WRITE;
+		if (session->imm_data_en) {
+			/*
+			 * Write counters:
+			 *
+			 *	imm_count	bytes to be sent right after
+			 *			SCSI PDU Header
+			 *
+			 *	imm_data_count	bytes(as Data-Out) to be sent
+			 *			without	R2T ack right after
+			 *			immediate data
+			 *
+			 *	data_count	bytes to be sent via R2T ack's
+			 */
+			if (ctask->total_length >= session->first_burst) {
+				ctask->imm_count = min(session->first_burst,
+							conn->max_xmit_dlength);
+			} else {
+				ctask->imm_count = min(ctask->total_length,
+							conn->max_xmit_dlength);
+				ctask->hdr.flags |= ISCSI_FLAG_CMD_FINAL;
+			}
+			if (!session->initial_r2t_en) {
+				ctask->imm_data_count=min(session->first_burst,
+					ctask->total_length) - ctask->imm_count;
+			} else {
+				ctask->imm_data_count = 0;
+			}
+			ctask->data_count = ctask->total_length -
+					    ctask->imm_count -
+					    ctask->imm_data_count;
+			hton24(ctask->hdr.dlength, ctask->imm_count);
+			ctask->in_progress |= IN_PROGRESS_BEGIN_WRITE_IMM;
+		} else {
+			ctask->data_count = 0;
+			zero_data(ctask->hdr.dlength);
+			ctask->in_progress |= IN_PROGRESS_BEGIN_WRITE;
+		}
 	} else {
+		/* assume read op */
+		ctask->hdr.flags |= ISCSI_FLAG_CMD_FINAL;
 		ctask->in_progress = IN_PROGRESS_READ;
 	}
 
-	ctask->total_length = sc->request_bufflen;
-
-	if (session->imm_data_en &&
-	    ctask->hdr.flags & ISCSI_FLAG_CMD_WRITE) {
-		if (ctask->total_length >= session->first_burst) {
-			ctask->imm_count = min(session->first_burst,
-						conn->max_xmit_dlength);
-		} else {
-			ctask->imm_count = min(ctask->total_length,
-						conn->max_xmit_dlength);
-			ctask->hdr.flags |= ISCSI_FLAG_CMD_FINAL;
-		}
-		if (!session->initial_r2t_en) {
-			ctask->imm_data_count = min(session->first_burst,
-				ctask->total_length) - ctask->imm_count;
-		} else {
-			ctask->imm_data_count = 0;
-		}
-		ctask->data_count = ctask->total_length - ctask->imm_count -
-					ctask->imm_data_count;
-		hton24(ctask->hdr.dlength, ctask->imm_count);
-		ctask->in_progress |= IN_PROGRESS_BEGIN_WRITE_IMM;
-	} else {
-		ctask->imm_count = 0;
-		ctask->imm_data_count = 0;
-		ctask->data_count = 0;
-		zero_data(ctask->hdr.dlength);
-		ctask->in_progress |= IN_PROGRESS_BEGIN_WRITE;
-	}
 	if (conn->hdrdgst_en) {
 		printk("iSCSI: not implemented\n");
 		__BUG_ON(1);
@@ -907,13 +921,11 @@ iscsi_hdr_recv(iscsi_conn_t *conn)
 
 	/* save opcode & itt for later processing */
 	conn->in.opcode = hdr->opcode;
-	conn->prev_itt = conn->in.itt;
 	conn->in.itt = ntohl(hdr->itt);
 
-	debug_tcp("opcode 0x%x offset %d copy %d ahslen %d "
-	       "datalen %d\n",
-	       hdr->opcode, conn->in.offset, conn->in.copy,
-	       conn->in.ahslen, conn->in.datalen);
+	debug_tcp("opcode 0x%x offset %d copy %d ahslen %d datalen %d\n",
+		  hdr->opcode, conn->in.offset, conn->in.copy,
+		  conn->in.ahslen, conn->in.datalen);
 
 	if (conn->in.itt < session->cmds_max) {
 		int cstate;
@@ -922,10 +934,9 @@ iscsi_hdr_recv(iscsi_conn_t *conn)
 		conn->in.ctask = ctask;
 		cstate = ctask->in_progress & IN_PROGRESS_OP_MASK;
 
-		debug_scsi(
-		   "rsp [op 0x%x cid %d sc %lx itt 0x%x len %d]\n",
-		   hdr->opcode, conn->id, (long)ctask->sc, ctask->itt,
-		   ctask->total_length);
+		debug_scsi("rsp [op 0x%x cid %d sc %lx itt 0x%x len %d]\n",
+			   hdr->opcode, conn->id, (long)ctask->sc, ctask->itt,
+			   ctask->total_length);
 
 		switch(conn->in.opcode) {
 		case ISCSI_OP_SCSI_CMD_RSP:
@@ -951,6 +962,7 @@ iscsi_hdr_recv(iscsi_conn_t *conn)
 			} else if (cstate == IN_PROGRESS_WRITE) {
 				rc = iscsi_cmd_rsp(conn, ctask);
 			}
+			conn->prev_itt = conn->in.itt;
 			break;
 		case ISCSI_OP_SCSI_DATA_IN:
 			/* save flags for nonexception status */
@@ -1363,7 +1375,6 @@ iscsi_mtask_xmit(iscsi_conn_t *conn, iscsi_mgmt_task_t *mtask)
 static int
 iscsi_ctask_xmit(iscsi_conn_t *conn, iscsi_cmd_task_t *ctask)
 {
-	iscsi_session_t *session = conn->session;
 	iscsi_r2t_info_t *r2t;
 
 	if (ctask->in_progress & IN_PROGRESS_HEAD) {
@@ -1393,7 +1404,7 @@ _imm_again:
 			ctask->in_progress = IN_PROGRESS_WRITE |
 					     IN_PROGRESS_UNSOLICIT_HEAD;
 			iscsi_unsolicit_data_init(conn, ctask);
-		} else {
+		} else if (ctask->data_count) {
 			ctask->in_progress = IN_PROGRESS_WRITE |
 					     IN_PROGRESS_R2T_WAIT;
 			return 0;
@@ -1415,11 +1426,11 @@ _unsolicit_again:
 	if (ctask->in_progress & IN_PROGRESS_UNSOLICIT_WRITE) {
 		if (ctask->imm_data_count) {
 			if (iscsi_sendpage(conn, &ctask->sendbuf,
-					   &ctask->data_count,
+					   &ctask->imm_data_count,
 					   &ctask->sent)) {
 				return -EAGAIN;
 			}
-			if (ctask->data_count) {
+			if (ctask->imm_data_count) {
 				iscsi_buf_init_sg(&ctask->sendbuf,
 					 &ctask->sg[ctask->sg_count++]);
 				goto _unsolicit_again;
