@@ -1,7 +1,8 @@
 /*
- * iSCSI Initiator TCP Data-Path (IDP/TCP)
+ * iSCSI Initiator over TCP/IP Data-Path
+ *
  * Copyright (C) 2004 Dmitry Yusupov, Alex Aizman
- * maintained by open-iscsi@@googlegroups.com
+ * maintained by open-iscsi@googlegroups.com
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published
@@ -14,6 +15,10 @@
  * General Public License for more details.
  *
  * See the file COPYING included with this distribution for more details.
+ *
+ * Credits:
+ * Christoph Hellwig	: For reviewing SCSI MidLayer interface, adding
+ *			  clear register/unregister interface
  */
 
 #include <linux/types.h>
@@ -1769,10 +1774,7 @@ iscsi_queuecommand(struct scsi_cmnd *sc, void (*done)(struct scsi_cmnd *))
 	sc->scsi_done = done;
 	sc->result = 0;
 
-	if (!(host = sc->device->host)) {
-		reason = FAILURE_BAD_HOST;
-		goto fault;
-	}
+	host = sc->device->host;
 	session = (struct iscsi_session*)host->hostdata;
 	BUG_ON(host->host_no != session->id);
 
@@ -2377,6 +2379,8 @@ static struct scsi_host_template iscsi_sht = {
         .use_clustering         = DISABLE_CLUSTERING,
 	.proc_name		= "iscsi_tcp",
 	.this_id		= -1,
+	.max_id			= 1,
+	.max_channel		= 0,
 };
 
 static iscsi_snx_h
@@ -2401,9 +2405,6 @@ iscsi_session_create(iscsi_snx_h handle, int host_no, int initial_cmdsn)
 	}
 	session = (struct iscsi_session *)host->hostdata;
 	host->host_no = session->id = host_no;
-	host->max_id = 1;
-	host->max_channel  = 0;
-	host->hostt->this_id = (uint32_t)(unsigned long)session;
 
 	memset(session, 0, sizeof(struct iscsi_session));
 	session->host = host;
@@ -2469,6 +2470,8 @@ iscsi_session_destroy(iscsi_snx_h snxh)
 	struct iscsi_data_task *dtask, *n;
 	struct iscsi_session *session = snxh;
 
+	scsi_remove_host(session->host);
+
 	for (cmd_i = 0; cmd_i < session->cmds_max; cmd_i++) {
 		struct iscsi_cmd_task *ctask = session->cmds[cmd_i];
 		list_for_each_entry_safe(dtask, n, &ctask->dataqueue, item) {
@@ -2485,7 +2488,7 @@ iscsi_session_destroy(iscsi_snx_h snxh)
 	iscsi_r2tpool_free(session);
 	iscsi_pool_free(&session->immpool, (void**)session->imm_cmds);
 	iscsi_pool_free(&session->cmdpool, (void**)session->cmds);
-	scsi_remove_host(session->host);
+	scsi_host_put(session->host);
 }
 
 static int
@@ -2593,33 +2596,43 @@ iscsi_set_param(iscsi_cnx_h cnxh, iscsi_param_e param, int value)
 	return 0;
 }
 
-int
-iscsi_tcp_register(struct iscsi_ops *ops, struct iscsi_caps *caps)
+struct iscsi_transport iscsi_tcp_transport = {
+	.name                   = "tcp",
+	.caps                   = CAP_RECOVERY_L0 | CAP_MULTI_R2T,
+	.create_session         = iscsi_session_create,
+	.destroy_session        = iscsi_session_destroy,
+	.create_cnx             = iscsi_conn_create,
+	.bind_cnx               = iscsi_conn_bind,
+	.destroy_cnx            = iscsi_conn_destroy,
+	.set_param              = iscsi_set_param,
+	.start_cnx              = iscsi_conn_start,
+	.stop_cnx               = iscsi_conn_stop,
+	.send_pdu               = iscsi_send_pdu,
+};
+
+static int __init
+iscsi_tcp_init(void)
 {
+	int error;
+
 	taskcache = kmem_cache_create("iscsi_taskcache",
-			sizeof(union iscsi_union_task), 0, 0, NULL, NULL);
-	if (taskcache == NULL) {
-		printk("not enough memory to allocate iscsi_taskcache\n");
+			      sizeof(union iscsi_union_task), 0, 0, NULL, NULL);
+	if (!taskcache)
 		return -ENOMEM;
-	}
 
-	ops->create_session = iscsi_session_create;
-	ops->destroy_session = iscsi_session_destroy;
-	ops->create_cnx = iscsi_conn_create;
-	ops->bind_cnx = iscsi_conn_bind;
-	ops->destroy_cnx = iscsi_conn_destroy;
-	ops->set_param = iscsi_set_param;
-	ops->start_cnx = iscsi_conn_start;
-	ops->stop_cnx = iscsi_conn_stop;
-	ops->send_pdu = iscsi_send_pdu;
+	error = iscsi_register_transport(&iscsi_tcp_transport, 0);
+	if (error)
+		kmem_cache_destroy(taskcache);
 
-	caps->flags = CAP_RECOVERY_L0 | CAP_MULTI_R2T;
-
-	return 0;
+	return error;
 }
 
-void
-iscsi_tcp_unregister(void)
+static void __exit
+iscsi_tcp_exit(void)
 {
+	iscsi_unregister_transport(0);
 	kmem_cache_destroy(taskcache);
 }
+
+module_init(iscsi_tcp_init);
+module_exit(iscsi_tcp_exit);

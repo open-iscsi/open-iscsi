@@ -2,7 +2,7 @@
  * iSCSI Initiator Kernel/User Interface
  *
  * Copyright (C) 2004 Dmitry Yusupov, Alex Aizman
- * maintained by open-iscsi@@googlegroups.com
+ * maintained by open-iscsi@googlegroups.com
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published
@@ -22,14 +22,9 @@
 #include <iscsi_if.h>
 #include <iscsi_ifev.h>
 
-struct iscsi_transport {
-	char			name[ISCSI_TRANSPORT_NAME_MAXLEN];
-	struct iscsi_ops	ops;
-	struct iscsi_caps	caps;
-};
-static struct iscsi_transport transport_table[ISCSI_TRANSPORT_MAX];
-static struct sock *nls = NULL;
-static int daemon_pid = 0;
+static struct iscsi_transport *transport_table[ISCSI_TRANSPORT_MAX];
+static struct sock *nls;
+static int daemon_pid;
 
 int
 iscsi_control_recv_pdu(iscsi_cnx_h cp_cnx, struct iscsi_hdr *hdr,
@@ -39,7 +34,8 @@ iscsi_control_recv_pdu(iscsi_cnx_h cp_cnx, struct iscsi_hdr *hdr,
 	struct sk_buff	*skb;
 	struct iscsi_uevent *ev;
 	char *pdu;
-	int len = NLMSG_SPACE(sizeof(*ev) + sizeof(struct iscsi_hdr) + data_size);
+	int len = NLMSG_SPACE(sizeof(*ev) + sizeof(struct iscsi_hdr) +
+			      data_size);
 
 	skb = alloc_skb(len, in_interrupt() ? GFP_ATOMIC : GFP_KERNEL);
 	if (!skb) {
@@ -59,6 +55,7 @@ iscsi_control_recv_pdu(iscsi_cnx_h cp_cnx, struct iscsi_hdr *hdr,
 	netlink_unicast(nls, skb, daemon_pid, MSG_DONTWAIT);
 	return 0;
 }
+EXPORT_SYMBOL_GPL(iscsi_control_recv_pdu);
 
 void
 iscsi_control_cnx_error(iscsi_cnx_h cp_cnx, iscsi_err_e error)
@@ -82,6 +79,7 @@ iscsi_control_cnx_error(iscsi_cnx_h cp_cnx, iscsi_err_e error)
 	skb_get(skb);
 	netlink_unicast(nls, skb, daemon_pid, MSG_DONTWAIT);
 }
+EXPORT_SYMBOL_GPL(iscsi_control_cnx_error);
 
 static struct iscsi_transport*
 iscsi_if_transport_lookup(int id)
@@ -89,7 +87,7 @@ iscsi_if_transport_lookup(int id)
 	/* FIXME: implement transport's container */
 	if (id != 0)
 		return NULL;
-	return &transport_table[id];
+	return transport_table[id];
 }
 
 static int
@@ -128,42 +126,42 @@ iscsi_if_recv_msg(struct sk_buff *skb, struct nlmsghdr *nlh)
 
 	switch (nlh->nlmsg_type) {
 	case ISCSI_UEVENT_CREATE_SESSION:
-		ev->r.handle = (ulong_t)transport->ops.create_session(
+		ev->r.handle = (ulong_t)transport->create_session(
 		       (void*)ev->u.c_session.session_handle,
 		       ev->u.c_session.sid, ev->u.c_session.initial_cmdsn);
 		break;
 	case ISCSI_UEVENT_DESTROY_SESSION:
-		transport->ops.destroy_session(
+		transport->destroy_session(
 			(void*)ev->u.d_session.session_handle);
 		break;
 	case ISCSI_UEVENT_CREATE_CNX:
-		ev->r.handle = (ulong_t)transport->ops.create_cnx(
+		ev->r.handle = (ulong_t)transport->create_cnx(
 			(void*)ev->u.c_cnx.session_handle,
 			(void*)ev->u.c_cnx.cnx_handle,
 			 ev->u.c_cnx.transport_fd, ev->u.c_cnx.cid);
 		break;
 	case ISCSI_UEVENT_DESTROY_CNX:
-		transport->ops.destroy_cnx((void*)ev->u.d_cnx.cnx_handle);
+		transport->destroy_cnx((void*)ev->u.d_cnx.cnx_handle);
 		break;
 	case ISCSI_UEVENT_BIND_CNX:
-		ev->r.retcode = (ulong_t)transport->ops.bind_cnx(
+		ev->r.retcode = (ulong_t)transport->bind_cnx(
 			(void*)ev->u.b_cnx.session_handle,
 			(void*)ev->u.b_cnx.cnx_handle, ev->u.b_cnx.is_leading);
 		break;
 	case ISCSI_UEVENT_SET_PARAM:
-		ev->r.retcode = transport->ops.set_param(
+		ev->r.retcode = transport->set_param(
 			(void*)ev->u.set_param.cnx_handle,
 			ev->u.set_param.param, ev->u.set_param.value);
 		break;
 	case ISCSI_UEVENT_START_CNX:
-		ev->r.retcode = transport->ops.start_cnx(
+		ev->r.retcode = transport->start_cnx(
 			(void*)ev->u.start_cnx.cnx_handle);
 		break;
 	case ISCSI_UEVENT_STOP_CNX:
-		transport->ops.stop_cnx((void*)ev->u.stop_cnx.cnx_handle);
+		transport->stop_cnx((void*)ev->u.stop_cnx.cnx_handle);
 		break;
 	case ISCSI_UEVENT_SEND_PDU:
-		ev->r.retcode = transport->ops.send_pdu(
+		ev->r.retcode = transport->send_pdu(
 		       (void*)ev->u.send_pdu.cnx_handle,
 		       (struct iscsi_hdr*)((char*)ev + sizeof(*ev)),
 		       (char*)ev + sizeof(*ev) + ev->u.send_pdu.hdr_size,
@@ -217,11 +215,21 @@ iscsi_if_rx(struct sock *sk, int len)
 	}
 }
 
-static int __init
-iscsi_if_init(void)
+int iscsi_register_transport(struct iscsi_transport *ops, int id)
 {
-	int rc;
+	transport_table[id] = ops;
+	return 0;
+}
+EXPORT_SYMBOL_GPL(iscsi_register_transport);
 
+void iscsi_unregister_transport(int id)
+{
+	transport_table[id] = NULL;
+}
+EXPORT_SYMBOL_GPL(iscsi_unregister_transport);
+
+int __init iscsi_if_init(void)
+{
 	printk(KERN_INFO "Open-iSCSI Interface, version "
 			ISCSI_VERSION_STR " variant (" ISCSI_DATE_STR ")\n");
 
@@ -229,21 +237,12 @@ iscsi_if_init(void)
 	if (nls == NULL)
 		return -ENOBUFS;
 
-	strcpy(transport_table[0].name, "tcp");
-	rc = iscsi_tcp_register(&transport_table[0].ops,
-				&transport_table[0].caps);
-	if (rc) {
-		sock_release(nls->sk_socket);
-		return rc;
-	}
-
 	return 0;
 }
 
 static void __exit
 iscsi_if_exit(void)
 {
-	iscsi_tcp_unregister();
 	sock_release(nls->sk_socket);
 }
 

@@ -4,8 +4,7 @@
 
 EXTRA_CFLAGS += -I$(obj) -I$(obj)/../include -DNETLINK_ISCSI=10
 
-obj-m = iscsi.o
-iscsi-y = iscsi_tcp.o iscsi_if.o
+obj-m = iscsi_if.o iscsi_tcp.o 
 
 KSRC ?= /lib/modules/`uname -r`/build
 

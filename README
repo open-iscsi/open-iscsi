@@ -35,6 +35,7 @@ Starting
 Right now there is no installation script. Just load the module with
 command:
 
+	insmod iscsi_if.ko
 	insmod iscsi_tcp.ko
 
 after that start daemon:
