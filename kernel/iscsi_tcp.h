@@ -145,6 +145,7 @@ struct iscsi_conn {
 	struct crypto_tfm	*rx_tfm;
 	struct iscsi_mgmt_task	*mtask;		/* xmit mtask in progress */
 	struct iscsi_cmd_task	*ctask;		/* xmit ctask in progress */
+	struct semaphore	xmitsema;
 
 	/* configuration */
 	int			max_recv_dlength;

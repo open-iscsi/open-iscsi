@@ -1112,7 +1112,7 @@ static inline int
 iscsi_sendhdr(struct iscsi_conn *conn, struct iscsi_buf *buf)
 {
 	struct socket *sk = conn->sock;
-	int flags = MSG_DONTWAIT;
+	int flags = 0; /* MSG_DONTWAIT; */
 	int res, offset, size;
 
 	offset = buf->sg.offset + buf->sent;
@@ -1154,7 +1154,7 @@ iscsi_sendpage(struct iscsi_conn *conn, struct iscsi_buf *buf,
 {
 	ssize_t (*sendpage)(struct socket *, struct page *, int, size_t, int);
 	struct socket *sk = conn->sock;
-	int flags = MSG_DONTWAIT;
+	int flags = 0; /* MSG_DONTWAIT; */
 	int res, offset, size;
 
 	size = buf->sg.length - buf->sent;
@@ -1750,14 +1750,17 @@ iscsi_xmitworker(void *data)
 	/*
 	 * We serialize Xmit worker on per-connection basis.
 	 */
+	down(&conn->xmitsema);
 	if (iscsi_data_xmit(conn)) {
 		if (conn->c_stage == ISCSI_CNX_CLEANUP_WAIT ||
 		    conn->c_stage == ISCSI_CNX_STOPPED ||
 		    conn->suspend)
-			return;
+			goto out;
 		/* re-schedule in case of -EAGAIN (out of socket buffer) */
 		schedule_work(&conn->xmitwork);
 	}
+out:
+	up(&conn->xmitsema);
 }
 
 #define FAILURE_BAD_HOST		1
@@ -2046,6 +2049,8 @@ iscsi_conn_create(iscsi_snx_h snxh, iscsi_cnx_h handle,
 	if (!conn->data) {
 		goto max_recv_dlenght_alloc_fault;
 	}
+
+	init_MUTEX(&conn->xmitsema);
 
 	return iscsi_handle(conn);
 
