@@ -232,13 +232,13 @@ iscsi_cmd_rsp(struct iscsi_conn *conn, struct iscsi_cmd_task *ctask)
 					sc->resid = res_count;
 				} else {
 					sc->result = (DID_BAD_TARGET << 16) |
-						     (rhdr->cmd_status << 1);
+						     rhdr->cmd_status;
 					rc = ISCSI_ERR_BAD_TARGET;
 					goto fault;
 				}
 			} else if (rhdr->flags& ISCSI_FLAG_CMD_BIDI_UNDERFLOW) {
 				sc->result = (DID_BAD_TARGET << 16) |
-					     (rhdr->cmd_status << 1);
+					     rhdr->cmd_status;
 				rc = ISCSI_ERR_BAD_TARGET;
 				goto fault;
 			} else if (rhdr->flags & ISCSI_FLAG_CMD_OVERFLOW) {
