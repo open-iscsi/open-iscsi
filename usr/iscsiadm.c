@@ -505,7 +505,7 @@ main(int argc, char **argv)
 	}
 
 	if (mode == MODE_DISCOVERY) {
-		if ((rc = verify_mode_params(argc, argv, "mtplr", 0))) {
+		if ((rc = verify_mode_params(argc, argv, "dmtplr", 0))) {
 			log_error("discovery mode: option '-%c' is not "
 				  "allowed/supported", rc);
 			rc = -1;
@@ -579,7 +579,7 @@ main(int argc, char **argv)
 			}
 		}
 	} else if (mode == MODE_NODE) {
-		if ((rc = verify_mode_params(argc, argv, "mlronvu", 0))) {
+		if ((rc = verify_mode_params(argc, argv, "dmlronvu", 0))) {
 			log_error("node mode: option '-%c' is not "
 				  "allowed/supported", rc);
 			rc = -1;
@@ -685,7 +685,7 @@ main(int argc, char **argv)
 			goto out;
 		}
 	} else if (mode == MODE_SESSION) {
-		if ((rc = verify_mode_params(argc, argv, "m", 1))) {
+		if ((rc = verify_mode_params(argc, argv, "dm", 1))) {
 			log_error("session mode: option '-%c' is not "
 				  "allowed or supported", rc);
 			rc = -1;

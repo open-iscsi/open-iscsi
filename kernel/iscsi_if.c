@@ -165,8 +165,8 @@ iscsi_if_recv_msg(struct sk_buff *skb, struct nlmsghdr *nlh)
 			ev->u.start_cnx.cnx_handle);
 		break;
 	case ISCSI_UEVENT_STOP_CNX:
-		transport->stop_cnx(
-			ev->u.stop_cnx.cnx_handle);
+		transport->stop_cnx(ev->u.stop_cnx.cnx_handle,
+			ev->u.stop_cnx.flag);
 		break;
 	case ISCSI_UEVENT_SEND_PDU:
 		ev->r.retcode = transport->send_pdu(

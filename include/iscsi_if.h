@@ -91,6 +91,13 @@ typedef uint64_t iscsi_cnx_h;		/* iSCSI Data-Path connection handle */
 #define CAP_MULTI_CNX		0x40
 #define CAP_TEXT_NEGO		0x80
 
+/*
+ * These flags describes reason of stop_cnx() call
+ */
+#define STOP_CNX_TERM		0x1
+#define STOP_CNX_SUSPEND	0x2
+#define STOP_CNX_RECOVER	0x3
+
 /**
  * struct iscsi_transport - down calls
  *
@@ -121,7 +128,7 @@ struct iscsi_transport {
 	int (*bind_cnx) (iscsi_snx_h dp_snx, iscsi_cnx_h dp_cnx,
 			uint32_t transport_fd, int is_leading);
 	int (*start_cnx) (iscsi_cnx_h dp_cnx);
-	void (*stop_cnx) (iscsi_cnx_h dp_cnx);
+	void (*stop_cnx) (iscsi_cnx_h dp_cnx, int flag);
 	void (*destroy_cnx) (iscsi_cnx_h dp_cnx);
 	int (*set_param) (iscsi_cnx_h dp_cnx, iscsi_param_e param,
 			  uint32_t value);

@@ -46,8 +46,8 @@ MODULE_DESCRIPTION("iSCSI/TCP data-path");
 MODULE_LICENSE("GPL");
 
 /* #define DEBUG_TCP */
-/* #define DEBUG_SCSI */
-/* #define DEBUG_ASSERT */
+#define DEBUG_SCSI
+#define DEBUG_ASSERT
 
 #ifdef DEBUG_TCP
 #define debug_tcp(fmt...) printk("tcp: " fmt)
@@ -642,6 +642,7 @@ iscsi_hdr_recv(struct iscsi_conn *conn)
 			conn->tmabort_state = ((struct iscsi_tm_rsp *)hdr)->
 				response == SCSI_TCP_TM_RESP_COMPLETE ?
 					TMABORT_SUCCESS : TMABORT_FAILED;
+			/* unblock eh_abort() and proceed with next command */
 			wake_up(&conn->ehwait);
 			break;
 		default:
@@ -985,8 +986,14 @@ iscsi_tcp_data_ready(struct sock *sk, int flag)
 static void
 iscsi_tcp_state_change(struct sock *sk)
 {
-	struct iscsi_conn *conn = (struct iscsi_conn*)sk->sk_user_data;
-	struct iscsi_session *session = conn->session;
+	struct iscsi_conn *conn;
+	struct iscsi_session *session;
+	void (*old_state_change)(struct sock *);
+
+	read_lock(&sk->sk_callback_lock);
+
+	conn = (struct iscsi_conn*)sk->sk_user_data;
+	session = conn->session;
 
 	if (sk->sk_state == TCP_CLOSE_WAIT ||
 	    sk->sk_state == TCP_CLOSE) {
@@ -1000,7 +1007,12 @@ iscsi_tcp_state_change(struct sock *sk)
 		spin_unlock_bh(&session->conn_lock);
 		iscsi_control_cnx_error(conn->handle, ISCSI_ERR_CNX_FAILED);
 	}
-	conn->old_state_change(sk);
+
+	old_state_change = conn->old_state_change;
+
+	read_unlock(&sk->sk_callback_lock);
+
+	old_state_change(sk);
 }
 
 /*
@@ -1647,9 +1659,10 @@ iscsi_xmitworker(void *data)
 	if (conn->suspend)
 		goto out;
 	if (iscsi_data_xmit(conn)) {
-		if (conn->c_stage == ISCSI_CNX_CLEANUP_WAIT ||
-		    conn->c_stage == ISCSI_CNX_STOPPED ||
-		    conn->suspend)
+		if (conn->stop_stage != STOP_CNX_RECOVER &&
+		    (conn->c_stage == ISCSI_CNX_CLEANUP_WAIT ||
+		     conn->c_stage == ISCSI_CNX_STOPPED ||
+		     conn->suspend))
 			goto out;
 		/* re-schedule in case of -EAGAIN (out of socket buffer) */
 		schedule_work(&conn->xmitwork);
@@ -1929,13 +1942,6 @@ iscsi_conn_destroy(iscsi_cnx_h cnxh)
 	struct iscsi_conn *conn = iscsi_ptr(cnxh);
 	struct iscsi_session *session = conn->session;
 
-	BUG_ON(conn->sock == NULL);
-
-	sock_hold(conn->sock->sk);
-	iscsi_conn_restore_callbacks(conn);
-	sock_put(conn->sock->sk);
-	sock_release(conn->sock);
-
 	del_timer_sync(&conn->tmabort_timer);
 	if (session->leadconn == conn) {
 		/*
@@ -2011,41 +2017,69 @@ iscsi_conn_bind(iscsi_snx_h snxh, iscsi_cnx_h cnxh, uint32_t transport_fd,
 		int is_leading)
 {
 	struct iscsi_session *session = iscsi_ptr(snxh);
-	struct iscsi_conn *conn = iscsi_ptr(cnxh);
+	struct iscsi_conn *cnx = ERR_PTR(-EEXIST), *conn = iscsi_ptr(cnxh);
 	struct sock *sk;
 	struct socket *sock;
 	int err;
 
+	/* lookup for existing socket */
 	if (!(sock = sockfd_lookup(transport_fd, &err))) {
 		printk("iSCSI: sockfd_lookup failed %d\n", err);
 		return -EEXIST;
 	}
 
-	/* bind iSCSI connection and socket */
-	conn->sock = sock;
-
-	/* setup Socket parameters */
-	sk = sock->sk;
-	sk->sk_reuse = 1;
-	sk->sk_sndtimeo = 15 * HZ; /* FIXME: make it configurable */
-	sk->sk_allocation = GFP_ATOMIC;
-
-	/* FIXME: disable Nagle's algorithm */
-
-	/* Intercept TCP callbacks for sendfile like receive processing. */
-	iscsi_conn_set_callbacks(conn);
-
-	/*
-	 * bind new iSCSI connection to session
-	 */
-	conn->session = session;
-
+	/* lookup for existing connection */
 	spin_lock_bh(&session->conn_lock);
-	list_add(&conn->item, &session->connections);
+	list_for_each_entry(cnx, &session->connections, item) {
+		if (cnx == conn) {
+			if (conn->c_stage != ISCSI_CNX_STOPPED ||
+			    conn->stop_stage == STOP_CNX_TERM) {
+				printk("iSCSI: can't bind non-stopped "
+				       "connection (%d:%d)\n", conn->c_stage,
+				       conn->stop_stage);
+				spin_unlock_bh(&session->conn_lock);
+				return -EIO;
+			}
+			break;
+		}
+	}
 	spin_unlock_bh(&session->conn_lock);
+	if (cnx != conn) {
+		/* bind new iSCSI connection to session */
+		conn->session = session;
+
+		spin_lock_bh(&session->conn_lock);
+		list_add(&conn->item, &session->connections);
+		spin_unlock_bh(&session->conn_lock);
+	}
+
+	if (conn->stop_stage != STOP_CNX_SUSPEND) {
+		/* bind iSCSI connection and socket */
+		conn->sock = sock;
+
+		/* setup Socket parameters */
+		sk = sock->sk;
+		sk->sk_reuse = 1;
+		sk->sk_sndtimeo = 15 * HZ; /* FIXME: make it configurable */
+		sk->sk_allocation = GFP_ATOMIC;
+
+		/* FIXME: disable Nagle's algorithm */
+
+		/*
+		 * Intercept TCP callbacks for sendfile like receive
+		 * processing.
+		 */
+		iscsi_conn_set_callbacks(conn);
+	}
 
 	if (is_leading)
 		session->leadconn = conn;
+
+	/*
+	 * Unblock xmitworker().
+	 * Login Phase will pass through.
+	 */
+	conn->suspend = 0;
 
 	return 0;
 }
@@ -2055,6 +2089,8 @@ iscsi_conn_start(iscsi_cnx_h cnxh)
 {
 	struct iscsi_conn *conn = iscsi_ptr(cnxh);
 	struct iscsi_session *session = conn->session;
+
+	/* FF phase warming up... */
 
 	if (session == NULL) {
 		printk("iSCSI: can't start not-binded connection\n");
@@ -2073,25 +2109,45 @@ iscsi_conn_start(iscsi_cnx_h cnxh)
 	session->conn_cnt++;
 	spin_unlock_bh(&session->lock);
 
+	if (conn->stop_stage == STOP_CNX_RECOVER) {
+		/*
+		 * unblock eh_abort() if it is blocked. re-try all
+		 * commands after successful recovery
+		 */
+		conn->stop_stage = 0;
+		wake_up(&conn->ehwait);
+	} else
+		conn->stop_stage = 0;
+
 	return 0;
 }
 
 static void
-iscsi_conn_stop(iscsi_cnx_h cnxh)
+iscsi_conn_stop(iscsi_cnx_h cnxh, int flag)
 {
 	struct iscsi_conn *conn = iscsi_ptr(cnxh);
 	struct iscsi_session *session = conn->session;
 
+	conn->stop_stage = flag;
+
 	spin_lock_bh(&session->lock);
 	conn->c_stage = ISCSI_CNX_STOPPED;
-	conn->suspend = 1;
 	session->conn_cnt--;
+	conn->suspend = 1;
 
 	if (session->conn_cnt == 0 ||
 	    session->leadconn == conn) {
 		session->state = ISCSI_STATE_FAILED;
 	}
 	spin_unlock_bh(&session->lock);
+
+	if (flag == STOP_CNX_TERM || flag == STOP_CNX_RECOVER) {
+		BUG_ON(!conn->sock);
+		sock_hold(conn->sock->sk);
+		iscsi_conn_restore_callbacks(conn);
+		sock_put(conn->sock->sk);
+		sock_release(conn->sock);
+	}
 }
 
 static int
@@ -2113,7 +2169,8 @@ iscsi_send_pdu(iscsi_cnx_h cnxh, struct iscsi_hdr *hdr, char *data,
 	}
 
 	spin_lock_bh(&session->lock);
-	if (conn->c_stage != ISCSI_CNX_INITIAL_STAGE) {
+	if (conn->c_stage != ISCSI_CNX_INITIAL_STAGE && /* ! initial login */
+	    conn->c_stage != ISCSI_CNX_STOPPED) { /* ! re-open login */
 		int exp_statsn;
 
 		if (!__kfifo_get(session->immpool.queue, (void*)&mtask,
@@ -2523,7 +2580,8 @@ iscsi_set_param(iscsi_cnx_h cnxh, iscsi_param_e param, uint32_t value)
 	struct iscsi_conn *conn = iscsi_ptr(cnxh);
 	struct iscsi_session *session = conn->session;
 
-	if (conn->c_stage == ISCSI_CNX_INITIAL_STAGE) {
+	if (conn->c_stage == ISCSI_CNX_INITIAL_STAGE ||
+	    conn->stop_stage == STOP_CNX_RECOVER) {
 		switch(param) {
 		case ISCSI_PARAM_MAX_RECV_DLENGTH: {
 			char *saveptr = conn->data;

@@ -156,6 +156,7 @@ struct iscsi_conn {
 	struct iscsi_tm		tmhdr;
 	volatile int		tmabort_state;
 	struct timer_list	tmabort_timer;
+	volatile int		stop_stage;	/* cnx_stop() state machine */
 
 	/* configuration */
 	int			max_recv_dlength;

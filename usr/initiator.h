@@ -69,6 +69,12 @@ typedef enum iscsi_cnx_state_e {
 	STATE_CLEANUP_WAIT		= 6,
 } iscsi_cnx_state_e;
 
+typedef enum iscsi_snx_r_stage_e {
+	R_STAGE_NO_CHANGE		= 0,
+	R_STAGE_SESSION_CLEANUP		= 1,
+	R_STAGE_SESSION_REOPEN		= 2,
+} iscsi_snx_r_stage_e;
+
 typedef enum iscsi_event_e {
 	EV_UNKNOWN			= 0,
 	EV_CNX_RECV_PDU			= 1,
@@ -243,6 +249,7 @@ typedef struct iscsi_session {
 	/* connection reopens during recovery */
 	int reopen_cnt;
 	queue_task_t reopen_qtask;
+	iscsi_snx_r_stage_e r_stage;
 
 	/* session's processing */
 	actor_t mainloop;
@@ -343,7 +350,7 @@ extern int ksession_send_pdu_end(int ctrl_fd, iscsi_session_t *session,
 		iscsi_conn_t *conn);
 extern int ksession_set_param(int ctrl_fd, iscsi_conn_t *conn,
 		iscsi_param_e param, uint32_t value);
-extern int ksession_stop_cnx(int ctrl_fd, iscsi_conn_t *conn);
+extern int ksession_stop_cnx(int ctrl_fd, iscsi_conn_t *conn, int flag);
 extern int ksession_start_cnx(int ctrl_fd, iscsi_conn_t *conn);
 extern int ksession_recv_pdu_begin(int ctrl_fd, iscsi_conn_t *conn,
 		ulong_t recv_handle, ulong_t *pdu_handle, int *pdu_size);

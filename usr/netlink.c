@@ -435,7 +435,7 @@ ksession_set_param(int ctrl_fd, iscsi_conn_t *conn, iscsi_param_e param,
 }
 
 int
-ksession_stop_cnx(int ctrl_fd, iscsi_conn_t *conn)
+ksession_stop_cnx(int ctrl_fd, iscsi_conn_t *conn, int flag)
 {
 	int rc;
 	struct iscsi_uevent ev;
@@ -445,6 +445,7 @@ ksession_stop_cnx(int ctrl_fd, iscsi_conn_t *conn)
 	ev.type = ISCSI_UEVENT_STOP_CNX;
 	ev.transport_id = 0; /* FIXME: hardcoded */
 	ev.u.stop_cnx.cnx_handle = conn->handle;
+	ev.u.stop_cnx.flag = flag;
 
 	if ((rc = __ksession_call(ctrl_fd, &ev, sizeof(ev))) < 0) {
 		log_error("can't stop connection 0x%p with "

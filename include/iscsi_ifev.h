@@ -81,6 +81,7 @@ struct iscsi_uevent {
 		} start_cnx;
 		struct msg_stop_cnx {
 			uint64_t	cnx_handle;
+			uint32_t	flag;
 		} stop_cnx;
 	} u;
 	union {
