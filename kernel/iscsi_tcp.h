@@ -79,10 +79,11 @@
 #define ISCSI_PAD_LEN		4
 #define ISCSI_DRAFT20_VERSION	0x00
 #define ISCSI_R2T_MAX		16
-#define ISCSI_XMIT_CMDS_MAX	128		/* must be power of 2 */
+#define ISCSI_XMIT_CMDS_MAX	64		/* must be power of 2 */
 #define ISCSI_IMM_CMDS_MAX	32		/* must be power of 2 */
 #define ISCSI_IMM_ITT_OFFSET	0x1000
-#define ISCSI_CMD_DATAPOOL_SIZE	32
+#define ISCSI_SG_TABLESIZE	128
+#define ISCSI_CMD_PER_LUN	128
 
 struct iscsi_queue {
 	struct kfifo		*queue;		/* FIFO Queue */
@@ -219,6 +220,7 @@ struct iscsi_data_task {
 	char			hdrext[sizeof(__u32)];	/* Header-Digest */
 	struct list_head	item;			/* data queue item */
 };
+#define ISCSI_DTASK_DEFAULT_MAX	ISCSI_SG_TABLESIZE * PAGE_SIZE / 512
 
 struct iscsi_mgmt_task {
 	struct iscsi_hdr hdr;			/* mgmt. PDU */
@@ -230,11 +232,6 @@ struct iscsi_mgmt_task {
 	struct iscsi_buf sendbuf;		/* in progress buffer */
 	int		sent;
 	uint32_t	itt;			/* this ITT */
-};
-
-union iscsi_union_task {
-	struct iscsi_data_task	dtask;
-	struct iscsi_mgmt_task	mtask;
 };
 
 struct iscsi_r2t_info {

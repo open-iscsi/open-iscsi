@@ -342,11 +342,6 @@ iscsi_solicit_data_init(struct iscsi_conn *conn, struct iscsi_cmd_task *ctask,
 	struct scsi_cmnd *sc = ctask->sc;
 
 	dtask = mempool_alloc(ctask->datapool, GFP_ATOMIC);
-	if (dtask == NULL) {
-		printk("iSCSI: datapool: out of memory itt 0x%x\n",
-		       ctask->itt);
-		return -ENOMEM;
-	}
 	hdr = &dtask->hdr;
 	hdr->rsvd2[0] = hdr->rsvd2[1] = hdr->rsvd3 =
 		hdr->rsvd4 = hdr->rsvd5 = hdr->rsvd6 = 0;
@@ -1147,11 +1142,6 @@ iscsi_solicit_data_cont(struct iscsi_conn *conn, struct iscsi_cmd_task *ctask,
 	int new_offset;
 
 	dtask = mempool_alloc(ctask->datapool, GFP_ATOMIC);
-	if (dtask == NULL) {
-		printk("iSCSI: datapool: out of memory itt 0x%x\n",
-		       ctask->itt);
-		return -ENOMEM;
-	}
 	hdr = &dtask->hdr;
 	hdr->flags = 0;
 	hdr->rsvd2[0] = hdr->rsvd2[1] = hdr->rsvd3 =
@@ -1199,11 +1189,6 @@ iscsi_unsolicit_data_init(struct iscsi_conn *conn, struct iscsi_cmd_task *ctask)
 	struct iscsi_data_task *dtask;
 
 	dtask = mempool_alloc(ctask->datapool, GFP_ATOMIC);
-	if (dtask == NULL) {
-		printk("iSCSI: datapool: out of memory itt 0x%x\n",
-		       ctask->itt);
-		return -ENOMEM;
-	}
 	hdr = &dtask->hdr;
 	hdr->rsvd2[0] = hdr->rsvd2[1] = hdr->rsvd3 =
 		hdr->rsvd4 = hdr->rsvd5 = hdr->rsvd6 = 0;
@@ -1663,6 +1648,7 @@ out:
 #define FAILURE_SESSION_FAILED		2
 #define FAILURE_SESSION_FREED		3
 #define FAILURE_WINDOW_CLOSED		4
+#define FAILURE_SESSION_TERMINATE	5
 
 int
 iscsi_queuecommand(struct scsi_cmnd *sc, void (*done)(struct scsi_cmnd *))
@@ -1685,6 +1671,9 @@ iscsi_queuecommand(struct scsi_cmnd *sc, void (*done)(struct scsi_cmnd *))
 	if (session->state != ISCSI_STATE_LOGGED_IN) {
 		if (session->state == ISCSI_STATE_FAILED) {
 			reason = FAILURE_SESSION_FAILED;
+			goto fault;
+		} else if (session->state == ISCSI_STATE_TERMINATE) {
+			reason = FAILURE_SESSION_TERMINATE;
 			goto fault;
 		}
 		reason = FAILURE_SESSION_FREED;
@@ -2350,7 +2339,7 @@ iscsi_r2tpool_alloc(struct iscsi_session *session)
 		 * Data-Out PDU's within R2T-sequence can be quite big;
 		 * using mempool
 		 */
-		ctask->datapool = mempool_create(ISCSI_CMD_DATAPOOL_SIZE,
+		ctask->datapool = mempool_create(ISCSI_DTASK_DEFAULT_MAX,
 						 mempool_alloc_slab,
 						 mempool_free_slab,
 						 taskcache);
@@ -2392,9 +2381,8 @@ static struct scsi_host_template iscsi_sht = {
 				  ISCSI_DRV_VERSION,
         .queuecommand           = iscsi_queuecommand,
 	.can_queue		= ISCSI_XMIT_CMDS_MAX - 1,
-	.sg_tablesize		= 128,
-	.max_sectors		= 128,
-	.cmd_per_lun		= 128,
+	.sg_tablesize		= ISCSI_SG_TABLESIZE,
+	.cmd_per_lun		= ISCSI_CMD_PER_LUN,
         .eh_abort_handler       = iscsi_eh_abort,
         .use_clustering         = DISABLE_CLUSTERING,
 	.proc_name		= "iscsi_tcp",
@@ -2637,7 +2625,7 @@ iscsi_tcp_init(void)
 	int error;
 
 	taskcache = kmem_cache_create("iscsi_taskcache",
-			      sizeof(union iscsi_union_task), 0, 0, NULL, NULL);
+			sizeof(struct iscsi_data_task), 0, 0, NULL, NULL);
 	if (!taskcache)
 		return -ENOMEM;
 
