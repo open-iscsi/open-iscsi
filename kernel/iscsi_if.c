@@ -22,6 +22,11 @@
 #include <iscsi_if.h>
 #include <iscsi_ifev.h>
 
+MODULE_AUTHOR("Dmitry Yusupov <dmitry_yus@yahoo.com>, "
+	      "Alex Aizman <itn780@yahoo.com>");
+MODULE_DESCRIPTION("iSCSI Open Interface");
+MODULE_LICENSE("GPL");
+
 static struct iscsi_transport *transport_table[ISCSI_TRANSPORT_MAX];
 static struct sock *nls;
 static int daemon_pid;
