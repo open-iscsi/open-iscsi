@@ -46,7 +46,7 @@ MODULE_DESCRIPTION("iSCSI/TCP data-path");
 MODULE_LICENSE("GPL");
 
 /* #define DEBUG_TCP */
-#define DEBUG_SCSI
+/* #define DEBUG_SCSI */
 #define DEBUG_ASSERT
 
 #ifdef DEBUG_TCP
@@ -933,12 +933,12 @@ more:
 	}
 
 	debug_tcp("f, processed %d from out of %d padding %d\n",
-	       conn->in.offset - offset, len, conn->in.padding);
+	       conn->in.offset - offset, (int)len, conn->in.padding);
 	BUG_ON(conn->in.offset - offset > len);
 
 	if (conn->in.offset - offset != len) {
 		debug_tcp("continue to process %d bytes\n",
-		       len - (conn->in.offset - offset));
+		       (int)len - (conn->in.offset - offset));
 		goto more;
 	}
 
@@ -948,7 +948,7 @@ nomore:
 
 again:
 	debug_tcp("c, processed %d from out of %d rd_desc_cnt %d\n",
-	          conn->in.offset - offset, len, rd_desc->count);
+	          conn->in.offset - offset, (int)len, (int)rd_desc->count);
 	BUG_ON(conn->in.offset - offset == 0);
 	BUG_ON(conn->in.offset - offset > len);
 
@@ -2654,7 +2654,8 @@ iscsi_set_param(iscsi_cnx_t cnxh, enum iscsi_param param, uint32_t value)
 		}
 		break;
 		case ISCSI_PARAM_MAX_XMIT_DLENGTH:
-			conn->max_xmit_dlength = value;
+			//conn->max_xmit_dlength = value;
+			conn->max_xmit_dlength = conn->max_recv_dlength;
 			break;
 		case ISCSI_PARAM_HDRDGST_EN:
 			conn->hdrdgst_en = value;
