@@ -18,6 +18,7 @@
  *
  * Credits:
  * Christoph Hellwig	: For reviewing the code, for comments and suggestions.
+ * Mike Christie	: For reviewing the code, for comments and suggestions.
  */
 
 #include <linux/types.h>
