@@ -861,6 +861,7 @@ iscsi_cmd_init(iscsi_conn_t *conn, iscsi_cmd_task_t *ctask,
 		/* assume read op */
 		ctask->hdr.flags |= ISCSI_FLAG_CMD_FINAL;
 		ctask->in_progress = IN_PROGRESS_READ;
+		zero_data(ctask->hdr.dlength);
 	}
 
 	if (conn->hdrdgst_en) {
@@ -1734,6 +1735,11 @@ iscsi_data_xmit(iscsi_conn_t *conn)
 			spin_unlock_bh(&conn->lock);
 			return -EAGAIN;
 		}
+
+		/* check if we have something for immediate delivery */
+		if (conn->immqueue.cons != conn->immqueue.prod) {
+			break;
+		}
 	}
 
 	/* process immediate queue */
@@ -1750,6 +1756,12 @@ iscsi_data_xmit(iscsi_conn_t *conn)
 
 		if (mtask->itt == ISCSI_RESERVED_TAG)
 			__enqueue(&session->immpool, mtask);
+
+		/* re-schedule xmitqueue. have to do that in case
+		 * when immediate PDU interrupts xmitqueue loop */
+		if (conn->xmitqueue.cons != conn->xmitqueue.prod) {
+			schedule_work(&conn->xmitwork);
+		}
 	}
 	spin_unlock_bh(&conn->lock);
 

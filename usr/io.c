@@ -303,9 +303,7 @@ iscsi_send_pdu(iscsi_conn_t *conn, iscsi_hdr_t *hdr,
 				    (struct iscsi_txt_hdr *) hdr;
 
 				log_debug(4,
-					 "sending text pdu with itt %u, "
-					 "CmdSN %u:",
-					 ntohl(text_hdr->itt),
+					 "sending text pdu with CmdSN %x:",
 					 ntohl(text_hdr->cmdsn));
 				iscsi_log_text(hdr, data);
 				break;
@@ -315,9 +313,8 @@ iscsi_send_pdu(iscsi_conn_t *conn, iscsi_hdr_t *hdr,
 				    (struct iscsi_nop_out_hdr *) hdr;
 
 				log_debug(4,
-					 "sending Nop-out pdu with itt %u, "
-					 "ttt %u, CmdSN %u:",
-					 ntohl(nopout_hdr->itt),
+					 "sending Nop-out pdu with "
+					 "ttt %x, CmdSN %x:",
 					 ntohl(nopout_hdr->ttt),
 					 ntohl(nopout_hdr->cmdsn));
 				iscsi_log_text(hdr, data);
