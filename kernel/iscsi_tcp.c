@@ -2635,8 +2635,7 @@ iscsi_set_param(iscsi_cnx_t cnxh, enum iscsi_param param, uint32_t value)
 		}
 		break;
 		case ISCSI_PARAM_MAX_XMIT_DLENGTH:
-			//conn->max_xmit_dlength = value;
-			conn->max_xmit_dlength = conn->max_recv_dlength;
+			conn->max_xmit_dlength = value;
 			break;
 		case ISCSI_PARAM_HDRDGST_EN:
 			conn->hdrdgst_en = value;
