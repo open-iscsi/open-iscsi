@@ -18,6 +18,7 @@
  */
 
 #include <linux/module.h>
+#include <linux/mempool.h>
 #include <net/tcp.h>
 #include <iscsi_if.h>
 #include <iscsi_ifev.h>
@@ -30,6 +31,67 @@ MODULE_LICENSE("GPL");
 static struct iscsi_transport *transport_table[ISCSI_TRANSPORT_MAX];
 static struct sock *nls;
 static int daemon_pid;
+static mempool_t *recvpool;
+LIST_HEAD(freequeue);
+spinlock_t freelock;
+
+#define	ISCSI_CTRL_PDU_MAX	DEFAULT_MAX_RECV_DATA_SEGMENT_LENGTH
+#define	ISCSI_CTRL_POOL_MAX	32
+
+static void
+iscsi_recvpool_complete(void)
+{
+	unsigned long flags;
+	struct list_head *lh, *n;
+
+	spin_lock_irqsave(&freelock, flags);
+	list_for_each_safe(lh, n, &freequeue) {
+		struct sk_buff *skb = (struct sk_buff *)((char *)lh -
+				offsetof(struct sk_buff, cb));
+		if (!skb_shared(skb)) {
+			list_del((void*)&skb->cb);
+			mempool_free(skb, recvpool);
+		}
+	}
+	spin_unlock_irqrestore(&freelock, flags);
+}
+
+static struct sk_buff*
+iscsi_alloc_skb(int len)
+{
+	struct sk_buff *skb;
+	int gfp_mask = in_interrupt() ? GFP_ATOMIC : GFP_KERNEL;
+
+	/* complete receive tasks if any */
+	iscsi_recvpool_complete();
+
+	skb = len < ISCSI_CTRL_PDU_MAX ?
+		mempool_alloc(recvpool, gfp_mask) : alloc_skb(len, gfp_mask);
+	return skb;
+}
+
+static int
+iscsi_unicast_skb(struct sk_buff *skb, int len)
+{
+	int rc;
+
+	skb_get(skb);
+	rc = netlink_unicast(nls, skb, daemon_pid, MSG_DONTWAIT);
+	if (rc < 0) {
+		if (len < ISCSI_CTRL_PDU_MAX)
+			mempool_free(skb, recvpool);
+		return rc;
+	}
+
+	if (len < ISCSI_CTRL_PDU_MAX) {
+		unsigned long flags;
+		spin_lock_irqsave(&freelock, flags);
+		list_add((void*)&skb->cb, &freequeue);
+		spin_unlock_irqrestore(&freelock, flags);
+	}
+
+	return 0;
+}
 
 int
 iscsi_control_recv_pdu(iscsi_cnx_h cp_cnx, struct iscsi_hdr *hdr,
@@ -42,7 +104,7 @@ iscsi_control_recv_pdu(iscsi_cnx_h cp_cnx, struct iscsi_hdr *hdr,
 	int len = NLMSG_SPACE(sizeof(*ev) + sizeof(struct iscsi_hdr) +
 			      data_size);
 
-	skb = alloc_skb(len, in_interrupt() ? GFP_ATOMIC : GFP_KERNEL);
+	skb = iscsi_alloc_skb(len);
 	if (!skb) {
 		return -ENOMEM;
 	}
@@ -56,8 +118,7 @@ iscsi_control_recv_pdu(iscsi_cnx_h cp_cnx, struct iscsi_hdr *hdr,
 	pdu = (char*)ev + sizeof(*ev);
 	memcpy(pdu, hdr, sizeof(struct iscsi_hdr));
 	memcpy(pdu + sizeof(struct iscsi_hdr), data, data_size);
-	skb_get(skb);
-	netlink_unicast(nls, skb, daemon_pid, MSG_DONTWAIT);
+	iscsi_unicast_skb(skb, len);
 	return 0;
 }
 EXPORT_SYMBOL_GPL(iscsi_control_recv_pdu);
@@ -70,10 +131,9 @@ iscsi_control_cnx_error(iscsi_cnx_h cp_cnx, iscsi_err_e error)
 	struct iscsi_uevent *ev;
 	int len = NLMSG_SPACE(sizeof(*ev));
 
-	skb = alloc_skb(len, in_interrupt() ? GFP_ATOMIC : GFP_KERNEL);
-	if (!skb) {
+	skb = iscsi_alloc_skb(len);
+	if (!skb)
 		return;
-	}
 
 	nlh = __nlmsg_put(skb, daemon_pid, 0, 0, (len - sizeof(*nlh)));
 	ev = NLMSG_DATA(nlh);
@@ -81,8 +141,7 @@ iscsi_control_cnx_error(iscsi_cnx_h cp_cnx, iscsi_err_e error)
 	ev->type = ISCSI_KEVENT_CNX_ERROR;
 	ev->r.cnxerror.error = error;
 	ev->r.cnxerror.cnx_handle = cp_cnx;
-	skb_get(skb);
-	netlink_unicast(nls, skb, daemon_pid, MSG_DONTWAIT);
+	iscsi_unicast_skb(skb, len);
 }
 EXPORT_SYMBOL_GPL(iscsi_control_cnx_error);
 
@@ -220,6 +279,21 @@ iscsi_if_rx(struct sock *sk, int len)
 		}
 		kfree_skb(skb);
 	}
+
+	/* now complete receive tasks */
+	iscsi_recvpool_complete();
+}
+
+static void*
+iscsi_mempool_alloc_skb(int gfp_mask, void *pool_data)
+{
+	return alloc_skb(ISCSI_CTRL_PDU_MAX, gfp_mask);
+}
+
+static void
+iscsi_mempool_free_skb(void *element, void *pool_data)
+{
+	kfree_skb(element);
 }
 
 int iscsi_register_transport(struct iscsi_transport *ops, int id)
@@ -235,14 +309,24 @@ void iscsi_unregister_transport(int id)
 }
 EXPORT_SYMBOL_GPL(iscsi_unregister_transport);
 
-int __init iscsi_if_init(void)
+static int __init
+iscsi_if_init(void)
 {
-	printk(KERN_INFO "Open-iSCSI Interface, version "
-			ISCSI_VERSION_STR " variant (" ISCSI_DATE_STR ")\n");
+	spin_lock_init(&freelock);
 
 	nls = netlink_kernel_create(NETLINK_ISCSI, iscsi_if_rx);
 	if (nls == NULL)
 		return -ENOBUFS;
+
+	recvpool = mempool_create(ISCSI_CTRL_POOL_MAX,
+			iscsi_mempool_alloc_skb, iscsi_mempool_free_skb, NULL);
+	if (!recvpool) {
+		sock_release(nls->sk_socket);
+		return -ENOMEM;
+	}
+
+	printk(KERN_INFO "Open-iSCSI Interface, version "
+			ISCSI_VERSION_STR " variant (" ISCSI_DATE_STR ")\n");
 
 	return 0;
 }
@@ -250,6 +334,7 @@ int __init iscsi_if_init(void)
 static void __exit
 iscsi_if_exit(void)
 {
+	mempool_destroy(recvpool);
 	sock_release(nls->sk_socket);
 }
 
