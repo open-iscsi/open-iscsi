@@ -23,7 +23,9 @@
 #include <scsi/scsi_host.h>
 #include <scsi/scsi_device.h>
 #include <scsi/scsi_transport.h>
+#ifdef CONFIG_SCSI_ISCSI_ATTRS
 #include <scsi/scsi_transport_iscsi.h>
+#endif
 #include <iscsi_iftrans.h>
 #include <iscsi_ifev.h>
 

@@ -154,7 +154,7 @@ iscsi_hdr_extract(struct iscsi_conn *conn)
 
 		copylen = conn->hdr_size - conn->in.hdr_offset;
 		if (copylen > conn->in.copy) {
-			printk("iSCSI: PDU gather failed! "
+			printk("iscsi_tcp: PDU gather failed! "
 			       "copylen %d conn->in.copy %d\n",
 			       copylen, conn->in.copy);
 			iscsi_control_cnx_error(conn->handle,
@@ -476,7 +476,7 @@ iscsi_hdr_recv(struct iscsi_conn *conn)
 	/* verify PDU length */
 	conn->in.datalen = ntoh24(hdr->dlength);
 	if (conn->in.datalen > conn->max_recv_dlength) {
-		printk("iSCSI: datalen %d > %d\n", conn->in.datalen,
+		printk("iscsi_tcp: datalen %d > %d\n", conn->in.datalen,
 		       conn->max_recv_dlength);
 		iscsi_control_cnx_error(conn->handle, ISCSI_ERR_DATALEN);
 		return 0;
@@ -488,7 +488,7 @@ iscsi_hdr_recv(struct iscsi_conn *conn)
 	conn->in.offset += conn->in.ahslen;
 	conn->in.copy -= conn->in.ahslen;
 	if (conn->in.copy < 0) {
-		printk("iSCSI: can't handle AHS with length %d bytes\n",
+		printk("iscsi_tcp: can't handle AHS with length %d bytes\n",
 		       conn->in.ahslen);
 		iscsi_control_cnx_error(conn->handle, ISCSI_ERR_AHSLEN);
 		return 0;
@@ -521,7 +521,7 @@ iscsi_hdr_recv(struct iscsi_conn *conn)
 
 	if (conn->in.itt < session->cmds_max) {
 		if (conn->hdrdgst_en && cdgst != rdgst) {
-			printk("iSCSI: itt %x: hdrdgst error recv 0x%x "
+			printk("iscsi_tcp: itt %x: hdrdgst error recv 0x%x "
 			       "calc 0x%x\n", conn->in.itt, rdgst, cdgst);
 			iscsi_control_cnx_error(conn->handle,
 						ISCSI_ERR_HDR_DGST);
@@ -904,7 +904,6 @@ more:
 		if (!rc && conn->in.datalen) {
 			conn->in_progress = IN_PROGRESS_DATA_RECV;
 		} else if (rc) {
-			printk("iSCSI: bad hdr rc (%d)\n", rc);
 			iscsi_control_cnx_error(conn->handle, rc);
 			return 0;
 		}
@@ -923,7 +922,6 @@ more:
 							conn->in.ctask->sent;
 				goto again;
 			}
-			printk("iSCSI: bad data rc (%d)\n", rc);
 			iscsi_control_cnx_error(conn->handle, rc);
 			return 0;
 		}
@@ -1755,7 +1753,7 @@ reject:
 
 fault:
 	spin_unlock(&session->lock);
-	printk("iSCSI: cmd 0x%x is not queued (%d)\n", sc->cmnd[0], reason);
+	printk("iscsi_tcp: cmd 0x%x is not queued (%d)\n", sc->cmnd[0], reason);
 	sc->sense_buffer[0] = 0x70;
 	sc->sense_buffer[2] = NOT_READY;
 	sc->sense_buffer[7] = 0x6;
@@ -2025,7 +2023,7 @@ iscsi_conn_bind(iscsi_snx_t snxh, iscsi_cnx_t cnxh, uint32_t transport_fd,
 
 	/* lookup for existing socket */
 	if (!(sock = sockfd_lookup(transport_fd, &err))) {
-		printk("iSCSI: sockfd_lookup failed %d\n", err);
+		printk("iscsi_tcp: sockfd_lookup failed %d\n", err);
 		return -EEXIST;
 	}
 
@@ -2035,7 +2033,7 @@ iscsi_conn_bind(iscsi_snx_t snxh, iscsi_cnx_t cnxh, uint32_t transport_fd,
 		if (cnx == conn) {
 			if (conn->c_stage != ISCSI_CNX_STOPPED ||
 			    conn->stop_stage == STOP_CNX_TERM) {
-				printk("iSCSI: can't bind non-stopped "
+				printk("iscsi_tcp: can't bind non-stopped "
 				       "connection (%d:%d)\n", conn->c_stage,
 				       conn->stop_stage);
 				spin_unlock_bh(&session->conn_lock);
@@ -2094,7 +2092,7 @@ iscsi_conn_start(iscsi_cnx_t cnxh)
 	/* FF phase warming up... */
 
 	if (session == NULL) {
-		printk("iSCSI: can't start not-binded connection\n");
+		printk("iscsi_tcp: can't start not-binded connection\n");
 		return -EPERM;
 	}
 
@@ -2576,7 +2574,7 @@ iscsi_session_create(iscsi_snx_t handle, uint32_t initial_cmdsn,
 		goto r2tpool_alloc_fault;
 
 	if (!try_module_get(THIS_MODULE)) {
-		printk("iSCSI: can not reserve module\n");
+		printk("iscsi_tcp: can not reserve module\n");
 		goto module_get_fault;
 	}
 
@@ -2729,7 +2727,7 @@ iscsi_set_param(iscsi_cnx_t cnxh, enum iscsi_param param, uint32_t value)
 			break;
 		}
 	} else {
-		printk("iSCSI: can not change parameter [%d]\n", param);
+		printk("iscsi_tcp: can not change parameter [%d]\n", param);
 	}
 
 	return 0;
