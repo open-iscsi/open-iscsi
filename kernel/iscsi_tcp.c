@@ -46,7 +46,7 @@ MODULE_LICENSE("GPL");
 
 /* #define DEBUG_TCP */
 /* #define DEBUG_SCSI */
-#define DEBUG_ASSERT
+/* #define DEBUG_ASSERT */
 
 #ifdef DEBUG_TCP
 #define debug_tcp(fmt...) printk("tcp: " fmt)
