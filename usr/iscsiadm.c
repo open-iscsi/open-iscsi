@@ -505,7 +505,7 @@ main(int argc, char **argv)
 				rc = -1;
 				goto out;
 			}
-			if (op == OP_UPDATE) {
+			if (!do_login && !do_logout && op == OP_UPDATE) {
 				if (!name || !value) {
 					log_error("update require name and "
 						  "value");
@@ -517,7 +517,7 @@ main(int argc, char **argv)
 					log_error("can not set parameter");
 					goto out;
 				}
-			} else {
+			} else if (!do_logout && !do_logout) {
 				log_error("operation is not supported.");
 				rc = -1;
 				goto out;

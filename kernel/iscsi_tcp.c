@@ -2131,6 +2131,20 @@ iscsi_conn_create(iscsi_snx_h snxh, iscsi_cnx_h handle,
 		return NULL;
 	}
 
+	/* allocate initial PDU receive place holder */
+	if (conn->max_recv_dlength <= PAGE_SIZE)
+		conn->data = kmalloc(conn->max_recv_dlength, GFP_KERNEL);
+	else
+		conn->data = (void*)__get_free_pages(GFP_KERNEL,
+					get_order(conn->max_recv_dlength));
+	if (conn->data == NULL) {
+		iscsi_enqueue(&session->immpool, conn->login_mtask);
+		iscsi_queue_free(&conn->immqueue);
+		iscsi_queue_free(&conn->xmitqueue);
+		kfree(conn);
+		return NULL;
+	}
+
 	return conn;
 }
 
@@ -2167,6 +2181,12 @@ iscsi_conn_destroy(iscsi_cnx_h cnxh)
 	}
 	spin_unlock(&conn->lock);
 	spin_unlock_irqrestore(session->host->host_lock, flags);
+
+	if (conn->max_recv_dlength <= PAGE_SIZE)
+		kfree(conn->data);
+	else
+		free_pages((unsigned long)conn->data,
+					get_order(conn->max_recv_dlength));
 
 	iscsi_enqueue(&session->immpool, conn->login_mtask);
 
@@ -2537,9 +2557,26 @@ iscsi_set_param(iscsi_cnx_h cnxh, iscsi_param_e param, int value)
 
 	if (conn->c_stage == ISCSI_CNX_INITIAL_STAGE) {
 		switch(param) {
-		case ISCSI_PARAM_MAX_RECV_DLENGTH:
+		case ISCSI_PARAM_MAX_RECV_DLENGTH: {
+			char *saveptr = conn->data;
+
+			if (value <= PAGE_SIZE)
+				conn->data = kmalloc(value, GFP_KERNEL);
+			else
+				conn->data = (void*)__get_free_pages(GFP_KERNEL,
+					get_order(value));
+			if (conn->data == NULL) {
+				conn->data = saveptr;
+				return -ENOMEM;
+			}
+			if (conn->max_recv_dlength <= PAGE_SIZE)
+				kfree(saveptr);
+			else
+				free_pages((unsigned long)saveptr,
+					get_order(conn->max_recv_dlength));
 			conn->max_recv_dlength = value;
-			break;
+		}
+		break;
 		case ISCSI_PARAM_MAX_XMIT_DLENGTH:
 			conn->max_xmit_dlength = value;
 			break;

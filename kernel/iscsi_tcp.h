@@ -80,7 +80,6 @@
 #define ISCSI_CONN_SNDBUF_MIN	262144
 #define ISCSI_TEXT_SEPARATOR	'='
 #define ISCSI_PAD_LEN		4
-#define ISCSI_DATA_MAX		65536
 #define ISCSI_DRAFT20_VERSION	0x00
 #define ISCSI_R2T_MAX		16
 #define ISCSI_IMM_CMDS_MAX	32
@@ -132,7 +131,7 @@ typedef struct iscsi_conn {
 	uint32_t		prev_itt;
 
 	/* FIXME: do dynamic allocation by size max_recv_dlength */
-	char			data[ISCSI_DATA_MAX]; /* Data placeholder */
+	char			*data;		/* Data placeholder */
 	int			data_copied;
 
 	/* iSCSI connection-wide sequencing */
