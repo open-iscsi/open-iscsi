@@ -99,8 +99,12 @@ sub get_rc {
 	my %rc_input;
 	my ( $key, $value, $rc_file );
 
-	foreach ( @RC_PATH ){
-		$rc_file = "$_"."$rc_name",last if ( -e "$_"."$rc_name") ;
+	if (! -e "$rc_name") {
+		foreach ( @RC_PATH ){
+			$rc_file="$_"."$rc_name",last if ( -e "$_"."$rc_name");
+		}
+	} else {
+		$rc_file = $rc_name;
 	}
 
 	fatal("file $rc_name doesn't exist") if ( !$rc_file );
@@ -856,6 +860,8 @@ init();
 hotplug_agent_check();
 if (defined($opt{f})) {
 	config_read($opt{f});
+} else {
+	config_read("iscsi.conf");
 }
 if ($opt{a}) {
 	hotplug_event();
