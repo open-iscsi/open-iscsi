@@ -23,10 +23,10 @@ MODULE_AUTHOR("Dmitry Yusupov <dmitry_yus@yahoo.com>, "
 MODULE_DESCRIPTION("iSCSI/TCP data-path");
 MODULE_LICENSE("GPL");
 
-//#define DEBUG_PREV_PDU
+#define DEBUG_PREV_PDU
 //#define DEBUG_TCP
 //#define DEBUG_SCSI
-//#define DEBUG_ASSERT
+#define DEBUG_ASSERT
 
 #ifdef DEBUG_TCP
 #define debug_tcp(fmt...) printk("tcp: " fmt)
@@ -299,10 +299,19 @@ static void
 iscsi_tcp_state_change(struct sock *sk)
 {
 	iscsi_conn_t *conn = (iscsi_conn_t*)sk->sk_user_data;
+	iscsi_session_t *session = conn->session;
+	unsigned long flags;
 
-	if (sk->sk_state == TCP_CLOSE_WAIT) {
-		conn->session->state = ISCSI_STATE_FAILED;
-		wmb();
+	if (sk->sk_state == TCP_CLOSE_WAIT ||
+	    sk->sk_state == TCP_CLOSE) {
+		debug_tcp("iscsi_tcp_state_change: TCP_CLOSE\n");
+		spin_lock_irqsave(session->host->host_lock, flags);
+		conn->c_stage = ISCSI_CNX_CLEANUP_WAIT;
+		if (session->conn_cnt == 1 ||
+		    session->leadconn == conn) {
+			session->state = ISCSI_STATE_FAILED;
+		}
+		spin_unlock_irqrestore(session->host->host_lock, flags);
 		iscsi_control_cnx_error(conn->handle, ISCSI_ERR_CNX_FAILED);
 	}
 	conn->old_state_change(sk);
@@ -647,7 +656,6 @@ iscsi_solicit_data_init(iscsi_conn_t *conn, iscsi_cmd_task_t *ctask,
 		return -ENOMEM;
 	}
 	hdr = &dtask->hdr;
-	hdr->flags = 0;
 	hdr->rsvd2[0] = hdr->rsvd2[1] = hdr->rsvd3 =
 		hdr->rsvd4 = hdr->rsvd5 = hdr->rsvd6 = 0;
 	hdr->ttt = r2t->ttt;
@@ -662,6 +670,7 @@ iscsi_solicit_data_init(iscsi_conn_t *conn, iscsi_cmd_task_t *ctask,
 	if (r2t->data_length > conn->max_xmit_dlength) {
 		hton24(hdr->dlength, conn->max_xmit_dlength);
 		r2t->data_count = conn->max_xmit_dlength;
+		hdr->flags = 0;
 	} else {
 		hton24(hdr->dlength, r2t->data_length);
 		r2t->data_count = r2t->data_length;
@@ -713,7 +722,6 @@ iscsi_unsolicit_data_init(iscsi_conn_t *conn, iscsi_cmd_task_t *ctask)
 		return -ENOMEM;
 	}
 	hdr = &dtask->hdr;
-	hdr->flags = ISCSI_FLAG_CMD_FINAL;
 	hdr->rsvd2[0] = hdr->rsvd2[1] = hdr->rsvd3 =
 		hdr->rsvd4 = hdr->rsvd5 = hdr->rsvd6 = 0;
 	hdr->ttt = ISCSI_RESERVED_TAG;
@@ -728,8 +736,10 @@ iscsi_unsolicit_data_init(iscsi_conn_t *conn, iscsi_cmd_task_t *ctask)
 			    ctask->imm_data_count);
 	if (ctask->imm_data_count > conn->max_xmit_dlength) {
 		hton24(hdr->dlength, conn->max_xmit_dlength);
+		hdr->flags = 0;
 	} else {
 		hton24(hdr->dlength, ctask->imm_data_count);
+		hdr->flags = ISCSI_FLAG_CMD_FINAL;
 	}
 
 	iscsi_buf_init_virt(&ctask->headbuf, (char*)hdr, sizeof(iscsi_hdr_t));
@@ -1027,7 +1037,7 @@ iscsi_hdr_recv(iscsi_conn_t *conn)
 				mtask = (iscsi_mgmt_task_t *)
 					session->imm_cmds[conn->in.itt -
 						ISCSI_IMM_ITT_OFFSET];
-				if (conn->c_stage == ISCSI_CNX_STARTED) {
+				if (conn->login_mtask != mtask) {
 					iscsi_enqueue(&session->immpool, mtask);
 				}
 			}
@@ -1053,7 +1063,7 @@ iscsi_hdr_recv(iscsi_conn_t *conn)
 			if (!conn->in.datalen) {
 				rc = iscsi_control_recv_pdu(
 					conn->handle, hdr, NULL, 0);
-				if (conn->c_stage == ISCSI_CNX_STARTED) {
+				if (conn->login_mtask != mtask) {
 					iscsi_enqueue(&session->immpool, mtask);
 				}
 			}
@@ -1184,7 +1194,7 @@ iscsi_data_recv(iscsi_conn_t *conn)
 		rc = iscsi_control_recv_pdu(conn->handle,
 				conn->in.hdr, conn->data, conn->in.datalen);
 
-		if (mtask && conn->c_stage == ISCSI_CNX_STARTED) {
+		if (mtask && conn->login_mtask != mtask) {
 			iscsi_enqueue(&session->immpool, mtask);
 		}
 	}
@@ -1691,12 +1701,6 @@ iscsi_data_xmit(iscsi_conn_t *conn)
 	while (conn->in_progress_xmit == IN_PROGRESS_XMIT_SCSI &&
 	       (ctask = __dequeue(&conn->xmitqueue)) != NULL) {
 
-		if (conn->c_stage == ISCSI_CNX_STOPPED) {
-			__insert(&conn->xmitqueue, ctask);
-			spin_unlock_bh(&conn->lock);
-			break;
-		}
-
 		if (iscsi_ctask_xmit(conn, ctask)) {
 			__insert(&conn->xmitqueue, ctask);
 			spin_unlock_bh(&conn->lock);
@@ -1706,14 +1710,7 @@ iscsi_data_xmit(iscsi_conn_t *conn)
 
 	/* process immediate queue */
 	while ((mtask = __dequeue(&conn->immqueue)) != NULL) {
-//		iscsi_session_t *session = conn->session;
-
-//		__enqueue(&session->immpool, mtask);
-		if (conn->c_stage == ISCSI_CNX_STOPPED) {
-			__insert(&conn->immqueue, mtask);
-			spin_unlock_bh(&conn->lock);
-			break;
-		}
+		iscsi_session_t *session = conn->session;
 
 		conn->in_progress_xmit = IN_PROGRESS_XMIT_IMM;
 
@@ -1722,6 +1719,9 @@ iscsi_data_xmit(iscsi_conn_t *conn)
 			spin_unlock_bh(&conn->lock);
 			return -EAGAIN;
 		}
+
+		if (mtask->itt == ISCSI_RESERVED_TAG)
+			__enqueue(&session->immpool, mtask);
 	}
 	spin_unlock_bh(&conn->lock);
 
@@ -1746,8 +1746,11 @@ iscsi_xmitworker(void *data)
 	/*
 	 * We serialize Xmit worker on per-connection basis.
 	 */
-	if (iscsi_data_xmit(conn)) {
-		schedule_work(&conn->xmitwork);
+	while (iscsi_data_xmit(conn)) {
+		if (conn->c_stage == ISCSI_CNX_CLEANUP_WAIT ||
+		    conn->c_stage == ISCSI_CNX_STOPPED)
+			return;
+		yield();
 	}
 }
 
@@ -1885,16 +1888,18 @@ fault:
 static int
 iscsi_eh_abort(struct scsi_cmnd *sc)
 {
+#ifdef DEBUG_SCSI
 	iscsi_cmd_task_t *ctask = (iscsi_cmd_task_t *)sc->SCp.ptr;
-	iscsi_conn_t *conn = ctask->conn;
+#endif
 
 	debug_scsi("abort [sc %lx itt 0x%x]\n", (long)sc, ctask->itt);
 
+#if 0
+	iscsi_conn_t *conn = ctask->conn;
 	if (iscsi_control_recv_pdu(conn->handle,
 			(iscsi_hdr_t*)&ctask->hdr, NULL, 0)) {
 		return FAILED;
 	}
-#if 0
 	iscsi_mgmt_task_t *mtask;
 	iscsi_session_t *session = conn->session;
 
@@ -2122,9 +2127,7 @@ iscsi_conn_destroy(iscsi_cnx_h cnxh)
 	spin_unlock(&conn->lock);
 	spin_unlock_irqrestore(session->host->host_lock, flags);
 
-	if (conn->c_stage != ISCSI_CNX_STARTED) {
-		iscsi_enqueue(&session->immpool, conn->login_mtask);
-	}
+	iscsi_enqueue(&session->immpool, conn->login_mtask);
 
 	iscsi_queue_free(&conn->xmitqueue);
 	iscsi_queue_free(&conn->immqueue);
@@ -2185,12 +2188,6 @@ iscsi_conn_start(iscsi_cnx_h cnxh)
 		scsi_scan_host(session->host);
 	}
 
-	/*
-	 * Done with login and text negotiation.
-	 * Time to free login_mtask
-	 */
-	iscsi_enqueue(&session->immpool, conn->login_mtask);
-
 	spin_lock_irqsave(session->host->host_lock, flags);
 	conn->c_stage = ISCSI_CNX_STARTED;
 	conn->cpu = session->conn_cnt % num_online_cpus();
@@ -2226,6 +2223,7 @@ iscsi_send_immpdu(iscsi_cnx_h cnxh, iscsi_hdr_t *hdr, char *data,
 	iscsi_conn_t *conn = cnxh;
 	iscsi_session_t *session = conn->session;
 	iscsi_mgmt_task_t *mtask;
+	unsigned long flags;
 
 	if (conn->c_stage == ISCSI_CNX_STARTED) {
 		mtask = iscsi_dequeue(&session->immpool);
@@ -2240,11 +2238,22 @@ iscsi_send_immpdu(iscsi_cnx_h cnxh, iscsi_hdr_t *hdr, char *data,
 		mtask = conn->login_mtask;
 	}
 
+	/*
+	 * pre-format CmdSN and ExpStatSN for outgoing PDU's.
+	 */
+	spin_lock_irqsave(session->host->host_lock, flags);
 	if (hdr->itt != ISCSI_RESERVED_TAG) {
 		hdr->itt = htonl(mtask->itt);
+		((iscsi_nopout_t*)hdr)->cmdsn = htonl(session->cmdsn);
+		if (conn->c_stage == ISCSI_CNX_STARTED) {
+			session->cmdsn++;
+		}
+	} else {
+		/* do not advance CmdSN */
+		((iscsi_nopout_t*)hdr)->cmdsn = htonl(session->cmdsn);
 	}
 	((iscsi_nopout_t*)hdr)->exp_statsn = htonl(conn->exp_statsn);
-	((iscsi_nopout_t*)hdr)->cmdsn = htonl(session->cmdsn);
+	spin_unlock_irqrestore(session->host->host_lock, flags);
 
 	memcpy(&mtask->hdr, hdr, sizeof(iscsi_hdr_t));
 	mtask->data = data;
@@ -2267,6 +2276,9 @@ iscsi_send_immpdu(iscsi_cnx_h cnxh, iscsi_hdr_t *hdr, char *data,
 			return -ENOMEM;
 		}
 	}
+
+	debug_scsi("immpdu [op 0x%x itt 0x%x datalen %d]\n",
+		   hdr->opcode, ntohl(hdr->itt), data_size);
 
 	iscsi_enqueue(&conn->immqueue, mtask);
 	schedule_work(&conn->xmitwork);

@@ -39,6 +39,7 @@
 #define ISCSI_CNX_INITIAL_STAGE		0
 #define ISCSI_CNX_STARTED		1
 #define ISCSI_CNX_STOPPED		2
+#define ISCSI_CNX_CLEANUP_WAIT		3
 
 /* Socket's Receive state machine */
 #define IN_PROGRESS_WAIT_HEADER		0x0

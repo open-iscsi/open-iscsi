@@ -118,10 +118,16 @@ iscsi_control_recv_pdu(iscsi_cnx_h cp_cnx, iscsi_hdr_t *hdr,
 	entry->cp_cnxh = (ulong_t)cp_cnx;
 	entry->pdu_size = sizeof(iscsi_hdr_t) + data_size;
 
-	spin_lock_bh(&evqueue_lock);
+	if (in_interrupt())
+		spin_lock(&evqueue_lock);
+	else
+		spin_lock_bh(&evqueue_lock);
 	recv_entry_cnt++;
 	list_add(&entry->item, &evqueue);
-	spin_unlock_bh(&evqueue_lock);
+	if (in_interrupt())
+		spin_unlock(&evqueue_lock);
+	else
+		spin_unlock_bh(&evqueue_lock);
 
 	return 0;
 }
