@@ -357,10 +357,11 @@ iscsi_if_send_reply(int pid, int seq, int type, int done, int multi,
 	mempool_zone_complete(&z_reply);
 
 	skb = mempool_zone_get_skb(&z_reply);
-	if (!skb) {
-		printk("iscsi: out of reply mempool\n");
-		return -ENOMEM;
-	}
+	/*
+	 * user is supposed to react on iferror == -ENOMEM;
+	 * see iscsi_if_rx().
+	 */
+	BUG_ON(!skb);
 
 	nlh = __nlmsg_put(skb, pid, seq, t, (len - sizeof(*nlh)));
 	nlh->nlmsg_flags = flags;
@@ -695,6 +696,8 @@ iscsi_if_rx(struct sock *sk, int len)
 				err = iscsi_if_send_reply(
 					NETLINK_CREDS(skb)->pid, nlh->nlmsg_seq,
 					nlh->nlmsg_type, 0, 0, ev, sizeof(*ev));
+				if (z_reply.allocated >= z_reply.hiwat)
+					ev->iferror = -ENOMEM;
 			} while (err < 0 && err != -ECONNREFUSED);
 			skb_pull(skb, rlen);
 		}
