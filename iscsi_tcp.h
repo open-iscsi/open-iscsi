@@ -279,7 +279,7 @@ typedef struct iscsi_cmd_task {
 	iscsi_r2t_info_t	*r2t;			/* in progress R2T */
 	iscsi_queue_t		r2tpool;
 	iscsi_queue_t		r2tqueue;
-	iscsi_r2t_info_t	*r2ts;
+	iscsi_r2t_info_t	**r2ts;
 	struct list_head	dataqueue;		/* Data-Out dataqueue */
 	mempool_t		*datapool;
 } iscsi_cmd_task_t;

@@ -23,10 +23,10 @@ MODULE_AUTHOR("Dmitry Yusupov <dmitry_yus@yahoo.com>, "
 MODULE_DESCRIPTION("iSCSI/TCP data-path");
 MODULE_LICENSE("GPL");
 
-/* #define DEBUG_PREV_PDU */
-/* #define DEBUG_TCP */
-/* #define DEBUG_SCSI */
-/* #define DEBUG_ASSERT */
+#define DEBUG_PREV_PDU
+#define DEBUG_TCP
+#define DEBUG_SCSI
+#define DEBUG_ASSERT
 
 #ifdef DEBUG_TCP
 #define debug_tcp(fmt...) printk("tcp: " fmt)
@@ -363,10 +363,9 @@ iscsi_sendhdr(iscsi_conn_t *conn, iscsi_buf_t *buf)
 	int flags = MSG_DONTWAIT;
 	int res, offset, size;
 
-	__BUG_ON(buf->sent + size > buf->size);
-
 	offset = buf->offset + buf->sent;
 	size = buf->size - buf->sent;
+	__BUG_ON(buf->sent + size > buf->size);
 	if (buf->sent + size != buf->size) {
 		flags |= MSG_MORE;
 	}
@@ -401,9 +400,8 @@ iscsi_sendpage(iscsi_conn_t *conn, iscsi_buf_t *buf, int *count, int *sent)
 	int flags = MSG_DONTWAIT;
 	int res, offset, size;
 
-	__BUG_ON(buf->sent + size > buf->size);
-
 	size = buf->size - buf->sent;
+	__BUG_ON(buf->sent + size > buf->size);
 	if (size > *count) {
 		size = *count;
 	}
@@ -446,9 +444,8 @@ iscsi_sendpage(iscsi_conn_t *conn, iscsi_buf_t *buf, int *count, int *sent)
 static inline int
 iscsi_tcp_copy(iscsi_conn_t *conn, void *buf, int buf_size)
 {
-	int sk_left = conn->in.len - conn->in.offset;
 	int buf_left = buf_size - conn->data_copied;
-	int size = min(sk_left, buf_left);
+	int size = min(conn->in.copy, buf_left);
 	int rc;
 
 	debug_tcp("tcp_copy %d bytes at offset %d copied %d\n",
@@ -480,10 +477,26 @@ static inline int
 iscsi_ctask_copy(iscsi_conn_t *conn, iscsi_cmd_task_t *ctask,
 		void *buf, int buf_size)
 {
-	int sk_left = conn->in.len - conn->in.offset;
 	int buf_left = buf_size - conn->data_copied;
-	int size = min(sk_left, buf_left);
+	int size = min(conn->in.copy, buf_left);
 	int rc;
+
+	/*
+	 * Read counters (in bytes):
+	 *
+	 *	conn->in.offset		offset within in progress SKB
+	 *	conn->in.copy		left to copy from in progress SKB
+	 *				including padding
+	 *	conn->in.copied		copied already from in progress SKB
+	 *	conn->data_copied	copied already from in progress buffer
+	 *	ctask->sent		total bytes sent up to the MidLayer
+	 *	ctask->data_count	left to copy from in progress Data-In
+	 *	buf_left		left to copy from in progress buffer
+	 */
+
+	size = min(size, ctask->data_count);
+	__BUG_ON(size <= 0);
+	__BUG_ON(ctask->sent + size > ctask->total_length);
 
 	debug_tcp("ctask_copy %d bytes at offset %d copied %d\n",
 	       size, conn->in.offset, conn->in.copied);
@@ -492,23 +505,34 @@ iscsi_ctask_copy(iscsi_conn_t *conn, iscsi_cmd_task_t *ctask,
 			   (char*)buf + conn->data_copied, size);
 	__BUG_ON(rc);
 
-	if (conn->in.opcode == ISCSI_OP_SCSI_DATA_IN) {
-		__BUG_ON(ctask->sent + size > ctask->total_length);
 #ifdef DEBUG_PREV_PDU
-		memcpy(conn->data + ctask->sent, buf, size);
-#endif
+	if (conn->in.opcode == ISCSI_OP_SCSI_DATA_IN) {
+		memcpy(conn->data + (conn->in.datalen - ctask->data_count),
+		       buf, size);
 	}
+#endif
 
 	conn->in.offset += size;
 	conn->in.copy -= size;
 	conn->in.copied += size;
 	conn->data_copied += size;
 	ctask->sent += size;
+	ctask->data_count -= size;
+
+	__BUG_ON(conn->in.copy < 0);
+	__BUG_ON(ctask->data_count < 0);
 
 	if (buf_size != conn->data_copied) {
+		if (!ctask->data_count) {
+			__BUG_ON(buf_size - conn->data_copied < 0);
+			/* done with this PDU */
+			return buf_size - conn->data_copied;
+		}
 		return -EAGAIN;
 	}
 
+	/* done with this buffer or with both - PDU and buffer */
+	conn->data_copied = 0;
 	return 0;
 }
 
@@ -745,6 +769,7 @@ iscsi_cmd_init(iscsi_conn_t *conn, iscsi_cmd_task_t *ctask,
 	if (sc->sc_data_direction == DMA_FROM_DEVICE) {
 		ctask->hdr.flags |= ISCSI_FLAG_CMD_READ | ISCSI_FLAG_CMD_FINAL;
 		ctask->in_progress = IN_PROGRESS_READ;
+		zero_data(ctask->hdr.dlength);
 	} else if (sc->sc_data_direction == DMA_TO_DEVICE) {
 		ctask->hdr.flags |= ISCSI_FLAG_CMD_WRITE;
 		ctask->in_progress = IN_PROGRESS_WRITE;
@@ -787,6 +812,10 @@ iscsi_cmd_init(iscsi_conn_t *conn, iscsi_cmd_task_t *ctask,
 					ctask->total_length) - ctask->imm_count;
 			} else {
 				ctask->imm_data_count = 0;
+			}
+			if (!ctask->imm_data_count) {
+				/* No unsolicit Data-Out's */
+				ctask->hdr.flags |= ISCSI_FLAG_CMD_FINAL;
 			}
 			ctask->data_count = ctask->total_length -
 					    ctask->imm_count -
@@ -936,7 +965,7 @@ iscsi_hdr_recv(iscsi_conn_t *conn)
 
 		debug_scsi("rsp [op 0x%x cid %d sc %lx itt 0x%x len %d]\n",
 			   hdr->opcode, conn->id, (long)ctask->sc, ctask->itt,
-			   ctask->total_length);
+			   conn->in.datalen);
 
 		switch(conn->in.opcode) {
 		case ISCSI_OP_SCSI_CMD_RSP:
@@ -1037,12 +1066,18 @@ iscsi_data_recv(iscsi_conn_t *conn)
 		for (i=ctask->sg_count; i<sc->use_sg; i++) {
 			char *dest =(char*)page_address(sg[i].page) +
 						sg[i].offset;
-			if (iscsi_ctask_copy(conn, ctask, dest, sg->length)) {
-				rc = -EAGAIN;
+			if ((rc = iscsi_ctask_copy(conn, ctask, dest,
+					     sg->length)) == -EAGAIN) {
+				/* continue with next SKB/PDU */
 				goto exit;
 			}
-			conn->data_copied = 0;
-			ctask->sg_count++;
+			if (!rc) {
+				ctask->sg_count++;
+			}
+			if (!ctask->data_count) {
+				rc = 0;
+				break;
+			}
 		}
 	    } else {
 		if (iscsi_ctask_copy(conn, ctask, sc->request_buffer,
@@ -1135,37 +1170,45 @@ iscsi_r2t_rsp(iscsi_conn_t *conn, iscsi_cmd_task_t *ctask)
 	/* FIXME: detect missing R2T by using R2TSN */
 
 	/* fill-in new R2T associated with the task */
-	r2t = iscsi_dequeue(&ctask->r2tpool);
+	spin_lock(&conn->lock);
+	r2t = __dequeue(&ctask->r2tpool);
 	if (r2t == NULL) {
+		spin_unlock(&conn->lock);
 		return ISCSI_ERR_PROTO;
 	}
 	r2t->data_length = ntohl(rhdr->data_length);
 	if (r2t->data_length == 0 ||
 	    r2t->data_length > session->max_burst) {
-		iscsi_enqueue(&ctask->r2tpool, r2t);
+		__enqueue(&ctask->r2tpool, r2t);
+		spin_unlock(&conn->lock);
 		return ISCSI_ERR_DATALEN;
 	}
 	if (ctask->hdr.lun[1] != rhdr->lun[1]) {
-		iscsi_enqueue(&ctask->r2tpool, r2t);
+		__enqueue(&ctask->r2tpool, r2t);
+		spin_unlock(&conn->lock);
 		return ISCSI_ERR_LUN;
 	}
 	r2t->data_offset = ntohl(rhdr->data_offset);
 	if (r2t->data_offset + r2t->data_length > ctask->total_length) {
-		iscsi_enqueue(&ctask->r2tpool, r2t);
+		__enqueue(&ctask->r2tpool, r2t);
+		spin_unlock(&conn->lock);
 		return ISCSI_ERR_DATALEN;
 	}
 	r2t->ttt = rhdr->ttt; /* no flip */
 
 	if ((rc = iscsi_solicit_data_init(conn, ctask, r2t))) {
-		iscsi_enqueue(&ctask->r2tpool, r2t);
+		__enqueue(&ctask->r2tpool, r2t);
+		spin_unlock(&conn->lock);
 		return rc;
 	}
 
-	iscsi_enqueue(&ctask->r2tqueue, r2t);
 	ctask->in_progress |= IN_PROGRESS_SOLICIT_HEAD;
+	__enqueue(&ctask->r2tqueue, r2t);
 
-	iscsi_enqueue(&conn->xmitqueue, ctask);
+	__enqueue(&conn->xmitqueue, ctask);
 	schedule_work(&conn->xmitwork);
+
+	spin_unlock(&conn->lock);
 
 	return 0;
 }
@@ -1270,6 +1313,11 @@ iscsi_data_rsp(iscsi_conn_t *conn, iscsi_cmd_task_t *ctask)
 	int max_cmdsn = ntohl(rhdr->max_cmdsn);
 	int exp_cmdsn = ntohl(rhdr->exp_cmdsn);
 
+	/*
+	 * setup Data-In decrimental counter
+	 */
+	ctask->data_count = conn->in.datalen;
+
 	if (conn->in.datalen == 0) {
 		return 0;
 	}
@@ -1287,8 +1335,6 @@ iscsi_data_rsp(iscsi_conn_t *conn, iscsi_cmd_task_t *ctask)
 
 	ctask->data_offset = ntohl(rhdr->offset);
 	if (ctask->data_offset + conn->in.datalen > ctask->total_length) {
-		printk("iSCSI: bad data_offset %d datalen %d total_length %d\n",
-		    ctask->data_offset, conn->in.datalen, ctask->total_length);
 		return ISCSI_ERR_DATA_OFFSET;
 	}
 
@@ -1376,6 +1422,9 @@ static int
 iscsi_ctask_xmit(iscsi_conn_t *conn, iscsi_cmd_task_t *ctask)
 {
 	iscsi_r2t_info_t *r2t;
+#ifdef DEBUG_ASSERT
+	iscsi_session_t *session = conn->session;
+#endif
 
 	if (ctask->in_progress & IN_PROGRESS_HEAD) {
 		if (iscsi_sendhdr(conn, &ctask->headbuf)) {
@@ -1987,18 +2036,8 @@ iscsi_conn_start(iscsi_cnx_h cnxh)
 	unsigned long flags;
 
 	if (session == NULL) {
-		printk("iSCSI: can start not-binded connection\n");
+		printk("iSCSI: can't start not-binded connection\n");
 		return -EPERM;
-	}
-
-	/*
-	 * This is the right place to calculate all kind of contstants
-	 * per-connection. Since sequence of set_param() calls gets called
-	 * rigth after cnx_bind().
-	 */
-	conn->hdr_size = sizeof(iscsi_hdr_t);
-	if (conn->hdrdgst_en) {
-		conn->hdr_size += sizeof(__u32);
 	}
 
 	if (session->state == ISCSI_STATE_LOGGED_IN &&
@@ -2067,11 +2106,78 @@ iscsi_send_immpdu(iscsi_cnx_h cnxh, iscsi_hdr_t *hdr, char *data)
 	return 0;
 }
 
+static void
+iscsi_r2tpool_free(iscsi_session_t *session)
+{
+	int i;
+
+	for (i=0; i<session->cmds_max; i++) {
+		mempool_destroy(session->cmds[i]->datapool);
+		kfree(session->cmds[i]->r2tqueue.pool);
+		iscsi_pool_free(&session->cmds[i]->r2tpool,
+				(void**)session->cmds[i]->r2ts);
+	}
+}
+
+static int
+iscsi_r2tpool_alloc(iscsi_session_t *session)
+{
+	int i;
+	int cmd_i;
+
+	/* initialize per-task R2T queue with size based on
+	 * session's login result MaxOutstandingR2T */
+	for (cmd_i=0; cmd_i<session->cmds_max; cmd_i++) {
+		iscsi_cmd_task_t *ctask = session->cmds[cmd_i];
+
+		/* now initialize per-task R2T pool */
+		if (iscsi_pool_init(&ctask->r2tpool, session->max_r2t,
+			(void***)&ctask->r2ts, sizeof(iscsi_r2t_info_t),
+			NULL)) {
+			goto r2t_alloc_fault;
+		}
+
+		/* now initialize per-task R2T queue */
+		if (iscsi_queue_init(&ctask->r2tqueue, session->max_r2t,
+				     NULL)) {
+			iscsi_pool_free(&ctask->r2tpool, (void**)ctask->r2ts);
+			goto r2t_alloc_fault;
+		}
+
+		/*
+		 * since under some configurations number of
+		 * Data-Out PDU's within R2T-sequence can be quite big
+		 * we are using mempool
+		 */
+		ctask->datapool = mempool_create(ISCSI_CMD_DATAPOOL_SIZE,
+						 mempool_alloc_slab,
+						 mempool_free_slab,
+						 taskcache);
+		if (ctask->datapool == NULL) {
+			kfree(ctask->r2tqueue.pool);
+			iscsi_pool_free(&ctask->r2tpool, (void**)ctask->r2ts);
+			goto r2t_alloc_fault;
+		}
+		INIT_LIST_HEAD(&ctask->dataqueue);
+	}
+
+	return 0;
+
+r2t_alloc_fault:
+	for (i=0; i<cmd_i; i++) {
+		mempool_destroy(session->cmds[i]->datapool);
+		kfree(session->cmds[i]->r2tqueue.pool);
+		iscsi_pool_free(&session->cmds[i]->r2tpool,
+				(void**)session->cmds[i]->r2ts);
+	}
+	return -ENOMEM;
+}
+
 static iscsi_snx_h
 iscsi_session_create(iscsi_snx_h handle, int host_no,
 		struct scsi_transport_template *tt, int initial_cmdsn)
 {
-	int cmd_i, i;
+	int cmd_i;
 	iscsi_session_t *session;
 	struct Scsi_Host *host;
 	int res;
@@ -2123,6 +2229,8 @@ iscsi_session_create(iscsi_snx_h handle, int host_no,
 	session->max_cmdsn = initial_cmdsn + 1;
 	session->handle = handle;
 
+	session->max_r2t = 1;
+
 	if ((res=scsi_add_host(host, NULL))) {
 		printk("can not add host_no %d (%d)\n", host_no, res);
 		goto add_host_fault;
@@ -2142,42 +2250,6 @@ iscsi_session_create(iscsi_snx_h handle, int host_no,
 	spin_lock_init(&session->conn_lock);
 	INIT_LIST_HEAD(&session->connections);
 
-	/* initialize per-task R2T queue with size based on
-	 * session's login result MaxOutstandingR2T */
-	for (cmd_i=0; cmd_i<session->cmds_max; cmd_i++) {
-		iscsi_cmd_task_t *ctask = session->cmds[cmd_i];
-
-		/* now initialize per-task R2T pool */
-		if (iscsi_pool_init(&ctask->r2tpool, session->max_r2t,
-			(void***)&ctask->r2ts, sizeof(iscsi_r2t_info_t),
-			NULL)) {
-			goto r2t_alloc_fault;
-		}
-
-		/* now initialize per-task R2T queue */
-		if (iscsi_queue_init(&ctask->r2tqueue, session->max_r2t,
-				     NULL)) {
-			iscsi_pool_free(&ctask->r2tpool, (void**)ctask->r2ts);
-			goto r2t_alloc_fault;
-		}
-
-		/*
-		 * since under some configurations number of
-		 * Data-Out PDU's within R2T-sequence can be quite big
-		 * we are using mempool
-		 */
-		ctask->datapool = mempool_create(ISCSI_CMD_DATAPOOL_SIZE,
-						 mempool_alloc_slab,
-						 mempool_free_slab,
-						 taskcache);
-		if (ctask->datapool == NULL) {
-			kfree(ctask->r2tqueue.pool);
-			iscsi_pool_free(&ctask->r2tpool, (void**)ctask->r2ts);
-			goto r2t_alloc_fault;
-		}
-		INIT_LIST_HEAD(&ctask->dataqueue);
-	}
-
 	/* initialize immediate commands pool */
 	if (iscsi_pool_init(&session->immpool, session->imm_max,
 		(void***)&session->imm_cmds, sizeof(iscsi_mgmt_task_t),
@@ -2189,16 +2261,15 @@ iscsi_session_create(iscsi_snx_h handle, int host_no,
 		session->imm_cmds[cmd_i]->itt = ISCSI_IMM_ITT_OFFSET + cmd_i;
 	}
 
+	if (iscsi_r2tpool_alloc(session)) {
+		goto r2tpool_alloc_fault;
+	}
+
 	return session;
 
+r2tpool_alloc_fault:
+	iscsi_pool_free(&session->immpool, (void**)session->imm_cmds);
 immpool_alloc_fault:
-r2t_alloc_fault:
-	for (i=0; i<cmd_i; i++) {
-		mempool_destroy(session->cmds[i]->datapool);
-		kfree(session->cmds[i]->r2tqueue.pool);
-		iscsi_pool_free(&session->cmds[i]->r2tpool,
-				(void**)session->cmds[i]->r2ts);
-	}
 	iscsi_pool_free(&session->cmdpool, (void**)session->cmds);
 cmdpool_alloc_fault:
 	scsi_remove_host(host);
@@ -2214,14 +2285,8 @@ static void
 iscsi_session_destroy(iscsi_snx_h snxh)
 {
 	iscsi_session_t *session = snxh;
-	int i;
 
-	for (i=0; i<session->cmds_max; i++) {
-		mempool_destroy(session->cmds[i]->datapool);
-		kfree(session->cmds[i]->r2tqueue.pool);
-		iscsi_pool_free(&session->cmds[i]->r2tpool,
-				(void**)session->cmds[i]->r2ts);
-	}
+	iscsi_r2tpool_free(session);
 	iscsi_pool_free(&session->cmdpool, (void**)session->cmds);
 	scsi_remove_host(session->host);
 	scsi_host_put(session->host);
@@ -2229,7 +2294,7 @@ iscsi_session_destroy(iscsi_snx_h snxh)
 	kfree(session);
 }
 
-static void
+static int
 iscsi_set_param(iscsi_cnx_h cnxh, iscsi_param_e param, int value)
 {
 	iscsi_conn_t *conn = cnxh;
@@ -2245,6 +2310,10 @@ iscsi_set_param(iscsi_cnx_h cnxh, iscsi_param_e param, int value)
 			break;
 		case ISCSI_PARAM_HDRDGST_EN:
 			conn->hdrdgst_en = value;
+			conn->hdr_size = sizeof(iscsi_hdr_t);
+			if (conn->hdrdgst_en) {
+				conn->hdr_size += sizeof(__u32);
+			}
 			break;
 		case ISCSI_PARAM_DATADGST_EN:
 			conn->datadgst_en = value;
@@ -2254,6 +2323,10 @@ iscsi_set_param(iscsi_cnx_h cnxh, iscsi_param_e param, int value)
 			break;
 		case ISCSI_PARAM_MAX_R2T:
 			session->max_r2t = value;
+			iscsi_r2tpool_free(session);
+			if (iscsi_r2tpool_alloc(session)) {
+				return -ENOMEM;
+			}
 			break;
 		case ISCSI_PARAM_IMM_DATA_EN:
 			session->imm_data_en = value;
@@ -2285,6 +2358,8 @@ iscsi_set_param(iscsi_cnx_h cnxh, iscsi_param_e param, int value)
 	} else {
 		printk("iSCSI: can not change parameter [%d]\n", param);
 	}
+
+	return 0;
 }
 
 int

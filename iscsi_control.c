@@ -528,49 +528,63 @@ iscsi_add_connection(iscsi_provider_t *provider, int host_no,
 
 	if ((cnx->handle = provider->ops.create_cnx(
 				session->handle, cnx, sock, cid)) == NULL) {
-		kfree(cnx);
-		return -EIO;
+		goto create_cnx_fail;
 	}
 
 	if (provider->ops.bind_cnx(session->handle, cnx->handle, cid == 0)) {
-		provider->ops.destroy_cnx(cnx->handle);
-		kfree(cnx);
-		return -ESRCH;
+		goto bind_cnx_fail;
 	}
 
-	/* leading connection */
+	/* the only leading connection */
 	if (cid == 0) {
 		session->leadcnx = cnx;
+		/* setup session's parameters once */
+		if (provider->ops.set_param(cnx->handle,
+			ISCSI_PARAM_INITIAL_R2T_EN,
+			initiator.sp.initial_r2t_en))
+			goto setparam_fail;
+		if (provider->ops.set_param(cnx->handle,
+			ISCSI_PARAM_MAX_R2T, initiator.sp.max_r2t))
+			goto setparam_fail;
+		if (provider->ops.set_param(cnx->handle,
+			ISCSI_PARAM_IMM_DATA_EN, initiator.sp.imm_data_en))
+			goto setparam_fail;
+		if (provider->ops.set_param(cnx->handle,
+			ISCSI_PARAM_FIRST_BURST, initiator.sp.first_burst))
+			goto setparam_fail;
+		if (provider->ops.set_param(cnx->handle,
+			ISCSI_PARAM_MAX_BURST, initiator.sp.max_burst))
+			goto setparam_fail;
+		if (provider->ops.set_param(cnx->handle,
+			ISCSI_PARAM_PDU_INORDER_EN,
+			initiator.sp.pdu_inorder_en))
+			goto setparam_fail;
+		if (provider->ops.set_param(cnx->handle,
+			ISCSI_PARAM_DATASEQ_INORDER_EN,
+			initiator.sp.dataseq_inorder_en))
+			goto setparam_fail;
+		if (provider->ops.set_param(cnx->handle,
+			ISCSI_PARAM_ERL, initiator.sp.erl))
+			goto setparam_fail;
+		if (provider->ops.set_param(cnx->handle,
+			ISCSI_PARAM_IFMARKER_EN, initiator.sp.ifmarker_en))
+			goto setparam_fail;
+		if (provider->ops.set_param(cnx->handle,
+			ISCSI_PARAM_OFMARKER_EN, initiator.sp.ofmarker_en))
+			goto setparam_fail;
 	}
-
-	provider->ops.set_param(cnx->handle,
-		ISCSI_PARAM_MAX_RECV_DLENGH, initiator.cp.max_recv_dlength);
-	provider->ops.set_param(cnx->handle,
-		ISCSI_PARAM_MAX_XMIT_DLENGH, initiator.cp.max_xmit_dlength);
-	provider->ops.set_param(cnx->handle,
-		ISCSI_PARAM_HDRDGST_EN, initiator.cp.hdrdgst_en);
-	provider->ops.set_param(cnx->handle,
-		ISCSI_PARAM_DATADGST_EN, initiator.cp.datadgst_en);
-	provider->ops.set_param(cnx->handle,
-		ISCSI_PARAM_INITIAL_R2T_EN, initiator.sp.initial_r2t_en);
-	provider->ops.set_param(cnx->handle,
-		ISCSI_PARAM_MAX_R2T, initiator.sp.max_r2t);
-	provider->ops.set_param(cnx->handle,
-		ISCSI_PARAM_IMM_DATA_EN, initiator.sp.imm_data_en);
-	provider->ops.set_param(cnx->handle,
-		ISCSI_PARAM_FIRST_BURST, initiator.sp.first_burst);
-	provider->ops.set_param(cnx->handle,
-		ISCSI_PARAM_MAX_BURST, initiator.sp.max_burst);
-	provider->ops.set_param(cnx->handle,
-		ISCSI_PARAM_PDU_INORDER_EN, initiator.sp.pdu_inorder_en);
-	provider->ops.set_param(cnx->handle,
-		ISCSI_PARAM_DATASEQ_INORDER_EN,initiator.sp.dataseq_inorder_en);
-	provider->ops.set_param(cnx->handle,
-		ISCSI_PARAM_ERL, initiator.sp.erl);
-	provider->ops.set_param(cnx->handle,
-		ISCSI_PARAM_IFMARKER_EN, initiator.sp.ifmarker_en);
-	provider->ops.set_param(cnx->handle,
-		ISCSI_PARAM_OFMARKER_EN, initiator.sp.ofmarker_en);
+	if (provider->ops.set_param(cnx->handle,
+		ISCSI_PARAM_MAX_RECV_DLENGH, initiator.cp.max_recv_dlength))
+		goto setparam_fail;
+	if (provider->ops.set_param(cnx->handle,
+		ISCSI_PARAM_MAX_XMIT_DLENGH, initiator.cp.max_xmit_dlength))
+		goto setparam_fail;
+	if (provider->ops.set_param(cnx->handle,
+		ISCSI_PARAM_HDRDGST_EN, initiator.cp.hdrdgst_en))
+		goto setparam_fail;
+	if (provider->ops.set_param(cnx->handle,
+		ISCSI_PARAM_DATADGST_EN, initiator.cp.datadgst_en))
+		goto setparam_fail;
 
 	if (provider->ops.start_cnx(cnx->handle)) {
 		provider->ops.destroy_cnx(cnx->handle);
@@ -588,6 +602,13 @@ iscsi_add_connection(iscsi_provider_t *provider, int host_no,
 	session->state = ISCSI_STATE_LOGGED_IN;
 
 	return 0;
+
+setparam_fail:
+	provider->ops.destroy_cnx(cnx->handle);
+bind_cnx_fail:
+create_cnx_fail:
+	kfree(cnx);
+	return -EIO;
 }
 
 static int

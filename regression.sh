@@ -21,8 +21,8 @@ PATH=$PATH:.
 
 function write_cfg() {
 cat << EOF > iscsi.conf
-initiator_name = "iqn.com.dima"
-initiator_alias = "dima-um"
+initiator_name = iqn.com.dima
+initiator_alias = dima-um
 isid = '012345'
 first_burst = $first_burst
 max_recv_dlength = $max_recv_dlength
@@ -92,7 +92,8 @@ cat regression.dat | while read line; do
 	echo "max_r2t = $max_r2t"
 	echo "max_cnx = $max_cnx"
 	iscsiadm -f iscsi.conf -r1
-	iscsiadm -f iscsi.conf -d 172.10.7.7:3260
+#	iscsiadm -f iscsi.conf -d 172.10.7.7:3260
+	iscsiadm -f iscsi.conf -d 10.16.16.223:3260
 	if ! disktest_run; then break; fi
 	let i=i+1
 done

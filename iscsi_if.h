@@ -124,7 +124,7 @@ typedef struct iscsi_ops {
 
 	void		(*destroy_cnx)	  (iscsi_cnx_h dp_cnx);
 
-	void		(*set_param)	  (iscsi_cnx_h dp_cnx,
+	int		(*set_param)	  (iscsi_cnx_h dp_cnx,
 					   iscsi_param_e param,
 					   int value);
 
