@@ -624,6 +624,10 @@ main(int argc, char **argv)
 			}
 			printf("new iSCSI node record added: [%06x]\n",
 			       nrec.id);
+		} else if (op == OP_DELETE) {
+			log_error("--record required for delete operation");
+			rc = -1;
+			goto out;
 		} else {
 			log_error("operation is not supported.");
 			rc = -1;
