@@ -36,7 +36,7 @@
 #include "iscsiadm.h"
 #include "log.h"
 #include "ipc.h"
-#include "ddbm.h"
+#include "idbm.h"
 
 static char program_name[] = "iscsiadm";
 
@@ -45,9 +45,7 @@ char *initiator_alias = "temp.init.alias";
 
 enum iscsiadm_mode {
 	MODE_DISCOVERY,
-	MODE_SLP,
-	MODE_ISNS,
-	MODE_DB,
+	MODE_NODE,
 };
 
 enum iscsiadm_op {
@@ -62,7 +60,8 @@ static struct option const long_options[] =
 	{"mode", required_argument, 0, 'm'},
 	{"portal", required_argument, 0, 'p'},
 	{"op", required_argument, 0, 'o'},
-	{"key", required_argument, 0, 'k'},
+	{"type", required_argument, 0, 't'},
+	{"name", required_argument, 0, 'n'},
 	{"value", required_argument, 0, 'v'},
 	{"record", no_argument, 0, 'r'},
 	{"login", no_argument, 0, 'l'},
@@ -82,18 +81,27 @@ static void usage(int status)
 		printf("\
 iSCSI Administration Utility.\n\
 \n\
-  -m, --mode <op>         specify operational mode op = <add|del|discovery>\n\
-  -m discovery --portal=[ip:port] --login\n\
-                          'sendtargets' discovery for target portal with\n\
-                          IP-address [ip] and port [port]. Initiate Login for\n\
+  -m, --mode <op>         specify operational mode op = <discovery|node>\n\
+  -m discovery --type=[type] --portal=[ip:port] --login\n\
+                          perform [type] discovery for target portal with\n\
+                          ip-address [ip] and port [port]. Initiate Login for\n\
                           each discovered target if --login is specified\n\
-  -m db                   display all records from internal persistent\n\
-                          discovery database\n\
-  -m db --record=[id] --op=[op] [--key=[key] --value=[value]]\n\
+  -m discovery            display all discovery records from internal\n\
+                          persistent discovery database\n\
+  -m discovery --record=[id] --op=[op] [--name=[name] --value=[value]]\n\
                           perform specific DB operation [op] for specific\n\
-                          record [id]. It could be one of:\n\
+                          discovery record with [id]. It could be one of:\n\
                           [insert], [delete], [update] or [show]. In case of\n\
-                          [update], you have to provide [key] and [value]\n\
+                          [update], you have to provide [name] and [value]\n\
+                          you wish to update\n\
+  -m node                 display all discovered nodes from internal\n\
+                          persistent discovery database\n\
+  -m node --record=[id] --op=[op] [--name=[name] --value=[value]]\n\
+                          perform specific DB operation [op] for specific\n\
+                          node with record [id]. It could be one of:\n\
+                          [insert], [delete], [update] or [show]. In case of\n\
+                          [update], you have to provide [name] and [value]\n\
+                          you wish to update\n\
   -d, --debug debuglevel  print debugging information\n\
   -V, --version           display version and exit\n\
   -h, --help              display this help and exit\n");
@@ -126,14 +134,10 @@ str_to_mode(char *str)
 {
 	int mode;
 
-	if (!strcmp("isns", str))
-		mode = MODE_ISNS;
-	else if (!strcmp("slp", str))
-		mode = MODE_SLP;
-	else if (!strcmp("discovery", str))
+	if (!strcmp("discovery", str))
 		mode = MODE_DISCOVERY;
 	else if (!strcmp("db", str))
-		mode = MODE_DB;
+		mode = MODE_NODE;
 	else
 		mode = -1;
 
@@ -242,13 +246,13 @@ main(int argc, char **argv)
 	char *ip = NULL, *key = NULL, *value = NULL;
 	int ch, longindex, mode=-1, port=-1, do_login=0;
 	int rc=0, rid=-1, op=-1;
-	DBM *dbm;
+	idbm_t *db;
 
 	/* enable stdout logging */
 	log_daemon = 0;
 	log_init(program_name);
 
-	while ((ch = getopt_long(argc, argv, "lv:h:m:p:d:r:k:v:o:",
+	while ((ch = getopt_long(argc, argv, "lV:h:m:p:d:r:n:v:o:t:",
 				 long_options, &longindex)) >= 0) {
 		switch (ch) {
 		case 'o':
@@ -291,11 +295,6 @@ main(int argc, char **argv)
 		return -1;
 	}
 
-	if ((dbm = ddbm_open(DB_FILE, access(DB_FILE, F_OK) != 0 ?
-				O_CREAT|O_RDWR : O_RDWR)) == NULL) {
-		return -1;
-	}
-
 	if (mode == MODE_DISCOVERY) {
 		struct iscsi_sendtargets_config cfg;
 		struct string_buffer info;
@@ -331,13 +330,13 @@ main(int argc, char **argv)
 		 */
 		init_string_buffer(&info, 8 * 1024);
 		rc =  sendtargets_discovery(&cfg, &info);
-		ddbm_update_info(dbm, ip, port, DISCOVERY_TYPE_SENDTARGETS,
+		idbm_update_info(discdb, ip, port, DISCOVERY_TYPE_SENDTARGETS,
 				 info.buffer);
 		truncate_buffer(&info, 0);
 		goto out;
-	} else if (mode == MODE_DB) {
+	} else if (mode == MODE_NODE) {
 		if (op == -1 || op == OP_SHOW) {
-			ddbm_print(dbm, rid);
+			idbm_print(nodedb, rid);
 			goto out;
 		}
 	} else {
@@ -346,6 +345,6 @@ main(int argc, char **argv)
 	}
 
 out:
-	ddbm_close(dbm);
+	idbm_terminate(db);
 	return rc;
 }

@@ -24,14 +24,14 @@
 #include <sys/stat.h>
 #include <sys/file.h>
 
-#include "ddbm.h"
+#include "idbm.h"
 #include "log.h"
 
 #define LOCK_EX 2    /* Exclusive lock.  */
 #define LOCK_UN 8    /* Unlock.  */
 
 static int
-ddbm_lock(DBM *dbm)
+idbm_lock(DBM *dbm)
 {
 #ifndef DB_DBM_HSEARCH
 	if (flock(dbm->dbm_dirf, LOCK_EX) == -1 ||
@@ -45,7 +45,7 @@ ddbm_lock(DBM *dbm)
 }
 
 static void
-ddbm_unlock(DBM *dbm)
+idbm_unlock(DBM *dbm)
 {
 #ifndef DB_DBM_HSEARCH
 	flock(dbm->dbm_dirf, LOCK_UN);
@@ -56,7 +56,7 @@ ddbm_unlock(DBM *dbm)
 }
 
 static void
-ddbm_update_rec(discovery_rec_t *rec, discovery_rec_t *newrec)
+idbm_update_rec(discovery_rec_t *rec, discovery_rec_t *newrec)
 {
 	int i;
 
@@ -142,7 +142,7 @@ ddbm_update_rec(discovery_rec_t *rec, discovery_rec_t *newrec)
 }
 
 static char*
-ddbm_hash(discovery_rec_t *rec)
+idbm_hash(discovery_rec_t *rec)
 {
 	char *hash = malloc(HASH_MAXLEN);
 
@@ -166,7 +166,7 @@ ddbm_hash(discovery_rec_t *rec)
 }
 
 static discovery_rec_t*
-ddbm_read(DBM *dbm, char *hash)
+idbm_read(DBM *dbm, char *hash)
 {
 	datum key, data;
 
@@ -183,12 +183,12 @@ ddbm_read(DBM *dbm, char *hash)
 }
 
 static int
-ddbm_write(DBM *dbm, discovery_rec_t *rec)
+idbm_write(DBM *dbm, discovery_rec_t *rec)
 {
 	char *hash;
 	datum key, data;
 
-	if (!(hash = ddbm_hash(rec))) {
+	if (!(hash = idbm_hash(rec))) {
 		return 1;
 	}
 
@@ -209,7 +209,7 @@ ddbm_write(DBM *dbm, discovery_rec_t *rec)
 }
 
 static void
-ddbm_print_rec(int rec_id, discovery_rec_t *rec)
+idbm_print_rec(int rec_id, discovery_rec_t *rec)
 {
 	if (rec->type == DISCOVERY_TYPE_SENDTARGETS) {
 		printf("#%d %s:%d,%d %s\n",
@@ -224,29 +224,10 @@ ddbm_print_rec(int rec_id, discovery_rec_t *rec)
 	}
 }
 
-#define TYPE_INT	0
-#define TYPE_INT_O	1
-#define TYPE_STR	2
-#define MAX_KEYS	48
-#define KEY_MAXVAL	64
-#define VALUE_MAXVAL	128
-#define OPTS_MAXVAL	32
-typedef struct discovery_recinfo {
-	int type;
-	char key[KEY_MAXVAL];
-	char value[VALUE_MAXVAL];
-	void *data;
-	int visible;
-	char* opts[OPTS_MAXVAL];
-	int numopts;
-} discovery_recinfo_t;
-
-static int
-ddbm_recinfo(discovery_rec_t *rec, discovery_recinfo_t **out_info,
-		int *out_num)
+static void
+idbm_recinfo_init(discovery_rec_t *rec, discovery_recinfo_t *info, int *out_num)
 {
 	int num = 0, i;
-	discovery_recinfo_t *info;
 
 #define __recinfo_str(_key, _show) \
 	info[num].type = TYPE_STR; \
@@ -285,13 +266,6 @@ ddbm_recinfo(discovery_rec_t *rec, discovery_recinfo_t **out_info,
 	info[num].opts[2] = _op2; \
 	info[num].numopts = 3;
 
-	info = malloc(sizeof(discovery_recinfo_t)*MAX_KEYS);
-	if (!info) {
-		log_error("out of memory on recinfo allocation");
-		*out_info = NULL;
-		*out_num = 0;
-		return 1;
-	}
 	memset(info, 0, sizeof(discovery_recinfo_t)*MAX_KEYS);
 
 	__recinfo_str(nodename, 0);
@@ -330,19 +304,32 @@ ddbm_recinfo(discovery_rec_t *rec, discovery_recinfo_t **out_info,
 		__recinfo_int_o2(cnx[i].iscsi.DataDigest, 1, "No", "Yes");
 	}
 
-	*out_info = info;
 	*out_num = num;
-	return 0;
+}
+
+static discovery_recinfo_t*
+idbm_recinfo_alloc(int max_keys)
+{
+	discovery_recinfo_t *info;
+
+	info = malloc(sizeof(discovery_recinfo_t)*max_keys);
+	if (!info)
+		return NULL;
+	memset(info, 0, sizeof(discovery_recinfo_t)*max_keys);
+	return info;
 }
 
 static void
-ddbm_print_details(int rec_id, discovery_rec_t *rec)
+idbm_print_details(int rec_id, discovery_rec_t *rec)
 {
 	int num, i;
 	discovery_recinfo_t *info;
 
-	if (ddbm_recinfo(rec, &info, &num))
+	info = idbm_recinfo_alloc(MAX_KEYS);
+	if (!info)
 		return;
+
+	idbm_recinfo_init(rec, info, &num);
 
 	for (i=0; i<num; i++) {
 		if (!info[i].visible)
@@ -353,31 +340,8 @@ ddbm_print_details(int rec_id, discovery_rec_t *rec)
 	free(info);
 }
 
-void
-ddbm_print(DBM *dbm, int rec_id)
-{
-	int rid = 0;
-	datum key, data;
-
-	(void)ddbm_lock(dbm);
-
-	for (key=dbm_firstkey(dbm); key.dptr != NULL; key=dbm_nextkey(dbm)) {
-		data = dbm_fetch(dbm, key);
-		if (rec_id < 0 || rec_id == rid) {
-			ddbm_print_rec(rid, (discovery_rec_t*)data.dptr);
-		}
-		if (rec_id == rid) {
-			ddbm_print_details(rid, (discovery_rec_t*)data.dptr);
-			break;
-		}
-		rid++;
-	}
-
-	ddbm_unlock(dbm);
-}
-
-DBM*
-ddbm_open(char *filename, int flags)
+static DBM*
+idbm_open(char *filename, int flags)
 {
 	DBM *dbm;
 
@@ -410,63 +374,127 @@ ddbm_open(char *filename, int flags)
 	return dbm;
 }
 
-int
-ddbm_update(DBM *dbm, discovery_rec_t *newrec)
-{
-	char *hash;
-	discovery_rec_t *rec;
-
-	if (!(hash = ddbm_hash(newrec))) {
-		return 1;
-	}
-
-	if (ddbm_lock(dbm)) {
-		free(hash);
-		return 1;
-	}
-
-	if ((rec = ddbm_read(dbm, hash))) {
-		log_debug(7, "updating existing DB record");
-		ddbm_update_rec(rec, newrec);
-	} else {
-		log_debug(7, "adding new DB record");
-	}
-
-	if (ddbm_write(dbm, newrec)) {
-		ddbm_unlock(dbm);
-		free(hash);
-		return 1;
-	}
-
-	ddbm_unlock(dbm);
-	free(hash);
-	return 0;
-}
-
-void
-ddbm_close(DBM *dbm)
+static void
+idbm_close(DBM *dbm)
 {
 	dbm_close(dbm);
 }
 
 int
-ddbm_update_info(DBM *dbm, char *ip, int port, discovery_type_e type,
-		 char *info)
+idbm_load_config(idbm_t *db)
 {
-	char *ptr, *newinfo;
-	discovery_rec_t *rec;
+	int num;
+	FILE *f = NULL;
 
-	rec = malloc(sizeof(discovery_rec_t));
-	if (!rec) {
-		log_error("out of memory on record allocation");
+	f = fopen(db->configfile, "r");
+	if (!f) {
+		log_error("cannot open configuration file %s", db->configfile);
 		return 1;
 	}
-	memset(rec, 0, sizeof(discovery_rec_t));
 
-	rec->type = type;
-	if (rec->type == DISCOVERY_TYPE_SENDTARGETS) {
-		strncpy(rec->u.sendtargets.address, ip, 16);
-		rec->u.sendtargets.port = port;
+	log_debug(5, "updating defaults from '%s'", db->configfile);
+
+	memset(&db->drec, 0, sizeof(discovery_rec_t));
+	idbm_discovery_recinfo_init(&drec, db->dinfo);
+
+	memset(&db->nrec, 0, sizeof(node_rec_t));
+	idbm_node_recinfo_init(&nrec, db->ninfo);
+
+	fclose(f);
+	return 0;
+}
+
+void
+idbm_print(DBM *dbm, int rec_id)
+{
+	int rid = 0;
+	datum key, data;
+
+	(void)idbm_lock(dbm);
+
+	for (key=dbm_firstkey(dbm); key.dptr != NULL; key=dbm_nextkey(dbm)) {
+		data = dbm_fetch(dbm, key);
+		if (rec_id < 0 || rec_id == rid) {
+			idbm_print_rec(rid, (discovery_rec_t*)data.dptr);
+		}
+		if (rec_id == rid) {
+			idbm_print_details(rid, (discovery_rec_t*)data.dptr);
+			break;
+		}
+		rid++;
+	}
+
+	idbm_unlock(dbm);
+}
+
+int
+idbm_update_discovery(idbm_t *db, discovery_rec_t *newrec)
+{
+	char *hash;
+	discovery_rec_t *rec;
+
+	if (!(hash = idbm_hash(newrec))) {
+		return 1;
+	}
+
+	if (idbm_lock(db->discdb)) {
+		free(hash);
+		return 1;
+	}
+
+	if ((rec = idbm_read(db->discdb, hash))) {
+		log_debug(7, "updating existing DB record");
+		idbm_update_rec(rec, newrec);
+	} else {
+		log_debug(7, "adding new DB record");
+	}
+
+	if (idbm_write(db->discdb, newrec)) {
+		idbm_unlock(db->discdb);
+		free(hash);
+		return 1;
+	}
+
+	idbm_unlock(db->discdb);
+	free(hash);
+	return 0;
+}
+
+int
+idbm_new_discovery(idbm_t *db, char *ip, int port,
+			discovery_type_e type, char *info)
+{
+	char *ptr, *newinfo;
+	discovery_rec_t *drec;
+	node_rec_t *nrec;
+
+	/* sync default configuration */
+	if (idbm_load_config(db)) {
+		return 1;
+	}
+
+	/* allocate new discovery record and initialize with defaults */
+	drec = malloc(sizeof(discovery_rec_t));
+	if (!drec) {
+		log_error("out of memory on discovery record allocation");
+		return 1;
+	}
+	memcpy(drec, db->drec, sizeof(discovery_rec_t));
+
+	/* allocate new node record and initialize with defaults */
+	nrec = malloc(sizeof(node_rec_t));
+	if (!nrec) {
+		log_error("out of memory on node record allocation");
+		free(drec);
+		return 1;
+	}
+	memcpy(nrec, db->nrec, sizeof(node_rec_t));
+
+	/* update discovery record */
+	drec->type = type;
+	if (drec->type == DISCOVERY_TYPE_SENDTARGETS) {
+		strncpy(drec->u.sendtargets.address, ip, 16);
+		drec->u.sendtargets.port = port;
 	} else {
 		log_error("unsupported discovery type");
 		return 1;
@@ -510,30 +538,80 @@ ddbm_update_info(DBM *dbm, char *ip, int port, discovery_type_e type,
 			} else {
 				log_error("can not parse discovery info value."
 					  "Bug?");
-				free(newinfo);
-				return 1;
+				rc = 1;
+				goto out;
 			}
 			log_debug(7, "discovery info key %s value %s", ptr, dp);
 			ptr = dp + strlen(dp) + 1;
 		} else if (*ptr == ';') {
 			/* end of entry */
 			ptr += 2;
-			if (ddbm_update(dbm, rec)) {
+			if (idbm_update_discovery(db, rec)) {
 				log_error("can not update discovery record.");
-				free(newinfo);
-				return 1;
+				rc = 1;
+				goto out;
 			}
 		} else if (*ptr == '!') {
 			/* end of discovery info */
 			ptr += 2;
 		} else {
 			log_error("can not parse discovery info key. Bug?");
-			free(newinfo);
-			return 1;
+			rc = 1;
+			goto out;
 		}
 	}
 
+out:
+	free(drec);
+	free(nrec);
 	free(newinfo);
-
 	return 0;
+}
+
+idbm_t*
+idbm_init(char *configfile)
+{
+	idbm_t *db;
+
+	db = malloc(sizeof(idbm_t));
+	if (!db) {
+		log_error("out of memory on idbm allocation");
+		return NULL;
+	}
+	memset(db, 0, sizeof(idbm_t));
+	
+	db->configfile = strdup(configfile);
+
+	if (idbm_load_config(db)) {
+		free(db->configfile);
+		free(db);
+		return NULL;
+	}
+
+	if ((db->discdb = idbm_open(DISCOVERY_FILE,
+				access(DISCOVERY_FILE, F_OK) != 0 ?
+					O_CREAT|O_RDWR : O_RDWR)) == NULL) {
+		free(db->configfile);
+		free(db);
+		return NULL;
+	}
+
+	if ((db->nodedb = idbm_open(NODE_FILE, access(NODE_FILE, F_OK) != 0 ?
+				O_CREAT|O_RDWR : O_RDWR)) == NULL) {
+		idbm_close(db->discdb);
+		free(db->configfile);
+		free(db);
+		return -1;
+	}
+
+	return db;
+}
+
+void
+idbm_terminate(idbm_t *db)
+{
+	idbm_close(db->discdb);
+	idbm_close(db->nodedb);
+	free(db->configfile);
+	free(db);
 }

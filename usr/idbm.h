@@ -17,8 +17,8 @@
  * See the file COPYING included with this distribution for more details.
  */
 
-#ifndef DDB_H
-#define DDB_H
+#ifndef IDBM_H
+#define IDBM_H
 
 #include <sys/types.h>
 #define DB_DBM_HSEARCH 1
@@ -26,7 +26,7 @@
 #include "initiator.h"
 #include "config.h"
 
-#define HASH_MAXLEN		48
+#define HASH_MAXLEN	48
 
 typedef enum iscsi_startup {
 	ISCSI_STARTUP_MANUAL,
@@ -53,7 +53,7 @@ typedef struct session_rec {
 	struct iscsi_session_operational_config	iscsi;
 } session_rec_t;
 
-typedef struct discovery_rec {
+typedef struct node_rec {
 	char					nodename[TARGET_NAME_MAXLEN];
 	char					address[16];
 	int					port;
@@ -62,6 +62,10 @@ typedef struct discovery_rec {
 	iscsi_startup_e				startup;
 	session_rec_t				session;
 	cnx_rec_t				cnx[ISCSI_CNX_MAX];
+} node_rec_t;
+
+typedef struct discovery_rec {
+	iscsi_startup_e				startup;
 	discovery_type_e			type;
 	union {
 		struct iscsi_sendtargets_config	sendtargets;
@@ -69,11 +73,40 @@ typedef struct discovery_rec {
 	} u;
 } discovery_rec_t;
 
-extern DBM* ddbm_open(char *filename, int flags);
-extern void ddbm_close(DBM *dbm);
-extern void ddbm_print(DBM *dbm, int rec_id);
-extern int ddbm_update(DBM *dbm, discovery_rec_t *rec);
-extern int ddbm_update_info(DBM *dbm, char *ip, int port,
+#define TYPE_INT	0
+#define TYPE_INT_O	1
+#define TYPE_STR	2
+#define MAX_KEYS	48
+#define NAME_MAXVAL	64
+#define VALUE_MAXVAL	128
+#define OPTS_MAXVAL	32
+typedef struct recinfo {
+	int		type;
+	char		name[NAME_MAXVAL];
+	char		value[VALUE_MAXVAL];
+	void		*data;
+	int		visible;
+	char*		opts[OPTS_MAXVAL];
+	int		numopts;
+} recinfo_t;
+
+typedef struct idbm {
+	DBM		*discdb;
+	DBM		*nodedb;
+	char		*configfile;
+	node_rec_t	nrec;
+	recinfo_t	ninfo[MAX_KEYS];
+	discovery_rec_t	drec;
+	recinfo_t	dinfo[MAX_KEYS];
+} idbm_t;
+
+extern idbm_t* idbm_init(char *configfile);
+extern void idbm_terminate(idbm_t *db);
+extern void idbm_print_node(idbm_t *db, int rec_id);
+extern void idbm_update_node(idbm_t *db, node_rec_t *rec);
+extern void idbm_print_discovery(idbm_t *db, int rec_id);
+extern int idbm_update_discovery(idbm_t *db, discovery_rec_t *newrec);
+extern int idbm_new_discovery(idbm_t *db, char *ip, int port,
 			    discovery_type_e type, char *info);
 
-#endif /* DDB_H */
+#endif /* IDBM_H */
