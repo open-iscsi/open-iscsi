@@ -576,6 +576,18 @@ iscsi_buf_init_sg(iscsi_buf_t *ibuf, struct scatterlist *sg)
 	ibuf->sent = 0;
 }
 
+static inline void
+iscsi_buf_init_hdr(iscsi_conn_t *conn, iscsi_buf_t *ibuf, char *vbuf, u8 *crc)
+{
+	iscsi_buf_init_virt(ibuf, vbuf, sizeof(iscsi_hdr_t));
+	if (conn->hdrdgst_en) {
+		crypto_digest_init(conn->tx_tfm);
+		crypto_digest_update(conn->tx_tfm, &ibuf->sg, 1);
+		crypto_digest_final(conn->tx_tfm, crc);
+		ibuf->sg.length += sizeof(uint32_t);
+	}
+}
+
 /*
  * iscsi_solicit_data_cont - initialize next Data-Out
  *
@@ -622,7 +634,8 @@ iscsi_solicit_data_cont(iscsi_conn_t *conn, iscsi_cmd_task_t *ctask,
 		hdr->flags = ISCSI_FLAG_CMD_FINAL;
 	}
 
-	iscsi_buf_init_virt(&r2t->headbuf, (char*)hdr, sizeof(iscsi_hdr_t));
+	iscsi_buf_init_hdr(conn, &r2t->headbuf, (char*)hdr,
+			   (u8 *)dtask->hdrext);
 
 	if (sc->use_sg) {
 		__BUG_ON(ctask->bad_sg == r2t->sg);
@@ -684,7 +697,8 @@ iscsi_solicit_data_init(iscsi_conn_t *conn, iscsi_cmd_task_t *ctask,
 
 	r2t->sent = 0;
 
-	iscsi_buf_init_virt(&r2t->headbuf, (char*)hdr, sizeof(iscsi_hdr_t));
+	iscsi_buf_init_hdr(conn, &r2t->headbuf, (char*)hdr,
+			   (u8 *)dtask->hdrext);
 
 	if (sc->use_sg) {
 		int i, sg_count = 0;
@@ -749,7 +763,8 @@ iscsi_unsolicit_data_init(iscsi_conn_t *conn, iscsi_cmd_task_t *ctask)
 		hdr->flags = ISCSI_FLAG_CMD_FINAL;
 	}
 
-	iscsi_buf_init_virt(&ctask->headbuf, (char*)hdr, sizeof(iscsi_hdr_t));
+	iscsi_buf_init_hdr(conn, &ctask->headbuf, (char*)hdr,
+			   (u8 *)dtask->hdrext);
 
 	list_add(&dtask->item, &ctask->dataqueue);
 	return 0;
@@ -861,15 +876,8 @@ iscsi_cmd_init(iscsi_conn_t *conn, iscsi_cmd_task_t *ctask,
 		zero_data(ctask->hdr.dlength);
 	}
 
-	iscsi_buf_init_virt(&ctask->headbuf, (char*)&ctask->hdr,
-			    sizeof(iscsi_hdr_t));
-
-	if (conn->hdrdgst_en) {
-		crypto_digest_init(conn->tx_tfm);
-		crypto_digest_update(conn->tx_tfm, &ctask->headbuf.sg, 1);
-		crypto_digest_final(conn->tx_tfm, (u8 *)ctask->hdrext);
-		ctask->headbuf.sg.length += sizeof(uint32_t);
-	}
+	iscsi_buf_init_hdr(conn, &ctask->headbuf, (char*)&ctask->hdr,
+			    (u8 *)ctask->hdrext);
 
 	ctask->in_progress |= IN_PROGRESS_HEAD;
 }
@@ -1901,9 +1909,11 @@ iscsi_queuecommand(struct scsi_cmnd *sc, void (*done)(struct scsi_cmnd *))
 
 	sc->SCp.ptr = (char*)ctask;
 	iscsi_cmd_init(conn, ctask, sc);
-	spin_unlock_irq(host->host_lock);
 
-	iscsi_enqueue(&conn->xmitqueue, ctask);
+	spin_lock(&conn->lock);
+	__enqueue(&conn->xmitqueue, ctask);
+	spin_unlock(&conn->lock);
+
 	debug_scsi(
 		"queued [%s cid %d sc %lx itt 0x%x len %d cmdsn %d win %d]\n",
 		sc->sc_data_direction == DMA_TO_DEVICE ? "write" : "read",
@@ -1912,7 +1922,6 @@ iscsi_queuecommand(struct scsi_cmnd *sc, void (*done)(struct scsi_cmnd *))
 
 	schedule_work(&conn->xmitwork);
 
-	spin_lock_irq(host->host_lock);
 	return 0;
 
 reject:
@@ -2312,7 +2321,7 @@ iscsi_send_immpdu(iscsi_cnx_h cnxh, iscsi_hdr_t *hdr, char *data,
 	iscsi_mgmt_task_t *mtask;
 	unsigned long flags;
 
-	if (conn->c_stage == ISCSI_CNX_STARTED) {
+	if (conn->c_stage != ISCSI_CNX_INITIAL_STAGE) {
 		mtask = iscsi_dequeue(&session->immpool);
 	} else {
 		/*
@@ -2343,14 +2352,12 @@ iscsi_send_immpdu(iscsi_cnx_h cnxh, iscsi_hdr_t *hdr, char *data,
 
 	memcpy(&mtask->hdr, hdr, sizeof(iscsi_hdr_t));
 
-	iscsi_buf_init_virt(&mtask->headbuf, (char*)&mtask->hdr,
-			    sizeof(iscsi_hdr_t));
-
-	if (conn->hdrdgst_en) {
-		crypto_digest_init(conn->tx_tfm);
-		crypto_digest_update(conn->tx_tfm, &mtask->headbuf.sg, 1);
-		crypto_digest_final(conn->tx_tfm, (u8 *)mtask->hdrext);
-		mtask->headbuf.sg.length += sizeof(uint32_t);
+	if (conn->c_stage != ISCSI_CNX_INITIAL_STAGE) {
+		iscsi_buf_init_hdr(conn, &mtask->headbuf, (char*)&mtask->hdr,
+				    (u8 *)mtask->hdrext);
+	} else {
+		iscsi_buf_init_virt(&mtask->headbuf, (char*)&mtask->hdr,
+				    sizeof(iscsi_hdr_t));
 	}
 	spin_unlock_irqrestore(session->host->host_lock, flags);
 
