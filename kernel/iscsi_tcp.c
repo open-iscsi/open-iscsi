@@ -1697,7 +1697,7 @@ iscsi_queuecommand(struct scsi_cmnd *sc, void (*done)(struct scsi_cmnd *))
 	if (session->state != ISCSI_STATE_LOGGED_IN) {
 		if (session->state == ISCSI_STATE_FAILED) {
 			reason = FAILURE_SESSION_FAILED;
-			goto fault;
+			goto reject;
 		} else if (session->state == ISCSI_STATE_TERMINATE) {
 			reason = FAILURE_SESSION_TERMINATE;
 			goto fault;
