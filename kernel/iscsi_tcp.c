@@ -2194,13 +2194,16 @@ iscsi_conn_stop(iscsi_cnx_h cnxh)
 }
 
 static int
-iscsi_send_immpdu(iscsi_cnx_h cnxh, struct iscsi_hdr *hdr, char *data,
+iscsi_send_pdu(iscsi_cnx_h cnxh, struct iscsi_hdr *hdr, char *data,
 		  int data_size)
 {
 	struct iscsi_conn *conn = cnxh;
 	struct iscsi_session *session = conn->session;
 	struct iscsi_mgmt_task *mtask;
 	char *pdu_data = NULL;
+
+	/* non-immediate control commands are not supported yet */
+	BUG_ON(!(hdr->opcode & ISCSI_OP_IMMEDIATE));
 
 	if (data_size) {
 		pdu_data = kmalloc(data_size, GFP_KERNEL);
@@ -2608,7 +2611,7 @@ iscsi_tcp_register(struct iscsi_ops *ops, struct iscsi_caps *caps)
 	ops->set_param = iscsi_set_param;
 	ops->start_cnx = iscsi_conn_start;
 	ops->stop_cnx = iscsi_conn_stop;
-	ops->send_immpdu = iscsi_send_immpdu;
+	ops->send_pdu = iscsi_send_pdu;
 
 	caps->flags = CAP_RECOVERY_L0 | CAP_MULTI_R2T;
 

@@ -1,7 +1,8 @@
 /*
- * iSCSI Initiator for Linux Kernel (iSCSI Control Path)
- * Copyright (C) 2004 Dmitry Yusupov
- * maintained by open-iscsi@@googlegroups.com
+ * iSCSI User/Kernel Interface
+ *
+ * Copyright (C) 2005 Dmitry Yusupov, Alex Aizman
+ * maintained by open-iscsi@googlegroups.com
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published
@@ -95,6 +96,29 @@ struct iscsi_caps {
 	int	max_cnx;
 };
 
+typedef iscsi_snx_h (*create_session_f) (iscsi_snx_h cp_snx,
+		   int host_on, int initial_cmdsn);
+
+typedef void (*destroy_session_f) (iscsi_snx_h dp_snx);
+
+typedef iscsi_cnx_h (*create_cnx_f) (iscsi_snx_h dp_snx,
+		   iscsi_cnx_h cp_cnx, int transport_fd, int cid);
+
+typedef int (*bind_cnx_f) (iscsi_snx_h dp_snx, iscsi_cnx_h dp_cnx,
+		   int is_leading);
+
+typedef void (*destroy_cnx_f) (iscsi_cnx_h dp_cnx);
+
+typedef int (*set_param_f) (iscsi_cnx_h dp_cnx, iscsi_param_e param,
+		   int value);
+
+typedef int (*start_cnx_f) (iscsi_cnx_h dp_cnx);
+
+typedef void (*stop_cnx_f) (iscsi_cnx_h dp_cnx);
+
+typedef int (*send_pdu_f) (iscsi_cnx_h dp_cnx, struct iscsi_hdr *hdr,
+		   char *data, int data_size);
+
 /**
  * struct iscsi_ops
  *
@@ -112,36 +136,15 @@ struct iscsi_caps {
  * API provided by generic iSCSI Data Path module
  */
 struct iscsi_ops {
-
-	iscsi_snx_h	(*create_session) (iscsi_snx_h cp_snx,
-					   int host_on,
-					   int initial_cmdsn);
-
-	void		(*destroy_session)(iscsi_snx_h dp_snx);
-
-	iscsi_cnx_h	(*create_cnx)	  (iscsi_snx_h dp_snx,
-					   iscsi_cnx_h cp_cnx,
-					   int transport_fd,
-					   int cid);
-
-	int		(*bind_cnx)	  (iscsi_snx_h dp_snx,
-					   iscsi_cnx_h dp_cnx,
-					   int is_leading);
-
-	void		(*destroy_cnx)	  (iscsi_cnx_h dp_cnx);
-
-	int		(*set_param)	  (iscsi_cnx_h dp_cnx,
-					   iscsi_param_e param,
-					   int value);
-
-	int		(*start_cnx)	  (iscsi_cnx_h dp_cnx);
-
-	void		(*stop_cnx)	  (iscsi_cnx_h dp_cnx);
-
-	int		(*send_immpdu)	  (iscsi_cnx_h dp_cnx,
-					   struct iscsi_hdr *hdr,
-					   char *data,
-					   int data_size);
+	create_session_f create_session;
+	destroy_session_f destroy_session;
+	create_cnx_f create_cnx;
+	bind_cnx_f bind_cnx;
+	destroy_cnx_f destroy_cnx;
+	set_param_f set_param;
+	start_cnx_f start_cnx;
+	stop_cnx_f stop_cnx;
+	send_pdu_f send_pdu;
 };
 
 int iscsi_control_recv_pdu(iscsi_cnx_h cp_cnx, struct iscsi_hdr *hdr,

@@ -163,7 +163,7 @@ iscsi_if_recv_msg(struct sk_buff *skb, struct nlmsghdr *nlh)
 		transport->ops.stop_cnx((void*)ev->u.stop_cnx.cnx_handle);
 		break;
 	case ISCSI_UEVENT_SEND_PDU:
-		ev->r.retcode = transport->ops.send_immpdu(
+		ev->r.retcode = transport->ops.send_pdu(
 		       (void*)ev->u.send_pdu.cnx_handle,
 		       (struct iscsi_hdr*)((char*)ev + sizeof(*ev)),
 		       (char*)ev + sizeof(*ev) + ev->u.send_pdu.hdr_size,
