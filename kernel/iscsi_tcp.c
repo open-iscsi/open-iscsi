@@ -343,7 +343,7 @@ iscsi_data_rsp(struct iscsi_conn *conn, struct iscsi_cmd_task *ctask)
  *
  * This function is called with connection lock taken.
  */
-static int
+static void
 iscsi_solicit_data_init(struct iscsi_conn *conn, struct iscsi_cmd_task *ctask,
 			struct iscsi_r2t_info *r2t)
 {
@@ -413,7 +413,6 @@ iscsi_solicit_data_init(struct iscsi_conn *conn, struct iscsi_cmd_task *ctask,
 	}
 
 	list_add(&dtask->item, &ctask->dataqueue);
-	return 0;
 }
 
 /*
@@ -422,7 +421,6 @@ iscsi_solicit_data_init(struct iscsi_conn *conn, struct iscsi_cmd_task *ctask,
 static int
 iscsi_r2t_rsp(struct iscsi_conn *conn, struct iscsi_cmd_task *ctask)
 {
-	int rc = 0;
 	struct iscsi_r2t_info *r2t;
 	struct iscsi_session *session = conn->session;
 	struct iscsi_r2t_rsp *rhdr = (struct iscsi_r2t_rsp *)conn->in.hdr;
@@ -467,9 +465,7 @@ iscsi_r2t_rsp(struct iscsi_conn *conn, struct iscsi_cmd_task *ctask)
 	r2t->ttt = rhdr->ttt; /* no flip */
 	r2t->solicit_datasn = 0;
 
-	rc = iscsi_solicit_data_init(conn, ctask, r2t);
-	if (rc)
-		return rc;
+	iscsi_solicit_data_init(conn, ctask, r2t);
 
 	ctask->exp_r2tsn = r2tsn + 1;
 	ctask->xmstate |= XMSTATE_SOL_HDR;
@@ -477,8 +473,7 @@ iscsi_r2t_rsp(struct iscsi_conn *conn, struct iscsi_cmd_task *ctask)
 	__kfifo_put(conn->writequeue, (void*)&ctask, sizeof(void*));
 
 	schedule_work(&conn->xmitwork);
-
-	return rc;
+	return 0;
 }
 
 static int
@@ -1150,7 +1145,7 @@ iscsi_sendpage(struct iscsi_conn *conn, struct iscsi_buf *buf,
  *
  * Called under connection lock.
  */
-static int
+static void
 iscsi_solicit_data_cont(struct iscsi_conn *conn, struct iscsi_cmd_task *ctask,
 			struct iscsi_r2t_info *r2t, int left)
 {
@@ -1199,10 +1194,9 @@ iscsi_solicit_data_cont(struct iscsi_conn *conn, struct iscsi_cmd_task *ctask,
 	}
 
 	list_add(&dtask->item, &ctask->dataqueue);
-	return 0;
 }
 
-static int
+static void
 iscsi_unsolicit_data_init(struct iscsi_conn *conn, struct iscsi_cmd_task *ctask)
 {
 	struct iscsi_data *hdr;
@@ -1236,7 +1230,6 @@ iscsi_unsolicit_data_init(struct iscsi_conn *conn, struct iscsi_cmd_task *ctask)
 			   (u8 *)dtask->hdrext);
 
 	list_add(&dtask->item, &ctask->dataqueue);
-	return 0;
 }
 
 /*
