@@ -273,7 +273,7 @@ To be completed:
 Appendix A. SendTargets iSCSI Discovery session snapshot.
 =========================================================
 
--bash-2.05b# ./iscsiadm -mdiscovery -tst -p 10.16.16.223:3260
+-bash-2.05b# ./iscsiadm -m discovery -tst -p 10.16.16.223:3260
 [02f611] 10.16.16.223:3260,1 iqn.2002-07.com.ttechnologies.target.a
 [01acd1] 17.1.1.223:3260,1 iqn.2002-07.com.ttechnologies.target.a
 -bash-2.05b#
@@ -281,7 +281,7 @@ Appendix A. SendTargets iSCSI Discovery session snapshot.
 [02f611] 10.16.16.223:3260,1 iqn.2002-07.com.ttechnologies.target.a
 [01acd1] 17.1.1.223:3260,1 iqn.2002-07.com.ttechnologies.target.a
 -bash-2.05b#
--bash-2.05b# ./iscsiadm -mdiscovery -tst -p 10.16.16.227:3260
+-bash-2.05b# ./iscsiadm -m discovery -tst -p 10.16.16.227:3260
 [02fb91] 10.16.16.227:3260,1 iqn.2001-04.com.example:storage.disk2.sys1.xyz
 -bash-2.05b#
 -bash-2.05b# ./iscsiadm -m node
