@@ -139,12 +139,12 @@ struct iscsi_ops {
 	void		(*stop_cnx)	  (iscsi_cnx_h dp_cnx);
 
 	int		(*send_immpdu)	  (iscsi_cnx_h dp_cnx,
-					   iscsi_hdr_t *hdr,
+					   struct iscsi_hdr *hdr,
 					   char *data,
 					   int data_size);
 };
 
-int iscsi_control_recv_pdu(iscsi_cnx_h cp_cnx, iscsi_hdr_t *hdr,
+int iscsi_control_recv_pdu(iscsi_cnx_h cp_cnx, struct iscsi_hdr *hdr,
 				char *data, int data_size);
 void iscsi_control_cnx_error(iscsi_cnx_h cp_cnx, iscsi_err_e error);
 

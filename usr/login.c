@@ -34,7 +34,7 @@
 
 /* caller is assumed to be well-behaved and passing NUL terminated strings */
 int
-iscsi_add_text(iscsi_hdr_t *pdu, char *data, int max_data_length,
+iscsi_add_text(struct iscsi_hdr *pdu, char *data, int max_data_length,
 		char *param, char *value)
 {
 	int param_len = strlen(param);
@@ -583,7 +583,7 @@ check_security_stage_status(iscsi_session_t *session,
  */
 static enum iscsi_login_status
 iscsi_process_login_response(iscsi_session_t *session, int cid,
-			     iscsi_login_rsp_t *login_rsp,
+			     struct iscsi_login_rsp *login_rsp,
 			     char *data, int max_data_length)
 {
 	int transit = login_rsp->flags & ISCSI_FLAG_LOGIN_TRANSIT;
@@ -716,7 +716,7 @@ iscsi_process_login_response(iscsi_session_t *session, int cid,
 }
 
 static int
-add_params_normal_session(iscsi_session_t *session, iscsi_hdr_t *pdu,
+add_params_normal_session(iscsi_session_t *session, struct iscsi_hdr *pdu,
                     char *data, int max_data_length)
 {
 	char value[AUTH_STR_MAX_LEN];
@@ -759,7 +759,7 @@ add_params_normal_session(iscsi_session_t *session, iscsi_hdr_t *pdu,
 }
 
 static int
-add_vendor_specific_text(iscsi_session_t *session, int cid, iscsi_hdr_t *pdu,
+add_vendor_specific_text(iscsi_session_t *session, int cid, struct iscsi_hdr *pdu,
                     char *data, int max_data_length)
 {
 	char value[AUTH_STR_MAX_LEN];
@@ -809,7 +809,7 @@ add_vendor_specific_text(iscsi_session_t *session, int cid, iscsi_hdr_t *pdu,
 }
 
 static int
-check_irrelevant_keys(iscsi_session_t *session, iscsi_hdr_t *pdu,
+check_irrelevant_keys(iscsi_session_t *session, struct iscsi_hdr *pdu,
                     char *data, int max_data_length)
 {
 	/* If you receive irrelevant keys, just check them from the irrelevant
@@ -860,7 +860,7 @@ check_irrelevant_keys(iscsi_session_t *session, iscsi_hdr_t *pdu,
 }
 
 static int
-fill_crc_digest_text(iscsi_conn_t *conn, iscsi_hdr_t *pdu,
+fill_crc_digest_text(iscsi_conn_t *conn, struct iscsi_hdr *pdu,
 		     char *data, int max_data_length)
 {
 	switch (conn->hdrdgst_en) {
@@ -914,7 +914,7 @@ fill_crc_digest_text(iscsi_conn_t *conn, iscsi_hdr_t *pdu,
 }
 
 static int
-fill_op_params_text(iscsi_session_t *session, int cid, iscsi_hdr_t *pdu,
+fill_op_params_text(iscsi_session_t *session, int cid, struct iscsi_hdr *pdu,
 		    char *data, int max_data_length, int *transit)
 {
 	char value[AUTH_STR_MAX_LEN];
@@ -986,7 +986,7 @@ fill_op_params_text(iscsi_session_t *session, int cid, iscsi_hdr_t *pdu,
 }
 
 static void
-enum_auth_keys(struct iscsi_acl *auth_client, iscsi_hdr_t *pdu,
+enum_auth_keys(struct iscsi_acl *auth_client, struct iscsi_hdr *pdu,
 	       char *data, int max_data_length, int keytype)
 {
 	int present = 0, rc;
@@ -1019,7 +1019,7 @@ enum_auth_keys(struct iscsi_acl *auth_client, iscsi_hdr_t *pdu,
 }
 
 static int
-fill_security_params_text(iscsi_session_t *session, int cid, iscsi_hdr_t *pdu,
+fill_security_params_text(iscsi_session_t *session, int cid, struct iscsi_hdr *pdu,
 			  struct iscsi_acl *auth_client, char *data,
 			  int max_data_length, int *transit)
 {
@@ -1073,12 +1073,12 @@ fill_security_params_text(iscsi_session_t *session, int cid, iscsi_hdr_t *pdu,
  *
  **/
 static int
-iscsi_make_login_pdu(iscsi_session_t *session, int cid, iscsi_hdr_t *hdr,
+iscsi_make_login_pdu(iscsi_session_t *session, int cid, struct iscsi_hdr *hdr,
 		     char *data, int max_data_length)
 {
 	int transit = 0;
 	int ret;
-	iscsi_login_t *login_hdr = (iscsi_login_t *)hdr;
+	struct iscsi_login *login_hdr = (struct iscsi_login *)hdr;
 	struct iscsi_acl *auth_client;
 	iscsi_conn_t *conn = &session->cnx[cid];
 
@@ -1234,7 +1234,7 @@ check_for_authentication(iscsi_session_t *session,
 
 static enum iscsi_login_status
 check_status_login_response(iscsi_session_t *session, int cid,
-			    iscsi_login_rsp_t *login_rsp,
+			    struct iscsi_login_rsp *login_rsp,
 			    char *data, int max_data_length, int *final)
 {
 	enum iscsi_login_status ret;
@@ -1286,7 +1286,7 @@ iscsi_login_begin(iscsi_session_t *session, iscsi_login_context_t *c)
 	iscsi_conn_t *conn = &session->cnx[c->cid];
 
 	c->auth_client = NULL;
-	c->login_rsp = (iscsi_login_rsp_t *)&c->pdu;
+	c->login_rsp = (struct iscsi_login_rsp *)&c->pdu;
 	c->received_pdu = 0;
 	c->timeout = 0;
 	c->final = 0;
@@ -1319,7 +1319,7 @@ iscsi_login_req(iscsi_session_t *session, iscsi_login_context_t *c)
 
 	c->final = 0;
 	c->timeout = 0;
-	c->login_rsp = (iscsi_login_rsp_t *)&c->pdu;
+	c->login_rsp = (struct iscsi_login_rsp *)&c->pdu;
 	c->ret = LOGIN_FAILED;
 
 	memset(c->buffer, 0, c->bufsize);

@@ -91,8 +91,8 @@ typedef struct iscsi_login_context {
 	uint8_t status_class;
 	uint8_t status_detail;
 	struct iscsi_acl *auth_client;
-	iscsi_hdr_t pdu;
-	iscsi_login_rsp_t *login_rsp;
+	struct iscsi_hdr pdu;
+	struct iscsi_login_rsp *login_rsp;
 	char *data;
 	int received_pdu;
 	int max_data_length;
@@ -283,7 +283,7 @@ extern iscsi_provider_t provider[ISCSI_TRANSPORT_MAX];
 #define ISCSI_TEXT_SEPARATOR     '='
 
 /* implemented in iscsi-login.c for use on all platforms */
-extern int iscsi_add_text(iscsi_hdr_t *hdr, char *data, int max_data_length,
+extern int iscsi_add_text(struct iscsi_hdr *hdr, char *data, int max_data_length,
 			char *param, char *value);
 extern enum iscsi_login_status iscsi_login(iscsi_session_t *session, int cid,
 		   char *buffer, size_t bufsize, uint8_t * status_class,
@@ -314,9 +314,9 @@ extern int iscsi_tcp_poll(iscsi_conn_t *conn);
 extern int iscsi_tcp_connect(iscsi_conn_t *conn, int non_blocking);
 extern int iscsi_connect(iscsi_conn_t *conn);
 extern void iscsi_disconnect(iscsi_conn_t *conn);
-extern int iscsi_send_pdu(iscsi_conn_t *conn, iscsi_hdr_t *hdr,
+extern int iscsi_send_pdu(iscsi_conn_t *conn, struct iscsi_hdr *hdr,
 	       int hdr_digest, char *data, int data_digest, int timeout);
-extern int iscsi_recv_pdu(iscsi_conn_t *conn, iscsi_hdr_t *hdr,
+extern int iscsi_recv_pdu(iscsi_conn_t *conn, struct iscsi_hdr *hdr,
 	int hdr_digest, char *data, int max_data_length, int data_digest,
 	int timeout);
 

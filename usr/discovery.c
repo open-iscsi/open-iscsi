@@ -48,10 +48,10 @@ static int rediscover = 0;
 static int record_begin;
 
 static int
-send_nop_reply(iscsi_session_t *session, iscsi_nopin_t *nop,
+send_nop_reply(iscsi_session_t *session, struct iscsi_nopin *nop,
 	       char *data, int timeout)
 {
-	iscsi_nopout_t out;
+	struct iscsi_nopout out;
 
 	memset(&out, 0, sizeof (out));
 	out.opcode = ISCSI_OP_NOOP_OUT | ISCSI_OP_IMMEDIATE;
@@ -68,15 +68,15 @@ send_nop_reply(iscsi_session_t *session, iscsi_nopin_t *nop,
 	log_debug(4, "sending nop reply for ttt %u, cmdsn %u, dlength %d",
 		 ntohl(out.ttt), ntohl(out.cmdsn), ntoh24(out.dlength));
 
-	return iscsi_send_pdu(&session->cnx[0], (iscsi_hdr_t *)&out,
+	return iscsi_send_pdu(&session->cnx[0], (struct iscsi_hdr *)&out,
 			ISCSI_DIGEST_NONE, data, ISCSI_DIGEST_NONE, timeout);
 }
 
 static int
-iscsi_make_text_pdu(iscsi_session_t *session, iscsi_hdr_t *hdr,
+iscsi_make_text_pdu(iscsi_session_t *session, struct iscsi_hdr *hdr,
 		    char *data, int max_data_length)
 {
-	iscsi_text_t *text_pdu = (iscsi_text_t *)hdr;
+	struct iscsi_text *text_pdu = (struct iscsi_text *)hdr;
 
 	/* initialize the PDU header */
 	memset(text_pdu, 0, sizeof (*text_pdu));
@@ -94,8 +94,8 @@ static int
 request_targets(iscsi_session_t *session)
 {
 	char data[64];
-	iscsi_text_t text;
-	iscsi_hdr_t *hdr = (iscsi_hdr_t *) &text;
+	struct iscsi_text text;
+	struct iscsi_hdr *hdr = (struct iscsi_hdr *) &text;
 
 	memset(&text, 0, sizeof (text));
 	memset(data, 0, sizeof (data));
@@ -130,7 +130,7 @@ static int
 iterate_targets(iscsi_session_t *session, uint32_t ttt)
 {
 	char data[64];
-	iscsi_text_t text;
+	struct iscsi_text text;
 	struct iscsi_hdr *pdu = (struct iscsi_hdr *) &text;
 
 	memset(&text, 0, sizeof (text));
@@ -801,8 +801,8 @@ process_recvd_pdu(struct iscsi_hdr *pdu,
 
 	switch (pdu->opcode) {
 		case ISCSI_OP_TEXT_RSP:{
-			iscsi_text_rsp_t *text_response =
-				(iscsi_text_rsp_t *) pdu;
+			struct iscsi_text_rsp *text_response =
+				(struct iscsi_text_rsp *) pdu;
 			int dlength = ntoh24(pdu->dlength);
 			int final =
 				(text_response->flags & ISCSI_FLAG_CMD_FINAL) ||
@@ -848,8 +848,8 @@ process_recvd_pdu(struct iscsi_hdr *pdu,
 			break;
 		}
 		case ISCSI_OP_ASYNC_EVENT:{
-			iscsi_async_t *async_hdr =
-				(iscsi_async_t *) pdu;
+			struct iscsi_async *async_hdr =
+				(struct iscsi_async *) pdu;
 			int dlength = ntoh24(pdu->dlength);
 			short senselen;
 			char logbuf[128];
@@ -927,8 +927,8 @@ process_recvd_pdu(struct iscsi_hdr *pdu,
 			break;
 		}
 		case ISCSI_OP_NOOP_IN:{
-			iscsi_nopin_t *nop =
-				(iscsi_nopin_t *) pdu;
+			struct iscsi_nopin *nop =
+				(struct iscsi_nopin *) pdu;
 
 			/*
 			 * The iSCSI spec doesn't allow Nops on
@@ -965,8 +965,8 @@ process_recvd_pdu(struct iscsi_hdr *pdu,
 			break;
 		}
 		case ISCSI_OP_REJECT:{
-			iscsi_reject_t *reject =
-				(iscsi_reject_t *) pdu;
+			struct iscsi_reject *reject =
+				(struct iscsi_reject *) pdu;
 			int dlength = ntoh24(pdu->dlength);
 
 			log_error("reject, dlength=%d, "
@@ -1003,8 +1003,8 @@ process_recvd_pdu(struct iscsi_hdr *pdu,
 static void
 iscsi_logout_and_disconnect(iscsi_session_t * session)
 {
-	iscsi_logout_t logout_req;
-	iscsi_logout_rsp_t logout_resp;
+	struct iscsi_logout logout_req;
+	struct iscsi_logout_rsp logout_resp;
 	int rc;
 
 	/*

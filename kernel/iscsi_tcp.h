@@ -90,7 +90,7 @@ struct iscsi_mgmt_task;
 
 /* Socket connection recieve helper */
 struct iscsi_tcp_recv {
-	iscsi_hdr_t		*hdr;
+	struct iscsi_hdr	*hdr;
 	struct sk_buff		*skb;
 	int			offset;
 	int			len;
@@ -110,7 +110,7 @@ struct iscsi_tcp_recv {
 };
 
 struct iscsi_conn {
-	iscsi_hdr_t		hdr;		/* Header placeholder */
+	struct iscsi_hdr	hdr;		/* Header placeholder */
 	char			hdrext[4*sizeof(__u16) +
 				    sizeof(__u32)];
 	char			*data;		/* Data placeholder */
@@ -202,13 +202,13 @@ struct iscsi_buf {
 };
 
 struct iscsi_data_task {
-	iscsi_data_t		hdr;			/* PDU */
+	struct iscsi_data	hdr;			/* PDU */
 	char			hdrext[sizeof(__u32)];	/* Header-Digest */
 	struct list_head	item;			/* data queue item */
 };
 
 struct iscsi_mgmt_task {
-	iscsi_hdr_t	hdr;			/* mgmt. PDU */
+	struct iscsi_hdr hdr;			/* mgmt. PDU */
 	char		hdrext[sizeof(__u32)];	/* Header-Digest */
 	char		*data;			/* mgmt payload */
 	int		in_progress;		/* mgmt xmit progress */
@@ -240,7 +240,7 @@ struct iscsi_r2t_info {
 };
 
 struct iscsi_cmd_task {
-	iscsi_cmd_t		hdr;			/* orig. SCSI PDU */
+	struct iscsi_cmd	hdr;			/* orig. SCSI PDU */
 	char			hdrext[4*sizeof(__u16)+	/* one AHS */
 				    sizeof(__u32)];	/* Header-Digest */
 	int			itt;			/* this ITT */

@@ -143,7 +143,7 @@ iscsi_buf_init_sg(struct iscsi_buf *ibuf, struct scatterlist *sg)
 static inline void
 iscsi_buf_init_hdr(struct iscsi_conn *conn, struct iscsi_buf *ibuf, char *vbuf, u8 *crc)
 {
-	iscsi_buf_init_virt(ibuf, vbuf, sizeof(iscsi_hdr_t));
+	iscsi_buf_init_virt(ibuf, vbuf, sizeof(struct iscsi_hdr));
 	if (conn->hdrdgst_en) {
 		crypto_digest_init(conn->tx_tfm);
 		crypto_digest_update(conn->tx_tfm, &ibuf->sg, 1);
@@ -168,7 +168,7 @@ iscsi_hdr_extract(struct iscsi_conn *conn)
 		 */
 		if (skb_shinfo(skb)->frag_list == NULL &&
 		    !skb_shinfo(skb)->nr_frags) {
-			conn->in.hdr = (iscsi_hdr_t *)
+			conn->in.hdr = (struct iscsi_hdr *)
 				((char*)skb->data + conn->in.offset);
 		} else {
 			/* ignoring return code since we checked
@@ -253,7 +253,7 @@ static int
 iscsi_cmd_rsp(struct iscsi_conn *conn, struct iscsi_cmd_task *ctask)
 {
 	int rc = 0;
-	iscsi_cmd_rsp_t *rhdr = (iscsi_cmd_rsp_t *)conn->in.hdr;
+	struct iscsi_cmd_rsp *rhdr = (struct iscsi_cmd_rsp *)conn->in.hdr;
 	struct iscsi_session *session = conn->session;
 	struct scsi_cmnd *sc = ctask->sc;
 	int max_cmdsn = ntohl(rhdr->max_cmdsn);
@@ -321,7 +321,7 @@ fault:
 static int
 iscsi_data_rsp(struct iscsi_conn *conn, struct iscsi_cmd_task *ctask)
 {
-	iscsi_data_rsp_t *rhdr = (iscsi_data_rsp_t *)conn->in.hdr;
+	struct iscsi_data_rsp *rhdr = (struct iscsi_data_rsp *)conn->in.hdr;
 	struct iscsi_session *session = conn->session;
 	int datasn = ntohl(rhdr->datasn);
 	int max_cmdsn = ntohl(rhdr->max_cmdsn);
@@ -389,7 +389,7 @@ static int
 iscsi_solicit_data_init(struct iscsi_conn *conn, struct iscsi_cmd_task *ctask,
 			struct iscsi_r2t_info *r2t)
 {
-	iscsi_data_t *hdr;
+	struct iscsi_data *hdr;
 	struct iscsi_data_task *dtask;
 	struct scsi_cmnd *sc = ctask->sc;
 
@@ -464,7 +464,7 @@ iscsi_r2t_rsp(struct iscsi_conn *conn, struct iscsi_cmd_task *ctask)
 	int rc = 0;
 	struct iscsi_r2t_info *r2t;
 	struct iscsi_session *session = conn->session;
-	iscsi_r2t_rsp_t *rhdr = (iscsi_r2t_rsp_t *)conn->in.hdr;
+	struct iscsi_r2t_rsp *rhdr = (struct iscsi_r2t_rsp *)conn->in.hdr;
 	uint32_t max_cmdsn = ntohl(rhdr->max_cmdsn);
 	uint32_t exp_cmdsn = ntohl(rhdr->exp_cmdsn);
 	int r2tsn = ntohl(rhdr->r2tsn);
@@ -539,7 +539,7 @@ static int
 iscsi_hdr_recv(struct iscsi_conn *conn)
 {
 	int rc = 0;
-	iscsi_hdr_t *hdr;
+	struct iscsi_hdr *hdr;
 	struct iscsi_cmd_task *ctask;
 	struct iscsi_session *session = conn->session;
 	uint32_t cdgst, rdgst = 0;
@@ -579,11 +579,11 @@ iscsi_hdr_recv(struct iscsi_conn *conn)
 
 		sg.page = virt_to_page(hdr);
 		sg.offset = offset_in_page(hdr);
-		sg.length = sizeof(iscsi_hdr_t) + conn->in.ahslen;
+		sg.length = sizeof(struct iscsi_hdr) + conn->in.ahslen;
 		crypto_digest_init(conn->rx_tfm);
 		crypto_digest_update(conn->rx_tfm, &sg, 1);
 		crypto_digest_final(conn->rx_tfm, (u8 *)&cdgst);
-		rdgst = *(uint32_t*)((char*)hdr + sizeof(iscsi_hdr_t) +
+		rdgst = *(uint32_t*)((char*)hdr + sizeof(struct iscsi_hdr) +
 				     conn->in.ahslen);
 	}
 
@@ -625,7 +625,7 @@ iscsi_hdr_recv(struct iscsi_conn *conn)
 					 * connection's header
 					 * placeholder */
 					memcpy(&conn->hdr, conn->in.hdr,
-					       sizeof(iscsi_hdr_t));
+					       sizeof(struct iscsi_hdr));
 				}
 			} else if (cstate == IN_PROGRESS_WRITE) {
 				rc = iscsi_cmd_rsp(conn, ctask);
@@ -636,7 +636,7 @@ iscsi_hdr_recv(struct iscsi_conn *conn)
 			conn->in.flags = hdr->flags;
 			/* save cmd_status for sense data */
 			conn->in.cmd_status =
-				((iscsi_data_rsp_t*)hdr)->cmd_status;
+				((struct iscsi_data_rsp*)hdr)->cmd_status;
 			rc = iscsi_data_rsp(conn, ctask);
 			break;
 		case ISCSI_OP_R2T:
@@ -1194,7 +1194,7 @@ static int
 iscsi_solicit_data_cont(struct iscsi_conn *conn, struct iscsi_cmd_task *ctask,
 			struct iscsi_r2t_info *r2t, int left)
 {
-	iscsi_data_t *hdr;
+	struct iscsi_data *hdr;
 	struct iscsi_data_task *dtask;
 	struct scsi_cmnd *sc = ctask->sc;
 	int new_offset;
@@ -1248,7 +1248,7 @@ iscsi_solicit_data_cont(struct iscsi_conn *conn, struct iscsi_cmd_task *ctask,
 static int
 iscsi_unsolicit_data_init(struct iscsi_conn *conn, struct iscsi_cmd_task *ctask)
 {
-	iscsi_data_t *hdr;
+	struct iscsi_data *hdr;
 	struct iscsi_data_task *dtask;
 
 	dtask = mempool_alloc(ctask->datapool, GFP_ATOMIC);
@@ -2008,7 +2008,7 @@ iscsi_conn_create(iscsi_snx_h snxh, iscsi_cnx_h handle,
 	conn->handle = handle;
 
 	/* some initial operational parameters */
-	conn->hdr_size = sizeof(iscsi_hdr_t);
+	conn->hdr_size = sizeof(struct iscsi_hdr);
 	conn->max_recv_dlength = DEFAULT_MAX_RECV_DATA_SEGMENT_LENGTH;
 
 	spin_lock_init(&conn->lock);
@@ -2199,7 +2199,7 @@ iscsi_conn_stop(iscsi_cnx_h cnxh)
 }
 
 static int
-iscsi_send_immpdu(iscsi_cnx_h cnxh, iscsi_hdr_t *hdr, char *data,
+iscsi_send_immpdu(iscsi_cnx_h cnxh, struct iscsi_hdr *hdr, char *data,
 		  int data_size)
 {
 	struct iscsi_conn *conn = cnxh;
@@ -2225,24 +2225,24 @@ iscsi_send_immpdu(iscsi_cnx_h cnxh, iscsi_hdr_t *hdr, char *data,
 	 */
 	if (hdr->itt != ISCSI_RESERVED_TAG) {
 		hdr->itt = htonl(mtask->itt);
-		((iscsi_nopout_t*)hdr)->cmdsn = htonl(session->cmdsn);
+		((struct iscsi_nopout*)hdr)->cmdsn = htonl(session->cmdsn);
 		if (conn->c_stage == ISCSI_CNX_STARTED) {
 			session->cmdsn++;
 		}
 	} else {
 		/* do not advance CmdSN */
-		((iscsi_nopout_t*)hdr)->cmdsn = htonl(session->cmdsn);
+		((struct iscsi_nopout*)hdr)->cmdsn = htonl(session->cmdsn);
 	}
-	((iscsi_nopout_t*)hdr)->exp_statsn = htonl(conn->exp_statsn);
+	((struct iscsi_nopout*)hdr)->exp_statsn = htonl(conn->exp_statsn);
 
-	memcpy(&mtask->hdr, hdr, sizeof(iscsi_hdr_t));
+	memcpy(&mtask->hdr, hdr, sizeof(struct iscsi_hdr));
 
 	if (conn->c_stage != ISCSI_CNX_INITIAL_STAGE) {
 		iscsi_buf_init_hdr(conn, &mtask->headbuf, (char*)&mtask->hdr,
 				    (u8 *)mtask->hdrext);
 	} else {
 		iscsi_buf_init_virt(&mtask->headbuf, (char*)&mtask->hdr,
-				    sizeof(iscsi_hdr_t));
+				    sizeof(struct iscsi_hdr));
 	}
 	spin_unlock_bh(&session->lock);
 
@@ -2490,12 +2490,11 @@ iscsi_set_param(iscsi_cnx_h cnxh, iscsi_param_e param, int value)
 		}
 		break;
 		case ISCSI_PARAM_MAX_XMIT_DLENGTH:
-			//conn->max_xmit_dlength = value;
-			conn->max_xmit_dlength = conn->max_recv_dlength;
+			conn->max_xmit_dlength = value;
 			break;
 		case ISCSI_PARAM_HDRDGST_EN:
 			conn->hdrdgst_en = value;
-			conn->hdr_size = sizeof(iscsi_hdr_t);
+			conn->hdr_size = sizeof(struct iscsi_hdr);
 			if (conn->hdrdgst_en) {
 				conn->hdr_size += sizeof(__u32);
 				if (!conn->tx_tfm)

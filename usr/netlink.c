@@ -156,7 +156,7 @@ __ksession_call(int ctrl_fd, void *iov_base, int iov_len)
 {
 	int rc;
 	struct iovec iov;
-	iscsi_uevent_t *ev = iov_base;
+	struct iscsi_uevent *ev = iov_base;
 	iscsi_uevent_e type = ev->type;
 
 	iov.iov_base = iov_base;
@@ -195,9 +195,9 @@ int
 ksession_create(int ctrl_fd, iscsi_session_t *session)
 {
 	int rc;
-	iscsi_uevent_t ev;
+	struct iscsi_uevent ev;
 
-	memset(&ev, 0, sizeof(iscsi_uevent_t));
+	memset(&ev, 0, sizeof(struct iscsi_uevent));
 
 	ev.type = ISCSI_UEVENT_CREATE_SESSION;
 	ev.transport_id = 0; /* FIXME: hardcoded */
@@ -224,9 +224,9 @@ int
 ksession_destroy(int ctrl_fd, iscsi_session_t *session)
 {
 	int rc;
-	iscsi_uevent_t ev;
+	struct iscsi_uevent ev;
 
-	memset(&ev, 0, sizeof(iscsi_uevent_t));
+	memset(&ev, 0, sizeof(struct iscsi_uevent));
 
 	ev.type = ISCSI_UEVENT_DESTROY_SESSION;
 	ev.transport_id = 0; /* FIXME: hardcoded */
@@ -248,9 +248,9 @@ int
 ksession_cnx_create(int ctrl_fd, iscsi_session_t *session, iscsi_conn_t *conn)
 {
 	int rc;
-	iscsi_uevent_t ev;
+	struct iscsi_uevent ev;
 
-	memset(&ev, 0, sizeof(iscsi_uevent_t));
+	memset(&ev, 0, sizeof(struct iscsi_uevent));
 
 	ev.type = ISCSI_UEVENT_CREATE_CNX;
 	ev.transport_id = 0; /* FIXME: hardcoded */
@@ -277,9 +277,9 @@ int
 ksession_cnx_destroy(int ctrl_fd, iscsi_conn_t *conn)
 {
 	int rc;
-	iscsi_uevent_t ev;
+	struct iscsi_uevent ev;
 
-	memset(&ev, 0, sizeof(iscsi_uevent_t));
+	memset(&ev, 0, sizeof(struct iscsi_uevent));
 
 	ev.type = ISCSI_UEVENT_DESTROY_CNX;
 	ev.transport_id = 0; /* FIXME: hardcoded */
@@ -300,9 +300,9 @@ int
 ksession_cnx_bind(int ctrl_fd, iscsi_session_t *session, iscsi_conn_t *conn)
 {
 	int rc;
-	iscsi_uevent_t ev;
+	struct iscsi_uevent ev;
 
-	memset(&ev, 0, sizeof(iscsi_uevent_t));
+	memset(&ev, 0, sizeof(struct iscsi_uevent));
 
 	ev.type = ISCSI_UEVENT_BIND_CNX;
 	ev.transport_id = 0; /* FIXME: hardcoded */
@@ -330,7 +330,7 @@ int
 ksession_send_pdu_begin(int ctrl_fd, iscsi_session_t *session,
 			iscsi_conn_t *conn, int hdr_size, int data_size)
 {
-	iscsi_uevent_t *ev;
+	struct iscsi_uevent *ev;
 
 	if (xmitbuf) {
 		log_error("send's begin state machine bug?");
@@ -361,7 +361,7 @@ int
 ksession_send_pdu_end(int ctrl_fd, iscsi_session_t *session, iscsi_conn_t *conn)
 {
 	int rc;
-	iscsi_uevent_t *ev;
+	struct iscsi_uevent *ev;
 	struct iovec iov;
 
 	if (!xmitbuf) {
@@ -412,9 +412,9 @@ ksession_set_param(int ctrl_fd, iscsi_conn_t *conn, iscsi_param_e param,
 		   uint32_t value)
 {
 	int rc;
-	iscsi_uevent_t ev;
+	struct iscsi_uevent ev;
 
-	memset(&ev, 0, sizeof(iscsi_uevent_t));
+	memset(&ev, 0, sizeof(struct iscsi_uevent));
 
 	ev.type = ISCSI_UEVENT_SET_PARAM;
 	ev.transport_id = 0; /* FIXME: hardcoded */
@@ -442,9 +442,9 @@ int
 ksession_stop_cnx(int ctrl_fd, iscsi_conn_t *conn)
 {
 	int rc;
-	iscsi_uevent_t ev;
+	struct iscsi_uevent ev;
 
-	memset(&ev, 0, sizeof(iscsi_uevent_t));
+	memset(&ev, 0, sizeof(struct iscsi_uevent));
 
 	ev.type = ISCSI_UEVENT_STOP_CNX;
 	ev.transport_id = 0; /* FIXME: hardcoded */
@@ -466,9 +466,9 @@ int
 ksession_start_cnx(int ctrl_fd, iscsi_conn_t *conn)
 {
 	int rc;
-	iscsi_uevent_t ev;
+	struct iscsi_uevent ev;
 
-	memset(&ev, 0, sizeof(iscsi_uevent_t));
+	memset(&ev, 0, sizeof(struct iscsi_uevent));
 
 	ev.type = ISCSI_UEVENT_START_CNX;
 	ev.transport_id = 0; /* FIXME: hardcoded */
@@ -499,7 +499,7 @@ ksession_recv_pdu_begin(int ctrl_fd, iscsi_conn_t *conn, ulong_t recv_handle,
 		log_error("recv's begin state machine bug?");
 		return -EIO;
 	}
-	recvbuf = (void*)recv_handle + sizeof(iscsi_uevent_t);
+	recvbuf = (void*)recv_handle + sizeof(struct iscsi_uevent);
 	recvlen = 0;
 	*pdu_handle = recv_handle;
 
@@ -529,7 +529,7 @@ int
 ctldev_handle(int ctrl_fd)
 {
 	int rc;
-	iscsi_uevent_t *ev;
+	struct iscsi_uevent *ev;
 	struct qelem *item;
 	iscsi_session_t *session = NULL;
 	iscsi_conn_t *conn = NULL;
@@ -557,7 +557,7 @@ ctldev_handle(int ctrl_fd)
 		log_error("can not read from NL socket, error %d", rc);
 		return rc;
 	}
-	ev = (iscsi_uevent_t *)recv_handle;
+	ev = (struct iscsi_uevent *)recv_handle;
 
 	/* verify connection */
 	item = provider[0].sessions.q_forw;

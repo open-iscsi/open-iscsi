@@ -229,7 +229,7 @@ iscsi_disconnect(iscsi_conn_t *conn)
 }
 
 static void
-iscsi_log_text(iscsi_hdr_t *pdu, char *data)
+iscsi_log_text(struct iscsi_hdr *pdu, char *data)
 {
 	int dlength = ntoh24(pdu->dlength);
 	char *text = data;
@@ -244,7 +244,7 @@ iscsi_log_text(iscsi_hdr_t *pdu, char *data)
 }
 
 int
-iscsi_send_pdu(iscsi_conn_t *conn, iscsi_hdr_t *hdr,
+iscsi_send_pdu(iscsi_conn_t *conn, struct iscsi_hdr *hdr,
 	       int hdr_digest, char *data, int data_digest, int timeout)
 {
 	int rc, ret = 0;
@@ -415,7 +415,7 @@ iscsi_send_pdu(iscsi_conn_t *conn, iscsi_hdr_t *hdr,
 }
 
 int
-iscsi_recv_pdu(iscsi_conn_t *conn, iscsi_hdr_t *hdr,
+iscsi_recv_pdu(iscsi_conn_t *conn, struct iscsi_hdr *hdr,
 	       int hdr_digest, char *data, int max_data_length, int data_digest,
 	       int timeout)
 {

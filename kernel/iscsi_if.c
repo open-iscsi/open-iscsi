@@ -32,14 +32,14 @@ static struct sock *nls = NULL;
 static int daemon_pid = 0;
 
 int
-iscsi_control_recv_pdu(iscsi_cnx_h cp_cnx, iscsi_hdr_t *hdr,
+iscsi_control_recv_pdu(iscsi_cnx_h cp_cnx, struct iscsi_hdr *hdr,
 				char *data, int data_size)
 {
 	struct nlmsghdr	*nlh;
 	struct sk_buff	*skb;
 	struct iscsi_uevent *ev;
 	char *pdu;
-	int len = NLMSG_SPACE(sizeof(*ev) + sizeof(iscsi_hdr_t) + data_size);
+	int len = NLMSG_SPACE(sizeof(*ev) + sizeof(struct iscsi_hdr) + data_size);
 
 	skb = alloc_skb(len, in_interrupt() ? GFP_ATOMIC : GFP_KERNEL);
 	if (!skb) {
@@ -53,8 +53,8 @@ iscsi_control_recv_pdu(iscsi_cnx_h cp_cnx, iscsi_hdr_t *hdr,
 	ev->type = ISCSI_KEVENT_RECV_PDU;
 	ev->r.recv_req.cnx_handle = (ulong_t)cp_cnx;
 	pdu = (char*)ev + sizeof(*ev);
-	memcpy(pdu, hdr, sizeof(iscsi_hdr_t));
-	memcpy(pdu + sizeof(iscsi_hdr_t), data, data_size);
+	memcpy(pdu, hdr, sizeof(struct iscsi_hdr));
+	memcpy(pdu + sizeof(struct iscsi_hdr), data, data_size);
 	skb_get(skb);
 	netlink_unicast(nls, skb, daemon_pid, MSG_DONTWAIT);
 	return 0;
@@ -165,7 +165,7 @@ iscsi_if_recv_msg(struct sk_buff *skb, struct nlmsghdr *nlh)
 	case ISCSI_UEVENT_SEND_PDU:
 		ev->r.retcode = transport->ops.send_immpdu(
 		       (void*)ev->u.send_pdu.cnx_handle,
-		       (iscsi_hdr_t*)((char*)ev + sizeof(*ev)),
+		       (struct iscsi_hdr*)((char*)ev + sizeof(*ev)),
 		       (char*)ev + sizeof(*ev) + ev->u.send_pdu.hdr_size,
 			ev->u.send_pdu.data_size);
 		break;

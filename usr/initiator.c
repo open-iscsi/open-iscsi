@@ -380,11 +380,11 @@ __session_ipc_login_cleanup(queue_task_t *qtask, ipc_err_e err)
 }
 
 static int
-__send_nopin_rsp(iscsi_conn_t *conn, iscsi_nopin_t *rhdr, char *data)
+__send_nopin_rsp(iscsi_conn_t *conn, struct iscsi_nopin *rhdr, char *data)
 {
-	iscsi_nopout_t hdr;
+	struct iscsi_nopout hdr;
 
-	memset(&hdr, 0, sizeof(iscsi_nopout_t));
+	memset(&hdr, 0, sizeof(struct iscsi_nopout));
 	hdr.opcode = ISCSI_OP_NOOP_OUT | ISCSI_OP_IMMEDIATE;
 	hdr.flags = ISCSI_FLAG_CMD_FINAL;
 	hdr.dlength[0] = rhdr->dlength[0];
@@ -394,7 +394,7 @@ __send_nopin_rsp(iscsi_conn_t *conn, iscsi_nopin_t *rhdr, char *data)
 	hdr.ttt = rhdr->ttt;
 	hdr.itt = ISCSI_RESERVED_TAG;
 
-	return iscsi_send_pdu(conn, (iscsi_hdr_t*)&hdr,
+	return iscsi_send_pdu(conn, (struct iscsi_hdr*)&hdr,
 	       ISCSI_DIGEST_NONE, data, ISCSI_DIGEST_NONE, 0);
 }
 
@@ -596,7 +596,7 @@ __session_cnx_recv_pdu(queue_item_t *item)
 			free(c->qtask);
 		}
 	} else if (conn->state == STATE_LOGGED_IN) {
-		iscsi_hdr_t hdr;
+		struct iscsi_hdr hdr;
 		char *data;
 
 		/* FIXME: better to read PDU Header first, than allocate needed
@@ -617,7 +617,7 @@ __session_cnx_recv_pdu(queue_item_t *item)
 
 		if (hdr.opcode == ISCSI_OP_NOOP_IN) {
 			if (__send_nopin_rsp(conn,
-				     (iscsi_nopin_t*)&hdr, data)) {
+				     (struct iscsi_nopin*)&hdr, data)) {
 				free(data);
 			}
 		} else {

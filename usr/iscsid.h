@@ -29,7 +29,7 @@
 #define BHS_SIZE	48
 
 typedef struct iscsi_pdu {
-	iscsi_hdr_t bhs;
+	struct iscsi_hdr bhs;
 	void *ahs;
 	unsigned int ahssize;
 	void *data;

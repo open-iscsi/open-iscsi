@@ -43,7 +43,7 @@
 /*
  * iSCSI Template Message Header
  */
-typedef struct iscsi_hdr {
+struct iscsi_hdr {
 	uint8_t		opcode;
 	uint8_t		flags;		/* Final bit */
 	uint8_t		rsvd2[2];
@@ -55,7 +55,7 @@ typedef struct iscsi_hdr {
 	uint32_t	statsn;
 	uint32_t	exp_statsn;
 	uint8_t		other[16];
-} iscsi_hdr_t;
+};
 
 /************************* RFC 3720 Begin *****************************/
 
@@ -89,7 +89,7 @@ typedef struct iscsi_hdr {
 #define ISCSI_OP_REJECT			0x3f
 
 /* SCSI Command Header */
-typedef struct iscsi_cmd {
+struct iscsi_cmd {
 	uint8_t opcode;
 	uint8_t flags;
 	uint8_t rsvd2;
@@ -103,7 +103,7 @@ typedef struct iscsi_cmd {
 	uint32_t exp_statsn;
 	uint8_t cdb[16];	/* SCSI Command Block */
 	/* Additional Data (Command Dependent) */
-} iscsi_cmd_t;
+};
 
 /* Command PDU flags */
 #define ISCSI_FLAG_CMD_FINAL		0x80
@@ -119,7 +119,7 @@ typedef struct iscsi_cmd {
 #define ISCSI_ATTR_ACA			4
 
 /* SCSI Response Header */
-typedef struct iscsi_cmd_rsp {
+struct iscsi_cmd_rsp {
 	uint8_t opcode;
 	uint8_t flags;
 	uint8_t response;
@@ -136,7 +136,7 @@ typedef struct iscsi_cmd_rsp {
 	uint32_t residual_count;
 	uint32_t bi_residual_count;
 	/* Response or Sense Data (optional) */
-} iscsi_cmd_rsp_t;
+};
 
 /* Command Response PDU flags */
 #define ISCSI_FLAG_CMD_BIDI_OVERFLOW        0x10
@@ -150,7 +150,7 @@ typedef struct iscsi_cmd_rsp {
 #define ISCSI_STATUS_SUBSYS_FAILURE	2
 
 /* Asynchronous Event Header */
-typedef struct iscsi_async {
+struct iscsi_async {
 	uint8_t opcode;
 	uint8_t flags;
 	uint8_t rsvd2[2];
@@ -167,7 +167,7 @@ typedef struct iscsi_async {
 	uint16_t param2;
 	uint16_t param3;
 	uint8_t rsvd5[4];
-} iscsi_async_t;
+};
 
 /* iSCSI Event Codes */
 #define ISCSI_ASYNC_MSG_SCSI_EVENT			0
@@ -178,7 +178,7 @@ typedef struct iscsi_async {
 #define ISCSI_ASYNC_MSG_VENDOR_SPECIFIC			255
 
 /* NOP-Out Message */
-typedef struct iscsi_nopout {
+struct iscsi_nopout {
 	uint8_t opcode;
 	uint8_t flags;
 	uint16_t rsvd2;
@@ -190,10 +190,10 @@ typedef struct iscsi_nopout {
 	uint32_t cmdsn;
 	uint32_t exp_statsn;
 	uint8_t rsvd4[16];
-} iscsi_nopout_t;
+};
 
 /* NOP-In Message */
-typedef struct iscsi_nopin {
+struct iscsi_nopin {
 	uint8_t opcode;
 	uint8_t flags;
 	uint16_t rsvd2;
@@ -206,10 +206,10 @@ typedef struct iscsi_nopin {
 	uint32_t exp_cmdsn;
 	uint32_t max_cmdsn;
 	uint8_t rsvd4[12];
-} iscsi_nopin_t;
+};
 
 /* SCSI Task Management Message Header */
-typedef struct iscsi_tm {
+struct iscsi_tm {
 	uint8_t opcode;
 	uint8_t flags;
 	uint8_t rsvd1[2];
@@ -223,7 +223,7 @@ typedef struct iscsi_tm {
 	uint32_t refcmdsn;
 	uint32_t expdatasn;
 	uint8_t rsvd2[8];
-} iscsi_tm_t;
+};
 
 #define ISCSI_FLAG_TASK_MGMT_FUNCTION_MASK  0x7F
 
@@ -238,7 +238,7 @@ typedef struct iscsi_tm {
 #define ISCSI_TM_FUNC_TASK_REASSIGN	 8
 
 /* SCSI Task Management Response Header */
-typedef struct iscsi_tm_rsp {
+struct iscsi_tm_rsp {
 	uint8_t opcode;
 	uint8_t flags;
 	uint8_t response;	/* see Response values below */
@@ -252,7 +252,7 @@ typedef struct iscsi_tm_rsp {
 	uint32_t exp_cmdsn;
 	uint32_t max_cmdsn;
 	uint8_t rsvd3[12];
-} iscsi_tm_rsp_t;
+};
 
 /* Response values */
 #define SCSI_TCP_TM_RESP_COMPLETE	0x00
@@ -264,7 +264,7 @@ typedef struct iscsi_tm_rsp {
 #define SCSI_TCP_TM_RESP_REJECTED	0xff
 
 /* Ready To Transfer Header */
-typedef struct iscsi_r2t_rsp {
+struct iscsi_r2t_rsp {
 	uint8_t opcode;
 	uint8_t flags;
 	uint8_t rsvd2[2];
@@ -279,10 +279,10 @@ typedef struct iscsi_r2t_rsp {
 	uint32_t r2tsn;
 	uint32_t data_offset;
 	uint32_t data_length;
-} iscsi_r2t_rsp_t;
+};
 
 /* SCSI Data Hdr */
-typedef struct iscsi_data {
+struct iscsi_data {
 	uint8_t opcode;
 	uint8_t flags;
 	uint8_t rsvd2[2];
@@ -298,10 +298,10 @@ typedef struct iscsi_data {
 	uint32_t offset;
 	uint32_t rsvd6;
 	/* Payload */
-} iscsi_data_t;
+};
 
 /* SCSI Data Response Hdr */
-typedef struct iscsi_data_rsp {
+struct iscsi_data_rsp {
 	uint8_t opcode;
 	uint8_t flags;
 	uint8_t rsvd2;
@@ -317,7 +317,7 @@ typedef struct iscsi_data_rsp {
 	uint32_t datasn;
 	uint32_t offset;
 	uint32_t residual_count;
-} iscsi_data_rsp_t;
+};
 
 /* Data Response PDU flags */
 #define ISCSI_FLAG_DATA_ACK                 0x40
@@ -326,7 +326,7 @@ typedef struct iscsi_data_rsp {
 #define ISCSI_FLAG_DATA_STATUS              0x01
 
 /* Text Header */
-typedef struct iscsi_text {
+struct iscsi_text {
 	uint8_t opcode;
 	uint8_t flags;
 	uint8_t rsvd2[2];
@@ -339,12 +339,12 @@ typedef struct iscsi_text {
 	uint32_t exp_statsn;
 	uint8_t rsvd5[16];
 	/* Text - key=value pairs */
-} iscsi_text_t;
+};
 
 #define ISCSI_FLAG_TEXT_CONTINUE            0x40
 
 /* Text Response Header */
-typedef struct iscsi_text_rsp {
+struct iscsi_text_rsp {
 	uint8_t opcode;
 	uint8_t flags;
 	uint8_t rsvd2[2];
@@ -358,10 +358,10 @@ typedef struct iscsi_text_rsp {
 	uint32_t max_cmdsn;
 	uint8_t rsvd5[12];
 	/* Text Response - key:value pairs */
-} iscsi_text_rsp_t;
+};
 
 /* Login Header */
-typedef struct iscsi_login {
+struct iscsi_login {
 	uint8_t opcode;
 	uint8_t flags;
 	uint8_t max_version;	/* Max. version supported */
@@ -376,7 +376,7 @@ typedef struct iscsi_login {
 	uint32_t cmdsn;
 	uint32_t exp_statsn;
 	uint8_t rsvd5[16];
-} iscsi_login_t;
+};
 
 /* Login PDU flags */
 #define ISCSI_FLAG_LOGIN_TRANSIT            0x80
@@ -390,7 +390,7 @@ typedef struct iscsi_login {
 (flags & ISCSI_FLAG_LOGIN_NEXT_STAGE_MASK)
 
 /* Login Response Header */
-typedef struct iscsi_login_rsp {
+struct iscsi_login_rsp {
 	uint8_t opcode;
 	uint8_t flags;
 	uint8_t max_version;	/* Max. version supported */
@@ -407,7 +407,7 @@ typedef struct iscsi_login_rsp {
 	uint8_t status_class;	/* see Login RSP ststus classes below */
 	uint8_t status_detail;	/* see Login RSP Status details below */
 	uint8_t rsvd4[10];
-} iscsi_login_rsp_t;
+};
 
 /* Login stage (phase) codes for CSG, NSG */
 #define ISCSI_INITIAL_LOGIN_STAGE		-1
@@ -449,7 +449,7 @@ typedef struct iscsi_login_rsp {
 #define ISCSI_LOGIN_STATUS_NO_RESOURCES	        0x02
 
 /* Logout Header */
-typedef struct iscsi_logout {
+struct iscsi_logout {
 	uint8_t opcode;
 	uint8_t flags;
 	uint8_t rsvd1[2];
@@ -462,7 +462,7 @@ typedef struct iscsi_logout {
 	uint32_t cmdsn;
 	uint32_t exp_statsn;
 	uint8_t rsvd4[16];
-} iscsi_logout_t;
+};
 
 /* Logout PDU flags */
 #define ISCSI_FLAG_LOGOUT_REASON_MASK       0x7F
@@ -475,7 +475,7 @@ typedef struct iscsi_logout {
 #define ISCSI_LOGOUT_REASON_AEN_REQUEST	        3
 
 /* Logout Response Header */
-typedef struct iscsi_logout_rsp {
+struct iscsi_logout_rsp {
 	uint8_t opcode;
 	uint8_t flags;
 	uint8_t response;	/* see Logout response values below */
@@ -492,7 +492,7 @@ typedef struct iscsi_logout_rsp {
 	uint16_t t2wait;
 	uint16_t t2retain;
 	uint32_t rsvd6;
-} iscsi_logout_rsp_t;
+};
 
 /* logout response status values */
 
@@ -502,7 +502,7 @@ typedef struct iscsi_logout_rsp {
 #define ISCSI_LOGOUT_CLEANUP_FAILED	  3
 
 /* SNACK Header */
-typedef struct iscsi_snack {
+struct iscsi_snack {
 	uint8_t opcode;
 	uint8_t flags;
 	uint8_t rsvd2[14];
@@ -513,13 +513,13 @@ typedef struct iscsi_snack {
 	uint32_t rsvd3;
 	uint32_t expdatasn;
 	uint8_t rsvd6[8];
-} iscsi_snack_t;
+};
 
 /* SNACK PDU flags */
 #define ISCSI_FLAG_SNACK_TYPE_MASK          0x0F	/* 4 bits */
 
 /* Reject Message Header */
-typedef struct iscsi_reject {
+struct iscsi_reject {
 	uint8_t opcode;
 	uint8_t flags;
 	uint8_t reason;
@@ -533,7 +533,7 @@ typedef struct iscsi_reject {
 	uint32_t datasn;
 	uint8_t rsvd5[8];
 	/* Text - Rejected hdr */
-} iscsi_reject_t;
+};
 
 /* Reason for Reject */
 #define CMD_BEFORE_LOGIN        1

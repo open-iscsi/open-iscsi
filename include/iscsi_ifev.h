@@ -29,23 +29,17 @@ typedef enum iscsi_uevent_e {
 	ISCSI_UEVENT_CREATE_CNX		= UEVENT_BASE + 3,
 	ISCSI_UEVENT_DESTROY_CNX	= UEVENT_BASE + 4,
 	ISCSI_UEVENT_BIND_CNX		= UEVENT_BASE + 5,
-	ISCSI_UEVENT_SEND_PDU_BEGIN	= UEVENT_BASE + 6,
-	ISCSI_UEVENT_SEND_PDU_END	= UEVENT_BASE + 7,
-	ISCSI_UEVENT_RECV_PDU_BEGIN	= UEVENT_BASE + 8,
-	ISCSI_UEVENT_RECV_PDU_END	= UEVENT_BASE + 9,
-	ISCSI_UEVENT_RECV_REQ		= UEVENT_BASE + 10,
-	ISCSI_UEVENT_SET_PARAM		= UEVENT_BASE + 11,
-	ISCSI_UEVENT_START_CNX		= UEVENT_BASE + 12,
-	ISCSI_UEVENT_STOP_CNX		= UEVENT_BASE + 13,
-	ISCSI_UEVENT_CNX_ERROR		= UEVENT_BASE + 14,
-	ISCSI_UEVENT_SEND_PDU		= UEVENT_BASE + 15,
+	ISCSI_UEVENT_SET_PARAM		= UEVENT_BASE + 6,
+	ISCSI_UEVENT_START_CNX		= UEVENT_BASE + 7,
+	ISCSI_UEVENT_STOP_CNX		= UEVENT_BASE + 8,
+	ISCSI_UEVENT_SEND_PDU		= UEVENT_BASE + 9,
 
 	/* up events */
 	ISCSI_KEVENT_RECV_PDU		= KEVENT_BASE + 1,
 	ISCSI_KEVENT_CNX_ERROR		= KEVENT_BASE + 2,
 } iscsi_uevent_e;
 
-typedef struct iscsi_uevent {
+struct iscsi_uevent {
 	int type; /* k/u events type */
 	int transport_id;
 
@@ -78,22 +72,6 @@ typedef struct iscsi_uevent {
 			int		data_size;
 			ulong_t		cnx_handle;
 		} send_pdu;
-		struct msg_sp_begin {
-			int		hdr_size;
-			int		data_size;
-			ulong_t		cnx_handle;
-		} sp_begin;
-		struct msg_sp_end {
-			ulong_t		cnx_handle;
-		} sp_end;
-		struct msg_rp_begin {
-			ulong_t		cpcnx_handle;
-			ulong_t		recv_handle;
-		} rp_begin;
-		struct msg_rp_end_req {
-			ulong_t		cpcnx_handle;
-			ulong_t		pdu_handle;
-		} rp_end;
 		struct msg_set_param {
 			ulong_t		cnx_handle;
 			iscsi_param_e	param;
@@ -105,10 +83,6 @@ typedef struct iscsi_uevent {
 		struct msg_stop_cnx {
 			ulong_t		cnx_handle;
 		} stop_cnx;
-		struct msg_cnxerror_ack {
-			ulong_t		cpcnx_handle;
-			ulong_t		recv_handle;
-		} cnxerror_ack;
 	} u;
 	union {
 		/* messages k -> u */
@@ -122,11 +96,7 @@ typedef struct iscsi_uevent {
 			ulong_t		cnx_handle;
 			iscsi_err_e	error;
 		} cnxerror;
-		struct msg_rp_begin_rsp {
-			ulong_t		pdu_handle;
-			unsigned int	pdu_size;
-		} rp_begin;
 	} r;
-} iscsi_uevent_t;
+};
 
 #endif /* ISCSI_IFEV_H */
