@@ -17,7 +17,8 @@
 # See the file COPYING included with this distribution for more details.
 #
 
-use Digest::MD5 qw(md5_hex);
+use MIME::Base64 qw(decode_base64);
+use Digest::MD5;
 use Cwd;
 use Getopt::Std;
 use File::Basename;
@@ -29,7 +30,7 @@ my $reopen_attempts = 0;
 my $reopen_timeout = 3;
 my $recv_timeout = 5;
 my $sysfs_path = "/sys/class/iscsi";
-my $pprefix = "iscsiadm:";
+my $pprefix = "iscsiadm: ";
 
 #
 # Default Configuration
@@ -146,7 +147,7 @@ sub get_rc {
 }
 
 sub fatal {
-	print "$pprefix @_", "\n";
+	print "$pprefix"."@_"."\n";
 	exit;
 }
 
@@ -476,7 +477,7 @@ sub connection_login {
 					return 0;
 		$class == 3 && printf("target error ($detail)\n") && return 0;
 
-		$vactive != 0 && fatal("version mismatch");
+		$vactive != 0 && printf("version mismatch") && return 0;
 
 		# make sure the current stages matches
 		$c_stage != (($flags & 0x0C)>>2) &&
@@ -486,7 +487,7 @@ sub connection_login {
 		# make sure that we're actually advancing if the
 		# T-bit is set
                 $transit && (($flags & 0x03) <= $c_stage) &&
-		    fatal("protocol error: next stage is not advancing\n") &&
+		    printf("protocol error: next stage is not advancing\n") &&
 			return 0;
 
 		if ($transit) {
@@ -511,12 +512,10 @@ sub connection_login {
 				if ($a_stage < 2 &&
 				    @pairs[$i] =~ /.*CHAP_I=(.*)/) {
 					$chap_id = $1;
-					$data = $data.@pairs[$i]."\0";
 					$a_stage++;
 				} elsif ($a_stage < 2 &&
 					 @pairs[$i] =~ /.*CHAP_C=(.*)/) {
 					$chap_ch = $1;
-					$data = $data.@pairs[$i]."\0";
 					$a_stage++;
 				} elsif ($a_stage < 0 &&
 					 @pairs[$i] =~ /.*AuthMethod=(.*)/) {
@@ -537,17 +536,22 @@ sub connection_login {
 				my $md5;
 
 				$chap_ch =~ s/["']//g;
-				$chap_ch =~ s/^0x//;
-				$chap_ch = pack("H*", $chap_ch);
+				if ($chap_ch =~ s/^0x(.*)//) {
+					$chap_ch = pack("H*", lc($1));
+				} elsif ($chap_ch =~ s/^0[Bb](.*)//) {
+					$chap_ch = decode_base64($chap_ch);
+				} else {
+		    			printf("protocol error: ".
+					       "wrong challenge format\n");
+					return 0;
+				}
 				$chap_id =~ s/["']//g;
-				$chap_id =~ s/^0x//;
-				$chap_id = pack("H*", $chap_id);
 
 				$md5 = new Digest::MD5;
 				$md5->reset;
-				$md5->add(substr($chap_id,0,1));
+				$md5->add(pack("C", $chap_id));
 				$md5->add($login_password);
-				$md5->add($chap_ch);
+				$md5->add(pack("a*", $chap_ch));
 				$data = $data."CHAP_N=$login_user\0";
 				$data = $data."CHAP_R=0x".
 						$md5->hexdigest()."\0";
