@@ -1628,6 +1628,24 @@ iscsi_data_xmit(struct iscsi_conn *conn)
 	return 0;
 }
 
+static inline int
+iscsi_data_xmit_more(iscsi_conn *conn)
+{
+	int rc;
+
+	if (unlikely(conn->suspend))
+		return 0;
+	rc = iscsi_data_xmit(conn);
+	if (rc) {
+		if (conn->stop_stage != STOP_CNX_RECOVER &&
+		    (conn->c_stage == ISCSI_CNX_CLEANUP_WAIT ||
+		     conn->c_stage == ISCSI_CNX_STOPPED ||
+		     conn->suspend))
+			return 0;
+	}
+	return rc;
+}
+
 static void
 iscsi_xmitworker(void *data)
 {
@@ -1637,18 +1655,8 @@ iscsi_xmitworker(void *data)
 	 * serialize Xmit worker on a per-connection basis.
 	 */
 	down(&conn->xmitsema);
-	if (conn->suspend)
-		goto out;
-	if (iscsi_data_xmit(conn)) {
-		if (conn->stop_stage != STOP_CNX_RECOVER &&
-		    (conn->c_stage == ISCSI_CNX_CLEANUP_WAIT ||
-		     conn->c_stage == ISCSI_CNX_STOPPED ||
-		     conn->suspend))
-			goto out;
-		/* re-schedule in case of -EAGAIN (out of socket buffer) */
+	if (iscsi_data_xmit_more(conn))
 		schedule_work(&conn->xmitwork);
-	}
-out:
 	up(&conn->xmitsema);
 }
 
@@ -1696,28 +1704,20 @@ iscsi_queuecommand(struct scsi_cmnd *sc, void (*done)(struct scsi_cmnd *))
 		goto reject;
 	}
 
-	if (session->conn_cnt > 1) {
+	conn = session->leadconn;
+
+	if (unlikely(session->conn_cnt > 1)) {
 		struct iscsi_conn *cnx;
 		int cpu = smp_processor_id();
 
 		spin_lock(&session->conn_lock);
 		list_for_each_entry(cnx, &session->connections, item) {
-			if (cnx->busy) {
+			if (cnx->cpu == cpu && cpu_online(cpu)) {
 				conn = cnx;
-				conn->busy--;
-				break;
-			}
-			if (cnx->cpu == cpu && cpu_online(cpu) && !cnx->busy) {
-				conn = cnx;
-				conn->busy = 16;
 				break;
 			}
 		}
 		spin_unlock(&session->conn_lock);
-		if (conn == NULL)
-			conn = session->leadconn;
-	} else {
-		conn = session->leadconn;
 	}
 
 	__kfifo_get(session->cmdpool.queue, (void*)&ctask, sizeof(void*));
@@ -1738,7 +1738,17 @@ iscsi_queuecommand(struct scsi_cmnd *sc, void (*done)(struct scsi_cmnd *))
 		conn->id, (long)sc, ctask->itt, sc->request_bufflen,
 		session->cmdsn, session->max_cmdsn - session->exp_cmdsn + 1);
 
-	schedule_work(&conn->xmitwork);
+        if (!down_trylock(&conn->xmitsema)) {
+                /* TODO: experiment accumulating some:
+		 * if (__kfifo_len(conn->xmitqueue) > threshold)
+		 *	do xmit
+		 */
+		if (iscsi_data_xmit_more(conn))
+			schedule_work(&conn->xmitwork);
+		up(&conn->xmitsema);
+	}
+	else
+		schedule_work(&conn->xmitwork);
 
 	return 0;
 
