@@ -57,6 +57,7 @@ typedef struct idbm {
 	recinfo_t	dinfo_isns[MAX_KEYS];
 } idbm_t;
 
+extern char* get_iscsi_initiatorname(char *pathname);
 extern idbm_t* idbm_init(char *configfile);
 extern void idbm_terminate(idbm_t *db);
 extern int idbm_print_node(idbm_t *db, int rec_id);

@@ -87,14 +87,72 @@
 } while(0)
 
 static int
-idbm_uniq_id(char *hash)
+idbm_uniq_id(char *name)
 {
-	int id=0, i=0;
-	while (*(hash+i)) {
-		id += i*(*hash+i);
-		i++;
+	unsigned long h = 0, g;
+	static int M = 0x100000;
+
+	while (*name) {
+		h = ( h << 4 ) + *name++;
+		if ((g = h & 0xF0000000L))
+			h ^= g >> 23;
+
+		h &= ~g;
 	}
-	return id;
+	return h % M;
+}
+
+char *
+get_iscsi_initiatorname(char *pathname)
+{
+	FILE *f = NULL;
+	int c;
+	char *line, buffer[1024];
+	char *name = NULL;
+
+	if (!pathname) {
+		log_error("No pathname to load InitiatorName from");
+		return NULL;
+	}
+
+	/* get the InitiatorName */
+	if ((f = fopen(pathname, "r"))) {
+		while ((line = fgets(buffer, sizeof (buffer), f))) {
+
+			while (line && isspace(c = *line))
+				line++;
+
+			if (strncmp(line, "InitiatorName=", 14) == 0) {
+				char *end = line + 14;
+
+				/* the name is everything up to the first
+				 * bit of whitespace
+				 */
+				while (*end && (!isspace(c = *end)))
+					end++;
+
+				if (isspace(c = *end))
+					*end = '\0';
+
+				if (end > line + 14)
+					name = strdup(line + 14);
+			}
+		}
+		fclose(f);
+		if (!name) {
+			log_error(
+			       "an InitiatorName is required, but "
+			       "was not found in %s", pathname);
+			return NULL;
+		} else {
+			log_debug(5, "InitiatorName=%s", name);
+		}
+		return name;
+	} else {
+		log_error("cannot open InitiatorName configuration file %s",
+			 pathname);
+		return NULL;
+	}
 }
 
 static int

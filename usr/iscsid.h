@@ -24,6 +24,7 @@
 #include <sys/ioctl.h>
 
 #include "initiator.h"
+#include "idbm.h"
 
 #define BHS_SIZE	48
 

@@ -40,7 +40,7 @@
 
 static char program_name[] = "iscsiadm";
 
-char *initiator_name = "temp.init.name";
+char initiator_name[TARGET_NAME_MAXLEN];
 char *initiator_alias = "temp.init.alias";
 
 enum iscsiadm_mode {
@@ -108,7 +108,10 @@ iSCSI Administration Utility.\n\
                           you wish to update\n\
   -d, --debug debuglevel  print debugging information\n\
   -V, --version           display version and exit\n\
-  -h, --help              display this help and exit\n");
+  -h, --help              display this help and exit\n\
+\n\
+Enjoy!\n\
+Open-iSCSI Team.\n");
 	}
 
 	exit(status == 0 ? 0 : -1);
@@ -331,10 +334,18 @@ main(int argc, char **argv)
 	int ch, longindex, mode=-1, port=-1, do_login=0;
 	int rc=0, rid=-1, op=-1, type=-1, do_logout=0;
 	idbm_t *db;
+	char *iname;
 
 	/* enable stdout logging */
 	log_daemon = 0;
 	log_init(program_name);
+
+	iname = get_iscsi_initiatorname(INITIATOR_NAME_FILE);
+	if (!iname) {
+		log_warning("exiting due to configuration error");
+		exit(1);
+	}
+	strncpy(initiator_name, iname, TARGET_NAME_MAXLEN);
 
 	while ((ch = getopt_long(argc, argv, "lVhm:p:d:r:n:v:o:t:u",
 				 long_options, &longindex)) >= 0) {

@@ -686,17 +686,35 @@ __ksession_recv_pdu_end(iscsi_conn_t *conn, ulong_t pdu_handle)
 	return 0;
 }
 
+static int
+__send_nopin_rsp(iscsi_conn_t *conn, iscsi_nopin_t *rhdr, char *data)
+{
+	iscsi_nopout_t hdr;
+
+	memset(&hdr, 0, sizeof(iscsi_nopout_t));
+	hdr.opcode = ISCSI_OP_NOOP_OUT | ISCSI_OP_IMMEDIATE;
+	hdr.flags = ISCSI_FLAG_CMD_FINAL;
+	hdr.dlength[0] = rhdr->dlength[0];
+	hdr.dlength[1] = rhdr->dlength[1];
+	hdr.dlength[2] = rhdr->dlength[2];
+	memcpy(hdr.lun, rhdr->lun, 8);
+	hdr.ttt = rhdr->ttt;
+	hdr.itt = ISCSI_RESERVED_TAG;
+
+	return iscsi_send_pdu(conn, (iscsi_hdr_t*)&hdr,
+	       ISCSI_DIGEST_NONE, data, ISCSI_DIGEST_NONE, 0);
+}
+
 static void
 __session_cnx_recv_pdu(queue_item_t *item)
 {
-	ulong_t recv_handle = *(ulong_t*)queue_item_data(item);
 	iscsi_conn_t *conn = item->context;
 	iscsi_session_t *session = conn->session;
 
+	conn->recv_handle = *(ulong_t*)queue_item_data(item);
+
 	if (conn->state == STATE_IN_LOGIN) {
 		iscsi_login_context_t *c = &conn->login_context;
-
-		conn->recv_handle = recv_handle;
 
 		if (iscsi_login_rsp(session, c)) {
 			__session_ipc_login_cleanup(c->qtask,
@@ -850,6 +868,35 @@ __session_cnx_recv_pdu(queue_item_t *item)
 				sizeof(c->qtask->u.login.rsp));
 			close(c->qtask->u.login.ipc_fd);
 			free(c->qtask);
+		}
+	} else if (conn->state == STATE_LOGGED_IN) {
+		iscsi_hdr_t hdr;
+		char *data;
+
+		/* FIXME: better to read PDU Header first, than allocate needed
+		 *        space for PDU Data, than read data. */
+
+		data = calloc(1, conn->max_recv_dlength);
+		if (data == NULL) {
+			log_error("can not allocate memory for incomming PDU");
+			return;
+		}
+
+		/* read incomming PDU */
+		if (!iscsi_recv_pdu(conn, &hdr, ISCSI_DIGEST_NONE, data,
+			    conn->max_recv_dlength, ISCSI_DIGEST_NONE, 0)) {
+			free(data);
+			return;
+		}
+
+		if (hdr.opcode == ISCSI_OP_NOOP_IN) {
+			if (__send_nopin_rsp(conn,
+				     (iscsi_nopin_t*)&hdr, data)) {
+				free(data);
+			}
+		} else {
+			log_error("unsupported opcode 0x%x", hdr.opcode);
+			free(data);
 		}
 	}
 }

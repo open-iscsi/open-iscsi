@@ -23,7 +23,7 @@
 #include "strings.h"
 #include "config.h"
 
-extern char *initiator_name;
+extern char initiator_name[];
 extern char *initiator_alias;
 
 /* discovery.c */
