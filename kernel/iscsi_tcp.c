@@ -451,7 +451,8 @@ iscsi_r2t_rsp(struct iscsi_conn *conn, struct iscsi_cmd_task *ctask)
 	r2t->ttt = rhdr->ttt; /* no flip */
 	r2t->solicit_datasn = 0;
 
-	if ((rc = iscsi_solicit_data_init(conn, ctask, r2t)))
+	rc = iscsi_solicit_data_init(conn, ctask, r2t);
+	if (rc)
 		return rc;
 
 	ctask->exp_r2tsn = r2tsn + 1;
@@ -783,10 +784,10 @@ iscsi_data_recv(struct iscsi_conn *conn)
 			}
 		}
 	    } else {
-		if ((rc = iscsi_ctask_copy(conn, ctask, sc->request_buffer,
-				   sc->request_bufflen)) == -EAGAIN) {
+		rc = iscsi_ctask_copy(conn, ctask, sc->request_buffer,
+				      sc->request_bufflen);
+		if (rc == -EAGAIN)
 			goto exit;
-		}
 		rc = 0;
 	    }
 
@@ -907,7 +908,8 @@ more:
 		debug_tcp("data_recv offset %d copy %d\n",
 		       conn->in.offset, conn->in.copy);
 
-		if ((rc = iscsi_data_recv(conn))) {
+		rc = iscsi_data_recv(conn);
+		if (rc) {
 			if (rc == -EAGAIN) {
 				rd_desc->count = conn->in.datalen -
 							conn->in.ctask->sent;
@@ -2336,8 +2338,8 @@ iscsi_session_create(iscsi_snx_h handle, uint32_t initial_cmdsn,
 
 	/* FIXME: verify "unique-ness" of the session's handle */
 
-	if ((host = scsi_host_alloc(&iscsi_sht,
-			    sizeof(struct iscsi_session))) == NULL) {
+	host = scsi_host_alloc(&iscsi_sht, sizeof(struct iscsi_session));
+	if (host == NULL) {
 		printk("can not allocate SCSI host for session %p\n",
 			iscsi_ptr(handle));
 		goto host_alloc_fault;
@@ -2385,7 +2387,8 @@ iscsi_session_create(iscsi_snx_h handle, uint32_t initial_cmdsn,
 	if (iscsi_r2tpool_alloc(session))
 		goto r2tpool_alloc_fault;
 
-	if ((res = scsi_add_host(host, NULL))) {
+	res = scsi_add_host(host, NULL);
+	if (res) {
 		printk("can not add host_no %d (%d)\n", *host_no, res);
 		goto add_host_fault;
 	}
