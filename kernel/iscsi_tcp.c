@@ -1792,16 +1792,13 @@ iscsi_queuecommand(struct scsi_cmnd *sc, void (*done)(struct scsi_cmnd *))
 
 	if (!(host = sc->device->host)) {
 		reason = FAILURE_BAD_HOST;
-		goto fault_nolock;
+		goto fault;
 	}
 
 	if (!(session = (iscsi_session_t*)*host->hostdata)) {
 		reason = FAILURE_BAD_SESSION;
-		goto fault_nolock;
+		goto fault;
 	}
-
-	spin_lock_bh(&session->lock);
-	spin_unlock_irq(host->host_lock);
 
 	if (host->host_no != session->id) {
 		reason = FAILURE_BAD_SESSID;
@@ -1826,6 +1823,9 @@ iscsi_queuecommand(struct scsi_cmnd *sc, void (*done)(struct scsi_cmnd *))
 		reason = FAILURE_WINDOW_CLOSED;
 		goto reject;
 	}
+
+	spin_lock_bh(&session->lock);
+	spin_unlock_irq(host->host_lock);
 
 	if (session->conn_cnt > 1) {
 		int cpu = smp_processor_id();
@@ -1859,6 +1859,7 @@ iscsi_queuecommand(struct scsi_cmnd *sc, void (*done)(struct scsi_cmnd *))
 
 	sc->SCp.ptr = (char*)ctask;
 	iscsi_cmd_init(conn, ctask, sc);
+	spin_unlock_bh(&session->lock);
 
 	spin_lock_bh(&conn->lock);
 	__enqueue(&conn->xmitqueue, ctask);
@@ -1871,20 +1872,14 @@ iscsi_queuecommand(struct scsi_cmnd *sc, void (*done)(struct scsi_cmnd *))
 
 	schedule_work(&conn->xmitwork);
 
-	spin_unlock_bh(&session->lock);
 	spin_lock_irq(host->host_lock);
 	return 0;
 
 reject:
-	spin_unlock_bh(&session->lock);
-	spin_lock_irq(host->host_lock);
 	debug_scsi("cmd 0x%x rejected (%d)\n", sc->cmnd[0], reason);
 	return SCSI_MLQUEUE_HOST_BUSY;
 
 fault:
-	spin_unlock_bh(&session->lock);
-	spin_lock_irq(host->host_lock);
-fault_nolock:
 	printk("iSCSI: cmd 0x%x is not queued (%d)\n", sc->cmnd[0], reason);
 	sc->sense_buffer[0] = 0x70;
 	sc->sense_buffer[2] = NOT_READY;
