@@ -1062,7 +1062,7 @@ iscsi_conn_restore_callbacks(struct iscsi_conn *conn)
  * (Tx, Fast Path)
  */
 static inline int
-iscsi_sendhdr(struct iscsi_conn *conn, struct iscsi_buf *buf)
+iscsi_sendhdr(struct iscsi_conn *conn, struct iscsi_buf *buf, int datalen)
 {
 	struct socket *sk = conn->sock;
 	int flags = 0; /* MSG_DONTWAIT; */
@@ -1071,7 +1071,7 @@ iscsi_sendhdr(struct iscsi_conn *conn, struct iscsi_buf *buf)
 	offset = buf->sg.offset + buf->sent;
 	size = buf->sg.length - buf->sent;
 	BUG_ON(buf->sent + size > buf->sg.length);
-	if (buf->sent + size != buf->sg.length) {
+	if (buf->sent + size != buf->sg.length || datalen) {
 		flags |= MSG_MORE;
 	}
 
@@ -1365,7 +1365,7 @@ iscsi_mtask_xmit(struct iscsi_conn *conn, struct iscsi_mgmt_task *mtask)
 		mtask->xmstate &= ~XMSTATE_IMM_HDR;
 		if (mtask->data_count)
 			mtask->xmstate |= XMSTATE_IMM_DATA;
-		if (iscsi_sendhdr(conn, &mtask->headbuf)) {
+		if (iscsi_sendhdr(conn, &mtask->headbuf, mtask->data_count)) {
 			mtask->xmstate |= XMSTATE_IMM_HDR;
 			if (mtask->data_count)
 				mtask->xmstate &= ~XMSTATE_IMM_DATA;
@@ -1402,7 +1402,7 @@ iscsi_ctask_xmit(struct iscsi_conn *conn, struct iscsi_cmd_task *ctask)
 
 	if (ctask->xmstate & XMSTATE_R_HDR) {
 		ctask->xmstate &= ~XMSTATE_R_HDR;
-		if (!iscsi_sendhdr(conn, &ctask->headbuf)) {
+		if (!iscsi_sendhdr(conn, &ctask->headbuf, 0)) {
 			BUG_ON(ctask->xmstate != XMSTATE_IDLE);
 			return 0; /* wait for Data-In */
 		}
@@ -1412,7 +1412,7 @@ iscsi_ctask_xmit(struct iscsi_conn *conn, struct iscsi_cmd_task *ctask)
 
 	if (ctask->xmstate & XMSTATE_W_HDR) {
 		ctask->xmstate &= ~XMSTATE_W_HDR;
-		if (iscsi_sendhdr(conn, &ctask->headbuf)) {
+		if (iscsi_sendhdr(conn, &ctask->headbuf, ctask->imm_count)) {
 			ctask->xmstate |= XMSTATE_W_HDR;
 			return -EAGAIN;
 		}
@@ -1443,7 +1443,7 @@ _unsolicit_head_again:
 			iscsi_unsolicit_data_init(conn, ctask);
 			ctask->xmstate &= ~XMSTATE_UNS_INIT;
 		}
-		if (iscsi_sendhdr(conn, &ctask->headbuf)) {
+		if (iscsi_sendhdr(conn, &ctask->headbuf, ctask->data_count)) {
 			ctask->xmstate &= ~XMSTATE_UNS_DATA;
 			ctask->xmstate |= XMSTATE_UNS_HDR;
 			return -EAGAIN;
@@ -1498,7 +1498,7 @@ _unsolicit_head_again:
 		}
 _solicit_head_again:
 		BUG_ON(r2t == NULL);
-		if (iscsi_sendhdr(conn, &r2t->headbuf)) {
+		if (iscsi_sendhdr(conn, &r2t->headbuf, r2t->data_count)) {
 			ctask->xmstate &= ~XMSTATE_SOL_DATA;
 			ctask->xmstate |= XMSTATE_SOL_HDR;
 			return -EAGAIN;
