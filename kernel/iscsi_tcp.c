@@ -119,7 +119,7 @@ __getqueue(struct iscsi_queue *queue)
 		return NULL;
 	}
 	if (queue->cons == queue->max) {
-		queue->cons = 0;
+		return queue->pool[0];
 	}
 	return queue->pool[queue->cons];
 }
