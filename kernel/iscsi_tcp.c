@@ -535,6 +535,7 @@ iscsi_hdr_recv(struct iscsi_conn *conn)
 		}
 
 		ctask = (struct iscsi_cmd_task *)session->cmds[conn->in.itt];
+		BUG_ON(ctask != (void*)ctask->sc->SCp.ptr);
 		conn->in.ctask = ctask;
 		cstate = ctask->in_progress & IN_PROGRESS_OP_MASK;
 
@@ -748,6 +749,8 @@ iscsi_data_recv(struct iscsi_conn *conn)
 	    struct scsi_cmnd *sc = ctask->sc;
 	    BUG_ON(!(ctask->in_progress & IN_PROGRESS_READ &&
 		     conn->in_progress == IN_PROGRESS_DATA_RECV));
+	    BUG_ON(ctask != (void*)sc->SCp.ptr);
+
 	    /*
 	     * copying Data-In into the Scsi_Cmnd
 	     */
@@ -2045,11 +2048,7 @@ iscsi_conn_bind(iscsi_snx_h snxh, iscsi_cnx_h cnxh, uint32_t transport_fd,
 {
 	struct iscsi_session *session = iscsi_ptr(snxh);
 	struct iscsi_conn *conn = iscsi_ptr(cnxh);
-#if (LINUX_VERSION_CODE < KERNEL_VERSION(2,6,11))
 	struct tcp_opt *tp;
-#else
-	struct tcp_sock *tp;
-#endif
 	struct sock *sk;
 	struct socket *sock;
 	int err;
