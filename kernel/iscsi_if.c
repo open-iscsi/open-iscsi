@@ -60,13 +60,16 @@ static struct sk_buff*
 iscsi_alloc_skb(int len)
 {
 	struct sk_buff *skb;
-	int gfp_mask = in_interrupt() ? GFP_ATOMIC : GFP_KERNEL;
 
 	/* complete receive tasks if any */
 	iscsi_recvpool_complete();
 
-	skb = len < ISCSI_CTRL_PDU_MAX ?
-		mempool_alloc(recvpool, gfp_mask) : alloc_skb(len, gfp_mask);
+	if (len < ISCSI_CTRL_PDU_MAX) {
+		skb = mempool_alloc(recvpool, gfp_any());
+		BUG_ON(!skb);
+	} else {
+		skb = alloc_skb(len, gfp_any());
+	}
 	return skb;
 }
 
@@ -287,7 +290,11 @@ iscsi_if_rx(struct sock *sk, int len)
 static void*
 iscsi_mempool_alloc_skb(int gfp_mask, void *pool_data)
 {
-	return alloc_skb(ISCSI_CTRL_PDU_MAX, gfp_mask);
+	struct sk_buff *skb = alloc_skb(ISCSI_CTRL_PDU_MAX, gfp_mask);
+	if (!skb)
+		return NULL;
+	skb_trim(skb, 0);
+	return skb;
 }
 
 static void
