@@ -214,10 +214,10 @@ iscsi_cmd_rsp(struct iscsi_conn *conn, struct iscsi_cmd_task *ctask)
 	session->exp_cmdsn = exp_cmdsn;
 	conn->exp_statsn = ntohl(rhdr->statsn) + 1;
 
-	sc->result = (DID_OK << 16) | status_byte(rhdr->cmd_status);
+	sc->result = (DID_OK << 16) | rhdr->cmd_status;
 
 	if (rhdr->response == ISCSI_STATUS_CMD_COMPLETED) {
-		if (status_byte(rhdr->cmd_status) == CHECK_CONDITION &&
+		if (rhdr->cmd_status == SAM_STAT_CHECK_CONDITION &&
 		    conn->senselen) {
 			int sensecopy = min(conn->senselen,
 					    SCSI_SENSE_BUFFERSIZE);
@@ -232,15 +232,14 @@ iscsi_cmd_rsp(struct iscsi_conn *conn, struct iscsi_cmd_task *ctask)
 				    res_count <= sc->request_bufflen ) {
 					sc->resid = res_count;
 				} else {
-					sc->result =
-						(DID_BAD_TARGET << 16) |
-						status_byte(rhdr->cmd_status);
+					sc->result = (DID_BAD_TARGET << 16) |
+						     rhdr->cmd_status;
 					rc = ISCSI_ERR_BAD_TARGET;
 					goto fault;
 				}
 			} else if (rhdr->flags& ISCSI_FLAG_CMD_BIDI_UNDERFLOW) {
 				sc->result = (DID_BAD_TARGET << 16) |
-					     status_byte(rhdr->cmd_status);
+					     rhdr->cmd_status;
 				rc = ISCSI_ERR_BAD_TARGET;
 				goto fault;
 			} else if (rhdr->flags & ISCSI_FLAG_CMD_OVERFLOW) {

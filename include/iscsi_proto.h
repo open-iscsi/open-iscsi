@@ -48,8 +48,8 @@ struct iscsi_hdr {
 	uint8_t		opcode;
 	uint8_t		flags;		/* Final bit */
 	uint8_t		rsvd2[2];
-	uint8_t		hlength;        /* AHSs total length */
-	uint8_t		dlength[3];     /* Data length */
+	uint8_t		hlength;	/* AHSs total length */
+	uint8_t		dlength[3];	/* Data length */
 	uint8_t		lun[8];
 	uint32_t	itt;		/* Initiator Task Tag */
 	uint32_t	ttt;		/* Target Task Tag */
@@ -63,7 +63,7 @@ struct iscsi_hdr {
 #define ISCSI_RESERVED_TAG		0xffffffff
 
 /* Opcode encoding bits */
-#define ISCSI_OP_RETRY		        0x80
+#define ISCSI_OP_RETRY			0x80
 #define ISCSI_OP_IMMEDIATE		0x40
 #define ISCSI_OPCODE_MASK		0x3F
 
@@ -83,7 +83,7 @@ struct iscsi_hdr {
 #define ISCSI_OP_SCSI_TMFUNC_RSP	0x22
 #define ISCSI_OP_LOGIN_RSP		0x23
 #define ISCSI_OP_TEXT_RSP		0x24
-#define ISCSI_OP_SCSI_DATA_IN	        0x25
+#define ISCSI_OP_SCSI_DATA_IN		0x25
 #define ISCSI_OP_LOGOUT_RSP		0x26
 #define ISCSI_OP_R2T			0x31
 #define ISCSI_OP_ASYNC_EVENT		0x32
@@ -140,10 +140,10 @@ struct iscsi_cmd_rsp {
 };
 
 /* Command Response PDU flags */
-#define ISCSI_FLAG_CMD_BIDI_OVERFLOW        0x10
-#define ISCSI_FLAG_CMD_BIDI_UNDERFLOW       0x08
-#define ISCSI_FLAG_CMD_OVERFLOW             0x04
-#define ISCSI_FLAG_CMD_UNDERFLOW            0x02
+#define ISCSI_FLAG_CMD_BIDI_OVERFLOW	0x10
+#define ISCSI_FLAG_CMD_BIDI_UNDERFLOW	0x08
+#define ISCSI_FLAG_CMD_OVERFLOW 	0x04
+#define ISCSI_FLAG_CMD_UNDERFLOW	0x02
 
 /* iSCSI Status values. Valid if Rsp Selector bit is not set */
 #define ISCSI_STATUS_CMD_COMPLETED	0
@@ -226,17 +226,17 @@ struct iscsi_tm {
 	uint8_t rsvd2[8];
 };
 
-#define ISCSI_FLAG_TASK_MGMT_FUNCTION_MASK  0x7F
+#define ISCSI_FLAG_TASK_MGMT_FUNCTION_MASK	0x7F
 
 /* Function values */
-#define ISCSI_TM_FUNC_ABORT_TASK         1
-#define ISCSI_TM_FUNC_ABORT_TASK_SET     2
-#define ISCSI_TM_FUNC_CLEAR_ACA          3
-#define ISCSI_TM_FUNC_CLEAR_TASK_SET     4
-#define ISCSI_TM_FUNC_LOGICAL_UNIT_RESET 5
-#define ISCSI_TM_FUNC_TARGET_WARM_RESET  6
-#define ISCSI_TM_FUNC_TARGET_COLD_RESET  7
-#define ISCSI_TM_FUNC_TASK_REASSIGN	 8
+#define ISCSI_TM_FUNC_ABORT_TASK		1
+#define ISCSI_TM_FUNC_ABORT_TASK_SET		2
+#define ISCSI_TM_FUNC_CLEAR_ACA 		3
+#define ISCSI_TM_FUNC_CLEAR_TASK_SET		4
+#define ISCSI_TM_FUNC_LOGICAL_UNIT_RESET	5
+#define ISCSI_TM_FUNC_TARGET_WARM_RESET 	6
+#define ISCSI_TM_FUNC_TARGET_COLD_RESET 	7
+#define ISCSI_TM_FUNC_TASK_REASSIGN		8
 
 /* SCSI Task Management Response Header */
 struct iscsi_tm_rsp {
@@ -321,10 +321,10 @@ struct iscsi_data_rsp {
 };
 
 /* Data Response PDU flags */
-#define ISCSI_FLAG_DATA_ACK                 0x40
-#define ISCSI_FLAG_DATA_OVERFLOW            0x04
-#define ISCSI_FLAG_DATA_UNDERFLOW           0x02
-#define ISCSI_FLAG_DATA_STATUS              0x01
+#define ISCSI_FLAG_DATA_ACK		0x40
+#define ISCSI_FLAG_DATA_OVERFLOW	0x04
+#define ISCSI_FLAG_DATA_UNDERFLOW	0x02
+#define ISCSI_FLAG_DATA_STATUS		0x01
 
 /* Text Header */
 struct iscsi_text {
@@ -342,7 +342,7 @@ struct iscsi_text {
 	/* Text - key=value pairs */
 };
 
-#define ISCSI_FLAG_TEXT_CONTINUE            0x40
+#define ISCSI_FLAG_TEXT_CONTINUE	0x40
 
 /* Text Response Header */
 struct iscsi_text_rsp {
@@ -380,15 +380,15 @@ struct iscsi_login {
 };
 
 /* Login PDU flags */
-#define ISCSI_FLAG_LOGIN_TRANSIT            0x80
-#define ISCSI_FLAG_LOGIN_CONTINUE           0x40
-#define ISCSI_FLAG_LOGIN_CURRENT_STAGE_MASK 0x0C	/* 2 bits */
-#define ISCSI_FLAG_LOGIN_NEXT_STAGE_MASK    0x03	/* 2 bits */
+#define ISCSI_FLAG_LOGIN_TRANSIT		0x80
+#define ISCSI_FLAG_LOGIN_CONTINUE		0x40
+#define ISCSI_FLAG_LOGIN_CURRENT_STAGE_MASK	0x0C	/* 2 bits */
+#define ISCSI_FLAG_LOGIN_NEXT_STAGE_MASK	0x03	/* 2 bits */
 
 #define ISCSI_LOGIN_CURRENT_STAGE(flags) \
-((flags & ISCSI_FLAG_LOGIN_CURRENT_STAGE_MASK) >> 2)
-#define ISCSI_LOGIN_NEXT_STAGE(flags)     \
-(flags & ISCSI_FLAG_LOGIN_NEXT_STAGE_MASK)
+	((flags & ISCSI_FLAG_LOGIN_CURRENT_STAGE_MASK) >> 2)
+#define ISCSI_LOGIN_NEXT_STAGE(flags) \
+	(flags & ISCSI_FLAG_LOGIN_NEXT_STAGE_MASK)
 
 /* Login Response Header */
 struct iscsi_login_rsp {
@@ -441,13 +441,13 @@ struct iscsi_login_rsp {
 #define ISCSI_LOGIN_STATUS_MISSING_FIELDS	0x07
 #define ISCSI_LOGIN_STATUS_CONN_ADD_FAILED	0x08
 #define ISCSI_LOGIN_STATUS_NO_SESSION_TYPE	0x09
-#define ISCSI_LOGIN_STATUS_NO_SESSION           0x0a
-#define ISCSI_LOGIN_STATUS_INVALID_REQUEST      0x0b
+#define ISCSI_LOGIN_STATUS_NO_SESSION		0x0a
+#define ISCSI_LOGIN_STATUS_INVALID_REQUEST	0x0b
 
 /* Class-3 (Target Error) */
 #define ISCSI_LOGIN_STATUS_TARGET_ERROR		0x00
 #define ISCSI_LOGIN_STATUS_SVC_UNAVAILABLE	0x01
-#define ISCSI_LOGIN_STATUS_NO_RESOURCES	        0x02
+#define ISCSI_LOGIN_STATUS_NO_RESOURCES 	0x02
 
 /* Logout Header */
 struct iscsi_logout {
@@ -466,14 +466,14 @@ struct iscsi_logout {
 };
 
 /* Logout PDU flags */
-#define ISCSI_FLAG_LOGOUT_REASON_MASK       0x7F
+#define ISCSI_FLAG_LOGOUT_REASON_MASK	0x7F
 
 /* logout reason_code values */
 
 #define ISCSI_LOGOUT_REASON_CLOSE_SESSION	0
 #define ISCSI_LOGOUT_REASON_CLOSE_CONNECTION	1
 #define ISCSI_LOGOUT_REASON_RECOVERY		2
-#define ISCSI_LOGOUT_REASON_AEN_REQUEST	        3
+#define ISCSI_LOGOUT_REASON_AEN_REQUEST 	3
 
 /* Logout Response Header */
 struct iscsi_logout_rsp {
@@ -497,10 +497,10 @@ struct iscsi_logout_rsp {
 
 /* logout response status values */
 
-#define ISCSI_LOGOUT_SUCCESS		  0
-#define ISCSI_LOGOUT_CID_NOT_FOUND	  1
-#define ISCSI_LOGOUT_RECOVERY_UNSUPPORTED 2
-#define ISCSI_LOGOUT_CLEANUP_FAILED	  3
+#define ISCSI_LOGOUT_SUCCESS			0
+#define ISCSI_LOGOUT_CID_NOT_FOUND		1
+#define ISCSI_LOGOUT_RECOVERY_UNSUPPORTED	2
+#define ISCSI_LOGOUT_CLEANUP_FAILED		3
 
 /* SNACK Header */
 struct iscsi_snack {
@@ -517,7 +517,7 @@ struct iscsi_snack {
 };
 
 /* SNACK PDU flags */
-#define ISCSI_FLAG_SNACK_TYPE_MASK          0x0F	/* 4 bits */
+#define ISCSI_FLAG_SNACK_TYPE_MASK	0x0F	/* 4 bits */
 
 /* Reject Message Header */
 struct iscsi_reject {
@@ -537,16 +537,16 @@ struct iscsi_reject {
 };
 
 /* Reason for Reject */
-#define CMD_BEFORE_LOGIN        1
-#define DATA_DIGEST_ERROR       2
-#define DATA_SNACK_REJECT       3
-#define ISCSI_PROTOCOL_ERROR    4
-#define CMD_NOT_SUPPORTED       5
-#define IMM_CMD_REJECT          6
-#define TASK_IN_PROGRESS        7
-#define INVALID_SNACK           8
-#define BOOKMARK_REJECTED       9
-#define BOOKMARK_NO_RESOURCES   10
+#define CMD_BEFORE_LOGIN	1
+#define DATA_DIGEST_ERROR	2
+#define DATA_SNACK_REJECT	3
+#define ISCSI_PROTOCOL_ERROR	4
+#define CMD_NOT_SUPPORTED	5
+#define IMM_CMD_REJECT		6
+#define TASK_IN_PROGRESS	7
+#define INVALID_SNACK		8
+#define BOOKMARK_REJECTED	9
+#define BOOKMARK_NO_RESOURCES	10
 #define NEGOTIATION_RESET	11
 
 /* Max. number of Key=Value pairs in a text message */
