@@ -274,6 +274,7 @@ iscsi_if_send_reply(int pid, int seq, int type, int done, int multi,
 	int len = NLMSG_SPACE(size);
 	int flags = multi ? NLM_F_MULTI : 0;
 	int t = done ? NLMSG_DONE  : type;
+	int rc;
 
 	skb = alloc_skb(len, GFP_KERNEL);
 	if (!skb) {
@@ -284,8 +285,8 @@ iscsi_if_send_reply(int pid, int seq, int type, int done, int multi,
 	nlh = __nlmsg_put(skb, pid, seq, t, (len - sizeof(*nlh)));
 	nlh->nlmsg_flags = flags;
 	memcpy(NLMSG_DATA(nlh), payload, size);
-	netlink_unicast(nls, skb, pid, MSG_DONTWAIT);
-	return 0;
+	rc = netlink_unicast(nls, skb, pid, MSG_DONTWAIT);
+	return rc;
 }
 
 /*
@@ -579,7 +580,7 @@ iscsi_if_rx(struct sock *sk, int len)
 				err = iscsi_if_send_reply(
 					NETLINK_CREDS(skb)->pid, nlh->nlmsg_seq,
 					nlh->nlmsg_type, 0, 0, ev, sizeof(*ev));
-			} while (err);
+			} while (err < 0 && err != -ECONNREFUSED);
 			skb_pull(skb, rlen);
 		}
 		kfree_skb(skb);

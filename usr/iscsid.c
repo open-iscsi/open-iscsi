@@ -158,10 +158,6 @@ main(int argc, char *argv[])
 	/* initialize logger */
 	log_init(program_name);
 
-	if ((control_fd = ctldev_open()) < 0) {
-		exit(-1);
-	}
-
 	if ((ipc_fd = ipc_listen()) < 0) {
 		exit(-1);
 	}
@@ -185,6 +181,10 @@ main(int argc, char *argv[])
 			exit(0);
 		}
 
+		if ((control_fd = ctldev_open()) < 0) {
+			exit(-1);
+		}
+
 		chdir("/");
 		if (lockf(fd, F_TLOCK, 0) < 0) {
 			log_error("unable to lock pid file");
@@ -199,6 +199,10 @@ main(int argc, char *argv[])
 		dup2(0, 1);
 		dup2(0, 2);
 		setsid();
+	} else {
+		if ((control_fd = ctldev_open()) < 0) {
+			exit(-1);
+		}
 	}
 
 	if (uid && setuid(uid) < 0)
