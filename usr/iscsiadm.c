@@ -417,6 +417,11 @@ main(int argc, char **argv)
 			break;
 		case 'o':
 			op = str_to_op(optarg);
+			if (op < 0) {
+				log_error("can not recognize operation: '%s'",
+					optarg);
+				exit(1);
+			}
 			break;
 		case 'n':
 			name = optarg;
