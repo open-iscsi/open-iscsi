@@ -43,7 +43,7 @@ enum iscsi_uevent_e {
 
 struct iscsi_uevent {
 	uint32_t type; /* k/u events type */
-	uint32_t iferror;
+	uint32_t iferror; /* carries interface or resource errors */
 	uint64_t transport_handle;
 
 	union {
@@ -105,7 +105,6 @@ struct iscsi_uevent {
 		struct msg_cnx_error {
 			uint64_t	cnx_handle;
 			uint32_t	error; /* enum iscsi_err */
-			uint32_t	resource_error; /* NOMEM, NOBUFS */
 		} cnxerror;
 		struct msg_trans_list {
 			struct {

@@ -38,19 +38,60 @@ static struct iscsi_transport *transport_table[ISCSI_TRANSPORT_MAX];
 static struct sock *nls;
 static int daemon_pid;
 DECLARE_MUTEX(callsema);
-static mempool_t *recvpool;
-LIST_HEAD(freequeue);
-spinlock_t freelock;
+
+struct mempool_zone {
+	mempool_t *pool;
+	volatile int allocated;
+	int size;
+	int max;
+	int hiwat;
+	struct list_head freequeue;
+	spinlock_t freelock;
+};
+
+static struct mempool_zone z_reply;
+
+#define Z_REPLY		0
+#define Z_SIZE_REPLY	NLMSG_SPACE(sizeof(struct iscsi_uevent))
+#define Z_MAX_REPLY	8
+#define Z_HIWAT_REPLY	6
+
+#define Z_PDU		1
+#define Z_SIZE_PDU	NLMSG_SPACE(DEFAULT_MAX_RECV_DATA_SEGMENT_LENGTH)
+#define Z_MAX_PDU	8
+#define Z_HIWAT_PDU	6
+
+#define Z_ERROR		2
+#define Z_SIZE_ERROR	NLMSG_SPACE(sizeof(struct iscsi_uevent))
+#define Z_MAX_ERROR	16
+#define Z_HIWAT_ERROR	12
+
+#define zone_init(_zp, _zone) ({ \
+	(_zp)->pool = mempool_create(Z_MAX_##_zone, \
+			mempool_zone_alloc_skb, mempool_zone_free_skb, \
+			(void*)(_zp)); \
+	if ((_zp)->pool) { \
+		(_zp)->max = Z_MAX_##_zone; \
+		(_zp)->size = Z_SIZE_##_zone; \
+		(_zp)->hiwat = Z_HIWAT_##_zone; \
+		INIT_LIST_HEAD(&(_zp)->freequeue); \
+		spin_lock_init(&(_zp)->freelock); \
+		(_zp)->allocated = 0; \
+	} \
+	(_zp)->pool; \
+})
 
 struct iscsi_if_cnx {
 	struct list_head item;		/* item in cnxlist */
 	struct list_head snxitem;	/* item in snx->connections */
 	iscsi_cnx_t cp_cnx;
 	iscsi_cnx_t dp_cnx;
-	struct sk_buff *alarm_skb;
 	volatile int active;
 	struct Scsi_Host *host;		/* originated shost */
 	struct iscsi_transport *transport;
+	struct mempool_zone z_error;
+	struct mempool_zone z_pdu;
+	struct list_head freequeue;
 };
 LIST_HEAD(cnxlist);
 spinlock_t cnxlock;
@@ -64,9 +105,6 @@ struct iscsi_if_snx {
 };
 LIST_HEAD(snxlist);
 spinlock_t snxlock;
-
-#define	ISCSI_CTRL_PDU_MAX	DEFAULT_MAX_RECV_DATA_SEGMENT_LENGTH
-#define	ISCSI_CTRL_POOL_MAX	32
 
 #define H_TYPE_CP	0
 #define H_TYPE_DP	1
@@ -156,70 +194,72 @@ static struct iscsi_function_template iscsi_fnt = {
 };
 #endif
 
+static void*
+mempool_zone_alloc_skb(int gfp_mask, void *pool_data)
+{
+	struct mempool_zone *zone = pool_data;
+
+	return alloc_skb(zone->size, gfp_mask);
+}
+
 static void
-iscsi_recvpool_complete(void)
+mempool_zone_free_skb(void *element, void *pool_data)
+{
+	kfree_skb(element);
+}
+
+static void
+mempool_zone_complete(struct mempool_zone *zone)
 {
 	unsigned long flags;
 	struct list_head *lh, *n;
 
-	spin_lock_irqsave(&freelock, flags);
-	list_for_each_safe(lh, n, &freequeue) {
+	spin_lock_irqsave(&zone->freelock, flags);
+	list_for_each_safe(lh, n, &zone->freequeue) {
 		struct sk_buff *skb = (struct sk_buff *)((char *)lh -
 				offsetof(struct sk_buff, cb));
 		if (!skb_shared(skb)) {
 			list_del((void*)&skb->cb);
-			mempool_free(skb, recvpool);
+			mempool_free(skb, zone->pool);
+			zone->allocated--;
+			BUG_ON(zone->allocated < 0);
 		}
 	}
-	spin_unlock_irqrestore(&freelock, flags);
+	spin_unlock_irqrestore(&zone->freelock, flags);
 }
 
 static struct sk_buff*
-iscsi_alloc_skb(int len)
+mempool_zone_get_skb(struct mempool_zone *zone)
 {
 	struct sk_buff *skb;
 
-	/* complete receive tasks if any */
-	iscsi_recvpool_complete();
+	if (zone->allocated < zone->max) {
+		skb = mempool_alloc(zone->pool, GFP_ATOMIC);
+		BUG_ON(!skb);
+		zone->allocated++;
+	} else
+		return NULL;
 
-	/*
-	 * Most of the time allocation is done from mempool context i.e.
-	 * not directly from the slab, therefore events delivered to
-	 * the user-space reliably.
-	 *
-	 * If cnx_error is not delivered due to OOM, daemon gets the latest
-	 * error via per-cnx alarm_skb.
-	 *
-	 * If PDU is not delivered due to OOM, iSCSI protocol suppouse to
-	 * handle this case.
-	 */
-	skb = len < ISCSI_CTRL_PDU_MAX ?
-		mempool_alloc(recvpool, gfp_any()) : alloc_skb(len, gfp_any());
 	return skb;
 }
 
 static int
-iscsi_unicast_skb(struct iscsi_if_cnx *cnx, struct sk_buff *skb, int len)
+iscsi_unicast_skb(struct mempool_zone *zone, struct sk_buff *skb)
 {
+	unsigned long flags;
 	int rc;
 
-	if (len < ISCSI_CTRL_PDU_MAX)
-		skb_get(skb);
+	skb_get(skb);
 	rc = netlink_unicast(nls, skb, daemon_pid, MSG_DONTWAIT);
 	if (rc < 0) {
-		if (len < ISCSI_CTRL_PDU_MAX)
-			mempool_free(skb, recvpool);
-		printk("iscsi%d: can not unicast SKB (%d)\n",
-		       cnx->host->host_no, rc);
+		mempool_free(skb, zone->pool);
+		printk("iscsi: can not unicast skb (%d)\n", rc);
 		return rc;
 	}
 
-	if (len < ISCSI_CTRL_PDU_MAX && skb != cnx->alarm_skb) {
-		unsigned long flags;
-		spin_lock_irqsave(&freelock, flags);
-		list_add((void*)&skb->cb, &freequeue);
-		spin_unlock_irqrestore(&freelock, flags);
-	}
+	spin_lock_irqsave(&zone->freelock, flags);
+	list_add((void*)&skb->cb, &zone->freequeue);
+	spin_unlock_irqrestore(&zone->freelock, flags);
 
 	return 0;
 }
@@ -232,14 +272,18 @@ int iscsi_control_recv_pdu(iscsi_cnx_t cp_cnx, struct iscsi_hdr *hdr,
 	struct iscsi_uevent *ev;
 	struct iscsi_if_cnx *cnx;
 	char *pdu;
+	int rc;
 	int len = NLMSG_SPACE(sizeof(*ev) + sizeof(struct iscsi_hdr) +
 			      data_size);
 
 	cnx = iscsi_if_find_cnx(cp_cnx, H_TYPE_CP);
 	BUG_ON(!cnx);
 
-	skb = iscsi_alloc_skb(len);
+	mempool_zone_complete(&cnx->z_pdu);
+
+	skb = mempool_zone_get_skb(&cnx->z_pdu);
 	if (!skb) {
+		iscsi_control_cnx_error(cp_cnx, ISCSI_ERR_CNX_FAILED);
 		printk("iscsi%d: can not deliver control PDU: OOM\n",
 		       cnx->host->host_no);
 		return -ENOMEM;
@@ -250,12 +294,16 @@ int iscsi_control_recv_pdu(iscsi_cnx_t cp_cnx, struct iscsi_hdr *hdr,
 	memset(ev, 0, sizeof(*ev));
 	ev->transport_handle = iscsi_handle(cnx->transport);
 	ev->type = ISCSI_KEVENT_RECV_PDU;
+	if (cnx->z_pdu.allocated >= cnx->z_pdu.hiwat)
+		ev->iferror = -ENOMEM;
 	ev->r.recv_req.cnx_handle = cp_cnx;
 	pdu = (char*)ev + sizeof(*ev);
 	memcpy(pdu, hdr, sizeof(struct iscsi_hdr));
 	memcpy(pdu + sizeof(struct iscsi_hdr), data, data_size);
-	iscsi_unicast_skb(cnx, skb, len);
-	return 0;
+
+	rc =  iscsi_unicast_skb(&cnx->z_pdu, skb);
+
+	return rc;
 }
 EXPORT_SYMBOL_GPL(iscsi_control_recv_pdu);
 
@@ -266,38 +314,31 @@ void iscsi_control_cnx_error(iscsi_cnx_t cp_cnx, enum iscsi_err error)
 	struct iscsi_uevent *ev;
 	struct iscsi_if_cnx *cnx;
 	int len = NLMSG_SPACE(sizeof(*ev));
-	int resource_error = 0;
 
 	cnx = iscsi_if_find_cnx(cp_cnx, H_TYPE_CP);
 	BUG_ON(!cnx);
 
-	skb = iscsi_alloc_skb(len);
-	if (!skb) {
-		unsigned long flags;
+	mempool_zone_complete(&cnx->z_error);
 
-		spin_lock_irqsave(&cnxlock, flags);
-		if (skb_shared(cnx->alarm_skb)) {
-			printk("iscsi%d: gracefully ignored cnx error (%d)\n",
-			       cnx->host->host_no, error);
-			spin_unlock_irqrestore(&cnxlock, flags);
-			return;
-		}
-		skb = cnx->alarm_skb;
-		skb_get(skb);
-		resource_error = -ENOBUFS;
-		spin_unlock_irqrestore(&cnxlock, flags);
+	skb = mempool_zone_get_skb(&cnx->z_error);
+	if (!skb) {
+		printk("iscsi%d: gracefully ignored cnx error (%d)\n",
+		       cnx->host->host_no, error);
+		return;
 	}
 
 	nlh = __nlmsg_put(skb, daemon_pid, 0, 0, (len - sizeof(*nlh)));
 	ev = NLMSG_DATA(nlh);
 	ev->transport_handle = iscsi_handle(cnx->transport);
 	ev->type = ISCSI_KEVENT_CNX_ERROR;
-	ev->r.cnxerror.resource_error = resource_error;
+	if (cnx->z_error.allocated >= cnx->z_error.hiwat)
+		ev->iferror = -ENOMEM;
 	ev->r.cnxerror.error = error;
 	ev->r.cnxerror.cnx_handle = cp_cnx;
-	iscsi_unicast_skb(cnx, skb, len);
-	printk("iscsi%d: detected cnx error (%d:%d)\n", cnx->host->host_no,
-	       error, resource_error);
+
+	iscsi_unicast_skb(&cnx->z_error, skb);
+
+	printk("iscsi%d: detected cnx error (%d)\n", cnx->host->host_no, error);
 }
 EXPORT_SYMBOL_GPL(iscsi_control_cnx_error);
 
@@ -310,19 +351,19 @@ iscsi_if_send_reply(int pid, int seq, int type, int done, int multi,
 	int len = NLMSG_SPACE(size);
 	int flags = multi ? NLM_F_MULTI : 0;
 	int t = done ? NLMSG_DONE  : type;
-	int rc;
 
-	skb = alloc_skb(len, GFP_KERNEL);
+	mempool_zone_complete(&z_reply);
+
+	skb = mempool_zone_get_skb(&z_reply);
 	if (!skb) {
-		printk("iscsi_if_send_reply: out of memory on alloc_skb\n");
+		printk("iscsi: out of reply mempool\n");
 		return -ENOMEM;
 	}
 
 	nlh = __nlmsg_put(skb, pid, seq, t, (len - sizeof(*nlh)));
 	nlh->nlmsg_flags = flags;
 	memcpy(NLMSG_DATA(nlh), payload, size);
-	rc = netlink_unicast(nls, skb, pid, MSG_DONTWAIT);
-	return rc;
+	return iscsi_unicast_skb(&z_reply, skb);
 }
 
 /*
@@ -445,9 +486,8 @@ iscsi_if_destroy_snx(struct iscsi_transport *transport, struct iscsi_uevent *ev)
 	spin_lock_irqsave(&cnxlock, flags);
 	list_for_each_entry(cnx, &snx->connections, snxitem) {
 		list_del(&cnx->item);
-		if (skb_shared(cnx->alarm_skb))
-			kfree_skb(cnx->alarm_skb);
-		kfree_skb(cnx->alarm_skb);
+		mempool_destroy(cnx->z_pdu.pool);
+		mempool_destroy(cnx->z_error.pool);
 		kfree(cnx);
 	}
 	spin_unlock_irqrestore(&cnxlock, flags);
@@ -480,9 +520,17 @@ iscsi_if_create_cnx(struct iscsi_transport *transport, struct iscsi_uevent *ev)
 	memset(cnx, 0, sizeof(struct iscsi_if_cnx));
 	cnx->host = host;
 	snx->transport = transport;
-	cnx->alarm_skb = alloc_skb(NLMSG_SPACE(sizeof(struct iscsi_uevent)),
-				     GFP_KERNEL);
-	if (!cnx->alarm_skb) {
+
+	if (!zone_init(&cnx->z_pdu, PDU)) {
+		printk("iscsi%d: can not allocate pdu zone for new cnx\n",
+		       host->host_no);
+		kfree(cnx);
+		return -ENOMEM;
+	}
+	if (!zone_init(&cnx->z_error, ERROR)) {
+		printk("iscsi%d: can not allocate error zone for new cnx\n",
+		       host->host_no);
+		mempool_destroy(cnx->z_pdu.pool);
 		kfree(cnx);
 		return -ENOMEM;
 	}
@@ -490,7 +538,8 @@ iscsi_if_create_cnx(struct iscsi_transport *transport, struct iscsi_uevent *ev)
 	ev->r.handle = transport->create_cnx(ev->u.c_cnx.session_handle,
 			     ev->u.c_cnx.cnx_handle, ev->u.c_cnx.cid);
 	if (!ev->r.handle) {
-		kfree_skb(cnx->alarm_skb);
+		mempool_destroy(cnx->z_pdu.pool);
+		mempool_destroy(cnx->z_error.pool);
 		kfree(cnx);
 	} else {
 		unsigned long flags;
@@ -565,19 +614,15 @@ iscsi_if_recv_msg(struct sk_buff *skb, struct nlmsghdr *nlh)
 	case ISCSI_UEVENT_DESTROY_CNX:
 		err = iscsi_if_destroy_cnx(transport, ev);
 		break;
-	case ISCSI_UEVENT_BIND_CNX: {
-		struct iscsi_if_cnx *cnx;
-		cnx = iscsi_if_find_cnx(ev->u.b_cnx.cnx_handle, H_TYPE_DP);
-		if (!cnx)
+	case ISCSI_UEVENT_BIND_CNX:
+		if (!iscsi_if_find_cnx(ev->u.b_cnx.cnx_handle, H_TYPE_DP))
 			return -EEXIST;
 		ev->r.retcode = transport->bind_cnx(
 			ev->u.b_cnx.session_handle,
 			ev->u.b_cnx.cnx_handle,
 			ev->u.b_cnx.transport_fd,
 			ev->u.b_cnx.is_leading);
-		if (!ev->r.retcode && skb_shared(cnx->alarm_skb))
-			kfree_skb(cnx->alarm_skb);
-		} break;
+		break;
 	case ISCSI_UEVENT_SET_PARAM:
 		if (!iscsi_if_find_cnx(ev->u.set_param.cnx_handle, H_TYPE_DP))
 			return -EEXIST;
@@ -654,21 +699,6 @@ iscsi_if_rx(struct sock *sk, int len)
 		kfree_skb(skb);
 	}
 	up(&callsema);
-
-	/* now complete receive tasks if any */
-	iscsi_recvpool_complete();
-}
-
-static void*
-iscsi_mempool_alloc_skb(int gfp_mask, void *pool_data)
-{
-	return alloc_skb(ISCSI_CTRL_PDU_MAX, gfp_mask);
-}
-
-static void
-iscsi_mempool_free_skb(void *element, void *pool_data)
-{
-	kfree_skb(element);
 }
 
 int iscsi_register_transport(struct iscsi_transport *t)
@@ -708,29 +738,56 @@ int iscsi_unregister_transport(struct iscsi_transport *t)
 }
 EXPORT_SYMBOL_GPL(iscsi_unregister_transport);
 
+static int
+iscsi_rcv_nl_event(struct notifier_block *this,
+                 unsigned long event, void *ptr)
+{
+	struct netlink_notify *n = ptr;
+
+	if (event == NETLINK_URELEASE &&
+	    n->protocol == NETLINK_ISCSI && n->pid) {
+		struct iscsi_if_cnx *cnx;
+		unsigned long flags;
+
+		mempool_zone_complete(&z_reply);
+		spin_lock_irqsave(&cnxlock, flags);
+		list_for_each_entry(cnx, &cnxlist, item) {
+			mempool_zone_complete(&cnx->z_error);
+			mempool_zone_complete(&cnx->z_pdu);
+		}
+		spin_unlock_irqrestore(&cnxlock, flags);
+	}
+
+	return NOTIFY_DONE;
+}
+
+static struct notifier_block iscsi_nl_notifier = {
+	.notifier_call	= iscsi_rcv_nl_event,
+};
+
 static int __init
 iscsi_if_init(void)
 {
-	spin_lock_init(&freelock);
 	spin_lock_init(&cnxlock);
 	spin_lock_init(&snxlock);
 
+	netlink_register_notifier(&iscsi_nl_notifier);
 	nls = netlink_kernel_create(NETLINK_ISCSI, iscsi_if_rx);
 	if (nls == NULL)
 		return -ENOBUFS;
 
-	recvpool = mempool_create(ISCSI_CTRL_POOL_MAX,
-			iscsi_mempool_alloc_skb, iscsi_mempool_free_skb, NULL);
-	if (!recvpool) {
+	if (!zone_init(&z_reply, REPLY)) {
 		sock_release(nls->sk_socket);
+		netlink_unregister_notifier(&iscsi_nl_notifier);
 		return -ENOMEM;
 	}
 
 #ifdef CONFIG_SCSI_ISCSI_ATTRS
 	iscsi_transportt = iscsi_attach_transport(&iscsi_fnt);
 	if (!iscsi_transportt) {
-		mempool_destroy(recvpool);
+		mempool_destroy(z_reply.pool);
 		sock_release(nls->sk_socket);
+		netlink_unregister_notifier(&iscsi_nl_notifier);
 		return -ENOMEM;
 	}
 #endif
@@ -747,8 +804,9 @@ iscsi_if_exit(void)
 #ifdef CONFIG_SCSI_ISCSI_ATTRS
 	iscsi_release_transport(iscsi_transportt);
 #endif
-	mempool_destroy(recvpool);
+	mempool_destroy(z_reply.pool);
 	sock_release(nls->sk_socket);
+	netlink_unregister_notifier(&iscsi_nl_notifier);
 }
 
 module_init(iscsi_if_init);
