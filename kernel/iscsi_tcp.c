@@ -2552,6 +2552,7 @@ iscsi_session_create(iscsi_snx_h handle, uint32_t initial_cmdsn,
 		goto host_alloc_fault;
 	}
 	host->max_id = 1;
+	host->max_lun = 256;
 	host->max_channel = 0;
 	session = (struct iscsi_session *)host->hostdata;
 
