@@ -296,9 +296,8 @@ iscsi_data_rsp(struct iscsi_conn *conn, struct iscsi_cmd_task *ctask)
 	ctask->datasn++;
 
 	ctask->data_offset = ntohl(rhdr->offset);
-	if (ctask->data_offset + conn->in.datalen > ctask->total_length) {
+	if (ctask->data_offset + conn->in.datalen > ctask->total_length)
 		return ISCSI_ERR_DATA_OFFSET;
-	}
 
 	if (rhdr->flags & ISCSI_FLAG_DATA_STATUS) {
 		struct scsi_cmnd *sc = ctask->sc;
@@ -436,19 +435,19 @@ iscsi_r2t_rsp(struct iscsi_conn *conn, struct iscsi_cmd_task *ctask)
 	/* FIXME: use R2TSN to detect missing R2T */
 
 	/* fill-in new R2T associated with the task */
-	if (!__kfifo_get(ctask->r2tpool.queue, (void*)&r2t, sizeof(void*))) {
+	if (!__kfifo_get(ctask->r2tpool.queue, (void*)&r2t, sizeof(void*)))
 		return ISCSI_ERR_PROTO;
-	}
+
 	r2t->exp_statsn = rhdr->statsn;
 	r2t->data_length = ntohl(rhdr->data_length);
 	if (r2t->data_length == 0 ||
-	    r2t->data_length > session->max_burst) {
+	    r2t->data_length > session->max_burst)
 		return ISCSI_ERR_DATALEN;
-	}
+
 	r2t->data_offset = ntohl(rhdr->data_offset);
-	if (r2t->data_offset + r2t->data_length > ctask->total_length) {
+	if (r2t->data_offset + r2t->data_length > ctask->total_length)
 		return ISCSI_ERR_DATALEN;
-	}
+
 	r2t->ttt = rhdr->ttt; /* no flip */
 	r2t->solicit_datasn = 0;
 
@@ -777,13 +776,11 @@ iscsi_data_recv(struct iscsi_conn *conn)
 			rc = iscsi_ctask_copy(conn, ctask, dest + sg[i].offset,
 					      sg->length);
 			kunmap_atomic(dest, KM_USER0);
-			if (rc == -EAGAIN) {
+			if (rc == -EAGAIN)
 				/* continue with the next SKB/PDU */
 				goto exit;
-			}
-			if (!rc) {
+			if (!rc)
 				ctask->sg_count++;
-			}
 			if (!ctask->data_count) {
 				rc = 0;
 				break;
@@ -1061,9 +1058,8 @@ iscsi_sendhdr(struct iscsi_conn *conn, struct iscsi_buf *buf, int datalen)
 	offset = buf->sg.offset + buf->sent;
 	size = buf->sg.length - buf->sent;
 	BUG_ON(buf->sent + size > buf->sg.length);
-	if (buf->sent + size != buf->sg.length || datalen) {
+	if (buf->sent + size != buf->sg.length || datalen)
 		flags |= MSG_MORE;
-	}
 
 	/* sendpage */
 	res = sk->ops->sendpage(sk, buf->sg.page, offset, size, flags);
@@ -1099,12 +1095,10 @@ iscsi_sendpage(struct iscsi_conn *conn, struct iscsi_buf *buf,
 
 	size = buf->sg.length - buf->sent;
 	BUG_ON(buf->sent + size > buf->sg.length);
-	if (size > *count) {
+	if (size > *count)
 		size = *count;
-	}
-	if (buf->sent + size != buf->sg.length) {
+	if (buf->sent + size != buf->sg.length)
 		flags |= MSG_MORE;
-	}
 
 	offset = buf->sg.offset + buf->sent;
 
@@ -1299,10 +1293,9 @@ iscsi_cmd_init(struct iscsi_conn *conn, struct iscsi_cmd_task *ctask,
 		} else {
 			zero_data(ctask->hdr.dlength);
 		}
-		if (!session->initial_r2t_en) {
-			ctask->unsol_count=min(session->first_burst,
+		if (!session->initial_r2t_en)
+			ctask->unsol_count = min(session->first_burst,
 				ctask->total_length) - ctask->imm_count;
-		}
 		if (!ctask->unsol_count) {
 			/* No unsolicit Data-Out's */
 			ctask->hdr.flags |= ISCSI_FLAG_CMD_FINAL;
@@ -2006,10 +1999,9 @@ iscsi_conn_destroy(iscsi_cnx_t cnxh)
 			struct iscsi_conn, item);
 	spin_unlock_bh(&session->conn_lock);
 
-	if (session->leadconn == NULL) {
+	if (session->leadconn == NULL)
 		/* non connections exits.. reset sequencing */
 		session->cmdsn = session->max_cmdsn = session->exp_cmdsn = 1;
-	}
 
 	kfree(conn);
 }
@@ -2100,9 +2092,8 @@ iscsi_conn_start(iscsi_cnx_t cnxh)
 	}
 
 	if (session->state == ISCSI_STATE_LOGGED_IN &&
-	    session->leadconn == conn) {
+	    session->leadconn == conn)
 		scsi_scan_host(session->host);
-	}
 
 	spin_lock_bh(&session->lock);
 	conn->c_stage = ISCSI_CNX_STARTED;
@@ -2138,10 +2129,9 @@ iscsi_conn_stop(iscsi_cnx_t cnxh, int flag)
 	session->conn_cnt--;
 	conn->suspend = 1;
 
-	if (session->conn_cnt == 0 ||
-	    session->leadconn == conn) {
+	if (session->conn_cnt == 0 || session->leadconn == conn)
 		session->state = ISCSI_STATE_FAILED;
-	}
+
 	spin_unlock_bh(&session->lock);
 
 	if (flag == STOP_CNX_TERM || flag == STOP_CNX_RECOVER) {
@@ -2522,9 +2512,9 @@ iscsi_session_create(iscsi_snx_t handle, uint32_t initial_cmdsn,
 
 	/* initialize SCSI PDU commands pool */
 	if (iscsi_pool_init(&session->cmdpool, session->cmds_max,
-		(void***)&session->cmds, sizeof(struct iscsi_cmd_task))) {
+		(void***)&session->cmds, sizeof(struct iscsi_cmd_task)))
 		goto cmdpool_alloc_fault;
-	}
+
 	/* pre-format cmds pool with ITT */
 	for (cmd_i = 0; cmd_i < session->cmds_max; cmd_i++) {
 		session->cmds[cmd_i]->itt = cmd_i;
@@ -2536,9 +2526,9 @@ iscsi_session_create(iscsi_snx_t handle, uint32_t initial_cmdsn,
 
 	/* initialize immediate command pool */
 	if (iscsi_pool_init(&session->immpool, session->imm_max,
-		(void***)&session->imm_cmds, sizeof(struct iscsi_mgmt_task))) {
+		(void***)&session->imm_cmds, sizeof(struct iscsi_mgmt_task)))
 		goto immpool_alloc_fault;
-	}
+
 
 	/* pre-format immediate cmds pool with ITT */
 	for (cmd_i = 0; cmd_i < session->imm_max; cmd_i++) {
