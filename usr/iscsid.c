@@ -29,12 +29,10 @@
 
 #include "iscsi_u.h"
 #include "iscsid.h"
-#include "config.h"
 #include "ipc.h"
 #include "log.h"
 
-#define SESSION_MAX		256
-#define POLL_MAX		(SESSION_MAX + 2)
+#define POLL_MAX		(ISCSI_SESSION_MAX + 2)
 #define POLL_CTRL		0
 #define POLL_IPC		1
 #define POLL_SESSION		2
@@ -67,8 +65,7 @@ static void usage(int status)
 		printf("Usage: %s [OPTION]\n", program_name);
 		printf("\
 iSCSI initiator daemon.\n\
-  -c, --config=[path]     Execute in the config file ("
-CONFIG_FILE ").\n\
+  -c, --config=[path]     Execute in the config file (" CONFIG_FILE ").\n\
   -f, --foreground        make the program run in the foreground\n\
   -d, --debug debuglevel  print debugging information\n\
   -u, --uid=uid           run as uid, default is current user\n\
@@ -78,6 +75,59 @@ CONFIG_FILE ").\n\
 ");
 	}
 	exit(status == 0 ? 0 : -1);
+}
+
+char *
+get_iscsi_initiatorname(char *pathname)
+{
+	FILE *f = NULL;
+	int c;
+	char *line, buffer[1024];
+	char *name = NULL;
+
+	if (!pathname) {
+		log_error("No pathname to load InitiatorName from");
+		return NULL;
+	}
+
+	/* get the InitiatorName */
+	if ((f = fopen(pathname, "r"))) {
+		while ((line = fgets(buffer, sizeof (buffer), f))) {
+
+			while (line && isspace(c = *line))
+				line++;
+
+			if (strncmp(line, "InitiatorName=", 14) == 0) {
+				char *end = line + 14;
+
+				/* the name is everything up to the first
+				 * bit of whitespace
+				 */
+				while (*end && (!isspace(c = *end)))
+					end++;
+
+				if (isspace(c = *end))
+					*end = '\0';
+
+				if (end > line + 14)
+					name = strdup(line + 14);
+			}
+		}
+		fclose(f);
+		if (!name) {
+			log_error(
+			       "an InitiatorName is required, but "
+			       "was not found in %s", pathname);
+			return NULL;
+		} else {
+			log_debug(5, "InitiatorName=%s\n", name);
+		}
+		return name;
+	} else {
+		log_error("cannot open InitiatorName configuration file %s",
+			 pathname);
+		return NULL;
+	}
 }
 
 void
@@ -120,7 +170,7 @@ event_loop(void)
 	poll_array[POLL_IPC].fd = ipc_fd;
 	poll_array[POLL_IPC].events = POLLIN;
 
-	for (i = 0; i < SESSION_MAX; i++) {
+	for (i = 0; i < ISCSI_SESSION_MAX; i++) {
 		poll_array[POLL_SESSION + i].fd = -1;
 		poll_array[POLL_SESSION + i].events = 0;
 	}
@@ -147,7 +197,6 @@ int
 main(int argc, char *argv[])
 {
 	struct utsname host_info; /* will use to compound initiator alias */
-	struct iscsi_config config;
 	char *config_file = CONFIG_FILE;
 	int ch, longindex;
 	uid_t uid = 0;
@@ -185,12 +234,10 @@ main(int argc, char *argv[])
 	}
 
 	if ((ctrl_fd = ctldev_open()) < 0) {
-		perror("ctrl_fd\n");
 		exit(-1);
 	}
 
 	if ((ipc_fd = ipc_listen()) < 0) {
-		perror("ipc\n");
 		exit(-1);
 	}
 
@@ -235,8 +282,8 @@ main(int argc, char *argv[])
 		perror("setgid\n");
 
 	/* initialize configuration defaults */
-	memset(&config, 0, sizeof (config));
-	iscsi_init_config_defaults(&config.defaults);
+//	memset(&config, 0, sizeof (config));
+//	iscsi_init_config_defaults(&config.defaults);
 
 	memset(&daemon_config, 0, sizeof (daemon_config));
 	daemon_config.pid_file = PID_FILE;
@@ -258,21 +305,21 @@ main(int argc, char *argv[])
 	log_debug(1, "InitiatorName=%s", daemon_config.initiator_name);
 	log_debug(1, "InitiatorAlias=%s", daemon_config.initiator_alias);
 
-	/* log the version, so that we can tell if the daemon and kernel module 
-	 * match based on what shows up in the syslog.  Tarballs releases 
+	/* log the version, so that we can tell if the daemon and kernel module
+	 * match based on what shows up in the syslog.  Tarballs releases
 	 * always install both, but Linux distributors may put the kernel module
-	 * in a different RPM from the daemon and utils, and users may try to 
+	 * in a different RPM from the daemon and utils, and users may try to
 	 * mix and match in ways that don't work.
 	 */
 	log_warning("version %s variant (%s)",
 		ISCSI_VERSION_STR, ISCSI_DATE_STR);
 
-	/* load the configuration for the first time */
-	if (!update_iscsi_config(daemon_config.config_file, &config)) {
-		log_error("failed to load configuration from %s",
-		       daemon_config.config_file);
-		exit(2);
-	}
+//	/* load the configuration for the first time */
+//	if (!update_iscsi_config(daemon_config.config_file, &config)) {
+//		log_error("failed to load configuration from %s",
+//		       daemon_config.config_file);
+//		exit(2);
+//	}
 
 	/*
 	 * Start Main Event Loop

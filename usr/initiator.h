@@ -26,9 +26,13 @@
 #include "iscsi_proto.h"
 #include "auth.h"
 
+#define ISCSI_SESSION_MAX	256
+#define ISCSI_CNX_MAX		16
+
 #define CONFIG_FILE		"/etc/iscsid.conf"
 #define PID_FILE		"/var/run/iscsid.pid"
 #define INITIATOR_NAME_FILE	"/etc/initiatorname.iscsi"
+#define DB_FILE			"/var/db/iscsi/discovery.db"
 
 /* daemon's session structure */
 typedef struct iscsi_session {

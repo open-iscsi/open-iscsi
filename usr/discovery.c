@@ -36,7 +36,6 @@
 #include "iscsi_proto.h"
 #include "initiator.h"
 #include "iscsiadm.h"
-#include "config.h"
 #include "log.h"
 
 #ifdef SLP_ENABLE
@@ -468,8 +467,6 @@ process_sendtargets_response(struct string_buffer *sendtargets,
       done:
 	/* send all of the discovered targets to the fd ("stdout" currently) */
 	if (append_string(info, final ? "!\n" : ".\n")) {
-		write_buffer(info, 0);
-		truncate_buffer(info, 0);
 		if (final) {
 			record_begin = 0;
 		}
@@ -478,7 +475,6 @@ process_sendtargets_response(struct string_buffer *sendtargets,
 	} else {
 		log_error("couldn't send %d targets to parent",
 		       num_targets);
-		truncate_buffer(info, 0);
 		return 0;
 	}
 
@@ -545,17 +541,15 @@ process_async_event_text(struct string_buffer *sendtargets,
 		}
 		clear_timer(timer);
 	} else {
-		log_debug(1, "sendtargets for the other events\n");
+		log_debug(1, "sendtargets for the other events");
 		return 1;
 	}
 
 	if (append_string(info, "!\n")) {
-		write_buffer(info, 0);
-		truncate_buffer(info, 0);
-		log_debug(4, "sent async event record to the fd \n");
+		log_debug(4, "sent async event record to the caller");
 		return 1;
 	} else {
-		log_error("couldn't send async event record \n");
+		log_error("couldn't send async event record to the caller");
 		return 0;
 	}
 }
@@ -665,7 +659,7 @@ init_new_session(struct iscsi_sendtargets_config *config)
 	session = calloc(1, sizeof (*session));
 	if (session == NULL) {
 		log_error("discovery process to %s:%d failed to "
-		       "allocate a session\n", config->address, config->port);
+		       "allocate a session", config->address, config->port);
 		goto done;
 	}
 
@@ -729,11 +723,11 @@ setup_authentication(iscsi_session_t *session,
 			log_error(
 			       "discovery process to %s:%d has incoming "
 			       "authentication credentials but has no outgoing "
-			       "credentials configured\n",
+			       "credentials configured",
 			       config->address, config->port);
 			log_error(
 			       "discovery process to %s:%d exiting, bad "
-			       "configuration\n",
+			       "configuration",
 			       config->address, config->port);
 			rc = 0;
 			goto done;
@@ -812,7 +806,8 @@ process_recvd_pdu(struct iscsi_hdr *pdu,
 			iscsi_text_rsp_t *text_response =
 				(iscsi_text_rsp_t *) pdu;
 			int dlength = ntoh24(pdu->dlength);
-			int final = (text_response->flags & ISCSI_FLAG_CMD_FINAL)||
+			int final =
+				(text_response->flags & ISCSI_FLAG_CMD_FINAL) ||
 				(text_response-> ttt == ISCSI_RESERVED_TAG);
 
 			log_debug(4, "discovery session to %s:%d received text"
@@ -884,7 +879,7 @@ process_recvd_pdu(struct iscsi_hdr *pdu,
 			 */
 			log_warning(
 			       "Received Async Msg from target, Event = %d, "
-			       "Code = %d, Data Len = %d\n",
+			       "Code = %d, Data Len = %d",
 			       async_hdr->async_event,
 			       async_hdr->async_vcode, dlength);
 
@@ -897,7 +892,7 @@ process_recvd_pdu(struct iscsi_hdr *pdu,
 					sprintf(logbuf+i*5, "0x%02x ",
 						data[i]);
 				}
-				log_warning(" Data[0]-[%d]: %s\n",
+				log_warning(" Data[0]-[%d]: %s",
 					i<dlength ? dlength-1 : i-1,
 					logbuf);
 			}
@@ -906,10 +901,9 @@ process_recvd_pdu(struct iscsi_hdr *pdu,
 			if (dlength > (sizeof (short))) {
 				senselen = (ntohs(*(short *) (data)));
 
-				log_debug(1, " senselen = %d\n", senselen);
+				log_debug(1, " senselen = %d", senselen);
 				if (dlength > senselen + 2) {
-					log_debug(1,
-						 " recvd async event : %s\n",
+					log_debug(1, "recvd async event : %s",
 						 data + 2 + senselen);
 				}
 			}
@@ -978,11 +972,11 @@ process_recvd_pdu(struct iscsi_hdr *pdu,
 			int dlength = ntoh24(pdu->dlength);
 
 			log_error("reject, dlength=%d, "
-			       "data[0]=0x%x\n",
+			       "data[0]=0x%x",
 			       dlength, data[0]);
 			log_error(
 			       "Received a reject from the target "
-			       "with reason code = 0x%x\n",
+			       "with reason code = 0x%x",
 			       reject->reason);
 			/*
 			 * Just attempt to reconnect if we receive a reject
@@ -1036,7 +1030,7 @@ iscsi_logout_and_disconnect(iscsi_session_t * session)
 			    ISCSI_DIGEST_NONE, NULL, ISCSI_DIGEST_NONE, 3);
 	if (!rc) {
 		log_error(
-		       "iscsid: iscsi_logout - failed to send logout PDU.\n");
+		       "iscsid: iscsi_logout - failed to send logout PDU.");
 		goto done;
 	}
 
@@ -1048,11 +1042,11 @@ iscsi_logout_and_disconnect(iscsi_session_t * session)
 			    ISCSI_DIGEST_NONE, NULL, 0, ISCSI_DIGEST_NONE, 1);
 	if (!rc) {
 		log_error(
-		       "iscsid: logout - failed to receive logout resp\n");
+		       "iscsid: logout - failed to receive logout resp");
 		goto done;
 	}
 	if (logout_resp.response != ISCSI_LOGOUT_SUCCESS) {
-		log_error("iscsid: logout failed - response = 0x%x\n",
+		log_error("iscsid: logout failed - response = 0x%x",
 		       logout_resp.response);
 	}
 
@@ -1064,7 +1058,8 @@ done:
 }
 
 int
-sendtargets_discovery(struct iscsi_sendtargets_config *config)
+sendtargets_discovery(struct iscsi_sendtargets_config *config,
+		      struct string_buffer *info)
 {
 	iscsi_session_t *session;
 	struct hostent *hostn = NULL;
@@ -1080,7 +1075,6 @@ sendtargets_discovery(struct iscsi_sendtargets_config *config)
 	int timeout;
 	int rc;
 	struct string_buffer sendtargets;
-	struct string_buffer info;
 	uint8_t status_class = 0, status_detail = 0;
 	unsigned int login_failures = 0;
 	int login_delay = 0;
@@ -1099,7 +1093,6 @@ sendtargets_discovery(struct iscsi_sendtargets_config *config)
 
 	/* allocate data buffers for SendTargets data and discovery pipe info */
 	init_string_buffer(&sendtargets, 32 * 1024);
-	init_string_buffer(&info, 8 * 1024);
 
 	/* allocate a new session, and initialize default values */
 	session = init_new_session(config);
@@ -1117,7 +1110,7 @@ sendtargets_discovery(struct iscsi_sendtargets_config *config)
 			memcpy(&ip_address, hostn->h_addr,
 			       MIN(sizeof (ip_address), hostn->h_length));
 			/* FIXME: IPv6 */
-			log_debug(4, "resolved %s to %u.%u.%u.%u\n",
+			log_debug(4, "resolved %s to %u.%u.%u.%u",
 				 config->address, ip_address[0], ip_address[1],
 				 ip_address[2], ip_address[3]);
 		} else {
@@ -1257,7 +1250,7 @@ reconnect:
 			/* FIXME: IPv6 */
 			log_warning(
 			       "discovery login temporarily redirected to "
-			       "%u.%u.%u.%u port %d\n",
+			       "%u.%u.%u.%u port %d",
 			       session->ip_address[0], session->ip_address[1],
 			       session->ip_address[2], session->ip_address[3],
 			       session->port);
@@ -1266,7 +1259,7 @@ reconnect:
 			/* FIXME: IPv6 */
 			log_warning(
 			       "discovery login permanently redirected to "
-			       "%u.%u.%u.%u port %d\n",
+			       "%u.%u.%u.%u port %d",
 			       session->ip_address[0], session->ip_address[1],
 			       session->ip_address[2], session->ip_address[3],
 			       session->port);
@@ -1280,7 +1273,7 @@ reconnect:
 		default:
 			log_error(
 			       "discovery login rejected: redirection type "
-			       "0x%x not supported\n",
+			       "0x%x not supported",
 			       status_detail);
 			goto set_address;
 		}
@@ -1322,7 +1315,7 @@ reconnect:
       rediscover:
 	/* reinitialize */
 	truncate_buffer(&sendtargets, 0);
-	truncate_buffer(&info, 0);
+	truncate_buffer(info, 0);
 
 	/* we're going to do a discovery regardless */
 	clear_timer(&async_timer);
@@ -1431,7 +1424,7 @@ reconnect:
 					config,
 					session,
 					&sendtargets,
-					&info,
+					info,
 					&lun_inventory_changed,
 					default_port,
 					&active,
@@ -1680,7 +1673,7 @@ slp_discovery(struct iscsi_slp_config *config)
 	sigaction(SIGHUP, &action, NULL);
 
 	if (iscsi_process_should_exit()) {
-		log_debug(1, "slp discovery process %p exiting\n", discovery);
+		log_debug(1, "slp discovery process %p exiting", discovery);
 		exit(0);
 	}
 

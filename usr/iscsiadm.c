@@ -36,6 +36,7 @@
 #include "iscsiadm.h"
 #include "log.h"
 #include "ipc.h"
+#include "db.h"
 
 static char program_name[] = "iscsiadm";
 
@@ -53,8 +54,10 @@ static struct option const long_options[] =
 {
 	{"mode", required_argument, 0, 'm'},
 	{"portal", required_argument, 0, 'p'},
+	{"login", no_argument, 0, 'l'},
 	{"sid", required_argument, 0, 's'},
 	{"cid", required_argument, 0, 'c'},
+	{"debug", required_argument, 0, 'd'},
 	{"version", no_argument, 0, 'v'},
 	{"help", no_argument, 0, 'h'},
 	{0, 0, 0, 0},
@@ -70,14 +73,17 @@ static void usage(int status)
 		printf("\
 iSCSI Administration Utility.\n\
   -m, --mode <op>         specify operational mode op = <add|del|discovery>\n\
-  -m discovery --portal=[ip:port]  'sendtargets' discovery for target\n\
-                          portal with IP-address [ip] and port [port]\n\
+  -m discovery --portal=[ip:port] --login\n\
+                          'sendtargets' discovery for target portal with\n\
+                          IP-address [ip] and port [port]. Initiate Login for\n\
+                          each discovered target if --login is specified\n\
   -m add --sid=[id]       add session with SID=[id]\n\
   -m del --sid=[id]       delete session with SID=[id]\n\
   -m add --cid=[sid:id]   add connection with CID=[id] to the existing\n\
                           session with SID=[sid]\n\
   -m del --cid=[sid:id]   delete connection with CID=[id] from existing\n\
                           session with SID=[sid]\n\
+  -d, --debug debuglevel  print debugging information\n\
   -v, --version           display version and exit\n\
   -h, --help              display this help and exit");
 	}
@@ -216,16 +222,23 @@ out:
 int
 main(int argc, char **argv)
 {
-	int ch, longindex, mode=-1, sid=-1, cid=-1, port=-1;
+	int ch, longindex, mode=-1, sid=-1, cid=-1, port=-1, do_login=0, rc=0;
 	char *ip = NULL;
+	DB *dbp;
 
 	/* enable stdout logging */
 	log_daemon = 0;
 	log_init(program_name);
 
-	while ((ch = getopt_long(argc, argv, "v:h:m:s:p:",
+	while ((ch = getopt_long(argc, argv, "lv:h:m:s:p:d:",
 				 long_options, &longindex)) >= 0) {
 		switch (ch) {
+		case 'l':
+			do_login = 1;
+			break;
+		case 'd':
+			log_level = atoi(optarg);
+			break;
 		case 'm':
 			mode = str_to_mode(optarg);
 			break;
@@ -254,13 +267,20 @@ main(int argc, char **argv)
 		return -1;
 	}
 
+	if ((dbp = discoverydb_open(DB_FILE,
+			access(DB_FILE, F_OK) != 0 ? DB_CREATE : 0)) == NULL) {
+		return -1;
+	}
+
 	if (mode == MODE_DISCOVERY) {
 		struct iscsi_sendtargets_config cfg;
+		struct string_buffer info;
 
 		if (ip == NULL || port < 0) {
 			fprintf(stderr, "%s: can not parse portal '%s:%d'\n",
 				program_name, ip, port);
-			return -1;
+			rc = -1;
+			goto err;
 		}
 
 		/* FIXME: customize sendtargets */
@@ -272,9 +292,9 @@ main(int argc, char **argv)
 		strcpy(cfg.auth_options.username, "dima");
 		strcpy(cfg.auth_options.password, "aloha");
 		cfg.auth_options.password_length = strlen("aloha");
-		strcpy(cfg.auth_options.username_in, "dima");
-		strcpy(cfg.auth_options.password_in, "aloha");
-		cfg.auth_options.password_length_in = strlen("aloha");
+		strcpy(cfg.auth_options.username_in, "");
+		strcpy(cfg.auth_options.password_in, "");
+		cfg.auth_options.password_length_in = 0;
 		cfg.connection_timeout_options.login_timeout = 12;
 		cfg.connection_timeout_options.auth_timeout = 8;
 		cfg.connection_timeout_options.active_timeout = 5;
@@ -285,11 +305,18 @@ main(int argc, char **argv)
                  * start sendtargets discovery process based on the
 	         * current config
 		 */
-		return sendtargets_discovery(&cfg);
+		init_string_buffer(&info, 8 * 1024);
+		rc =  sendtargets_discovery(&cfg, &info);
+		truncate_buffer(&info, 0);
+		goto err;
 	} else {
 		fprintf(stderr, "%s: This mode is not yet supported\n",
 			program_name);
 	}
 
 	return 0;
+
+err:
+	discoverydb_close(dbp);
+	return rc;
 }

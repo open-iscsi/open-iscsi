@@ -142,8 +142,7 @@ get_auth_key_type(struct iscsi_acl *auth_client, char **data, char *end)
 			if (acl_recv_key_value(auth_client, keytype, value) !=
 					       AUTH_STATUS_NO_ERROR) {
 				log_error("login negotiation failed, can't "
-					  "accept %s in security stage\n",
-					  text);
+					  "accept %s in security stage", text);
 				return LOGIN_NEGOTIATION_FAILED;
 			}
 			text = value_end;
@@ -152,7 +151,7 @@ get_auth_key_type(struct iscsi_acl *auth_client, char **data, char *end)
 		}
 	}
 	log_error("Login negotiation failed, can't accept %s in security "
-		  "stage\n", text);
+		  "stage", text);
 	return LOGIN_NEGOTIATION_FAILED;
 }
 
@@ -218,7 +217,7 @@ get_security_text_keys(iscsi_session_t *session, char **data,
 		session->target_alias = malloc(size + 1);
 		if (!session->target_alias) {
 			/* Alias not critical. So just print an error */
-			log_error("Login failed to allocate alias\n");
+			log_error("Login failed to allocate alias");
 			*data = value_end;
 			return LOGIN_OK;
 		}
@@ -236,7 +235,7 @@ get_security_text_keys(iscsi_session_t *session, char **data,
 			text = value_end;
 		} else {
 			log_error("Login redirection failed, "
-				  "can't handle redirection to %s\n", value);
+				  "can't handle redirection to %s", value);
 			return LOGIN_REDIRECTION_FAILED;
 		}
 	} else if (iscsi_find_key_value("TargetPortalGroupTag", text, end,
@@ -253,7 +252,7 @@ get_security_text_keys(iscsi_session_t *session, char **data,
 			if (tag != session->portal_group_tag) {
 				log_error("Portal group tag "
 					  "mismatch, expected %u, "
-					  "received %u\n",
+					  "received %u",
 					  session->portal_group_tag, tag);
 				return LOGIN_WRONG_PORTAL_GROUP;
 			}
@@ -297,7 +296,7 @@ get_op_params_text_keys(iscsi_session_t *session, char **data, char *end)
 		session->target_alias = malloc(size + 1);
 		if (!session->target_alias) {
 			/* Alias not critical. So just print an error */
-			log_error("Login failed to allocate alias\n");
+			log_error("Login failed to allocate alias");
 			*data = value_end;
 			return LOGIN_OK;
 		}
@@ -310,7 +309,7 @@ get_op_params_text_keys(iscsi_session_t *session, char **data, char *end)
 			text = value_end;
 		else {
 			log_error("Login redirection failed, "
-				  "can't handle redirection to %s\n",
+				  "can't handle redirection to %s",
 				  value);
 			return LOGIN_REDIRECTION_FAILED;
 		}
@@ -323,7 +322,7 @@ get_op_params_text_keys(iscsi_session_t *session, char **data, char *end)
 		if (session->portal_group_tag >= 0) {
 			if (tag != session->portal_group_tag) {
 				log_error("Portal group tag mismatch, "
-					  "expected %u, received %u\n",
+					  "expected %u, received %u",
 					  session->portal_group_tag, tag);
 				return LOGIN_WRONG_PORTAL_GROUP;
 			}
@@ -389,7 +388,7 @@ get_op_params_text_keys(iscsi_session_t *session, char **data, char *end)
 				log_error("Login negotiation "
 					       "failed, HeaderDigest=CRC32C "
 					       "is required, can't accept "
-					       "%s\n", text);
+					       "%s", text);
 				return LOGIN_NEGOTIATION_FAILED;
 			}
 		} else if (strcmp(value, "CRC32C") == 0) {
@@ -397,14 +396,13 @@ get_op_params_text_keys(iscsi_session_t *session, char **data, char *end)
 				session->header_digest = ISCSI_DIGEST_CRC32C;
 			else {
 				log_error("Login negotiation "
-					       "failed, HeaderDigest=None is "
-					       "required, can't accept %s\n",
-					       text);
+				       "failed, HeaderDigest=None is "
+				       "required, can't accept %s", text);
 				return LOGIN_NEGOTIATION_FAILED;
 			}
 		} else {
 			log_error("Login negotiation failed, "
-				       "can't accept %s\n", text);
+				       "can't accept %s", text);
 			return LOGIN_NEGOTIATION_FAILED;
 		}
 		text = value_end;
@@ -415,9 +413,8 @@ get_op_params_text_keys(iscsi_session_t *session, char **data, char *end)
 				session->data_digest = ISCSI_DIGEST_NONE;
 			else {
 				log_error("Login negotiation "
-					       "failed, DataDigest=CRC32C "
-					       "is required, can't accept "
-					       "%s\n", text);
+				       "failed, DataDigest=CRC32C "
+				       "is required, can't accept %s", text);
 				return LOGIN_NEGOTIATION_FAILED;
 			}
 		} else if (strcmp(value, "CRC32C") == 0) {
@@ -425,14 +422,13 @@ get_op_params_text_keys(iscsi_session_t *session, char **data, char *end)
 				session->data_digest = ISCSI_DIGEST_CRC32C;
 			else {
 				log_error("Login negotiation "
-					       "failed, DataDigest=None is "
-					       "required, can't accept %s\n",
-					       text);
+				       "failed, DataDigest=None is "
+				       "required, can't accept %s", text);
 				return LOGIN_NEGOTIATION_FAILED;
 			}
 		} else {
 			log_error("Login negotiation failed, "
-				       "can't accept %s\n", text);
+				       "can't accept %s", text);
 			return LOGIN_NEGOTIATION_FAILED;
 		}
 		text = value_end;
@@ -488,7 +484,7 @@ get_op_params_text_keys(iscsi_session_t *session, char **data, char *end)
 			if (strcmp(value, "1")) {
 				log_error("Login negotiation "
 					       "failed, can't accept Max"
-					       "OutstandingR2T %s\n", value);
+					       "OutstandingR2T %s", value);
 				return LOGIN_NEGOTIATION_FAILED;
 			}
 		} else
@@ -501,7 +497,7 @@ get_op_params_text_keys(iscsi_session_t *session, char **data, char *end)
 			if (strcmp(value, "1")) {
 				log_error("Login negotiation "
 					       "failed, can't accept Max"
-					       "Connections %s\n", value);
+					       "Connections %s", value);
 				return LOGIN_NEGOTIATION_FAILED;
 			}
 		} else
@@ -512,8 +508,7 @@ get_op_params_text_keys(iscsi_session_t *session, char **data, char *end)
 					 &value, &value_end)) {
 		if (strcmp(value, "0")) {
 			log_error("Login negotiation failed, "
-				       "can't accept ErrorRecovery %s\n",
-				       value);
+			       "can't accept ErrorRecovery %s", value);
 			return LOGIN_NEGOTIATION_FAILED;
 		}
 		text = value_end;
@@ -525,7 +520,7 @@ get_op_params_text_keys(iscsi_session_t *session, char **data, char *end)
 		    strcmp(value, "draft20")) {
 			/* if we didn't get a compatible protocol, fail */
 			log_error("Login version mismatch, "
-				       "can't accept protocol %s\n", value);
+				       "can't accept protocol %s", value);
 			return LOGIN_VERSION_MISMATCH;
 		}
 		text = value_end;
@@ -539,7 +534,7 @@ get_op_params_text_keys(iscsi_session_t *session, char **data, char *end)
 		text = value_end;
 	else {
 		log_error("Login negotiation failed, couldn't "
-			       "recognize text %s\n", text);
+			       "recognize text %s", text);
 		return LOGIN_NEGOTIATION_FAILED;
 	}
 	*data = text;
@@ -570,12 +565,12 @@ check_security_stage_status(iscsi_session_t *session,
 		if (acl_get_dbg_status(auth_client, &debug_status) !=
 		    AUTH_STATUS_NO_ERROR)
 			log_error("Login authentication failed "
-				       "with target %s, %s\n",
+				       "with target %s, %s",
 				       session->target_name,
 				       acl_dbg_status_to_text(debug_status));
 		else
 			log_error("Login authentication failed "
-				       "with target %s\n",
+				       "with target %s",
 				       session->target_name);
 		return LOGIN_AUTHENTICATION_FAILED;
 	}
@@ -606,7 +601,7 @@ iscsi_process_login_response(iscsi_session_t *session,
 	if (end >= (data + max_data_length)) {
 		log_error("Login failed, process_login_response "
 			       "buffer too small to guarantee NULL "
-			       "termination\n");
+			       "termination");
 		return LOGIN_FAILED;
 	}
 
@@ -620,7 +615,7 @@ iscsi_process_login_response(iscsi_session_t *session,
 			log_error("Login version mismatch, "
 				       "received incompatible active iSCSI "
 				       "version 0x%02x, expected version "
-				       "0x%02x\n",
+				       "0x%02x",
 				       login_rsp->active_version,
 				       ISCSI_DRAFT20_VERSION);
 			return LOGIN_VERSION_MISMATCH;
@@ -632,7 +627,7 @@ iscsi_process_login_response(iscsi_session_t *session,
 		if (pdu_current_stage != session->current_stage) {
 			log_error("Received invalid login PDU, "
 				       "current stage mismatch, session %d, "
-				       "response %d\n", session->current_stage,
+				       "response %d", session->current_stage,
 				       pdu_current_stage);
 			return LOGIN_INVALID_PDU;
 		}
@@ -649,14 +644,14 @@ iscsi_process_login_response(iscsi_session_t *session,
 	if (session->current_stage == ISCSI_SECURITY_NEGOTIATION_STAGE) {
 		if (acl_recv_begin(auth_client) != AUTH_STATUS_NO_ERROR) {
 			log_error("Login failed because "
-				       "acl_recv_begin failed\n");
+				       "acl_recv_begin failed");
 			return LOGIN_FAILED;
 		}
 
 		if (acl_recv_transit_bit(auth_client, transit) !=
 		    AUTH_STATUS_NO_ERROR) {
 			log_error("Login failed because "
-				  "acl_recv_transit_bit failed\n");
+				  "acl_recv_transit_bit failed");
 			return LOGIN_FAILED;
 		}
 	}
@@ -1111,7 +1106,7 @@ iscsi_make_login_pdu(iscsi_session_t *session, iscsi_hdr_t *hdr,
 				return 0;
 		} else {
 			log_error("InitiatorName is required "
-				       "on the first Login PDU\n");
+				       "on the first Login PDU");
 			return 0;
 		}
 		if (session->initiator_alias && session->initiator_alias[0]) {
@@ -1155,18 +1150,18 @@ iscsi_make_login_pdu(iscsi_session_t *session, iscsi_hdr_t *hdr,
 			ret = fill_security_params_text(session, hdr,
 							auth_client, data,
 							max_data_length,
-						  	&transit);
+							&transit);
 			if (!ret)
 				return ret;
 			break;
 		}
 	case ISCSI_FULL_FEATURE_PHASE:
 		log_error("Can't send login PDUs in full "
-			       "feature phase\n");
+			       "feature phase");
 		return 0;
 	default:
 		log_error("Can't send login PDUs in unknown "
-			       "stage %d\n", session->current_stage);
+			       "stage %d", session->current_stage);
 		return 0;
 	}
 
@@ -1195,40 +1190,39 @@ check_for_authentication(iscsi_session_t *session,
 	/* prepare for authentication */
 	if (acl_init(TYPE_INITIATOR, session->num_auth_buffers,
 		     session->auth_buffers) != AUTH_STATUS_NO_ERROR) {
-		log_error("Couldn't initialize authentication\n");
+		log_error("Couldn't initialize authentication");
 		return LOGIN_FAILED;
 	}
 
 	if (session->username &&
 	    (acl_set_user_name(auth_client, session->username) !=
 	    AUTH_STATUS_NO_ERROR)) {
-		log_error("Couldn't set username\n");
+		log_error("Couldn't set username");
 		goto end;
 	}
 
 	if (session->password && (acl_set_passwd(auth_client,
 	    session->password, session->password_length) !=
 		 AUTH_STATUS_NO_ERROR)) {
-		log_error("Couldn't set password\n");
+		log_error("Couldn't set password");
 		goto end;
 	}
 
 	if (acl_set_ip_sec(auth_client, 1) != AUTH_STATUS_NO_ERROR) {
-		log_error("Couldn't set IPSec\n");
+		log_error("Couldn't set IPSec");
 		goto end;
 	}
 
 	if (acl_set_auth_rmt(auth_client, session->bidirectional_auth) !=
 			     AUTH_STATUS_NO_ERROR) {
-		log_error("Couldn't set remote authentication\n");
+		log_error("Couldn't set remote authentication");
 		goto end;
 	}
 	return LOGIN_OK;
 
  end:
 	if (auth_client && acl_finish(auth_client) != AUTH_STATUS_NO_ERROR) {
-		log_error("Login failed, error finishing "
-			       "auth_client\n");
+		log_error("Login failed, error finishing auth_client");
 		if (ret == LOGIN_OK)
 			ret = LOGIN_FAILED;
 	}
@@ -1266,8 +1260,7 @@ check_status_login_response(iscsi_session_t *session,
 		if (login_rsp->status_detail ==
 		    ISCSI_LOGIN_STATUS_AUTH_FAILED) {
 			log_error("Login failed to authenticate "
-				       "with target %s\n",
-				       session->target_name);
+				       "with target %s", session->target_name);
 		}
 		ret = LOGIN_OK;
 		*final = 1;
@@ -1362,7 +1355,7 @@ iscsi_login(iscsi_session_t *session, char *buffer, size_t bufsize,
 		 */
 		if (!iscsi_make_login_pdu(session, &pdu, data,
 					  max_data_length)) {
-			log_error("login failed, couldn't make a login PDU\n");
+			log_error("login failed, couldn't make a login PDU");
 			ret = LOGIN_FAILED;
 			goto done;
 		}
@@ -1375,7 +1368,7 @@ iscsi_login(iscsi_session_t *session, char *buffer, size_t bufsize,
 			 * error and timeout. Might want to switch portals on
 			 * timeouts, but not I/O errors.
 			 */
-			log_error("Login I/O error, failed to send a PDU\n");
+			log_error("Login I/O error, failed to send a PDU");
 			ret = LOGIN_IO_ERROR;
 			goto done;
 		}
@@ -1389,7 +1382,7 @@ iscsi_login(iscsi_session_t *session, char *buffer, size_t bufsize,
 			 * error and timeout. Might want to switch portals on
 			 * timeouts, but not I/O errors.
 			 */
-			log_error("Login I/O error, failed to receive a PDU\n");
+			log_error("Login I/O error, failed to receive a PDU");
 			ret = LOGIN_IO_ERROR;
 			goto done;
 		}
@@ -1404,7 +1397,7 @@ iscsi_login(iscsi_session_t *session, char *buffer, size_t bufsize,
 			 */
 			log_error("Received iSCSI draft 8 login "
 				  "response opcode 0x%x, expected draft "
-				  "20 login response 0x%2x\n",
+				  "20 login response 0x%2x",
 				  pdu.opcode, ISCSI_OP_LOGIN_RSP);
 			ret = LOGIN_VERSION_MISMATCH;
 			goto done;
@@ -1431,7 +1424,7 @@ iscsi_login(iscsi_session_t *session, char *buffer, size_t bufsize,
 
  done:
 	if (auth_client && acl_finish(auth_client) != AUTH_STATUS_NO_ERROR) {
-		log_error("Login failed, error finishing auth_client\n");
+		log_error("Login failed, error finishing auth_client");
 		if (ret == LOGIN_OK)
 			ret = LOGIN_FAILED;
 	}
