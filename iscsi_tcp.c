@@ -60,6 +60,8 @@ static inline int iscsi_sendpage(iscsi_conn_t *conn, iscsi_buf_t *buf,
 static void iscsi_conn_set_callbacks(iscsi_conn_t *conn);
 
 /* data-path */
+static int iscsi_hdr_extract(iscsi_conn_t *conn);
+static int iscsi_hdr_recv(iscsi_conn_t *conn);
 static int iscsi_data_recv(iscsi_conn_t *conn);
 static void iscsi_cmd_init(iscsi_conn_t *conn, iscsi_cmd_task_t *ctask,
 		     struct scsi_cmnd *sc);
@@ -183,7 +185,6 @@ iscsi_tcp_data_recv(read_descriptor_t *rd_desc, struct sk_buff *skb,
 {
 	int rc;
 	iscsi_conn_t *conn = iscsi_conn_get(rd_desc);
-	iscsi_session_t *session = conn->session;
 	int start = skb_headlen(skb);
 
 	if ((conn->in.copy = start - offset) <= 0) {
@@ -207,68 +208,14 @@ more:
 
 	if (conn->in_progress == IN_PROGRESS_WAIT_HEADER ||
 	    conn->in_progress == IN_PROGRESS_HEADER_GATHER) {
-		iscsi_hdr_t *hdr;
-		iscsi_cmd_task_t *ctask;
-
 		/*
-		 * Extract PDU Header
+		 * Extract PDU Header. It will be Zero-Copy in most
+		 * cases but in some cases it will be memcpy. For example
+		 * when PDU Header will be scattered across SKB's.
 		 */
-		if (conn->in.copy >= conn->hdr_size &&
-		    conn->in_progress != IN_PROGRESS_HEADER_GATHER) {
-			/*
-			 * Zero-copy PDU Header. Using connection's context
-			 * to store pointer for incomming PDU Header.
-			 */
-			if (skb_shinfo(skb)->frag_list == NULL &&
-			    !skb_shinfo(skb)->nr_frags) {
-				conn->in.hdr = (iscsi_hdr_t *)
-					((char*)skb->data + conn->in.offset);
-			} else {
-				(void)skb_copy_bits(skb, conn->in.offset,
-					&conn->hdr, conn->hdr_size);
-				conn->in.hdr = &conn->hdr;
-			}
-			conn->in.offset += conn->hdr_size;
-			conn->in.copy -= conn->hdr_size;
-			conn->in.hdr_offset = 0;
-		} else {
-			int copylen;
-
-			/*
-			 * Oops... got PDU Header scattered accross SKB's.
-			 * Not much we can do but only copy Header into
-			 * the connection PDU Header placeholder.
-			 */
-			if (conn->in_progress == IN_PROGRESS_WAIT_HEADER) {
-				(void)skb_copy_bits(skb, conn->in.offset,
-					&conn->hdr, conn->in.copy);
-				conn->in_progress = IN_PROGRESS_HEADER_GATHER;
-				conn->in.hdr_offset = conn->in.copy;
-				conn->in.offset += conn->in.copy;
-				conn->in.copy = 0;
-				debug_tcp("PDU gather #1 %d bytes!\n",
-				       conn->in.hdr_offset);
-				goto nomore;
-			}
-
-			copylen = conn->hdr_size - conn->in.hdr_offset;
-			if (copylen > conn->in.copy) {
-				/* FIXME: recover error */
-				printk("iSCSI: PDU gather failed! "
-				       "copylen %d conn->in.copy %d\n",
-				       copylen, conn->in.copy);
-				__BUG_ON(1);
-				return 0;
-			}
-			debug_tcp("PDU gather #2 %d bytes!\n", copylen);
-
-			(void)skb_copy_bits(skb, conn->in.offset,
-			    (char*)&conn->hdr + conn->in.hdr_offset, copylen);
-			conn->in.offset += copylen;
-			conn->in.copy -= copylen;
-			conn->in.hdr_offset = 0;
-			conn->in.hdr = &conn->hdr;
-			conn->in_progress = IN_PROGRESS_WAIT_HEADER;
+		rc = iscsi_hdr_extract(conn);
+		if (rc == -EAGAIN) {
+			goto nomore;
 		}
 
 		/*
@@ -276,135 +223,7 @@ more:
 		 * At this stage we process only common parts, like ITT,
 		 * DataSegmentLength, etc.
 		 */
-
-		hdr = conn->in.hdr;
-
-		if (conn->hdrdgst_en) {
-			/* FIXME: check HeaderDigest */
-			__BUG_ON(1);
-			return 0;
-		}
-
-		/* check for malformed pdu */
-		conn->in.datalen = ntoh24(hdr->dlength);
-		if (conn->in.datalen > conn->max_recv_dlength) {
-			/* FIXME: recover error */
-			printk("iSCSI: datalen %d > %d\n", conn->in.datalen,
-			       conn->max_recv_dlength);
-			__BUG_ON(1);
-			return 0;
-		}
-		conn->data_copied = 0;
-
-		/* calculate padding */
-		conn->in.padding = conn->in.datalen & (ISCSI_PAD_LEN-1);
-		if (conn->in.padding) {
-			conn->in.padding = ISCSI_PAD_LEN - conn->in.padding;
-			debug_scsi("padding %d bytes\n", conn->in.padding);
-		}
-
-		/* respect AHS */
-		conn->in.ahslen = hdr->hlength*(4*sizeof(__u16));
-		conn->in.offset += conn->in.ahslen;
-		conn->in.copy -= conn->in.ahslen;
-		/* FIXME: if ahslen too big... need special case to handle */
-		__BUG_ON(conn->in.copy < 0);
-
-		/* save opcode & itt for later processing */
-		conn->in.opcode = hdr->opcode;
-		conn->prev_itt = conn->in.itt;
-		conn->in.itt = ntohl(hdr->itt);
-
-		debug_tcp("opcode 0x%x offset %d copy %d ahslen %d "
-		       "datalen %d\n",
-		       hdr->opcode, conn->in.offset, conn->in.copy,
-		       conn->in.ahslen, conn->in.datalen);
-
-		if (conn->in.itt < session->cmds_max) {
-			int cstate;
-
-			ctask = (iscsi_cmd_task_t *)session->cmds[conn->in.itt];
-			conn->in.ctask = ctask;
-			cstate = ctask->in_progress & IN_PROGRESS_OP_MASK;
-
-			debug_scsi(
-			   "rsp [op 0x%x cid %d sc %lx itt 0x%x len %d]\n",
-			   hdr->opcode, conn->id, (long)ctask->sc, ctask->itt,
-			   ctask->total_length);
-
-			switch(conn->in.opcode) {
-			case ISCSI_OP_SCSI_CMD_RSP:
-				if (conn->prev_itt == conn->in.itt) {
-					/* FIXME: recover error */
-					printk("iSCSI: dup rsp [itt 0x%x]\n",
-						conn->in.itt);
-					__BUG_ON(1);
-					return 0;
-				}
-				if (cstate == IN_PROGRESS_READ) {
-					if (!conn->in.datalen) {
-						rc = iscsi_cmd_rsp(conn, ctask);
-					} else {
-						/* have sense or response data
-						 * copying PDU Header to the
-						 * connection's header
-						 * placeholder */
-						memcpy(&conn->hdr, conn->in.hdr,
-						       sizeof(iscsi_hdr_t));
-						conn->data_copied = 0;
-					}
-				} else if (cstate == IN_PROGRESS_WRITE) {
-					rc = iscsi_cmd_rsp(conn, ctask);
-				}
-				break;
-			case ISCSI_OP_SCSI_DATA_IN:
-				/* save flags for nonexception status */
-				conn->in.flags = hdr->flags;
-				/* save cmd_status for sense data */
-				conn->in.cmd_status =
-					((iscsi_data_rsp_t*)hdr)->cmd_status;
-				rc = iscsi_data_rsp(conn, ctask);
-				break;
-			case ISCSI_OP_R2T:
-				rc = iscsi_r2t_rsp(conn, ctask);
-				break;
-			case ISCSI_OP_NOOP_IN:
-			case ISCSI_OP_TEXT_RSP:
-			case ISCSI_OP_LOGOUT_RSP:
-			case ISCSI_OP_ASYNC_EVENT:
-			case ISCSI_OP_REJECT_MSG:
-				if (!conn->in.datalen) {
-					rc = iscsi_control_recv_pdu(
-						conn->handle, hdr, NULL);
-				} else {
-					conn->data_copied = 0;
-				}
-				break;
-			default:
-				rc = ISCSI_ERR_BAD_OPCODE;
-				break;
-			}
-		} else if (conn->in.itt >= ISCSI_IMM_ITT_OFFSET &&
-			   conn->in.itt < ISCSI_IMM_ITT_OFFSET +
-						session->imm_max) {
-			/* FIXME: implement */
-		} else if (conn->in.itt == ISCSI_RESERVED_TAG) {
-			conn->data_copied = 0;
-			if (conn->in.opcode == ISCSI_OP_NOOP_IN &&
-			    !conn->in.datalen) {
-				rc = iscsi_control_recv_pdu(
-						conn->handle, hdr, NULL);
-			} else {
-				rc = ISCSI_ERR_BAD_OPCODE;
-			}
-		} else {
-			rc = ISCSI_ERR_BAD_ITT;
-		}
-
-#ifdef DEBUG_PREV_PDU
-		memcpy(&conn->prev_hdr, hdr, conn->hdr_size);
-#endif
-
+		rc = iscsi_hdr_recv(conn);
 		if (!rc && conn->in.datalen) {
 			conn->in_progress = IN_PROGRESS_DATA_RECV;
 		} else if (rc) {
@@ -928,6 +747,211 @@ iscsi_cmd_init(iscsi_conn_t *conn, iscsi_cmd_task_t *ctask,
 	}
 
 	ctask->in_progress |= IN_PROGRESS_HEAD;
+}
+
+static int
+iscsi_hdr_extract(iscsi_conn_t *conn)
+{
+	struct sk_buff *skb = conn->in.skb;
+
+	if (conn->in.copy >= conn->hdr_size &&
+	    conn->in_progress != IN_PROGRESS_HEADER_GATHER) {
+		/*
+		 * Zero-copy PDU Header. Using connection's context
+		 * to store pointer for incomming PDU Header.
+		 */
+		if (skb_shinfo(skb)->frag_list == NULL &&
+		    !skb_shinfo(skb)->nr_frags) {
+			conn->in.hdr = (iscsi_hdr_t *)
+				((char*)skb->data + conn->in.offset);
+		} else {
+			(void)skb_copy_bits(skb, conn->in.offset,
+				&conn->hdr, conn->hdr_size);
+			conn->in.hdr = &conn->hdr;
+		}
+		conn->in.offset += conn->hdr_size;
+		conn->in.copy -= conn->hdr_size;
+		conn->in.hdr_offset = 0;
+	} else {
+		int copylen;
+
+		/*
+		 * Oops... got PDU Header scattered accross SKB's.
+		 * Not much we can do but only copy Header into
+		 * the connection PDU Header placeholder.
+		 */
+		if (conn->in_progress == IN_PROGRESS_WAIT_HEADER) {
+			(void)skb_copy_bits(skb, conn->in.offset,
+				&conn->hdr, conn->in.copy);
+			conn->in_progress = IN_PROGRESS_HEADER_GATHER;
+			conn->in.hdr_offset = conn->in.copy;
+			conn->in.offset += conn->in.copy;
+			conn->in.copy = 0;
+			debug_tcp("PDU gather #1 %d bytes!\n",
+			       conn->in.hdr_offset);
+			return -EAGAIN;
+		}
+
+		copylen = conn->hdr_size - conn->in.hdr_offset;
+		if (copylen > conn->in.copy) {
+			/* FIXME: recover error */
+			printk("iSCSI: PDU gather failed! "
+			       "copylen %d conn->in.copy %d\n",
+			       copylen, conn->in.copy);
+			__BUG_ON(1);
+			return 0;
+		}
+		debug_tcp("PDU gather #2 %d bytes!\n", copylen);
+
+		(void)skb_copy_bits(skb, conn->in.offset,
+		    (char*)&conn->hdr + conn->in.hdr_offset, copylen);
+		conn->in.offset += copylen;
+		conn->in.copy -= copylen;
+		conn->in.hdr_offset = 0;
+		conn->in.hdr = &conn->hdr;
+		conn->in_progress = IN_PROGRESS_WAIT_HEADER;
+	}
+
+	return 0;
+}
+
+static int
+iscsi_hdr_recv(iscsi_conn_t *conn)
+{
+	int rc = 0;
+	iscsi_hdr_t *hdr;
+	iscsi_cmd_task_t *ctask;
+	iscsi_session_t *session = conn->session;
+
+	hdr = conn->in.hdr;
+
+	if (conn->hdrdgst_en) {
+		/* FIXME: check HeaderDigest */
+		__BUG_ON(1);
+		return 0;
+	}
+
+	/* check for malformed pdu */
+	conn->in.datalen = ntoh24(hdr->dlength);
+	if (conn->in.datalen > conn->max_recv_dlength) {
+		/* FIXME: recover error */
+		printk("iSCSI: datalen %d > %d\n", conn->in.datalen,
+		       conn->max_recv_dlength);
+		__BUG_ON(1);
+		return 0;
+	}
+	conn->data_copied = 0;
+
+	/* calculate padding */
+	conn->in.padding = conn->in.datalen & (ISCSI_PAD_LEN-1);
+	if (conn->in.padding) {
+		conn->in.padding = ISCSI_PAD_LEN - conn->in.padding;
+		debug_scsi("padding %d bytes\n", conn->in.padding);
+	}
+
+	/* respect AHS */
+	conn->in.ahslen = hdr->hlength*(4*sizeof(__u16));
+	conn->in.offset += conn->in.ahslen;
+	conn->in.copy -= conn->in.ahslen;
+	/* FIXME: if ahslen too big... need special case to handle */
+	__BUG_ON(conn->in.copy < 0);
+
+	/* save opcode & itt for later processing */
+	conn->in.opcode = hdr->opcode;
+	conn->prev_itt = conn->in.itt;
+	conn->in.itt = ntohl(hdr->itt);
+
+	debug_tcp("opcode 0x%x offset %d copy %d ahslen %d "
+	       "datalen %d\n",
+	       hdr->opcode, conn->in.offset, conn->in.copy,
+	       conn->in.ahslen, conn->in.datalen);
+
+	if (conn->in.itt < session->cmds_max) {
+		int cstate;
+
+		ctask = (iscsi_cmd_task_t *)session->cmds[conn->in.itt];
+		conn->in.ctask = ctask;
+		cstate = ctask->in_progress & IN_PROGRESS_OP_MASK;
+
+		debug_scsi(
+		   "rsp [op 0x%x cid %d sc %lx itt 0x%x len %d]\n",
+		   hdr->opcode, conn->id, (long)ctask->sc, ctask->itt,
+		   ctask->total_length);
+
+		switch(conn->in.opcode) {
+		case ISCSI_OP_SCSI_CMD_RSP:
+			if (conn->prev_itt == conn->in.itt) {
+				/* FIXME: recover error */
+				printk("iSCSI: dup rsp [itt 0x%x]\n",
+					conn->in.itt);
+				__BUG_ON(1);
+				return 0;
+			}
+			if (cstate == IN_PROGRESS_READ) {
+				if (!conn->in.datalen) {
+					rc = iscsi_cmd_rsp(conn, ctask);
+				} else {
+					/* have sense or response data
+					 * copying PDU Header to the
+					 * connection's header
+					 * placeholder */
+					memcpy(&conn->hdr, conn->in.hdr,
+					       sizeof(iscsi_hdr_t));
+					conn->data_copied = 0;
+				}
+			} else if (cstate == IN_PROGRESS_WRITE) {
+				rc = iscsi_cmd_rsp(conn, ctask);
+			}
+			break;
+		case ISCSI_OP_SCSI_DATA_IN:
+			/* save flags for nonexception status */
+			conn->in.flags = hdr->flags;
+			/* save cmd_status for sense data */
+			conn->in.cmd_status =
+				((iscsi_data_rsp_t*)hdr)->cmd_status;
+			rc = iscsi_data_rsp(conn, ctask);
+			break;
+		case ISCSI_OP_R2T:
+			rc = iscsi_r2t_rsp(conn, ctask);
+			break;
+		case ISCSI_OP_NOOP_IN:
+		case ISCSI_OP_TEXT_RSP:
+		case ISCSI_OP_LOGOUT_RSP:
+		case ISCSI_OP_ASYNC_EVENT:
+		case ISCSI_OP_REJECT_MSG:
+			if (!conn->in.datalen) {
+				rc = iscsi_control_recv_pdu(
+					conn->handle, hdr, NULL);
+			} else {
+				conn->data_copied = 0;
+			}
+			break;
+		default:
+			rc = ISCSI_ERR_BAD_OPCODE;
+			break;
+		}
+	} else if (conn->in.itt >= ISCSI_IMM_ITT_OFFSET &&
+		   conn->in.itt < ISCSI_IMM_ITT_OFFSET +
+					session->imm_max) {
+		/* FIXME: implement */
+	} else if (conn->in.itt == ISCSI_RESERVED_TAG) {
+		conn->data_copied = 0;
+		if (conn->in.opcode == ISCSI_OP_NOOP_IN &&
+		    !conn->in.datalen) {
+			rc = iscsi_control_recv_pdu(
+					conn->handle, hdr, NULL);
+		} else {
+			rc = ISCSI_ERR_BAD_OPCODE;
+		}
+	} else {
+		rc = ISCSI_ERR_BAD_ITT;
+	}
+
+#ifdef DEBUG_PREV_PDU
+	memcpy(&conn->prev_hdr, hdr, conn->hdr_size);
+#endif
+
+	return rc;
 }
 
 static int
