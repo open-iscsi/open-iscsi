@@ -882,7 +882,7 @@ idbm_node_setup_defaults(node_rec_t *rec)
 	rec->active_cnx = 1; /* at least one connection must exist */
 	rec->tpgt = 1;
 	rec->session.initial_cmdsn = 0;
-	rec->session.reopen_max = 0;
+	rec->session.reopen_max = 32;
 	rec->session.auth.authmethod = 0;
 	rec->session.err_timeo.abort_timeout = 10;
 	rec->session.err_timeo.reset_timeout = 30;
