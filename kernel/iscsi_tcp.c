@@ -1593,6 +1593,9 @@ iscsi_data_xmit(struct iscsi_conn *conn)
 	 * 1) in progress task
 	 * 2) write responses, if any
 	 * 3) new read/write requests
+	 *
+	 * Note: we don't need locking around __kfifo_get as long as
+	 * we guarantie one producer and one consumer.
 	 */
 
 	/* process non-immediate(command) queue */
@@ -2143,10 +2146,38 @@ iscsi_conn_stop(iscsi_cnx_h cnxh, int flag)
 
 	if (flag == STOP_CNX_TERM || flag == STOP_CNX_RECOVER) {
 		BUG_ON(!conn->sock);
+
+		/*
+		 * Socket must go now.
+		 */
 		sock_hold(conn->sock->sk);
 		iscsi_conn_restore_callbacks(conn);
 		sock_put(conn->sock->sk);
 		sock_release(conn->sock);
+
+		/*
+		 * flush xmit queues.
+		 */
+		down(&conn->xmitsema);
+		while (__kfifo_get(conn->writequeue, (void*)&conn->ctask,
+			    sizeof(void*)) ||
+			__kfifo_get(conn->xmitqueue, (void*)&conn->ctask,
+			    sizeof(void*))) {
+			spin_lock_bh(&session->lock);
+			__kfifo_put(session->cmdpool.queue, (void*)&conn->ctask,
+				    sizeof(void*));
+			spin_unlock_bh(&session->lock);
+		}
+		conn->ctask = NULL;
+		while (__kfifo_get(conn->immqueue, (void*)&conn->mtask,
+			   sizeof(void*))) {
+			spin_lock_bh(&session->lock);
+			__kfifo_put(session->immpool.queue, (void*)&conn->mtask,
+				    sizeof(void*));
+			spin_unlock_bh(&session->lock);
+		}
+		conn->mtask = NULL;
+		up(&conn->xmitsema);
 	}
 }
 
