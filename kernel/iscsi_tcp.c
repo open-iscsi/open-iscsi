@@ -248,13 +248,11 @@ iscsi_cmd_rsp(struct iscsi_conn *conn, struct iscsi_cmd_task *ctask)
 				} else {
 					sc->result = (DID_BAD_TARGET << 16) |
 						     rhdr->cmd_status;
-					rc = ISCSI_ERR_BAD_TARGET;
 					goto fault;
 				}
 			} else if (rhdr->flags& ISCSI_FLAG_CMD_BIDI_UNDERFLOW) {
 				sc->result = (DID_BAD_TARGET << 16) |
 					     rhdr->cmd_status;
-				rc = ISCSI_ERR_BAD_TARGET;
 				goto fault;
 			} else if (rhdr->flags & ISCSI_FLAG_CMD_OVERFLOW) {
 				sc->resid = ntohl(rhdr->residual_count);
@@ -262,7 +260,6 @@ iscsi_cmd_rsp(struct iscsi_conn *conn, struct iscsi_cmd_task *ctask)
 		}
 	} else {
 		sc->result = (DID_ERROR << 16);
-		rc = ISCSI_ERR_BAD_TARGET;
 		goto fault;
 	}
 
@@ -321,12 +318,12 @@ iscsi_data_rsp(struct iscsi_conn *conn, struct iscsi_cmd_task *ctask)
 			} else {
 				sc->result = (DID_BAD_TARGET << 16) |
 					rhdr->cmd_status;
-				return ISCSI_ERR_BAD_TARGET;
+				return 0;
 			}
 		} else if (rhdr->flags& ISCSI_FLAG_CMD_BIDI_UNDERFLOW) {
 			sc->result = (DID_BAD_TARGET << 16) |
 				rhdr->cmd_status;
-			return ISCSI_ERR_BAD_TARGET;
+			return 0;
 		} else if (rhdr->flags & ISCSI_FLAG_CMD_OVERFLOW) {
 			sc->resid = ntohl(rhdr->residual_count);
 		}
