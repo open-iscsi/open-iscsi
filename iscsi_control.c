@@ -27,7 +27,7 @@ static iscsi_provider_t provider_table[ISCSI_PROVIDER_MAX];
 static iscsi_initiator_t initiator = {
 	.sp.initiator_name = "<not specified>",
 	.sp.initiator_alias = "<not specified>",
-	.sp.isid = {0,0,0,0,0,0},
+	.sp.isid = 0x800000000000ULL,
 	.sp.target_name = "<not specified>",
 	.sp.target_alias = "<not specified>",
 	.sp.target_portal = "<not specified>",
@@ -60,7 +60,7 @@ static iscsi_initiator_t initiator = {
 static iscsi_param_t param_table[] = {
 	{1, "initiator_name", &initiator.sp.initiator_name, 0, 0, 1},
 	{1, "initiator_alias", &initiator.sp.initiator_alias, 0, 0, 1},
-	{1, "isid", &initiator.sp.isid, 0, 0, 0},
+	{2, "isid", &initiator.sp.isid, 1, 0x8fffffffffffULL, 0},
 	{1, "target_name", &initiator.sp.target_name, 0, 0, 0},
 	{1, "target_alias", &initiator.sp.target_alias, 0, 0, 0},
 	{1, "target_portal", &initiator.sp.target_portal, 0, 0, 0},
@@ -321,10 +321,11 @@ iscsi_host_class_parameters_show(struct class_device *cdev, char *buf)
 			 session->p.target_address);
 	count += sprintf(buf+count, "tsih = %d\n", session->p.tsih);
 	count += sprintf(buf+count, "tpgt = %d\n", session->p.tpgt);
-	count += sprintf(buf+count, "isid = %02x.%02x.%02x.%02x.%02x.%02x\n",
-			 session->p.isid[0], session->p.isid[1],
-			 session->p.isid[2], session->p.isid[3],
-			 session->p.isid[4], session->p.isid[5]);
+	count += sprintf(buf+count, "isid = 0x%02x.0x%04x.0x%02x.0x%04x\n",
+			 (int)((session->p.isid & 0xffULL)),
+			 (int)((session->p.isid & 0xffff00ULL)>>8),
+			 (int)((session->p.isid & 0xff000000ULL)>>24),
+			 (int)((session->p.isid & 0xffff00000000ULL)>>32));
 	count += sprintf(buf+count, "time2wait = %d\n",
 			 session->p.time2wait);
 	count += sprintf(buf+count, "time2retain = %d\n",
@@ -587,9 +588,7 @@ iscsi_add_connection(iscsi_provider_t *provider, int host_no,
 		goto setparam_fail;
 
 	if (provider->ops.start_cnx(cnx->handle)) {
-		provider->ops.destroy_cnx(cnx->handle);
-		kfree(cnx);
-		return -EIO;
+		goto start_cnx_fail;
 	}
 
 	cnx->cid = cid;
@@ -603,6 +602,7 @@ iscsi_add_connection(iscsi_provider_t *provider, int host_no,
 
 	return 0;
 
+start_cnx_fail:
 setparam_fail:
 	provider->ops.destroy_cnx(cnx->handle);
 bind_cnx_fail:
@@ -678,6 +678,11 @@ iscsi_control_recv_pdu(iscsi_cnx_h handle, iscsi_hdr_t *hdr, char *data)
 	iscsi_cnx_ctrl_t *cnx = (iscsi_cnx_ctrl_t *)handle;
 	iscsi_session_ctrl_t *session = cnx->session;
 	struct list_head *lh, *n;
+
+	/* ignore failure during cnx start */
+	if (!session) {
+		return ISCSI_ERR_SNX_FAILED;
+	}
 
 	/* free pending resources based on received statsn */
 	spin_lock(&session->freelock);
@@ -758,7 +763,10 @@ iscsi_host_class_initiator_parameters_show(struct class *class, char * buf)
 		if (p->type == 0) { /* int type */
 			count += sprintf(buf+count, "%s = %d\n", p->key,
 					 *(int*)p->value);
-		} else {
+		} else if (p->type == 2) { /* 64-bit int type */
+			count += sprintf(buf+count, "%s = %llu\n", p->key,
+					 *(uint64_t*)p->value);
+		} else { /* string type */
 			count += sprintf(buf+count, "%s = %s\n", p->key,
 					 (char*)p->value);
 		}
@@ -798,6 +806,14 @@ iscsi_host_class_initiator_parameters_store(struct class *class,
 					return count;
 				}
 				*(int*)p->value = ival;
+			} else if (p->type == 2) { /* 64-bit int type */
+				uint64_t ival = simple_strtoull(sval, NULL, 0);
+				if (ival < (uint64_t)p->min ||
+				    ival > (uint64_t)p->max) {
+					printk("bad range '%s'\n", key);
+					return count;
+				}
+				*(uint64_t*)p->value = ival;
 			} else { /* string type */
 				strncpy((char*)p->value, sval, strlen(sval)+1);
 			}

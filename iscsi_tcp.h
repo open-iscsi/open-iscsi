@@ -191,7 +191,6 @@ typedef struct iscsi_session {
 	/* control data */
 	struct scsi_host_template	sht;
 	struct Scsi_Host		*host;
-	uint8_t				isid[6];
 	int				id;
 	iscsi_conn_t			*leadconn;	/* Leading Conn. */
 	spinlock_t			conn_lock;

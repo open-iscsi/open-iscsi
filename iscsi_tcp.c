@@ -24,8 +24,8 @@ MODULE_DESCRIPTION("iSCSI/TCP data-path");
 MODULE_LICENSE("GPL");
 
 #define DEBUG_PREV_PDU
-/* #define DEBUG_TCP */
-/* #define DEBUG_SCSI */
+#define DEBUG_TCP
+#define DEBUG_SCSI
 #define DEBUG_ASSERT
 
 #ifdef DEBUG_TCP
@@ -1103,11 +1103,11 @@ iscsi_data_recv(iscsi_conn_t *conn)
 			}
 		}
 	    } else {
-		if (iscsi_ctask_copy(conn, ctask, sc->request_buffer,
-				   sc->request_bufflen)) {
-			rc = -EAGAIN;
+		if ((rc = iscsi_ctask_copy(conn, ctask, sc->request_buffer,
+				   sc->request_bufflen)) == -EAGAIN) {
 			goto exit;
 		}
+		rc = 0;
 	    }
 
 	    /* check for nonexceptional status */
@@ -1297,10 +1297,7 @@ iscsi_cmd_rsp(iscsi_conn_t *conn, iscsi_cmd_task_t *ctask)
 				rc = ISCSI_ERR_BAD_TARGET;
 				goto fault;
 			} else if (rhdr->flags & ISCSI_FLAG_CMD_OVERFLOW) {
-				sc->result = host_byte(DID_ERROR) |
-					     status_byte(rhdr->cmd_status);
-				rc = ISCSI_ERR_BAD_TARGET;
-				goto fault;
+				sc->resid = ntohl(rhdr->residual_count);
 			}
 		}
 	} else {
@@ -1389,9 +1386,7 @@ iscsi_data_rsp(iscsi_conn_t *conn, iscsi_cmd_task_t *ctask)
 				rhdr->cmd_status;
 			return ISCSI_ERR_BAD_TARGET;
 		} else if (rhdr->flags & ISCSI_FLAG_CMD_OVERFLOW) {
-			sc->result = (DID_ERROR << 16) |
-				rhdr->cmd_status;
-			return ISCSI_ERR_BAD_TARGET;
+			sc->resid = ntohl(rhdr->residual_count);
 		}
 	}
 
@@ -2050,8 +2045,7 @@ iscsi_conn_create(iscsi_snx_h snxh, iscsi_cnx_h handle,
 }
 
 /*
- * Do Logout request, terminate connection queus, free
- * all associated resources
+ * Terminate connection queues, free all associated resources
  */
 static void
 iscsi_conn_destroy(iscsi_cnx_h cnxh)

@@ -34,7 +34,7 @@ my $sysfs_path = "/sys/class/iscsi";
 #
 my $initiator_name = "iqn.com.dima";
 my $initiator_alias = "dima-um";
-my @isid = ('0', '1', '2', '3', '4', '5');
+my @isid = (0x80, 0x0000, 0x00, 0x0001);
 my $first_burst = 262144;
 my $max_recv_dlength = 65536;
 my $max_burst = 262144;
@@ -172,7 +172,7 @@ sub padding {
 sub send_login_req {
 	my ($cmdsn, $exp_statsn, $flags, $cid, $data) = @_;
 	my $dlength = length($data);
-	my $loginpdu = pack('CCCCCCCCccccccnNnccNNNNNN',
+	my $loginpdu = pack('CCCCCCCCCnCnnNnccNNNNNN',
 		    0x43,			# C: opcode: Login + Immediate
 		    0x87,			# C: flags T, OP, FF
 		    0,				# C: max ver
@@ -181,8 +181,7 @@ sub send_login_req {
 		    ($dlength >> 16) & 0xFF,	# C: byte 0 of dlength
 		    ($dlength >> 8) & 0xFF,	# C: byte 1 of dlength
 		    $dlength & 0xFF,		# C: byte 2 of dlength
-		    @isid[0],@isid[1],@isid[2],@isid[3],@isid[4],@isid[5],
-						# cccccc: isid
+		    $isid[0],$isid[1],$isid[2],$isid[3], # CnCn: CID
 		    $tsih,			# n: tsih
 		    0,				# N: itt
 		    $cid,			# n: cid
@@ -622,6 +621,24 @@ sub logout {
 	operation("tcp session remove $sid") || exit 1;
 }
 
+sub read_isid {
+	my ($in_isid) = @_;
+	my @out_isid;
+	
+	if ($in_isid =~
+	   /(0x)?([0-9a-fA-F]+)\.(0x)?([0-9a-fA-F]+)\.(0x)?([0-9a-fA-F]+)\.(0x)?([0-9a-fA-F]+)/) {
+		$out_isid[0] = $1 ? hex($2) : $2+0;
+		$out_isid[1] = $3 ? hex($4) : $4+0;
+		$out_isid[2] = $5 ? hex($6) : $6+0;
+		$out_isid[3] = $7 ? hex($8) : $8+0;
+	} else {
+		fatal "can not recognize ISID format! ".
+		      "Expecting 'A.B.C.D', got '$in_isid'";
+	}
+
+	return @out_isid;
+}
+
 sub sysfs_save {
 	setparam(-1, "initiator_name", $initiator_name);
 	setparam(-1, "initiator_alias", $initiator_alias);
@@ -660,7 +677,7 @@ sub sysfs_restore {
 
 	$initiator_name = getparam(-1, "initiator_name");
 	$initiator_alias = getparam(-1, "initiator_alias");
-	@isid = getparam($id, "isid");
+	@isid = read_isid(getparam($id, "isid"));
 	$tsih = getparam($id, "tsih");
 	$target_name = getparam($id, "target_name");
 	$target_alias = getparam($id, "target_alias");
@@ -701,7 +718,7 @@ sub config_read {
 	$target_portal = $conf{target_portal};
 	$initiator_name = $conf{initiator_name};
 	$initiator_alias = $conf{initiator_alias};
-	@isid = $conf{isid};
+	@isid = read_isid($conf{isid});
 	$first_burst = $conf{first_burst};
 	$max_recv_dlength = $conf{max_recv_dlength};
 	$max_burst = $conf{max_burst};
@@ -895,16 +912,18 @@ if ($opt{v}) {
 	} else {
 		usage();
 	}
+	exit;
 } else {
 	if ($opt{d}) {
 		#
 		# Do SendTargets method discovery
 		#
 		sendtargets_discovery(\&discovery_login_cb, $opt{d});
-	} else {
-		show_sessions();
+		exit;
 	}
 }
 if ($opt{l}) {
 	discovery_login_cb(0, $target_name, $target_portal);
+	exit;
 }
+show_sessions();

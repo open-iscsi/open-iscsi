@@ -98,7 +98,7 @@ typedef struct iscsi_cnx_ctrl {
 typedef struct iscsi_session_params {
 	char			initiator_name[ISCSI_NODE_NAME_MAX];
 	char			initiator_alias[ISCSI_ALIAS_NAME_MAX];
-	uint8_t			isid[7];
+	uint64_t		isid;
 	char			target_name[ISCSI_NODE_NAME_MAX];
 	char			target_alias[ISCSI_ALIAS_NAME_MAX];
 	char			target_portal[ISCSI_PORTAL_MAX];
@@ -143,7 +143,7 @@ typedef struct iscsi_session_ctrl {
 	char			target_address[ISCSI_PORTAL_MAX];
 	uint16_t		tpgt;
 	uint16_t		tsih;
-	uint8_t			isid[6];
+	uint64_t		isid;
 	uint16_t		max_cnx;
 
 	struct list_head	connections;	/* connections list */
@@ -174,7 +174,7 @@ typedef struct iscsi_param {
 	int		type;		/* 0 - int, 1 - string */
 	char		key[32];
 	void		*value;
-	uint32_t	min, max;	/* range for int */
+	uint64_t	min, max;	/* ranges for uint and uint64 */
 	int		show;
 } iscsi_param_t;
 

@@ -28,3 +28,6 @@ fixme:
   processing.
 * restructure header processing code into set of small functions.
 * prefetch in tcp_copy_bits().
+* support residual_count in case of scatter-gather Data-In. As of today, only
+  non-sg Scsi_Cmnd's are working. But I can amazing some target which will
+  send residual_count in the middle of scatter-gather Data-In.
