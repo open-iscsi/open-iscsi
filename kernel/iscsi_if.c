@@ -89,6 +89,7 @@ iscsi_unicast_skb(struct sk_buff *skb, int len)
 	if (rc < 0) {
 		if (len < ISCSI_CTRL_PDU_MAX)
 			mempool_free(skb, recvpool);
+		printk("iSCSIif: can not unicast SKB (%d)\n", rc);
 		return rc;
 	}
 
@@ -113,8 +114,10 @@ int iscsi_control_recv_pdu(iscsi_cnx_t cp_cnx, struct iscsi_hdr *hdr,
 			      data_size);
 
 	skb = iscsi_alloc_skb(len);
-	if (!skb)
+	if (!skb) {
+		printk("iSCSIif: can not deliver control PDU: OOM\n");
 		return -ENOMEM;
+	}
 
 	nlh = __nlmsg_put(skb, daemon_pid, 0, 0, (len - sizeof(*nlh)));
 	ev = NLMSG_DATA(nlh);
@@ -138,8 +141,10 @@ void iscsi_control_cnx_error(iscsi_cnx_t cp_cnx, enum iscsi_err error)
 	int len = NLMSG_SPACE(sizeof(*ev));
 
 	skb = iscsi_alloc_skb(len);
-	if (!skb)
+	if (!skb) {
+		printk("iSCSIif: can not deliver cnx error: OOM\n");
 		return;
+	}
 
 	nlh = __nlmsg_put(skb, daemon_pid, 0, 0, (len - sizeof(*nlh)));
 	ev = NLMSG_DATA(nlh);
