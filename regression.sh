@@ -72,8 +72,16 @@ test ! -e regression.dat && fatal "can not find regression.dat"
 test ! -e disktest && fatal "can not find disktest"
 test ! -e iscsiadm && fatal "can not find iscsiadm"
 
+test x$1 != x && begin=$1
+
 i=0
 cat regression.dat | while read line; do
+	if test x$begin != x; then
+		if test x$begin != x$i; then
+			let i=i+1
+			continue
+		fi
+	fi
 	imm_data_en=`echo $line | awk '/^[0-9]/ {print $1}'`
 	if test x$imm_data_en = x; then continue; fi
 	initial_r2t_en=`echo $line | awk '/^[0-9]/ {print $2}'`

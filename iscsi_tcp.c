@@ -1084,6 +1084,10 @@ iscsi_data_recv(iscsi_conn_t *conn)
 				rc = 0;
 				break;
 			}
+			if (!conn->in.copy) {
+				rc = -EAGAIN;
+				break;
+			}
 		}
 	    } else {
 		if (iscsi_ctask_copy(conn, ctask, sc->request_buffer,
@@ -1621,6 +1625,11 @@ iscsi_data_xmit(iscsi_conn_t *conn)
 	while (conn->in_progress_xmit == IN_PROGRESS_XMIT_SCSI &&
 	       (ctask = __dequeue(&conn->xmitqueue)) != NULL) {
 
+		if (conn->c_stage == ISCSI_CNX_STOPPED) {
+			spin_unlock_bh(&conn->lock);
+			break;
+		}
+
 		if (iscsi_ctask_xmit(conn, ctask)) {
 			__insert(&conn->xmitqueue, ctask);
 			spin_unlock_bh(&conn->lock);
@@ -1633,13 +1642,18 @@ iscsi_data_xmit(iscsi_conn_t *conn)
 	while ((mtask = iscsi_dequeue(&conn->immqueue)) != NULL) {
 		iscsi_session_t *session = conn->session;
 
+		iscsi_enqueue(&session->immpool, mtask);
+		if (conn->c_stage == ISCSI_CNX_STOPPED) {
+			spin_unlock_bh(&conn->lock);
+			break;
+		}
+
 		conn->in_progress_xmit = IN_PROGRESS_XMIT_IMM;
 
 		if (iscsi_mtask_xmit(conn, mtask)) {
 			iscsi_insert(&conn->immqueue, mtask);
 			return -EAGAIN;
 		}
-		iscsi_enqueue(&session->immpool, mtask);
 	}
 
 	conn->in_progress_xmit = IN_PROGRESS_XMIT_SCSI;
@@ -1997,16 +2011,31 @@ iscsi_conn_destroy(iscsi_cnx_h cnxh)
 {
 	iscsi_conn_t *conn = cnxh;
 	iscsi_session_t *session = conn->session;
+	struct list_head *lh, *n;
+	unsigned long flags;
+	iscsi_cmd_task_t *ctask;
 
 	__BUG_ON(conn->sock == NULL);
 
 	sock_hold(conn->sock->sk);
-
 	iscsi_conn_restore_callbacks(conn);
-
 	sock_put(conn->sock->sk);
-
 	sock_release(conn->sock);
+
+	spin_lock_irqsave(session->host->host_lock, flags);
+	spin_lock(&conn->lock);
+	while ((ctask = __dequeue(&conn->xmitqueue)) != NULL) {
+		list_for_each_safe(lh, n, &ctask->dataqueue) {
+			iscsi_data_task_t *dtask;
+			dtask = list_entry(lh, iscsi_data_task_t, item);
+			if (dtask) {
+				list_del(&dtask->item);
+				mempool_free(dtask, ctask->datapool);
+			}
+		}
+	}
+	spin_unlock(&conn->lock);
+	spin_unlock_irqrestore(session->host->host_lock, flags);
 
 	iscsi_queue_free(&conn->xmitqueue);
 	iscsi_queue_free(&conn->immqueue);

@@ -149,7 +149,7 @@ typedef struct iscsi_conn {
 	iscsi_queue_t		immqueue;	/* Immediate xmit queue */
 	iscsi_queue_t		xmitqueue;	/* Data-path queue */
 	struct work_struct	xmitwork;	/* per-conn. xmit workqueue */
-	int			c_stage;	/* Connection state */
+	volatile int		c_stage;	/* Connection state */
 	iscsi_cnx_h		handle;		/* CP connection handle */
 	int			in_progress_xmit; /* xmit state machine */
 	spinlock_t		lock;
@@ -266,7 +266,7 @@ typedef struct iscsi_cmd_task {
 	int			solicit_count;
 	iscsi_data_task_t	**unsolicit_data;	/* Unsolicited PDU's */
 	int			unsolicit_count;
-	volatile int		in_progress;		/* State machine */
+	int			in_progress;		/* State machine */
 	int			imm_count;		/* Imm-Data bytes */
 	int			imm_data_count;		/* Imm-Data-Out bytes */
 	int			data_count;		/* Remaining Data-Out */
