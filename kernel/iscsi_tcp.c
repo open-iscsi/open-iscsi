@@ -385,7 +385,7 @@ iscsi_sendhdr(iscsi_conn_t *conn, iscsi_buf_t *buf)
 	// tcp_sendpage, do_tcp_sendpages, tcp_sendmsg
 	res = sk->ops->sendpage(sk, buf->sg.page, offset, size, flags);
 	debug_tcp("sendhdr %lx %d bytes at offset %d sent %d res %d\n",
-		  (long)page_address(buf->sg.page), size, offset, buf->sent, res);
+		(long)page_address(buf->sg.page), size, offset, buf->sent, res);
 	if (res >= 0) {
 		buf->sent += res;
 		if (size != res) {
@@ -434,7 +434,7 @@ iscsi_sendpage(iscsi_conn_t *conn, iscsi_buf_t *buf, int *count, int *sent)
 	res = sendpage(sk, buf->sg.page, offset, size, flags);
 	debug_tcp("sendpage %lx %d bytes, boff %d bsent %d "
 		  "left %d sent %d res %d\n",
-		  (long)page_address(buf->page), size, offset,
+		  (long)page_address(buf->sg.page), size, offset,
 		  buf->sent, *count, *sent, res);
 	if (res >= 0) {
 		buf->sent += res;
@@ -866,7 +866,7 @@ iscsi_cmd_init(iscsi_conn_t *conn, iscsi_cmd_task_t *ctask,
 		ctask->r2t_data_count = ctask->total_length -
 				    ctask->imm_count -
 				    ctask->imm_data_count;
-		debug_scsi("itt %d total %d imm %d imm_data %d r2t_data %d\n",
+		debug_scsi("itt %x total %d imm %d imm_data %d r2t_data %d\n",
 			   ctask->itt, ctask->total_length, ctask->imm_count,
 			   ctask->imm_data_count, ctask->r2t_data_count);
 	} else {
@@ -970,19 +970,24 @@ iscsi_hdr_recv(iscsi_conn_t *conn)
 	}
 	conn->data_copied = 0;
 
+	/* read AHS */
+	conn->in.ahslen = hdr->hlength*(4*sizeof(__u16));
+	conn->in.offset += conn->in.ahslen;
+	conn->in.copy -= conn->in.ahslen;
+	if (conn->in.copy < 0) {
+		/* FIXME: recover error */
+		printk("iSCSI: can't handle AHS with length %d bytes\n",
+		       conn->in.ahslen);
+		__BUG_ON(1);
+		return 0;
+	}
+
 	/* calculate padding */
 	conn->in.padding = conn->in.datalen & (ISCSI_PAD_LEN-1);
 	if (conn->in.padding) {
 		conn->in.padding = ISCSI_PAD_LEN - conn->in.padding;
 		debug_scsi("padding %d bytes\n", conn->in.padding);
 	}
-
-	/* respect AHS */
-	conn->in.ahslen = hdr->hlength*(4*sizeof(__u16));
-	conn->in.offset += conn->in.ahslen;
-	conn->in.copy -= conn->in.ahslen;
-	/* FIXME: if ahslen too big... need special case to handle */
-	__BUG_ON(conn->in.copy < 0);
 
 	if (conn->hdrdgst_en) {
 		struct scatterlist sg;
@@ -1175,15 +1180,12 @@ iscsi_data_recv(iscsi_conn_t *conn)
 
 	    /* check for nonexceptional status */
 	    if (conn->in.flags & ISCSI_FLAG_DATA_STATUS) {
-		unsigned long flags;
 		ctask->in_progress = IN_PROGRESS_IDLE;
 		sc->result = conn->in.cmd_status;
 		debug_scsi("done [sc %lx res %d itt 0x%x]\n",
 			   (long)sc, sc->result, ctask->itt);
-		spin_lock_irqsave(session->host->host_lock, flags);
-		__enqueue(&session->cmdpool, ctask);
+		iscsi_enqueue(&session->cmdpool, ctask);
 		sc->scsi_done(sc);
-		spin_unlock_irqrestore(session->host->host_lock, flags);
 	    }
 	}
 	break;
@@ -1401,7 +1403,7 @@ fault:
 		spin_unlock(&conn->lock);
 	}
 	ctask->in_progress = IN_PROGRESS_IDLE;
-	__enqueue(&session->cmdpool, ctask);
+	iscsi_enqueue(&session->cmdpool, ctask);
 	sc->scsi_done(sc);
 	return rc;
 }
@@ -1604,6 +1606,7 @@ _unsolicit_head_again:
 				ctask->imm_data_count -= ctask->sent - start;
 				return -EAGAIN;
 			}
+			__BUG_ON(ctask->sent > ctask->total_length);
 			ctask->imm_data_count -= ctask->sent - start;
 			if (!ctask->data_count) {
 				break;
@@ -1906,19 +1909,21 @@ iscsi_queuecommand(struct scsi_cmnd *sc, void (*done)(struct scsi_cmnd *))
 
 	sc->SCp.ptr = (char*)ctask;
 	iscsi_cmd_init(conn, ctask, sc);
+	spin_unlock_irq(host->host_lock);
 
-	spin_lock(&conn->lock);
-	__enqueue(&conn->xmitqueue, ctask);
-	spin_unlock(&conn->lock);
-
+	iscsi_enqueue(&conn->xmitqueue, ctask);
 	debug_scsi(
 		"queued [%s cid %d sc %lx itt 0x%x len %d cmdsn %d win %d]\n",
 		sc->sc_data_direction == DMA_TO_DEVICE ? "write" : "read",
 		conn->id, (long)sc, ctask->itt, sc->request_bufflen,
 		session->cmdsn, session->max_cmdsn - session->exp_cmdsn + 1);
 
-	schedule_work(&conn->xmitwork);
+	if (in_interrupt())
+		schedule_work(&conn->xmitwork);
+	else
+		iscsi_xmitworker(conn);
 
+	spin_lock_irq(host->host_lock);
 	return 0;
 
 reject:
