@@ -750,13 +750,16 @@ iscsi_data_recv(struct iscsi_conn *conn)
 	     */
 	    if (sc->use_sg) {
 		int i;
-		struct scatterlist *sg = (struct scatterlist *)
-						sc->request_buffer;
+		struct scatterlist *sg = sc->request_buffer;
+
 		for (i = ctask->sg_count; i < sc->use_sg; i++) {
-			char *dest =(char*)page_address(sg[i].page) +
-						sg[i].offset;
-			if ((rc = iscsi_ctask_copy(conn, ctask, dest,
-					     sg->length)) == -EAGAIN) {
+			char *dest;
+
+			dest = kmap_atomic(sg[i].page, KM_USER0);
+			rc = iscsi_ctask_copy(conn, ctask, dest + sg[i].offset,
+					      sg->length);
+			kunmap_atomic(dest, KM_USER0);
+			if (rc == -EAGAIN) {
 				/* continue with the next SKB/PDU */
 				goto exit;
 			}
