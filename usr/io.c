@@ -74,7 +74,7 @@ iscsi_tcp_connect(iscsi_conn_t *conn, int non_blocking)
 		return -1;
 	}
 
-	onearg = 1;
+	onearg = 0;
 	rc = setsockopt(conn->socket_fd, IPPROTO_TCP, TCP_NODELAY, &onearg,
 			sizeof (onearg));
 	if (rc < 0) {
