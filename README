@@ -20,6 +20,10 @@ require the path to above kernel sources:
 
 	make KSRC=<kernel-src>
 
+or cross-compilation:
+
+	make KSRC=<kernel-src> KARCH="ARCH=um"
+
 Configuration
 -------------
 The default configuration file is /etc/iscsid.conf. This file contains
@@ -40,20 +44,40 @@ command:
 
 after that start daemon:
 
-	iscsid &
+	iscsid
+
+or start it with full debug enabled and with output on current console:
+
+	iscsid -d8 -f &
 
 and use administration utility to add/remove/update Discovery records,
 iSCSI Node records or monitor active iSCSI sessions:
 
 	./iscsiadm --help
 
-Example on using administration utility for SendTargets iSCSI Discovery:
+Example on using administration utility for:
+
+1) SendTargets iSCSI Discovery:
 
 	./iscsiadm -m discovery --type sendtargets --portal 192.168.1.1:3260
 
-Example on using administration utility for iSCSI Login:
+2) iSCSI Login:
 
 	./iscsiadm -m node --record 0f23e4 --login
+
+3) iSCSI Logout:
+
+	./iscsiadm -m node --record 0f23e4 --logout
+
+4) Changing iSCSI parameter:
+
+	./iscsiadm -m node --record 0f23e4 --op update \
+		-n node.cnx[0].iscsi.MaxRecvDataSegmentLength -v 65536
+
+5) Adding custom iSCSI Node:
+
+	./iscsiadm -m node --op new --portal 192.168.0.1:3260
+	new iSCSI node record added: [0a45f8]
 
 This file is not complete. We will appreciate if one could help us to
 finilize it! Thanks a lot!
