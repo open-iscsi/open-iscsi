@@ -17,15 +17,17 @@
  * See the file COPYING included with this distribution for more details.
  */
 
-#ifndef DISCOVERYDB_H
-#define DISCOVERYDB_H
+#ifndef DDB_H
+#define DDB_H
 
 #include <sys/types.h>
+#define DB_DBM_HSEARCH 1
 #include <db.h>
 #include "initiator.h"
 #include "config.h"
+#include "strings.h"
 
-#define PORTAL_KEY_MAXLEN 32	/* ip, port, tag */
+#define HASH_MAXLEN		48
 
 typedef enum iscsi_startup {
 	ISCSI_STARTUP_AUTOMATIC,
@@ -33,9 +35,9 @@ typedef enum iscsi_startup {
 } iscsi_startup_e;
 
 typedef enum discovery_type {
-	ISCSI_DISCOVERY_SENDTARGETS,
-	ISCSI_DISCOVERY_SLP,
-	ISCSI_DISCOVERY_ISNS,
+	DISCOVERY_TYPE_SENDTARGETS,
+	DISCOVERY_TYPE_SLP,
+	DISCOVERY_TYPE_ISNS,
 } discovery_type_e;
 
 typedef struct cnx_rec {
@@ -52,8 +54,9 @@ typedef struct session_rec {
 } session_rec_t;
 
 typedef struct discovery_rec {
-	char					key[PORTAL_KEY_MAXLEN];
 	char					nodename[TARGET_NAME_MAXLEN];
+	char					address[16];
+	int					port;
 	int					tpgt;
 	iscsi_startup_e				startup;
 	session_rec_t				session;
@@ -65,9 +68,12 @@ typedef struct discovery_rec {
 	} u;
 } discovery_rec_t;
 
-extern DB* discoverydb_open(char *filename, uint32_t openflags);
-extern discovery_rec_t* discoverydb_read(DB *dbp);
-extern int discoverydb_write(DB *dbp, discovery_rec_t *rec);
-extern void discoverydb_close(DB *dbp);
+extern char* ddbm_hash(discovery_rec_t *rec);
+extern DBM* ddbm_open(char *filename, int flags);
+extern discovery_rec_t* ddbm_read(DBM *dbm, char *hash);
+extern int ddbm_write(DBM *dbm, discovery_rec_t *rec);
+extern void ddbm_close(DBM *dbm);
+extern void ddbm_delete(DBM *dbm, char *portal);
+extern int ddbm_update_info(DBM *dbm, struct string_buffer *info);
 
-#endif /* DISCOVERYDB_H */
+#endif /* DDB_H */

@@ -32,7 +32,7 @@
 #define CONFIG_FILE		"/etc/iscsid.conf"
 #define PID_FILE		"/var/run/iscsid.pid"
 #define INITIATOR_NAME_FILE	"/etc/initiatorname.iscsi"
-#define DB_FILE			"/var/db/iscsi/discovery.db"
+#define DB_FILE			"/var/db/iscsi/discovery"
 
 /* daemon's session structure */
 typedef struct iscsi_session {

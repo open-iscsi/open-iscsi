@@ -36,7 +36,7 @@
 #include "iscsiadm.h"
 #include "log.h"
 #include "ipc.h"
-#include "db.h"
+#include "ddbm.h"
 
 static char program_name[] = "iscsiadm";
 
@@ -85,7 +85,7 @@ iSCSI Administration Utility.\n\
                           session with SID=[sid]\n\
   -d, --debug debuglevel  print debugging information\n\
   -v, --version           display version and exit\n\
-  -h, --help              display this help and exit");
+  -h, --help              display this help and exit\n");
 	}
 
 	exit(status == 0 ? 0 : -1);
@@ -222,9 +222,10 @@ out:
 int
 main(int argc, char **argv)
 {
-	int ch, longindex, mode=-1, sid=-1, cid=-1, port=-1, do_login=0, rc=0;
+	int ch, longindex, mode=-1, sid=-1, cid=-1, port=-1, do_login=0;
+	int rc = 0;
 	char *ip = NULL;
-	DB *dbp;
+	DBM *dbm;
 
 	/* enable stdout logging */
 	log_daemon = 0;
@@ -267,8 +268,8 @@ main(int argc, char **argv)
 		return -1;
 	}
 
-	if ((dbp = discoverydb_open(DB_FILE,
-			access(DB_FILE, F_OK) != 0 ? DB_CREATE : 0)) == NULL) {
+	if ((dbm = ddbm_open(DB_FILE, access(DB_FILE, F_OK) != 0 ?
+				O_CREAT|O_RDWR : O_RDWR)) == NULL) {
 		return -1;
 	}
 
@@ -307,6 +308,7 @@ main(int argc, char **argv)
 		 */
 		init_string_buffer(&info, 8 * 1024);
 		rc =  sendtargets_discovery(&cfg, &info);
+		ddbm_update_info(dbm, &info);
 		truncate_buffer(&info, 0);
 		goto err;
 	} else {
@@ -317,6 +319,6 @@ main(int argc, char **argv)
 	return 0;
 
 err:
-	discoverydb_close(dbp);
+	ddbm_close(dbm);
 	return rc;
 }
