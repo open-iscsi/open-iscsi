@@ -112,6 +112,8 @@ typedef int (*recv_pdu_begin_f)(int ctrl_fd, struct iscsi_conn *conn,
 		ulong_t recv_handle, ulong_t *pdu_handle, int *pdu_size);
 typedef int (*recv_pdu_end_f)(int ctrl_fd, struct iscsi_conn *conn,
 		ulong_t pdu_handle);
+typedef void (*send_pdu_timer_add_f)(struct iscsi_conn *conn, int timeout);
+typedef void (*send_pdu_timer_remove_f)(struct iscsi_conn *conn);
 
 /* daemon's connection structure */
 typedef struct iscsi_conn {
@@ -124,12 +126,16 @@ typedef struct iscsi_conn {
 	uint8_t *rx_buffer;
 	iscsi_cnx_state_e state;
 	actor_t connect_timer;
+	actor_t send_pdu_timer;
+	int send_pdu_in_progress;
 
 	int kernel_io;
 	send_pdu_begin_f send_pdu_begin;
 	send_pdu_end_f send_pdu_end;
 	recv_pdu_begin_f recv_pdu_begin;
 	recv_pdu_end_f recv_pdu_end;
+	send_pdu_timer_add_f send_pdu_timer_add;
+	send_pdu_timer_remove_f send_pdu_timer_remove;
 
 	/* login state machine */
 	int current_stage;

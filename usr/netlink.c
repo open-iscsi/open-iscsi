@@ -78,7 +78,7 @@ nl_read(int ctrl_fd, struct nlmsghdr *nl, int flags)
 	msg.msg_iov = &iov;
 	msg.msg_iovlen = 1;
 
-	rc = recvmsg(ctrl_fd, &msg, MSG_WAITALL | flags);
+	rc = recvmsg(ctrl_fd, &msg, flags);
 
 	return rc;
 }
@@ -101,7 +101,7 @@ nlpayload_read(int ctrl_fd, char *data, int count, int flags)
 	msg.msg_iov = &iov;
 	msg.msg_iovlen = 1;
 
-	rc = recvmsg(ctrl_fd, &msg, MSG_WAITALL | flags);
+	rc = recvmsg(ctrl_fd, &msg, flags);
 
 	memcpy(data, NLMSG_DATA(iov.iov_base), count);
 
@@ -202,6 +202,8 @@ ksession_create(int ctrl_fd, iscsi_session_t *session)
 			  session->id, errno);
 		return rc;
 	}
+	if (!ev.r.handle)
+		return -EIO;
 
 	session->handle = ev.r.handle;
 	log_debug(3, "created new iSCSI session, handle 0x%p",
@@ -254,6 +256,8 @@ ksession_cnx_create(int ctrl_fd, iscsi_session_t *session, iscsi_conn_t *conn)
 			  conn->id, errno);
 		return rc;
 	}
+	if (!ev.r.handle)
+		return -EIO;
 
 	conn->handle = ev.r.handle;
 	log_debug(3, "created new iSCSI connection, handle 0x%p",
@@ -299,15 +303,19 @@ ksession_cnx_bind(int ctrl_fd, iscsi_session_t *session, iscsi_conn_t *conn)
 	ev.u.b_cnx.is_leading = (conn->id == 0);
 
 	if ((rc = __ksession_call(ctrl_fd, &ev)) < 0) {
-		log_error("can't bind a cnx with id = %d (%d), retcode %d",
-			  conn->id, errno,  ev.r.retcode);
+		log_error("can't bind a cnx with id = %d (%d)",
+			  conn->id, errno);
 		return rc;
 	}
-
-	log_debug(3, "bound iSCSI connection (handle 0x%p) to "
-		  "session (handle 0x%p)", (void*)conn->handle,
-		  (void*)session->handle);
-	return 0;
+	if (!ev.r.retcode) {
+		log_debug(3, "bound iSCSI connection (handle 0x%p) to "
+			  "session (handle 0x%p)", (void*)conn->handle,
+			  (void*)session->handle);
+	} else {
+		log_error("can't bind a cnx with id = %d, retcode %d",
+			  conn->id, ev.r.retcode);
+	}
+	return ev.r.retcode;
 }
 
 int
@@ -369,6 +377,8 @@ ksession_send_pdu_end(int ctrl_fd, iscsi_session_t *session, iscsi_conn_t *conn)
 	if ((rc = nlpayload_read(ctrl_fd, (void*)ev, sizeof(*ev), 0)) < 0) {
 		goto err;
 	}
+	if (ev->r.retcode)
+		goto err;
 	if (ev->type != ISCSI_UEVENT_SEND_PDU) {
 		log_error("bad event?");
 		free(xmitbuf);
@@ -413,11 +423,15 @@ ksession_set_param(int ctrl_fd, iscsi_conn_t *conn, iscsi_param_e param,
 			  "id = %d (%d)", param, conn->id, errno);
 		return rc;
 	}
+	if (!ev.r.retcode) {
+		log_debug(3, "set operational parameter %d to %u",
+				param, value);
+	} else {
+		log_error("can't set operational parameter %d for cnx with "
+			  "id = %d, retcode %d", param, conn->id, ev.r.retcode);
+	}
 
-	log_debug(3, "set operational parameter %d to %u",
-			param, value);
-
-	return 0;
+	return ev.r.retcode;
 }
 
 int
@@ -462,10 +476,15 @@ ksession_start_cnx(int ctrl_fd, iscsi_conn_t *conn)
 			  conn->id, errno);
 		return rc;
 	}
-
-	log_debug(3, "connection 0x%p is operational now",
-			(void*)conn->handle);
-	return 0;
+	if (!ev.r.retcode) {
+		log_debug(3, "connection 0x%p is operational now",
+				(void*)conn->handle);
+	} else {
+		log_error("can't start connection 0x%p with "
+			  "id = %d, retcode %d", (void*)conn->handle,
+			  conn->id, ev.r.retcode);
+	}
+	return ev.r.retcode;
 }
 
 int

@@ -398,6 +398,39 @@ __send_nopin_rsp(iscsi_conn_t *conn, iscsi_nopin_t *rhdr, char *data)
 }
 
 static void
+__send_pdu_timedout(void *data)
+{
+	queue_task_t *qtask = data;
+	iscsi_conn_t *conn = qtask->conn;
+	iscsi_session_t *session = conn->session;
+
+	if (conn->send_pdu_in_progress) {
+		queue_produce(session->queue, EV_CNX_TIMER, qtask, 0, 0);
+		actor_schedule(&session->mainloop);
+	}
+}
+
+static void
+__send_pdu_timer_add(struct iscsi_conn *conn, int timeout)
+{
+	if (conn->state == STATE_IN_LOGIN) {
+		iscsi_login_context_t *c = &conn->login_context;
+		conn->send_pdu_in_progress = 1;
+		actor_timer(&conn->send_pdu_timer, timeout*1000,
+			    __send_pdu_timedout, c->qtask);
+	}
+}
+
+static void
+__send_pdu_timer_remove(struct iscsi_conn *conn)
+{
+	if (conn->send_pdu_in_progress) {
+		actor_delete(&conn->send_pdu_timer);
+		conn->send_pdu_in_progress = 0;
+	}
+}
+
+static void
 __session_cnx_recv_pdu(queue_item_t *item)
 {
 	iscsi_conn_t *conn = item->context;
@@ -640,6 +673,8 @@ __session_cnx_poll(queue_item_t *item)
 			conn->send_pdu_end = ksession_send_pdu_end;
 			conn->recv_pdu_begin = ksession_recv_pdu_begin;
 			conn->recv_pdu_end = ksession_recv_pdu_end;
+			conn->send_pdu_timer_add = __send_pdu_timer_add;
+			conn->send_pdu_timer_remove = __send_pdu_timer_remove;
 
 			c->qtask = qtask;
 			c->cid = conn->id;
@@ -693,11 +728,22 @@ __session_cnx_timer(queue_item_t *item)
 {
 	queue_task_t *qtask = item->context;
 	iscsi_conn_t *conn = qtask->conn;
+	iscsi_session_t *session = conn->session;
 
 	if (conn->state == STATE_XPT_WAIT) {
 		/* timeout during connect. clean connection. write rsp */
 		__session_ipc_login_cleanup(qtask, IPC_ERR_TCP_TIMEOUT);
-		return;
+	} else if (conn->state == STATE_IN_LOGIN) {
+		/* send pdu timeout. clean connection. write rsp */
+		if (ksession_cnx_destroy(session->ctrl_fd, conn)) {
+			log_error("can not safely destroy connection %d",
+				  conn->id);
+		}
+		if (ksession_destroy(session->ctrl_fd, session)) {
+			log_error("can not safely destroy session %d",
+				  session->id);
+		}
+		__session_ipc_login_cleanup(qtask, IPC_ERR_PDU_TIMEOUT);
 	}
 }
 

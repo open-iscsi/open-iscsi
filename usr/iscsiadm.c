@@ -344,6 +344,8 @@ iscsid_handle_error(int err)
 		/* 7 */ "invalid parameter",
 		/* 8 */ "connection timed out",
 		/* 9 */ "internal error",
+		/* 10 */ "encountered iSCSI logout failure",
+		/* 11 */ "iSCSI PDU timed out",
 	};
 	log_error("iscsid reported error (%d - %s)", err, err_msgs[err]);
 }

@@ -35,6 +35,7 @@ typedef enum ipc_err {
 	IPC_ERR_TCP_TIMEOUT	= 8,
 	IPC_ERR_INTERNAL	= 9,
 	IPC_ERR_LOGOUT_FAILURE	= 10,
+	IPC_ERR_PDU_TIMEOUT	= 11,
 } ipc_err_e;
 
 typedef enum iscsiadm_cmd {

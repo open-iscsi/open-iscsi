@@ -32,6 +32,43 @@ static struct iscsi_kprovider provider_table[ISCSI_PROVIDER_MAX];
 static struct sock *nls = NULL;
 static int daemon_pid = 0;
 
+/* The netlink socket is only to be read by 1 CPU, which lets us assume
+ * that list additions and deletions never happen simultaneiously */
+static DECLARE_MUTEX(iscsi_netlink_sem);
+static LIST_HEAD(nlwork_head);
+static spinlock_t nlwork_lock;
+
+#define nlwork_lock() do { \
+	if (in_interrupt()) spin_lock(&nlwork_lock); \
+	else spin_lock_bh(&nlwork_lock); \
+} while (0)
+
+#define nlwork_unlock() do { \
+	if (in_interrupt()) spin_unlock(&nlwork_lock); \
+	else spin_unlock_bh(&nlwork_lock); \
+} while (0)
+
+static void
+iscsi_if_nlworker(void *data)
+{
+	struct list_head *lh, *n;
+
+	spin_lock_bh(&nlwork_lock);
+	list_for_each_safe(lh, n, &nlwork_head) {
+		struct sk_buff *skb = (struct sk_buff *)((char *)lh -
+				offsetof(struct sk_buff, cb));
+		list_del((struct list_head *)&skb->cb);
+		spin_unlock_bh(&nlwork_lock);
+		down(&iscsi_netlink_sem);
+		skb_get(skb);
+		(void)netlink_unicast(nls, skb, daemon_pid, MSG_DONTWAIT);
+		up(&iscsi_netlink_sem);
+		spin_lock_bh(&nlwork_lock);
+	}
+	spin_unlock_bh(&nlwork_lock);
+}
+static DECLARE_WORK(nlwork, iscsi_if_nlworker, NULL);
+
 int
 iscsi_control_recv_pdu(iscsi_cnx_h cp_cnx, iscsi_hdr_t *hdr,
 				char *data, int data_size)
@@ -56,8 +93,10 @@ iscsi_control_recv_pdu(iscsi_cnx_h cp_cnx, iscsi_hdr_t *hdr,
 	pdu = (char*)ev + sizeof(*ev);
 	memcpy(pdu, hdr, sizeof(iscsi_hdr_t));
 	memcpy(pdu + sizeof(iscsi_hdr_t), data, data_size);
-	skb_get(skb);
-	(void)netlink_unicast(nls, skb, daemon_pid, MSG_DONTWAIT);
+	nlwork_lock();
+	list_add_tail((struct list_head *)&skb->cb, &nlwork_head);
+	nlwork_unlock();
+	schedule_work(&nlwork);
 	return 0;
 }
 
@@ -80,8 +119,10 @@ iscsi_control_cnx_error(iscsi_cnx_h cp_cnx, iscsi_err_e error)
 	ev->type = ISCSI_KEVENT_CNX_ERROR;
 	ev->r.cnxerror.error = error;
 	ev->r.cnxerror.cnx_handle = (ulong_t)cp_cnx;
-	skb_get(skb);
-	(void)netlink_unicast(nls, skb, daemon_pid, MSG_DONTWAIT);
+	nlwork_lock();
+	list_add_tail((struct list_head *)&skb->cb, &nlwork_head);
+	nlwork_unlock();
+	schedule_work(&nlwork);
 }
 
 static struct iscsi_kprovider*
@@ -134,14 +175,8 @@ iscsi_if_recv_msg(struct sk_buff *skb, struct nlmsghdr *nlh)
 		ev->r.handle = (ulong_t)provider->ops.create_session(
 		       (void*)ev->u.c_session.session_handle,
 		       ev->u.c_session.sid, ev->u.c_session.initial_cmdsn);
-		if (!ev->r.handle) {
-			err = -EIO;
-			break;
-		}
-		if ((err = iscsi_if_send_reply(pid, seq, nlh->nlmsg_type, 0, 0,
-					ev, sizeof(*ev)))) {
-			provider->ops.destroy_session((void*)ev->r.handle);
-		}
+		err = iscsi_if_send_reply(pid, seq, nlh->nlmsg_type, 0, 0,
+					       ev, sizeof(*ev));
 		break;
 	case ISCSI_UEVENT_DESTROY_SESSION:
 		provider->ops.destroy_session(
@@ -157,14 +192,8 @@ iscsi_if_recv_msg(struct sk_buff *skb, struct nlmsghdr *nlh)
 		ev->r.handle = (ulong_t)provider->ops.create_cnx(
 			(void*)ev->u.c_cnx.session_handle,
 			(void*)ev->u.c_cnx.cnx_handle, sock, ev->u.c_cnx.cid);
-		if (!ev->r.handle) {
-			err = -EIO;
-			break;
-		}
-		if ((err = iscsi_if_send_reply(pid, seq, nlh->nlmsg_type, 0, 0,
-					ev, sizeof(*ev)))) {
-			provider->ops.destroy_cnx((void*)ev->r.handle);
-		}
+		err = iscsi_if_send_reply(pid, seq, nlh->nlmsg_type, 0, 0,
+					ev, sizeof(*ev));
 	} break;
 	case ISCSI_UEVENT_DESTROY_CNX:
 		provider->ops.destroy_cnx((void*)ev->u.d_cnx.cnx_handle);
@@ -174,9 +203,6 @@ iscsi_if_recv_msg(struct sk_buff *skb, struct nlmsghdr *nlh)
 		ev->r.retcode = (ulong_t)provider->ops.bind_cnx(
 			(void*)ev->u.b_cnx.session_handle,
 			(void*)ev->u.b_cnx.cnx_handle, ev->u.b_cnx.is_leading);
-		if (ev->r.retcode) {
-			err = -EIO;
-		}
 		err = iscsi_if_send_reply(pid, seq, nlh->nlmsg_type, 0, 0,
 					ev, sizeof(*ev));
 		break;
@@ -184,18 +210,12 @@ iscsi_if_recv_msg(struct sk_buff *skb, struct nlmsghdr *nlh)
 		ev->r.retcode = provider->ops.set_param(
 			(void*)ev->u.set_param.cnx_handle,
 			ev->u.set_param.param, ev->u.set_param.value);
-		if (ev->r.retcode) {
-			err = -EIO;
-		}
 		err = iscsi_if_send_reply(pid, seq, nlh->nlmsg_type, 0, 0,
 					ev, sizeof(*ev));
 		break;
 	case ISCSI_UEVENT_START_CNX:
 		ev->r.retcode = provider->ops.start_cnx(
 			(void*)ev->u.start_cnx.cnx_handle);
-		if (ev->r.retcode) {
-			err = -EIO;
-		}
 		err = iscsi_if_send_reply(pid, seq, nlh->nlmsg_type, 0, 0,
 					ev, sizeof(*ev));
 		break;
@@ -209,9 +229,6 @@ iscsi_if_recv_msg(struct sk_buff *skb, struct nlmsghdr *nlh)
 		       (iscsi_hdr_t*)((char*)ev + sizeof(*ev)),
 		       (char*)ev + sizeof(*ev) + ev->u.send_pdu.hdr_size,
 			ev->u.send_pdu.data_size);
-		if (ev->r.retcode) {
-			err = -EIO;
-		}
 		err = iscsi_if_send_reply(pid, seq, nlh->nlmsg_type, 0, 0,
 					ev, sizeof(*ev));
 		break;
@@ -230,6 +247,8 @@ static void
 iscsi_if_rx(struct sock *sk, int len)
 {
 	struct sk_buff *skb;
+
+	down(&iscsi_netlink_sem);
 
 	while ((skb = skb_dequeue(&sk->sk_receive_queue)) != NULL) {
 		while (skb->len >= NLMSG_SPACE(0)) {
@@ -253,6 +272,8 @@ iscsi_if_rx(struct sock *sk, int len)
 		}
 		kfree_skb(skb);
 	}
+
+	up(&iscsi_netlink_sem);
 }
 
 static int __init
@@ -266,6 +287,8 @@ iscsi_if_init(void)
 	nls = netlink_kernel_create(NETLINK_ISCSI, iscsi_if_rx);
 	if (nls == NULL)
 		return -ENOBUFS;
+
+	spin_lock_init(&nlwork_lock);
 
 	strcpy(provider_table[0].name, "tcp");
 	rc = iscsi_tcp_register(&provider_table[0].ops,

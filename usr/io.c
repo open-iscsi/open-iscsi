@@ -343,6 +343,7 @@ iscsi_send_pdu(iscsi_conn_t *conn, iscsi_hdr_t *hdr,
 			ret = 0;
 			goto done;
 		}
+		conn->send_pdu_timer_add(conn, timeout);
 	}
 
 	while (header < end) {
@@ -608,6 +609,7 @@ done:
 		if (conn->recv_pdu_end(session->ctrl_fd, conn, pdu_handle)) {
 			failed = 1;
 		}
+		conn->send_pdu_timer_remove(conn);
 	}
 
 	if (timedout || failed) {
