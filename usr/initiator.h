@@ -38,6 +38,8 @@
 #define DISCOVERY_FILE		"/var/db/iscsi/discovery"
 #define NODE_FILE		"/var/db/iscsi/node"
 
+#define DEF_ISCSI_PORT		3260
+
 typedef enum cnx_login_status_e {
 	CNX_LOGIN_SUCCESS		= 0,
 	CNX_LOGIN_FAILED		= 1,

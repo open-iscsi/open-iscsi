@@ -85,7 +85,7 @@ static void usage(int status)
 iSCSI Administration Utility.\n\
 \n\
   -m, --mode <op>         specify operational mode op = <discovery|node>\n\
-  -m discovery --type=[type] --portal=[ip:port] --login\n\
+  -m discovery --type=[type] --portal=[ip[:port]] --login\n\
                           perform [type] discovery for target portal with\n\
                           ip-address [ip] and port [port]. Initiate Login for\n\
                           each discovered target if --login is specified\n\
@@ -189,10 +189,10 @@ str_to_ipport(char *str, int *port)
 		*sport = '\0';
 		sport++;
 		*port = strtoul(sport, NULL, 10);
-		return str;
+	} else {
+		*port = DEF_ISCSI_PORT;
 	}
-
-	return NULL;
+	return str;
 }
 
 static int
@@ -516,7 +516,7 @@ main(int argc, char **argv)
 
 			if (ip == NULL || port < 0) {
 				log_error("please specify right portal as "
-					  "<ipaddr>:<ipport>");
+					  "<ipaddr>[:<ipport>]");
 				rc = -1;
 				goto out;
 			}
