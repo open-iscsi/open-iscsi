@@ -459,8 +459,7 @@ iscsi_r2t_rsp(struct iscsi_conn *conn, struct iscsi_cmd_task *ctask)
 		return rc;
 
 	ctask->exp_r2tsn = r2tsn + 1;
-	ctask->in_progress = IN_PROGRESS_WRITE |
-			     IN_PROGRESS_SOLICIT_HEAD;
+	ctask->xmstate |= XMSTATE_SOL_HDR;
 	__kfifo_put(ctask->r2tqueue, (void*)&r2t, sizeof(void*));
 	__kfifo_put(conn->writequeue, (void*)&ctask, sizeof(void*));
 
@@ -529,8 +528,6 @@ iscsi_hdr_recv(struct iscsi_conn *conn)
 		  conn->in.ahslen, conn->in.datalen);
 
 	if (conn->in.itt < session->cmds_max) {
-		int cstate;
-
 		if (conn->hdrdgst_en && cdgst != rdgst) {
 			printk("iSCSI: itt %x: hdrdgst error recv 0x%x "
 			       "calc 0x%x\n", conn->in.itt, rdgst, cdgst);
@@ -542,7 +539,6 @@ iscsi_hdr_recv(struct iscsi_conn *conn)
 		ctask = (struct iscsi_cmd_task *)session->cmds[conn->in.itt];
 		BUG_ON(ctask != (void*)ctask->sc->SCp.ptr);
 		conn->in.ctask = ctask;
-		cstate = ctask->in_progress & IN_PROGRESS_OP_MASK;
 
 		debug_scsi("rsp [op 0x%x cid %d sc %lx itt 0x%x len %d]\n",
 			   hdr->opcode, conn->id, (long)ctask->sc, ctask->itt,
@@ -550,7 +546,7 @@ iscsi_hdr_recv(struct iscsi_conn *conn)
 
 		switch(conn->in.opcode) {
 		case ISCSI_OP_SCSI_CMD_RSP:
-			if (cstate == IN_PROGRESS_READ) {
+			if (ctask->in_progress == IN_PROGRESS_READ) {
 				if (!conn->in.datalen) {
 					rc = iscsi_cmd_rsp(conn, ctask);
 				} else {
@@ -561,7 +557,7 @@ iscsi_hdr_recv(struct iscsi_conn *conn)
 					memcpy(&conn->hdr, hdr,
 					       sizeof(struct iscsi_hdr));
 				}
-			} else if (cstate == IN_PROGRESS_WRITE) {
+			} else if (ctask->in_progress == IN_PROGRESS_WRITE) {
 				rc = iscsi_cmd_rsp(conn, ctask);
 			}
 			break;
@@ -1212,22 +1208,22 @@ iscsi_unsolicit_data_init(struct iscsi_conn *conn, struct iscsi_cmd_task *ctask)
 	hdr->rsvd2[0] = hdr->rsvd2[1] = hdr->rsvd3 =
 		hdr->rsvd4 = hdr->rsvd5 = hdr->rsvd6 = 0;
 	hdr->ttt = ISCSI_RESERVED_TAG;
-	hdr->datasn = htonl(ctask->unsolicit_datasn);
-	ctask->unsolicit_datasn++;
+	hdr->datasn = htonl(ctask->unsol_datasn);
+	ctask->unsol_datasn++;
 	hdr->opcode = ISCSI_OP_SCSI_DATA_OUT;
 	memset(hdr->lun, 0, 8);
 	hdr->lun[1] = ctask->hdr.lun[1];
 	hdr->itt = ctask->hdr.itt;
 	hdr->exp_statsn = htonl(conn->exp_statsn);
 	hdr->offset = htonl(ctask->total_length - ctask->r2t_data_count -
-			    ctask->imm_data_count);
-	if (ctask->imm_data_count > conn->max_xmit_dlength) {
+			    ctask->unsol_count);
+	if (ctask->unsol_count > conn->max_xmit_dlength) {
 		hton24(hdr->dlength, conn->max_xmit_dlength);
 		ctask->data_count = conn->max_xmit_dlength;
 		hdr->flags = 0;
 	} else {
-		hton24(hdr->dlength, ctask->imm_data_count);
-		ctask->data_count = ctask->imm_data_count;
+		hton24(hdr->dlength, ctask->unsol_count);
+		ctask->data_count = ctask->unsol_count;
 		hdr->flags = ISCSI_FLAG_CMD_FINAL;
 	}
 
@@ -1265,12 +1261,7 @@ iscsi_cmd_init(struct iscsi_conn *conn, struct iscsi_cmd_task *ctask,
 
 	ctask->total_length = sc->request_bufflen;
 
-	if (sc->sc_data_direction == DMA_FROM_DEVICE) {
-		ctask->datasn = 0;
-		ctask->hdr.flags |= ISCSI_FLAG_CMD_READ | ISCSI_FLAG_CMD_FINAL;
-		ctask->in_progress = IN_PROGRESS_READ | IN_PROGRESS_BEGIN_READ;
-		zero_data(ctask->hdr.dlength);
-	} else if (sc->sc_data_direction == DMA_TO_DEVICE) {
+	if (sc->sc_data_direction == DMA_TO_DEVICE) {
 		ctask->exp_r2tsn = 0;
 		ctask->hdr.flags |= ISCSI_FLAG_CMD_WRITE;
 		ctask->in_progress = IN_PROGRESS_WRITE;
@@ -1293,15 +1284,16 @@ iscsi_cmd_init(struct iscsi_conn *conn, struct iscsi_cmd_task *ctask,
 		 *	imm_count	bytes to be sent right after
 		 *			SCSI PDU Header
 		 *
-		 *	imm_data_count	bytes(as Data-Out) to be sent
+		 *	unsol_count	bytes(as Data-Out) to be sent
 		 *			without	R2T ack right after
 		 *			immediate data
 		 *
-		 *	data_count	bytes to be sent via R2T ack's
+		 *	r2t_data_count	bytes to be sent via R2T ack's
 		 */
 		ctask->imm_count = 0;
-		ctask->imm_data_count = 0;
-		ctask->unsolicit_datasn = 0;
+		ctask->unsol_count = 0;
+		ctask->unsol_datasn = 0;
+		ctask->xmstate = XMSTATE_W_HDR;
 		if (session->imm_data_en) {
 			if (ctask->total_length >= session->first_burst) {
 				ctask->imm_count = min(session->first_burst,
@@ -1311,42 +1303,38 @@ iscsi_cmd_init(struct iscsi_conn *conn, struct iscsi_cmd_task *ctask,
 							conn->max_xmit_dlength);
 			}
 			hton24(ctask->hdr.dlength, ctask->imm_count);
-			ctask->in_progress |= IN_PROGRESS_BEGIN_WRITE_IMM;
+			ctask->xmstate |= XMSTATE_IMM_DATA;
 		} else {
 			zero_data(ctask->hdr.dlength);
-			ctask->in_progress |= IN_PROGRESS_BEGIN_WRITE;
 		}
 		if (!session->initial_r2t_en) {
-			ctask->imm_data_count=min(session->first_burst,
+			ctask->unsol_count=min(session->first_burst,
 				ctask->total_length) - ctask->imm_count;
 		}
-		if (!ctask->imm_data_count) {
+		if (!ctask->unsol_count) {
 			/* No unsolicit Data-Out's */
 			ctask->hdr.flags |= ISCSI_FLAG_CMD_FINAL;
+		} else {
+			ctask->xmstate |= XMSTATE_UNS_HDR | XMSTATE_UNS_INIT;
 		}
 		ctask->r2t_data_count = ctask->total_length -
 				    ctask->imm_count -
-				    ctask->imm_data_count;
-		if (ctask->imm_data_count) {
-			ctask->in_progress |= IN_PROGRESS_UNSOLICIT_HEAD;
-		} else if (ctask->r2t_data_count) {
-			ctask->in_progress |= IN_PROGRESS_R2T_WAIT;
-		}
+				    ctask->unsol_count;
+
 		debug_scsi("cmd [itt %x total %d imm %d imm_data %d "
 			   "r2t_data %d]\n",
 			   ctask->itt, ctask->total_length, ctask->imm_count,
-			   ctask->imm_data_count, ctask->r2t_data_count);
+			   ctask->unsol_count, ctask->r2t_data_count);
 	} else {
-		/* assume read op */
-		ctask->hdr.flags |= ISCSI_FLAG_CMD_FINAL;
-		ctask->in_progress = IN_PROGRESS_READ | IN_PROGRESS_BEGIN_READ;
+		ctask->datasn = 0;
+		ctask->hdr.flags |= ISCSI_FLAG_CMD_READ | ISCSI_FLAG_CMD_FINAL;
+		ctask->in_progress = IN_PROGRESS_READ;
+		ctask->xmstate = XMSTATE_R_HDR;
 		zero_data(ctask->hdr.dlength);
 	}
 
 	iscsi_buf_init_hdr(conn, &ctask->headbuf, (char*)&ctask->hdr,
 			    (u8 *)ctask->hdrext);
-
-	ctask->in_progress |= IN_PROGRESS_HEAD;
 }
 
 /*
@@ -1365,141 +1353,138 @@ iscsi_mtask_xmit(struct iscsi_conn *conn, struct iscsi_mgmt_task *mtask)
 {
 
 	debug_scsi("mtask deq [cid %d state %x itt 0x%x]\n",
-		conn->id, mtask->in_progress, mtask->itt);
+		conn->id, mtask->xmstate, mtask->itt);
 
-	if (mtask->in_progress & IN_PROGRESS_IMM_HEAD) {
-		if (iscsi_sendhdr(conn, &mtask->headbuf))
+	if (mtask->xmstate & XMSTATE_IMM_HDR) {
+		mtask->xmstate &= ~XMSTATE_IMM_HDR;
+		if (mtask->data_count)
+			mtask->xmstate |= XMSTATE_IMM_DATA;
+		if (iscsi_sendhdr(conn, &mtask->headbuf)) {
+			mtask->xmstate |= XMSTATE_IMM_HDR;
+			if (mtask->data_count)
+				mtask->xmstate &= ~XMSTATE_IMM_DATA;
 			return -EAGAIN;
-		if (mtask->data_count) {
-			mtask->in_progress = IN_PROGRESS_IMM_DATA;
 		}
 	}
 
-	if (mtask->in_progress == IN_PROGRESS_IMM_DATA) {
+	if (mtask->xmstate & XMSTATE_IMM_DATA) {
+		BUG_ON(!mtask->data_count);
+		mtask->xmstate &= ~XMSTATE_IMM_DATA;
 		/* FIXME: implement.
 		 * Virtual buffer could be spreaded accross multiple pages...
 		 */
 		do {
 			if (iscsi_sendpage(conn, &mtask->sendbuf,
 				   &mtask->data_count, &mtask->sent)) {
+				mtask->xmstate |= XMSTATE_IMM_DATA;
 				return -EAGAIN;
 			}
 		} while (mtask->data_count);
 	}
 
+	BUG_ON(mtask->xmstate != XMSTATE_IDLE);
 	return 0;
 }
 
-/*
- * iscsi_ctask_xmit - xmit SCSI command task
- *
- * The function can return -EAGAIN in which case caller must
- * call it again later or recover. '0' return code means successful
- * xmit.
- */
 static int
 iscsi_ctask_xmit(struct iscsi_conn *conn, struct iscsi_cmd_task *ctask)
 {
-	int p_state = ctask->in_progress;
 	struct iscsi_r2t_info *r2t = NULL;
 
 	debug_scsi("ctask deq [cid %d state %x itt 0x%x]\n",
-		conn->id, ctask->in_progress, ctask->itt);
+		conn->id, ctask->xmstate, ctask->itt);
 
-	BUG_ON(!(ctask->in_progress &
-		 (IN_PROGRESS_HEAD|IN_PROGRESS_BEGIN_WRITE_IMM|
-		  IN_PROGRESS_BEGIN_WRITE|IN_PROGRESS_UNSOLICIT_HEAD|
-		  IN_PROGRESS_UNSOLICIT_WRITE|IN_PROGRESS_SOLICIT_HEAD|
-		  IN_PROGRESS_SOLICIT_WRITE|IN_PROGRESS_BEGIN_READ)));
-
-	if (ctask->in_progress & IN_PROGRESS_BEGIN_READ) {
-		if (iscsi_sendhdr(conn, &ctask->headbuf))
-			return -EAGAIN;
-		/* wait for Read data-in */
-		ctask->in_progress &= ~IN_PROGRESS_BEGIN_READ;
-		return 0;
+	if (ctask->xmstate & XMSTATE_R_HDR) {
+		ctask->xmstate &= ~XMSTATE_R_HDR;
+		if (!iscsi_sendhdr(conn, &ctask->headbuf)) {
+			BUG_ON(ctask->xmstate != XMSTATE_IDLE);
+			return 0; /* wait for Data-In */
+		}
+		ctask->xmstate |= XMSTATE_R_HDR;
+		return -EAGAIN;
 	}
 
-	if (ctask->in_progress & IN_PROGRESS_BEGIN_WRITE_IMM) {
-		if (iscsi_sendhdr(conn, &ctask->headbuf))
+	if (ctask->xmstate & XMSTATE_W_HDR) {
+		ctask->xmstate &= ~XMSTATE_W_HDR;
+		if (iscsi_sendhdr(conn, &ctask->headbuf)) {
+			ctask->xmstate |= XMSTATE_W_HDR;
 			return -EAGAIN;
-		while (ctask->imm_count) {
+		}
+	}
+
+	if (ctask->xmstate & XMSTATE_IMM_DATA) {
+		BUG_ON(!ctask->imm_count);
+		ctask->xmstate &= ~XMSTATE_IMM_DATA;
+		while (1) {
 			if (iscsi_sendpage(conn, &ctask->sendbuf,
-				   &ctask->imm_count, &ctask->sent)) {
+					   &ctask->imm_count, &ctask->sent)) {
+				ctask->xmstate |= XMSTATE_IMM_DATA;
 				return -EAGAIN;
 			}
 			if (!ctask->imm_count)
 				break;
 			iscsi_buf_init_sg(&ctask->sendbuf,
-				 &ctask->sg[ctask->sg_count++]);
+					  &ctask->sg[ctask->sg_count++]);
 		}
-		if (ctask->imm_data_count) {
-			if (iscsi_unsolicit_data_init(conn, ctask))
-				return -ENOMEM;
-		}
-		ctask->in_progress &= ~IN_PROGRESS_BEGIN_WRITE_IMM;
-		if (p_state & IN_PROGRESS_R2T_WAIT)
-			return 0;
-	} else if (ctask->in_progress & IN_PROGRESS_BEGIN_WRITE) {
-		if (iscsi_sendhdr(conn, &ctask->headbuf))
-			return -EAGAIN;
-		if (ctask->imm_data_count) {
-			if (iscsi_unsolicit_data_init(conn, ctask))
-				return -ENOMEM;
-		}
-		ctask->in_progress &= ~IN_PROGRESS_BEGIN_WRITE;
-		if (p_state & IN_PROGRESS_R2T_WAIT)
-			return 0;
 	}
 
-	if (ctask->in_progress & IN_PROGRESS_UNSOLICIT_HEAD) {
+	if (ctask->xmstate & XMSTATE_UNS_HDR) {
+		BUG_ON(!ctask->unsol_count);
+		ctask->xmstate &= ~XMSTATE_UNS_HDR;
 _unsolicit_head_again:
-		if (iscsi_sendhdr(conn, &ctask->headbuf))
+		ctask->xmstate |= XMSTATE_UNS_DATA;
+		if (ctask->xmstate & XMSTATE_UNS_INIT) {
+			iscsi_unsolicit_data_init(conn, ctask);
+			ctask->xmstate &= ~XMSTATE_UNS_INIT;
+		}
+		if (iscsi_sendhdr(conn, &ctask->headbuf)) {
+			ctask->xmstate &= ~XMSTATE_UNS_DATA;
+			ctask->xmstate |= XMSTATE_UNS_HDR;
 			return -EAGAIN;
-		ctask->in_progress = IN_PROGRESS_WRITE |
-				     IN_PROGRESS_UNSOLICIT_WRITE;
+		}
+
+		debug_scsi("uns dout [itt 0x%x dlen %d sent %d]\n",
+			ctask->itt, ctask->unsol_count, ctask->sent);
 	}
 
-	if (ctask->in_progress & IN_PROGRESS_UNSOLICIT_WRITE) {
-		while (ctask->data_count) {
+	if (ctask->xmstate & XMSTATE_UNS_DATA) {
+		BUG_ON(!ctask->data_count);
+		ctask->xmstate &= ~XMSTATE_UNS_DATA;
+		while (1) {
 			int start = ctask->sent;
 			if (iscsi_sendpage(conn, &ctask->sendbuf,
 					   &ctask->data_count,
 					   &ctask->sent)) {
-				ctask->imm_data_count -= ctask->sent - start;
+				ctask->unsol_count -= ctask->sent - start;
+				ctask->xmstate |= XMSTATE_UNS_DATA;
+				/* will continue with this ctask later.. */
 				return -EAGAIN;
 			}
 			BUG_ON(ctask->sent > ctask->total_length);
-			ctask->imm_data_count -= ctask->sent - start;
+			ctask->unsol_count -= ctask->sent - start;
 			if (!ctask->data_count)
 				break;
 			iscsi_buf_init_sg(&ctask->sendbuf,
-				 &ctask->sg[ctask->sg_count++]);
+					  &ctask->sg[ctask->sg_count++]);
 		}
+		BUG_ON(ctask->unsol_count < 0);
 
 		/*
 		 * Done with the Data-Out. Next, check if we need
 		 * to send another unsolicited Data-Out.
 		 */
-		BUG_ON(ctask->imm_data_count < 0);
-		if (ctask->imm_data_count) {
-			if (iscsi_unsolicit_data_init(conn, ctask))
-				return -EAGAIN;
-			ctask->in_progress = IN_PROGRESS_WRITE |
-					     IN_PROGRESS_UNSOLICIT_HEAD;
+		if (ctask->unsol_count) {
+			ctask->xmstate |= XMSTATE_UNS_INIT;
 			goto _unsolicit_head_again;
 		}
-		if (ctask->r2t_data_count) {
-			ctask->in_progress = IN_PROGRESS_WRITE |
-					     IN_PROGRESS_R2T_WAIT;
-		} else {
-			ctask->in_progress = IN_PROGRESS_WRITE |
-					     IN_PROGRESS_UNSOLICIT_DONE;
-		}
+
+		BUG_ON(ctask->xmstate != XMSTATE_IDLE);
 		return 0;
 	}
 
-	if (ctask->in_progress & IN_PROGRESS_SOLICIT_HEAD) {
+	if (ctask->xmstate & XMSTATE_SOL_HDR) {
+		ctask->xmstate &= ~XMSTATE_SOL_HDR;
+		ctask->xmstate |= XMSTATE_SOL_DATA;
 		if (!ctask->r2t) {
 			__kfifo_get(ctask->r2tqueue, (void*)&r2t,
 				    sizeof(void*));
@@ -1507,31 +1492,21 @@ _unsolicit_head_again:
 		}
 _solicit_head_again:
 		BUG_ON(r2t == NULL);
-		if (r2t->cont_bit) {
-			BUG_ON(r2t->data_length - r2t->sent <= 0);
-			/*
-			 * Failed to fill-in Data-Out last time
-			 * due to memory allocation failure (most likely);
-			 * try again. Once we succeed, reset
-			 * cont_bit.
-			 */
-			if (iscsi_solicit_data_cont(conn, ctask, r2t,
-				r2t->data_length - r2t->sent)) {
-				return -EAGAIN;
-			}
-			r2t->cont_bit = 0;
-		}
-		if (iscsi_sendhdr(conn, &r2t->headbuf))
+		if (iscsi_sendhdr(conn, &r2t->headbuf)) {
+			ctask->xmstate &= ~XMSTATE_SOL_DATA;
+			ctask->xmstate |= XMSTATE_SOL_HDR;
 			return -EAGAIN;
-		ctask->in_progress = IN_PROGRESS_WRITE |
-				     IN_PROGRESS_SOLICIT_WRITE;
-		debug_scsi("dout [dsn %d itt 0x%x dlen %d sent %d]\n",
-			r2t->solicit_datasn - 1, ctask->itt,r2t->data_count,
+		}
+
+		debug_scsi("sol dout [dsn %d itt 0x%x dlen %d sent %d]\n",
+			r2t->solicit_datasn - 1, ctask->itt, r2t->data_count,
 			r2t->sent);
 	}
 
-	if (ctask->in_progress & IN_PROGRESS_SOLICIT_WRITE) {
+	if (ctask->xmstate & XMSTATE_SOL_DATA) {
 		int left;
+
+		ctask->xmstate &= ~XMSTATE_SOL_DATA;
 		r2t = ctask->r2t;
 _solicit_again:
 		/*
@@ -1541,6 +1516,7 @@ _solicit_again:
 			if (iscsi_sendpage(conn, &r2t->sendbuf,
 					   &r2t->data_count,
 					   &r2t->sent)) {
+				ctask->xmstate |= XMSTATE_SOL_DATA;
 				/* will continue with this ctask later.. */
 				return -EAGAIN;
 			}
@@ -1560,13 +1536,8 @@ _solicit_again:
 		BUG_ON(r2t->data_length - r2t->sent < 0);
 		left = r2t->data_length - r2t->sent;
 		if (left) {
-			ctask->in_progress = IN_PROGRESS_WRITE |
-					     IN_PROGRESS_SOLICIT_HEAD;
-			if (iscsi_solicit_data_cont(conn,
-					    ctask, r2t, left)) {
-				r2t->cont_bit = 1;
-				return -EAGAIN;
-			}
+			iscsi_solicit_data_cont(conn, ctask, r2t, left);
+			ctask->xmstate |= XMSTATE_SOL_DATA;
 			goto _solicit_head_again;
 		}
 
@@ -1580,21 +1551,12 @@ _solicit_again:
 		__kfifo_put(ctask->r2tpool.queue, (void*)&r2t, sizeof(void*));
 		if (__kfifo_get(ctask->r2tqueue, (void*)&r2t, sizeof(void*))) {
 			ctask->r2t = r2t;
-			ctask->in_progress = IN_PROGRESS_WRITE |
-					     IN_PROGRESS_SOLICIT_HEAD;
+			ctask->xmstate |= XMSTATE_SOL_DATA;
 			goto _solicit_head_again;
-		} else {
-			if (ctask->r2t_data_count) {
-				ctask->in_progress = IN_PROGRESS_WRITE |
-						     IN_PROGRESS_R2T_WAIT;
-				return 0;
-			}
 		}
-		ctask->in_progress = IN_PROGRESS_WRITE |
-				     IN_PROGRESS_SOLICIT_DONE;
-		return 0;
 	}
 
+	BUG_ON(ctask->xmstate != XMSTATE_IDLE);
 	return 0;
 }
 
@@ -2209,7 +2171,7 @@ iscsi_send_pdu(iscsi_cnx_h cnxh, struct iscsi_hdr *hdr, char *data,
 		mtask->data_count = data_size;
 	}
 
-	mtask->in_progress = IN_PROGRESS_IMM_HEAD;
+	mtask->xmstate = XMSTATE_IMM_HDR;
 
 	if (mtask->data_count) {
 		iscsi_buf_init_virt(&mtask->sendbuf, (char*)mtask->data,

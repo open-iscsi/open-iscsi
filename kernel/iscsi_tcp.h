@@ -49,23 +49,21 @@
 #define	TMABORT_TIMEDOUT		0x3
 
 /* iSCSI Task Command's state machine */
-#define IN_PROGRESS_OP_MASK		0x3	/* READ | WRITE */
 #define IN_PROGRESS_IDLE		0x0
 #define IN_PROGRESS_READ		0x1
 #define IN_PROGRESS_WRITE		0x2
-#define IN_PROGRESS_HEAD		0x4
-#define IN_PROGRESS_UNSOLICIT_HEAD	0x10
-#define IN_PROGRESS_SOLICIT_HEAD	0x20
-#define IN_PROGRESS_UNSOLICIT_WRITE	0x40
-#define IN_PROGRESS_SOLICIT_WRITE	0x80
-#define IN_PROGRESS_R2T_WAIT		0x100
-#define IN_PROGRESS_BEGIN_WRITE		0x200
-#define IN_PROGRESS_IMM_HEAD		0x400
-#define IN_PROGRESS_IMM_DATA		0x800
-#define IN_PROGRESS_BEGIN_WRITE_IMM	0x1000
-#define IN_PROGRESS_SOLICIT_DONE	0x2000
-#define IN_PROGRESS_UNSOLICIT_DONE	0x4000
-#define IN_PROGRESS_BEGIN_READ		0x8000
+
+/* xmit state machine */
+#define	XMSTATE_IDLE			0x0
+#define	XMSTATE_R_HDR			0x1
+#define	XMSTATE_W_HDR			0x2
+#define	XMSTATE_IMM_HDR			0x4
+#define	XMSTATE_IMM_DATA		0x8
+#define	XMSTATE_UNS_INIT		0x10
+#define	XMSTATE_UNS_HDR			0x20
+#define	XMSTATE_UNS_DATA		0x40
+#define	XMSTATE_SOL_HDR			0x80
+#define	XMSTATE_SOL_DATA		0x100
 
 #define ISCSI_DRV_VERSION	"0.1"
 #define ISCSI_DEFAULT_PORT	3260
@@ -135,6 +133,7 @@ struct iscsi_conn {
 	int			id;		/* iSCSI CID */
 	struct iscsi_tcp_recv	in;		/* TCP receive context */
 	int			in_progress;	/* Connection state machine */
+	int			in_progress_xmit; /* xmit state machine */
 	struct socket           *sock;          /* BSD socket layer */
 	struct iscsi_session	*session;	/* Parent session */
 	struct list_head	item;		/* item's list of connections */
@@ -144,7 +143,6 @@ struct iscsi_conn {
 	struct work_struct	xmitwork;	/* per-conn. xmit workqueue */
 	volatile int		c_stage;	/* Connection state */
 	iscsi_cnx_h		handle;		/* CP connection handle */
-	int			in_progress_xmit; /* xmit state machine */
 	struct iscsi_mgmt_task	*login_mtask;	/* mtask used for login/text */
 	spinlock_t		lock;		/* general connection lock */
 	volatile int		suspend;	/* connection suspended */
@@ -226,7 +224,7 @@ struct iscsi_mgmt_task {
 	struct iscsi_hdr hdr;			/* mgmt. PDU */
 	char		hdrext[sizeof(__u32)];	/* Header-Digest */
 	char		*data;			/* mgmt payload */
-	int		in_progress;		/* mgmt xmit progress */
+	volatile int	xmstate;		/* mgmt xmit progress */
 	int		data_count;		/* counts data to be sent */
 	struct iscsi_buf headbuf;		/* Header Buffer */
 	struct iscsi_buf sendbuf;		/* in progress buffer */
@@ -247,7 +245,6 @@ struct iscsi_r2t_info {
 	struct iscsi_buf	headbuf;	/* Data-Out Header Buffer */
 	struct iscsi_buf	sendbuf;	/* Data-Out in progress buffer*/
 	int			sent;		/* R2T sequence progress */
-	int			cont_bit;	/* Data-Out cont. faulure */
 	int			data_count;	/* DATA-Out payload progress */
 	struct scatterlist	*sg;		/* per-R2T SG list */
 	int			solicit_datasn;
@@ -265,11 +262,12 @@ struct iscsi_cmd_task {
 	struct scatterlist	*sg;			/* per-cmd SG list */
 	struct scatterlist	*bad_sg;		/* assert statement */
 	int			sg_count;		/* SG's to process */
-	uint32_t		unsolicit_datasn;
+	uint32_t		unsol_datasn;
 	uint32_t		exp_r2tsn;
 	volatile int		in_progress;		/* State machine */
+	volatile int		xmstate;		/* Xmit State machine */
 	int			imm_count;		/* Imm-Data bytes */
-	int			imm_data_count;		/* Imm-Data-Out bytes */
+	int			unsol_count;		/* Imm-Data-Out bytes */
 	int			r2t_data_count;		/* R2T Data-Out bytes */
 	int			data_count;		/* Remaining Data-Out */
 	struct scsi_cmnd	*sc;			/* Assoc. SCSI cmnd */
