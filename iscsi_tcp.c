@@ -729,6 +729,7 @@ iscsi_cmd_init(iscsi_conn_t *conn, iscsi_cmd_task_t *ctask,
 	}
 	ctask->hdr.lun[1] = sc->device->lun;
 	ctask->hdr.itt = htonl(ctask->itt);
+	__BUG_ON(sc->request_bufflen == 0); /* check that zero-write allowed */
 	ctask->hdr.data_length = htonl(sc->request_bufflen);
 	ctask->hdr.cmdsn = htonl(session->cmdsn); session->cmdsn++;
 	ctask->hdr.exp_statsn = htonl(conn->exp_statsn);
@@ -755,8 +756,7 @@ iscsi_cmd_init(iscsi_conn_t *conn, iscsi_cmd_task_t *ctask,
 					sc->request_bufflen);
 			__BUG_ON(sc->request_bufflen > PAGE_SIZE);
 		}
-		ctask->in_progress = IN_PROGRESS_WRITE |
-				     IN_PROGRESS_BEGIN_WRITE;
+		ctask->in_progress = IN_PROGRESS_WRITE;
 	} else {
 		ctask->in_progress = IN_PROGRESS_READ;
 	}
@@ -765,23 +765,30 @@ iscsi_cmd_init(iscsi_conn_t *conn, iscsi_cmd_task_t *ctask,
 
 	if (session->imm_data_en &&
 	    ctask->hdr.flags & ISCSI_FLAG_CMD_WRITE) {
-		if (ctask->total_length > session->first_burst) {
-			ctask->imm_count =min(session->first_burst,
-					       conn->max_xmit_dlength);
-			ctask->data_count =
-				ctask->total_length - ctask->imm_count;
-			ctask->data_pdu_count = conn->imm_pdu_count;
+		if (ctask->total_length >= session->first_burst) {
+			ctask->imm_count = min(session->first_burst,
+						conn->max_xmit_dlength);
 		} else {
-			ctask->imm_count = ctask->total_length;
-			ctask->data_count = 0;
-			ctask->data_pdu_count = 0;
+			ctask->imm_count = min(ctask->total_length,
+						conn->max_xmit_dlength);
 			ctask->hdr.flags |= ISCSI_FLAG_CMD_FINAL;
 		}
+		if (!session->initial_r2t_en) {
+			ctask->imm_data_count = min(session->first_burst,
+				ctask->total_length) - ctask->imm_count;
+		} else {
+			ctask->imm_data_count = 0;
+		}
+		ctask->data_count = ctask->total_length - ctask->imm_count -
+					ctask->imm_data_count;
 		hton24(ctask->hdr.dlength, ctask->imm_count);
+		ctask->in_progress |= IN_PROGRESS_BEGIN_WRITE_IMM;
 	} else {
-		ctask->data_count = 0;
 		ctask->imm_count = 0;
+		ctask->imm_data_count = 0;
+		ctask->data_count = 0;
 		zero_data(ctask->hdr.dlength);
+		ctask->in_progress |= IN_PROGRESS_BEGIN_WRITE;
 	}
 	if (conn->hdrdgst_en) {
 		printk("iSCSI: not implemented\n");
@@ -1099,8 +1106,6 @@ iscsi_r2t_rsp(iscsi_conn_t *conn, iscsi_cmd_task_t *ctask)
 	int max_cmdsn = ntohl(rhdr->max_cmdsn);
 	int exp_cmdsn = ntohl(rhdr->exp_cmdsn);
 
-	__BUG_ON(ctask->data_pdu_count);
-
 	if (conn->in.ahslen) {
 		return ISCSI_ERR_AHSLEN;
 	}
@@ -1371,42 +1376,31 @@ iscsi_ctask_xmit(iscsi_conn_t *conn, iscsi_cmd_task_t *ctask)
 		}
 	}
 
-	if (ctask->in_progress & IN_PROGRESS_BEGIN_WRITE) {
-		if (session->imm_data_en) {
+	if (ctask->in_progress & IN_PROGRESS_BEGIN_WRITE_IMM) {
 _imm_again:
-			__BUG_ON(!ctask->imm_count);
-			if (iscsi_sendpage(conn, &ctask->sendbuf,
-					   &ctask->imm_count,
-					   &ctask->sent)) {
-				return -EAGAIN;
-			}
-			if (ctask->imm_count) {
-				iscsi_buf_init_sg(&ctask->sendbuf,
-					 &ctask->sg[ctask->sg_count++]);
-				goto _imm_again;
-			}
-			if (!session->initial_r2t_en) {
-				if (ctask->data_pdu_count) {
-					ctask->in_progress =
-					    IN_PROGRESS_WRITE |
-					    IN_PROGRESS_UNSOLICIT_HEAD;
-					iscsi_unsolicit_data_init(conn, ctask);
-				} else {
-					ctask->in_progress =
-					    IN_PROGRESS_WRITE |
-					    IN_PROGRESS_R2T_WAIT;
-					return 0;
-				}
-			} else if (session->initial_r2t_en &&
-				   ctask->data_count) {
-				ctask->in_progress = IN_PROGRESS_WRITE |
-						     IN_PROGRESS_R2T_WAIT;
-				return 0;
-			}
-		} else {
-			printk("iSCSI: not implemented\n");
-			__BUG_ON(1);
+		__BUG_ON(!session->imm_data_en);
+		if (iscsi_sendpage(conn, &ctask->sendbuf,
+				   &ctask->imm_count,
+				   &ctask->sent)) {
+			return -EAGAIN;
 		}
+		if (ctask->imm_count) {
+			iscsi_buf_init_sg(&ctask->sendbuf,
+				 &ctask->sg[ctask->sg_count++]);
+			goto _imm_again;
+		}
+		if (ctask->imm_data_count) {
+			ctask->in_progress = IN_PROGRESS_WRITE |
+					     IN_PROGRESS_UNSOLICIT_HEAD;
+			iscsi_unsolicit_data_init(conn, ctask);
+		} else {
+			ctask->in_progress = IN_PROGRESS_WRITE |
+					     IN_PROGRESS_R2T_WAIT;
+			return 0;
+		}
+	} else if (ctask->in_progress & IN_PROGRESS_BEGIN_WRITE) {
+		printk("iSCSI: ImmediateData=No is not implemented\n");
+		__BUG_ON(1);
 	}
 
 	if (ctask->in_progress & IN_PROGRESS_UNSOLICIT_HEAD) {
@@ -1419,7 +1413,7 @@ _imm_again:
 
 _unsolicit_again:
 	if (ctask->in_progress & IN_PROGRESS_UNSOLICIT_WRITE) {
-		if (ctask->data_count) {
+		if (ctask->imm_data_count) {
 			if (iscsi_sendpage(conn, &ctask->sendbuf,
 					   &ctask->data_count,
 					   &ctask->sent)) {
@@ -1991,11 +1985,6 @@ iscsi_conn_start(iscsi_cnx_h cnxh)
 	 * per-connection. Since sequence of set_param() calls gets called
 	 * rigth after cnx_bind().
 	 */
-	if (session->imm_data_en &&
-	    session->first_burst > conn->max_xmit_dlength) {
-		conn->imm_pdu_count = session->first_burst /
-						conn->max_xmit_dlength;
-	}
 	conn->hdr_size = sizeof(iscsi_hdr_t);
 	if (conn->hdrdgst_en) {
 		conn->hdr_size += sizeof(__u32);

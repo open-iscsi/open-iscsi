@@ -63,6 +63,7 @@
 #define IN_PROGRESS_BEGIN_WRITE		0x200
 #define IN_PROGRESS_IMM_HEAD		0x400
 #define IN_PROGRESS_IMM_DATA		0x800
+#define IN_PROGRESS_BEGIN_WRITE_IMM	0x1000
 
 #define ISCSI_DRV_VERSION	"0.1"
 #define ISCSI_DEFAULT_PORT	3260
@@ -159,7 +160,6 @@ typedef struct iscsi_conn {
 	int			max_xmit_dlength;
 	int			hdrdgst_en;
 	int			datadgst_en;
-	int			imm_pdu_count;
 
 	/* old values for socket callbacks */
 	void			(*old_data_ready)(struct sock *, int);
@@ -268,9 +268,9 @@ typedef struct iscsi_cmd_task {
 	iscsi_data_task_t	**unsolicit_data;	/* Unsolicited PDU's */
 	int			unsolicit_count;
 	int			in_progress;		/* State machine */
-	int			imm_count;		/* Total Imm-Data cnt */
-	int			data_count;		/* Total DATA-Out cnt */
-	int			data_pdu_count;		/* DATA-Out PDU cnt */
+	int			imm_count;		/* Imm-Data bytes */
+	int			imm_data_count;		/* Imm-Data-Out bytes */
+	int			data_count;		/* Remaining Data-Out */
 	struct scsi_cmnd	*sc;			/* Assoc. SCSI cmnd */
 	int			total_length;
 	int			data_offset;
