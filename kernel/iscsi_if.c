@@ -360,7 +360,6 @@ iscsi_if_create_snx(struct iscsi_transport *transport, struct iscsi_uevent *ev)
 	spin_lock_irqsave(&snxlock, flags);
 	list_add(&snx->item, &snxlist);
 	spin_unlock_irqrestore(&snxlock, flags);
-	printk("iscsi%d: active\n", host->host_no);
 	return 0;
 }
 
@@ -405,7 +404,6 @@ iscsi_if_destroy_snx(struct iscsi_transport *transport, struct iscsi_uevent *ev)
 	spin_unlock_irqrestore(&cnxlock, flags);
 
 	scsi_host_put(host);
-	printk("iscsi%d: deactivated\n", ev->u.d_session.sid);
 	return 0;
 }
 
@@ -448,8 +446,6 @@ iscsi_if_create_cnx(struct iscsi_transport *transport, struct iscsi_uevent *ev)
 		list_add(&cnx->snxitem, &snx->connections);
 		spin_unlock_irqrestore(&cnxlock, flags);
 		cnx->active = 1;
-		printk("iscsi%d: cid %d active\n", cnx->host->host_no,
-		       ev->u.c_cnx.cid);
 	}
 	return 0;
 }
@@ -466,8 +462,6 @@ iscsi_if_destroy_cnx(struct iscsi_transport *transport, struct iscsi_uevent *ev)
 
 	transport->destroy_cnx(ev->u.d_cnx.cnx_handle);
 	cnx->active = 0;
-	printk("iscsi%d: cid %d deactivated\n", cnx->host->host_no,
-	       ev->u.d_cnx.cid);
 
 	spin_lock_irqsave(&cnxlock, flags);
 	list_del(&cnx->snxitem);
