@@ -91,9 +91,6 @@ static int iscsi_proc_info(struct Scsi_Host *host, char *buffer, char **start,
  *                                                                            *
  ******************************************************************************/
 
-/*
- * Insert before consumer pointer
- */
 static void
 __insert(iscsi_queue_t *queue, void *data)
 {
@@ -106,6 +103,17 @@ __insert(iscsi_queue_t *queue, void *data)
 		}
 	}
 	queue->pool[--queue->cons] = data;
+}
+
+/*
+ * Insert before consumer pointer
+ */
+static void
+iscsi_insert(iscsi_queue_t *queue, void *data)
+{
+	spin_lock_bh(queue->lock);
+	__insert(queue, data);
+	spin_unlock_bh(queue->lock);
 }
 
 static void
