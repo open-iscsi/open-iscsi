@@ -381,7 +381,7 @@ iscsi_sendhdr(iscsi_conn_t *conn, iscsi_buf_t *buf)
 
 	// tcp_sendpage, do_tcp_sendpages, tcp_sendmsg
 	res = sk->ops->sendpage(sk, buf->page, offset, size, flags);
-	if (res > 0) {
+	if (res >= 0) {
 		buf->sent += res;
 		if (size != res) {
 			return -EAGAIN;
@@ -429,7 +429,7 @@ iscsi_sendpage(iscsi_conn_t *conn, iscsi_buf_t *buf, int *count, int *sent)
 		  "left %d sent %d res %d\n",
 		  (long)page_address(buf->page), size, offset,
 		  buf->sent, *count, *sent, res);
-	if (res > 0) {
+	if (res >= 0) {
 		buf->sent += res;
 		*count -= res;
 		*sent += res;
@@ -572,6 +572,8 @@ iscsi_buf_init_sg(iscsi_buf_t *ibuf, struct scatterlist *sg)
  *
  * Initialize first Data-Out within this R2T sequence and continue
  * to process next Scatter-Gather element(if any) of this SCSI command.
+ *
+ * This function called when connection lock taken.
  */
 static int
 iscsi_solicit_data_cont(iscsi_conn_t *conn, iscsi_cmd_task_t *ctask,
@@ -623,7 +625,6 @@ iscsi_solicit_data_cont(iscsi_conn_t *conn, iscsi_cmd_task_t *ctask,
 			    r2t->data_count);
 	}
 
-	/* no lock needed since we have dedicated datapool per iSCSI task */
 	list_add(&dtask->item, &ctask->dataqueue);
 	return 0;
 }
@@ -633,6 +634,8 @@ iscsi_solicit_data_cont(iscsi_conn_t *conn, iscsi_cmd_task_t *ctask,
  *
  * Initialize first Data-Out within this R2T sequence and finds
  * proper data_offset within this SCSI command.
+ *
+ * This function called when connection lock taken.
  */
 static int
 iscsi_solicit_data_init(iscsi_conn_t *conn, iscsi_cmd_task_t *ctask,
@@ -699,7 +702,6 @@ iscsi_solicit_data_init(iscsi_conn_t *conn, iscsi_cmd_task_t *ctask,
 			    r2t->data_count);
 	}
 
-	/* no lock needed since we have dedicated datapool per iSCSI task */
 	list_add(&dtask->item, &ctask->dataqueue);
 	return 0;
 }
@@ -1291,13 +1293,12 @@ iscsi_cmd_rsp(iscsi_conn_t *conn, iscsi_cmd_task_t *ctask)
 	}
 
 fault:
-	ctask->in_progress = IN_PROGRESS_IDLE;
 	debug_scsi("done [sc %lx res %d itt 0x%x]\n",
 		   (long)sc, sc->result, ctask->itt);
-	spin_lock_irqsave(session->host->host_lock, flags);
 	if (sc->sc_data_direction == DMA_TO_DEVICE) {
 		struct list_head *lh, *n;
 		/* for WRITE, clean up Data-Out's if any */
+		spin_lock(&conn->lock);
 		list_for_each_safe(lh, n, &ctask->dataqueue) {
 			iscsi_data_task_t *dtask;
 			dtask = list_entry(lh, iscsi_data_task_t, item);
@@ -1305,8 +1306,13 @@ fault:
 				list_del(&dtask->item);
 				mempool_free(dtask, ctask->datapool);
 			}
+			__BUG_ON(ctask->in_progress !=
+				(IN_PROGRESS_WRITE|IN_PROGRESS_SOLICIT_DONE));
 		}
+		spin_unlock(&conn->lock);
 	}
+	spin_lock_irqsave(session->host->host_lock, flags);
+	ctask->in_progress = IN_PROGRESS_IDLE;
 	__enqueue(&session->cmdpool, ctask);
 	sc->scsi_done(sc);
 	spin_unlock_irqrestore(session->host->host_lock, flags);
@@ -1598,6 +1604,8 @@ _solicit_again:
 						     IN_PROGRESS_R2T_WAIT;
 			}
 		}
+		ctask->in_progress = IN_PROGRESS_WRITE |
+				     IN_PROGRESS_SOLICIT_DONE;
 		return 0;
 	}
 
