@@ -147,6 +147,9 @@ struct iscsi_conn {
 	struct iscsi_cmd_task	*ctask;		/* xmit ctask in progress */
 	struct semaphore	xmitsema;
 	struct semaphore	ehsema;
+	struct iscsi_tm		tmhdr;
+	int			tmabort_state;
+	struct timer_list	tmabort_timer;
 
 	/* configuration */
 	int			max_recv_dlength;

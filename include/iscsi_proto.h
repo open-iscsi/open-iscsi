@@ -133,7 +133,7 @@ struct iscsi_cmd_rsp {
 	uint32_t statsn;
 	uint32_t exp_cmdsn;
 	uint32_t max_cmdsn;
-	uint32_t expdatasn;
+	uint32_t exp_datasn;
 	uint32_t residual_count;
 	uint32_t bi_residual_count;
 	/* Response or Sense Data (optional) */
@@ -142,7 +142,7 @@ struct iscsi_cmd_rsp {
 /* Command Response PDU flags */
 #define ISCSI_FLAG_CMD_BIDI_OVERFLOW	0x10
 #define ISCSI_FLAG_CMD_BIDI_UNDERFLOW	0x08
-#define ISCSI_FLAG_CMD_OVERFLOW 	0x04
+#define ISCSI_FLAG_CMD_OVERFLOW		0x04
 #define ISCSI_FLAG_CMD_UNDERFLOW	0x02
 
 /* iSCSI Status values. Valid if Rsp Selector bit is not set */
@@ -222,7 +222,7 @@ struct iscsi_tm {
 	uint32_t cmdsn;
 	uint32_t exp_statsn;
 	uint32_t refcmdsn;
-	uint32_t expdatasn;
+	uint32_t exp_datasn;
 	uint8_t rsvd2[8];
 };
 
@@ -231,11 +231,11 @@ struct iscsi_tm {
 /* Function values */
 #define ISCSI_TM_FUNC_ABORT_TASK		1
 #define ISCSI_TM_FUNC_ABORT_TASK_SET		2
-#define ISCSI_TM_FUNC_CLEAR_ACA 		3
+#define ISCSI_TM_FUNC_CLEAR_ACA			3
 #define ISCSI_TM_FUNC_CLEAR_TASK_SET		4
 #define ISCSI_TM_FUNC_LOGICAL_UNIT_RESET	5
-#define ISCSI_TM_FUNC_TARGET_WARM_RESET 	6
-#define ISCSI_TM_FUNC_TARGET_COLD_RESET 	7
+#define ISCSI_TM_FUNC_TARGET_WARM_RESET		6
+#define ISCSI_TM_FUNC_TARGET_COLD_RESET		7
 #define ISCSI_TM_FUNC_TASK_REASSIGN		8
 
 /* SCSI Task Management Response Header */
@@ -447,7 +447,7 @@ struct iscsi_login_rsp {
 /* Class-3 (Target Error) */
 #define ISCSI_LOGIN_STATUS_TARGET_ERROR		0x00
 #define ISCSI_LOGIN_STATUS_SVC_UNAVAILABLE	0x01
-#define ISCSI_LOGIN_STATUS_NO_RESOURCES 	0x02
+#define ISCSI_LOGIN_STATUS_NO_RESOURCES		0x02
 
 /* Logout Header */
 struct iscsi_logout {
@@ -473,7 +473,7 @@ struct iscsi_logout {
 #define ISCSI_LOGOUT_REASON_CLOSE_SESSION	0
 #define ISCSI_LOGOUT_REASON_CLOSE_CONNECTION	1
 #define ISCSI_LOGOUT_REASON_RECOVERY		2
-#define ISCSI_LOGOUT_REASON_AEN_REQUEST 	3
+#define ISCSI_LOGOUT_REASON_AEN_REQUEST		3
 
 /* Logout Response Header */
 struct iscsi_logout_rsp {
@@ -512,7 +512,7 @@ struct iscsi_snack {
 	uint32_t runlength;
 	uint32_t exp_statsn;
 	uint32_t rsvd3;
-	uint32_t expdatasn;
+	uint32_t exp_datasn;
 	uint8_t rsvd6[8];
 };
 
