@@ -138,7 +138,7 @@ ipc_session_login(queue_task_t *qtask, int rid)
 	conn->state = STATE_WAIT_CONNECT;
 	queue_produce(session->queue, EV_CNX_POLL, qtask, 0, 0);
 	actor_schedule(&session->mainloop);
-	actor_timer(&conn->connect_timer, conn->login_timeout*100,
+	actor_timer(&conn->connect_timer, conn->login_timeout*1000,
 		    __connect_timedout, qtask);
 	return IPC_OK;
 }
@@ -169,7 +169,7 @@ ipc_handle(int accept_fd)
 	int fd, rc, len;
 	iscsiadm_req_t req;
 	iscsiadm_rsp_t rsp;
-	queue_task_t *qtask;
+	queue_task_t *qtask = NULL;
 
 	memset(&rsp, 0, sizeof(rsp));
 	len = sizeof(addr);
@@ -239,5 +239,7 @@ err:
 		if (rc >= 0)
 			rc = -EIO;
 	close(fd);
+	if (qtask)
+		free(qtask);
 	return rc;
 }

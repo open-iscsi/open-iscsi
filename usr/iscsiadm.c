@@ -305,6 +305,7 @@ iscsid_handle_error(int err)
 		/* 6 */ "encountered iSCSI database failure",
 		/* 7 */ "invalid parameter",
 		/* 8 */ "connection timed out",
+		/* 9 */ "internal error",
 	};
 	log_error("iscsid reported error (%d - %s)", err, err_msgs[err]);
 }

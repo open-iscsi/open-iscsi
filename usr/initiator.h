@@ -24,6 +24,7 @@
 
 #include "types.h"
 #include "iscsi_proto.h"
+#include "iscsi_u.h"
 #include "auth.h"
 #include "ipc.h"
 #include "config.h"
@@ -90,19 +91,30 @@ typedef struct iscsi_login_context {
 	int timeout;
 	int final;
 	enum iscsi_login_status ret;
-	int kernel_io;
 } iscsi_login_context_t;
 
 struct iscsi_session;
+struct iscsi_conn;
+
+typedef int (*send_pdu_begin_f)(struct iscsi_session *session,
+			struct iscsi_conn *conn, int hdr_size, int data_size);
+typedef int (*send_pdu_end_f)(struct iscsi_session *session,
+			struct iscsi_conn *conn);
 
 /* daemon's connection structure */
 typedef struct iscsi_conn {
 	int id;
+	ulong_t handle;
 	struct iscsi_session *session;
 	iscsi_login_context_t login_context;
 	uint8_t *rx_buffer;
 	iscsi_cnx_state_e state;
 	actor_t connect_timer;
+
+	int kernel_io;
+	int ctrl_fd;
+	send_pdu_begin_f send_pdu_begin;
+	send_pdu_end_f send_pdu_end;
 
 	/* login state machine */
 	int current_stage;
@@ -158,6 +170,8 @@ typedef struct queue_task {
 
 /* daemon's session structure */
 typedef struct iscsi_session {
+	int id;
+	ulong_t handle;
 	node_rec_t nrec; /* copy of original Node record in database */
 	int vendor_specific_keys;
 	unsigned int irrelevant_keys_bitmap;
@@ -206,9 +220,6 @@ typedef struct iscsi_session {
 	queue_t *queue;
 } iscsi_session_t;
 
-#define PROVIDER_MAX		16
-#define PROVIDER_NAME_MAXLEN	64
-
 typedef enum iscsi_provider_e {
 	PROVIDER_UNKNOWN		= 0,
 	PROVIDER_SOFT_TCP		= 1,
@@ -227,12 +238,13 @@ typedef enum iscsi_provider_status_e {
 typedef struct iscsi_provider_t {
 	iscsi_provider_e type;
 	iscsi_provider_status_e status;
-	char name[PROVIDER_NAME_MAXLEN];
+	char name[ISCSI_PROVIDER_NAME_MAXLEN];
 	struct qelem sessions;
 } iscsi_provider_t;
 
 /* iscsid.c */
-extern iscsi_provider_t provider[PROVIDER_MAX];
+extern iscsi_provider_t provider[ISCSI_PROVIDER_MAX];
+extern int ctrl_fd;
 
 /* login.c */
 

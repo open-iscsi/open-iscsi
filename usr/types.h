@@ -14,7 +14,9 @@
 #include <endian.h>
 
 /* this type should represent platform's pointer size */
-#define ulong_t long
+#ifndef ulong_t
+#define ulong_t unsigned long
+#endif
 
 struct qelem {
 	struct qelem *q_forw;

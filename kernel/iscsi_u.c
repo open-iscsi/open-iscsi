@@ -31,6 +31,36 @@
 #include "iscsi_if.h"
 #include "iscsi_u.h"
 
+typedef struct iscsi_kprovider {
+	char		name[ISCSI_PROVIDER_NAME_MAXLEN];
+	iscsi_ops_t	ops;
+	iscsi_caps_t	caps;
+} iscsi_kprovider_t;
+
+typedef enum sp_state_e {
+	SP_STATE_INVALID	= 0,
+	SP_STATE_BUSY	= 1,
+	SP_STATE_READY	= 2,
+} sp_state_e;
+
+typedef struct sp_item {
+	struct list_head item;
+	sp_state_e state;
+	char pdu[DEFAULT_MAX_RECV_DATA_SEGMENT_LENGTH+sizeof(iscsi_hdr_t)+4];
+} sp_item_t;
+
+typedef struct sp_context {
+	ulong_t cnxh;
+	sp_state_e state;
+	sp_item_t *spb;
+	int hdr_size;
+	int data_size;
+	int curr_off;
+} sp_context_t;
+
+static struct list_head sp_head;
+static sp_context_t sp_ctxt;
+static iscsi_kprovider_t provider_table[ISCSI_PROVIDER_MAX];
 static spinlock_t event_queue_lock = SPIN_LOCK_UNLOCKED;
 static LIST_HEAD(event_queue);
 DECLARE_WAIT_QUEUE_HEAD(event_wait);
@@ -99,6 +129,22 @@ iscsi_event_put(iscsi_uevent_e type, int atomic)
 }
 
 static ssize_t
+write(struct file *file, const char __user *buf, size_t count, loff_t *ppos)
+{
+	if (sp_ctxt.state != SP_STATE_BUSY)
+		return -EBUSY;
+
+	if (sp_ctxt.curr_off + count > sp_ctxt.hdr_size + sp_ctxt.data_size)
+		return -EPERM;
+
+	if (copy_from_user(&sp_ctxt.spb->pdu[sp_ctxt.curr_off], buf, count))
+			count = -EFAULT;
+	sp_ctxt.curr_off += count;
+
+	return count;
+}
+
+static ssize_t
 read(struct file *file, char *buf, size_t count, loff_t *ppos)
 {
 	kevent_t *kevent;
@@ -138,31 +184,201 @@ poll(struct file *filp, poll_table *wait)
 	return IS_ERR(iscsi_event_get(0)) ? 0 : POLLIN | POLLRDNORM;
 }
 
-#if 0
-static int
-create_session(unsigned long ptr)
+static iscsi_kprovider_t*
+__provider_lookup(int id)
 {
-	int res;
-	struct target_info info;
+	/* FIXME: implement provider's container */
+	return &provider_table[id];
+}
 
-	if ((res = copy_from_user(&info, (void *) ptr, sizeof(info))) < 0)
-		return res;
+static int
+__create_session(unsigned long ptr)
+{
+	int rc;
+	iscsi_uevent_t ev;
+	iscsi_kprovider_t *provider;
+	ulong_t handle;
+
+	if ((rc = copy_from_user(&ev, (void *)ptr, sizeof(ev))) < 0)
+		return rc;
+
+	if ((provider = __provider_lookup(ev.provider_id)) == NULL)
+		return -EEXIST;
+
+	handle = (ulong_t)provider->ops.create_session(
+		       (void*)ev.u.c_session.handle, ev.u.c_session.sid,
+		       ev.u.c_session.initial_cmdsn);
+	if (!handle) {
+		return -EIO;
+	}
+
+	if ((rc = copy_to_user(&((iscsi_uevent_t*)ptr)->r.handle, &handle,
+			       sizeof(ulong_t))) < 0) {
+		provider->ops.destroy_session((void*)handle);
+		return rc;
+	}
+
 	return 0;
 }
-#endif
+
+static int
+__create_cnx(unsigned long ptr)
+{
+	int rc;
+	iscsi_uevent_t ev;
+	iscsi_kprovider_t *provider;
+	ulong_t handle;
+	struct socket *sock;
+
+	if ((rc = copy_from_user(&ev, (void *)ptr, sizeof(ev))) < 0)
+		return rc;
+
+	if ((provider = __provider_lookup(ev.provider_id)) == NULL)
+		return -EEXIST;
+
+	if ((sock = sockfd_lookup(ev.u.c_cnx.socket_fd, &rc)) == NULL) {
+		return rc;
+	}
+
+	handle = (ulong_t)provider->ops.create_cnx(
+	       (void*)ev.u.c_cnx.session_handle, (void*)ev.u.c_cnx.handle,
+	       sock, ev.u.c_cnx.cid);
+	if (!handle) {
+		return -EIO;
+	}
+
+	if ((rc = copy_to_user(&((iscsi_uevent_t*)ptr)->r.handle, &handle,
+			       sizeof(ulong_t))) < 0) {
+		provider->ops.destroy_cnx((void*)handle);
+		return rc;
+	}
+
+	return 0;
+}
+
+static int
+__bind_cnx(unsigned long ptr)
+{
+	int rc;
+	iscsi_uevent_t ev;
+	iscsi_kprovider_t *provider;
+
+	if ((rc = copy_from_user(&ev, (void *)ptr, sizeof(ev))) < 0)
+		return rc;
+
+	if ((provider = __provider_lookup(ev.provider_id)) == NULL)
+		return -EEXIST;
+
+	rc = (ulong_t)provider->ops.bind_cnx(
+	       (void*)ev.u.b_cnx.session_handle, (void*)ev.u.b_cnx.handle,
+	       ev.u.b_cnx.is_leading);
+	if (rc) {
+		return -EIO;
+	}
+
+	if ((rc = copy_to_user(&((iscsi_uevent_t*)ptr)->r.retcode, &rc,
+			       sizeof(int))) < 0) {
+		return rc;
+	}
+
+	return 0;
+}
+
+static int
+__send_pdu_begin(unsigned long ptr)
+{
+	int rc;
+	iscsi_uevent_t ev;
+	struct list_head *lh;
+
+	if ((rc = copy_from_user(&ev, (void *)ptr, sizeof(ev))) < 0)
+		return rc;
+
+	if (ev.u.sp_begin.hdr_size + ev.u.sp_begin.data_size >
+	    DEFAULT_MAX_RECV_DATA_SEGMENT_LENGTH + sizeof(iscsi_hdr_t) + 4)
+		return -EPERM;
+
+	if (sp_ctxt.state != SP_STATE_READY)
+		return -EBUSY;
+
+	sp_ctxt.spb = NULL;
+	list_for_each(lh, &sp_head) {
+		sp_item_t *spb;
+		spb = list_entry(lh, sp_item_t, item);
+		if (spb && spb->state == SP_STATE_READY) {
+			spb->state = SP_STATE_BUSY;
+			sp_ctxt.spb = spb;
+			break;
+		}
+	}
+	if (sp_ctxt.spb == NULL) {
+		/* FIXME: allocate up to configured max. */
+		return -ENOMEM;
+	}
+
+	sp_ctxt.cnxh = ev.u.sp_begin.cnx_handle;
+	sp_ctxt.state = SP_STATE_BUSY;
+	sp_ctxt.hdr_size = ev.u.sp_begin.hdr_size;
+	sp_ctxt.data_size = ev.u.sp_begin.data_size;
+	sp_ctxt.curr_off = 0;
+
+	return 0;
+}
+
+static int
+__send_pdu_end(unsigned long ptr)
+{
+	int rc;
+	iscsi_uevent_t ev;
+	iscsi_kprovider_t *provider;
+
+	if ((rc = copy_from_user(&ev, (void *)ptr, sizeof(ev))) < 0)
+		return rc;
+
+	if ((provider = __provider_lookup(ev.provider_id)) == NULL)
+		return -EEXIST;
+
+	if (sp_ctxt.state != SP_STATE_BUSY)
+		return -EPERM;
+
+	if (sp_ctxt.cnxh != ev.u.sp_end.cnx_handle)
+		return -EPERM;
+
+	rc = (ulong_t)provider->ops.send_immpdu(
+	       (void*)ev.u.sp_end.cnx_handle, (iscsi_hdr_t*)sp_ctxt.spb->pdu,
+		sp_ctxt.spb->pdu + sp_ctxt.hdr_size);
+	if (rc) {
+		return -EIO;
+	}
+
+	if ((rc = copy_to_user(&((iscsi_uevent_t*)ptr)->r.retcode, &rc,
+			       sizeof(int))) < 0) {
+		return rc;
+	}
+
+	return 0;
+}
 
 static int
 ioctl(struct inode *inode, struct file *file,
 		 unsigned int cmd, unsigned long arg)
 {
-	int res;
+	int rc;
 	u32 id;
 
-	if ((res = get_user(id, (u32 *) arg)) != 0)
-		goto abort;
+	if ((rc = get_user(id, (u32 *) arg)) != 0)
+		return rc;
 
-abort:
-	return res;
+	switch (cmd) {
+	case ISCSI_UEVENT_CREATE_SESSION: return __create_session(arg);
+	case ISCSI_UEVENT_CREATE_CNX: return __create_cnx(arg);
+	case ISCSI_UEVENT_BIND_CNX: return __bind_cnx(arg);
+	case ISCSI_UEVENT_SEND_PDU_BEGIN: return __send_pdu_begin(arg);
+	case ISCSI_UEVENT_SEND_PDU_END: return __send_pdu_end(arg);
+	default: return -EPERM;
+	}
+
+	return -EPERM;
 }
 
 struct file_operations ctr_fops = {
@@ -171,6 +387,7 @@ struct file_operations ctr_fops = {
 	.ioctl		= ioctl,
 	.poll		= poll,
 	.read		= read,
+	.write		= write,
 	.release	= close,
 };
 
@@ -180,13 +397,38 @@ static char ctr_name[] = "iscsictl";
 static int __init
 iscsi_init(void)
 {
+	int rc;
+	sp_item_t *spb;
+
 	printk(KERN_INFO "Open-iSCSI Provider Manager, version "
-			ISCSI_VERSION_STR " build " ISCSI_DATE_STR);
+			ISCSI_VERSION_STR " variant (" ISCSI_DATE_STR ")\n");
+
+	INIT_LIST_HEAD(&sp_head);
+
+	spb = kmalloc(sizeof(sp_item_t), GFP_KERNEL);
+	if (spb == NULL) {
+		printk("failed to allocate send pdu buffer\n");
+		return -ENOMEM;
+	}
+	list_add(&spb->item, &sp_head);
+	spb->state = SP_STATE_READY;
+	sp_ctxt.state = SP_STATE_READY;
 
 	ctr_major = register_chrdev(0, ctr_name, &ctr_fops);
 	if (ctr_major < 0) {
+		kfree(spb);
 		printk("failed to register the control device %d\n", ctr_major);
 		return ctr_major;
+	}
+
+	/* FIXME: implement flexible provider register/unregister interface */
+	strcpy(provider_table[0].name,"tcp");
+	rc = iscsi_tcp_register(&provider_table[0].ops,
+				 &provider_table[0].caps);
+	if (rc) {
+		kfree(spb);
+		unregister_chrdev(ctr_major, ctr_name);
+		return rc;
 	}
 
 	return 0;
@@ -195,7 +437,17 @@ iscsi_init(void)
 static void __exit
 iscsi_exit(void)
 {
+	struct list_head *lh, *n;
+	iscsi_tcp_unregister();
 	unregister_chrdev(ctr_major, ctr_name);
+	list_for_each_safe(lh, n, &sp_head) {
+		sp_item_t *spb;
+		spb = list_entry(lh, sp_item_t, item);
+		if (spb) {
+			list_del(&spb->item);
+			kfree(spb);
+		}
+	}
 }
 
 module_init(iscsi_init);

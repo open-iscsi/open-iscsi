@@ -33,6 +33,7 @@ typedef enum ipc_err {
 	IPC_ERR_IDBM_FAILURE	= 6,
 	IPC_ERR_INVAL		= 7,
 	IPC_ERR_TCP_TIMEOUT	= 8,
+	IPC_ERR_INTERNAL	= 9,
 } ipc_err_e;
 
 typedef enum iscsiadm_cmd {

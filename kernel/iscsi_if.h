@@ -110,7 +110,6 @@ typedef struct iscsi_ops {
 
 	iscsi_snx_h	(*create_session) (iscsi_snx_h cp_snx,
 					   int host_on,
-					   struct scsi_transport_template *tt,
 					   int initial_cmdsn);
 
 	void		(*destroy_session)(iscsi_snx_h dp_snx);

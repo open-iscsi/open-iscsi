@@ -166,6 +166,7 @@ typedef struct cnx_rec {
 } cnx_rec_t;
 
 typedef struct session_rec {
+	int					initial_cmdsn;
 	struct iscsi_auth_config		auth;
 	struct iscsi_session_timeout_config	timeo;
 	struct iscsi_error_timeout_config	err_timeo;

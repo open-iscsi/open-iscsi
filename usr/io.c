@@ -261,14 +261,16 @@ iscsi_send_pdu(iscsi_conn_t *conn, iscsi_hdr_t *hdr,
 	/* set a timeout, since the socket calls may take a long time
 	 * to timeout on their own
 	 */
-	memset(&action, 0, sizeof (struct sigaction));
-	memset(&old, 0, sizeof (struct sigaction));
-	action.sa_sigaction = NULL;
-	action.sa_flags = 0;
-	action.sa_handler = sigalarm_handler;
-	sigaction(SIGALRM, &action, &old);
-	timedout = 0;
-	alarm(timeout);
+	if (!conn->kernel_io) {
+		memset(&action, 0, sizeof (struct sigaction));
+		memset(&old, 0, sizeof (struct sigaction));
+		action.sa_sigaction = NULL;
+		action.sa_flags = 0;
+		action.sa_handler = sigalarm_handler;
+		sigaction(SIGALRM, &action, &old);
+		timedout = 0;
+		alarm(timeout);
+	}
 
 	memset(&pad, 0, sizeof (pad));
 	memset(&vec, 0, sizeof (vec));
@@ -331,11 +333,26 @@ iscsi_send_pdu(iscsi_conn_t *conn, iscsi_hdr_t *hdr,
 	header = (char *) hdr;
 	end = header + sizeof (*hdr) + hdr->hlength;
 
+	/* send all the data and any padding */
+	if (pdu_length % PAD_WORD_LEN)
+		pad_bytes = PAD_WORD_LEN - (pdu_length % PAD_WORD_LEN);
+	else
+		pad_bytes = 0;
+
+	if (conn->kernel_io) {
+		if (conn->send_pdu_begin(conn->session, conn,
+			end - header, ntoh24(hdr->dlength) + pad_bytes)) {
+			ret = 0;
+			goto done;
+		}
+	}
+
 	while (header < end) {
 		vec[0].iov_base = header;
 		vec[0].iov_len = end - header;
 
-		rc = writev(conn->socket_fd, vec, 1);
+		rc = writev(conn->kernel_io ? conn->ctrl_fd : conn->socket_fd,
+			    vec, 1);
 		if (timedout) {
 			log_error("socket %d write timed out",
 			       conn->socket_fd);
@@ -351,12 +368,6 @@ iscsi_send_pdu(iscsi_conn_t *conn, iscsi_hdr_t *hdr,
 		}
 	}
 
-	/* send all the data and any padding */
-	if (pdu_length % PAD_WORD_LEN)
-		pad_bytes = PAD_WORD_LEN - (pdu_length % PAD_WORD_LEN);
-	else
-		pad_bytes = 0;
-
 	end = data + ntoh24(hdr->dlength);
 	remaining = ntoh24(hdr->dlength) + pad_bytes;
 
@@ -366,7 +377,8 @@ iscsi_send_pdu(iscsi_conn_t *conn, iscsi_hdr_t *hdr,
 		vec[1].iov_base = (void *) &pad;
 		vec[1].iov_len = pad_bytes;
 
-		rc = writev(conn->socket_fd, vec, 2);
+		rc = writev(conn->kernel_io ? conn->ctrl_fd : conn->socket_fd,
+			    vec, 2);
 		if (timedout) {
 			log_error("socket %d write timed out",
 			       conn->socket_fd);
@@ -387,12 +399,21 @@ iscsi_send_pdu(iscsi_conn_t *conn, iscsi_hdr_t *hdr,
 		}
 	}
 
+	if (conn->kernel_io) {
+		if (conn->send_pdu_end(conn->session, conn)) {
+			ret = 0;
+			goto done;
+		}
+	}
+
 	ret = 1;
 
       done:
-	alarm(0);
-	sigaction(SIGALRM, &old, NULL);
-	timedout = 0;
+	if (!conn->kernel_io) {
+		alarm(0);
+		sigaction(SIGALRM, &old, NULL);
+		timedout = 0;
+	}
 	return ret;
 }
 

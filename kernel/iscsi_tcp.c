@@ -2258,8 +2258,7 @@ r2t_alloc_fault:
 }
 
 static iscsi_snx_h
-iscsi_session_create(iscsi_snx_h handle, int host_no,
-		struct scsi_transport_template *tt, int initial_cmdsn)
+iscsi_session_create(iscsi_snx_h handle, int host_no, int initial_cmdsn)
 {
 	int cmd_i;
 	iscsi_session_t *session;
@@ -2302,8 +2301,6 @@ iscsi_session_create(iscsi_snx_h handle, int host_no,
 	host->host_no = session->id = host_no;
 	host->max_id = 1;
 	host->max_channel  = 0;
-	host->transportt = tt;
-	*(unsigned long*)host->hostdata = (unsigned long)session;
 	session->host = host;
 	session->state = ISCSI_STATE_LOGGED_IN;
 	session->imm_max = ISCSI_IMM_CMDS_MAX;
