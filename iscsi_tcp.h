@@ -159,6 +159,7 @@ typedef struct iscsi_conn {
 	int			max_xmit_dlength;
 	int			hdrdgst_en;
 	int			datadgst_en;
+	int			imm_pdu_count;
 
 	/* old values for socket callbacks */
 	void			(*old_data_ready)(struct sock *, int);

@@ -770,12 +770,7 @@ iscsi_cmd_init(iscsi_conn_t *conn, iscsi_cmd_task_t *ctask,
 					       conn->max_xmit_dlength);
 			ctask->data_count =
 				ctask->total_length - ctask->imm_count;
-			if (session->first_burst > conn->max_xmit_dlength) {
-				ctask->data_pdu_count = session->first_burst /
-							conn->max_xmit_dlength;
-			} else {
-				ctask->data_pdu_count = 0;
-			}
+			ctask->data_pdu_count = conn->imm_pdu_count;
 		} else {
 			ctask->imm_count = ctask->total_length;
 			ctask->data_count = 0;
@@ -1875,12 +1870,6 @@ iscsi_conn_create(iscsi_snx_h snxh, iscsi_cnx_h handle,
 	conn->exp_statsn = 0;
 	conn->handle = handle;
 
-	/* pre calculate PDU Header size */
-	conn->hdr_size = sizeof(iscsi_hdr_t);
-	if (conn->hdrdgst_en) {
-		conn->hdr_size += sizeof(__u32);
-	}
-
 	spin_lock_init(&conn->lock);
 
 	/* initialize xmit PDU commands queue */
@@ -1974,6 +1963,21 @@ iscsi_conn_start(iscsi_cnx_h cnxh)
 	if (session == NULL) {
 		printk("iSCSI: can start not-binded connection\n");
 		return -EPERM;
+	}
+
+	/*
+	 * This is the right place to calculate all kind of contstants
+	 * per-connection. Since sequence of set_param() calls gets called
+	 * rigth after cnx_bind().
+	 */
+	if (session->imm_data_en &&
+	    session->first_burst > conn->max_xmit_dlength) {
+		conn->imm_pdu_count = session->first_burst /
+						conn->max_xmit_dlength;
+	}
+	conn->hdr_size = sizeof(iscsi_hdr_t);
+	if (conn->hdrdgst_en) {
+		conn->hdr_size += sizeof(__u32);
 	}
 
 	if (session->state == ISCSI_STATE_LOGGED_IN &&
