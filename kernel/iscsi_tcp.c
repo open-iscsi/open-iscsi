@@ -132,7 +132,8 @@ iscsi_hdr_extract(struct iscsi_conn *conn)
 
 		/*
 		 * PDU header scattered accross SKB's,
-		 * copying it... This'll happen quite rarely. */
+		 * copying it... This'll happen quite rarely.
+		 */
 		if (conn->in_progress == IN_PROGRESS_WAIT_HEADER) {
 			skb_copy_bits(skb, conn->in.offset,
 				&conn->hdr, conn->in.copy);
@@ -2042,7 +2043,11 @@ iscsi_conn_bind(iscsi_snx_h snxh, iscsi_cnx_h cnxh, uint32_t transport_fd,
 {
 	struct iscsi_session *session = iscsi_ptr(snxh);
 	struct iscsi_conn *conn = iscsi_ptr(cnxh);
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(2,6,11))
 	struct tcp_opt *tp;
+#else
+	struct tcp_sock *tp;
+#endif
 	struct sock *sk;
 	struct socket *sock;
 	int err;
