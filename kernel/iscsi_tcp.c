@@ -163,7 +163,7 @@ iscsi_hdr_extract(struct iscsi_conn *conn)
 			       "copylen %d conn->in.copy %d\n",
 			       copylen, conn->in.copy);
 			iscsi_control_cnx_error(conn->handle,
-						ISCSI_ERR_CNX_FAILED);
+						ISCSI_ERR_PDU_GATHER_FAILED);
 			return 0;
 		}
 		debug_tcp("PDU gather #2 %d bytes!\n", copylen);
@@ -492,7 +492,7 @@ iscsi_hdr_recv(struct iscsi_conn *conn)
 	if (conn->in.datalen > conn->max_recv_dlength) {
 		printk("iSCSI: datalen %d > %d\n", conn->in.datalen,
 		       conn->max_recv_dlength);
-		iscsi_control_cnx_error(conn->handle, ISCSI_ERR_CNX_FAILED);
+		iscsi_control_cnx_error(conn->handle, ISCSI_ERR_DATALEN);
 		return 0;
 	}
 	conn->data_copied = 0;
@@ -504,7 +504,7 @@ iscsi_hdr_recv(struct iscsi_conn *conn)
 	if (conn->in.copy < 0) {
 		printk("iSCSI: can't handle AHS with length %d bytes\n",
 		       conn->in.ahslen);
-		iscsi_control_cnx_error(conn->handle, ISCSI_ERR_CNX_FAILED);
+		iscsi_control_cnx_error(conn->handle, ISCSI_ERR_AHSLEN);
 		return 0;
 	}
 
