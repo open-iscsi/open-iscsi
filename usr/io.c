@@ -279,7 +279,7 @@ iscsi_send_pdu(iscsi_conn_t *conn, iscsi_hdr_t *hdr,
 		switch (hdr->opcode & ISCSI_OPCODE_MASK) {
 		case ISCSI_OP_LOGIN:{
 				struct iscsi_login *login_hdr =
-				    (struct iscsi_login_hdr *) hdr;
+				    (struct iscsi_login *) hdr;
 
 				log_debug(4,
 					 "sending login PDU with current stage "
@@ -300,7 +300,7 @@ iscsi_send_pdu(iscsi_conn_t *conn, iscsi_hdr_t *hdr,
 			}
 		case ISCSI_OP_TEXT:{
 				struct iscsi_text *text_hdr =
-				    (struct iscsi_txt_hdr *) hdr;
+				    (struct iscsi_text *) hdr;
 
 				log_debug(4,
 					 "sending text pdu with CmdSN %x:",
@@ -310,7 +310,7 @@ iscsi_send_pdu(iscsi_conn_t *conn, iscsi_hdr_t *hdr,
 			}
 		case ISCSI_OP_NOOP_OUT:{
 				struct iscsi_nopout *nopout_hdr =
-				    (struct iscsi_nop_out_hdr *) hdr;
+				    (struct iscsi_nopout *) hdr;
 
 				log_debug(4,
 					 "sending Nop-out pdu with "
@@ -575,7 +575,7 @@ iscsi_recv_pdu(iscsi_conn_t *conn, iscsi_hdr_t *hdr,
 			break;
 		case ISCSI_OP_LOGIN_RSP:{
 				struct iscsi_login_rsp *login_rsp =
-				    (struct iscsi_login_rsp_hdr *) hdr;
+				    (struct iscsi_login_rsp *) hdr;
 
 				log_debug(4,
 					 "finished reading login PDU, %u hdr, "

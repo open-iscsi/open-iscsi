@@ -79,9 +79,8 @@ enlarge_data(struct string_buffer *s, int length)
 		s->data_length += length;
 		if (s->data_length >= s->allocated_length) {
 			/* too big */
-			log_error(
-			       "enlarged buffer %p to %d data bytes, "
-			       "with only %d bytes of buffer space",
+			log_error("enlarged buffer %p to %ld data bytes, "
+			       "with only %ld bytes of buffer space",
 			       s, s->data_length, s->allocated_length);
 		}
 	}
@@ -135,8 +134,8 @@ truncate_buffer(struct string_buffer *s, size_t length)
 			s->data_length = length;
 		} else {
 			log_error(
-			       "couldn't truncate data buffer to length %d, "
-			       "only allocated %d",
+			       "couldn't truncate data buffer to length %ld, "
+			       "only allocated %ld",
 			       length, s->allocated_length);
 		}
 	}
@@ -272,7 +271,7 @@ write_buffer(struct string_buffer *s, int fd)
 	int result;
 
 	/* write the target info to the pipe */
-	log_debug(7, "writing to pipe %d, data %p, size %u, text '%s'",
+	log_debug(7, "writing to pipe %d, data %p, size %ld, text '%s'",
 		  fd, data, end - data, data);
 	while (data < end) {
 		result = write(fd, data, end - data);

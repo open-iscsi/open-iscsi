@@ -66,8 +66,8 @@ ctldev_handle(int fd)
 			item = item->q_forw;
 		}
 		if (conn == NULL) {
-			log_error("could not verify connection 0x%llx for "
-				  "event RECV_PDU", (uint64_t)(ulong_t)conn);
+			log_error("could not verify connection 0x%p for "
+				  "event RECV_PDU", conn);
 			return -ENXIO;
 		}
 

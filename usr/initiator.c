@@ -17,6 +17,7 @@
  * See the file COPYING included with this distribution for more details.
  */
 
+#include <unistd.h>
 #include <search.h>
 #include <string.h>
 #include <stdlib.h>
@@ -376,8 +377,8 @@ __ksession_create(iscsi_session_t *session)
 	}
 
 	session->handle = ev.r.handle;
-	log_debug(3, "created new iSCSI session, handle 0x%llx",
-		  (uint64_t)session->handle);
+	log_debug(3, "created new iSCSI session, handle 0x%p",
+		  (void*)session->handle);
 
 	return 0;
 }
@@ -400,8 +401,8 @@ __ksession_destroy(iscsi_session_t *session)
 		return rc;
 	}
 
-	log_debug(3, "destroyed iSCSI session, handle 0x%llx",
-		  (uint64_t)session->handle);
+	log_debug(3, "destroyed iSCSI session, handle 0x%p",
+		  (void*)session->handle);
 
 	return 0;
 }
@@ -428,8 +429,8 @@ __ksession_cnx_create(iscsi_session_t *session, iscsi_conn_t *conn)
 	}
 
 	conn->handle = ev.r.handle;
-	log_debug(3, "created new iSCSI connection, handle 0x%llx",
-		  (uint64_t)conn->handle);
+	log_debug(3, "created new iSCSI connection, handle 0x%p",
+		  (void*)conn->handle);
 
 	return 0;
 }
@@ -452,8 +453,8 @@ __ksession_cnx_destroy(iscsi_conn_t *conn)
 		return rc;
 	}
 
-	log_debug(3, "destroyed iSCSI connection, handle 0x%llx",
-		  (uint64_t)conn->handle);
+	log_debug(3, "destroyed iSCSI connection, handle 0x%p",
+		  (void*)conn->handle);
 
 	return 0;
 }
@@ -478,9 +479,9 @@ __ksession_cnx_bind(iscsi_session_t *session, iscsi_conn_t *conn)
 		return rc;
 	}
 
-	log_debug(3, "binded iSCSI connection (handle 0x%llx) to "
-		  "session (handle 0x%llx)", (uint64_t)conn->handle,
-		  (uint64_t)session->handle);
+	log_debug(3, "binded iSCSI connection (handle 0x%p) to "
+		  "session (handle 0x%p)", (void*)conn->handle,
+		  (void*)session->handle);
 
 	return 0;
 }
@@ -532,8 +533,8 @@ __ksession_send_pdu_end(iscsi_session_t *session, iscsi_conn_t *conn)
 		return rc;
 	}
 
-	log_debug(3, "send PDU finished for cnx (handle %llx)",
-		(uint64_t)conn->handle);
+	log_debug(3, "send PDU finished for cnx (handle %p)",
+		(void*)conn->handle);
 
 	return 0;
 }
@@ -595,14 +596,14 @@ __ksession_stop_cnx(iscsi_conn_t *conn)
 	ev.u.stop_cnx.cnx_handle = conn->handle;
 
 	if ((rc = ioctl(ctrl_fd, ISCSI_UEVENT_STOP_CNX, &ev)) < 0) {
-		log_error("can't stop connection 0x%llx with "
-			  "id = %d (%d)", (uint64_t)conn->handle,
+		log_error("can't stop connection 0x%p with "
+			  "id = %d (%d)", (void*)conn->handle,
 			  conn->id, errno);
 		return rc;
 	}
 
-	log_debug(3, "connection 0x%llx is stopped now",
-			(uint64_t)conn->handle);
+	log_debug(3, "connection 0x%p is stopped now",
+			(void*)conn->handle);
 
 	return 0;
 }
@@ -620,14 +621,14 @@ __ksession_start_cnx(iscsi_conn_t *conn)
 	ev.u.start_cnx.cnx_handle = conn->handle;
 
 	if ((rc = ioctl(ctrl_fd, ISCSI_UEVENT_START_CNX, &ev)) < 0) {
-		log_error("can't start connection 0x%llx with "
-			  "id = %d (%d)", (uint64_t)conn->handle,
+		log_error("can't start connection 0x%p with "
+			  "id = %d (%d)", (void*)conn->handle,
 			  conn->id, errno);
 		return rc;
 	}
 
-	log_debug(3, "connection 0x%llx is operational now",
-			(uint64_t)conn->handle);
+	log_debug(3, "connection 0x%p is operational now",
+			(void*)conn->handle);
 
 	return 0;
 }
@@ -655,8 +656,8 @@ __ksession_recv_pdu_begin(iscsi_conn_t *conn, ulong_t recv_handle,
 	*pdu_handle = ev.r.rp_begin.pdu_handle;
 	*pdu_size = ev.r.rp_begin.pdu_size;
 
-	log_debug(3, "recv PDU began, pdu handle 0x%llx size %d",
-		  (uint64_t)*pdu_handle, *pdu_size);
+	log_debug(3, "recv PDU began, pdu handle 0x%p size %d",
+		  (void*)*pdu_handle, *pdu_size);
 
 	return 0;
 }
@@ -680,8 +681,8 @@ __ksession_recv_pdu_end(iscsi_conn_t *conn, ulong_t pdu_handle)
 		return rc;
 	}
 
-	log_debug(3, "recv PDU finished for pdu handle 0x%llx",
-		  (uint64_t)pdu_handle);
+	log_debug(3, "recv PDU finished for pdu handle 0x%p",
+		  (void*)pdu_handle);
 
 	return 0;
 }

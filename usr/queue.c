@@ -56,8 +56,7 @@ void
 queue_destroy(queue_t* queue)
 {
 	if (queue->list_head.q_forw != &queue->list_head) {
-		log_error("destroying non-empty queue 0x%llx",
-				 (uint64_t)(ulong_t)queue);
+		log_error("destroying non-empty queue 0x%p", queue);
 	}
 	free(queue->start_ptr);
 	free(queue);
@@ -70,8 +69,7 @@ __io_queue_grow(queue_t *queue)
 	struct qelem *item;
 	queue_item_t *elem;
 
-	log_debug(7, "queue 0x%llx:%d is growing",
-			 (uint64_t)(ulong_t)queue, queue->pages_current);
+	log_debug(7, "queue 0x%p:%d is growing", queue, queue->pages_current);
 
 	newbuf = malloc((queue->pages_current + 1) * QUEUE_BUF_SIZE);
 	if (newbuf == NULL) {
@@ -132,36 +130,36 @@ queue_consume(queue_t *queue, int data_max_size, queue_item_t *item)
 		queue->head_ptr = (char *)queue->head_ptr + real_size;
 		log_debug(7,
 			"event_type: %d removing from the head: "
-			"0x%llx:0x%llx:0x%llx:0x%llx elem 0x%llx length %d",
+			"0x%p:0x%p:0x%p:0x%p elem 0x%p length %d",
 			elem->event_type,
-			(uint64_t)(ulong_t)queue->start_ptr,
-			(uint64_t)(ulong_t)queue->head_ptr,
-			(uint64_t)(ulong_t)queue->tail_ptr,
-			(uint64_t)(ulong_t)queue->end_ptr,
-			(uint64_t)(ulong_t)elem,
+			queue->start_ptr,
+			queue->head_ptr,
+			queue->tail_ptr,
+			queue->end_ptr,
+			elem,
 			real_size);
 	} else if ((char *)queue->tail_ptr - real_size == (char*)elem) {
 		queue->tail_ptr = (char *)queue->tail_ptr - real_size;
 		log_debug(7,
 			"event_type: %d removing from the tail: "
-			"0x%llx:0x%llx:0x%llx:0x%llx elem 0x%llx length %d",
+			"0x%p:0x%p:0x%p:0x%p elem 0x%p length %d",
 			elem->event_type,
-			(uint64_t)(ulong_t)queue->start_ptr,
-			(uint64_t)(ulong_t)queue->head_ptr,
-			(uint64_t)(ulong_t)queue->tail_ptr,
-			(uint64_t)(ulong_t)queue->end_ptr,
-			(uint64_t)(ulong_t)elem,
+			queue->start_ptr,
+			queue->head_ptr,
+			queue->tail_ptr,
+			queue->end_ptr,
+			elem,
 			real_size);
 	} else {
 		log_debug(7,
 			"event_type: %d removing from the list: "
-			"0x%llx:0x%llx:0x%llx:0x%llx elem 0x%llx length %d",
+			"0x%p:0x%p:0x%p:0x%p elem 0x%p length %d",
 			elem->event_type,
-			(uint64_t)(ulong_t)queue->start_ptr,
-			(uint64_t)(ulong_t)queue->head_ptr,
-			(uint64_t)(ulong_t)queue->tail_ptr,
-			(uint64_t)(ulong_t)queue->end_ptr,
-			(uint64_t)(ulong_t)elem,
+			queue->start_ptr,
+			queue->head_ptr,
+			queue->tail_ptr,
+			queue->end_ptr,
+			elem,
 			real_size);
 	}
 	memcpy(item, elem, sizeof(queue_item_t));
@@ -185,8 +183,7 @@ queue_flush(queue_t *queue)
 	while (queue_consume(queue, EVENT_PAYLOAD_MAX,
 				item) != QUEUE_IS_EMPTY) {
 		/* do nothing */
-		log_debug(7, "item %llx(%d) flushed", (uint64_t)(ulong_t)item,
-			  item->event_type);
+		log_debug(7, "item %p(%d) flushed", item, item->event_type);
 	}
 }
 
@@ -208,25 +205,25 @@ try_again:
 		elem = queue->tail_ptr;
 		queue->tail_ptr = (void *)((char *)queue->tail_ptr + real_size);
 		log_debug(7, "event_type: %d adding to the tail: "
-			"0x%llx:0x%llx:0x%llx:0x%llx elem 0x%llx length %d",
+			"0x%p:0x%p:0x%p:0x%p elem 0x%p length %d",
 			event_type,
-			(uint64_t)(ulong_t)queue->start_ptr,
-			(uint64_t)(ulong_t)queue->head_ptr,
-			(uint64_t)(ulong_t)queue->tail_ptr,
-			(uint64_t)(ulong_t)queue->end_ptr,
-			(uint64_t)(ulong_t)elem,
+			queue->start_ptr,
+			queue->head_ptr,
+			queue->tail_ptr,
+			queue->end_ptr,
+			elem,
 			real_size);
 	} else if ((char *)queue->head_ptr - real_size >=
 					(char *)queue->start_ptr) {
 		elem = (void *)((char *)queue->head_ptr - real_size);
 		queue->head_ptr = elem;
 		log_debug(7, "event_type: %d adding to the head: "
-			"0x%llx:0x%llx:0x%llx:0x%llx length %d",
+			"0x%p:0x%p:0x%p:0x%p length %d",
 			event_type,
-			(uint64_t)(ulong_t)queue->start_ptr,
-			(uint64_t)(ulong_t)queue->head_ptr,
-			(uint64_t)(ulong_t)queue->tail_ptr,
-			(uint64_t)(ulong_t)queue->end_ptr,
+			queue->start_ptr,
+			queue->head_ptr,
+			queue->tail_ptr,
+			queue->end_ptr,
 			real_size);
 	} else {
 		queue_status_e status;

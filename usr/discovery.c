@@ -453,8 +453,8 @@ process_sendtargets_response(struct string_buffer *sendtargets,
 			 * beginning of the buffer.
 			 */
 			log_debug(7,
-				 "processed %d bytes of sendtargets data, "
-				 "%d remaining",
+				 "processed %ld bytes of sendtargets data, "
+				 "%ld remaining",
 				 record - buffer_data(sendtargets),
 				 buffer_data(sendtargets) +
 				 data_length(sendtargets) - record);

@@ -277,7 +277,7 @@ extern int ctrl_fd;
 extern int iscsi_add_text(iscsi_hdr_t *hdr, char *data, int max_data_length,
 			char *param, char *value);
 extern enum iscsi_login_status iscsi_login(iscsi_session_t *session, int cid,
-		   char *buffer, uint32_t bufsize, uint8_t * status_class,
+		   char *buffer, size_t bufsize, uint8_t * status_class,
 		   uint8_t * status_detail);
 extern int iscsi_update_address(iscsi_conn_t *conn, char *address);
 extern int iscsi_login_begin(iscsi_session_t *session,
