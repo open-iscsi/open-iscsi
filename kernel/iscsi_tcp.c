@@ -1777,7 +1777,7 @@ iscsi_queuecommand(struct scsi_cmnd *sc, void (*done)(struct scsi_cmnd *))
 		reason = FAILURE_BAD_HOST;
 		goto fault;
 	}
-	session = (iscsi_session_t*)*host->hostdata;
+	session = (iscsi_session_t*)host->hostdata;
 	BUG_ON(host->host_no != session->id);
 
 	if (session->state != ISCSI_STATE_LOGGED_IN) {
@@ -2336,7 +2336,8 @@ r2t_alloc_fault:
 }
 
 static struct scsi_host_template iscsi_sht = {
-	.name			= "iSCSI Initiator over TCP/IP",
+	.name			= "iSCSI Initiator over TCP/IP, v."
+				  ISCSI_DRV_VERSION,
         .queuecommand           = iscsi_queuecommand,
 	.can_queue		= 128,
 	.sg_tablesize		= 128,
@@ -2345,6 +2346,7 @@ static struct scsi_host_template iscsi_sht = {
         .eh_abort_handler       = iscsi_eh_abort,
         .use_clustering         = ENABLE_CLUSTERING,
 	.proc_name		= "iscsi_tcp",
+	.this_id		= -1,
 };
 
 static iscsi_snx_h
@@ -2357,43 +2359,32 @@ iscsi_session_create(iscsi_snx_h handle, int host_no, int initial_cmdsn)
 
 	host = scsi_host_lookup(host_no);
 	if (host != ERR_PTR(-ENXIO)) {
+		scsi_host_put(host);
 		printk("host_no %d already exists\n", host_no);
 		return NULL;
 	}
 
-	session = kmalloc(sizeof(iscsi_session_t), GFP_KERNEL);
-	if (session == NULL) {
-		printk("not enough memory to allocate host_no %d\n",
-			host_no);
+	if ((host = scsi_host_alloc(&iscsi_sht,
+			    sizeof(iscsi_session_t))) == NULL) {
+		printk("can not allocate host_no %d\n", host_no);
 		return NULL;
 	}
-	memset(session, 0, sizeof(iscsi_session_t));
-
-	if ((host = scsi_host_alloc(&iscsi_sht, sizeof(void*))) == NULL) {
-		printk("can not allocate host_no %d\n", host_no);
-		goto host_alloc_fault;
-	}
+	session = (iscsi_session_t *)host->hostdata;
 	host->host_no = session->id = host_no;
 	host->max_id = 1;
 	host->max_channel  = 0;
-	*(unsigned long*)host->hostdata = (unsigned long)session;
 	host->hostt->this_id = (uint32_t)(unsigned long)session;
 
+	memset(session, 0, sizeof(iscsi_session_t));
 	session->host = host;
 	session->state = ISCSI_STATE_LOGGED_IN;
 	session->imm_max = ISCSI_IMM_CMDS_MAX;
-	session->cmds_max = host->hostt->can_queue + 1;
+	session->cmds_max = iscsi_sht.can_queue + 1;
 	session->cmdsn = initial_cmdsn;
 	session->exp_cmdsn = initial_cmdsn + 1;
 	session->max_cmdsn = initial_cmdsn + 1;
 	session->handle = handle;
-
 	session->max_r2t = 1;
-
-	if ((res=scsi_add_host(host, NULL))) {
-		printk("can not add host_no %d (%d)\n", host_no, res);
-		goto add_host_fault;
-	}
 
 	/* initialize SCSI PDU commands pool */
 	if (iscsi_pool_init(&session->cmdpool, session->cmds_max,
@@ -2424,18 +2415,21 @@ iscsi_session_create(iscsi_snx_h handle, int host_no, int initial_cmdsn)
 		goto r2tpool_alloc_fault;
 	}
 
+	if ((res=scsi_add_host(host, NULL))) {
+		printk("can not add host_no %d (%d)\n", host_no, res);
+		goto add_host_fault;
+	}
+
 	return session;
 
+add_host_fault:
+	iscsi_r2tpool_free(session);
 r2tpool_alloc_fault:
 	iscsi_pool_free(&session->immpool, (void**)session->imm_cmds);
 immpool_alloc_fault:
 	iscsi_pool_free(&session->cmdpool, (void**)session->cmds);
 cmdpool_alloc_fault:
 	scsi_remove_host(host);
-add_host_fault:
-	scsi_host_put(host);
-host_alloc_fault:
-	kfree(session);
 	return NULL;
 }
 
@@ -2457,7 +2451,6 @@ iscsi_session_destroy(iscsi_snx_h snxh)
 	iscsi_r2tpool_free(session);
 	iscsi_pool_free(&session->cmdpool, (void**)session->cmds);
 	scsi_remove_host(session->host);
-	scsi_host_put(session->host);
 	kfree(session);
 }
 
