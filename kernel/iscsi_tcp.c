@@ -1021,8 +1021,16 @@ iscsi_hdr_recv(iscsi_conn_t *conn)
 		case ISCSI_OP_ASYNC_EVENT:
 		case ISCSI_OP_REJECT:
 			if (!conn->in.datalen) {
+				iscsi_mgmt_task_t *mtask;
+
 				rc = iscsi_control_recv_pdu(
 					conn->handle, hdr, NULL);
+				mtask = (iscsi_mgmt_task_t *)
+					session->imm_cmds[conn->in.itt -
+						ISCSI_IMM_ITT_OFFSET];
+				if (conn->c_stage == ISCSI_CNX_STARTED) {
+					iscsi_enqueue(&session->immpool, mtask);
+				}
 			} else {
 				conn->data_copied = 0;
 			}
@@ -1034,7 +1042,30 @@ iscsi_hdr_recv(iscsi_conn_t *conn)
 	} else if (conn->in.itt >= ISCSI_IMM_ITT_OFFSET &&
 		   conn->in.itt < ISCSI_IMM_ITT_OFFSET +
 					session->imm_max) {
-		/* FIXME: implement */
+		iscsi_mgmt_task_t *mtask = (iscsi_mgmt_task_t *)
+					session->imm_cmds[conn->in.itt -
+						ISCSI_IMM_ITT_OFFSET];
+
+		debug_scsi("immrsp [op 0x%x cid %d itt 0x%x len %d]\n",
+			   hdr->opcode, conn->id, mtask->itt, conn->in.datalen);
+
+		switch(conn->in.opcode) {
+		case ISCSI_OP_LOGIN_RSP:
+		case ISCSI_OP_TEXT_RSP:
+			if (!conn->in.datalen) {
+				rc = iscsi_control_recv_pdu(
+					conn->handle, hdr, NULL);
+				if (conn->c_stage == ISCSI_CNX_STARTED) {
+					iscsi_enqueue(&session->immpool, mtask);
+				}
+			} else {
+				conn->data_copied = 0;
+			}
+			break;
+		default:
+			rc = ISCSI_ERR_BAD_OPCODE;
+			break;
+		}
 	} else if (conn->in.itt == ISCSI_RESERVED_TAG) {
 		conn->data_copied = 0;
 		if (conn->in.opcode == ISCSI_OP_NOOP_IN &&
@@ -1135,9 +1166,19 @@ iscsi_data_recv(iscsi_conn_t *conn)
 		rc = iscsi_cmd_rsp(conn, conn->in.ctask);
 	}
 	break;
+	case ISCSI_OP_TEXT_RSP:
+	case ISCSI_OP_LOGIN_RSP:
 	case ISCSI_OP_NOOP_IN: {
+		iscsi_mgmt_task_t *mtask = NULL;
+
+		if (conn->in.itt != ISCSI_RESERVED_TAG) {
+			mtask = (iscsi_mgmt_task_t *)
+				session->imm_cmds[conn->in.itt -
+					ISCSI_IMM_ITT_OFFSET];
+		}
+
 		/*
-		 * Copying "Ping" Data to the connection's data
+		 * Collect data segment to the connection's data
 		 * placeholder
 		 */
 		if (iscsi_tcp_copy(conn, conn->data, conn->in.datalen)) {
@@ -1147,6 +1188,10 @@ iscsi_data_recv(iscsi_conn_t *conn)
 
 		rc = iscsi_control_recv_pdu(conn->handle,
 				conn->in.hdr, conn->data);
+
+		if (mtask && conn->c_stage == ISCSI_CNX_STARTED) {
+			iscsi_enqueue(&session->immpool, mtask);
+		}
 	}
 	default:
 		__BUG_ON(1);
@@ -1412,10 +1457,6 @@ iscsi_mtask_xmit(iscsi_conn_t *conn, iscsi_mgmt_task_t *mtask)
 	}
 
 	if (mtask->in_progress == IN_PROGRESS_IMM_DATA) {
-		/* FIXME: implement and test */
-		printk("iSCSI: immediate PDU data is not supported yet\n");
-		__BUG_ON(1);
-
 		/* FIXME: implement.
 		 *        Keep in mind that virtual buffer
 		 *        spreaded accross multiple pages... */
@@ -2033,6 +2074,15 @@ iscsi_conn_create(iscsi_snx_h snxh, iscsi_cnx_h handle,
 	}
 	INIT_WORK(&conn->xmitwork, iscsi_xmitworker, conn);
 
+	/* allocate login_mtask used for initial login/text sequence */
+	conn->login_mtask = iscsi_dequeue(&session->immpool);
+	if (conn->login_mtask == NULL) {
+		iscsi_queue_free(&conn->immqueue);
+		iscsi_queue_free(&conn->xmitqueue);
+		kfree(conn);
+		return NULL;
+	}
+
 	return conn;
 }
 
@@ -2069,6 +2119,10 @@ iscsi_conn_destroy(iscsi_cnx_h cnxh)
 	}
 	spin_unlock(&conn->lock);
 	spin_unlock_irqrestore(session->host->host_lock, flags);
+
+	if (conn->c_stage != ISCSI_CNX_STARTED) {
+		iscsi_enqueue(&session->immpool, conn->login_mtask);
+	}
 
 	iscsi_queue_free(&conn->xmitqueue);
 	iscsi_queue_free(&conn->immqueue);
@@ -2129,6 +2183,12 @@ iscsi_conn_start(iscsi_cnx_h cnxh)
 		scsi_scan_host(session->host);
 	}
 
+	/*
+	 * Done with login and text negotiation.
+	 * Time to free login_mtask
+	 */
+	iscsi_enqueue(&session->immpool, conn->login_mtask);
+
 	spin_lock_irqsave(session->host->host_lock, flags);
 	conn->c_stage = ISCSI_CNX_STARTED;
 	conn->cpu = session->conn_cnt % num_online_cpus();
@@ -2158,13 +2218,25 @@ iscsi_conn_stop(iscsi_cnx_h cnxh)
 }
 
 static int
-iscsi_send_immpdu(iscsi_cnx_h cnxh, iscsi_hdr_t *hdr, char *data)
+iscsi_send_immpdu(iscsi_cnx_h cnxh, iscsi_hdr_t *hdr, char *data,
+		  int data_size)
 {
 	iscsi_conn_t *conn = cnxh;
 	iscsi_session_t *session = conn->session;
 	iscsi_mgmt_task_t *mtask;
 
-	mtask = iscsi_dequeue(&session->immpool);
+	if (conn->c_stage == ISCSI_CNX_STARTED) {
+		mtask = iscsi_dequeue(&session->immpool);
+	} else {
+		/*
+		 * If connection is about to start but not started yet
+		 * than we preserve ITT for all requests within this
+		 * login and text negotiation sequence. mtask is
+		 * preallocated at cnx_create() and will be released
+		 * at cnx_start() or cnx_destroy().
+		 */
+		mtask = conn->login_mtask;
+	}
 
 	if (hdr->itt != ISCSI_RESERVED_TAG) {
 		hdr->itt = htonl(mtask->itt);
@@ -2174,15 +2246,26 @@ iscsi_send_immpdu(iscsi_cnx_h cnxh, iscsi_hdr_t *hdr, char *data)
 
 	memcpy(&mtask->hdr, hdr, sizeof(iscsi_hdr_t));
 	mtask->data = data;
-	mtask->data_count = ntoh24(hdr->dlength);
+	mtask->data_count = data_size;
 	mtask->in_progress = IN_PROGRESS_IMM_HEAD;
 
 	iscsi_buf_init_virt(&mtask->headbuf, (char*)&mtask->hdr,
 			    sizeof(iscsi_hdr_t));
 
-	/* FIXME: implement convertion of mtask->data into 1st mtask->sendbuf.
-	 *        Keep in mind that virtual buffer
-	 *        spreaded accross multiple pages... */
+	if (mtask->data_count) {
+		iscsi_buf_init_virt(&mtask->sendbuf, (char*)&mtask->data,
+				    mtask->data_count);
+		/* FIXME: implement convertion of mtask->data into 1st
+		 *        mtask->sendbuf.
+		 *        Keep in mind that virtual buffer
+		 *        spreaded accross multiple pages... */
+		if(mtask->sendbuf.offset + mtask->data_count > PAGE_SIZE) {
+			if (conn->c_stage == ISCSI_CNX_STARTED) {
+				iscsi_enqueue(&session->immpool, mtask);
+			}
+			return -ENOMEM;
+		}
+	}
 
 	iscsi_enqueue(&conn->immqueue, mtask);
 	schedule_work(&conn->xmitwork);
@@ -2337,7 +2420,7 @@ iscsi_session_create(iscsi_snx_h handle, int host_no, int initial_cmdsn)
 		session->host->host_lock)) {
 		goto immpool_alloc_fault;
 	}
-	/* pre-format cmds pool with ITT */
+	/* pre-format immediate cmds pool with ITT */
 	for (cmd_i=0; cmd_i<session->imm_max; cmd_i++) {
 		session->imm_cmds[cmd_i]->itt = ISCSI_IMM_ITT_OFFSET + cmd_i;
 	}
@@ -2395,7 +2478,7 @@ iscsi_set_param(iscsi_cnx_h cnxh, iscsi_param_e param, int value)
 	iscsi_conn_t *conn = cnxh;
 	iscsi_session_t *session = conn->session;
 
-	if (conn->c_stage != ISCSI_FULL_FEATURE_PHASE) {
+	if (conn->c_stage == ISCSI_CNX_INITIAL_STAGE) {
 		switch(param) {
 		case ISCSI_PARAM_MAX_RECV_DLENGH:
 			conn->max_recv_dlength = value;

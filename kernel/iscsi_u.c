@@ -73,6 +73,7 @@ typedef struct kevent {
 int
 iscsi_control_recv_pdu(iscsi_cnx_h cp_cnx, iscsi_hdr_t *hdr, char *data)
 {
+	BUG_ON(1);
 	return 0;
 }
 
@@ -346,7 +347,7 @@ __send_pdu_end(unsigned long ptr)
 
 	rc = (ulong_t)provider->ops.send_immpdu(
 	       (void*)ev.u.sp_end.cnx_handle, (iscsi_hdr_t*)sp_ctxt.spb->pdu,
-		sp_ctxt.spb->pdu + sp_ctxt.hdr_size);
+		sp_ctxt.spb->pdu + sp_ctxt.hdr_size, sp_ctxt.data_size);
 	if (rc) {
 		return -EIO;
 	}

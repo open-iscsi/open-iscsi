@@ -154,7 +154,8 @@ typedef struct iscsi_conn {
 	volatile int		c_stage;	/* Connection state */
 	iscsi_cnx_h		handle;		/* CP connection handle */
 	int			in_progress_xmit; /* xmit state machine */
-	spinlock_t		lock;
+	struct iscsi_mgmt_task	*login_mtask;	/* mtask used for login/text */
+	spinlock_t		lock;		/* general connection lock */
 
 	/* configuration */
 	int			max_recv_dlength;

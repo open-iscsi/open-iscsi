@@ -135,7 +135,8 @@ typedef struct iscsi_ops {
 
 	int		(*send_immpdu)	  (iscsi_cnx_h dp_cnx,
 					   iscsi_hdr_t *hdr,
-					   char *data);
+					   char *data,
+					   int data_size);
 } iscsi_ops_t;
 
 int iscsi_control_recv_pdu(iscsi_cnx_h cp_cnx, iscsi_hdr_t *hdr, char *data);
