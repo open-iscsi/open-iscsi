@@ -46,7 +46,7 @@ MODULE_DESCRIPTION("iSCSI/TCP data-path");
 MODULE_LICENSE("GPL");
 
 /* #define DEBUG_TCP */
-#define DEBUG_SCSI
+/* #define DEBUG_SCSI */
 #define DEBUG_ASSERT
 
 #ifdef DEBUG_TCP
@@ -989,8 +989,6 @@ iscsi_tcp_state_change(struct sock *sk)
 
 	conn = (struct iscsi_conn*)sk->sk_user_data;
 	session = conn->session;
-
-printk("iscsi_tcp_state_change: sk->sk_state %d\n", sk->sk_state);
 
 	if (sk->sk_state == TCP_CLOSE_WAIT ||
 	    sk->sk_state == TCP_CLOSE) {
@@ -2316,6 +2314,9 @@ iscsi_tmabort_timedout(unsigned long data)
 	conn->tmabort_state = TMABORT_TIMEDOUT;
 	debug_scsi("tmabort timedout [sc %lx itt 0x%x]\n", (long)ctask->sc,
 		   ctask->itt);
+
+	/* unblock eh_abort() */
+	wake_up(&conn->ehwait);
 }
 
 static int
