@@ -28,6 +28,7 @@
 #include <sys/poll.h>
 #include <sys/io.h>
 #include <sys/utsname.h>
+#include <sys/signal.h>
 
 #include "iscsid.h"
 #include "actor.h"
@@ -152,7 +153,7 @@ void oom_adjust(void)
 	int fd;
 	char path[48];
 
-	iopl(4);
+	iopl(4); /* set CAP_SYS_RAW_IO */
 	nice(-10);
 	sprintf(path, "/proc/%d/oom_adj", getpid());
 	fd = open(path, O_WRONLY);
@@ -160,8 +161,13 @@ void oom_adjust(void)
 		log_debug(1, "can not adjust oom-killer's pardon");
 		return;
 	}
-	write(fd, "-16\n", 3);
+	write(fd, "-16\n", 3); /* for 2.6.11 */
+	write(fd, "-17\n", 3); /* for Andrea's patch */
 	close(fd);
+}
+
+static void catch_signal(int signo) {
+	log_warning("caught signal -%d, ignoring...", signo);
 }
 
 int main(int argc, char *argv[])
@@ -171,6 +177,15 @@ int main(int argc, char *argv[])
 	int ch, longindex;
 	uid_t uid = 0;
 	gid_t gid = 0;
+	struct sigaction sa_old;
+	struct sigaction sa_new;
+
+	/* do not allow ctrl-c for now... */
+	sa_new.sa_handler = catch_signal;
+	sigemptyset(&sa_new.sa_mask);
+	sa_new.sa_flags = 0;
+	sigaction(SIGINT, &sa_new, &sa_old );
+	sigaction(SIGTERM, &sa_new, &sa_old );
 
 	while ((ch = getopt_long(argc, argv, "c:fd:u:g:vh", long_options,
 				 &longindex)) >= 0) {
