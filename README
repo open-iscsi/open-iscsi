@@ -47,6 +47,13 @@ iSCSI Node records or monitor active iSCSI sessions:
 
 	./iscsiadm --help
 
+Example on using administration utility for SendTargets iSCSI Discovery:
+
+	./iscsiadm -m discovery --type sendtargets --portal 192.168.1.1:3260
+
+Example on using administration utility for iSCSI Login:
+
+	./iscsiadm -m node --record 0f23e4 --login
 
 This file is not complete. We will appreciate if one could help us to
 finilize it! Thanks a lot!
