@@ -300,7 +300,7 @@ idbm_update_node(node_rec_t *rec, node_rec_t *newrec)
 static char*
 idbm_hash_node(discovery_rec_t *drec, node_rec_t *nrec)
 {
-	char *hash = malloc(HASH_MAXLEN);
+	char *hash = calloc(1, HASH_MAXLEN);
 
 	if (!hash) {
 		log_error("out of memory on hash allocation");
@@ -333,7 +333,7 @@ idbm_read(DBM *dbm, char *hash)
 	datum key, data;
 
 	key.dptr = hash;
-	key.dsize = HASH_MAXLEN;
+	key.dsize = strlen(hash) + 1; /* null-terminated string */
 
 	data = dbm_fetch(dbm, key);
 	if (data.dsize > 0) {
@@ -647,44 +647,6 @@ idbm_print_type(idbm_t *db, int type, int rec_id)
 }
 
 static void
-idbm_node_setup_defaults(node_rec_t *rec)
-{
-	int i;
-
-	memset(rec, 0, sizeof(node_rec_t));
-
-	rec->active_cnx = 1; /* at least one connection must exist */
-	rec->session.initial_cmdsn = 0;
-	rec->session.auth.authmethod = 0;
-	rec->session.err_timeo.abort_timeout = 10;
-	rec->session.err_timeo.reset_timeout = 30;
-	rec->session.timeo.replacement_timeout = 0;
-	rec->session.iscsi.InitialR2T = 0;
-	rec->session.iscsi.ImmediateData = 1;
-	rec->session.iscsi.FirstBurstLength = 256 * 1024;
-	rec->session.iscsi.MaxBurstLength = (16 * 1024 * 1024) - 1024;
-	rec->session.iscsi.DefaultTime2Wait = 0;
-	rec->session.iscsi.DefaultTime2Retain = 0;
-	rec->session.iscsi.MaxConnections = 1;
-	rec->session.iscsi.ERL = 0;
-
-	for (i=0; i<ISCSI_CNX_MAX; i++) {
-		rec->cnx[i].startup = 0;
-		rec->cnx[i].tcp.window_size = 256 * 1024;
-		rec->cnx[i].tcp.type_of_service = 0;
-		rec->cnx[i].timeo.login_timeout=15;
-		rec->cnx[i].timeo.auth_timeout = 45;
-		rec->cnx[i].timeo.active_timeout=5;
-		rec->cnx[i].timeo.idle_timeout = 60;
-		rec->cnx[i].timeo.ping_timeout = 5;
-		rec->cnx[i].iscsi.MaxRecvDataSegmentLength = 128 * 1024;
-		rec->cnx[i].iscsi.HeaderDigest = CONFIG_DIGEST_PREFER_OFF;
-		rec->cnx[i].iscsi.DataDigest = CONFIG_DIGEST_PREFER_OFF;
-	}
-
-}
-
-static void
 idbm_discovery_setup_defaults(discovery_rec_t *rec, discovery_type_e type)
 {
 	memset(rec, 0, sizeof(discovery_rec_t));
@@ -905,6 +867,45 @@ idbm_id2hash(DBM *dbm, int rec_id)
 	return NULL;
 }
 
+void
+idbm_node_setup_defaults(node_rec_t *rec)
+{
+	int i;
+
+	memset(rec, 0, sizeof(node_rec_t));
+
+	rec->active_cnx = 1; /* at least one connection must exist */
+	rec->tpgt = 1;
+	rec->session.initial_cmdsn = 0;
+	rec->session.auth.authmethod = 0;
+	rec->session.err_timeo.abort_timeout = 10;
+	rec->session.err_timeo.reset_timeout = 30;
+	rec->session.timeo.replacement_timeout = 0;
+	rec->session.iscsi.InitialR2T = 0;
+	rec->session.iscsi.ImmediateData = 1;
+	rec->session.iscsi.FirstBurstLength = 256 * 1024;
+	rec->session.iscsi.MaxBurstLength = (16 * 1024 * 1024) - 1024;
+	rec->session.iscsi.DefaultTime2Wait = 0;
+	rec->session.iscsi.DefaultTime2Retain = 0;
+	rec->session.iscsi.MaxConnections = 1;
+	rec->session.iscsi.ERL = 0;
+
+	for (i=0; i<ISCSI_CNX_MAX; i++) {
+		rec->cnx[i].startup = 0;
+		rec->cnx[i].tcp.window_size = 512 * 1024;
+		rec->cnx[i].tcp.type_of_service = 0;
+		rec->cnx[i].timeo.login_timeout=15;
+		rec->cnx[i].timeo.auth_timeout = 45;
+		rec->cnx[i].timeo.active_timeout=5;
+		rec->cnx[i].timeo.idle_timeout = 60;
+		rec->cnx[i].timeo.ping_timeout = 5;
+		rec->cnx[i].iscsi.MaxRecvDataSegmentLength = 128 * 1024;
+		rec->cnx[i].iscsi.HeaderDigest = CONFIG_DIGEST_PREFER_OFF;
+		rec->cnx[i].iscsi.DataDigest = CONFIG_DIGEST_PREFER_OFF;
+	}
+
+}
+
 int
 idbm_print_discovery(idbm_t *db, int rec_id)
 {
@@ -1070,6 +1071,43 @@ idbm_add_node(idbm_t *db, discovery_rec_t *drec, node_rec_t *newrec)
 	return 0;
 }
 
+int
+idbm_new_node(idbm_t *db, node_rec_t *newrec)
+{
+	char *hash;
+	node_rec_t *rec;
+	DBM *dbm = db->nodedb;
+
+	if (!(hash = idbm_hash_node(NULL, newrec))) {
+		return 1;
+	}
+
+	if (idbm_lock(dbm)) {
+		free(hash);
+		return 1;
+	}
+
+	if ((rec = idbm_read(dbm, hash))) {
+		log_error("record [%06x] exists", rec->id);
+		idbm_unlock(dbm);
+		free(hash);
+		return 1;
+	} else {
+		log_debug(7, "adding new DB record");
+	}
+
+	newrec->id = idbm_uniq_id(hash);
+	if (idbm_write(dbm, newrec, sizeof(node_rec_t), hash)) {
+		idbm_unlock(dbm);
+		free(hash);
+		return 1;
+	}
+
+	idbm_unlock(dbm);
+	free(hash);
+	return 0;
+}
+
 discovery_rec_t*
 idbm_new_discovery(idbm_t *db, char *ip, int port,
 			discovery_type_e type, char *info)
@@ -1191,6 +1229,25 @@ out:
 	free(nrec);
 	free(newinfo);
 	return drec;
+}
+
+int
+idbm_delete_node(idbm_t *db, node_rec_t *rec)
+{
+	int rc;
+	char *hash;
+	datum key;
+	DBM *dbm = db->nodedb;
+
+	hash = idbm_id2hash(dbm, rec->id);
+
+	key.dptr = hash;
+	key.dsize = strlen(hash) + 1; /* null-terminated string */
+
+	rc = dbm_delete(dbm, key);
+
+	free(hash);
+	return rc;
 }
 
 void

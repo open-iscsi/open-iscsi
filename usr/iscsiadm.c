@@ -2,7 +2,7 @@
  * iSCSI Administration Utility
  *
  * Copyright (C) 2004 Dmitry Yusupov, Alex Aizman
- * maintained by open-iscsi@@googlegroups.com
+ * maintained by open-iscsi@googlegroups.com
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published
@@ -50,7 +50,7 @@ enum iscsiadm_mode {
 };
 
 enum iscsiadm_op {
-	OP_INSERT,
+	OP_NEW,
 	OP_DELETE,
 	OP_UPDATE,
 	OP_SHOW,
@@ -95,18 +95,19 @@ iSCSI Administration Utility.\n\
   -m discovery --record=[id] --op=[op] [--name=[name] --value=[value]]\n\
                           perform specific DB operation [op] for specific\n\
                           discovery record with [id]. It could be one of:\n\
-                          [insert], [delete], [update] or [show]. In case of\n\
+                          [new], [delete], [update] or [show]. In case of\n\
                           [update], you have to provide [name] and [value]\n\
                           you wish to update\n\
   -m node                 display all discovered nodes from internal\n\
                           persistent discovery database\n\
   -m node --record=[id] [--login|--logout]\n\
-  -m node --record=[id] --op=[op] [--name=[name] --value=[value]]\n\
+  -m node --record=[id] --op=[op] [--name=[name] --value=[value]] [--portal]\n\
                           perform specific DB operation [op] for specific\n\
                           node with record [id]. It could be one of:\n\
-                          [insert], [delete], [update] or [show]. In case of\n\
+                          [new], [delete], [update] or [show]. In case of\n\
                           [update], you have to provide [name] and [value]\n\
-                          you wish to update\n\
+                          you wish to update. For new record portal must be\n\
+		          specified\n\
   -m session              display all active sessions and connections\n\
   -m session --record=[id[:cid]] [--logout]\n\
                           perform operation for specific session with\n\
@@ -129,8 +130,8 @@ str_to_op(char *str)
 {
 	int op;
 
-	if (!strcmp("insert", str))
-		op = OP_INSERT;
+	if (!strcmp("new", str))
+		op = OP_NEW;
 	else if (!strcmp("delete", str))
 		op = OP_DELETE;
 	else if (!strcmp("update", str))
@@ -581,6 +582,12 @@ main(int argc, char **argv)
 					log_error("can not set parameter");
 					goto out;
 				}
+			} else if (op == OP_DELETE) {
+				if (idbm_delete_node(db, &rec)) {
+					log_error("can not delete record");
+					rc = -1;
+					goto out;
+				}
 			} else {
 				log_error("operation is not supported.");
 				rc = -1;
@@ -592,6 +599,26 @@ main(int argc, char **argv)
 				rc = -1;
 				goto out;
 			}
+		} else if (op == OP_NEW) {
+			node_rec_t nrec;
+			if (!ip) {
+				log_error("--portal required for new "
+					  "node record");
+				rc = -1;
+				goto out;
+			}
+			idbm_node_setup_defaults(&nrec);
+			strncpy(nrec.name, "<not specified>",
+				TARGET_NAME_MAXLEN);
+			nrec.cnx[0].port = port;
+			strncpy(nrec.cnx[0].address, ip, 16);
+			if (idbm_new_node(db, &nrec)) {
+				log_error("can not add new record.");
+				rc = -1;
+				goto out;
+			}
+			printf("new iSCSI node record added: [%06x]\n",
+			       nrec.id);
 		} else {
 			log_error("operation is not supported.");
 			rc = -1;
