@@ -26,8 +26,8 @@ typedef enum iscsi_uevent_type {
 } iscsi_uevent_type_e;
 
 typedef struct iscsi_uevent {
-	uint32_t sid;
-	uint32_t cid;
+	unsigned int sid;
+	unsigned int cid;
 	iscsi_uevent_type_e state;
 } iscsi_uevent_t;
 

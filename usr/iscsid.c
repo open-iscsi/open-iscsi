@@ -24,6 +24,7 @@
 #include <stdio.h>
 #include <unistd.h>
 #include <string.h>
+#include <sys/poll.h>
 
 #include "iscsi_u.h"
 #include "iscsid.h"
@@ -40,6 +41,7 @@
 
 static char program_name[] = "iscsid";
 int ctrl_fd, ipc_fd;
+static struct pollfd poll_array[POLL_MAX];
 
 static struct option const long_options[] = {
 	{"config", required_argument, 0, 'c'},
@@ -107,8 +109,7 @@ handle_iscsi_events(void)
 void
 event_loop(void)
 {
-	int res, i, opt;
-	struct pollfd *pollfd;
+	int res, i;
 
 	poll_array[POLL_CTRL].fd = ctrl_fd;
 	poll_array[POLL_CTRL].events = POLLIN;
@@ -134,7 +135,7 @@ event_loop(void)
 			handle_iscsi_events();
 
 		if (poll_array[POLL_IPC].revents)
-			iscsiadm_req_handle(ipc_fd);
+			ipc_handle(ipc_fd);
 
 	}
 }
