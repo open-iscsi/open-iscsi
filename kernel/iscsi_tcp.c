@@ -2049,7 +2049,6 @@ iscsi_conn_bind(iscsi_snx_h snxh, iscsi_cnx_h cnxh, uint32_t transport_fd,
 {
 	struct iscsi_session *session = iscsi_ptr(snxh);
 	struct iscsi_conn *conn = iscsi_ptr(cnxh);
-	struct tcp_opt *tp;
 	struct sock *sk;
 	struct socket *sock;
 	int err;
@@ -2068,9 +2067,7 @@ iscsi_conn_bind(iscsi_snx_h snxh, iscsi_cnx_h cnxh, uint32_t transport_fd,
 	sk->sk_sndtimeo = 15 * HZ; /* FIXME: make it configurable */
 	sk->sk_allocation |= GFP_ATOMIC;
 
-	/* disable Nagle's algorithm */
-	tp = tcp_sk(sk);
-	tp->nonagle = 1;
+	/* FIXME: disable Nagle's algorithm */
 
 	/* Intercept TCP callbacks for sendfile like receive processing. */
 	iscsi_conn_set_callbacks(conn);
