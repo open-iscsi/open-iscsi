@@ -23,9 +23,11 @@ MODULE_AUTHOR("Dmitry Yusupov <dmitry_yus@yahoo.com>, "
 MODULE_DESCRIPTION("iSCSI/TCP data-path");
 MODULE_LICENSE("GPL");
 
-//#define DEBUG_TCP
-//#define DEBUG_SCSI
-#define DEBUG_ASSERT
+/*    debug kitchen     */
+/* -------------------- */
+/* #define DEBUG_TCP    */
+/* #define DEBUG_SCSI   */
+/* #define DEBUG_ASSERT */
 
 #ifdef DEBUG_TCP
 #define debug_tcp(fmt...) printk("tcp: " fmt)
@@ -772,7 +774,6 @@ iscsi_cmd_init(iscsi_conn_t *conn, iscsi_cmd_task_t *ctask,
 		ctask->exp_r2tsn = 0;
 		ctask->hdr.flags |= ISCSI_FLAG_CMD_WRITE;
 		ctask->in_progress = IN_PROGRESS_WRITE;
-		/* TODO: check that zero-writes are allowed by spec. */
 		__BUG_ON(ctask->total_length == 0);
 		if (sc->use_sg) {
 			struct scatterlist *sg = (struct scatterlist *)
@@ -1957,34 +1958,6 @@ iscsi_eh_abort(struct scsi_cmnd *sc)
 		iscsi_ctask_cleanup(conn, ctask);
 		return FAILED;
 	}
-
-	/* FIXME: implement task management */
-
-#if 0
-	if (iscsi_control_recv_pdu(conn->handle,
-			(iscsi_hdr_t*)&ctask->hdr, NULL, 0)) {
-		return FAILED;
-	}
-	iscsi_mgmt_task_t *mtask;
-	iscsi_session_t *session = conn->session;
-
-	debug_scsi("abort [sc %lx itt 0x%x]\n", (long)sc, ctask->itt);
-
-	mtask = __dequeue(&session->immpool);
-
-	mtask->hdr.itt = htonl(mtask->itt);
-	mtask->hdr.exp_statsn = htonl(conn->exp_statsn);
-	mtask->data_count = 0;
-	mtask->in_progress = IN_PROGRESS_IMM_HEAD;
-
-	iscsi_buf_init_virt(&mtask->headbuf, (char*)&mtask->hdr,
-			    sizeof(iscsi_hdr_t));
-
-	__enqueue(&conn->immqueue, mtask);
-	schedule_work(&conn->xmitwork);
-
-	down(&mtask->xmitsema);
-#endif
 	return SUCCESS;
 }
 
