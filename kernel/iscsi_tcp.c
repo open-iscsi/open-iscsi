@@ -46,8 +46,8 @@ MODULE_DESCRIPTION("iSCSI/TCP data-path");
 MODULE_LICENSE("GPL");
 
 /* #define DEBUG_TCP */
-#define DEBUG_SCSI
-#define DEBUG_ASSERT
+/* #define DEBUG_SCSI */
+/* #define DEBUG_ASSERT */
 
 #ifdef DEBUG_TCP
 #define debug_tcp(fmt...) printk("tcp: " fmt)
@@ -461,8 +461,8 @@ iscsi_r2t_rsp(struct iscsi_conn *conn, struct iscsi_cmd_task *ctask)
 	ctask->exp_r2tsn = r2tsn + 1;
 	ctask->in_progress = IN_PROGRESS_WRITE |
 			     IN_PROGRESS_SOLICIT_HEAD;
-	__kfifo_put(conn->rspqueue, (void*)&ctask, sizeof(void*));
 	__kfifo_put(ctask->r2tqueue, (void*)&r2t, sizeof(void*));
+	__kfifo_put(conn->writequeue, (void*)&ctask, sizeof(void*));
 
 	schedule_work(&conn->xmitwork);
 
@@ -1241,7 +1241,7 @@ iscsi_unsolicit_data_init(struct iscsi_conn *conn, struct iscsi_cmd_task *ctask)
 /*
  * Initialize iSCSI SCSI_READ or SCSI_WRITE commands
  */
-static void
+static int
 iscsi_cmd_init(struct iscsi_conn *conn, struct iscsi_cmd_task *ctask,
 		struct scsi_cmnd *sc)
 {
@@ -1268,7 +1268,7 @@ iscsi_cmd_init(struct iscsi_conn *conn, struct iscsi_cmd_task *ctask,
 	if (sc->sc_data_direction == DMA_FROM_DEVICE) {
 		ctask->datasn = 0;
 		ctask->hdr.flags |= ISCSI_FLAG_CMD_READ | ISCSI_FLAG_CMD_FINAL;
-		ctask->in_progress = IN_PROGRESS_READ;
+		ctask->in_progress = IN_PROGRESS_READ | IN_PROGRESS_BEGIN_READ;
 		zero_data(ctask->hdr.dlength);
 	} else if (sc->sc_data_direction == DMA_TO_DEVICE) {
 		ctask->exp_r2tsn = 0;
@@ -1327,6 +1327,13 @@ iscsi_cmd_init(struct iscsi_conn *conn, struct iscsi_cmd_task *ctask,
 		ctask->r2t_data_count = ctask->total_length -
 				    ctask->imm_count -
 				    ctask->imm_data_count;
+		if (ctask->imm_data_count) {
+			if (iscsi_unsolicit_data_init(conn, ctask))
+				return -ENOMEM;
+			ctask->in_progress |= IN_PROGRESS_UNSOLICIT_HEAD;
+		} else if (ctask->r2t_data_count) {
+			ctask->in_progress |= IN_PROGRESS_R2T_WAIT;
+		}
 		debug_scsi("cmd [itt %x total %d imm %d imm_data %d "
 			   "r2t_data %d]\n",
 			   ctask->itt, ctask->total_length, ctask->imm_count,
@@ -1334,7 +1341,7 @@ iscsi_cmd_init(struct iscsi_conn *conn, struct iscsi_cmd_task *ctask,
 	} else {
 		/* assume read op */
 		ctask->hdr.flags |= ISCSI_FLAG_CMD_FINAL;
-		ctask->in_progress = IN_PROGRESS_READ;
+		ctask->in_progress = IN_PROGRESS_READ | IN_PROGRESS_BEGIN_READ;
 		zero_data(ctask->hdr.dlength);
 	}
 
@@ -1342,6 +1349,7 @@ iscsi_cmd_init(struct iscsi_conn *conn, struct iscsi_cmd_task *ctask,
 			    (u8 *)ctask->hdrext);
 
 	ctask->in_progress |= IN_PROGRESS_HEAD;
+	return 0;
 }
 
 /*
@@ -1372,9 +1380,8 @@ iscsi_mtask_xmit(struct iscsi_conn *conn, struct iscsi_mgmt_task *mtask)
 
 	if (mtask->in_progress == IN_PROGRESS_IMM_DATA) {
 		/* FIXME: implement.
-		 * Virtual buffer could be spreaded accross
-		   multiple pages...
-		*/
+		 * Virtual buffer could be spreaded accross multiple pages...
+		 */
 		do {
 			if (iscsi_sendpage(conn, &mtask->sendbuf,
 				   &mtask->data_count, &mtask->sent)) {
@@ -1396,6 +1403,7 @@ iscsi_mtask_xmit(struct iscsi_conn *conn, struct iscsi_mgmt_task *mtask)
 static int
 iscsi_ctask_xmit(struct iscsi_conn *conn, struct iscsi_cmd_task *ctask)
 {
+	int p_state = ctask->in_progress;
 	struct iscsi_r2t_info *r2t = NULL;
 
 	debug_scsi("ctask deq [cid %d state %x itt 0x%x]\n",
@@ -1405,19 +1413,19 @@ iscsi_ctask_xmit(struct iscsi_conn *conn, struct iscsi_cmd_task *ctask)
 		 (IN_PROGRESS_HEAD|IN_PROGRESS_BEGIN_WRITE_IMM|
 		  IN_PROGRESS_BEGIN_WRITE|IN_PROGRESS_UNSOLICIT_HEAD|
 		  IN_PROGRESS_UNSOLICIT_WRITE|IN_PROGRESS_SOLICIT_HEAD|
-		  IN_PROGRESS_SOLICIT_WRITE)));
+		  IN_PROGRESS_SOLICIT_WRITE|IN_PROGRESS_BEGIN_READ)));
 
-	if (ctask->in_progress & IN_PROGRESS_HEAD) {
+	if (ctask->in_progress & IN_PROGRESS_BEGIN_READ) {
 		if (iscsi_sendhdr(conn, &ctask->headbuf))
 			return -EAGAIN;
-
-		if (ctask->hdr.flags & ISCSI_FLAG_CMD_READ) {
-			/* wait for Read data */
-			return 0;
-		}
+		/* wait for Read data-in */
+		ctask->in_progress &= ~IN_PROGRESS_BEGIN_READ;
+		return 0;
 	}
 
 	if (ctask->in_progress & IN_PROGRESS_BEGIN_WRITE_IMM) {
+		if (iscsi_sendhdr(conn, &ctask->headbuf))
+			return -EAGAIN;
 		while (ctask->imm_count) {
 			if (iscsi_sendpage(conn, &ctask->sendbuf,
 				   &ctask->imm_count, &ctask->sent)) {
@@ -1428,27 +1436,15 @@ iscsi_ctask_xmit(struct iscsi_conn *conn, struct iscsi_cmd_task *ctask)
 			iscsi_buf_init_sg(&ctask->sendbuf,
 				 &ctask->sg[ctask->sg_count++]);
 		}
-		if (ctask->imm_data_count) {
-			if (iscsi_unsolicit_data_init(conn, ctask))
-				return -EAGAIN;
-			ctask->in_progress = IN_PROGRESS_WRITE |
-					     IN_PROGRESS_UNSOLICIT_HEAD;
-		} else if (ctask->r2t_data_count) {
-			ctask->in_progress = IN_PROGRESS_WRITE |
-					     IN_PROGRESS_R2T_WAIT;
+		ctask->in_progress &= ~IN_PROGRESS_BEGIN_WRITE_IMM;
+		if (p_state & IN_PROGRESS_R2T_WAIT)
 			return 0;
-		}
 	} else if (ctask->in_progress & IN_PROGRESS_BEGIN_WRITE) {
-		if (ctask->imm_data_count) {
-			if (iscsi_unsolicit_data_init(conn, ctask))
-				return -EAGAIN;
-			ctask->in_progress = IN_PROGRESS_WRITE |
-					     IN_PROGRESS_UNSOLICIT_HEAD;
-		} else if (ctask->r2t_data_count) {
-			ctask->in_progress = IN_PROGRESS_WRITE |
-					     IN_PROGRESS_R2T_WAIT;
+		if (iscsi_sendhdr(conn, &ctask->headbuf))
+			return -EAGAIN;
+		ctask->in_progress &= ~IN_PROGRESS_BEGIN_WRITE;
+		if (p_state & IN_PROGRESS_R2T_WAIT)
 			return 0;
-		}
 	}
 
 	if (ctask->in_progress & IN_PROGRESS_UNSOLICIT_HEAD) {
@@ -1524,6 +1520,9 @@ _solicit_head_again:
 			return -EAGAIN;
 		ctask->in_progress = IN_PROGRESS_WRITE |
 				     IN_PROGRESS_SOLICIT_WRITE;
+		debug_scsi("dout [dsn %d itt 0x%x dlen %d sent %d]\n",
+			r2t->solicit_datasn - 1, ctask->itt,r2t->data_count,
+			r2t->sent);
 	}
 
 	if (ctask->in_progress & IN_PROGRESS_SOLICIT_WRITE) {
@@ -1583,6 +1582,7 @@ _solicit_again:
 			if (ctask->r2t_data_count) {
 				ctask->in_progress = IN_PROGRESS_WRITE |
 						     IN_PROGRESS_R2T_WAIT;
+				return 0;
 			}
 		}
 		ctask->in_progress = IN_PROGRESS_WRITE |
@@ -1618,7 +1618,7 @@ iscsi_data_xmit(struct iscsi_conn *conn)
 	/* process non-immediate(command) queue */
 	while (conn->in_progress_xmit == IN_PROGRESS_XMIT_SCSI &&
 	       (conn->ctask ||
-		__kfifo_get(conn->rspqueue, (void*)&conn->ctask,
+		__kfifo_get(conn->writequeue, (void*)&conn->ctask,
 			    sizeof(void*)) ||
 		__kfifo_get(conn->xmitqueue, (void*)&conn->ctask,
 			    sizeof(void*)))) {
@@ -1655,7 +1655,7 @@ iscsi_data_xmit(struct iscsi_conn *conn)
 		conn->mtask = NULL;
 
 		if (__kfifo_len(conn->xmitqueue) ||
-		    __kfifo_len(conn->rspqueue)) {
+		    __kfifo_len(conn->writequeue)) {
 			/* re-schedule xmitqueue. have to do that in case
 			 * when immediate PDU interrupts xmitqueue loop */
 			schedule_work(&conn->xmitwork);
@@ -1893,10 +1893,10 @@ iscsi_conn_create(iscsi_snx_h snxh, iscsi_cnx_h handle,
 		goto xmitqueue_alloc_fault;
 
 	/* initialize write response PDU commands queue */
-	conn->rspqueue = kfifo_alloc(session->cmds_max * sizeof(void*),
+	conn->writequeue = kfifo_alloc(session->cmds_max * sizeof(void*),
 					GFP_KERNEL, NULL);
-	if (conn->rspqueue == ERR_PTR(-ENOMEM))
-		goto rspqueue_alloc_fault;
+	if (conn->writequeue == ERR_PTR(-ENOMEM))
+		goto writequeue_alloc_fault;
 
 	/* initialize general immediate PDU commands queue */
 	conn->immqueue = kfifo_alloc(session->imm_max * sizeof(void*),
@@ -1937,8 +1937,8 @@ max_recv_dlenght_alloc_fault:
 login_mtask_alloc_fault:
 	kfifo_free(conn->immqueue);
 immqueue_alloc_fault:
-	kfifo_free(conn->rspqueue);
-rspqueue_alloc_fault:
+	kfifo_free(conn->writequeue);
+writequeue_alloc_fault:
 	kfifo_free(conn->xmitqueue);
 xmitqueue_alloc_fault:
 	kfree(conn);
@@ -2009,7 +2009,7 @@ iscsi_conn_destroy(iscsi_cnx_h cnxh)
 	spin_unlock_bh(&session->lock);
 
 	kfifo_free(conn->xmitqueue);
-	kfifo_free(conn->rspqueue);
+	kfifo_free(conn->writequeue);
 	kfifo_free(conn->immqueue);
 
 	spin_lock_bh(&session->conn_lock);

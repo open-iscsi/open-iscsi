@@ -65,6 +65,7 @@
 #define IN_PROGRESS_BEGIN_WRITE_IMM	0x1000
 #define IN_PROGRESS_SOLICIT_DONE	0x2000
 #define IN_PROGRESS_UNSOLICIT_DONE	0x4000
+#define IN_PROGRESS_BEGIN_READ		0x8000
 
 #define ISCSI_DRV_VERSION	"0.1"
 #define ISCSI_DEFAULT_PORT	3260
@@ -137,7 +138,7 @@ struct iscsi_conn {
 	struct socket           *sock;          /* BSD socket layer */
 	struct iscsi_session	*session;	/* Parent session */
 	struct list_head	item;		/* item's list of connections */
-	struct kfifo		*rspqueue;	/* Write response xmit queue */
+	struct kfifo		*writequeue;	/* Write response xmit queue */
 	struct kfifo		*immqueue;	/* Immediate xmit queue */
 	struct kfifo		*xmitqueue;	/* Data-path queue */
 	struct work_struct	xmitwork;	/* per-conn. xmit workqueue */
