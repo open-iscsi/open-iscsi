@@ -217,7 +217,6 @@ struct iscsi_mgmt_task {
 	struct iscsi_buf sendbuf;		/* in progress buffer */
 	int		sent;
 	uint32_t	itt;			/* this ITT */
-	struct semaphore xmitsema;
 };
 
 union iscsi_union_task {
