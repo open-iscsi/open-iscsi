@@ -1,0 +1,147 @@
+/*
+ * iSCSI Initiator for Linux Kernel (iSCSI Control Path)
+ * Copyright (C) 2004 Dmitry Yusupov
+ * maintained by simple-iscsi-devel@lists.sourceforge.net
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published
+ * by the Free Software Foundation; either version 2 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
+ * General Public License for more details.
+ *
+ * See the file COPYING included with this distribution for more details.
+ */
+
+#ifndef ISCSI_IF_H
+#define ISCSI_IF_H
+
+#include <net/tcp.h>
+#include <iscsi.h>
+
+typedef void* iscsi_snx_h;		/* iSCSI Data-Path session handle */
+typedef void* iscsi_cnx_h;		/* iSCSI Data-Path connection handle */
+typedef void* iscsi_pdu_h;		/* iSCSI Control-Path PDU handle */
+
+typedef enum {
+	ISCSI_STATE_FREE	= 1,
+	ISCSI_STATE_LOGGED_IN	= 2,
+	ISCSI_STATE_FAILED	= 3,
+} iscsi_session_state_e;
+
+typedef enum {
+	ISCSI_PARAM_MAX_RECV_DLENGH	= 0,
+	ISCSI_PARAM_MAX_XMIT_DLENGH	= 1,
+	ISCSI_PARAM_HDRDGST_EN		= 2,
+	ISCSI_PARAM_DATADGST_EN		= 3,
+	ISCSI_PARAM_INITIAL_R2T_EN	= 4,
+	ISCSI_PARAM_MAX_R2T		= 5,
+	ISCSI_PARAM_IMM_DATA_EN		= 6,
+	ISCSI_PARAM_FIRST_BURST		= 7,
+	ISCSI_PARAM_MAX_BURST		= 8,
+	ISCSI_PARAM_PDU_INORDER_EN	= 9,
+	ISCSI_PARAM_DATASEQ_INORDER_EN	= 10,
+	ISCSI_PARAM_ERL			= 11,
+	ISCSI_PARAM_IFMARKER_EN		= 12,
+	ISCSI_PARAM_OFMARKER_EN		= 13,
+} iscsi_param_e;
+
+#define ISCSI_CTRL_ERR_BASE	100
+#define ISCSI_DP_ERR_BASE	1000
+
+typedef enum {
+	ISCSI_OK			= 0,
+
+	ISCSI_ERR_BAD_CNX		= ISCSI_CTRL_ERR_BASE + 1,
+
+	ISCSI_ERR_BAD_TARGET		= ISCSI_DP_ERR_BASE + 1,
+	ISCSI_ERR_DATASN		= ISCSI_DP_ERR_BASE + 2,
+	ISCSI_ERR_DATA_OFFSET		= ISCSI_DP_ERR_BASE + 3,
+	ISCSI_ERR_MAX_CMDSN		= ISCSI_DP_ERR_BASE + 4,
+	ISCSI_ERR_EXP_CMDSN		= ISCSI_DP_ERR_BASE + 5,
+	ISCSI_ERR_BAD_OPCODE		= ISCSI_DP_ERR_BASE + 6,
+	ISCSI_ERR_DATALEN		= ISCSI_DP_ERR_BASE + 7,
+	ISCSI_ERR_AHSLEN		= ISCSI_DP_ERR_BASE + 8,
+	ISCSI_ERR_PROTO			= ISCSI_DP_ERR_BASE + 9,
+	ISCSI_ERR_LUN			= ISCSI_DP_ERR_BASE + 10,
+	ISCSI_ERR_BAD_ITT		= ISCSI_DP_ERR_BASE + 11,
+	ISCSI_ERR_CNX_FAILED		= ISCSI_DP_ERR_BASE + 12,
+} iscsi_err_e;
+
+/*
+ * These flags presents iSCSI Data-Path capabilities.
+ */
+#define CAP_RECOVERY_L0		0x1
+#define CAP_RECOVERY_L1		0x2
+#define CAP_RECOVERY_L2		0x4
+#define CAP_MULTI_R2T		0x8
+#define CAP_HDRDGST		0x10
+#define CAP_DATADGST		0x20
+#define CAP_MULTI_CNX		0x40
+#define CAP_TEXT_NEGO		0x80
+
+typedef struct iscsi_caps {
+	int	flags;
+	int	max_cnx;
+} iscsi_caps_t;
+
+/**
+ * struct iscsi_ops
+ *
+ * @caps: iSCSI Data-Path capabilities
+ * @create_snx: create new iSCSI session object
+ * @destroy_snx: destroy existing iSCSI session object
+ * @create_cnx: create new iSCSI connection using specified transport
+ * @bind_cnx: associate this connection with existing iSCSI session
+ * @destroy_cnx: destroy inactive iSCSI connection
+ * @set_param: set iSCSI Data-Path operational parameter
+ * @start_cnx: set connection to be operational
+ * @stop_cnx: suspend connection
+ * @send_pdu: send iSCSI PDU, Login, Logout, NOP-Out, Reject, Text.
+ *
+ * API provided by generic iSCSI Data Path module
+ */
+typedef struct iscsi_ops {
+
+	iscsi_snx_h	(*create_session) (iscsi_snx_h cp_snx,
+					   int host_on,
+					   struct scsi_transport_template *tt,
+					   int initial_cmdsn);
+
+	void		(*destroy_session)(iscsi_snx_h dp_snx);
+
+	iscsi_cnx_h	(*create_cnx)	  (iscsi_snx_h dp_snx,
+					   iscsi_cnx_h cp_cnx,
+					   struct socket *sock,
+					   int cid);
+
+	int		(*bind_cnx)	  (iscsi_snx_h dp_snx,
+					   iscsi_cnx_h dp_cnx,
+					   int is_leading);
+
+	void		(*destroy_cnx)	  (iscsi_cnx_h dp_cnx);
+
+	void		(*set_param)	  (iscsi_cnx_h dp_cnx,
+					   iscsi_param_e param,
+					   int value);
+
+	int		(*start_cnx)	  (iscsi_cnx_h dp_cnx);
+
+	void		(*stop_cnx)	  (iscsi_cnx_h dp_cnx);
+
+	int		(*send_immpdu)	  (iscsi_cnx_h dp_cnx,
+					   iscsi_hdr_t *hdr,
+					   char *data);
+} iscsi_ops_t;
+
+int iscsi_control_recv_pdu(iscsi_cnx_h cp_cnx, iscsi_hdr_t *hdr, char *data);
+void iscsi_control_cnx_error(iscsi_cnx_h cp_cnx, int error);
+
+/* FIXME: generic register/unregister interface needed */
+extern int iscsi_tcp_register(iscsi_ops_t *ops, iscsi_caps_t *caps);
+extern void iscsi_tcp_unregister(void);
+
+#endif

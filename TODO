@@ -1,0 +1,30 @@
+* optimize queue->lock, use atomic operations if possible
+* do we need ctask->sg_count? can we use ctask->sg instead?
+* optimize HEAD + SENDBUF logic, no need to have two "if" statements:
+
+
+			}
+			ctask->r2t = r2t;
+			ctask->in_progress = IN_PROGRESS_SOLICIT_WRITE;
+			/* can  goto to fixme */
+		}
+
+		if (ctask->in_progress == IN_PROGRESS_SOLICIT_WRITE) {
+			r2t = ctask->r2t;
+_solicit_again:
+			/*
+			 * send Data-Out's payload whitnin this R2T sequence.
+			 */
+			if (r2t->data_count) {
+fixme:
+				len = r2t->sendbuf.size - r2t->sendbuf.sent;
+				if (len > r2t->data_count) {
+					len = r2t->data_count;
+
+* data_xmit(): recover sendpage() error.
+* make sense to split data_recv() and exctract data-in processing into
+  separated function. Call it from header processing context directly if
+  there is an iSCSI data and from data_recv() later on conn state machine
+  processing.
+* restructure header processing code into set of small functions.
+* prefetch in tcp_copy_bits().
