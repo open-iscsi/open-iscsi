@@ -445,6 +445,7 @@ main(int argc, char **argv)
 	}
 	strncpy(initiator_name, iname, TARGET_NAME_MAXLEN);
 
+	optopt = 0;
 	while ((ch = getopt_long(argc, argv, short_options,
 				 long_options, &longindex)) >= 0) {
 		switch (ch) {

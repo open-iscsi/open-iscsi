@@ -2,7 +2,7 @@
  * iSCSI Login Library
  *
  * Copyright (C) 2004 Dmitry Yusupov, Alex Aizman
- * maintained by open-iscsi@@googlegroups.com
+ * maintained by open-iscsi@googlegroups.com
  *
  * heavily based on code from iscsi-login.c:
  * Copyright (C) 2001 Cisco Systems, Inc.
