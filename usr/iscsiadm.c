@@ -72,6 +72,7 @@ static struct option const long_options[] =
 	{"help", no_argument, 0, 'h'},
 	{0, 0, 0, 0},
 };
+static char *short_options = "lVhm:p:d:r:n:v:o:t:u";
 
 static void usage(int status)
 {
@@ -389,6 +390,27 @@ iscsid_handle_error(int err)
 	log_error("iscsid reported error (%d - %s)", err, err_msgs[err]);
 }
 
+static int
+verify_mode_params(int argc, char **argv, char *allowed, int skip_m)
+{
+	int ch, longindex;
+	int ret = 0;
+
+	optind = 0;
+
+	while ((ch = getopt_long(argc, argv, short_options,
+				 long_options, &longindex)) >= 0) {
+		if (!strchr(allowed, ch)) {
+			if (ch == 'm' && skip_m)
+				continue;
+			ret = ch;
+			break;
+		}
+	}
+
+	return ret;
+}
+
 int
 main(int argc, char **argv)
 {
@@ -409,7 +431,7 @@ main(int argc, char **argv)
 	}
 	strncpy(initiator_name, iname, TARGET_NAME_MAXLEN);
 
-	while ((ch = getopt_long(argc, argv, "lVhm:p:d:r:n:v:o:t:u",
+	while ((ch = getopt_long(argc, argv, short_options,
 				 long_options, &longindex)) >= 0) {
 		switch (ch) {
 		case 't':
@@ -457,6 +479,9 @@ main(int argc, char **argv)
 		}
 	}
 
+	if (optopt)
+		return -1;
+
 	if (mode < 0) {
 		mode = MODE_SESSION;
 	}
@@ -467,6 +492,12 @@ main(int argc, char **argv)
 	}
 
 	if (mode == MODE_DISCOVERY) {
+		if ((rc = verify_mode_params(argc, argv, "mtplr", 0))) {
+			log_error("discovery mode: option '-%c' is not "
+				  "allowed/supported", rc);
+			rc = -1;
+			goto out;
+		}
 		if (type == DISCOVERY_TYPE_SENDTARGETS) {
 			struct iscsi_sendtargets_config cfg;
 
@@ -534,6 +565,12 @@ main(int argc, char **argv)
 			}
 		}
 	} else if (mode == MODE_NODE) {
+		if ((rc = verify_mode_params(argc, argv, "mlronvu", 0))) {
+			log_error("node mode: option '-%c' is not "
+				  "allowed/supported", rc);
+			rc = -1;
+			goto out;
+		}
 		if (rid >= 0) {
 			node_rec_t rec;
 
@@ -634,6 +671,12 @@ main(int argc, char **argv)
 			goto out;
 		}
 	} else if (mode == MODE_SESSION) {
+		if ((rc = verify_mode_params(argc, argv, "m", 1))) {
+			log_error("session mode: option '-%c' is not "
+				  "allowed or supported", rc);
+			rc = -1;
+			goto out;
+		}
 		printf("Active sessions:\n");
 		if ((rc = session_activelist(db)) < 0) {
 			log_error("can not get list of active sessions (%d)",
