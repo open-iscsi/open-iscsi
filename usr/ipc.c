@@ -115,8 +115,11 @@ ipc_session_logout(queue_task_t *qtask, int rid)
 	if ((rc = ipc_node_read(rid, &rec)))
 		return rc;
 
-	if ((session = session_find_by_rec(&rec)))
+	if (!(session = session_find_by_rec(&rec))) {
+		log_error("session with corresponding record [%06x] "
+			  "not found!", rid);
 		return IPC_ERR_NOT_FOUND;
+	}
 
 	return session_logout_task(session, qtask);
 }

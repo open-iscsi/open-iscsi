@@ -1139,6 +1139,8 @@ session_find_by_rec(node_rec_t *rec)
 	item = provider[0].sessions.q_forw;
 	while (item != &provider[0].sessions) {
 		session = (iscsi_session_t *)item;
+		log_debug(6, "looking for session with rec_id [%06x]...",
+			  session->nrec.id);
 		if (rec->id == session->nrec.id) {
 			return session;
 		}

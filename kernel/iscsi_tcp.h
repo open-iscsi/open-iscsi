@@ -98,7 +98,6 @@ typedef struct iscsi_queue {
 	int			cons;		/* Queue consumer pointer */
 	int			prod;		/* Queue producer pointer */
 	int			max;		/* Max number of elements */
-	spinlock_t		*lock;		/* Queue protection lock */
 } iscsi_queue_t;
 
 struct iscsi_session;
