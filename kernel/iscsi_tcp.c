@@ -1761,7 +1761,7 @@ iscsi_data_xmit(iscsi_conn_t *conn)
 static void
 iscsi_xmitworker(void *data)
 {
-	iscsi_conn_t *conn = (iscsi_conn_t*)data;
+	iscsi_conn_t *conn = data;
 
 	/*
 	 * We don't want to run this connection on any other CPU.

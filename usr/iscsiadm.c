@@ -46,6 +46,7 @@ char *initiator_alias = "temp.init.alias";
 enum iscsiadm_mode {
 	MODE_DISCOVERY,
 	MODE_NODE,
+	MODE_SESSION,
 };
 
 enum iscsiadm_op {
@@ -63,10 +64,10 @@ static struct option const long_options[] =
 	{"type", required_argument, 0, 't'},
 	{"name", required_argument, 0, 'n'},
 	{"value", required_argument, 0, 'v'},
-	{"record", no_argument, 0, 'r'},
+	{"record", required_argument, 0, 'r'},
 	{"login", no_argument, 0, 'l'},
 	{"logout", no_argument, 0, 'u'},
-	{"debug", required_argument, 0, 'd'},
+	{"debug", required_argument, 0, 'g'},
 	{"version", no_argument, 0, 'V'},
 	{"help", no_argument, 0, 'h'},
 	{0, 0, 0, 0},
@@ -106,6 +107,12 @@ iSCSI Administration Utility.\n\
                           [insert], [delete], [update] or [show]. In case of\n\
                           [update], you have to provide [name] and [value]\n\
                           you wish to update\n\
+  -m session              display all active sessions and connections\n\
+  -m session --record=[id[:cid]] [--login|--logout]\n\
+                          perform operation for specific session with\n\
+			  record [id] or display statistics if no operation\n\
+			  specified. Operation will affect one connection\n\
+			  only if [:cid] is specified\n\
   -d, --debug debuglevel  print debugging information\n\
   -V, --version           display version and exit\n\
   -h, --help              display this help and exit\n\
@@ -145,6 +152,8 @@ str_to_mode(char *str)
 		mode = MODE_DISCOVERY;
 	else if (!strcmp("node", str))
 		mode = MODE_NODE;
+	else if (!strcmp("session", str))
+		mode = MODE_SESSION;
 	else
 		mode = -1;
 
@@ -403,8 +412,7 @@ main(int argc, char **argv)
 	}
 
 	if (mode < 0) {
-		log_error("You must specify the mode!");
-		return -1;
+		mode = MODE_SESSION;
 	}
 
 	db = idbm_init(CONFIG_FILE);
@@ -507,17 +515,21 @@ main(int argc, char **argv)
 				}
 				goto out;
 			}
-			if (do_login && (rc = session_login(rid, &rec)) > 0) {
-				iscsid_handle_error(rc);
-				rc = -1;
+			if (do_login) {
+				if ((rc = session_login(rid, &rec)) > 0) {
+					iscsid_handle_error(rc);
+					rc = -1;
+				}
 				goto out;
 			}
-			if (do_logout && (rc = session_logout(rid, &rec)) > 0) {
-				iscsid_handle_error(rc);
-				rc = -1;
+			if (do_logout) {
+				if ((rc = session_logout(rid, &rec)) > 0) {
+					iscsid_handle_error(rc);
+					rc = -1;
+				}
 				goto out;
 			}
-			if (!do_login && !do_logout && op == OP_UPDATE) {
+			if (op == OP_UPDATE) {
 				if (!name || !value) {
 					log_error("update require name and "
 						  "value");
@@ -529,7 +541,7 @@ main(int argc, char **argv)
 					log_error("can not set parameter");
 					goto out;
 				}
-			} else if (!do_logout && !do_logout) {
+			} else {
 				log_error("operation is not supported.");
 				rc = -1;
 				goto out;
@@ -545,6 +557,11 @@ main(int argc, char **argv)
 			rc = -1;
 			goto out;
 		}
+	} else if (mode == MODE_SESSION) {
+		printf("Active sessions:\n");
+		log_error("operation is not supported.");
+		rc = -1;
+		goto out;
 	} else {
 		log_error("This mode is not yet supported");
 	}

@@ -722,8 +722,7 @@ idbm_node_update_param(recinfo_t *info, char *name, char *value,
 			continue;
 		if (!strcmp(name, info[i].name)) {
 			int j;
-			log_debug(7, "updated '%s', old value %s "
-				  "new value %s", name,
+			log_debug(7, "updated '%s', '%s' => '%s'", name,
 				  info[i].value, value);
 			/* parse recinfo by type */
 			if (info[i].type == TYPE_INT) {
