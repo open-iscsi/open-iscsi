@@ -115,6 +115,7 @@ struct iscsi_session_operational_config {
 	int MaxBurstLength;
 	int DefaultTime2Wait;
 	int DefaultTime2Retain;
+	int MaxConnections;
 };
 
 #define CONFIG_DIGEST_NEVER  0
@@ -123,7 +124,7 @@ struct iscsi_session_operational_config {
 #define CONFIG_DIGEST_PREFER_OFF 3
 
 struct iscsi_sendtargets_config {
-	char *address;
+	char address[16];
 	int port;
 	int continuous;
 	int send_async_text;
@@ -132,7 +133,7 @@ struct iscsi_sendtargets_config {
 };
 
 struct iscsi_slp_config {
-	char *address;		/* for unicast */
+	char address[16];		/* for unicast */
 	int port;		/* for unicast */
 	char *scopes;
 	char *interfaces;	/* for multicast, list of interfaces names,

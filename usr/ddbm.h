@@ -25,13 +25,12 @@
 #include <db.h>
 #include "initiator.h"
 #include "config.h"
-#include "strings.h"
 
 #define HASH_MAXLEN		48
 
 typedef enum iscsi_startup {
-	ISCSI_STARTUP_AUTOMATIC,
 	ISCSI_STARTUP_MANUAL,
+	ISCSI_STARTUP_AUTOMATIC,
 } iscsi_startup_e;
 
 typedef enum discovery_type {
@@ -41,16 +40,17 @@ typedef enum discovery_type {
 } discovery_type_e;
 
 typedef struct cnx_rec {
-	struct iscsi_tcp_config			cfg_tcp;
-	struct iscsi_connection_timeout_config	cfg_timeo;
-	struct iscsi_cnx_operational_config	cfg_iscsi;
+	iscsi_startup_e				startup;
+	struct iscsi_tcp_config			tcp;
+	struct iscsi_connection_timeout_config	timeo;
+	struct iscsi_cnx_operational_config	iscsi;
 } cnx_rec_t;
 
 typedef struct session_rec {
-	struct iscsi_auth_config		cfg_auth;
-	struct iscsi_session_timeout_config	cfg_timeo;
-	struct iscsi_error_timeout_config	cfg_err_timeo;
-	struct iscsi_session_operational_config	cfg_iscsi;
+	struct iscsi_auth_config		auth;
+	struct iscsi_session_timeout_config	timeo;
+	struct iscsi_error_timeout_config	err_timeo;
+	struct iscsi_session_operational_config	iscsi;
 } session_rec_t;
 
 typedef struct discovery_rec {
@@ -58,6 +58,7 @@ typedef struct discovery_rec {
 	char					address[16];
 	int					port;
 	int					tpgt;
+	int					active_cnx;
 	iscsi_startup_e				startup;
 	session_rec_t				session;
 	cnx_rec_t				cnx[ISCSI_CNX_MAX];
@@ -68,12 +69,11 @@ typedef struct discovery_rec {
 	} u;
 } discovery_rec_t;
 
-extern char* ddbm_hash(discovery_rec_t *rec);
 extern DBM* ddbm_open(char *filename, int flags);
-extern discovery_rec_t* ddbm_read(DBM *dbm, char *hash);
-extern int ddbm_write(DBM *dbm, discovery_rec_t *rec);
 extern void ddbm_close(DBM *dbm);
-extern void ddbm_delete(DBM *dbm, char *portal);
-extern int ddbm_update_info(DBM *dbm, struct string_buffer *info);
+extern void ddbm_print(DBM *dbm, int rec_id);
+extern int ddbm_update(DBM *dbm, discovery_rec_t *rec);
+extern int ddbm_update_info(DBM *dbm, char *ip, int port,
+			    discovery_type_e type, char *info);
 
 #endif /* DDB_H */

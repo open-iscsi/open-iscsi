@@ -44,21 +44,30 @@ char *initiator_name = "temp.init.name";
 char *initiator_alias = "temp.init.alias";
 
 enum iscsiadm_mode {
-	MODE_ADD,
-	MODE_DEL,
 	MODE_DISCOVERY,
 	MODE_SLP,
+	MODE_ISNS,
+	MODE_DB,
+};
+
+enum iscsiadm_op {
+	OP_INSERT,
+	OP_DELETE,
+	OP_UPDATE,
+	OP_SHOW,
 };
 
 static struct option const long_options[] =
 {
 	{"mode", required_argument, 0, 'm'},
 	{"portal", required_argument, 0, 'p'},
+	{"op", required_argument, 0, 'o'},
+	{"key", required_argument, 0, 'k'},
+	{"value", required_argument, 0, 'v'},
+	{"record", no_argument, 0, 'r'},
 	{"login", no_argument, 0, 'l'},
-	{"sid", required_argument, 0, 's'},
-	{"cid", required_argument, 0, 'c'},
 	{"debug", required_argument, 0, 'd'},
-	{"version", no_argument, 0, 'v'},
+	{"version", no_argument, 0, 'V'},
 	{"help", no_argument, 0, 'h'},
 	{0, 0, 0, 0},
 };
@@ -72,19 +81,21 @@ static void usage(int status)
 		printf("Usage: %s [OPTION]\n", program_name);
 		printf("\
 iSCSI Administration Utility.\n\
+\n\
   -m, --mode <op>         specify operational mode op = <add|del|discovery>\n\
   -m discovery --portal=[ip:port] --login\n\
                           'sendtargets' discovery for target portal with\n\
                           IP-address [ip] and port [port]. Initiate Login for\n\
                           each discovered target if --login is specified\n\
-  -m add --sid=[id]       add session with SID=[id]\n\
-  -m del --sid=[id]       delete session with SID=[id]\n\
-  -m add --cid=[sid:id]   add connection with CID=[id] to the existing\n\
-                          session with SID=[sid]\n\
-  -m del --cid=[sid:id]   delete connection with CID=[id] from existing\n\
-                          session with SID=[sid]\n\
+  -m db                   display all records from internal persistent\n\
+                          discovery database\n\
+  -m db --record=[id] --op=[op] [--key=[key] --value=[value]]\n\
+                          perform specific DB operation [op] for specific\n\
+                          record [id]. It could be one of:\n\
+                          [insert], [delete], [update] or [show]. In case of\n\
+                          [update], you have to provide [key] and [value]\n\
   -d, --debug debuglevel  print debugging information\n\
-  -v, --version           display version and exit\n\
+  -V, --version           display version and exit\n\
   -h, --help              display this help and exit\n");
 	}
 
@@ -92,35 +103,41 @@ iSCSI Administration Utility.\n\
 }
 
 static int
+str_to_op(char *str)
+{
+	int op;
+
+	if (!strcmp("insert", str))
+		op = OP_INSERT;
+	else if (!strcmp("delete", str))
+		op = OP_DELETE;
+	else if (!strcmp("update", str))
+		op = OP_UPDATE;
+	else if (!strcmp("show", str))
+		op = OP_SHOW;
+	else
+		op = -1;
+
+	return op;
+}
+
+static int
 str_to_mode(char *str)
 {
 	int mode;
 
-	if (!strcmp("add", str))
-		mode = MODE_ADD;
-	else if (!strcmp("del", str))
-		mode = MODE_DEL;
+	if (!strcmp("isns", str))
+		mode = MODE_ISNS;
+	else if (!strcmp("slp", str))
+		mode = MODE_SLP;
 	else if (!strcmp("discovery", str))
 		mode = MODE_DISCOVERY;
+	else if (!strcmp("db", str))
+		mode = MODE_DB;
 	else
 		mode = -1;
 
 	return mode;
-}
-
-static int
-str_to_cidsid(char *str, int *sid)
-{
-	char *psid;
-
-	if ((psid = strchr(str, ':'))) {
-		*psid = '\0';
-		psid++;
-		*sid = strtoul(psid, NULL, 10);
-		return strtoul(str, NULL, 10);
-	}
-
-	return -1;
 }
 
 static char*
@@ -138,6 +155,7 @@ str_to_ipport(char *str, int *port)
 	return NULL;
 }
 
+#if 0
 static int
 iscsid_connect(void)
 {
@@ -202,11 +220,9 @@ mode_sid_add(int sid)
 	}
 
 	memset(&req, 0, sizeof(req));
-#if 0
 	req.command = C_TARGET_ADD;
 	req.tid = tid;
 	strncpy(req.u.tadd.name, name, sizeof(req.u.tadd.name) - 1);
-#endif
 
 	if ((err = iscsid_request(fd, &req)) < 0)
 		goto out;
@@ -218,22 +234,35 @@ out:
 
 	return err;
 }
+#endif
 
 int
 main(int argc, char **argv)
 {
-	int ch, longindex, mode=-1, sid=-1, cid=-1, port=-1, do_login=0;
-	int rc = 0;
-	char *ip = NULL;
+	char *ip = NULL, *key = NULL, *value = NULL;
+	int ch, longindex, mode=-1, port=-1, do_login=0;
+	int rc=0, rid=-1, op=-1;
 	DBM *dbm;
 
 	/* enable stdout logging */
 	log_daemon = 0;
 	log_init(program_name);
 
-	while ((ch = getopt_long(argc, argv, "lv:h:m:s:p:d:",
+	while ((ch = getopt_long(argc, argv, "lv:h:m:p:d:r:k:v:o:",
 				 long_options, &longindex)) >= 0) {
 		switch (ch) {
+		case 'o':
+			op = str_to_op(optarg);
+			break;
+		case 'k':
+			key = optarg;
+			break;
+		case 'v':
+			value = optarg;
+			break;
+		case 'r':
+			rid = atoi(optarg);
+			break;
 		case 'l':
 			do_login = 1;
 			break;
@@ -243,16 +272,10 @@ main(int argc, char **argv)
 		case 'm':
 			mode = str_to_mode(optarg);
 			break;
-		case 'c':
-			cid = str_to_cidsid(optarg, &sid);
-			break;
 		case 'p':
 			ip = str_to_ipport(optarg, &port);
 			break;
-		case 's':
-			sid = strtoul(optarg, NULL, 10);
-			break;
-		case 'v':
+		case 'V':
 			printf("%s version %s\n", program_name,
 				ISCSI_VERSION_STR);
 			exit(0);
@@ -281,11 +304,11 @@ main(int argc, char **argv)
 			fprintf(stderr, "%s: can not parse portal '%s:%d'\n",
 				program_name, ip, port);
 			rc = -1;
-			goto err;
+			goto out;
 		}
 
 		/* FIXME: customize sendtargets */
-		cfg.address = ip;
+		strcpy(cfg.address, ip);
 		cfg.port = port;
 		cfg.continuous = 0;
 		cfg.send_async_text = 0;
@@ -308,17 +331,21 @@ main(int argc, char **argv)
 		 */
 		init_string_buffer(&info, 8 * 1024);
 		rc =  sendtargets_discovery(&cfg, &info);
-		ddbm_update_info(dbm, &info);
+		ddbm_update_info(dbm, ip, port, DISCOVERY_TYPE_SENDTARGETS,
+				 info.buffer);
 		truncate_buffer(&info, 0);
-		goto err;
+		goto out;
+	} else if (mode == MODE_DB) {
+		if (op == -1 || op == OP_SHOW) {
+			ddbm_print(dbm, rid);
+			goto out;
+		}
 	} else {
 		fprintf(stderr, "%s: This mode is not yet supported\n",
 			program_name);
 	}
 
-	return 0;
-
-err:
+out:
 	ddbm_close(dbm);
 	return rc;
 }
