@@ -113,7 +113,7 @@ typedef struct iscsi_login_context {
 struct iscsi_session;
 struct iscsi_conn;
 
-typedef int (*send_pdu_begin_f)(int ctrl_fd, struct iscsi_session *session,
+typedef void (*send_pdu_begin_f)(int ctrl_fd, struct iscsi_session *session,
 		struct iscsi_conn *conn, int hdr_size, int data_size);
 typedef int (*send_pdu_end_f)(int ctrl_fd, struct iscsi_session *session,
 		struct iscsi_conn *conn);
@@ -346,7 +346,7 @@ extern int ksession_cnx_create(int ctrl_fd, iscsi_session_t *session,
 extern int ksession_cnx_destroy(int ctrl_fd, iscsi_conn_t *conn);
 extern int ksession_cnx_bind(int ctrl_fd, iscsi_session_t *session,
 		iscsi_conn_t *conn);
-extern int ksession_send_pdu_begin(int ctrl_fd, iscsi_session_t *session,
+extern void ksession_send_pdu_begin(int ctrl_fd, iscsi_session_t *session,
 		iscsi_conn_t *conn, int hdr_size, int data_size);
 extern int ksession_send_pdu_end(int ctrl_fd, iscsi_session_t *session,
 		iscsi_conn_t *conn);

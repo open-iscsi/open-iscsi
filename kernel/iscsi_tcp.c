@@ -46,7 +46,7 @@ MODULE_DESCRIPTION("iSCSI/TCP data-path");
 MODULE_LICENSE("GPL");
 
 /* #define DEBUG_TCP */
-/* #define DEBUG_SCSI */
+#define DEBUG_SCSI
 #define DEBUG_ASSERT
 
 #ifdef DEBUG_TCP
@@ -1677,8 +1677,8 @@ iscsi_queuecommand(struct scsi_cmnd *sc, void (*done)(struct scsi_cmnd *))
 	sc->result = 0;
 
 	host = sc->device->host;
-	session = (struct iscsi_session*)host->hostdata;
-	BUG_ON(host->host_no != session->id);
+	session = iscsi_hostdata(host->hostdata);
+	BUG_ON(host != session->host);
 
 	spin_lock(&session->lock);
 
@@ -2524,30 +2524,17 @@ static struct scsi_host_template iscsi_sht = {
 };
 
 static iscsi_snx_t
-iscsi_session_create(iscsi_snx_t handle, uint32_t initial_cmdsn,
-		     uint32_t *host_no)
+iscsi_session_create(iscsi_snx_t handle, uint32_t initial_cmdsn, void *shost)
 {
 	int cmd_i;
 	struct iscsi_session *session;
-	struct Scsi_Host *host;
-	int res;
+	struct Scsi_Host *host = shost;
 
-	/* FIXME: verify "unique-ness" of the session's handle */
-
-	host = scsi_host_alloc(&iscsi_sht, sizeof(struct iscsi_session));
-	if (host == NULL) {
-		printk("iSCSI: can not allocate SCSI host for session %p\n",
-			iscsi_ptr(handle));
-		goto host_alloc_fault;
-	}
-	host->max_id = 1;
-	host->max_lun = 256;
-	host->max_channel = 0;
-	session = (struct iscsi_session *)host->hostdata;
-
+	session = iscsi_hostdata(host->hostdata);
 	memset(session, 0, sizeof(struct iscsi_session));
-	*host_no = session->id = host->host_no;
+
 	session->host = host;
+	session->id = host->host_no;
 	session->state = ISCSI_STATE_LOGGED_IN;
 	session->imm_max = ISCSI_IMM_CMDS_MAX;
 	session->cmds_max = ISCSI_XMIT_CMDS_MAX;
@@ -2584,12 +2571,6 @@ iscsi_session_create(iscsi_snx_t handle, uint32_t initial_cmdsn,
 	if (iscsi_r2tpool_alloc(session))
 		goto r2tpool_alloc_fault;
 
-	res = scsi_add_host(host, NULL);
-	if (res) {
-		printk("iSCSI: can not add host_no %d (%d)\n", *host_no, res);
-		goto add_host_fault;
-	}
-
 	if (!try_module_get(THIS_MODULE)) {
 		printk("iSCSI: can not reserve module\n");
 		goto module_get_fault;
@@ -2598,16 +2579,12 @@ iscsi_session_create(iscsi_snx_t handle, uint32_t initial_cmdsn,
 	return iscsi_handle(session);
 
 module_get_fault:
-add_host_fault:
 	iscsi_r2tpool_free(session);
 r2tpool_alloc_fault:
 	iscsi_pool_free(&session->immpool, (void**)session->imm_cmds);
 immpool_alloc_fault:
 	iscsi_pool_free(&session->cmdpool, (void**)session->cmds);
 cmdpool_alloc_fault:
-	scsi_host_put(host);
-host_alloc_fault:
-	*host_no = -1;
 	return iscsi_handle(NULL);
 }
 
@@ -2617,8 +2594,6 @@ iscsi_session_destroy(iscsi_snx_t snxh)
 	int cmd_i;
 	struct iscsi_data_task *dtask, *n;
 	struct iscsi_session *session = iscsi_ptr(snxh);
-
-	scsi_remove_host(session->host);
 
 	for (cmd_i = 0; cmd_i < session->cmds_max; cmd_i++) {
 		struct iscsi_cmd_task *ctask = session->cmds[cmd_i];
@@ -2636,7 +2611,6 @@ iscsi_session_destroy(iscsi_snx_t snxh)
 	iscsi_r2tpool_free(session);
 	iscsi_pool_free(&session->immpool, (void**)session->imm_cmds);
 	iscsi_pool_free(&session->cmdpool, (void**)session->cmds);
-	scsi_host_put(session->host);
 	module_put(THIS_MODULE);
 }
 
@@ -2759,6 +2733,9 @@ iscsi_set_param(iscsi_cnx_t cnxh, enum iscsi_param param, uint32_t value)
 struct iscsi_transport iscsi_tcp_transport = {
 	.name                   = "tcp",
 	.caps                   = CAP_RECOVERY_L0 | CAP_MULTI_R2T,
+	.host_template		= &iscsi_sht,
+	.hostdata_size		= sizeof(struct iscsi_session),
+	.max_lun		= ISCSI_TCP_MAX_LUN,
 	.create_session         = iscsi_session_create,
 	.destroy_session        = iscsi_session_destroy,
 	.create_cnx             = iscsi_conn_create,

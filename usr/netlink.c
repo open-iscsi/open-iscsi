@@ -37,6 +37,16 @@ static void *xmitbuf = NULL;
 static int xmitlen = 0;
 static void *recvbuf = NULL;
 static int recvlen = 0;
+static void *nlm_sendbuf;
+static void *nlm_recvbuf;
+static void *pdu_sendbuf;
+
+#define NLM_BUF_DEFAULT_MAX \
+	(NLMSG_SPACE(DEFAULT_MAX_RECV_DATA_SEGMENT_LENGTH + \
+			 sizeof(struct iscsi_hdr)))
+
+#define PDU_SENDBUF_DEFAULT_MAX \
+	(DEFAULT_MAX_RECV_DATA_SEGMENT_LENGTH + sizeof(struct iscsi_hdr))
 
 int
 ctldev_read(int ctrl_fd, char *data, int count)
@@ -74,10 +84,9 @@ nlpayload_read(int ctrl_fd, char *data, int count, int flags)
 	struct iovec iov;
 	struct msghdr msg;
 
-	iov.iov_base = calloc(1, NLMSG_SPACE(count));
-	if (!iov.iov_base)
-		return -ENOMEM;
+	iov.iov_base = nlm_recvbuf;
 	iov.iov_len = NLMSG_SPACE(count);
+	memset(iov.iov_base, 0, iov.iov_len);
 
 	memset(&msg, 0, sizeof(msg));
 	msg.msg_name= (void*)&src_addr;
@@ -85,11 +94,34 @@ nlpayload_read(int ctrl_fd, char *data, int count, int flags)
 	msg.msg_iov = &iov;
 	msg.msg_iovlen = 1;
 
+	/*
+	 * Netlink recvmsg call path:
+	 *
+	 *  - transport api callback
+	 *  - iscsi_control_cnx_error (should succeed)
+	 *  - iscsi_unicast_skb (must succeed)
+	 *  - netlink_unicast (must succeed)
+	 *  - netlink_data_ready (must succeed)
+	 *  - netlink_sendskb (must succeed)
+	 *  - netlink_recvmsg (must succeed)
+	 *  - sock_recvmsg (must succeed)
+	 *  - sys_recvmsg (must succeed)
+	 *  - sys_socketcall (must succeed)
+	 *  - syscall_call (must succeed)
+	 *
+	 *  Note1: "must succeed" means succeed unless bug in daemon.
+	 *        It also means - no sleep and memory allocation on
+	 *        the path.
+	 *
+	 *  Note2: "should succeed" means will succeed in most of cases
+	 *        because of mempool preallocation.
+	 *
+	 *  FIXME: if "Note2" than interface should generate iSCSI error
+	 *        level 0 on its own. Interface must always succeed on this.
+	 */
 	rc = recvmsg(ctrl_fd, &msg, flags);
 
 	memcpy(data, NLMSG_DATA(iov.iov_base), count);
-
-	free(iov.iov_base);
 
 	return rc;
 }
@@ -117,11 +149,9 @@ ctldev_writev(int ctrl_fd, enum iscsi_uevent_e type, struct iovec *iovp,
 		return datalen;
 	}
 
-	nlh = (struct nlmsghdr *)calloc(1, NLMSG_SPACE(datalen));
-	if (!nlh) {
-		log_error("could not allocate memory for NL message");
-		return -1;
-	}
+	nlh = nlm_sendbuf;
+	memset(nlh, 0, NLMSG_SPACE(datalen));
+
 	nlh->nlmsg_len = NLMSG_SPACE(datalen);
 	nlh->nlmsg_pid = getpid();
 	nlh->nlmsg_flags = 0;
@@ -142,12 +172,64 @@ ctldev_writev(int ctrl_fd, enum iscsi_uevent_e type, struct iovec *iovp,
 	msg.msg_iov = &iov;
 	msg.msg_iovlen = 1;
 
-	rc = sendmsg(ctrl_fd, &msg, 0);
+	do {
+		/*
+		 * Netlink down call path:
+		 *
+		 *  - transport api call
+		 *  - iscsi_if_recv_msg (must succeed)
+		 *  - iscsi_if_rx (must succeed)
+		 *  - netlink_data_ready (must succeed)
+		 *  - netlink_sendskb (must succeed)
+		 *  - netlink_sendmsg (alloc_skb() might fail)
+		 *  - sock_sendmsg (must succeed)
+		 *  - sys_sendmsg (must succeed)
+		 *  - sys_socketcall (must succeed)
+		 *  - syscall_call (must succeed)
+		 *
+		 *  Note1: "must succeed" means succeed unless bug in daemon.
+		 *        It also means - no sleep and memory allocation on
+		 *        the path.
+		 *
+		 *  Note2: netlink_sendmsg() might fail because of OOM. Since
+		 *         we are in user-space, we will sleep until we succeed.
+		 */
 
-	free(nlh);
+		rc = sendmsg(ctrl_fd, &msg, 0);
+		if (rc == -ENOMEM) {
+			log_debug(1, "sendmsg: alloc_skb() failed");
+			sleep(1);
+		} else if (rc < 0) {
+			log_error("sendmsg: bug? ctrl_fd %d", ctrl_fd);
+			exit(rc);
+		}
+	} while (rc < 0);
+
 	return rc;
 }
 
+/*
+ * __ksession_call() should never block. Therefore
+ * Netlink's xmit logic is serialized. This means we do not allocate on
+ * xmit path. Instead we reuse nlm_sendbuf buffer.
+ *
+ * Transport must assure non-blocking operations for:
+ *
+ *	- snx_create()
+ *	- cnx_create()
+ *	- cnx_bind()
+ *	_ set_param()
+ *	- cnx_start()
+ *	- cnx_stop()
+ *
+ * Its OK to block for cleanup for short period of time in operatations for:
+ *
+ *	- cnx_destroy()
+ *	- snx_destroy()
+ *
+ * FIXME: interface needs to be extended to allow longer blocking on
+ *        cleanup. (Dima)
+ */
 static int
 __ksession_call(int ctrl_fd, void *iov_base, int iov_len)
 {
@@ -159,9 +241,7 @@ __ksession_call(int ctrl_fd, void *iov_base, int iov_len)
 	iov.iov_base = iov_base;
 	iov.iov_len = iov_len;
 
-	if ((rc = ctldev_writev(ctrl_fd, type, &iov, 1)) < 0) {
-		return rc;
-	}
+	rc = ctldev_writev(ctrl_fd, type, &iov, 1);
 
 	do {
 		if ((rc = nlpayload_read(ctrl_fd, (void*)ev,
@@ -169,6 +249,16 @@ __ksession_call(int ctrl_fd, void *iov_base, int iov_len)
 			return rc;
 		}
 		if (ev->type != type) {
+			log_debug(1, "expecting event %d, got %d, handling...",
+				  type, ev->type);
+			if (ev->type == ISCSI_KEVENT_IF_ERROR) {
+				if ((rc = nlpayload_read(ctrl_fd, (void*)ev,
+							 sizeof(*ev), 0)) < 0) {
+					return rc;
+				}
+				log_error("received iferror %d", ev->iferror);
+				return ev->iferror;
+			}
 			/*
 			 * receive and queue async. event which as of
 			 * today could be:
@@ -228,6 +318,7 @@ ksession_destroy(int ctrl_fd, iscsi_session_t *session)
 	ev.type = ISCSI_UEVENT_DESTROY_SESSION;
 	ev.transport_id = 0; /* FIXME: hardcoded */
 	ev.u.d_session.session_handle = session->handle;
+	ev.u.d_session.sid = session->id;
 
 	if ((rc = __ksession_call(ctrl_fd, &ev, sizeof(ev))) < 0) {
 		log_error("can't destroy session with id = %d (%d)",
@@ -254,6 +345,7 @@ ksession_cnx_create(int ctrl_fd, iscsi_session_t *session, iscsi_conn_t *conn)
 	ev.u.c_cnx.session_handle = session->handle;
 	ev.u.c_cnx.cnx_handle = (ulong_t)conn;
 	ev.u.c_cnx.cid = conn->id;
+	ev.u.c_cnx.sid = session->id;
 
 	if ((rc = __ksession_call(ctrl_fd, &ev, sizeof(ev))) < 0) {
 		log_error("can't create cnx with id = %d (%d)",
@@ -280,6 +372,7 @@ ksession_cnx_destroy(int ctrl_fd, iscsi_conn_t *conn)
 	ev.type = ISCSI_UEVENT_DESTROY_CNX;
 	ev.transport_id = 0; /* FIXME: hardcoded */
 	ev.u.d_cnx.cnx_handle = conn->handle;
+	ev.u.d_cnx.cid = conn->id;
 
 	if ((rc = __ksession_call(ctrl_fd, &ev, sizeof(ev))) < 0) {
 		log_error("can't destroy cnx with id = %d (%d)",
@@ -323,22 +416,18 @@ ksession_cnx_bind(int ctrl_fd, iscsi_session_t *session, iscsi_conn_t *conn)
 	return ev.r.retcode;
 }
 
-int
-ksession_send_pdu_begin(int ctrl_fd, iscsi_session_t *session,
+void ksession_send_pdu_begin(int ctrl_fd, iscsi_session_t *session,
 			iscsi_conn_t *conn, int hdr_size, int data_size)
 {
 	struct iscsi_uevent *ev;
 
 	if (xmitbuf) {
 		log_error("send's begin state machine bug?");
-		return -EIO;
+		exit(-EIO);
 	}
 
-	xmitbuf = calloc(1, sizeof(*ev) + hdr_size + data_size);
-	if (!xmitbuf) {
-		log_error("can not allocate memory for xmitbuf");
-		return -ENOMEM;
-	}
+	xmitbuf = pdu_sendbuf;
+	memset(xmitbuf, 0, sizeof(*ev) + hdr_size + data_size);
 	xmitlen = sizeof(*ev);
 	ev = xmitbuf;
 	memset(ev, 0, sizeof(*ev));
@@ -350,8 +439,6 @@ ksession_send_pdu_begin(int ctrl_fd, iscsi_session_t *session,
 
 	log_debug(3, "send PDU began for hdr %d bytes and data %d bytes",
 		hdr_size, data_size);
-
-	return 0;
 }
 
 int
@@ -363,14 +450,12 @@ ksession_send_pdu_end(int ctrl_fd, iscsi_session_t *session, iscsi_conn_t *conn)
 
 	if (!xmitbuf) {
 		log_error("send's end state machine bug?");
-		return -EIO;
+		exit(-EIO);
 	}
 	ev = xmitbuf;
 	if (ev->u.send_pdu.cnx_handle != conn->handle) {
 		log_error("send's end state machine corruption?");
-		free(xmitbuf);
-		xmitbuf = NULL;
-		return -EIO;
+		exit(-EIO);
 	}
 
 	iov.iov_base = xmitbuf;
@@ -381,16 +466,13 @@ ksession_send_pdu_end(int ctrl_fd, iscsi_session_t *session, iscsi_conn_t *conn)
 	if (ev->r.retcode)
 		goto err;
 	if (ev->type != ISCSI_UEVENT_SEND_PDU) {
-		log_error("bad event?");
-		free(xmitbuf);
-		xmitbuf = NULL;
-		return -EIO;
+		log_error("bad event: bug on send_pdu_end?");
+		exit(-EIO);
 	}
 
 	log_debug(3, "send PDU finished for cnx (handle %p)",
 		(void*)conn->handle);
 
-	free(xmitbuf);
 	xmitbuf = NULL;
 	return 0;
 
@@ -398,7 +480,6 @@ err:
 	log_error("can't finish send PDU operation for cnx with "
 		  "id = %d (%d), retcode %d",
 		  conn->id, errno, ev->r.retcode);
-	free(xmitbuf);
 	xmitbuf = NULL;
 	xmitlen = 0;
 	return rc;
@@ -608,7 +689,30 @@ ctldev_handle(int ctrl_fd)
 
 int ctldev_open(void)
 {
-	int ctrl_fd = socket(PF_NETLINK, SOCK_RAW, NETLINK_ISCSI);
+	int ctrl_fd;
+
+	nlm_sendbuf = calloc(1, NLM_BUF_DEFAULT_MAX);
+	if (!nlm_sendbuf) {
+		log_error("can not allocate nlm_sendbuf");
+		return -1;
+	}
+
+	nlm_recvbuf = calloc(1, NLM_BUF_DEFAULT_MAX);
+	if (!nlm_recvbuf) {
+		free(nlm_sendbuf);
+		log_error("can not allocate nlm_recvbuf");
+		return -1;
+	}
+
+	pdu_sendbuf = calloc(1, PDU_SENDBUF_DEFAULT_MAX);
+	if (!pdu_sendbuf) {
+		free(nlm_recvbuf);
+		free(nlm_sendbuf);
+		log_error("can not allocate nlm_sendbuf");
+		return -1;
+	}
+
+	ctrl_fd = socket(PF_NETLINK, SOCK_RAW, NETLINK_ISCSI);
 	if (!ctrl_fd) {
 		log_error("can not create NETLINK_ISCSI socket");
 		return -1;
@@ -636,5 +740,8 @@ int ctldev_open(void)
 void
 ctldev_close(int ctrl_fd)
 {
+	free(pdu_sendbuf);
+	free(nlm_recvbuf);
+	free(nlm_sendbuf);
 	close(ctrl_fd);
 }

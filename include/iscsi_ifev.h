@@ -37,6 +37,7 @@ enum iscsi_uevent_e {
 	/* up events */
 	ISCSI_KEVENT_RECV_PDU		= KEVENT_BASE + 1,
 	ISCSI_KEVENT_CNX_ERROR		= KEVENT_BASE + 2,
+	ISCSI_KEVENT_IF_ERROR		= KEVENT_BASE + 3,
 };
 
 struct iscsi_uevent {
@@ -51,11 +52,13 @@ struct iscsi_uevent {
 		} c_session;
 		struct msg_destroy_session {
 			uint64_t	session_handle;
+			uint32_t	sid;
 		} d_session;
 		struct msg_create_cnx {
 			uint64_t	session_handle;
 			uint64_t	cnx_handle;
 			uint32_t	cid;
+			uint32_t	sid;
 		} c_cnx;
 		struct msg_bind_cnx {
 			uint64_t	session_handle;
@@ -65,6 +68,7 @@ struct iscsi_uevent {
 		} b_cnx;
 		struct msg_destroy_cnx {
 			uint64_t	cnx_handle;
+			uint32_t	cid;
 		} d_cnx;
 		struct msg_send_pdu {
 			uint32_t	hdr_size;
@@ -99,8 +103,11 @@ struct iscsi_uevent {
 		struct msg_cnx_error {
 			uint64_t	cnx_handle;
 			uint32_t	error; /* enum iscsi_err */
+			uint32_t	resource_error; /* NOMEM, NOBUFS */
 		} cnxerror;
 	} r;
+
+	uint32_t iferror;
 };
 
 #endif /* ISCSI_IFEV_H */

@@ -338,11 +338,8 @@ iscsi_send_pdu(iscsi_conn_t *conn, struct iscsi_hdr *hdr,
 		pad_bytes = 0;
 
 	if (conn->kernel_io) {
-		if (conn->send_pdu_begin(session->ctrl_fd, session, conn,
-			end - header, ntoh24(hdr->dlength) + pad_bytes)) {
-			ret = 0;
-			goto done;
-		}
+		conn->send_pdu_begin(session->ctrl_fd, session, conn,
+			end - header, ntoh24(hdr->dlength) + pad_bytes);
 		conn->send_pdu_timer_add(conn, timeout);
 	}
 

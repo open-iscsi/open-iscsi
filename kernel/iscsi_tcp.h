@@ -84,6 +84,7 @@
 #define ISCSI_IMM_ITT_OFFSET	0x1000
 #define ISCSI_SG_TABLESIZE	128
 #define ISCSI_CMD_PER_LUN	128
+#define ISCSI_TCP_MAX_LUN	256
 
 struct iscsi_queue {
 	struct kfifo		*queue;		/* FIFO Queue */

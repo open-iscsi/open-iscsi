@@ -71,12 +71,14 @@ enum iscsi_param {
 	ISCSI_PARAM_IFMARKER_EN		= 12,
 	ISCSI_PARAM_OFMARKER_EN		= 13,
 };
+#define ISCSI_PARAM_MAX			14
 
 typedef uint64_t iscsi_snx_t;		/* iSCSI Data-Path session handle */
 typedef uint64_t iscsi_cnx_t;		/* iSCSI Data-Path connection handle */
 
 #define iscsi_ptr(_handle) ((void*)(unsigned long)_handle)
 #define iscsi_handle(_ptr) ((uint64_t)(unsigned long)_ptr)
+#define iscsi_hostdata(_hostdata) ((void*)_hostdata + sizeof(unsigned long))
 
 /*
  * These flags presents iSCSI Data-Path capabilities.
@@ -116,11 +118,14 @@ typedef uint64_t iscsi_cnx_t;		/* iSCSI Data-Path connection handle */
  * API provided by generic iSCSI Data Path module
  */
 struct iscsi_transport {
-	char            *name;
-	unsigned int    caps;
-	unsigned int    max_cnx;
+	char				*name;
+	unsigned int			caps;
+	struct scsi_host_template	*host_template;
+	int				hostdata_size;
+	int				max_lun;
+	unsigned int			max_cnx;
 	iscsi_snx_t (*create_session) (iscsi_snx_t cp_snx,
-			uint32_t initial_cmdsn, uint32_t *sid);
+			uint32_t initial_cmdsn, void *shost);
 	void (*destroy_session) (iscsi_snx_t dp_snx);
 	iscsi_cnx_t (*create_cnx) (iscsi_snx_t dp_snx, iscsi_cnx_t cp_cnx,
 			uint32_t cid);
