@@ -1,22 +1,36 @@
+
 Introduction
 -------------
-Open iSCSI Projects is a high performance, transport independent,
-multi-platform implementation of iSCSI protocol (RFC3720).
+Open-iSCSI project is a high-performance, transport independent,
+multi-platform implementation of RFC3720 iSCSI.
 
-The Open-iSCSI is a from-scratch project licensed under GPL.
+Open-iSCSI is partitioned into user and kernel parts.
+
+The kernel portion of Open-iSCSI is a from-scratch code
+licensed under GPL. The kernel part implements iSCSI data path
+(that is: iSCSI Read and iSCSI Write), and consists of two
+loadable modules: iscsi_if.ko and iscsi_tcp.ko.
+
+User space contains the entire control plane: configuration
+manager, iSCSI Discovery, Login and Logout processing,
+connection-level error processing, Nop-In and Nop-Out handling,
+and (in the future:) Text processing, iSNS, SLP, Radius, etc.
+
+The user space Open-iSCSI consists of a daemon process called
+iscsid and a management utility iscsiadm.
+
 
 Installation
 -------------
 As of today, the Open-iSCSI Initiator requires a host running the
-Linux operating system with a kernel version of 2.6.9. You need to
+Linux operating system with kernel version 2.6.9, or later. You need to
 enable "Cryptographic API" under "Cryptographic options" in the
 kernel config. You also need to enable "CRC32c CRC algorithm" if
 you use header or data digests. They are the kernel options,
 CONFIG_CRYPTO and CONFIG_CRYPTO_CRC32C, respectively.
 
-The Open-iSCSI Initiator consists of kernel modules, a user space
-daemon and management tools. The compilation of the kernel modules
-require the path to above kernel sources:
+Compilation of the kernel Opne-iSCSI modules requires a path
+to kernel sources:
 
 	make KSRC=<kernel-src>
 
@@ -24,52 +38,29 @@ or cross-compilation:
 
 	make KSRC=<kernel-src> KARCH="ARCH=um"
 
-Configuration
--------------
-The default configuration file is /etc/iscsid.conf. This file contains
-only default configuration which might be overwritten with Discovery
-or manualy updated via iscsiadm utility.
 
-See the man page and the example file for the current syntax.
-(no man page yet...)
-
-Starting
--------------
-
-Right now there is no installation script. Just load the module with
-command:
-
-	insmod iscsi_if.ko
-	insmod iscsi_tcp.ko
-
-iSCSI Daemon:
-
+Open-iSCSI daemon
+-----------------
 	./iscsid --help
+
 Usage: iscsid [OPTION]
-Open-iSCSI initiator daemon.
+
   -c, --config=[path]     Execute in the config file (/etc/iscsid.conf).
-  -f, --foreground        make the program run in the foreground
+  -f, --foreground        run iscsid in the foreground
   -d, --debug debuglevel  print debugging information
   -u, --uid=uid           run as uid, default is current user
   -g, --gid=gid           run as gid, default is current user group
   -h, --help              display this help and exit
   -v, --version           display version and exit
 
-after that start daemon:
 
-	iscsid
 
-or start it with full debug enabled and with output on current console:
-
-	iscsid -d8 -f &
-
-and use administration utility to add/remove/update Discovery records,
-iSCSI Node records or monitor active iSCSI sessions:
+Open-iSCSI Administration Utility
+---------------------------------
 
 	./iscsiadm --help
 
 Usage: iscsiadm [OPTION]
-iSCSI Administration Utility.
 
   -m, --mode <op>         specify operational mode op = <discovery|node>
   -m discovery --type=[type] --portal=[ip:port] --login
@@ -106,29 +97,64 @@ iSCSI Administration Utility.
   -h, --help              display this help and exit
 
 
-Example on using administration utility for:
+    Usage Examples:
 
-1) SendTargets iSCSI Discovery:
+    1) SendTargets iSCSI Discovery:
 
-	./iscsiadm -m discovery --type sendtargets --portal 192.168.1.1:3260
+	    ./iscsiadm -m discovery --type sendtargets --portal 192.168.1.1:3260
 
-2) iSCSI Login:
+    2) iSCSI Login:
 
-	./iscsiadm -m node --record 0f23e4 --login
+	    ./iscsiadm -m node --record 0f23e4 --login
 
-3) iSCSI Logout:
+    3) iSCSI Logout:
 
-	./iscsiadm -m node --record 0f23e4 --logout
+	    ./iscsiadm -m node --record 0f23e4 --logout
 
-4) Changing iSCSI parameter:
+    4) Changing iSCSI parameter:
 
-	./iscsiadm -m node --record 0f23e4 --op update \
-		-n node.cnx[0].iscsi.MaxRecvDataSegmentLength -v 65536
+	    ./iscsiadm -m node --record 0f23e4 --op update \
+		    -n node.cnx[0].iscsi.MaxRecvDataSegmentLength -v 65536
 
-5) Adding custom iSCSI Node:
+    5) Adding custom iSCSI Node:
 
-	./iscsiadm -m node --op new --portal 192.168.0.1:3260
-	new iSCSI node record added: [0a45f8]
+	    ./iscsiadm -m node --op new --portal 192.168.0.1:3260
+	    new iSCSI node record added: [0a45f8]
 
-This file is not complete. We will appreciate if one could help us to
-finilize it! Thanks a lot!
+
+
+Configuration
+-------------
+The default configuration file is /etc/iscsid.conf. This file contains
+only configuration that could be overwritten by iSCSI Discovery,
+or manualy updated via iscsiadm utility.
+
+See the man page and the example file for the current syntax.
+(no man page yet...)
+
+
+Getting Started
+---------------
+Right now there is no installation script. Just load the module with
+command:
+
+	insmod iscsi_if.ko
+	insmod iscsi_tcp.ko
+
+after that start iSCSI daemon process:
+
+	iscsid
+
+or alrenatively, start it with debug enabled and with output
+redirected to the current console:
+
+	iscsid -d8 -f &
+
+and use administration utility to add/remove/update Discovery records,
+iSCSI Node records or monitor active iSCSI sessions:
+
+
+TBD
+---
+
+This file is incomplete.
