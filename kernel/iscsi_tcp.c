@@ -373,8 +373,8 @@ iscsi_solicit_data_init(struct iscsi_conn *conn, struct iscsi_cmd_task *ctask,
 
 	if (sc->use_sg) {
 		int i, sg_count = 0;
-		struct scatterlist *sg = (struct scatterlist *)
-			sc->request_buffer;
+		struct scatterlist *sg = sc->request_buffer;
+
 		r2t->sg = NULL;
 		for (i = 0; i < sc->use_sg; i++, sg += 1) {
 			/* FIXME: prefetch ? */
@@ -1256,8 +1256,8 @@ iscsi_cmd_init(struct iscsi_conn *conn, struct iscsi_cmd_task *ctask,
 		ctask->in_progress = IN_PROGRESS_WRITE;
 		BUG_ON(ctask->total_length == 0);
 		if (sc->use_sg) {
-			struct scatterlist *sg = (struct scatterlist *)
-							sc->request_buffer;
+			struct scatterlist *sg = sc->request_buffer;
+
 			iscsi_buf_init_sg(&ctask->sendbuf, &sg[0]);
 			ctask->sg = sg + 1;
 			ctask->bad_sg = sg + sc->use_sg;
