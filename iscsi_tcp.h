@@ -47,7 +47,7 @@
 
 /* Socket's Xmit state machine */
 #define IN_PROGRESS_XMIT_IMM		0x0
-#define IN_PROGRESS_XMIT_DATA		0x1
+#define IN_PROGRESS_XMIT_SCSI		0x1
 
 /* iSCSI Task Command's state machine */
 #define IN_PROGRESS_OP_MASK		0x3	/* READ | WRITE */

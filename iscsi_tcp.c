@@ -1348,16 +1348,216 @@ iscsi_mtask_xmit(iscsi_conn_t *conn, iscsi_mgmt_task_t *mtask)
 	return 0;
 }
 
+/*
+ * iscsi_ctask_xmit - xmit SCSI command task
+ *
+ * The function can return -EAGAIN in which case caller must
+ * call it again later or recover. '0' return code means successful
+ * xmit.
+ */
+static int
+iscsi_ctask_xmit(iscsi_conn_t *conn, iscsi_cmd_task_t *ctask)
+{
+	iscsi_session_t *session = conn->session;
+	iscsi_r2t_info_t *r2t;
+
+	if (ctask->in_progress & IN_PROGRESS_HEAD) {
+		if (iscsi_sendhdr(conn, &ctask->headbuf)) {
+			return -EAGAIN;
+		}
+		if (ctask->hdr.flags & ISCSI_FLAG_CMD_READ) {
+			/* wait for DATA_RSP */
+			return 0;
+		}
+	}
+
+	if (ctask->in_progress & IN_PROGRESS_BEGIN_WRITE) {
+		if (session->imm_data_en) {
+_imm_again:
+			__BUG_ON(!ctask->imm_count);
+			if (iscsi_sendpage(conn, &ctask->sendbuf,
+					   &ctask->imm_count,
+					   &ctask->sent)) {
+				return -EAGAIN;
+			}
+			if (ctask->imm_count) {
+				iscsi_buf_init_sg(&ctask->sendbuf,
+					 &ctask->sg[ctask->sg_count++]);
+				goto _imm_again;
+			}
+			if (!session->initial_r2t_en) {
+				if (ctask->data_pdu_count) {
+					ctask->in_progress =
+					    IN_PROGRESS_WRITE |
+					    IN_PROGRESS_UNSOLICIT_HEAD;
+					iscsi_unsolicit_data_init(conn, ctask);
+				} else {
+					ctask->in_progress =
+					    IN_PROGRESS_WRITE |
+					    IN_PROGRESS_R2T_WAIT;
+					return 0;
+				}
+			} else if (session->initial_r2t_en &&
+				   ctask->data_count) {
+				ctask->in_progress = IN_PROGRESS_WRITE |
+						     IN_PROGRESS_R2T_WAIT;
+				return 0;
+			}
+		} else {
+			printk("iSCSI: not implemented\n");
+			__BUG_ON(1);
+		}
+	}
+
+	if (ctask->in_progress & IN_PROGRESS_UNSOLICIT_HEAD) {
+		if (iscsi_sendhdr(conn, &ctask->headbuf)) {
+			return -EAGAIN;
+		}
+		ctask->in_progress = IN_PROGRESS_WRITE |
+				     IN_PROGRESS_UNSOLICIT_WRITE;
+	}
+
+_unsolicit_again:
+	if (ctask->in_progress & IN_PROGRESS_UNSOLICIT_WRITE) {
+		if (ctask->data_count) {
+			if (iscsi_sendpage(conn, &ctask->sendbuf,
+					   &ctask->data_count,
+					   &ctask->sent)) {
+				return -EAGAIN;
+			}
+			if (ctask->data_count) {
+				iscsi_buf_init_sg(&ctask->sendbuf,
+					 &ctask->sg[ctask->sg_count++]);
+				goto _unsolicit_again;
+			}
+		}
+		ctask->in_progress = IN_PROGRESS_IDLE;
+		return 0;
+	}
+
+	if (ctask->in_progress & IN_PROGRESS_SOLICIT_HEAD) {
+		r2t = iscsi_dequeue(&ctask->r2tqueue);
+_solicit_head_again:
+		__BUG_ON(r2t == NULL);
+		if (r2t->cont_bit) {
+			/*
+			 * we failed to fill-in Data-Out last time
+			 * due to memory allocation failure most likely
+			 * try it again until we succeed. Once we
+			 * succeed, reset cont_bit.
+			 */
+			if (iscsi_solicit_data_cont(conn, ctask, r2t,
+				r2t->data_length - r2t->sent)) {
+				iscsi_insert(&ctask->r2tqueue, r2t);
+				return -EAGAIN;
+			}
+			r2t->cont_bit = 0;
+		}
+		if (iscsi_sendhdr(conn, &r2t->headbuf)) {
+			iscsi_insert(&ctask->r2tqueue, r2t);
+			return -EAGAIN;
+		}
+		ctask->r2t = r2t;
+		ctask->in_progress = IN_PROGRESS_WRITE |
+				     IN_PROGRESS_SOLICIT_WRITE;
+	}
+
+	if (ctask->in_progress & IN_PROGRESS_SOLICIT_WRITE) {
+		int left;
+		r2t = ctask->r2t;
+_solicit_again:
+		/*
+		 * send Data-Out's payload whitnin this R2T sequence.
+		 */
+		if (r2t->data_count) {
+			if (iscsi_sendpage(conn, &r2t->sendbuf,
+					   &r2t->data_count,
+					   &r2t->sent)) {
+				return -EAGAIN;
+			}
+			if (r2t->data_count) {
+				__BUG_ON(ctask->bad_sg == r2t->sg);
+				__BUG_ON(ctask->sc->use_sg == 0);
+				iscsi_buf_init_sg(&r2t->sendbuf, r2t->sg);
+				r2t->sg += 1;
+				goto _solicit_again;
+			}
+		}
+
+		/*
+		 * done with Data-Out's payload. Check if we have
+		 * to send another Data-Out whithin this R2T sequence.
+		 */
+		left = r2t->data_length - r2t->sent;
+		if (left) {
+			if (iscsi_solicit_data_cont(conn,
+					    ctask, r2t, left)) {
+				r2t->cont_bit = 1;
+				iscsi_insert(&ctask->r2tqueue, r2t);
+				ctask->in_progress = IN_PROGRESS_WRITE |
+						     IN_PROGRESS_SOLICIT_HEAD;
+				return -EAGAIN;
+			}
+			ctask->in_progress = IN_PROGRESS_WRITE |
+					     IN_PROGRESS_SOLICIT_HEAD;
+			goto _solicit_head_again;
+		}
+
+		/*
+		 * done with this R2T sequence. Check if we have
+		 * more outstanding R2T's ready to send.
+		 */
+		ctask->data_count -= r2t->data_length;
+		iscsi_enqueue(&ctask->r2tpool, r2t);
+		if ((r2t = iscsi_dequeue(&ctask->r2tqueue))) {
+			ctask->in_progress = IN_PROGRESS_WRITE |
+					     IN_PROGRESS_SOLICIT_HEAD;
+			goto _solicit_head_again;
+		} else {
+			if (ctask->data_count) {
+				ctask->in_progress = IN_PROGRESS_WRITE |
+						     IN_PROGRESS_R2T_WAIT;
+			}
+		}
+		return 0;
+	}
+
+	return 0;
+}
+
+/*
+ * iscsi_data_xmit - xmit any command into the scheduled connection
+ *
+ * The function can return -EAGAIN in which case caller must
+ * re-schedule it again later or recover. '0' return code means successful
+ * xmit.
+ *
+ * Common data xmit state machine consists of two states:
+ *	IN_PROGRESS_XMIT_IMM - xmit of Immediate PDU in progress
+ *	IN_PROGRESS_XMIT_SCSI - xmit of SCSI command PDU in progress
+ */
 static int
 iscsi_data_xmit(iscsi_conn_t *conn)
 {
 	iscsi_cmd_task_t *ctask;
 	iscsi_mgmt_task_t *mtask;
-	iscsi_session_t *session = conn->session;
+
+	/* process non-immediate(command) queue */
+	while (conn->in_progress_xmit == IN_PROGRESS_XMIT_SCSI &&
+	       (ctask = iscsi_dequeue(&conn->xmitqueue)) != NULL) {
+
+		if (iscsi_ctask_xmit(conn, ctask)) {
+			iscsi_insert(&conn->xmitqueue, ctask);
+			return -EAGAIN;
+		}
+	}
 
 	/* process immediate queue */
-	while (conn->in_progress_xmit == IN_PROGRESS_XMIT_IMM &&
-	       (mtask = iscsi_dequeue(&conn->immqueue)) != NULL) {
+	while ((mtask = iscsi_dequeue(&conn->immqueue)) != NULL) {
+		iscsi_session_t *session = conn->session;
+
+		conn->in_progress_xmit = IN_PROGRESS_XMIT_IMM;
+
 		if (iscsi_mtask_xmit(conn, mtask)) {
 			iscsi_insert(&conn->immqueue, mtask);
 			return -EAGAIN;
@@ -1365,186 +1565,7 @@ iscsi_data_xmit(iscsi_conn_t *conn)
 		iscsi_enqueue(&session->immpool, mtask);
 	}
 
-	/* process non-immediate queue */
-	while ((ctask = iscsi_dequeue(&conn->xmitqueue)) != NULL) {
-		iscsi_r2t_info_t *r2t;
-
-		conn->in_progress_xmit = IN_PROGRESS_XMIT_DATA;
-
-		if (ctask->in_progress & IN_PROGRESS_HEAD) {
-			if (iscsi_sendhdr(conn, &ctask->headbuf)) {
-				iscsi_insert(&conn->xmitqueue, ctask);
-				return -EAGAIN;
-			}
-			if (ctask->hdr.flags & ISCSI_FLAG_CMD_READ) {
-				/* wait for DATA_RSP */
-				continue;
-			}
-		}
-
-		if (ctask->in_progress & IN_PROGRESS_BEGIN_WRITE) {
-			if (session->imm_data_en) {
-_imm_again:
-				__BUG_ON(!ctask->imm_count);
-				if (iscsi_sendpage(conn, &ctask->sendbuf,
-						   &ctask->imm_count,
-						   &ctask->sent)) {
-					iscsi_insert(&conn->xmitqueue, ctask);
-					return -EAGAIN;
-				}
-				if (ctask->imm_count) {
-					iscsi_buf_init_sg(&ctask->sendbuf,
-						 &ctask->sg[ctask->sg_count++]);
-					goto _imm_again;
-				}
-				if (!session->initial_r2t_en) {
-					if (ctask->data_pdu_count) {
-						ctask->in_progress =
-						    IN_PROGRESS_WRITE |
-						    IN_PROGRESS_UNSOLICIT_HEAD;
-						iscsi_unsolicit_data_init(
-								conn, ctask);
-					} else {
-						ctask->in_progress =
-						    IN_PROGRESS_WRITE |
-						    IN_PROGRESS_R2T_WAIT;
-						continue;
-					}
-				} else if (session->initial_r2t_en &&
-					   ctask->data_count) {
-					ctask->in_progress =
-							IN_PROGRESS_WRITE |
-							IN_PROGRESS_R2T_WAIT;
-					continue;
-				}
-			} else {
-				printk("iSCSI: not implemented\n");
-				__BUG_ON(1);
-			}
-		}
-
-		if (ctask->in_progress & IN_PROGRESS_UNSOLICIT_HEAD) {
-			if (iscsi_sendhdr(conn, &ctask->headbuf)) {
-				iscsi_insert(&conn->xmitqueue, ctask);
-				return -EAGAIN;
-			}
-			ctask->in_progress = IN_PROGRESS_WRITE |
-					     IN_PROGRESS_UNSOLICIT_WRITE;
-		}
-
-_unsolicit_again:
-		if (ctask->in_progress & IN_PROGRESS_UNSOLICIT_WRITE) {
-			if (ctask->data_count) {
-				if (iscsi_sendpage(conn, &ctask->sendbuf,
-						   &ctask->data_count,
-						   &ctask->sent)) {
-					iscsi_insert(&conn->xmitqueue, ctask);
-					return -EAGAIN;
-				}
-				if (ctask->data_count) {
-					iscsi_buf_init_sg(&ctask->sendbuf,
-						 &ctask->sg[ctask->sg_count++]);
-					goto _unsolicit_again;
-				}
-			}
-			ctask->in_progress = IN_PROGRESS_IDLE;
-			continue;
-		}
-
-		if (ctask->in_progress & IN_PROGRESS_SOLICIT_HEAD) {
-			r2t = iscsi_dequeue(&ctask->r2tqueue);
-_solicit_head_again:
-			__BUG_ON(r2t == NULL);
-			if (r2t->cont_bit) {
-				/*
-				 * we failed to fill-in Data-Out last time
-				 * due to memory allocation failure most likely
-				 * try it again until we succeed. Once we
-				 * succeed, reset cont_bit.
-				 */
-				if (iscsi_solicit_data_cont(conn, ctask, r2t,
-					r2t->data_length - r2t->sent)) {
-					iscsi_insert(&ctask->r2tqueue, r2t);
-					return -EAGAIN;
-				}
-				r2t->cont_bit = 0;
-			}
-			if (iscsi_sendhdr(conn, &r2t->headbuf)) {
-				iscsi_insert(&ctask->r2tqueue, r2t);
-				iscsi_insert(&conn->xmitqueue, ctask);
-				return -EAGAIN;
-			}
-			ctask->r2t = r2t;
-			ctask->in_progress = IN_PROGRESS_WRITE |
-					     IN_PROGRESS_SOLICIT_WRITE;
-		}
-
-		if (ctask->in_progress & IN_PROGRESS_SOLICIT_WRITE) {
-			int left;
-			r2t = ctask->r2t;
-_solicit_again:
-			/*
-			 * send Data-Out's payload whitnin this R2T sequence.
-			 */
-			if (r2t->data_count) {
-				if (iscsi_sendpage(conn, &r2t->sendbuf,
-						   &r2t->data_count,
-						   &r2t->sent)) {
-					iscsi_insert(&conn->xmitqueue, ctask);
-					return -EAGAIN;
-				}
-				if (r2t->data_count) {
-					__BUG_ON(ctask->bad_sg == r2t->sg);
-					__BUG_ON(ctask->sc->use_sg == 0);
-					iscsi_buf_init_sg(&r2t->sendbuf,
-							  r2t->sg);
-					r2t->sg += 1;
-					goto _solicit_again;
-				}
-			}
-
-			/*
-			 * done with Data-Out's payload. Check if we have
-			 * to send another Data-Out whithin this R2T sequence.
-			 */
-			left = r2t->data_length - r2t->sent;
-			if (left) {
-				if (iscsi_solicit_data_cont(conn,
-						    ctask, r2t, left)) {
-					r2t->cont_bit = 1;
-					iscsi_insert(&ctask->r2tqueue, r2t);
-					ctask->in_progress =
-						IN_PROGRESS_WRITE |
-						IN_PROGRESS_SOLICIT_HEAD;
-					return -EAGAIN;
-				}
-				ctask->in_progress = IN_PROGRESS_WRITE |
-						     IN_PROGRESS_SOLICIT_HEAD;
-				goto _solicit_head_again;
-			}
-
-			/*
-			 * done with this R2T sequence. Check if we have
-			 * more outstanding R2T's ready to send.
-			 */
-			ctask->data_count -= r2t->data_length;
-			iscsi_enqueue(&ctask->r2tpool, r2t);
-			if ((r2t = iscsi_dequeue(&ctask->r2tqueue))) {
-				ctask->in_progress = IN_PROGRESS_WRITE |
-						     IN_PROGRESS_SOLICIT_HEAD;
-				goto _solicit_head_again;
-			} else {
-                                if (ctask->data_count) {
-                                        ctask->in_progress =
-						IN_PROGRESS_WRITE |
-                                                IN_PROGRESS_R2T_WAIT;
-                                }
-			}
-			continue;
-		}
-	}
-
-	conn->in_progress_xmit = IN_PROGRESS_XMIT_IMM;
+	conn->in_progress_xmit = IN_PROGRESS_XMIT_SCSI;
 
 	return 0;
 }
@@ -1865,7 +1886,7 @@ iscsi_conn_create(iscsi_snx_h snxh, iscsi_cnx_h handle,
 
 	conn->c_stage = ISCSI_CNX_INITIAL_STAGE;
 	conn->in_progress = IN_PROGRESS_WAIT_HEADER;
-	conn->in_progress_xmit = IN_PROGRESS_XMIT_IMM;
+	conn->in_progress_xmit = IN_PROGRESS_XMIT_SCSI;
 	conn->id = conn_idx;
 	conn->exp_statsn = 0;
 	conn->handle = handle;
