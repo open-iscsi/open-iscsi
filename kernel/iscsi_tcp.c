@@ -1273,8 +1273,9 @@ iscsi_cmd_init(struct iscsi_conn *conn, struct iscsi_cmd_task *ctask,
 		if (sc->use_sg) {
 			struct scatterlist *sg = sc->request_buffer;
 
-			iscsi_buf_init_sg(&ctask->sendbuf, &sg[0]);
-			ctask->sg = sg + 1;
+			iscsi_buf_init_sg(&ctask->sendbuf,
+					  &sg[ctask->sg_count++]);
+			ctask->sg = sg;
 			ctask->bad_sg = sg + sc->use_sg;
 		} else {
 			iscsi_buf_init_virt(&ctask->sendbuf, sc->request_buffer,
