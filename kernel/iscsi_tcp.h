@@ -268,7 +268,7 @@ struct iscsi_cmd_task {
 
 	struct iscsi_r2t_info	*r2t;			/* in progress R2T */
 	struct iscsi_queue	r2tpool;
-	struct iscsi_queue	r2tqueue;
+	struct kfifo		*r2tqueue;
 	struct iscsi_r2t_info	**r2ts;
 	struct list_head	dataqueue;		/* Data-Out dataqueue */
 	mempool_t		*datapool;

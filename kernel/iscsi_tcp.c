@@ -108,23 +108,6 @@ __dequeue(struct iscsi_queue *queue)
 	return data;
 }
 
-/*
- * Get/Read first element from the queue but do not remove it.
- *
- * Returns void* or NULL on empty queue
- */
-static void*
-__getqueue(struct iscsi_queue *queue)
-{
-	if (queue->cons == queue->prod) {
-		return NULL;
-	}
-	if (queue->cons == queue->max) {
-		return queue->pool[0];
-	}
-	return queue->pool[queue->cons];
-}
-
 static inline void
 iscsi_buf_init_virt(struct iscsi_buf *ibuf, char *vbuf, int size)
 {
@@ -528,8 +511,8 @@ iscsi_r2t_rsp(struct iscsi_conn *conn, struct iscsi_cmd_task *ctask)
 	ctask->exp_r2tsn = r2tsn + 1;
 	ctask->in_progress = IN_PROGRESS_WRITE |
 			     IN_PROGRESS_SOLICIT_HEAD;
-	__enqueue(&ctask->r2tqueue, r2t);
 	__kfifo_put(conn->rspqueue, (void*)&ctask, sizeof(void*));
+	__kfifo_put(ctask->r2tqueue, (void*)&r2t, sizeof(void*));
 
 	schedule_work(&conn->xmitwork);
 
@@ -1458,7 +1441,7 @@ iscsi_mtask_xmit(struct iscsi_conn *conn, struct iscsi_mgmt_task *mtask)
 static int
 iscsi_ctask_xmit(struct iscsi_conn *conn, struct iscsi_cmd_task *ctask)
 {
-	struct iscsi_r2t_info *r2t;
+	struct iscsi_r2t_info *r2t = NULL;
 
 	debug_scsi("ctask deq [cid %d state %x itt 0x%x]\n",
 		conn->id, ctask->in_progress, ctask->itt);
@@ -1571,7 +1554,7 @@ _unsolicit_head_again:
 	}
 
 	if (ctask->in_progress & IN_PROGRESS_SOLICIT_HEAD) {
-		r2t = __getqueue(&ctask->r2tqueue);
+		__kfifo_get(ctask->r2tqueue, (void*)&r2t, sizeof(void*));
 _solicit_head_again:
 		BUG_ON(r2t == NULL);
 		if (r2t->cont_bit) {
@@ -1644,10 +1627,9 @@ _solicit_again:
 		BUG_ON(ctask->r2t_data_count - r2t->data_length < 0);
 		ctask->r2t_data_count -= r2t->data_length;
 		spin_lock_bh(&conn->lock);
-		__dequeue(&ctask->r2tqueue);
 		__enqueue(&ctask->r2tpool, r2t);
 		spin_unlock_bh(&conn->lock);
-		if ((r2t = __getqueue(&ctask->r2tqueue))) {
+		if (__kfifo_get(ctask->r2tqueue, (void*)&r2t, sizeof(void*))) {
 			ctask->in_progress = IN_PROGRESS_WRITE |
 					     IN_PROGRESS_SOLICIT_HEAD;
 			goto _solicit_head_again;
@@ -1891,20 +1873,6 @@ iscsi_eh_abort(struct scsi_cmnd *sc)
 		return FAILED;
 	}
 	return SUCCESS;
-}
-
-static int
-iscsi_queue_init(struct iscsi_queue *q, int max)
-{
-	q->max = max;
-	q->pool = kmalloc(max * sizeof(void*), GFP_KERNEL);
-	if (q->pool == NULL) {
-		return -ENOMEM;
-	}
-	/* queue's pool is empty initially */
-	q->cons = 0;
-	q->prod = 0;
-	return 0;
 }
 
 static int
@@ -2327,7 +2295,7 @@ iscsi_r2tpool_free(struct iscsi_session *session)
 
 	for (i = 0; i < session->cmds_max; i++) {
 		mempool_destroy(session->cmds[i]->datapool);
-		kfree(session->cmds[i]->r2tqueue.pool);
+		kfifo_free(session->cmds[i]->r2tqueue);
 		iscsi_pool_free(&session->cmds[i]->r2tpool,
 				(void**)session->cmds[i]->r2ts);
 	}
@@ -2351,7 +2319,9 @@ iscsi_r2tpool_alloc(struct iscsi_session *session)
 		}
 
 		/* now initialize per-task R2T queue */
-		if (iscsi_queue_init(&ctask->r2tqueue, session->max_r2t)) {
+		ctask->r2tqueue = kfifo_alloc(session->max_r2t * sizeof(void*),
+						GFP_KERNEL, NULL);
+		if (ctask->r2tqueue == ERR_PTR(-ENOMEM)) {
 			iscsi_pool_free(&ctask->r2tpool, (void**)ctask->r2ts);
 			goto r2t_alloc_fault;
 		}
@@ -2366,7 +2336,7 @@ iscsi_r2tpool_alloc(struct iscsi_session *session)
 						 mempool_free_slab,
 						 taskcache);
 		if (ctask->datapool == NULL) {
-			kfree(ctask->r2tqueue.pool);
+			kfifo_free(ctask->r2tqueue);
 			iscsi_pool_free(&ctask->r2tpool, (void**)ctask->r2ts);
 			goto r2t_alloc_fault;
 		}
@@ -2378,7 +2348,7 @@ iscsi_r2tpool_alloc(struct iscsi_session *session)
 r2t_alloc_fault:
 	for (i = 0; i < cmd_i; i++) {
 		mempool_destroy(session->cmds[i]->datapool);
-		kfree(session->cmds[i]->r2tqueue.pool);
+		kfifo_free(session->cmds[i]->r2tqueue);
 		iscsi_pool_free(&session->cmds[i]->r2tpool,
 				(void**)session->cmds[i]->r2ts);
 	}
@@ -2574,6 +2544,10 @@ iscsi_set_param(iscsi_cnx_h cnxh, iscsi_param_e param, uint32_t value)
 			break;
 		case ISCSI_PARAM_MAX_R2T:
 			session->max_r2t = value;
+			if (session->max_r2t & (session->max_r2t - 1)) {
+				session->max_r2t =
+					roundup_pow_of_two(session->max_r2t);
+			}
 			iscsi_r2tpool_free(session);
 			if (iscsi_r2tpool_alloc(session)) {
 				return -ENOMEM;
