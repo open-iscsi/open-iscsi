@@ -2516,7 +2516,7 @@ iscsi_r2tpool_free(struct iscsi_session *session)
 
 static struct scsi_host_template iscsi_sht = {
 	.name			= "iSCSI Initiator over TCP/IP, v."
-				  ISCSI_DRV_VERSION,
+				  ISCSI_VERSION_STR,
         .queuecommand           = iscsi_queuecommand,
 	.can_queue		= ISCSI_XMIT_CMDS_MAX - 1,
 	.sg_tablesize		= ISCSI_SG_TABLESIZE,
@@ -2741,6 +2741,7 @@ struct iscsi_transport iscsi_tcp_transport = {
 	.host_template		= &iscsi_sht,
 	.hostdata_size		= sizeof(struct iscsi_session),
 	.max_lun		= ISCSI_TCP_MAX_LUN,
+	.max_cmd_len		= ISCSI_TCP_MAX_CMD_LEN,
 	.create_session         = iscsi_session_create,
 	.destroy_session        = iscsi_session_destroy,
 	.create_cnx             = iscsi_conn_create,

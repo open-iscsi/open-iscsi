@@ -65,7 +65,6 @@
 #define	XMSTATE_SOL_HDR			0x80
 #define	XMSTATE_SOL_DATA		0x100
 
-#define ISCSI_DRV_VERSION	"0.1"
 #define ISCSI_DEFAULT_PORT	3260
 #define ISCSI_STRING_MAX	255
 #define ISCSI_NODE_NAME_MAX	255
@@ -85,6 +84,7 @@
 #define ISCSI_SG_TABLESIZE	128
 #define ISCSI_CMD_PER_LUN	128
 #define ISCSI_TCP_MAX_LUN	256
+#define ISCSI_TCP_MAX_CMD_LEN	16
 
 struct iscsi_queue {
 	struct kfifo		*queue;		/* FIFO Queue */

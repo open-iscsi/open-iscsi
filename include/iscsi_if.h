@@ -124,6 +124,7 @@ struct iscsi_transport {
 	int				hostdata_size;
 	int				max_lun;
 	unsigned int			max_cnx;
+	unsigned int			max_cmd_len;
 	iscsi_snx_t (*create_session) (iscsi_snx_t cp_snx,
 			uint32_t initial_cmdsn, void *shost);
 	void (*destroy_session) (iscsi_snx_t dp_snx);

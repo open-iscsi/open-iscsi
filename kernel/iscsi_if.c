@@ -326,6 +326,7 @@ iscsi_if_create_snx(struct iscsi_transport *transport, struct iscsi_uevent *ev)
 	host->max_id = 1;
 	host->max_channel = 0;
 	host->max_lun = transport->max_lun;
+	host->max_cmd_len = transport->max_cmd_len;
 
 	/* store transport_id in hostdata */
 	*(uint32_t*)host->hostdata = ev->transport_id;
