@@ -1131,7 +1131,7 @@ sendtargets_discovery(struct iscsi_sendtargets_config *config,
 	/* setup authentication variables for the session*/
 	rc = setup_authentication(session, config);
 	if (rc == 0)
-		return 0;
+		return 1;
 
 set_address:
 	/*
@@ -1191,7 +1191,7 @@ reconnect:
 		 */
 		goto set_address;
 	}
-	log_warning("Connected to Discovery Address %u.%u.%u.%u",
+	log_debug(1, "Connected to Discovery Address %u.%u.%u.%u",
 	       session->ip_address[0], session->ip_address[1],
 	       session->ip_address[2], session->ip_address[3]);
 
@@ -1228,7 +1228,7 @@ reconnect:
 		       session->ip_address[0], session->ip_address[1],
 		       session->ip_address[2], session->ip_address[3]);
 		iscsi_disconnect(session);
-		return 0;
+		return 1;
 	}
 
 	/* check the login status */
@@ -1287,7 +1287,7 @@ reconnect:
 		       session->ip_address[2], session->ip_address[3],
 		       status_class, status_detail);
 		iscsi_disconnect(session);
-		return 0;
+		return 1;
 	case ISCSI_STATUS_CLS_TARGET_ERR:
 		/* FIXME: IPv6 */
 		log_error(
@@ -1357,7 +1357,7 @@ reconnect:
 			       "logout, connection timer expired",
 			       config->address, config->port);
 			iscsi_logout_and_disconnect(session);
-			return 0;
+			return 1;
 		}
 	}
 
@@ -1469,7 +1469,7 @@ reconnect:
 					       config->address,
 					       config->port);
 					iscsi_disconnect(session);
-					return 0;
+					return 1;
 				}
 			}
 		}
@@ -1486,7 +1486,7 @@ reconnect:
 				       "terminating after hangup",
 				       config->address, config->port);
 				iscsi_disconnect(session);
-				return 0;
+				return 1;
 			}
 		}
 
@@ -1511,7 +1511,6 @@ reconnect:
 			}
 		} else {
 			log_error("poll error");
-			sleep(5);
 			return 1;
 		}
 	}

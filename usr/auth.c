@@ -31,8 +31,8 @@
 
 #include "auth.h"
 #include "initiator.h"
-#include "md5.h"	
-#include "log.h"	
+#include "md5.h"
+#include "log.h"
 
 static const char acl_hexstring[] = "0123456789abcdefABCDEF";
 static const char acl_base64_string[] =
@@ -303,10 +303,10 @@ static int
 acl_str_index(const char *s, int c)
 {
 	char *str = strchr(s, c);
-	
+
 	if (str)
 		return (str - s);
-	else 
+	else
 		return -1;
 }
 
@@ -683,7 +683,7 @@ acl_set_key(struct iscsi_acl *client, int key_type, unsigned int option_count,
 			strlcat(client->scratch_key_value, ",",
 				   AUTH_STR_MAX_LEN);
 			strlcat(client->scratch_key_value, s,
-			  	   AUTH_STR_MAX_LEN);
+				   AUTH_STR_MAX_LEN);
 		}
 	}
 
@@ -737,7 +737,7 @@ acl_chk_chap_alg_key(struct iscsi_acl *client)
 
 		if (acl_text_to_number(client->scratch_key_value, &number))
 			continue;
-		
+
 
 		for (i = 0; i < client->chap_alg_count; i++)
 			if (number == (unsigned long)client->chap_alg_list[i])
@@ -1209,7 +1209,7 @@ acl_rcv_end_status(struct iscsi_acl *client)
 
 	} else
 		auth_status = AUTH_STATUS_CONTINUE;
-	
+
 	if (auth_status == AUTH_STATUS_CONTINUE ||
 	    auth_status == AUTH_STATUS_PASS) {
 		if (client->send_key_block.dup_set) {

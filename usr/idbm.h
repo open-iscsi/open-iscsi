@@ -41,6 +41,8 @@ typedef enum discovery_type {
 
 typedef struct cnx_rec {
 	iscsi_startup_e				startup;
+	char					address[16];
+	int					port;
 	struct iscsi_tcp_config			tcp;
 	struct iscsi_connection_timeout_config	timeo;
 	struct iscsi_cnx_operational_config	iscsi;
@@ -54,9 +56,8 @@ typedef struct session_rec {
 } session_rec_t;
 
 typedef struct node_rec {
-	char					nodename[TARGET_NAME_MAXLEN];
-	char					address[16];
-	int					port;
+	int					id;
+	char					name[TARGET_NAME_MAXLEN];
 	int					tpgt;
 	int					active_cnx;
 	iscsi_startup_e				startup;
@@ -65,6 +66,7 @@ typedef struct node_rec {
 } node_rec_t;
 
 typedef struct discovery_rec {
+	int					id;
 	iscsi_startup_e				startup;
 	discovery_type_e			type;
 	union {
@@ -76,9 +78,9 @@ typedef struct discovery_rec {
 #define TYPE_INT	0
 #define TYPE_INT_O	1
 #define TYPE_STR	2
-#define MAX_KEYS	48
-#define NAME_MAXVAL	64
-#define VALUE_MAXVAL	128
+#define MAX_KEYS	256
+#define NAME_MAXVAL	128
+#define VALUE_MAXVAL	256
 #define OPTS_MAXVAL	32
 typedef struct recinfo {
 	int		type;
@@ -96,17 +98,26 @@ typedef struct idbm {
 	char		*configfile;
 	node_rec_t	nrec;
 	recinfo_t	ninfo[MAX_KEYS];
-	discovery_rec_t	drec;
-	recinfo_t	dinfo[MAX_KEYS];
+	discovery_rec_t	drec_st;
+	recinfo_t	dinfo_st[MAX_KEYS];
+	discovery_rec_t	drec_slp;
+	recinfo_t	dinfo_slp[MAX_KEYS];
+	discovery_rec_t	drec_isns;
+	recinfo_t	dinfo_isns[MAX_KEYS];
 } idbm_t;
 
 extern idbm_t* idbm_init(char *configfile);
 extern void idbm_terminate(idbm_t *db);
-extern void idbm_print_node(idbm_t *db, int rec_id);
-extern void idbm_update_node(idbm_t *db, node_rec_t *rec);
-extern void idbm_print_discovery(idbm_t *db, int rec_id);
-extern int idbm_update_discovery(idbm_t *db, discovery_rec_t *newrec);
-extern int idbm_new_discovery(idbm_t *db, char *ip, int port,
+extern int idbm_print_node(idbm_t *db, int rec_id);
+extern int idbm_print_nodes(idbm_t *db, discovery_rec_t *rec);
+extern int idbm_print_discovery(idbm_t *db, int rec_id);
+extern int idbm_add_node(idbm_t *db, discovery_rec_t *drec, node_rec_t *newrec);
+extern int idbm_add_discovery(idbm_t *db, discovery_rec_t *newrec);
+extern discovery_rec_t* idbm_new_discovery(idbm_t *db, char *ip, int port,
 			    discovery_type_e type, char *info);
+extern void idbm_sendtargets_defaults(idbm_t *db,
+		      struct iscsi_sendtargets_config *cfg);
+extern void idbm_slp_defaults(idbm_t *db, struct iscsi_slp_config *cfg);
+extern int idbm_discovery_read(idbm_t *db, int rec_id, discovery_rec_t *rec);
 
 #endif /* IDBM_H */
