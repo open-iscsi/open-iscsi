@@ -278,13 +278,13 @@ iscsi_tcp_state_change(struct sock *sk)
 	if (sk->sk_state == TCP_CLOSE_WAIT ||
 	    sk->sk_state == TCP_CLOSE) {
 		debug_tcp("iscsi_tcp_state_change: TCP_CLOSE\n");
-		spin_lock(&session->lock);
 		conn->c_stage = ISCSI_CNX_CLEANUP_WAIT;
+		spin_lock_bh(&session->conn_lock);
 		if (session->conn_cnt == 1 ||
 		    session->leadconn == conn) {
 			session->state = ISCSI_STATE_FAILED;
 		}
-		spin_unlock(&session->lock);
+		spin_unlock_bh(&session->conn_lock);
 		iscsi_control_cnx_error(conn->handle, ISCSI_ERR_CNX_FAILED);
 	}
 	conn->old_state_change(sk);
@@ -826,7 +826,8 @@ iscsi_cmd_init(iscsi_conn_t *conn, iscsi_cmd_task_t *ctask,
 		ctask->r2t_data_count = ctask->total_length -
 				    ctask->imm_count -
 				    ctask->imm_data_count;
-		debug_scsi("itt %x total %d imm %d imm_data %d r2t_data %d\n",
+		debug_scsi("cmd [itt %x total %d imm %d imm_data %d "
+			   "r2t_data %d]\n",
 			   ctask->itt, ctask->total_length, ctask->imm_count,
 			   ctask->imm_data_count, ctask->r2t_data_count);
 	} else {
@@ -1131,11 +1132,11 @@ iscsi_data_recv(iscsi_conn_t *conn)
 
 	    /* check for nonexceptional status */
 	    if (conn->in.flags & ISCSI_FLAG_DATA_STATUS) {
-		debug_scsi("done [sc %lx res %d itt 0x%x]\n",
-			   (long)sc, sc->result, ctask->itt);
-		iscsi_ctask_cleanup(conn, ctask);
-		sc->result = conn->in.cmd_status;
-		sc->scsi_done(sc);
+		    debug_scsi("done [sc %lx res %d itt 0x%x]\n",
+			       (long)sc, sc->result, ctask->itt);
+		    iscsi_ctask_cleanup(conn, ctask);
+		    sc->result = conn->in.cmd_status;
+		    sc->scsi_done(sc);
 	    }
 	}
 	break;
@@ -1421,6 +1422,10 @@ iscsi_data_rsp(iscsi_conn_t *conn, iscsi_cmd_task_t *ctask)
 static int
 iscsi_mtask_xmit(iscsi_conn_t *conn, iscsi_mgmt_task_t *mtask)
 {
+
+	debug_scsi("mtask deq [cid %d state %x itt 0x%x]\n",
+		conn->id, mtask->in_progress, mtask->itt);
+
 	if (mtask->in_progress & IN_PROGRESS_IMM_HEAD) {
 		if (iscsi_sendhdr(conn, &mtask->headbuf)) {
 			return -EAGAIN;
@@ -1463,7 +1468,7 @@ iscsi_ctask_xmit(iscsi_conn_t *conn, iscsi_cmd_task_t *ctask)
 {
 	iscsi_r2t_info_t *r2t;
 
-	debug_scsi("dequeued [cid %d state %x itt 0x%x]\n",
+	debug_scsi("ctask deq [cid %d state %x itt 0x%x]\n",
 		conn->id, ctask->in_progress, ctask->itt);
 
 	/*
@@ -1795,7 +1800,8 @@ iscsi_queuecommand(struct scsi_cmnd *sc, void (*done)(struct scsi_cmnd *))
 		goto fault_nolock;
 	}
 
-	spin_lock(&session->lock);
+	spin_lock_bh(&session->lock);
+	spin_unlock_irq(host->host_lock);
 
 	if (host->host_no != session->id) {
 		reason = FAILURE_BAD_SESSID;
@@ -1824,7 +1830,7 @@ iscsi_queuecommand(struct scsi_cmnd *sc, void (*done)(struct scsi_cmnd *))
 	if (session->conn_cnt > 1) {
 		int cpu = smp_processor_id();
 
-		spin_lock(&session->conn_lock);
+		spin_lock_bh(&session->conn_lock);
 		list_for_each(lh, &session->connections) {
 			iscsi_conn_t *cnx;
 
@@ -1841,7 +1847,7 @@ iscsi_queuecommand(struct scsi_cmnd *sc, void (*done)(struct scsi_cmnd *))
 				break;
 			}
 		}
-		spin_unlock(&session->conn_lock);
+		spin_unlock_bh(&session->conn_lock);
 		if (conn == NULL)
 			conn = session->leadconn;
 	} else {
@@ -1854,9 +1860,9 @@ iscsi_queuecommand(struct scsi_cmnd *sc, void (*done)(struct scsi_cmnd *))
 	sc->SCp.ptr = (char*)ctask;
 	iscsi_cmd_init(conn, ctask, sc);
 
-	spin_lock(&conn->lock);
+	spin_lock_bh(&conn->lock);
 	__enqueue(&conn->xmitqueue, ctask);
-	spin_unlock(&conn->lock);
+	spin_unlock_bh(&conn->lock);
 	debug_scsi(
 		"queued [%s cid %d sc %lx itt 0x%x len %d cmdsn %d win %d]\n",
 		sc->sc_data_direction == DMA_TO_DEVICE ? "write" : "read",
@@ -1865,16 +1871,19 @@ iscsi_queuecommand(struct scsi_cmnd *sc, void (*done)(struct scsi_cmnd *))
 
 	schedule_work(&conn->xmitwork);
 
-	spin_unlock(&session->lock);
+	spin_unlock_bh(&session->lock);
+	spin_lock_irq(host->host_lock);
 	return 0;
 
 reject:
-	spin_unlock(&session->lock);
+	spin_unlock_bh(&session->lock);
+	spin_lock_irq(host->host_lock);
 	debug_scsi("cmd 0x%x rejected (%d)\n", sc->cmnd[0], reason);
 	return SCSI_MLQUEUE_HOST_BUSY;
 
 fault:
-	spin_unlock(&session->lock);
+	spin_unlock_bh(&session->lock);
+	spin_lock_irq(host->host_lock);
 fault_nolock:
 	printk("iSCSI: cmd 0x%x is not queued (%d)\n", sc->cmnd[0], reason);
 	sc->sense_buffer[0] = 0x70;
@@ -2600,7 +2609,8 @@ iscsi_set_param(iscsi_cnx_h cnxh, iscsi_param_e param, int value)
 		}
 		break;
 		case ISCSI_PARAM_MAX_XMIT_DLENGTH:
-			conn->max_xmit_dlength = value;
+			//conn->max_xmit_dlength = value;
+			conn->max_xmit_dlength = conn->max_recv_dlength;
 			break;
 		case ISCSI_PARAM_HDRDGST_EN:
 			conn->hdrdgst_en = value;
