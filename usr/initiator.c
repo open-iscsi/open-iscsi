@@ -596,8 +596,10 @@ __session_cnx_recv_pdu(queue_item_t *item)
 static void
 __session_cnx_poll(queue_item_t *item)
 {
+	ipc_err_e err = IPC_OK;
 	queue_task_t *qtask = item->context;
 	iscsi_conn_t *conn = qtask->conn;
+	iscsi_login_context_t *c = &conn->login_context;
 	iscsi_session_t *session = conn->session;
 	int rc;
 
@@ -608,7 +610,6 @@ __session_cnx_poll(queue_item_t *item)
 			queue_produce(session->queue, EV_CNX_POLL, qtask, 0, 0);
 			actor_schedule(&session->mainloop);
 		} else if (rc > 0) {
-			iscsi_login_context_t *c = &conn->login_context;
 
 			/* connected! */
 
@@ -618,23 +619,20 @@ __session_cnx_poll(queue_item_t *item)
 
 			if (conn->id == 0 && ksession_create(session->ctrl_fd,
 							session)) {
-				__session_ipc_login_cleanup(qtask,
-						IPC_ERR_INTERNAL);
-				return;
+				err = IPC_ERR_INTERNAL;
+				goto cleanup;
 			}
 
 			if (ksession_cnx_create(session->ctrl_fd, session,
 							conn)) {
-				__session_ipc_login_cleanup(qtask,
-						IPC_ERR_INTERNAL);
-				return;
+				err = IPC_ERR_INTERNAL;
+				goto s_cleanup;
 			}
 
 			if (ksession_cnx_bind(session->ctrl_fd, session,
 							conn)) {
-				__session_ipc_login_cleanup(qtask,
-						IPC_ERR_INTERNAL);
-				return;
+				err = IPC_ERR_INTERNAL;
+				goto c_cleanup;
 			}
 
 			conn->kernel_io = 1;
@@ -648,33 +646,46 @@ __session_cnx_poll(queue_item_t *item)
 			c->buffer = calloc(1,
 					DEFAULT_MAX_RECV_DATA_SEGMENT_LENGTH);
 			if (!c->buffer) {
-				log_error("failed to allocate recv "
+				log_error("failed to aallocate recv "
 					  "data buffer");
-				__session_ipc_login_cleanup(qtask,
-						IPC_ERR_NOMEM);
-				return;
+				err = IPC_ERR_NOMEM;
+				goto c_cleanup;
 			}
 			c->bufsize = DEFAULT_MAX_RECV_DATA_SEGMENT_LENGTH;
 
 			if (iscsi_login_begin(session, c)) {
-				__session_ipc_login_cleanup(qtask,
-						IPC_ERR_LOGIN_FAILURE);
-				return;
+				err = IPC_ERR_LOGIN_FAILURE;
+				goto mem_cleanup;
 			}
 
 			conn->state = STATE_IN_LOGIN;
 			if (iscsi_login_req(session, c)) {
-				__session_ipc_login_cleanup(qtask,
-						IPC_ERR_LOGIN_FAILURE);
-				return;
+				err = IPC_ERR_LOGIN_FAILURE;
+				goto mem_cleanup;
 			}
 		} else {
 			actor_delete(&conn->connect_timer);
 			/* error during connect */
-			__session_ipc_login_cleanup(qtask,
-						IPC_ERR_TCP_FAILURE);
+			err = IPC_ERR_TCP_FAILURE;
+			goto cleanup;
 		}
 	}
+
+	return;
+
+mem_cleanup:
+	free(c->buffer);
+	c->buffer = NULL;
+c_cleanup:
+	if (ksession_cnx_destroy(session->ctrl_fd, conn)) {
+		log_error("can not safely destroy connection %d", conn->id);
+	}
+s_cleanup:
+	if (ksession_destroy(session->ctrl_fd, session)) {
+		log_error("can not safely destroy session %d", session->id);
+	}
+cleanup:
+	__session_ipc_login_cleanup(qtask, err);
 }
 
 static void
