@@ -352,6 +352,7 @@ idbm_read_with_id(DBM *dbm, int rec_id)
 	(void)idbm_lock(dbm);
 	for (key=dbm_firstkey(dbm); key.dptr != NULL; key=dbm_nextkey(dbm)) {
 		data = dbm_fetch(dbm, key);
+		log_debug(7, "searching for key '%s'", key.dptr);
 		if (idbm_uniq_id(key.dptr) == rec_id) {
 			idbm_unlock(dbm);
 			return data.dptr;
@@ -367,7 +368,7 @@ idbm_write(DBM *dbm, void *rec, int size, char *hash)
 	datum key, data;
 
 	key.dptr = hash;
-	key.dsize = strlen(hash);
+	key.dsize = strlen(hash) + 1; /* null-terminated string */
 
 	data.dptr = rec;
 	data.dsize = size;
@@ -1149,6 +1150,20 @@ idbm_new_discovery(idbm_t *db, char *ip, int port,
 				nrec->cnx[0].port = strtoul(dp, NULL, 10);
 			} else if (!strcmp(ptr, "TA")) {
 				strncpy(nrec->cnx[0].address, dp, 16);
+				if (idbm_add_discovery(db, drec)) {
+					log_error("can not update discovery "
+						  "record.");
+					free(drec);
+					drec = NULL;
+					goto out;
+				}
+				if (idbm_add_node(db, drec, nrec)) {
+					log_error("can not update node "
+						  "record.");
+					free(drec);
+					drec = NULL;
+					goto out;
+				}
 			} else {
 				log_error("can not parse discovery info value."
 					  "Bug?");
@@ -1161,18 +1176,6 @@ idbm_new_discovery(idbm_t *db, char *ip, int port,
 		} else if (*ptr == ';') {
 			/* end of entry */
 			ptr += 2;
-			if (idbm_add_discovery(db, drec)) {
-				log_error("can not update discovery record.");
-				free(drec);
-				drec = NULL;
-				goto out;
-			}
-			if (idbm_add_node(db, drec, nrec)) {
-				log_error("can not update node record.");
-				free(drec);
-				drec = NULL;
-				goto out;
-			}
 		} else if (*ptr == '!') {
 			/* end of discovery info */
 			ptr += 2;

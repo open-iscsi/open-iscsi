@@ -24,9 +24,9 @@ void log_init(char *program_name)
 
 static void dolog(int prio, const char *fmt, va_list ap)
 {
-	if (log_daemon)
+	if (log_daemon) {
 		vsyslog(prio, fmt, ap);
-	else {
+	} else {
 		fprintf(stderr, "%s: ", log_name);
 		vfprintf(stderr, fmt, ap);
 		fprintf(stderr, "\n");
