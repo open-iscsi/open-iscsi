@@ -18,8 +18,10 @@ int log_level = 0;
 void log_init(char *program_name)
 {
 	log_name = program_name;
-	if (log_daemon)
+	if (log_daemon) {
 		openlog(log_name, 0, LOG_DAEMON);
+		setlogmask (LOG_UPTO (LOG_DEBUG));
+	}
 }
 
 static void dolog(int prio, const char *fmt, va_list ap)

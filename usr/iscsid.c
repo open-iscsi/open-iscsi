@@ -179,7 +179,7 @@ main(int argc, char *argv[])
 			log_error("starting daemon failed");
 			exit(1);
 		} else if (pid) {
-			log_debug(1, "daemon with pid=%d started!", pid);
+			log_warning("iSCSI daemon with pid=%d started!", pid);
 			exit(0);
 		}
 
