@@ -24,12 +24,13 @@
 
 MODULE_AUTHOR("Dmitry Yusupov <dmitry_yus@yahoo.com>, "
 	      "Alex Aizman <itn780@yahoo.com>");
-MODULE_DESCRIPTION("iSCSI Open Interface");
+MODULE_DESCRIPTION("Open-iSCSI Interface");
 MODULE_LICENSE("GPL");
 
 static struct iscsi_transport *transport_table[ISCSI_TRANSPORT_MAX];
 static struct sock *nls;
 static int daemon_pid;
+DECLARE_MUTEX(callsema);
 
 int
 iscsi_control_recv_pdu(iscsi_cnx_h cp_cnx, struct iscsi_hdr *hdr,
@@ -190,6 +191,8 @@ static void
 iscsi_if_rx(struct sock *sk, int len)
 {
 	struct sk_buff *skb;
+
+	down(&callsema);
 	while ((skb = skb_dequeue(&sk->sk_receive_queue)) != NULL) {
 		while (skb->len >= NLMSG_SPACE(0)) {
 			int err;
@@ -220,6 +223,7 @@ iscsi_if_rx(struct sock *sk, int len)
 		}
 		kfree_skb(skb);
 	}
+	up(&callsema);
 }
 
 int iscsi_register_transport(struct iscsi_transport *ops, int id)
@@ -231,7 +235,9 @@ EXPORT_SYMBOL_GPL(iscsi_register_transport);
 
 void iscsi_unregister_transport(int id)
 {
+	down(&callsema);
 	transport_table[id] = NULL;
+	up(&callsema);
 }
 EXPORT_SYMBOL_GPL(iscsi_unregister_transport);
 
