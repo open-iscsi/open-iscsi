@@ -47,7 +47,6 @@ struct iscsi_uevent {
 		/* messages u -> k */
 		struct msg_create_session {
 			ulong_t		session_handle;
-			unsigned int	sid;
 			unsigned int	initial_cmdsn;
 		} c_session;
 		struct msg_destroy_session {
@@ -88,6 +87,10 @@ struct iscsi_uevent {
 		/* messages k -> u */
 		ulong_t			handle;
 		int			retcode;
+		struct msg_create_session_ret {
+			ulong_t		handle;
+			int		sid;
+		} c_session_ret;
 		struct msg_recv_req {
 			ulong_t		recv_handle;
 			ulong_t		cnx_handle;

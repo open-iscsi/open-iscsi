@@ -2379,34 +2379,29 @@ static struct scsi_host_template iscsi_sht = {
         .use_clustering         = DISABLE_CLUSTERING,
 	.proc_name		= "iscsi_tcp",
 	.this_id		= -1,
-	.max_id			= 1,
-	.max_channel		= 0,
 };
 
 static iscsi_snx_h
-iscsi_session_create(iscsi_snx_h handle, int host_no, int initial_cmdsn)
+iscsi_session_create(iscsi_snx_h handle, int initial_cmdsn, int *host_no)
 {
 	int cmd_i;
 	struct iscsi_session *session;
 	struct Scsi_Host *host;
 	int res;
 
-	host = scsi_host_lookup(host_no);
-	if (host != ERR_PTR(-ENXIO)) {
-		scsi_host_put(host);
-		printk("host_no %d already exists\n", host_no);
-		return NULL;
-	}
+	/* FIXME: verify "uniqueness" of session's handle */
 
 	if ((host = scsi_host_alloc(&iscsi_sht,
 			    sizeof(struct iscsi_session))) == NULL) {
-		printk("can not allocate host_no %d\n", host_no);
-		return NULL;
+		printk("can not allocate SCSI host for session %p\n", handle);
+		goto host_alloc_fault;
 	}
+	host->max_id = 1;
+	host->max_channel = 0;
 	session = (struct iscsi_session *)host->hostdata;
-	host->host_no = session->id = host_no;
 
 	memset(session, 0, sizeof(struct iscsi_session));
+	*host_no = session->id = host->host_no;
 	session->host = host;
 	session->state = ISCSI_STATE_LOGGED_IN;
 	session->imm_max = ISCSI_IMM_CMDS_MAX;
@@ -2446,7 +2441,7 @@ iscsi_session_create(iscsi_snx_h handle, int host_no, int initial_cmdsn)
 	}
 
 	if ((res=scsi_add_host(host, NULL))) {
-		printk("can not add host_no %d (%d)\n", host_no, res);
+		printk("can not add host_no %d (%d)\n", *host_no, res);
 		goto add_host_fault;
 	}
 
@@ -2460,6 +2455,8 @@ immpool_alloc_fault:
 	iscsi_pool_free(&session->cmdpool, (void**)session->cmds);
 cmdpool_alloc_fault:
 	scsi_remove_host(host);
+host_alloc_fault:
+	*host_no = -1;
 	return NULL;
 }
 

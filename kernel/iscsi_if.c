@@ -126,9 +126,9 @@ iscsi_if_recv_msg(struct sk_buff *skb, struct nlmsghdr *nlh)
 
 	switch (nlh->nlmsg_type) {
 	case ISCSI_UEVENT_CREATE_SESSION:
-		ev->r.handle = (ulong_t)transport->create_session(
+		ev->r.c_session_ret.handle = (ulong_t)transport->create_session(
 		       (void*)ev->u.c_session.session_handle,
-		       ev->u.c_session.sid, ev->u.c_session.initial_cmdsn);
+		       ev->u.c_session.initial_cmdsn, &ev->r.c_session_ret.sid);
 		break;
 	case ISCSI_UEVENT_DESTROY_SESSION:
 		transport->destroy_session(

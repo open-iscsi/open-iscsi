@@ -202,7 +202,6 @@ ksession_create(int ctrl_fd, iscsi_session_t *session)
 	ev.type = ISCSI_UEVENT_CREATE_SESSION;
 	ev.transport_id = 0; /* FIXME: hardcoded */
 	ev.u.c_session.session_handle = (ulong_t)session;
-	ev.u.c_session.sid = session->id;
 	ev.u.c_session.initial_cmdsn = session->nrec.session.initial_cmdsn;
 
 	if ((rc = __ksession_call(ctrl_fd, &ev, sizeof(ev))) < 0) {
@@ -210,10 +209,11 @@ ksession_create(int ctrl_fd, iscsi_session_t *session)
 			  session->id, errno);
 		return rc;
 	}
-	if (!ev.r.handle)
+	if (!ev.r.c_session_ret.handle || ev.r.c_session_ret.sid < 0)
 		return -EIO;
 
-	session->handle = ev.r.handle;
+	session->handle = ev.r.c_session_ret.handle;
+	session->id = ev.r.c_session_ret.sid;
 	log_debug(3, "created new iSCSI session, handle 0x%p",
 		  (void*)session->handle);
 

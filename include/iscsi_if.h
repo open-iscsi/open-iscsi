@@ -112,13 +112,13 @@ struct iscsi_transport {
 	char            *name;
 	unsigned int    caps;
 	unsigned int    max_cnx;
-	iscsi_snx_h (*create_session) (iscsi_snx_h cp_snx, int host_on,
-				       int initial_cmdsn);
+	iscsi_snx_h (*create_session) (iscsi_snx_h cp_snx,
+			int initial_cmdsn, int *sid);
 	void (*destroy_session) (iscsi_snx_h dp_snx);
 	iscsi_cnx_h (*create_cnx) (iscsi_snx_h dp_snx, iscsi_cnx_h cp_cnx,
-				   int transport_fd, int cid);
+			int transport_fd, int cid);
 	int (*bind_cnx) (iscsi_snx_h dp_snx, iscsi_cnx_h dp_cnx,
-			 int is_leading);
+			int is_leading);
 	int (*start_cnx) (iscsi_cnx_h dp_cnx);
 	void (*stop_cnx) (iscsi_cnx_h dp_cnx);
 	void (*destroy_cnx) (iscsi_cnx_h dp_cnx);
