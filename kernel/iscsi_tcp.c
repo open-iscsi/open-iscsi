@@ -215,7 +215,7 @@ iscsi_cmd_rsp(struct iscsi_conn *conn, struct iscsi_cmd_task *ctask)
 	session->exp_cmdsn = exp_cmdsn;
 	conn->exp_statsn = ntohl(rhdr->statsn) + 1;
 
-	sc->result = (DID_OK << 16) | (rhdr->cmd_status << 1);
+	sc->result = (DID_OK << 16) | rhdr->cmd_status;
 
 	if (rhdr->response == ISCSI_STATUS_CMD_COMPLETED) {
 		if (rhdr->cmd_status == SAM_STAT_CHECK_CONDITION &&
