@@ -1825,6 +1825,7 @@ iscsi_queuecommand(struct scsi_cmnd *sc, void (*done)(struct scsi_cmnd *))
 	}
 
 	ctask = __dequeue(&session->cmdpool);
+	BUG_ON(ctask);
 	BUG_ON(ctask->in_progress = IN_PROGRESS_IDLE);
 
 	sc->SCp.ptr = (char*)ctask;
@@ -2222,8 +2223,12 @@ iscsi_send_pdu(iscsi_cnx_h cnxh, struct iscsi_hdr *hdr, char *data,
 		int exp_statsn;
 
 		mtask = __dequeue(&session->immpool);
-		exp_statsn = ((struct iscsi_nopout*)&mtask->hdr)->exp_statsn;
+		if (!mtask) {
+			spin_unlock_bh(&session->lock);
+			return -ENOSPC;
+		}
 
+		exp_statsn = ((struct iscsi_nopout*)&mtask->hdr)->exp_statsn;
 		if ((int)(conn->exp_statsn - exp_statsn) <= 0) {
 			__insert(&session->immpool, mtask);
 			spin_unlock_bh(&session->lock);
