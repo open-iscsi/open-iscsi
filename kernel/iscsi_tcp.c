@@ -478,8 +478,7 @@ iscsi_hdr_recv(struct iscsi_conn *conn)
 	if (conn->in.datalen > conn->max_recv_dlength) {
 		printk("iscsi_tcp: datalen %d > %d\n", conn->in.datalen,
 		       conn->max_recv_dlength);
-		iscsi_control_cnx_error(conn->handle, ISCSI_ERR_DATALEN);
-		return 0;
+		return ISCSI_ERR_DATALEN;
 	}
 	conn->data_copied = 0;
 
@@ -490,8 +489,7 @@ iscsi_hdr_recv(struct iscsi_conn *conn)
 	if (conn->in.copy < 0) {
 		printk("iscsi_tcp: can't handle AHS with length %d bytes\n",
 		       conn->in.ahslen);
-		iscsi_control_cnx_error(conn->handle, ISCSI_ERR_AHSLEN);
-		return 0;
+		return ISCSI_ERR_AHSLEN;
 	}
 
 	/* calculate padding */
@@ -523,9 +521,7 @@ iscsi_hdr_recv(struct iscsi_conn *conn)
 		if (conn->hdrdgst_en && cdgst != rdgst) {
 			printk("iscsi_tcp: itt %x: hdrdgst error recv 0x%x "
 			       "calc 0x%x\n", conn->in.itt, rdgst, cdgst);
-			iscsi_control_cnx_error(conn->handle,
-						ISCSI_ERR_HDR_DGST);
-			return 0;
+			return ISCSI_ERR_HDR_DGST;
 		}
 
 		ctask = (struct iscsi_cmd_task *)session->cmds[conn->in.itt];
@@ -892,8 +888,14 @@ more:
 	if (conn->in_progress == IN_PROGRESS_WAIT_HEADER ||
 	    conn->in_progress == IN_PROGRESS_HEADER_GATHER) {
 		rc = iscsi_hdr_extract(conn);
-		if (rc == -EAGAIN)
-			goto nomore;
+		if (rc) {
+		       if (rc == -EAGAIN)
+				goto nomore;
+		       else {
+				iscsi_control_cnx_error(conn->handle, rc);
+				return 0;
+		       }
+		}
 
 		/*
 		 * Verify and process incoming PDU header.
@@ -1629,7 +1631,7 @@ iscsi_data_xmit(struct iscsi_conn *conn)
 }
 
 static inline int
-iscsi_data_xmit_more(iscsi_conn *conn)
+iscsi_data_xmit_more(struct iscsi_conn *conn)
 {
 	int rc;
 
@@ -1738,16 +1740,13 @@ iscsi_queuecommand(struct scsi_cmnd *sc, void (*done)(struct scsi_cmnd *))
 		conn->id, (long)sc, ctask->itt, sc->request_bufflen,
 		session->cmdsn, session->max_cmdsn - session->exp_cmdsn + 1);
 
-        if (!down_trylock(&conn->xmitsema)) {
-                /* TODO: experiment accumulating some:
-		 * if (__kfifo_len(conn->xmitqueue) > threshold)
-		 *	do xmit
-		 */
+        if (!in_interrupt() && !down_trylock(&conn->xmitsema)) {
+		spin_unlock_irq(host->host_lock);
 		if (iscsi_data_xmit_more(conn))
 			schedule_work(&conn->xmitwork);
 		up(&conn->xmitsema);
-	}
-	else
+		spin_lock_irq(host->host_lock);
+	} else
 		schedule_work(&conn->xmitwork);
 
 	return 0;
