@@ -1855,6 +1855,7 @@ iscsi_conn_create(iscsi_snx_t snxh, iscsi_cnx_t handle,
 
 	/* initial operational parameters */
 	conn->hdr_size = sizeof(struct iscsi_hdr);
+	conn->data_size = DEFAULT_MAX_RECV_DATA_SEGMENT_LENGTH;
 	conn->max_recv_dlength = DEFAULT_MAX_RECV_DATA_SEGMENT_LENGTH;
 
 	spin_lock_init(&conn->lock);
@@ -2649,6 +2650,11 @@ iscsi_set_param(iscsi_cnx_t cnxh, enum iscsi_param param, uint32_t value)
 		case ISCSI_PARAM_MAX_RECV_DLENGTH: {
 			char *saveptr = conn->data;
 
+			if (conn->data_size >= value) {
+				conn->max_recv_dlength = value;
+				break;
+			}
+
 			if (value <= PAGE_SIZE)
 				conn->data = kmalloc(value, GFP_KERNEL);
 			else
@@ -2664,6 +2670,7 @@ iscsi_set_param(iscsi_cnx_t cnxh, enum iscsi_param param, uint32_t value)
 				free_pages((unsigned long)saveptr,
 					get_order(conn->max_recv_dlength));
 			conn->max_recv_dlength = value;
+			conn->data_size = value;
 		}
 		break;
 		case ISCSI_PARAM_MAX_XMIT_DLENGTH:
@@ -2702,6 +2709,8 @@ iscsi_set_param(iscsi_cnx_t cnxh, enum iscsi_param param, uint32_t value)
 			session->initial_r2t_en = value;
 			break;
 		case ISCSI_PARAM_MAX_R2T:
+			if (session->max_r2t == roundup_pow_of_two(value))
+				break;
 			iscsi_r2tpool_free(session);
 			session->max_r2t = value;
 			if (session->max_r2t & (session->max_r2t - 1)) {

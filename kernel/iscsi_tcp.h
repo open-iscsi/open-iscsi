@@ -157,6 +157,7 @@ struct iscsi_conn {
 	volatile int		tmabort_state;
 	struct timer_list	tmabort_timer;
 	volatile int		stop_stage;	/* cnx_stop() state machine */
+	int			data_size;	/* actual recv_dlength size */
 
 	/* configuration */
 	int			max_recv_dlength;
