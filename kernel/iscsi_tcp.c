@@ -343,6 +343,7 @@ iscsi_solicit_data_init(struct iscsi_conn *conn, struct iscsi_cmd_task *ctask,
 	struct scsi_cmnd *sc = ctask->sc;
 
 	dtask = mempool_alloc(ctask->datapool, GFP_ATOMIC);
+	BUG_ON(!dtask);
 	hdr = &dtask->hdr;
 	memset(hdr, 0, sizeof(struct iscsi_data));
 	hdr->ttt = r2t->ttt;
@@ -1150,6 +1151,7 @@ iscsi_solicit_data_cont(struct iscsi_conn *conn, struct iscsi_cmd_task *ctask,
 	int new_offset;
 
 	dtask = mempool_alloc(ctask->datapool, GFP_ATOMIC);
+	BUG_ON(!dtask);
 	hdr = &dtask->hdr;
 	memset(hdr, 0, sizeof(struct iscsi_data));
 	hdr->ttt = r2t->ttt;
@@ -1195,6 +1197,7 @@ iscsi_unsolicit_data_init(struct iscsi_conn *conn, struct iscsi_cmd_task *ctask)
 	struct iscsi_data_task *dtask;
 
 	dtask = mempool_alloc(ctask->datapool, GFP_ATOMIC);
+	BUG_ON(!dtask);
 	hdr = &dtask->hdr;
 	memset(hdr, 0, sizeof(struct iscsi_data));
 	hdr->ttt = ISCSI_RESERVED_TAG;
@@ -2449,9 +2452,7 @@ iscsi_r2tpool_alloc(struct iscsi_session *session)
 		 * using mempool
 		 */
 		ctask->datapool = mempool_create(ISCSI_DTASK_DEFAULT_MAX,
-						 mempool_alloc_slab,
-						 mempool_free_slab,
-						 taskcache);
+			 mempool_alloc_slab, mempool_free_slab, taskcache);
 		if (ctask->datapool == NULL) {
 			kfifo_free(ctask->r2tqueue);
 			iscsi_pool_free(&ctask->r2tpool, (void**)ctask->r2ts);
@@ -2798,7 +2799,8 @@ iscsi_tcp_init(void)
 	int error;
 
 	taskcache = kmem_cache_create("iscsi_taskcache",
-			sizeof(struct iscsi_data_task), 0, 0, NULL, NULL);
+			sizeof(struct iscsi_data_task), 0,
+			SLAB_HWCACHE_ALIGN | SLAB_NO_REAP, NULL, NULL);
 	if (!taskcache)
 		return -ENOMEM;
 
