@@ -729,6 +729,9 @@ sub discovery_login_cb {
 	my $sid;
 
 	do {
+		# re-negotiate $max_xmit_dlength for each connection
+		# individually.
+		$max_xmit_dlength = 8192;
 		my $sock_fd = connection_login($target_name,
 					$target_portal, $cnx_cnt);
 		if ($sock_fd) {

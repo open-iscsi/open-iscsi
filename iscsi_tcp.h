@@ -248,6 +248,7 @@ typedef struct iscsi_r2t_info {
 	int			cont_bit;	/* Data-Out cont. faulure */
 	int			data_count;	/* DATA-Out payload progress */
 	struct scatterlist	*sg;		/* per-R2T SG list */
+	int			solicit_datasn;
 } iscsi_r2t_info_t;
 
 typedef struct iscsi_cmd_task {
@@ -262,11 +263,9 @@ typedef struct iscsi_cmd_task {
 	struct scatterlist	*sg;			/* per-cmd SG list */
 	struct scatterlist	*bad_sg;		/* assert statement */
 	int			sg_count;		/* SG's to process */
-	iscsi_data_task_t	**solicit_data;		/* Solicited PDU's */
-	int			solicit_count;
 	iscsi_data_task_t	**unsolicit_data;	/* Unsolicited PDU's */
-	int			unsolicit_count;
-	int			in_progress;		/* State machine */
+	int			unsolicit_datasn;
+	volatile int		in_progress;		/* State machine */
 	int			imm_count;		/* Imm-Data bytes */
 	int			imm_data_count;		/* Imm-Data-Out bytes */
 	int			data_count;		/* Remaining Data-Out */

@@ -24,8 +24,8 @@ MODULE_DESCRIPTION("iSCSI/TCP data-path");
 MODULE_LICENSE("GPL");
 
 #define DEBUG_PREV_PDU
-// #define DEBUG_TCP
-// #define DEBUG_SCSI
+/* #define DEBUG_TCP */
+/* #define DEBUG_SCSI */
 #define DEBUG_ASSERT
 
 #ifdef DEBUG_TCP
@@ -594,8 +594,8 @@ iscsi_solicit_data_cont(iscsi_conn_t *conn, iscsi_cmd_task_t *ctask,
 	hdr->rsvd2[0] = hdr->rsvd2[1] = hdr->rsvd3 =
 		hdr->rsvd4 = hdr->rsvd5 = hdr->rsvd6 = 0;
 	hdr->ttt = r2t->ttt;
-	hdr->datasn = htonl(ctask->solicit_count);
-	ctask->solicit_count++;
+	hdr->datasn = htonl(r2t->solicit_datasn);
+	r2t->solicit_datasn++;
 	hdr->opcode = ISCSI_OP_SCSI_DATA_OUT;
 	memset(hdr->lun, 0, 8);
 	hdr->lun[1] = ctask->hdr.lun[1];
@@ -654,8 +654,8 @@ iscsi_solicit_data_init(iscsi_conn_t *conn, iscsi_cmd_task_t *ctask,
 	hdr->rsvd2[0] = hdr->rsvd2[1] = hdr->rsvd3 =
 		hdr->rsvd4 = hdr->rsvd5 = hdr->rsvd6 = 0;
 	hdr->ttt = r2t->ttt;
-	hdr->datasn = htonl(ctask->solicit_count);
-	ctask->solicit_count++;
+	hdr->datasn = htonl(r2t->solicit_datasn);
+	r2t->solicit_datasn++;
 	hdr->opcode = ISCSI_OP_SCSI_DATA_OUT;
 	memset(hdr->lun, 0, 8);
 	hdr->lun[1] = ctask->hdr.lun[1];
@@ -711,14 +711,14 @@ iscsi_unsolicit_data_init(iscsi_conn_t *conn, iscsi_cmd_task_t *ctask)
 	iscsi_buf_t *headbuf;
 
 	hdr = (iscsi_data_t *)
-		&ctask->unsolicit_data[ctask->unsolicit_count]->hdr;
+		&ctask->unsolicit_data[ctask->unsolicit_datasn]->hdr;
 	headbuf = &ctask->headbuf;
 	hdr->flags = ISCSI_FLAG_CMD_FINAL;
 	hdr->rsvd2[0] = hdr->rsvd2[1] = hdr->rsvd3 =
 		hdr->rsvd4 = hdr->rsvd5 = hdr->rsvd6 = 0;
 	hdr->ttt = ISCSI_RESERVED_TAG;
-	hdr->datasn = htonl(ctask->unsolicit_count);
-	ctask->unsolicit_count++;
+	hdr->datasn = htonl(ctask->unsolicit_datasn);
+	ctask->unsolicit_datasn++;
 	hdr->opcode = ISCSI_OP_SCSI_DATA_OUT;
 	hdr->lun[1] = ctask->hdr.lun[1];
 	hdr->itt = ctask->hdr.itt;
@@ -1205,6 +1205,7 @@ iscsi_r2t_rsp(iscsi_conn_t *conn, iscsi_cmd_task_t *ctask)
 		return ISCSI_ERR_DATALEN;
 	}
 	r2t->ttt = rhdr->ttt; /* no flip */
+	r2t->solicit_datasn = 0;
 
 	if ((rc = iscsi_solicit_data_init(conn, ctask, r2t))) {
 		__enqueue(&ctask->r2tpool, r2t);
@@ -1212,8 +1213,8 @@ iscsi_r2t_rsp(iscsi_conn_t *conn, iscsi_cmd_task_t *ctask)
 		return rc;
 	}
 
-	ctask->solicit_count = 0;
-	ctask->in_progress |= IN_PROGRESS_SOLICIT_HEAD;
+	ctask->in_progress = IN_PROGRESS_WRITE |
+			     IN_PROGRESS_SOLICIT_HEAD;
 	__enqueue(&ctask->r2tqueue, r2t);
 	__enqueue(&conn->xmitqueue, ctask);
 

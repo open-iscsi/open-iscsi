@@ -71,8 +71,11 @@ function fatal() {
 test ! -e regression.dat && fatal "can not find regression.dat"
 test ! -e disktest && fatal "can not find disktest"
 test ! -e iscsiadm && fatal "can not find iscsiadm"
+test x$1 = x && fatal "parameter error
+	Usage: regression.sh <ipaddr:port> [test#]"
 
-test x$1 != x && begin=$1
+portal=$1
+test x$2 != x && begin=$2
 
 i=0
 cat regression.dat | while read line; do
@@ -100,8 +103,7 @@ cat regression.dat | while read line; do
 	echo "max_r2t = $max_r2t"
 	echo "max_cnx = $max_cnx"
 	iscsiadm -f iscsi.conf -r1
-#	iscsiadm -f iscsi.conf -d 172.10.7.7:3260
-	iscsiadm -f iscsi.conf -d 10.16.16.223:3260
+	iscsiadm -f iscsi.conf -d $portal
 	if ! disktest_run; then break; fi
 	let i=i+1
 done
