@@ -46,7 +46,7 @@ MODULE_LICENSE("GPL");
 
 /* #define DEBUG_TCP */
 /* #define DEBUG_SCSI */
-/* #define DEBUG_ASSERT */
+#define DEBUG_ASSERT
 
 #ifdef DEBUG_TCP
 #define debug_tcp(fmt...) printk("tcp: " fmt)
@@ -669,11 +669,12 @@ iscsi_ctask_copy(struct iscsi_conn *conn, struct iscsi_cmd_task *ctask,
 	 */
 
 	size = min(size, ctask->data_count);
-	BUG_ON(size <= 0);
-	BUG_ON(ctask->sent + size > ctask->total_length);
 
 	debug_tcp("ctask_copy %d bytes at offset %d copied %d\n",
 	       size, conn->in.offset, conn->in.copied);
+
+	BUG_ON(size <= 0);
+	BUG_ON(ctask->sent + size > ctask->total_length);
 
 	rc = skb_copy_bits(conn->in.skb, conn->in.offset,
 			   (char*)buf + conn->data_copied, size);
@@ -718,6 +719,7 @@ iscsi_tcp_copy(struct iscsi_conn *conn, void *buf, int buf_size)
 
 	debug_tcp("tcp_copy %d bytes at offset %d copied %d\n",
 	       size, conn->in.offset, conn->data_copied);
+	BUG_ON(size <= 0);
 
 	rc = skb_copy_bits(conn->in.skb, conn->in.offset,
 			   (char*)buf + conn->data_copied, size);
