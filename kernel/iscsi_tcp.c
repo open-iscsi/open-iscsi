@@ -38,7 +38,7 @@
 #include <scsi/scsi_host.h>
 #include <scsi/scsi.h>
 
-#include <iscsi_tcp.h>
+#include "iscsi_tcp.h"
 
 MODULE_AUTHOR("Dmitry Yusupov <dmitry_yus@yahoo.com>, "
 	      "Alex Aizman <itn780@yahoo.com>");
