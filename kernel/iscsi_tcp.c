@@ -23,6 +23,7 @@
 #include <linux/inet.h>
 #include <linux/blkdev.h>
 #include <linux/crypto.h>
+#include <linux/delay.h>
 #include <scsi/scsi_cmnd.h>
 #include <scsi/scsi_device.h>
 #include <scsi/scsi_eh.h>
@@ -172,7 +173,7 @@ iscsi_hdr_extract(iscsi_conn_t *conn)
 		} else {
 			/* ignoring return code since we checked
 			 * in.copy before */
-			(void)skb_copy_bits(skb, conn->in.offset,
+			skb_copy_bits(skb, conn->in.offset,
 				&conn->hdr, conn->hdr_size);
 			conn->in.hdr = &conn->hdr;
 		}
@@ -188,7 +189,7 @@ iscsi_hdr_extract(iscsi_conn_t *conn)
 		 * the connection PDU Header placeholder.
 		 */
 		if (conn->in_progress == IN_PROGRESS_WAIT_HEADER) {
-			(void)skb_copy_bits(skb, conn->in.offset,
+			skb_copy_bits(skb, conn->in.offset,
 				&conn->hdr, conn->in.copy);
 			conn->in_progress = IN_PROGRESS_HEADER_GATHER;
 			conn->in.hdr_offset = conn->in.copy;
@@ -210,7 +211,7 @@ iscsi_hdr_extract(iscsi_conn_t *conn)
 		}
 		debug_tcp("PDU gather #2 %d bytes!\n", copylen);
 
-		(void)skb_copy_bits(skb, conn->in.offset,
+		skb_copy_bits(skb, conn->in.offset,
 		    (char*)&conn->hdr + conn->in.hdr_offset, copylen);
 		conn->in.offset += copylen;
 		conn->in.copy -= copylen;
@@ -234,10 +235,8 @@ iscsi_ctask_cleanup(iscsi_conn_t *conn, iscsi_cmd_task_t *ctask)
 		/* for WRITE, clean up Data-Out's if any */
 		spin_lock(&conn->lock);
 		list_for_each_entry_safe(dtask, n, &ctask->dataqueue, item) {
-			if (dtask) {
-				list_del(&dtask->item);
-				mempool_free(dtask, ctask->datapool);
-			}
+			list_del(&dtask->item);
+			mempool_free(dtask, ctask->datapool);
 		}
 		spin_unlock(&conn->lock);
 	}
@@ -432,7 +431,8 @@ iscsi_solicit_data_init(iscsi_conn_t *conn, iscsi_cmd_task_t *ctask,
 		struct scatterlist *sg = (struct scatterlist *)
 			sc->request_buffer;
 		r2t->sg = NULL;
-		for (i=0; i<sc->use_sg; i++, sg += 1) { /* FIXME: prefetch ? */
+		for (i = 0; i < sc->use_sg; i++, sg += 1) {
+			/* FIXME: prefetch ? */
 			if (sg_count + sg->length > r2t->data_offset) {
 				int page_offset = r2t->data_offset - sg_count;
 				/* sg page found! */
@@ -823,7 +823,7 @@ iscsi_data_recv(iscsi_conn_t *conn)
 		int i;
 		struct scatterlist *sg = (struct scatterlist *)
 						sc->request_buffer;
-		for (i=ctask->sg_count; i<sc->use_sg; i++) {
+		for (i = ctask->sg_count; i < sc->use_sg; i++) {
 			char *dest =(char*)page_address(sg[i].page) +
 						sg[i].offset;
 			if ((rc = iscsi_ctask_copy(conn, ctask, dest,
@@ -1890,19 +1890,6 @@ iscsi_eh_abort(struct scsi_cmnd *sc)
 	return SUCCESS;
 }
 
-static const char *
-iscsi_info(struct Scsi_Host *host)
-{
-	return "iSCSI/TCP bridge, v." ISCSI_DRV_VERSION;
-}
-
-static int
-iscsi_proc_info(struct Scsi_Host *host, char *buffer, char **start,
-		off_t offset, int length,  int inout)
-{
-	return length;
-}
-
 static int
 iscsi_queue_init(iscsi_queue_t *q, int max)
 {
@@ -1939,11 +1926,11 @@ iscsi_pool_init(iscsi_queue_t *q, int max, void ***items, int item_size)
 		kfree(*items);
 		return -ENOMEM;
 	}
-	for (i=0; i<max; i++) {
+	for (i = 0; i < max; i++) {
 		q->pool[i] = kmalloc(item_size, GFP_KERNEL);
 		if (q->pool[i] == NULL) {
 			int j;
-			for (j=0; j<i; j++) {
+			for (j = 0; j < i; j++) {
 				kfree(q->pool[j]);
 			}
 			kfree(q->pool);
@@ -1963,7 +1950,7 @@ iscsi_pool_free(iscsi_queue_t *q, void **items)
 {
 	int i;
 
-	for (i=0; i<q->max; i++) {
+	for (i = 0; i < q->max; i++) {
 		kfree(items[i]);
 	}
 	kfree(q->pool);
@@ -2001,18 +1988,6 @@ iscsi_conn_create(iscsi_snx_h snxh, iscsi_cnx_h handle,
 	/* disable Nagle's algorithm */
 	tp = tcp_sk(sk);
 	tp->nonagle = 1;
-
-	if (!(sk->sk_route_caps & NETIF_F_SG)) {
-		printk("iSCSI/TCP: PHY do not support "
-		       "HW scatter-gather!\n");
-	}
-	if (!(sk->sk_route_caps & (NETIF_F_IP_CSUM |
-				   NETIF_F_NO_CSUM |
-				   NETIF_F_HW_CSUM))) {
-		printk("iSCSI/TCP: PHY do not support "
-		       "HW checksumming!\n");
-	}
-
 
 	/* Intercepts TCP callbacks for sendfile like receive processing. */
 	iscsi_conn_set_callbacks(conn);
@@ -2108,7 +2083,7 @@ iscsi_conn_destroy(iscsi_cnx_h cnxh)
 			break;
 		}
 		spin_unlock_bh(&conn->lock);
-		schedule_timeout(HZ*1);
+		msleep_interruptible(500);
 	}
 
 	/* now free crypto */
@@ -2300,7 +2275,7 @@ iscsi_r2tpool_free(iscsi_session_t *session)
 {
 	int i;
 
-	for (i=0; i<session->cmds_max; i++) {
+	for (i = 0; i < session->cmds_max; i++) {
 		mempool_destroy(session->cmds[i]->datapool);
 		kfree(session->cmds[i]->r2tqueue.pool);
 		iscsi_pool_free(&session->cmds[i]->r2tpool,
@@ -2316,7 +2291,7 @@ iscsi_r2tpool_alloc(iscsi_session_t *session)
 
 	/* initialize per-task R2T queue with size based on
 	 * session's login result MaxOutstandingR2T */
-	for (cmd_i=0; cmd_i<session->cmds_max; cmd_i++) {
+	for (cmd_i = 0; cmd_i < session->cmds_max; cmd_i++) {
 		iscsi_cmd_task_t *ctask = session->cmds[cmd_i];
 
 		/* now initialize per-task R2T pool */
@@ -2351,7 +2326,7 @@ iscsi_r2tpool_alloc(iscsi_session_t *session)
 	return 0;
 
 r2t_alloc_fault:
-	for (i=0; i<cmd_i; i++) {
+	for (i = 0; i < cmd_i; i++) {
 		mempool_destroy(session->cmds[i]->datapool);
 		kfree(session->cmds[i]->r2tqueue.pool);
 		iscsi_pool_free(&session->cmds[i]->r2tpool,
@@ -2359,6 +2334,18 @@ r2t_alloc_fault:
 	}
 	return -ENOMEM;
 }
+
+static struct scsi_host_template iscsi_sht = {
+	.name			= "iSCSI Initiator over TCP/IP",
+        .queuecommand           = iscsi_queuecommand,
+	.can_queue		= 128,
+	.sg_tablesize		= 128,
+	.max_sectors		= 128,
+	.cmd_per_lun		= 128,
+        .eh_abort_handler       = iscsi_eh_abort,
+        .use_clustering         = ENABLE_CLUSTERING,
+	.proc_name		= "iscsi_tcp",
+};
 
 static iscsi_snx_h
 iscsi_session_create(iscsi_snx_h handle, int host_no, int initial_cmdsn)
@@ -2382,22 +2369,7 @@ iscsi_session_create(iscsi_snx_h handle, int host_no, int initial_cmdsn)
 	}
 	memset(session, 0, sizeof(iscsi_session_t));
 
-	/* fill-in SCSI Host Template */
-	session->sht.name = "iSCSI Initiator";
-	session->sht.proc_info = iscsi_proc_info;
-	session->sht.info = iscsi_info;
-	session->sht.queuecommand = iscsi_queuecommand;
-	session->sht.can_queue = 128;
-	session->sht.sg_tablesize = 128;
-	session->sht.max_sectors = 128;
-	session->sht.cmd_per_lun = 128;
-	session->sht.this_id = (uint32_t)(unsigned long)session;
-	session->sht.use_clustering = DISABLE_CLUSTERING;
-	session->sht.eh_abort_handler = iscsi_eh_abort;
-	session->sht.proc_name = kmalloc(10, GFP_KERNEL);
-	snprintf(session->sht.proc_name, 10, "iscsi%d", host_no);
-
-	if ((host = scsi_host_alloc(&session->sht, sizeof(void*))) == NULL) {
+	if ((host = scsi_host_alloc(&iscsi_sht, sizeof(void*))) == NULL) {
 		printk("can not allocate host_no %d\n", host_no);
 		goto host_alloc_fault;
 	}
@@ -2405,10 +2377,12 @@ iscsi_session_create(iscsi_snx_h handle, int host_no, int initial_cmdsn)
 	host->max_id = 1;
 	host->max_channel  = 0;
 	*(unsigned long*)host->hostdata = (unsigned long)session;
+	host->hostt->this_id = (uint32_t)(unsigned long)session;
+
 	session->host = host;
 	session->state = ISCSI_STATE_LOGGED_IN;
 	session->imm_max = ISCSI_IMM_CMDS_MAX;
-	session->cmds_max = session->sht.can_queue + 1;
+	session->cmds_max = host->hostt->can_queue + 1;
 	session->cmdsn = initial_cmdsn;
 	session->exp_cmdsn = initial_cmdsn + 1;
 	session->max_cmdsn = initial_cmdsn + 1;
@@ -2427,7 +2401,7 @@ iscsi_session_create(iscsi_snx_h handle, int host_no, int initial_cmdsn)
 		goto cmdpool_alloc_fault;
 	}
 	/* pre-format cmds pool with ITT */
-	for (cmd_i=0; cmd_i<session->cmds_max; cmd_i++) {
+	for (cmd_i = 0; cmd_i < session->cmds_max; cmd_i++) {
 		session->cmds[cmd_i]->itt = cmd_i;
 	}
 
@@ -2441,7 +2415,7 @@ iscsi_session_create(iscsi_snx_h handle, int host_no, int initial_cmdsn)
 		goto immpool_alloc_fault;
 	}
 	/* pre-format immediate cmds pool with ITT */
-	for (cmd_i=0; cmd_i<session->imm_max; cmd_i++) {
+	for (cmd_i = 0; cmd_i < session->imm_max; cmd_i++) {
 		session->imm_cmds[cmd_i]->itt = ISCSI_IMM_ITT_OFFSET + cmd_i;
 		init_MUTEX_LOCKED(&session->imm_cmds[cmd_i]->xmitsema);
 	}
@@ -2461,7 +2435,6 @@ cmdpool_alloc_fault:
 add_host_fault:
 	scsi_host_put(host);
 host_alloc_fault:
-	kfree(session->sht.proc_name);
 	kfree(session);
 	return NULL;
 }
@@ -2473,13 +2446,11 @@ iscsi_session_destroy(iscsi_snx_h snxh)
 	iscsi_data_task_t *dtask, *n;
 	iscsi_session_t *session = snxh;
 
-	for (cmd_i=0; cmd_i<session->cmds_max; cmd_i++) {
+	for (cmd_i = 0; cmd_i < session->cmds_max; cmd_i++) {
 		iscsi_cmd_task_t *ctask = session->cmds[cmd_i];
 		list_for_each_entry_safe(dtask, n, &ctask->dataqueue, item) {
-			if (dtask) {
-				list_del(&dtask->item);
-				mempool_free(dtask, ctask->datapool);
-			}
+			list_del(&dtask->item);
+			mempool_free(dtask, ctask->datapool);
 		}
 	}
 
@@ -2487,7 +2458,6 @@ iscsi_session_destroy(iscsi_snx_h snxh)
 	iscsi_pool_free(&session->cmdpool, (void**)session->cmds);
 	scsi_remove_host(session->host);
 	scsi_host_put(session->host);
-	kfree(session->sht.proc_name);
 	kfree(session);
 }
 

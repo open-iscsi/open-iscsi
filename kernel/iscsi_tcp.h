@@ -179,7 +179,6 @@ typedef struct iscsi_session {
 	int				ofmarker_en;
 
 	/* control data */
-	struct scsi_host_template	sht;
 	struct Scsi_Host		*host;
 	int				id;
 	iscsi_conn_t			*leadconn;	/* Leading Conn. */
