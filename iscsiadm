@@ -71,8 +71,8 @@ my $tsih = 0;
 my $exp_cmdsn;
 my $max_cmdsn;
 
-my $login_user;
-my $login_password;
+my $target_user;
+my $target_password;
 
 my $iscsiadm_path;
 my ($filename, $dirname) = fileparse($0);
@@ -234,50 +234,51 @@ sub recv_pdu {
 }
 
 sub login_text_rsp_parse {
+	my ($rsp, $discovery) = @_;
 	my $data = "";
-	my ($rsp) = @_;
 
 	my @pairs = split(/\0/, $rsp);
 	my $i = 0;
 	while (@pairs[$i]) {
-		$data = $data."\0" if $i != 0;
-		if (@pairs[$i] =~ /^TargetAlias=(.*)/) {
+		if (@pairs[$i] =~ /^TargetAlias=(.*)/ && !$discovery) {
 			$target_alias = $1;
-			$data = $data.@pairs[$i];
+			$data = $data.@pairs[$i]."\0";
 		} elsif (@pairs[$i] =~ /^TargetAddress=(.*)/) {
 			$target_address = $1;
 			fatal("redirection is not supported");
-		} elsif (@pairs[$i] =~ /^TargetPortalGroupTag=(.*)/) {
+		} elsif (@pairs[$i] =~ /^TargetPortalGroupTag=(.*)/ &&
+			 !$discovery) {
 			$tpgt = $1;
-			$data = $data.@pairs[$i];
+			$data = $data.@pairs[$i]."\0";
 		} elsif (@pairs[$i] =~ /^InitialR2T=(.*)/) {
 			$initial_r2t_en = ($1 eq "Yes"?1:0);
-			$data = $data.@pairs[$i];
+			$data = $data.@pairs[$i]."\0";
 		} elsif (@pairs[$i] =~ /^ImmediateData=(.*)/) {
 			$imm_data_en = ($1 eq "Yes"?1:0);
-			$data = $data.@pairs[$i];
+			$data = $data.@pairs[$i]."\0";
 		} elsif (@pairs[$i] =~ /^MaxRecvDataSegmentLength=(.*)/) {
 			$max_xmit_dlength = $1;
-			$data = $data.@pairs[$i];
+			$data = $data."MaxRecvDataSegmentLength=".
+							$max_recv_dlength."\0";
 		} elsif (@pairs[$i] =~ /^FirstBurstLength=(.*)/) {
 			$first_burst = $1;
-			$data = $data.@pairs[$i];
+			$data = $data.@pairs[$i]."\0";
 		} elsif (@pairs[$i] =~ /^MaxBurstLength=(.*)/) {
 			$max_burst = $1;
-			$data = $data.@pairs[$i];
+			$data = $data.@pairs[$i]."\0";
 		} elsif (@pairs[$i] =~ /^HeaderDigest/) {
-			$data = $data."HeaderDigest=None";
+			$data = $data."HeaderDigest=None"."\0";
 		} elsif (@pairs[$i] =~ /^DataDigest/) {
-			$data = $data."DataDigest=None";
+			$data = $data."DataDigest=None"."\0";
 		} elsif (@pairs[$i] =~ /^DefaultTime2Wait=(.*)/) {
 			$time2wait = $1;
-			$data = $data.@pairs[$i];
+			$data = $data.@pairs[$i]."\0";
 		} elsif (@pairs[$i] =~ /^DefaultTime2Retain=(.*)/) {
 			$time2retain = $1;
-			$data = $data.@pairs[$i];
+			$data = $data.@pairs[$i]."\0";
 		} elsif (@pairs[$i] =~ /^MaxOutstandingR2T=(.*)/) {
 			$max_r2t = $1;
-			$data = $data.@pairs[$i];
+			$data = $data.@pairs[$i]."\0";
 		} elsif (@pairs[$i] =~ /^MaxConnections=(.*)/) {
 			fatal("max connections rsp error") if $1 > $max_cnx;
 		} elsif (@pairs[$i] =~ /^ErrorRecoveryLevel=(.*)/) {
@@ -376,6 +377,9 @@ sub connection_login {
 				printf($pprefix."connect: $!\n") && return 0;
 	select(SOCK); $| = 1; select(STDOUT);    # use unbuffemiles i/o.
 
+	my $discovery = $target_name ? 0 : 1;
+	
+
 	my $data;
 	my $data_initial;
 	my $flags;
@@ -386,7 +390,7 @@ sub connection_login {
 	my $partial_rsp = 0;
 	do {
 		if ($c_stage == -1) {
-			if ($target_name) {
+			if (!$discovery) {
 				# Normal session
 				$data_initial =
 					"InitiatorName=$initiator_name\0".
@@ -411,16 +415,17 @@ sub connection_login {
 
 		if ($c_stage == 0) {
 			# negotiate security...
-			if (!$partial_rsp) {
+			if (!$partial_rsp && $auth_en) {
 				$data =
 				      $data_initial."\0AuthMethod=CHAP,None\0";
 			}
 		} elsif ($c_stage == 1) {
 			$n_stage = 3;
 			$transit = 1;
-			if (!$partial_rsp && $target_name eq "") {
+			if (!$partial_rsp && $discovery) {
 				$data = $data_initial."\0";
 			} elsif (!$partial_rsp) {
+				$partial_rsp = 1;
 				$data = $data_initial."\0".
 		        "HeaderDigest=".($hdrdgst_en?"CRC32C,None":"None")."\0".
 		        "DataDigest=".($datadgst_en?"CRC32C,None":"None")."\0".
@@ -486,11 +491,11 @@ sub connection_login {
 
 		# make sure that we're actually advancing if the
 		# T-bit is set
-                $transit && (($flags & 0x03) <= $c_stage) &&
+                $transit && (($flags & 0x03) <= $c_stage) && !$discovery &&
 		    printf("protocol error: next stage is not advancing\n") &&
 			return 0;
 
-		if ($transit) {
+		if ($transit && ($flags & 0x03) == 0x03) {
 			# advance to the next stage
 			$partial_rsp = 0;
 			$c_stage = $flags & 0x3;
@@ -550,9 +555,9 @@ sub connection_login {
 				$md5 = new Digest::MD5;
 				$md5->reset;
 				$md5->add(pack("C", $chap_id));
-				$md5->add($login_password);
+				$md5->add($target_password);
 				$md5->add(pack("a*", $chap_ch));
-				$data = $data."CHAP_N=$login_user\0";
+				$data = $data."CHAP_N=$target_user\0";
 				$data = $data."CHAP_R=0x".
 						$md5->hexdigest()."\0";
 
@@ -561,7 +566,7 @@ sub connection_login {
 				$a_stage++;
 			}
 		} elsif ($c_stage == 1) {
-			$data = login_text_rsp_parse($rsp);
+			$data = login_text_rsp_parse($rsp, $discovery);
 		}
 
 		# record some fields for later use
@@ -753,9 +758,9 @@ sub config_read {
 	my %conf = get_rc($file);
 	$target_name = $conf{target_name};
 	$target_portal = $conf{target_portal};
-	$login_user = $conf{login_user};
-	$auth_en = 1 if defined($login_user);
-	$login_password = $conf{login_password};
+	$target_user = $conf{target_user};
+	$auth_en = 1 if defined($target_user);
+	$target_password = $conf{target_password};
 	$initiator_name = $conf{initiator_name};
 	$initiator_alias = $conf{initiator_alias};
 	@isid = read_isid($conf{isid});
@@ -791,6 +796,9 @@ sub discovery_login_cb {
 	my ($id, $target_name, $target_portal) = @_;
 	my $cnx_cnt = 0;
 	my $sid;
+
+	# reset TSIH after Discovery
+	$tsih = 0;
 
 	do {
 		# re-negotiate $max_xmit_dlength for each connection
