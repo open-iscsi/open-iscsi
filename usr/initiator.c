@@ -358,7 +358,26 @@ __session_destroy(iscsi_session_t *session)
 }
 
 static void
-__session_ipc_login_cleanup(queue_task_t *qtask, ipc_err_e err)
+__session_cnx_cleanup(iscsi_conn_t *conn)
+{
+	iscsi_session_t *session = conn->session;
+
+	if (ksession_cnx_destroy(session->ctrl_fd, conn)) {
+		log_error("can not safely destroy connection %d", conn->id);
+		return;
+	}
+	session_cnx_destroy(session, conn->id);
+
+	if (ksession_destroy(session->ctrl_fd, session)) {
+		log_error("can not safely destroy session %d", session->id);
+		return;
+	}
+	if (conn->id == 0)
+		__session_destroy(session);
+}
+
+static void
+__session_ipc_login_cleanup(queue_task_t *qtask, ipc_err_e err, int cnx_cleanup)
 {
 	iscsi_conn_t *conn = qtask->conn;
 	iscsi_session_t *session = conn->session;
@@ -368,9 +387,13 @@ __session_ipc_login_cleanup(queue_task_t *qtask, ipc_err_e err)
 		sizeof(qtask->u.login.rsp));
 	close(qtask->u.login.ipc_fd);
 	free(qtask);
-	session_cnx_destroy(session, conn->id);
-	if (conn->id == 0)
-		__session_destroy(session);
+	if (cnx_cleanup)
+		__session_cnx_cleanup(conn);
+	else {
+		session_cnx_destroy(session, conn->id);
+		if (conn->id == 0)
+			__session_destroy(session);
+	}
 }
 
 static int
@@ -439,8 +462,9 @@ __session_cnx_recv_pdu(queue_item_t *item)
 		iscsi_login_context_t *c = &conn->login_context;
 
 		if (iscsi_login_rsp(session, c)) {
+			log_debug(1, "login_rsp ret (%d)", c->ret);
 			__session_ipc_login_cleanup(c->qtask,
-					IPC_ERR_LOGIN_FAILURE);
+					IPC_ERR_LOGIN_FAILURE, 1);
 			return;
 		}
 
@@ -449,7 +473,7 @@ __session_cnx_recv_pdu(queue_item_t *item)
 			conn->state = STATE_IN_LOGIN;
 			if (iscsi_login_req(session, c)) {
 				__session_ipc_login_cleanup(c->qtask,
-						IPC_ERR_LOGIN_FAILURE);
+						IPC_ERR_LOGIN_FAILURE, 1);
 				return;
 			}
 		} else {
@@ -458,7 +482,7 @@ __session_cnx_recv_pdu(queue_item_t *item)
 			if (__login_response_status(conn, c->ret) !=
 						CNX_LOGIN_SUCCESS) {
 				__session_ipc_login_cleanup(c->qtask,
-						IPC_ERR_LOGIN_FAILURE);
+						IPC_ERR_LOGIN_FAILURE, 1);
 				return;
 			}
 
@@ -467,7 +491,7 @@ __session_cnx_recv_pdu(queue_item_t *item)
 				c->status_class, c->status_detail) !=
 							CNX_LOGIN_SUCCESS) {
 				__session_ipc_login_cleanup(c->qtask,
-						IPC_ERR_LOGIN_FAILURE);
+						IPC_ERR_LOGIN_FAILURE, 1);
 				return;
 			}
 
@@ -477,26 +501,26 @@ __session_cnx_recv_pdu(queue_item_t *item)
 				ISCSI_PARAM_MAX_RECV_DLENGTH,
 				conn->max_recv_dlength)) {
 				__session_ipc_login_cleanup(c->qtask,
-						IPC_ERR_LOGIN_FAILURE);
+						IPC_ERR_LOGIN_FAILURE, 1);
 				return;
 			}
 			if (ksession_set_param(session->ctrl_fd, conn,
 				ISCSI_PARAM_MAX_XMIT_DLENGTH,
 				conn->max_xmit_dlength)) {
 				__session_ipc_login_cleanup(c->qtask,
-						IPC_ERR_LOGIN_FAILURE);
+						IPC_ERR_LOGIN_FAILURE, 1);
 				return;
 			}
 			if (ksession_set_param(session->ctrl_fd, conn,
 				ISCSI_PARAM_HDRDGST_EN, conn->hdrdgst_en)) {
 				__session_ipc_login_cleanup(c->qtask,
-						IPC_ERR_LOGIN_FAILURE);
+						IPC_ERR_LOGIN_FAILURE, 1);
 				return;
 			}
 			if (ksession_set_param(session->ctrl_fd, conn,
 				ISCSI_PARAM_DATADGST_EN, conn->datadgst_en)) {
 				__session_ipc_login_cleanup(c->qtask,
-						IPC_ERR_LOGIN_FAILURE);
+						IPC_ERR_LOGIN_FAILURE, 1);
 				return;
 			}
 			if (conn->id == 0) {
@@ -505,42 +529,42 @@ __session_cnx_recv_pdu(queue_item_t *item)
 					ISCSI_PARAM_INITIAL_R2T_EN,
 					session->initial_r2t_en)) {
 					__session_ipc_login_cleanup(c->qtask,
-							IPC_ERR_LOGIN_FAILURE);
+						IPC_ERR_LOGIN_FAILURE, 1);
 					return;
 				}
 				if (ksession_set_param(session->ctrl_fd, conn,
 					ISCSI_PARAM_MAX_R2T,
 					1 /* FIXME: session->max_r2t */)) {
 					__session_ipc_login_cleanup(c->qtask,
-							IPC_ERR_LOGIN_FAILURE);
+						IPC_ERR_LOGIN_FAILURE, 1);
 					return;
 				}
 				if (ksession_set_param(session->ctrl_fd, conn,
 					ISCSI_PARAM_IMM_DATA_EN,
 					session->imm_data_en)) {
 					__session_ipc_login_cleanup(c->qtask,
-							IPC_ERR_LOGIN_FAILURE);
+						IPC_ERR_LOGIN_FAILURE, 1);
 					return;
 				}
 				if (ksession_set_param(session->ctrl_fd, conn,
 					ISCSI_PARAM_FIRST_BURST,
 					session->first_burst)) {
 					__session_ipc_login_cleanup(c->qtask,
-							IPC_ERR_LOGIN_FAILURE);
+						IPC_ERR_LOGIN_FAILURE, 1);
 					return;
 				}
 				if (ksession_set_param(session->ctrl_fd, conn,
 					ISCSI_PARAM_MAX_BURST,
 					session->max_burst)) {
 					__session_ipc_login_cleanup(c->qtask,
-							IPC_ERR_LOGIN_FAILURE);
+						IPC_ERR_LOGIN_FAILURE, 1);
 					return;
 				}
 				if (ksession_set_param(session->ctrl_fd, conn,
 					ISCSI_PARAM_PDU_INORDER_EN,
 					session->pdu_inorder_en)) {
 					__session_ipc_login_cleanup(c->qtask,
-							IPC_ERR_LOGIN_FAILURE);
+						IPC_ERR_LOGIN_FAILURE, 1);
 					return;
 				}
 				if (ksession_set_param(session->ctrl_fd, conn,
@@ -551,21 +575,21 @@ __session_cnx_recv_pdu(queue_item_t *item)
 					ISCSI_PARAM_ERL,
 					0 /* FIXME: session->erl */)) {
 					__session_ipc_login_cleanup(c->qtask,
-							IPC_ERR_LOGIN_FAILURE);
+						IPC_ERR_LOGIN_FAILURE, 1);
 					return;
 				}
 				if (ksession_set_param(session->ctrl_fd, conn,
 					ISCSI_PARAM_IFMARKER_EN,
 					0 /* FIXME: session->ifmarker_en */)) {
 					__session_ipc_login_cleanup(c->qtask,
-							IPC_ERR_LOGIN_FAILURE);
+						IPC_ERR_LOGIN_FAILURE, 1);
 					return;
 				}
 				if (ksession_set_param(session->ctrl_fd, conn,
 					ISCSI_PARAM_OFMARKER_EN,
 					0 /* FIXME: session->ofmarker_en */)) {
 					__session_ipc_login_cleanup(c->qtask,
-							IPC_ERR_LOGIN_FAILURE);
+						IPC_ERR_LOGIN_FAILURE, 1);
 					return;
 				}
 
@@ -580,7 +604,7 @@ __session_cnx_recv_pdu(queue_item_t *item)
 
 			if (ksession_start_cnx(session->ctrl_fd, conn)) {
 				__session_ipc_login_cleanup(c->qtask,
-						IPC_ERR_INTERNAL);
+						IPC_ERR_INTERNAL, 1);
 				return;
 			}
 
@@ -614,25 +638,6 @@ __session_cnx_recv_pdu(queue_item_t *item)
 			log_error("unsupported opcode 0x%x", hdr.opcode);
 		}
 	}
-}
-
-static void
-__session_cnx_cleanup(iscsi_conn_t *conn)
-{
-	iscsi_session_t *session = conn->session;
-
-	if (ksession_cnx_destroy(session->ctrl_fd, conn)) {
-		log_error("can not safely destroy connection %d", conn->id);
-		return;
-	}
-	session_cnx_destroy(session, conn->id);
-
-	if (ksession_destroy(session->ctrl_fd, session)) {
-		log_error("can not safely destroy session %d", session->id);
-		return;
-	}
-	if (conn->id == 0)
-		__session_destroy(session);
 }
 
 static void
@@ -723,7 +728,7 @@ s_cleanup:
 		log_error("can not safely destroy session %d", session->id);
 	}
 cleanup:
-	__session_ipc_login_cleanup(qtask, err);
+	__session_ipc_login_cleanup(qtask, err, 0);
 }
 
 static void
@@ -778,7 +783,8 @@ __session_cnx_timer(queue_item_t *item)
 			log_debug(6, "cnx_timer popped at XPT_WAIT: login");
 			/* timeout during initial connect.
 			 * clean connection. write ipc rsp */
-			__session_ipc_login_cleanup(qtask, IPC_ERR_TCP_TIMEOUT);
+			__session_ipc_login_cleanup(qtask,
+						    IPC_ERR_TCP_TIMEOUT, 0);
 		} else if (session->r_stage == R_STAGE_SESSION_REOPEN) {
 			log_debug(6, "cnx_timer popped at XPT_WAIT: reopen");
 			/* timeout during reopen connect.
@@ -803,7 +809,8 @@ __session_cnx_timer(queue_item_t *item)
 				log_error("can not safely destroy session %d",
 					  session->id);
 			}
-			__session_ipc_login_cleanup(qtask, IPC_ERR_PDU_TIMEOUT);
+			__session_ipc_login_cleanup(qtask,
+						    IPC_ERR_PDU_TIMEOUT, 0);
 		} else if (session->r_stage == R_STAGE_SESSION_REOPEN) {
 			if (--session->reopen_cnt > 0) {
 				if (__session_cnx_reopen(conn))
