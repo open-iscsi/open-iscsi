@@ -712,7 +712,8 @@ iscsi_control_recv_pdu(iscsi_cnx_h handle, iscsi_hdr_t *hdr, char *data)
 		case ISCSI_OP_ASYNC_EVENT:
 		case ISCSI_OP_REJECT_MSG:
 		break;
-		default: break;
+		default:
+			return -EPERM;
 	}
 
 	return 0;

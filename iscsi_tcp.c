@@ -767,7 +767,6 @@ iscsi_cmd_init(iscsi_conn_t *conn, iscsi_cmd_task_t *ctask,
 
 	ctask->in_progress = IN_PROGRESS_IDLE;
 	ctask->sent = 0;
-	ctask->datasn = 0;
 	ctask->sg_count = 0;
 
 	ctask->total_length = sc->request_bufflen;
@@ -776,6 +775,7 @@ iscsi_cmd_init(iscsi_conn_t *conn, iscsi_cmd_task_t *ctask,
 			    sizeof(iscsi_hdr_t));
 
 	if (sc->sc_data_direction == DMA_FROM_DEVICE) {
+		ctask->datasn = 0;
 		ctask->hdr.flags |= ISCSI_FLAG_CMD_READ | ISCSI_FLAG_CMD_FINAL;
 		ctask->in_progress = IN_PROGRESS_READ;
 		zero_data(ctask->hdr.dlength);
@@ -796,19 +796,23 @@ iscsi_cmd_init(iscsi_conn_t *conn, iscsi_cmd_task_t *ctask,
 					sc->request_bufflen);
 			__BUG_ON(sc->request_bufflen > PAGE_SIZE);
 		}
+
+		/*
+		 * Write counters:
+		 *
+		 *	imm_count	bytes to be sent right after
+		 *			SCSI PDU Header
+		 *
+		 *	imm_data_count	bytes(as Data-Out) to be sent
+		 *			without	R2T ack right after
+		 *			immediate data
+		 *
+		 *	data_count	bytes to be sent via R2T ack's
+		 */
+		ctask->imm_count = 0;
+		ctask->imm_data_count = 0;
+		ctask->unsolicit_datasn = 0;
 		if (session->imm_data_en) {
-			/*
-			 * Write counters:
-			 *
-			 *	imm_count	bytes to be sent right after
-			 *			SCSI PDU Header
-			 *
-			 *	imm_data_count	bytes(as Data-Out) to be sent
-			 *			without	R2T ack right after
-			 *			immediate data
-			 *
-			 *	data_count	bytes to be sent via R2T ack's
-			 */
 			if (ctask->total_length >= session->first_burst) {
 				ctask->imm_count = min(session->first_burst,
 							conn->max_xmit_dlength);
@@ -817,26 +821,23 @@ iscsi_cmd_init(iscsi_conn_t *conn, iscsi_cmd_task_t *ctask,
 							conn->max_xmit_dlength);
 				ctask->hdr.flags |= ISCSI_FLAG_CMD_FINAL;
 			}
-			if (!session->initial_r2t_en) {
-				ctask->imm_data_count=min(session->first_burst,
-					ctask->total_length) - ctask->imm_count;
-			} else {
-				ctask->imm_data_count = 0;
-			}
-			if (!ctask->imm_data_count) {
-				/* No unsolicit Data-Out's */
-				ctask->hdr.flags |= ISCSI_FLAG_CMD_FINAL;
-			}
-			ctask->data_count = ctask->total_length -
-					    ctask->imm_count -
-					    ctask->imm_data_count;
 			hton24(ctask->hdr.dlength, ctask->imm_count);
 			ctask->in_progress |= IN_PROGRESS_BEGIN_WRITE_IMM;
 		} else {
-			ctask->data_count = 0;
 			zero_data(ctask->hdr.dlength);
 			ctask->in_progress |= IN_PROGRESS_BEGIN_WRITE;
 		}
+		if (!session->initial_r2t_en) {
+			ctask->imm_data_count=min(session->first_burst,
+				ctask->total_length) - ctask->imm_count;
+		}
+		if (!ctask->imm_data_count) {
+			/* No unsolicit Data-Out's */
+			ctask->hdr.flags |= ISCSI_FLAG_CMD_FINAL;
+		}
+		ctask->data_count = ctask->total_length -
+				    ctask->imm_count -
+				    ctask->imm_data_count;
 	} else {
 		/* assume read op */
 		ctask->hdr.flags |= ISCSI_FLAG_CMD_FINAL;
@@ -1448,9 +1449,7 @@ static int
 iscsi_ctask_xmit(iscsi_conn_t *conn, iscsi_cmd_task_t *ctask)
 {
 	iscsi_r2t_info_t *r2t;
-#ifdef DEBUG_ASSERT
-	iscsi_session_t *session = conn->session;
-#endif
+
 	debug_scsi("dequeued [cid %d state %x itt 0x%x]\n",
 		conn->id, ctask->in_progress, ctask->itt);
 
@@ -1477,7 +1476,6 @@ iscsi_ctask_xmit(iscsi_conn_t *conn, iscsi_cmd_task_t *ctask)
 
 	if (ctask->in_progress & IN_PROGRESS_BEGIN_WRITE_IMM) {
 _imm_again:
-		__BUG_ON(!session->imm_data_en);
 		if (iscsi_sendpage(conn, &ctask->sendbuf,
 				   &ctask->imm_count,
 				   &ctask->sent)) {
@@ -1498,8 +1496,15 @@ _imm_again:
 			return 0;
 		}
 	} else if (ctask->in_progress & IN_PROGRESS_BEGIN_WRITE) {
-		printk("iSCSI: ImmediateData=No is not implemented\n");
-		__BUG_ON(1);
+		if (ctask->imm_data_count) {
+			ctask->in_progress = IN_PROGRESS_WRITE |
+					     IN_PROGRESS_UNSOLICIT_HEAD;
+			iscsi_unsolicit_data_init(conn, ctask);
+		} else if (ctask->data_count) {
+			ctask->in_progress = IN_PROGRESS_WRITE |
+					     IN_PROGRESS_R2T_WAIT;
+			return 0;
+		}
 	}
 
 	if (ctask->in_progress & IN_PROGRESS_UNSOLICIT_HEAD) {
@@ -1840,12 +1845,16 @@ fault:
 static int
 iscsi_eh_abort(struct scsi_cmnd *sc)
 {
-#ifdef DEBUG_SCSI
 	iscsi_cmd_task_t *ctask = (iscsi_cmd_task_t *)sc->SCp.ptr;
-#endif
-	debug_scsi("abort [sc %lx itt 0x%x]\n", (long)sc, ctask->itt);
-#if 0
 	iscsi_conn_t *conn = ctask->conn;
+
+	debug_scsi("abort [sc %lx itt 0x%x]\n", (long)sc, ctask->itt);
+
+	if (iscsi_control_recv_pdu(conn->handle,
+			(iscsi_hdr_t*)&ctask->hdr, NULL)) {
+		return FAILED;
+	}
+#if 0
 	iscsi_session_t *session = conn->session;
 	iscsi_mgmt_task_t *mtask;
 
@@ -1866,7 +1875,7 @@ iscsi_eh_abort(struct scsi_cmnd *sc)
 
 	down(&session->tmsema);
 #endif
-	return FAILED;
+	return SUCCESS;
 }
 
 static const char *
