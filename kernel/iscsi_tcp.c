@@ -226,8 +226,8 @@ iscsi_cmd_rsp(struct iscsi_conn *conn, struct iscsi_cmd_task *ctask)
 		if (sc->sc_data_direction != DMA_TO_DEVICE ) {
 			if (rhdr->flags & ISCSI_FLAG_CMD_UNDERFLOW) {
 				int res_count = ntohl(rhdr->residual_count);
-				if( res_count > 0 &&
-				    res_count <= sc->request_bufflen ) {
+				if (res_count > 0 &&
+				    res_count <= sc->request_bufflen) {
 					sc->resid = res_count;
 				} else {
 					sc->result =
