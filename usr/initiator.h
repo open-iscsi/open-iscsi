@@ -124,7 +124,7 @@ typedef struct iscsi_conn {
 	ulong_t recv_handle;
 	struct iscsi_session *session;
 	iscsi_login_context_t login_context;
-	uint8_t *rx_buffer;
+	char data[DEFAULT_MAX_RECV_DATA_SEGMENT_LENGTH];
 	iscsi_cnx_state_e state;
 	actor_t connect_timer;
 	actor_t send_pdu_timer;
@@ -239,6 +239,10 @@ typedef struct iscsi_session {
 	int password_length_in;
 	iscsi_conn_t cnx[ISCSI_CNX_MAX];
 	int ctrl_fd;
+
+	/* connection reopens during recovery */
+	int reopen_cnt;
+	queue_task_t reopen_qtask;
 
 	/* session's processing */
 	actor_t mainloop;

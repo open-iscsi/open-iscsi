@@ -2,7 +2,7 @@
  * iSCSI event queue
  *
  * Copyright (C) 2004 Dmitry Yusupov, Alex Aizman
- * maintained by open-iscsi@@googlegroups.com
+ * maintained by open-iscsi@googlegroups.com
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published
@@ -30,6 +30,7 @@ queue_create(int pages_initial, int pages_max, queued_f queued,
 	queue_t *queue;
 
 	if ((queue = malloc(sizeof(queue_t))) == NULL) {
+		log_error("out of memory when allocating queue_t");
 		return NULL;
 	}
 
@@ -38,9 +39,11 @@ queue_create(int pages_initial, int pages_max, queued_f queued,
 	queue->pages_current = pages_initial;
 	queue->start_ptr = malloc(queue->pages_current * QUEUE_BUF_SIZE);
 	if (queue->start_ptr == NULL) {
+		log_error("out of memory when allocating queue's pages");
 		free(queue);
 		return NULL;
 	}
+	memset(queue->start_ptr, 0, queue->pages_current * QUEUE_BUF_SIZE);
 	queue->head_ptr = queue->tail_ptr = queue->start_ptr;
 	queue->end_ptr = (char *)queue->start_ptr +
 		queue->pages_current * QUEUE_BUF_SIZE;

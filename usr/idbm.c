@@ -256,6 +256,7 @@ idbm_update_node(node_rec_t *rec, node_rec_t *newrec)
 
 	/* update rec->session */
 	__update_rec_int(rec, newrec, session.initial_cmdsn);
+	__update_rec_int(rec, newrec, session.reopen_max);
 	__update_rec_str(rec, newrec, session.auth.username,
 			 AUTH_STR_MAX_LEN);
 	__update_rec_str(rec, newrec, session.auth.password,
@@ -442,6 +443,8 @@ idbm_recinfo_node(node_rec_t *r, recinfo_t *ri)
 			SHOW, "manual", "automatic", num);
 	__recinfo_int("node.session.initial_cmdsn", ri, r,
 		      session.initial_cmdsn, SHOW, num);
+	__recinfo_int("node.session.reopen_max", ri, r,
+		      session.reopen_max, SHOW, num);
 	__recinfo_str("node.session.auth.username", ri, r,
 		      session.auth.username, SHOW, num);
 	__recinfo_str("node.session.auth.password", ri, r,
@@ -879,6 +882,7 @@ idbm_node_setup_defaults(node_rec_t *rec)
 	rec->active_cnx = 1; /* at least one connection must exist */
 	rec->tpgt = 1;
 	rec->session.initial_cmdsn = 0;
+	rec->session.reopen_max = 32;
 	rec->session.auth.authmethod = 0;
 	rec->session.err_timeo.abort_timeout = 10;
 	rec->session.err_timeo.reset_timeout = 30;

@@ -22,7 +22,7 @@
 
 #include "types.h"
 
-#define QUEUE_BUF_SIZE			8192
+#define QUEUE_BUF_SIZE			4096
 #define EVENT_PAYLOAD_MAX		(DATASEG_MAX+HDRSEG_MAX)
 
 typedef enum queue_status_e {

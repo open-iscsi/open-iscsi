@@ -2,7 +2,7 @@
  * iSCSI Session Management and Slow-path Control
  *
  * Copyright (C) 2004 Dmitry Yusupov, Alex Aizman
- * maintained by open-iscsi@@googlegroups.com
+ * maintained by open-iscsi@googlegroups.com
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published
@@ -25,7 +25,6 @@
 #include <errno.h>
 #include <sys/socket.h>
 #include <sys/param.h>
-#include <sys/ioctl.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
 
@@ -272,12 +271,6 @@ __session_cnx_create(iscsi_session_t *session, int cid)
 		}
 	}
 
-	conn->rx_buffer = malloc(DEFAULT_MAX_RECV_DATA_SEGMENT_LENGTH);
-	if (conn->rx_buffer == NULL) {
-		log_error("failed to allocate connection's rx buffer");
-		return 1;
-	}
-
 	conn->state = STATE_FREE;
 	conn->session = session;
 
@@ -287,8 +280,7 @@ __session_cnx_create(iscsi_session_t *session, int cid)
 void
 session_cnx_destroy(iscsi_session_t *session, int cid)
 {
-	iscsi_conn_t *conn = &session->cnx[cid];
-	free(conn->rx_buffer);
+	/* nothing to do right now */
 }
 
 static iscsi_session_t*
@@ -309,9 +301,9 @@ __session_create(node_rec_t *rec)
 	memcpy(&session->nrec, rec, sizeof(node_rec_t));
 
 	/* initalize per-session queue */
-	session->queue = queue_create(4096, 256*1024, NULL, session);
+	session->queue = queue_create(4, 4, NULL, session);
 	if (session->queue == NULL) {
-		log_debug(1, "can not create session's queue");
+		log_error("can not create session's queue");
 		free(session);
 		return NULL;
 	}
@@ -334,6 +326,9 @@ __session_create(node_rec_t *rec)
 	session->initiator_alias = dconfig->initiator_alias;
 	strncpy(session->target_name, rec->name, TARGET_NAME_MAXLEN);
 	session->vendor_specific_keys = 1;
+
+	/* session's misc parameters */
+	session->reopen_cnt = rec->session.reopen_max;
 
 	/* OUI and uniqifying number */
 	session->isid[0] = DRIVER_ISID_0;
@@ -599,32 +594,21 @@ __session_cnx_recv_pdu(queue_item_t *item)
 		}
 	} else if (conn->state == STATE_LOGGED_IN) {
 		struct iscsi_hdr hdr;
-		char *data;
-
-		/* FIXME: better to read PDU Header first, than allocate needed
-		 *        space for PDU Data, than read data. */
-
-		data = calloc(1, conn->max_recv_dlength);
-		if (data == NULL) {
-			log_error("can not allocate memory for incomming PDU");
-			return;
-		}
 
 		/* read incomming PDU */
-		if (!iscsi_recv_pdu(conn, &hdr, ISCSI_DIGEST_NONE, data,
-			    conn->max_recv_dlength, ISCSI_DIGEST_NONE, 0)) {
-			free(data);
+		if (!iscsi_recv_pdu(conn, &hdr, ISCSI_DIGEST_NONE, conn->data,
+			    DEFAULT_MAX_RECV_DATA_SEGMENT_LENGTH,
+			    ISCSI_DIGEST_NONE, 0)) {
 			return;
 		}
 
 		if (hdr.opcode == ISCSI_OP_NOOP_IN) {
-			if (__send_nopin_rsp(conn,
-				     (struct iscsi_nopin*)&hdr, data)) {
-				free(data);
+			if (!__send_nopin_rsp(conn,
+				     (struct iscsi_nopin*)&hdr, conn->data)) {
+				log_error("can not send nopin response");
 			}
 		} else {
 			log_error("unsupported opcode 0x%x", hdr.opcode);
-			free(data);
 		}
 	}
 }
@@ -764,7 +748,7 @@ __session_cnx_error(queue_item_t *item)
 	iscsi_session_t *session = conn->session;
 	int r_stage = R_STAGE_NO_CHANGE;
 
-	log_warning("detected iSCSI connection (handle %p) error %d",
+	log_warning("detected iSCSI connection (handle %p) error (%d)",
 			(void*)conn->handle, error);
 
 	if (conn->state == STATE_LOGGED_IN) {
@@ -792,7 +776,10 @@ __session_cnx_error(queue_item_t *item)
 						STATE_CLEANUP_WAIT;
 				}
 			}
-			r_stage = R_STAGE_SESSION_CLEANUP;
+			if (--session->reopen_cnt > 0)
+				r_stage = R_STAGE_SESSION_REOPEN;
+			else
+				r_stage = R_STAGE_SESSION_CLEANUP;
 		}
 	} else if (conn->state == STATE_IN_LOGIN) {
 		log_debug(1, "ignoring cnx error in login. let it timeout");
@@ -801,7 +788,16 @@ __session_cnx_error(queue_item_t *item)
 
 	if (r_stage == R_STAGE_SESSION_REOPEN) {
 		log_debug(1, "re-opening session %d", session->id);
-		/* FIXME: implement session re-open logic */
+#if 0
+		if (ksession_stop_cnx(session->ctrl_fd, conn)) {
+			log_error("can not safely stop connection %d",
+				  conn->id);
+			return;
+		}
+
+		iscsi_disconnect(conn);
+#endif
+
 		return;
 	}
 

@@ -24,6 +24,7 @@
 #include <stdio.h>
 #include <unistd.h>
 #include <string.h>
+#include <sys/mman.h>
 #include <sys/poll.h>
 #include <sys/utsname.h>
 
@@ -240,6 +241,12 @@ main(int argc, char *argv[])
 	strcpy(provider[0].name, "Linux SoftNET TCP");
 	provider[0].sessions.q_forw = &provider[0].sessions;
 	provider[0].sessions.q_back = &provider[0].sessions;
+
+	/* we don't want our session to be paged out... */
+	if (mlockall(MCL_CURRENT | MCL_FUTURE)) {
+		log_error("failed to mlockall, exiting...");
+		exit(1);
+	}
 
 	/*
 	 * Start Main Event Loop
