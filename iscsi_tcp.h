@@ -151,8 +151,6 @@ typedef struct iscsi_conn {
 	iscsi_cnx_h		handle;		/* CP connection handle */
 	int			in_progress_xmit; /* xmit state machine */
 	spinlock_t		lock;
-	int			weight_xmit;
-	int			weight;
 
 	/* configuration */
 	int			max_recv_dlength;
