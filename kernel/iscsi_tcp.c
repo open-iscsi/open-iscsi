@@ -1747,25 +1747,14 @@ iscsi_xmitworker(void *data)
 	iscsi_conn_t *conn = data;
 
 	/*
-	 * We don't want to run this connection on any other CPU.
-	 */
-	if (conn->cpu != smp_processor_id()) {
-		schedule_delayed_work_on(conn->id, &conn->xmitwork, 0);
-		return;
-	}
-
-	/*
 	 * We serialize Xmit worker on per-connection basis.
 	 */
-	while (iscsi_data_xmit(conn)) {
+	if (iscsi_data_xmit(conn)) {
 		if (conn->c_stage == ISCSI_CNX_CLEANUP_WAIT ||
-		    conn->c_stage == ISCSI_CNX_STOPPED)
+		    conn->c_stage == ISCSI_CNX_STOPPED || conn->suspend)
 			return;
-		if (conn->suspend) {
-			schedule_work(&conn->xmitwork);
-			return;
-		}
-		yield();
+		/* re-schedule in case of -EAGAIN */
+		schedule_work(&conn->xmitwork);
 	}
 }
 
@@ -1869,7 +1858,7 @@ iscsi_queuecommand(struct scsi_cmnd *sc, void (*done)(struct scsi_cmnd *))
 		conn->id, (long)sc, ctask->itt, sc->request_bufflen,
 		session->cmdsn, session->max_cmdsn - session->exp_cmdsn + 1);
 
-	schedule_work(&conn->xmitwork);
+	schedule_delayed_work_on(conn->id, &conn->xmitwork, 0);
 
 	spin_lock_irq(host->host_lock);
 	return 0;
