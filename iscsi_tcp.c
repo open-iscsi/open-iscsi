@@ -91,20 +91,24 @@ static int iscsi_proc_info(struct Scsi_Host *host, char *buffer, char **start,
  *                                                                            *
  ******************************************************************************/
 
-static inline void
+static void
 __insert(iscsi_queue_t *queue, void *data)
 {
 	if (queue->cons - 1 < 0) {
-		queue->cons = queue->max - 1;
+		if (queue->max > 1)
+			queue->cons = queue->max - 1;
+		else {
+			queue->cons = 1;
+			queue->prod = 1;
+		}
 	}
-	__BUG_ON(queue->cons - 1 == queue->prod || queue->cons - 1  < 0);
 	queue->pool[--queue->cons] = data;
 }
 
 /*
  * Insert before consumer pointer
  */
-static inline void
+static void
 iscsi_insert(iscsi_queue_t *queue, void *data)
 {
 	spin_lock_bh(queue->lock);
@@ -112,7 +116,7 @@ iscsi_insert(iscsi_queue_t *queue, void *data)
 	spin_unlock_bh(queue->lock);
 }
 
-static inline void
+static void
 __enqueue(iscsi_queue_t *queue, void *data)
 {
 	if (queue->prod == queue->max) {
@@ -125,7 +129,7 @@ __enqueue(iscsi_queue_t *queue, void *data)
 /*
  * Enqueue back to the queue using producer pointer
  */
-static inline void
+static void
 iscsi_enqueue(iscsi_queue_t *queue, void *data)
 {
 	spin_lock_bh(queue->lock);
@@ -133,7 +137,7 @@ iscsi_enqueue(iscsi_queue_t *queue, void *data)
 	spin_unlock_bh(queue->lock);
 }
 
-static inline void*
+static void*
 __dequeue(iscsi_queue_t *queue)
 {
 	void *data;
@@ -157,7 +161,7 @@ __dequeue(iscsi_queue_t *queue)
  *
  * Returns void* or NULL on empty queue
  */
-static inline void*
+static void*
 iscsi_dequeue(iscsi_queue_t *queue)
 {
 	void *data;
@@ -988,8 +992,8 @@ iscsi_hdr_recv(iscsi_conn_t *conn)
 				/* FIXME: recover error */
 				printk("iSCSI: dup rsp [itt 0x%x]\n",
 					conn->in.itt);
-				__BUG_ON(1);
-				return 0;
+				//__BUG_ON(1);
+				//return 0;
 			}
 			if (cstate == IN_PROGRESS_READ) {
 				if (!conn->in.datalen) {
@@ -1603,16 +1607,14 @@ _solicit_again:
 		 */
 		left = r2t->data_length - r2t->sent;
 		if (left) {
+			ctask->in_progress = IN_PROGRESS_WRITE |
+					     IN_PROGRESS_SOLICIT_HEAD;
 			if (iscsi_solicit_data_cont(conn,
 					    ctask, r2t, left)) {
 				r2t->cont_bit = 1;
 				__insert(&ctask->r2tqueue, r2t);
-				ctask->in_progress = IN_PROGRESS_WRITE |
-						     IN_PROGRESS_SOLICIT_HEAD;
 				return -EAGAIN;
 			}
-			ctask->in_progress = IN_PROGRESS_WRITE |
-					     IN_PROGRESS_SOLICIT_HEAD;
 			goto _solicit_head_again;
 		}
 
