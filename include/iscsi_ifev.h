@@ -47,7 +47,7 @@ typedef enum iscsi_uevent_e {
 
 typedef struct iscsi_uevent {
 	int type; /* k/u events type */
-	int provider_id;
+	int transport_id;
 
 	union {
 		/* messages u -> k */

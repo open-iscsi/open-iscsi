@@ -1,4 +1,4 @@
-CFLAGS += -O2 -fno-inline -Wall -Wstrict-prototypes -g -I../include
+CFLAGS += -O2 -fno-inline -Wall -Wstrict-prototypes -g -I../include -DNETLINK_ISCSI=10
 PROGRAMS = iscsid iscsiadm
 
 # sources shared between iscsid and iscsiadm

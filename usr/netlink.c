@@ -604,7 +604,7 @@ ctldev_handle(int ctrl_fd)
 
 int ctldev_open(void)
 {
-	int ctrl_fd = socket(PF_NETLINK, SOCK_RAW, 32);
+	int ctrl_fd = socket(PF_NETLINK, SOCK_RAW, NETLINK_ISCSI);
 	if (!ctrl_fd) {
 		log_error("can not create NETLINK_ISCSI socket");
 		return -1;
