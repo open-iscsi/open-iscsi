@@ -770,12 +770,12 @@ iscsi_host_class_initiator_parameters_store(struct class *class,
 		iscsi_param_t *p = &param_table[i];
 		if (!strnicmp(p->key, key, strlen(key))) {
 			if (p->type == 0) { /* int type */
-				*(int*)p->value = simple_strtoul(sval, NULL, 0);
-				if (*(int*)p->value < p->min ||
-				    *(int*)p->value > p->max) {
+				int ival = simple_strtoul(sval, NULL, 0);
+				if (ival < p->min || ival > p->max) {
 					printk("bad range '%s'\n", key);
 					return count;
 				}
+				*(int*)p->value = ival;
 			} else { /* string type */
 				strncpy((char*)p->value, sval, strlen(sval)+1);
 			}

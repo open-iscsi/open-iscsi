@@ -103,12 +103,12 @@ typedef struct iscsi_session_params {
 	char			target_alias[ISCSI_ALIAS_NAME_MAX];
 	char			target_portal[ISCSI_PORTAL_MAX];
 	char			target_address[ISCSI_PORTAL_MAX];
-	uint16_t		tpgt;
-	uint16_t		tsih;
+	uint32_t		tpgt;
+	uint32_t		tsih;
 	uint32_t		first_burst;
 	uint32_t		max_burst;
-	uint16_t		max_r2t;
-	uint16_t		max_cnx;
+	uint32_t		max_r2t;
+	uint32_t		max_cnx;
 	int			erl;
 	int			initial_r2t_en;
 	int			imm_data_en;
@@ -116,8 +116,8 @@ typedef struct iscsi_session_params {
 	int			ofmarker_en;
 	int			pdu_inorder_en;
 	int			dataseq_inorder_en;
-	uint16_t		time2wait;
-	uint16_t		time2retain;
+	uint32_t		time2wait;
+	uint32_t		time2retain;
 	int			auth_en;
 	uint32_t		cmdsn;
 	uint32_t		exp_cmdsn;
