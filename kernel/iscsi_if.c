@@ -57,7 +57,9 @@ static struct mempool_zone z_reply;
 #define Z_HIWAT_REPLY	6
 
 #define Z_PDU		1
-#define Z_SIZE_PDU	NLMSG_SPACE(DEFAULT_MAX_RECV_DATA_SEGMENT_LENGTH)
+#define Z_SIZE_PDU	NLMSG_SPACE(sizeof(struct iscsi_uevent) + \
+				    sizeof(struct iscsi_hdr) + \
+				    DEFAULT_MAX_RECV_DATA_SEGMENT_LENGTH)
 #define Z_MAX_PDU	8
 #define Z_HIWAT_PDU	6
 
@@ -492,7 +494,7 @@ iscsi_if_destroy_snx(struct iscsi_transport *transport, struct iscsi_uevent *ev)
 	}
 	spin_unlock_irqrestore(&cnxlock, flags);
 
-	/* remove this session to the list of active sessions */
+	/* remove this session from the list of active sessions */
 	spin_lock_irqsave(&snxlock, flags);
 	list_del(&snx->item);
 	spin_unlock_irqrestore(&snxlock, flags);
