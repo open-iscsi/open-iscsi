@@ -73,5 +73,7 @@ extern void idbm_slp_defaults(idbm_t *db, struct iscsi_slp_config *cfg);
 extern int idbm_discovery_read(idbm_t *db, int rec_id, discovery_rec_t *rec);
 extern int idbm_node_read(idbm_t *db, int rec_id, node_rec_t *rec);
 extern int idbm_node_write(idbm_t *db, int rec_id, node_rec_t *rec);
+extern int idbm_node_set_param(idbm_t *db, node_rec_t *rec, char *name,
+			       char *value);
 
 #endif /* IDBM_H */

@@ -330,7 +330,7 @@ iscsid_handle_error(int err)
 int
 main(int argc, char **argv)
 {
-	char *ip = NULL, *key = NULL, *value = NULL;
+	char *ip = NULL, *name = NULL, *value = NULL;
 	int ch, longindex, mode=-1, port=-1, do_login=0;
 	int rc=0, rid=-1, op=-1, type=-1, do_logout=0;
 	idbm_t *db;
@@ -356,8 +356,8 @@ main(int argc, char **argv)
 		case 'o':
 			op = str_to_op(optarg);
 			break;
-		case 'k':
-			key = optarg;
+		case 'n':
+			name = optarg;
 			break;
 		case 'v':
 			value = optarg;
@@ -477,12 +477,18 @@ main(int argc, char **argv)
 				goto out;
 			}
 			if (do_login && do_logout) {
-				log_error("either login or logout at "
-					  "the time allowed!");
+				log_error("either login or "
+					  "logout at the time allowed!");
 				rc = -1;
 				goto out;
 			}
-			if (!do_login && !do_logout) {
+			if ((do_login || do_logout) && op >= 0) {
+				log_error("either operation or login/logout "
+					  "at the time allowed!");
+				rc = -1;
+				goto out;
+			}
+			if (!do_login && !do_logout && op < 0) {
 				if (!idbm_print_node(db, rid)) {
 					log_error("no records found!");
 					rc = -1;
@@ -499,6 +505,23 @@ main(int argc, char **argv)
 				rc = -1;
 				goto out;
 			}
+			if (op == OP_UPDATE) {
+				if (!name || !value) {
+					log_error("update require name and "
+						  "value");
+					rc = -1;
+					goto out;
+				}
+				if ((rc = idbm_node_set_param(db, &rec,
+					      name, value))) {
+					log_error("can not set parameter");
+					goto out;
+				}
+			} else {
+				log_error("operation is not supported.");
+				rc = -1;
+				goto out;
+			}
 		} else if (op < 0 || op == OP_SHOW) {
 			if (!idbm_print_node(db, rid)) {
 				log_error("no records found!");
@@ -506,8 +529,7 @@ main(int argc, char **argv)
 				goto out;
 			}
 		} else {
-			log_error("Operations: insert, delete and update "
-				  "for node is not fully implemented yet.");
+			log_error("operation is not supported.");
 			rc = -1;
 			goto out;
 		}

@@ -365,7 +365,7 @@ idbm_write(DBM *dbm, void *rec, int size, char *hash)
 	datum key, data;
 
 	key.dptr = hash;
-	key.dsize = HASH_MAXLEN;
+	key.dsize = strlen(hash);
 
 	data.dptr = rec;
 	data.dsize = size;
@@ -706,6 +706,49 @@ idbm_discovery_setup_defaults(discovery_rec_t *rec, discovery_type_e type)
 	}
 }
 
+static int
+idbm_node_update_param(recinfo_t *info, char *name, char *value,
+		       int line_number)
+{
+	int i;
+
+	for (i=0; i<MAX_KEYS; i++) {
+		if (!info[i].visible)
+			continue;
+		if (!strcmp(name, info[i].name)) {
+			int j;
+			log_debug(7, "updated '%s', old value %s "
+				  "new value %s", name,
+				  info[i].value, value);
+			/* parse recinfo by type */
+			if (info[i].type == TYPE_INT) {
+				*(int*)info[i].data =
+					strtoul(value, NULL, 10);
+				return 0;
+			} else if (info[i].type == TYPE_STR) {
+				strncpy((char*)info[i].data,
+					value, VALUE_MAXLEN);
+				return 0;
+			}
+			for (j=0; j<info[i].numopts; j++) {
+				if (!strcmp(value, info[i].opts[j])) {
+					*(int*)info[i].data = j;
+					return 0;
+				}
+			}
+			if (line_number) {
+				log_warning("config file line %d contains "
+					    "unknown value format '%s' for "
+					    "parameter name '%s'",
+					    line_number, value, name);
+			}
+			break;
+		}
+	}
+
+	return 1;
+}
+
 static void
 idbm_recinfo_config(recinfo_t *info, FILE *f)
 {
@@ -781,39 +824,7 @@ idbm_recinfo_config(recinfo_t *info, FILE *f)
 		}
 		*(value+i) = 0;
 
-		for (i=0; i<MAX_KEYS; i++) {
-			if (!info[i].visible)
-				continue;
-			if (!strcmp(name, info[i].name)) {
-				int j;
-				log_debug(7, "updated '%s', old value %s "
-					  "new value %s", name,
-					  info[i].value, value);
-				/* parse recinfo by type */
-				if (info[i].type == TYPE_INT) {
-					*(int*)info[i].data =
-						strtoul(value, NULL, 10);
-					break;
-				} else if (info[i].type == TYPE_STR) {
-					strncpy((char*)info[i].data,
-						value, VALUE_MAXLEN);
-					break;
-				}
-				for (j=0; j<info[i].numopts; j++) {
-					if (!strcmp(value, info[i].opts[j])) {
-						*(int*)info[i].data = j;
-						break;
-					}
-				}
-				if (j != info[i].numopts)
-					break;
-				log_warning("config file line %d contains "
-					    "unknown value format '%s' for "
-					    "parameter name '%s'",
-					    line_number, value, name);
-				break;
-			}
-		}
+		(void)idbm_node_update_param(info, name, value, line_number);
 	} while (line);
 }
 
@@ -1187,6 +1198,31 @@ idbm_slp_defaults(idbm_t *db, struct iscsi_slp_config *cfg)
 {
 	memcpy(cfg, &db->drec_slp.u.slp,
 	       sizeof(struct iscsi_slp_config));
+}
+
+int
+idbm_node_set_param(idbm_t *db, node_rec_t *rec, char *name, char *value)
+{
+	recinfo_t *info;
+
+	info = idbm_recinfo_alloc(MAX_KEYS);
+	if (!info)
+		return 1;
+
+	idbm_recinfo_node(rec, info);
+
+	if (idbm_node_update_param(info, name, value, 0)) {
+		free(info);
+		return 1;
+	}
+
+	if (idbm_node_write(db, rec->id, rec)) {
+		free(info);
+		return 1;
+	}
+
+	free(info);
+	return 0;
 }
 
 idbm_t*
