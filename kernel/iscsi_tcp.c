@@ -1334,7 +1334,6 @@ iscsi_cmd_rsp(iscsi_conn_t *conn, iscsi_cmd_task_t *ctask)
 	struct scsi_cmnd *sc = ctask->sc;
 	int max_cmdsn = ntohl(rhdr->max_cmdsn);
 	int exp_cmdsn = ntohl(rhdr->exp_cmdsn);
-	unsigned long flags;
 
 	if (max_cmdsn < exp_cmdsn - 1) {
 		rc = ISCSI_ERR_MAX_CMDSN;
@@ -1401,11 +1400,9 @@ fault:
 		}
 		spin_unlock(&conn->lock);
 	}
-	spin_lock_irqsave(session->host->host_lock, flags);
 	ctask->in_progress = IN_PROGRESS_IDLE;
 	__enqueue(&session->cmdpool, ctask);
 	sc->scsi_done(sc);
-	spin_unlock_irqrestore(session->host->host_lock, flags);
 	return rc;
 }
 
