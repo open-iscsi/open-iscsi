@@ -1,6 +1,31 @@
+=================================================================
 
-Introduction
--------------
+        Linux* Open-iSCSI
+
+=================================================================
+
+                                                February 28, 2005
+
+Contents
+========
+
+- 1. In This Release
+- 2. Introduction
+- 3. Installation
+- 4. Open-iSCSI daemon
+- 5. Open-iSCSI Configuration Utility
+- 6. Configuration
+- 7. Getting Started
+
+
+1. In This Release
+==================
+
+
+
+2. Introduction
+===============
+
 Open-iSCSI project is a high-performance, transport independent,
 multi-platform implementation of RFC3720 iSCSI.
 
@@ -20,8 +45,9 @@ The user space Open-iSCSI consists of a daemon process called
 iscsid and a management utility iscsiadm.
 
 
-Installation
--------------
+3. Installation
+===============
+
 As of today, the Open-iSCSI Initiator requires a host running the
 Linux operating system with kernel version 2.6.9, or later. You need to
 enable "Cryptographic API" under "Cryptographic options" in the
@@ -39,8 +65,8 @@ or cross-compilation:
 	make KSRC=<kernel-src> KARCH="ARCH=um"
 
 
-Open-iSCSI daemon
------------------
+4. Open-iSCSI daemon
+====================
 	./iscsid --help
 
 Usage: iscsid [OPTION]
@@ -55,8 +81,8 @@ Usage: iscsid [OPTION]
 
 
 
-Open-iSCSI Administration Utility
----------------------------------
+5. Open-iSCSI Configuration Utility
+===================================
 
 	./iscsiadm --help
 
@@ -123,8 +149,9 @@ Usage: iscsiadm [OPTION]
 
 
 
-Configuration
--------------
+6. Configuration
+================
+
 The default configuration file is /etc/iscsid.conf. This file contains
 only configuration that could be overwritten by iSCSI Discovery,
 or manualy updated via iscsiadm utility.
@@ -133,8 +160,9 @@ See the man page and the example file for the current syntax.
 (no man page yet...)
 
 
-Getting Started
----------------
+7. Getting Started
+==================
+
 Right now there is no installation script. Just load the module with
 command:
 
@@ -150,11 +178,17 @@ redirected to the current console:
 
 	iscsid -d8 -f &
 
-and use administration utility to add/remove/update Discovery records,
+and use configuration utility to add/remove/update Discovery records,
 iSCSI Node records or monitor active iSCSI sessions:
 
 
-TBD
----
+8. TBD
+======
 
-This file is incomplete.
+To be completed:
+
+    - Features
+    - Kernel tracing and Troubleshooting
+    - Immediate and not-so-immediate plans
+    - Useful scripts
+    - White paper on Open-iSCSI design
