@@ -389,44 +389,6 @@ typedef struct iscsi_login {
 #define ISCSI_LOGIN_NEXT_STAGE(flags)     \
 (flags & ISCSI_FLAG_LOGIN_NEXT_STAGE_MASK)
 
-/* Login stage (phase) codes for CSG, NSG */
-#define ISCSI_SECURITY_NEGOTIATION_STAGE	0
-#define ISCSI_OP_PARMS_NEGOTIATION_STAGE	1
-#define ISCSI_FULL_FEATURE_PHASE		3
-
-/* Login Status response classes */
-#define ISCSI_STATUS_CLS_SUCCESS		0x00
-#define ISCSI_STATUS_CLS_REDIRECT		0x01
-#define ISCSI_STATUS_CLS_INITIATOR_ERR		0x02
-#define ISCSI_STATUS_CLS_TARGET_ERR		0x03
-
-/* Login Status response detail codes */
-/* Class-0 (Success) */
-#define ISCSI_LOGIN_STATUS_ACCEPT		0x00
-
-/* Class-1 (Redirection) */
-#define ISCSI_LOGIN_STATUS_TGT_MOVED_TEMP	0x01
-#define ISCSI_LOGIN_STATUS_TGT_MOVED_PERM	0x02
-
-/* Class-2 (Initiator Error) */
-#define ISCSI_LOGIN_STATUS_INIT_ERR		0x00
-#define ISCSI_LOGIN_STATUS_AUTH_FAILED		0x01
-#define ISCSI_LOGIN_STATUS_TGT_FORBIDDEN	0x02
-#define ISCSI_LOGIN_STATUS_TGT_NOT_FOUND	0x03
-#define ISCSI_LOGIN_STATUS_TGT_REMOVED		0x04
-#define ISCSI_LOGIN_STATUS_NO_VERSION		0x05
-#define ISCSI_LOGIN_STATUS_ISID_ERROR		0x06
-#define ISCSI_LOGIN_STATUS_MISSING_FIELDS	0x07
-#define ISCSI_LOGIN_STATUS_CONN_ADD_FAILED	0x08
-#define ISCSI_LOGIN_STATUS_NO_SESSION_TYPE	0x09
-#define ISCSI_LOGIN_STATUS_NO_SESSION		0x0a
-#define ISCSI_LOGIN_STATUS_INVALID_REQUEST	0x0b
-
-/* Class-3 (Target Error) */
-#define ISCSI_LOGIN_STATUS_TARGET_ERROR 	0x00
-#define ISCSI_LOGIN_STATUS_SVC_UNAVAILABLE	0x01
-#define ISCSI_LOGIN_STATUS_NO_RESOURCES 	0x02
-
 /* Login Response Header */
 typedef struct iscsi_login_rsp {
 	uint8_t opcode;
@@ -454,10 +416,10 @@ typedef struct iscsi_login_rsp {
 #define ISCSI_FULL_FEATURE_PHASE		3
 
 /* Login Status response classes */
-#define STATUS_CLASS_SUCCESS		0x00
-#define STATUS_CLASS_REDIRECT		0x01
-#define STATUS_CLASS_INITIATOR_ERR	0x02
-#define STATUS_CLASS_TARGET_ERR		0x03
+#define ISCSI_STATUS_CLS_SUCCESS		0x00
+#define ISCSI_STATUS_CLS_REDIRECT		0x01
+#define ISCSI_STATUS_CLS_INITIATOR_ERR		0x02
+#define ISCSI_STATUS_CLS_TARGET_ERR		0x03
 
 /* Login Status response detail codes */
 /* Class-0 (Success) */

@@ -220,6 +220,24 @@ __create_session(unsigned long ptr)
 }
 
 static int
+__destroy_session(unsigned long ptr)
+{
+	int rc;
+	iscsi_uevent_t ev;
+	iscsi_kprovider_t *provider;
+
+	if ((rc = copy_from_user(&ev, (void *)ptr, sizeof(ev))) < 0)
+		return rc;
+
+	if ((provider = __provider_lookup(ev.provider_id)) == NULL)
+		return -EEXIST;
+
+	provider->ops.destroy_session((void*)ev.u.d_session.session_handle);
+
+	return 0;
+}
+
+static int
 __create_cnx(unsigned long ptr)
 {
 	int rc;
@@ -255,6 +273,24 @@ __create_cnx(unsigned long ptr)
 }
 
 static int
+__destroy_cnx(unsigned long ptr)
+{
+	int rc;
+	iscsi_uevent_t ev;
+	iscsi_kprovider_t *provider;
+
+	if ((rc = copy_from_user(&ev, (void *)ptr, sizeof(ev))) < 0)
+		return rc;
+
+	if ((provider = __provider_lookup(ev.provider_id)) == NULL)
+		return -EEXIST;
+
+	provider->ops.destroy_cnx((void*)ev.u.d_cnx.cnx_handle);
+
+	return 0;
+}
+
+static int
 __bind_cnx(unsigned long ptr)
 {
 	int rc;
@@ -268,7 +304,7 @@ __bind_cnx(unsigned long ptr)
 		return -EEXIST;
 
 	rc = (ulong_t)provider->ops.bind_cnx(
-	       (void*)ev.u.b_cnx.session_handle, (void*)ev.u.b_cnx.handle,
+	       (void*)ev.u.b_cnx.session_handle, (void*)ev.u.b_cnx.cnx_handle,
 	       ev.u.b_cnx.is_leading);
 	if (rc) {
 		return -EIO;
@@ -471,9 +507,27 @@ __start_cnx(unsigned long ptr)
 	if ((provider = __provider_lookup(ev.provider_id)) == NULL)
 		return -EEXIST;
 
-	rc = provider->ops.start_cnx((void*)ev.u.set_param.cnx_handle);
+	rc = provider->ops.start_cnx((void*)ev.u.start_cnx.cnx_handle);
 	if (rc)
 		return rc;
+
+	return 0;
+}
+
+static int
+__stop_cnx(unsigned long ptr)
+{
+	int rc;
+	iscsi_uevent_t ev;
+	iscsi_kprovider_t *provider;
+
+	if ((rc = copy_from_user(&ev, (void *)ptr, sizeof(ev))) < 0)
+		return rc;
+
+	if ((provider = __provider_lookup(ev.provider_id)) == NULL)
+		return -EEXIST;
+
+	provider->ops.stop_cnx((void*)ev.u.stop_cnx.cnx_handle);
 
 	return 0;
 }
@@ -490,7 +544,9 @@ ioctl(struct inode *inode, struct file *file,
 
 	switch (cmd) {
 	case ISCSI_UEVENT_CREATE_SESSION: return __create_session(arg);
+	case ISCSI_UEVENT_DESTROY_SESSION: return __destroy_session(arg);
 	case ISCSI_UEVENT_CREATE_CNX: return __create_cnx(arg);
+	case ISCSI_UEVENT_DESTROY_CNX: return __destroy_cnx(arg);
 	case ISCSI_UEVENT_BIND_CNX: return __bind_cnx(arg);
 	case ISCSI_UEVENT_SEND_PDU_BEGIN: return __send_pdu_begin(arg);
 	case ISCSI_UEVENT_SEND_PDU_END: return __send_pdu_end(arg);
@@ -499,6 +555,7 @@ ioctl(struct inode *inode, struct file *file,
 	case ISCSI_UEVENT_RECV_REQ: return __recv_req(arg);
 	case ISCSI_UEVENT_SET_PARAM: return __set_param(arg);
 	case ISCSI_UEVENT_START_CNX: return __start_cnx(arg);
+	case ISCSI_UEVENT_STOP_CNX: return __stop_cnx(arg);
 	default: return -EPERM;
 	}
 

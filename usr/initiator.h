@@ -59,9 +59,13 @@ enum iscsi_login_status {
 };
 
 typedef enum iscsi_cnx_state_e {
-	STATE_IDLE			= 0,
-	STATE_WAIT_CONNECT		= 1,
-	STATE_WAIT_LOGIN_RSP		= 2,
+	STATE_FREE			= 0,
+	STATE_XPT_WAIT			= 1,
+	STATE_IN_LOGIN			= 2,
+	STATE_LOGGED_IN			= 3,
+	STATE_IN_LOGOUT			= 4,
+	STATE_LOGOUT_REQUESTED		= 5,
+	STATE_CLEANUP_WAIT		= 6,
 } iscsi_cnx_state_e;
 
 typedef enum iscsi_event_e {
@@ -308,9 +312,8 @@ extern int iscsi_recv_pdu(iscsi_conn_t *conn, iscsi_hdr_t *hdr,
 	int timeout);
 
 /* initiator.c */
-extern iscsi_session_t* session_create(node_rec_t *rec);
-extern void session_destroy(iscsi_session_t *session);
-extern int session_cnx_create(iscsi_session_t *session, int cid);
-extern void session_cnx_destroy(iscsi_session_t *session, int cid);
+extern int session_login_task(node_rec_t *rec, queue_task_t *qtask);
+extern int session_logout_task(iscsi_session_t *session, queue_task_t *qtask);
+extern iscsi_session_t* session_find_by_rec(node_rec_t *rec);
 
 #endif /* INITIATOR_H */

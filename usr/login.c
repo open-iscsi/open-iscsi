@@ -1364,7 +1364,7 @@ iscsi_login_req(iscsi_session_t *session, iscsi_login_context_t *c)
 		goto done;
 	}
 
-	conn->state = STATE_WAIT_LOGIN_RSP;
+	conn->state = STATE_IN_LOGIN;
 	return 0;
 
  done:
@@ -1427,7 +1427,7 @@ iscsi_login_rsp(iscsi_session_t *session, iscsi_login_context_t *c)
 	if (c->final)
 		goto done;
 
-	conn->state = STATE_IDLE;
+	conn->state = STATE_FREE;
 	return 0;
 
  done:

@@ -74,27 +74,11 @@ ipc_close(int fd)
 {
 }
 
-static void
-__connect_timedout(void *data)
-{
-	queue_task_t *qtask = data;
-	iscsi_conn_t *conn = qtask->conn;
-	iscsi_session_t *session = conn->session;
-
-	if (conn->state == STATE_WAIT_CONNECT) {
-		queue_produce(session->queue, EV_CNX_TIMER, qtask, 0, 0);
-		actor_schedule(&session->mainloop);
-	}
-}
-
 static ipc_err_e
 ipc_session_login(queue_task_t *qtask, int rid)
 {
 	idbm_t *db;
 	node_rec_t rec;
-	iscsi_session_t *session;
-	iscsi_conn_t *conn;
-	int rc;
 
 	db = idbm_init(CONFIG_FILE);
 	if (!db) {
@@ -108,45 +92,34 @@ ipc_session_login(queue_task_t *qtask, int rid)
 
 	idbm_terminate(db);
 
-	session = session_create(&rec);
-	if (session == NULL) {
-		return IPC_ERR_LOGIN_FAILURE;
-	}
-
-	if (!rec.active_cnx) {
-		session_destroy(session);
-		return IPC_ERR_INVAL;
-	}
-
-	/* create leading connection */
-	if (session_cnx_create(session, 0)) {
-		session_destroy(session);
-		return IPC_ERR_LOGIN_FAILURE;
-	}
-	conn = &session->cnx[0];
-	qtask->conn = conn;
-
-	rc = iscsi_tcp_connect(conn, 1);
-	if (rc < 0 && errno != EINPROGRESS) {
-		log_error("cannot make a connection to %s:%d (%d)",
-			 inet_ntoa(conn->addr.sin_addr), conn->port, errno);
-		session_cnx_destroy(session, 0);
-		session_destroy(session);
-		return IPC_ERR_TCP_FAILURE;
-	}
-
-	conn->state = STATE_WAIT_CONNECT;
-	queue_produce(session->queue, EV_CNX_POLL, qtask, 0, 0);
-	actor_schedule(&session->mainloop);
-	actor_timer(&conn->connect_timer, conn->login_timeout*1000,
-		    __connect_timedout, qtask);
-	return IPC_OK;
+	return session_login_task(&rec, qtask);
 }
 
 static ipc_err_e
 ipc_session_logout(queue_task_t *qtask, int rid)
 {
-	return IPC_ERR;
+	idbm_t *db;
+	node_rec_t rec;
+	iscsi_session_t *session;
+
+	db = idbm_init(CONFIG_FILE);
+	if (!db) {
+		return IPC_ERR_IDBM_FAILURE;
+	}
+
+	if (idbm_node_read(db, rid, &rec)) {
+		log_error("node record [%06x] not found!", rid);
+		return IPC_ERR_NOT_FOUND;
+	}
+
+	idbm_terminate(db);
+
+	session = session_find_by_rec(&rec);
+	if (session == NULL) {
+		return IPC_ERR_NOT_FOUND;
+	}
+
+	return session_logout_task(session, qtask);
 }
 
 static ipc_err_e

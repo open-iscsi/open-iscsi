@@ -62,6 +62,7 @@ typedef enum iscsi_uevent_e {
 	ISCSI_UEVENT_RECV_REQ		= UEVENT_BASE + 10,
 	ISCSI_UEVENT_SET_PARAM		= UEVENT_BASE + 11,
 	ISCSI_UEVENT_START_CNX		= UEVENT_BASE + 12,
+	ISCSI_UEVENT_STOP_CNX		= UEVENT_BASE + 13,
 
 	/* up events */
 	ISCSI_KEVENT_RECV_PDU		= KEVENT_BASE + 1,
@@ -80,7 +81,7 @@ typedef struct iscsi_uevent {
 			unsigned int	initial_cmdsn;
 		} c_session;
 		struct msg_destroy_session {
-			unsigned int	sid;
+			ulong_t		session_handle;
 		} d_session;
 		struct msg_create_cnx {
 			ulong_t		session_handle;
@@ -90,11 +91,11 @@ typedef struct iscsi_uevent {
 		} c_cnx;
 		struct msg_bind_cnx {
 			ulong_t		session_handle;
-			ulong_t		handle;
+			ulong_t		cnx_handle;
 			int		is_leading;
 		} b_cnx;
 		struct msg_destroy_cnx {
-			unsigned int	cid;
+			ulong_t		cnx_handle;
 		} d_cnx;
 		struct msg_sp_begin {
 			int		hdr_size;
@@ -120,6 +121,9 @@ typedef struct iscsi_uevent {
 		struct msg_start_cnx {
 			ulong_t		cnx_handle;
 		} start_cnx;
+		struct msg_stop_cnx {
+			ulong_t		cnx_handle;
+		} stop_cnx;
 	} u;
 	union {
 		/* messages k -> u */

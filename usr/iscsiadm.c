@@ -65,6 +65,7 @@ static struct option const long_options[] =
 	{"value", required_argument, 0, 'v'},
 	{"record", no_argument, 0, 'r'},
 	{"login", no_argument, 0, 'l'},
+	{"logout", no_argument, 0, 'u'},
 	{"debug", required_argument, 0, 'd'},
 	{"version", no_argument, 0, 'V'},
 	{"help", no_argument, 0, 'h'},
@@ -98,6 +99,7 @@ iSCSI Administration Utility.\n\
                           you wish to update\n\
   -m node                 display all discovered nodes from internal\n\
                           persistent discovery database\n\
+  -m node --record=[id] [--login|--logout]\n\
   -m node --record=[id] --op=[op] [--name=[name] --value=[value]]\n\
                           perform specific DB operation [op] for specific\n\
                           node with record [id]. It could be one of:\n\
@@ -267,6 +269,18 @@ session_login(int rid, node_rec_t *rec)
 	return do_iscsid(&req);
 }
 
+static int
+session_logout(int rid, node_rec_t *rec)
+{
+	iscsiadm_req_t req;
+
+	memset(&req, 0, sizeof(req));
+	req.command = IPC_SESSION_LOGOUT;
+	req.u.session.rid = rid;
+
+	return do_iscsid(&req);
+}
+
 
 /*
  * start sendtargets discovery process based on the
@@ -315,14 +329,14 @@ main(int argc, char **argv)
 {
 	char *ip = NULL, *key = NULL, *value = NULL;
 	int ch, longindex, mode=-1, port=-1, do_login=0;
-	int rc=0, rid=-1, op=-1, type=-1;
+	int rc=0, rid=-1, op=-1, type=-1, do_logout=0;
 	idbm_t *db;
 
 	/* enable stdout logging */
 	log_daemon = 0;
 	log_init(program_name);
 
-	while ((ch = getopt_long(argc, argv, "lVhm:p:d:r:n:v:o:t:",
+	while ((ch = getopt_long(argc, argv, "lVhm:p:d:r:n:v:o:t:u",
 				 long_options, &longindex)) >= 0) {
 		switch (ch) {
 		case 't':
@@ -342,6 +356,9 @@ main(int argc, char **argv)
 			break;
 		case 'l':
 			do_login = 1;
+			break;
+		case 'u':
+			do_logout = 1;
 			break;
 		case 'd':
 			log_level = atoi(optarg);
@@ -440,7 +457,7 @@ main(int argc, char **argv)
 			}
 		}
 	} else if (mode == MODE_NODE) {
-		if (rid >= 0 && do_login) {
+		if (rid >= 0) {
 			node_rec_t rec;
 
 			if (idbm_node_read(db, rid, &rec)) {
@@ -448,7 +465,25 @@ main(int argc, char **argv)
 				rc = -1;
 				goto out;
 			}
-			if ((rc = session_login(rid, &rec)) > 0) {
+			if (do_login && do_logout) {
+				log_error("either login or logout at "
+					  "the time allowed!");
+				rc = -1;
+				goto out;
+			}
+			if (!do_login && !do_logout) {
+				if (!idbm_print_node(db, rid)) {
+					log_error("no records found!");
+					rc = -1;
+					goto out;
+				}
+			}
+			if (do_login && (rc = session_login(rid, &rec)) > 0) {
+				iscsid_handle_error(rc);
+				rc = -1;
+				goto out;
+			}
+			if (do_logout && (rc = session_logout(rid, &rec)) > 0) {
 				iscsid_handle_error(rc);
 				rc = -1;
 				goto out;
