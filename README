@@ -75,7 +75,7 @@ iscsid, and a management utility iscsiadm.
 ===============
 
 As of today, the Open-iSCSI Initiator requires a host running the
-Linux operating system with kernel version 2.6.10, or later. You need to
+Linux operating system with kernel version 2.6.11, or later. You need to
 enable "Cryptographic API" under "Cryptographic options" in the
 kernel config. You also need to enable "CRC32c CRC algorithm" if
 you use header or data digests. They are the kernel options,
