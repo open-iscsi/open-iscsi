@@ -90,53 +90,6 @@ out:
 	return entry;
 }
 
-int
-iscsi_control_recv_pdu(iscsi_cnx_h cp_cnx, iscsi_hdr_t *hdr,
-				char *data, int data_size)
-{
-	recv_context_t *entry;
-
-	if (recv_entry_cnt >= CTRL_RECV_ALLOWED)
-		return -EPERM;
-
-	entry = kmalloc(sizeof(*entry), GFP_ATOMIC);
-	if (!entry)
-		return -ENOMEM;
-	memset(entry, 0, sizeof(*entry));
-
-	entry->pdu = kmalloc(data_size + sizeof(iscsi_hdr_t), GFP_KERNEL);
-	if (!entry->pdu) {
-		kfree(entry);
-		return -ENOMEM;
-	}
-	memcpy(entry->pdu, hdr, sizeof(iscsi_hdr_t));
-	if (data)
-		memcpy(entry->pdu + sizeof(iscsi_hdr_t), data, data_size);
-	entry->type = ISCSI_KEVENT_RECV_PDU;
-	entry->state = PDU_STATE_BUSY;
-	entry->curr_off = 0;
-	entry->cp_cnxh = (ulong_t)cp_cnx;
-	entry->pdu_size = sizeof(iscsi_hdr_t) + data_size;
-
-	if (in_interrupt())
-		spin_lock(&evqueue_lock);
-	else
-		spin_lock_bh(&evqueue_lock);
-	recv_entry_cnt++;
-	list_add(&entry->item, &evqueue);
-	if (in_interrupt())
-		spin_unlock(&evqueue_lock);
-	else
-		spin_unlock_bh(&evqueue_lock);
-
-	return 0;
-}
-
-void
-iscsi_control_cnx_error(iscsi_cnx_h cp_cnx, int error)
-{
-}
-
 static ssize_t
 write(struct file *file, const char __user *buf, size_t count, loff_t *ppos)
 {
@@ -566,6 +519,76 @@ ioctl(struct inode *inode, struct file *file,
 	}
 
 	return -EPERM;
+}
+
+int
+iscsi_control_recv_pdu(iscsi_cnx_h cp_cnx, iscsi_hdr_t *hdr,
+				char *data, int data_size)
+{
+	recv_context_t *entry;
+
+	if (recv_entry_cnt >= CTRL_RECV_ALLOWED)
+		return -EPERM;
+
+	entry = kmalloc(sizeof(*entry), GFP_ATOMIC);
+	if (!entry)
+		return -ENOMEM;
+	memset(entry, 0, sizeof(*entry));
+
+	entry->pdu = kmalloc(data_size + sizeof(iscsi_hdr_t), GFP_KERNEL);
+	if (!entry->pdu) {
+		kfree(entry);
+		return -ENOMEM;
+	}
+	memcpy(entry->pdu, hdr, sizeof(iscsi_hdr_t));
+	if (data)
+		memcpy(entry->pdu + sizeof(iscsi_hdr_t), data, data_size);
+	entry->type = ISCSI_KEVENT_RECV_PDU;
+	entry->state = PDU_STATE_BUSY;
+	entry->curr_off = 0;
+	entry->cp_cnxh = (ulong_t)cp_cnx;
+	entry->pdu_size = sizeof(iscsi_hdr_t) + data_size;
+
+	if (in_interrupt())
+		spin_lock(&evqueue_lock);
+	else
+		spin_lock_bh(&evqueue_lock);
+	recv_entry_cnt++;
+	list_add(&entry->item, &evqueue);
+	if (in_interrupt())
+		spin_unlock(&evqueue_lock);
+	else
+		spin_unlock_bh(&evqueue_lock);
+
+	return 0;
+}
+
+void
+iscsi_control_cnx_error(iscsi_cnx_h cp_cnx, int error)
+{
+	recv_context_t *entry;
+
+	if (recv_entry_cnt >= CTRL_RECV_ALLOWED)
+		return;
+
+	entry = kmalloc(sizeof(*entry), GFP_ATOMIC);
+	if (!entry)
+		return;
+	memset(entry, 0, sizeof(*entry));
+	entry->type = ISCSI_KEVENT_CNX_ERROR;
+	entry->state = PDU_STATE_BUSY;
+	entry->cp_cnxh = (ulong_t)cp_cnx;
+
+	if (in_interrupt())
+		spin_lock(&evqueue_lock);
+	else
+		spin_lock_bh(&evqueue_lock);
+	recv_entry_cnt++;
+	list_add(&entry->item, &evqueue);
+	if (in_interrupt())
+		spin_unlock(&evqueue_lock);
+	else
+		spin_unlock_bh(&evqueue_lock);
 }
 
 struct file_operations ctr_fops = {

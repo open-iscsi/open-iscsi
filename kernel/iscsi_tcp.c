@@ -375,17 +375,17 @@ iscsi_sendhdr(iscsi_conn_t *conn, iscsi_buf_t *buf)
 	int flags = MSG_DONTWAIT;
 	int res, offset, size;
 
-	offset = buf->offset + buf->sent;
-	size = buf->size - buf->sent;
-	__BUG_ON(buf->sent + size > buf->size);
-	if (buf->sent + size != buf->size) {
+	offset = buf->sg.offset + buf->sent;
+	size = buf->sg.length - buf->sent;
+	__BUG_ON(buf->sent + size > buf->sg.length);
+	if (buf->sent + size != buf->sg.length) {
 		flags |= MSG_MORE;
 	}
 
 	// tcp_sendpage, do_tcp_sendpages, tcp_sendmsg
-	res = sk->ops->sendpage(sk, buf->page, offset, size, flags);
+	res = sk->ops->sendpage(sk, buf->sg.page, offset, size, flags);
 	debug_tcp("sendhdr %lx %d bytes at offset %d sent %d res %d\n",
-		  (long)page_address(buf->page), size, offset, buf->sent, res);
+		  (long)page_address(buf->sg.page), size, offset, buf->sent, res);
 	if (res >= 0) {
 		buf->sent += res;
 		if (size != res) {
@@ -413,16 +413,16 @@ iscsi_sendpage(iscsi_conn_t *conn, iscsi_buf_t *buf, int *count, int *sent)
 	int flags = MSG_DONTWAIT;
 	int res, offset, size;
 
-	size = buf->size - buf->sent;
-	__BUG_ON(buf->sent + size > buf->size);
+	size = buf->sg.length - buf->sent;
+	__BUG_ON(buf->sent + size > buf->sg.length);
 	if (size > *count) {
 		size = *count;
 	}
-	if (buf->sent + size != buf->size) {
+	if (buf->sent + size != buf->sg.length) {
 		flags |= MSG_MORE;
 	}
 
-	offset = buf->offset + buf->sent;
+	offset = buf->sg.offset + buf->sent;
 
 	/* tcp_sendpage */
 	sendpage = sk->ops->sendpage ? : sock_no_sendpage;
@@ -431,7 +431,7 @@ iscsi_sendpage(iscsi_conn_t *conn, iscsi_buf_t *buf, int *count, int *sent)
 	if (PageHighMem(buf->page))
 		sendpage = sock_no_sendpage;
 
-	res = sendpage(sk, buf->page, offset, size, flags);
+	res = sendpage(sk, buf->sg.page, offset, size, flags);
 	debug_tcp("sendpage %lx %d bytes, boff %d bsent %d "
 		  "left %d sent %d res %d\n",
 		  (long)page_address(buf->page), size, offset,
@@ -561,18 +561,18 @@ iscsi_ctask_copy(iscsi_conn_t *conn, iscsi_cmd_task_t *ctask,
 static inline void
 iscsi_buf_init_virt(iscsi_buf_t *ibuf, char *vbuf, int size)
 {
-	ibuf->page = virt_to_page(vbuf);
-	ibuf->offset = offset_in_page(vbuf);
-	ibuf->size = size;
+	ibuf->sg.page = virt_to_page(vbuf);
+	ibuf->sg.offset = offset_in_page(vbuf);
+	ibuf->sg.length = size;
 	ibuf->sent = 0;
 }
 
 static inline void
 iscsi_buf_init_sg(iscsi_buf_t *ibuf, struct scatterlist *sg)
 {
-	ibuf->page = sg->page;
-	ibuf->offset = sg->offset;
-	ibuf->size = sg->length;
+	ibuf->sg.page = sg->page;
+	ibuf->sg.offset = sg->offset;
+	ibuf->sg.length = sg->length;
 	ibuf->sent = 0;
 }
 
@@ -696,8 +696,8 @@ iscsi_solicit_data_init(iscsi_conn_t *conn, iscsi_cmd_task_t *ctask,
 				int page_offset = r2t->data_offset - sg_count;
 				/* sg page found! */
 				iscsi_buf_init_sg(&r2t->sendbuf, sg);
-				r2t->sendbuf.offset += page_offset;
-				r2t->sendbuf.size -= page_offset;
+				r2t->sendbuf.sg.offset += page_offset;
+				r2t->sendbuf.sg.length -= page_offset;
 				r2t->sg = sg + 1;
 				break;
 			}
@@ -788,9 +788,6 @@ iscsi_cmd_init(iscsi_conn_t *conn, iscsi_cmd_task_t *ctask,
 
 	ctask->total_length = sc->request_bufflen;
 
-	iscsi_buf_init_virt(&ctask->headbuf, (char*)&ctask->hdr,
-			    sizeof(iscsi_hdr_t));
-
 	if (sc->sc_data_direction == DMA_FROM_DEVICE) {
 		ctask->datasn = 0;
 		ctask->hdr.flags |= ISCSI_FLAG_CMD_READ | ISCSI_FLAG_CMD_FINAL;
@@ -864,9 +861,14 @@ iscsi_cmd_init(iscsi_conn_t *conn, iscsi_cmd_task_t *ctask,
 		zero_data(ctask->hdr.dlength);
 	}
 
+	iscsi_buf_init_virt(&ctask->headbuf, (char*)&ctask->hdr,
+			    sizeof(iscsi_hdr_t));
+
 	if (conn->hdrdgst_en) {
-		printk("iSCSI: not implemented\n");
-		__BUG_ON(1);
+		crypto_digest_init(conn->tx_tfm);
+		crypto_digest_update(conn->tx_tfm, &ctask->headbuf.sg, 1);
+		crypto_digest_final(conn->tx_tfm, (u8 *)ctask->hdrext);
+		ctask->headbuf.sg.length += sizeof(uint32_t);
 	}
 
 	ctask->in_progress |= IN_PROGRESS_HEAD;
@@ -945,14 +947,9 @@ iscsi_hdr_recv(iscsi_conn_t *conn)
 	iscsi_hdr_t *hdr;
 	iscsi_cmd_task_t *ctask;
 	iscsi_session_t *session = conn->session;
+	uint32_t cdgst, rdgst = 0;
 
 	hdr = conn->in.hdr;
-
-	if (conn->hdrdgst_en) {
-		/* FIXME: check HeaderDigest */
-		__BUG_ON(1);
-		return 0;
-	}
 
 	/* check for malformed pdu */
 	conn->in.datalen = ntoh24(hdr->dlength);
@@ -979,6 +976,19 @@ iscsi_hdr_recv(iscsi_conn_t *conn)
 	/* FIXME: if ahslen too big... need special case to handle */
 	__BUG_ON(conn->in.copy < 0);
 
+	if (conn->hdrdgst_en) {
+		struct scatterlist sg;
+
+		sg.page = virt_to_page(hdr);
+		sg.offset = offset_in_page(hdr);
+		sg.length = sizeof(iscsi_hdr_t) + conn->in.ahslen;
+		crypto_digest_init(conn->rx_tfm);
+		crypto_digest_update(conn->rx_tfm, &sg, 1);
+		crypto_digest_final(conn->rx_tfm, (u8 *)&cdgst);
+		rdgst = *(uint32_t*)((char*)hdr + sizeof(iscsi_hdr_t) +
+				     conn->in.ahslen);
+	}
+
 	/* save opcode & itt for later processing */
 	conn->in.opcode = hdr->opcode;
 	conn->in.itt = ntohl(hdr->itt);
@@ -989,6 +999,13 @@ iscsi_hdr_recv(iscsi_conn_t *conn)
 
 	if (conn->in.itt < session->cmds_max) {
 		int cstate;
+
+		if (conn->hdrdgst_en && cdgst != rdgst) {
+			/* FIXME: recover error */
+			printk("iSCSI: itt %x: hdrdgst error recv 0x%x "
+			       "calc 0x%x\n", conn->in.itt, rdgst, cdgst);
+			return 0;
+		}
 
 		ctask = (iscsi_cmd_task_t *)session->cmds[conn->in.itt];
 		conn->in.ctask = ctask;
@@ -2182,6 +2199,15 @@ iscsi_conn_destroy(iscsi_cnx_h cnxh)
 	spin_unlock(&conn->lock);
 	spin_unlock_irqrestore(session->host->host_lock, flags);
 
+	/* now free crypto */
+	if (conn->hdrdgst_en || conn->datadgst_en) {
+		if (conn->tx_tfm)
+			crypto_free_tfm(conn->tx_tfm);
+		if (conn->rx_tfm)
+			crypto_free_tfm(conn->rx_tfm);
+	}
+
+	/* now free MaxRecvDataSegmentLength */
 	if (conn->max_recv_dlength <= PAGE_SIZE)
 		kfree(conn->data);
 	else
@@ -2314,15 +2340,23 @@ iscsi_send_immpdu(iscsi_cnx_h cnxh, iscsi_hdr_t *hdr, char *data,
 		((iscsi_nopout_t*)hdr)->cmdsn = htonl(session->cmdsn);
 	}
 	((iscsi_nopout_t*)hdr)->exp_statsn = htonl(conn->exp_statsn);
-	spin_unlock_irqrestore(session->host->host_lock, flags);
 
 	memcpy(&mtask->hdr, hdr, sizeof(iscsi_hdr_t));
-	mtask->data = data;
-	mtask->data_count = data_size;
-	mtask->in_progress = IN_PROGRESS_IMM_HEAD;
 
 	iscsi_buf_init_virt(&mtask->headbuf, (char*)&mtask->hdr,
 			    sizeof(iscsi_hdr_t));
+
+	if (conn->hdrdgst_en) {
+		crypto_digest_init(conn->tx_tfm);
+		crypto_digest_update(conn->tx_tfm, &mtask->headbuf.sg, 1);
+		crypto_digest_final(conn->tx_tfm, (u8 *)mtask->hdrext);
+		mtask->headbuf.sg.length += sizeof(uint32_t);
+	}
+	spin_unlock_irqrestore(session->host->host_lock, flags);
+
+	mtask->data = data;
+	mtask->data_count = data_size;
+	mtask->in_progress = IN_PROGRESS_IMM_HEAD;
 
 	if (mtask->data_count) {
 		iscsi_buf_init_virt(&mtask->sendbuf, (char*)mtask->data,
@@ -2330,7 +2364,7 @@ iscsi_send_immpdu(iscsi_cnx_h cnxh, iscsi_hdr_t *hdr, char *data,
 		/* FIXME: implement convertion of mtask->data into 1st
 		 *        mtask->sendbuf. Keep in mind that virtual buffer
 		 *        spreaded accross multiple pages... */
-		if(mtask->sendbuf.offset + mtask->data_count > PAGE_SIZE) {
+		if(mtask->sendbuf.sg.offset + mtask->data_count > PAGE_SIZE) {
 			if (conn->c_stage == ISCSI_CNX_STARTED) {
 				iscsi_enqueue(&session->immpool, mtask);
 			}
@@ -2585,9 +2619,29 @@ iscsi_set_param(iscsi_cnx_h cnxh, iscsi_param_e param, int value)
 			conn->hdr_size = sizeof(iscsi_hdr_t);
 			if (conn->hdrdgst_en) {
 				conn->hdr_size += sizeof(__u32);
+				if (!conn->tx_tfm)
+					conn->tx_tfm =
+						crypto_alloc_tfm("crc32c", 0);
+				if (!conn->tx_tfm)
+					return -ENOMEM;
+				if (!conn->rx_tfm)
+					conn->rx_tfm =
+						crypto_alloc_tfm("crc32c", 0);
+				if (!conn->rx_tfm) {
+					crypto_free_tfm(conn->tx_tfm);
+					return -ENOMEM;
+				}
+			} else {
+				if (conn->tx_tfm)
+					crypto_free_tfm(conn->tx_tfm);
+				if (conn->rx_tfm)
+					crypto_free_tfm(conn->rx_tfm);
 			}
 			break;
 		case ISCSI_PARAM_DATADGST_EN:
+			if (conn->datadgst_en) {
+				return -EPERM;
+			}
 			conn->datadgst_en = value;
 			break;
 		case ISCSI_PARAM_INITIAL_R2T_EN:

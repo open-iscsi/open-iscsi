@@ -25,6 +25,7 @@
 #include <linux/list.h>
 #include <linux/inet.h>
 #include <linux/blkdev.h>
+#include <linux/crypto.h>
 #include <scsi/scsi_cmnd.h>
 #include <scsi/scsi_device.h>
 #include <scsi/scsi_eh.h>
@@ -127,7 +128,11 @@ typedef struct iscsi_tcp_recv {
 
 typedef struct iscsi_conn {
 	iscsi_hdr_t		hdr;		/* Header placeholder */
+	char			hdrext[4*sizeof(__u16) +
+				    sizeof(__u32)];
 	iscsi_hdr_t		prev_hdr;	/* Header placeholder */
+	char			prev_hdrext[4*sizeof(__u16) +
+				    sizeof(__u32)];
 	uint32_t		prev_itt;
 
 	/* FIXME: do dynamic allocation by size max_recv_dlength */
@@ -156,7 +161,9 @@ typedef struct iscsi_conn {
 	int			in_progress_xmit; /* xmit state machine */
 	struct iscsi_mgmt_task	*login_mtask;	/* mtask used for login/text */
 	spinlock_t		lock;		/* general connection lock */
-	volatile int		suspend;
+	volatile int		suspend;	/* connection suspended */
+	struct crypto_tfm	*tx_tfm;
+	struct crypto_tfm	*rx_tfm;
 
 	/* configuration */
 	int			max_recv_dlength;
@@ -212,21 +219,19 @@ typedef struct iscsi_session {
 } iscsi_session_t;
 
 typedef struct iscsi_buf {
-	struct page		*page;
-	int			offset;
-	int			size;
-	int			sent;
+	struct scatterlist	sg;
+	unsigned int		sent;
 } iscsi_buf_t;
 
 typedef struct iscsi_data_task {
 	iscsi_data_t		hdr;			/* PDU */
-	char			opt[sizeof(__u32)];	/* Header-Digest */
+	char			hdrext[sizeof(__u32)];	/* Header-Digest */
 	struct list_head	item;			/* data queue item */
 } iscsi_data_task_t;
 
 typedef struct iscsi_mgmt_task {
 	iscsi_hdr_t	hdr;			/* mgmt. PDU */
-	char		opt[sizeof(__u32)];	/* Header-Digest */
+	char		hdrext[sizeof(__u32)];	/* Header-Digest */
 	char		*data;			/* mgmt payload */
 	int		in_progress;		/* mgmt xmit progress */
 	int		data_count;		/* counts data to be sent */
@@ -258,7 +263,7 @@ typedef struct iscsi_r2t_info {
 
 typedef struct iscsi_cmd_task {
 	iscsi_cmd_t		hdr;			/* orig. SCSI PDU */
-	char			opt[4*sizeof(__u16) +	/* one AHS */
+	char			hdrext[4*sizeof(__u16)+	/* one AHS */
 				    sizeof(__u32)];	/* Header-Digest */
 	int			itt;			/* this ITT */
 	int			datasn;			/* DataSN numbering */
