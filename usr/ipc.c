@@ -27,7 +27,7 @@
 #include <sys/un.h>
 
 #include "iscsid.h"
-#include "iscsiadm.h"
+#include "ipc.h"
 
 int
 ipc_listen(void)

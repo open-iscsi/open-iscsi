@@ -41,5 +41,14 @@ extern int ctrl_fd;
 extern int ctldev_open(void);
 extern void ctldev_close(int fd);
 
+/* iscsid.c: daemon config */
+struct iscsi_daemon_config {
+	char *config_file;
+	char *pid_file;
+	char *initiator_name_file;
+	char *initiator_name;
+	char *initiator_alias;
+};
+extern struct iscsi_daemon_config *dconfig;
 
 #endif	/* ISCSID_H */

@@ -25,10 +25,12 @@
 #include <unistd.h>
 #include <string.h>
 #include <sys/poll.h>
+#include <sys/utsname.h>
 
 #include "iscsi_u.h"
 #include "iscsid.h"
-#include "iscsiadm.h"
+#include "config.h"
+#include "ipc.h"
 #include "log.h"
 
 #define SESSION_MAX		256
@@ -36,6 +38,10 @@
 #define POLL_CTRL		0
 #define POLL_IPC		1
 #define POLL_SESSION		2
+
+/* global config info */
+struct iscsi_daemon_config daemon_config;
+struct iscsi_daemon_config *dconfig = &daemon_config;
 
 static char program_name[] = "iscsid";
 int ctrl_fd, ipc_fd;
@@ -140,8 +146,10 @@ event_loop(void)
 int
 main(int argc, char *argv[])
 {
+	struct utsname host_info; /* will use to compound initiator alias */
+	struct iscsi_config config;
+	char *config_file = CONFIG_FILE;
 	int ch, longindex;
-	char *config = CONFIG_FILE;
 	uid_t uid = 0;
 	gid_t gid = 0;
 
@@ -149,7 +157,7 @@ main(int argc, char *argv[])
 				 &longindex)) >= 0) {
 		switch (ch) {
 		case 'c':
-			config = optarg;
+			config_file = optarg;
 			break;
 		case 'f':
 			log_daemon = 0;
@@ -164,8 +172,9 @@ main(int argc, char *argv[])
 			gid = strtoul(optarg, NULL, 10);
 			break;
 		case 'v':
-			version();
-			break;
+			printf("%s version %s\n", program_name,
+				ISCSI_VERSION_STR);
+			exit(0);
 		case 'h':
 			usage(0);
 			break;
@@ -219,18 +228,59 @@ main(int argc, char *argv[])
 		setsid();
 	}
 
-	//config_scan(config);
-
 	if (uid && setuid(uid) < 0)
 		perror("setuid\n");
 
 	if (gid && setgid(gid) < 0)
 		perror("setgid\n");
 
+	/* initialize configuration defaults */
+	memset(&config, 0, sizeof (config));
+	iscsi_init_config_defaults(&config.defaults);
+
+	memset(&daemon_config, 0, sizeof (daemon_config));
+	daemon_config.pid_file = PID_FILE;
+	daemon_config.config_file = CONFIG_FILE;
+	daemon_config.initiator_name_file = INITIATOR_NAME_FILE;
+	daemon_config.initiator_name =
+	    get_iscsi_initiatorname(daemon_config.initiator_name_file);
+	if (daemon_config.initiator_name == NULL) {
+		log_warning("exiting due to configuration error");
+		exit(1);
+	}
+
+	/* optional InitiatorAlias */
+	memset(&host_info, 0, sizeof (host_info));
+	if (uname(&host_info) >= 0) {
+		daemon_config.initiator_alias = strdup(host_info.nodename);
+	}
+
+	log_debug(1, "InitiatorName=%s", daemon_config.initiator_name);
+	log_debug(1, "InitiatorAlias=%s", daemon_config.initiator_alias);
+
+	/* log the version, so that we can tell if the daemon and kernel module 
+	 * match based on what shows up in the syslog.  Tarballs releases 
+	 * always install both, but Linux distributors may put the kernel module
+	 * in a different RPM from the daemon and utils, and users may try to 
+	 * mix and match in ways that don't work.
+	 */
+	log_warning("version %s variant (%s)",
+		ISCSI_VERSION_STR, ISCSI_DATE_STR);
+
+	/* load the configuration for the first time */
+	if (!update_iscsi_config(daemon_config.config_file, &config)) {
+		log_error("failed to load configuration from %s",
+		       daemon_config.config_file);
+		exit(2);
+	}
+
 	/*
 	 * Start Main Event Loop
 	 */
 	event_loop();
+
+	/* we're done */
+	log_debug(1, "daemon stopping");
 
 	return 0;
 }

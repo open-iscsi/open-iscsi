@@ -48,12 +48,6 @@
 static int rediscover = 0;
 static int record_begin;
 
-static void
-sighup_handler(int unused)
-{
-	rediscover = 1;
-}
-
 static int
 send_nop_reply(iscsi_session_t *session, iscsi_nopin_t *nop,
 	       char *data, int timeout)
@@ -218,7 +212,7 @@ add_portal(struct string_buffer *info, char *address, char *port, char *tag)
 int
 add_target_record(struct string_buffer *info, char *name, char *end,
 		  int lun_inventory_changed, char *default_address,
-		  char *default_port, int fd)
+		  char *default_port)
 {
 	char *text = NULL;
 	char *nul = name;
@@ -361,7 +355,7 @@ static int
 process_sendtargets_response(struct string_buffer *sendtargets,
 			     struct string_buffer *info, int final,
 			     int lun_inventory_changed, char *default_address,
-			     char *default_port, int fd)
+			     char *default_port)
 {
 	char *start = buffer_data(sendtargets);
 	char *text = start;
@@ -412,10 +406,9 @@ process_sendtargets_response(struct string_buffer *sendtargets,
 				 * the end of. don't bother passing the
 				 * "TargetName=" prefix.
 				 */
-				if (!add_target_record
-				    (info, record + 11, text,
-				     lun_inventory_changed, default_address,
-				     default_port, fd)) {
+				if (!add_target_record(info, record + 11, text,
+				        lun_inventory_changed, default_address,
+				        default_port)) {
 					log_error(
 					       "failed to add target record");
 					truncate_buffer(sendtargets, 0);
@@ -444,9 +437,9 @@ process_sendtargets_response(struct string_buffer *sendtargets,
 				 "processing final sendtargets record %p, "
 				 "line %s",
 				 record, record);
-			if (add_target_record
-			    (info, record + 11, text, lun_inventory_changed,
-			     default_address, default_port, fd)) {
+			if (add_target_record (info, record + 11, text,
+					lun_inventory_changed, default_address,
+					default_port)) {
 				num_targets++;
 				record = NULL;
 				truncate_buffer(sendtargets, 0);
@@ -473,9 +466,9 @@ process_sendtargets_response(struct string_buffer *sendtargets,
 	}
 
       done:
-	/* send all of the discovered targets to the parent daemon */
+	/* send all of the discovered targets to the fd ("stdout" currently) */
 	if (append_string(info, final ? "!\n" : ".\n")) {
-		write_buffer(info, fd);
+		write_buffer(info, 0);
 		truncate_buffer(info, 0);
 		if (final) {
 			record_begin = 0;
@@ -493,8 +486,7 @@ process_sendtargets_response(struct string_buffer *sendtargets,
 }
 
 static int
-add_async_record(struct string_buffer *info, char *record, int targetoffline,
-		 int fd)
+add_async_record(struct string_buffer *info, char *record, int targetoffline)
 {
 	int length = strlen(record);
 	size_t original = data_length(info);
@@ -531,8 +523,7 @@ clear_timer(struct timeval *timer)
 
 static int
 process_async_event_text(struct string_buffer *sendtargets,
-			 struct string_buffer *info, struct timeval *timer,
-			 int fd)
+			 struct string_buffer *info, struct timeval *timer)
 {
 	char *text = buffer_data(sendtargets);
 	int targetoffline = 0;
@@ -541,14 +532,14 @@ process_async_event_text(struct string_buffer *sendtargets,
 
 	if (strncmp(text, "X-com.cisco.targetOffline=", 26) == 0) {
 		targetoffline = 1;
-		if (!add_async_record(info, text + 26, targetoffline, fd)) {
+		if (!add_async_record(info, text + 26, targetoffline)) {
 			log_error("failed to add async record");
 			return 0;
 		}
 		clear_timer(timer);
 	} else if (strncmp(text, "X-com.cisco.portalOffline=", 26) == 0) {
 		targetoffline = 0;
-		if (!add_async_record(info, text + 26, targetoffline, fd)) {
+		if (!add_async_record(info, text + 26, targetoffline)) {
 			log_error("failed to add async record");
 			return 0;
 		}
@@ -559,9 +550,9 @@ process_async_event_text(struct string_buffer *sendtargets,
 	}
 
 	if (append_string(info, "!\n")) {
-		write_buffer(info, fd);
+		write_buffer(info, 0);
 		truncate_buffer(info, 0);
-		log_debug(4, "sent async event record to parent daemon\n");
+		log_debug(4, "sent async event record to the fd \n");
 		return 1;
 	} else {
 		log_error("couldn't send async event record \n");
@@ -667,17 +658,14 @@ soonest_msecs(struct timeval *t1, struct timeval *t2, struct timeval *t3)
 }
 
 static iscsi_session_t *
-init_new_session(struct iscsi_sendtargets_config *config,
-		 struct iscsi_discovery_process *process)
+init_new_session(struct iscsi_sendtargets_config *config)
 {
 	iscsi_session_t *session;
 
 	session = calloc(1, sizeof (*session));
 	if (session == NULL) {
-		log_error(
-		       "discovery process to %s:%d failed to "
-		       "allocate a session\n",
-		       config->address, config->port);
+		log_error("discovery process to %s:%d failed to "
+		       "allocate a session\n", config->address, config->port);
 		goto done;
 	}
 
@@ -697,11 +685,11 @@ init_new_session(struct iscsi_sendtargets_config *config,
 	session->isid[0] = DRIVER_ISID_0;
 	session->isid[1] = DRIVER_ISID_1;
 	session->isid[2] = DRIVER_ISID_2;
-	session->isid[3] = (process->order >> 16) & 0xFF;
-	session->isid[4] = (process->order >> 8) & 0xFF;
-	session->isid[5] = (process->order >> 0) & 0xFF;
-	session->initiator_name = dconfig->initiator_name;
-	session->initiator_alias = dconfig->initiator_alias;
+	session->isid[3] = 0;
+	session->isid[4] = 0;
+	session->isid[5] = 0;
+	session->initiator_name = initiator_name;
+	session->initiator_alias = initiator_alias;
 	session->header_digest = ISCSI_DIGEST_NONE;
 	session->data_digest = ISCSI_DIGEST_NONE;
 	session->max_recv_data_segment_len =
@@ -710,13 +698,12 @@ init_new_session(struct iscsi_sendtargets_config *config,
 	    DEFAULT_MAX_RECV_DATA_SEGMENT_LENGTH;
 	session->portal_group_tag = PORTAL_GROUP_TAG_UNKNOWN;
 
-	log_debug(4,
-		 "sendtargets discovery process %p to %s:%d using "
+	log_debug(4, "sendtargets discovery to %s:%d using "
 		 "isid 0x%02x%02x%02x%02x%02x%02x",
-		 process, config->address, config->port, session->isid[0],
+		 config->address, config->port, session->isid[0],
 		 session->isid[1], session->isid[2], session->isid[3],
 		 session->isid[4], session->isid[5]);
- done:
+done:
 	return(session);
 }
 
@@ -813,7 +800,6 @@ process_recvd_pdu(struct iscsi_hdr *pdu,
 		  struct string_buffer *info,
 		  int *lun_inventory_changed,
 		  char *default_port,
-		  struct iscsi_discovery_process *process,
 		  int *active,
 		  int *long_lived,
 		  struct timeval *async_timer,
@@ -843,15 +829,12 @@ process_recvd_pdu(struct iscsi_hdr *pdu,
 			 */
 			enlarge_data (sendtargets, dlength);
 
-			/* process as much as we
-			 * can right now
-			 */
+			/* process as much as we can right now */
 			process_sendtargets_response (sendtargets,
 						      info, final,
 						      *lun_inventory_changed,
 						      config->address,
-						      default_port,
-						      process->pipe_fd);
+						      default_port);
 
 			if (final) {
 				/* SendTargets exchange is now complete
@@ -941,17 +924,14 @@ process_recvd_pdu(struct iscsi_hdr *pdu,
 			 */
 			set_timer(async_timer, 1);
 			if (*active) {
-				log_debug(4,
-					 "discovery process %p received Async "
-					 "event while active", process);
+				log_debug(4, "discovery process received Async "
+					 "event while active");
 			} else {
-				log_debug(4,
-					 "discovery process %p received Async "
-					 "event while idle", process);
+				log_debug(4, "discovery process received Async "
+					 "event while idle");
 			}
 			process_async_event_text(sendtargets, info,
-						 async_timer,
-						 process->pipe_fd);
+						 async_timer);
 			break;
 		}
 		case ISCSI_OP_NOOP_IN:{
@@ -1083,12 +1063,9 @@ done:
 	iscsi_disconnect(session);
 }
 
-static void
-sendtargets_discovery_process(struct iscsi_discovery_process *process)
+int
+sendtargets_discovery(struct iscsi_sendtargets_config *config)
 {
-	struct iscsi_sendtargets_config *config =
-	    process->entry->config.sendtargets;
-	struct sigaction action;
 	iscsi_session_t *session;
 	struct hostent *hostn = NULL;
 	struct pollfd pfd;
@@ -1113,40 +1090,21 @@ sendtargets_discovery_process(struct iscsi_discovery_process *process)
 	int port = config->port;
 
 	/* initial setup */
-	process->pid = getpid();
-	log_debug(1,
-		 "sendtargets discovery process %p starting, address %s:%d, "
-		 "continuous %d",
-		 process, config->address, config->port, config->continuous);
-
+	log_debug(1, "starting sendtargets discovery, address %s:%d, "
+		 "continuous %d", config->address, config->port,
+		 config->continuous);
 	memset(&pdu_buffer, 0, sizeof (pdu_buffer));
 	clear_timer(&connection_timer);
 	clear_timer(&async_timer);
-
-	/* set SIGTERM, SIGINT to kill the process */
-	memset(&action, 0, sizeof (struct sigaction));
-	action.sa_sigaction = NULL;
-	action.sa_flags = 0;
-	action.sa_handler = SIG_DFL;
-	sigaction(SIGTERM, &action, NULL);
-	sigaction(SIGINT, &action, NULL);
-
-	/* set SIGPIPE to be ignored, so that we get EPIPE */
-	action.sa_handler = SIG_IGN;
-	sigaction(SIGPIPE, &action, NULL);
-
-	/* set SIGHUP to request a rediscovery */
-	action.sa_handler = sighup_handler;
-	sigaction(SIGHUP, &action, NULL);
 
 	/* allocate data buffers for SendTargets data and discovery pipe info */
 	init_string_buffer(&sendtargets, 32 * 1024);
 	init_string_buffer(&info, 8 * 1024);
 
 	/* allocate a new session, and initialize default values */
-	session = init_new_session(config, process);
+	session = init_new_session(config);
 	if (session == NULL) {
-		exit(1);
+		return 1;
 	}
 
 	/* resolve the DiscoveryAddress to an IP address */
@@ -1165,14 +1123,13 @@ sendtargets_discovery_process(struct iscsi_discovery_process *process)
 		} else {
 			log_error("cannot resolve host name %s",
 				 config->address);
-			sleep(1);
+			return 1;
 		}
 	}
 
 	sprintf(default_port, "%d", config->port);
 
-	log_debug(4,
-		 "discovery timeouts: login %d, auth %d, active %d, "
+	log_debug(4, "discovery timeouts: login %d, auth %d, active %d, "
 		 "idle %d, ping %d",
 		 session->login_timeout, session->auth_timeout,
 		 session->active_timeout, session->idle_timeout,
@@ -1181,11 +1138,9 @@ sendtargets_discovery_process(struct iscsi_discovery_process *process)
 	/* setup authentication variables for the session*/
 	rc = setup_authentication(session, config);
 	if (rc == 0)
-		exit(0);
+		return 0;
 
-
-
-      set_address:
+set_address:
 	/*
 	 * copy the saved address to the session,
 	 * undoing any temporary redirect
@@ -1195,7 +1150,7 @@ sendtargets_discovery_process(struct iscsi_discovery_process *process)
 	memcpy(session->ip_address, ip_address,
 	       MIN(sizeof (session->ip_address), ip_length));
 
-      reconnect:
+reconnect:
 
 	iscsi_disconnect(session);
 
@@ -1224,8 +1179,7 @@ sendtargets_discovery_process(struct iscsi_discovery_process *process)
 		login_delay = 60;	/* after 2 minutes, try once a minute */
 
 	if (login_delay) {
-		log_debug(4,
-			 "discovery session to %s:%d sleeping for %d "
+		log_debug(4, "discovery session to %s:%d sleeping for %d "
 			 "seconds before next login attempt",
 			 config->address, config->port, login_delay);
 		sleep(login_delay);
@@ -1252,8 +1206,7 @@ sendtargets_discovery_process(struct iscsi_discovery_process *process)
 		 config->address, config->port, session->socket_fd);
 	status_class = 0;
 	status_detail = 0;
-	switch (iscsi_login
-		(session, buffer_data(&sendtargets),
+	switch (iscsi_login(session, buffer_data(&sendtargets),
 		 unused_length(&sendtargets), &status_class, &status_detail)) {
 	case LOGIN_OK:
 		break;
@@ -1282,7 +1235,7 @@ sendtargets_discovery_process(struct iscsi_discovery_process *process)
 		       session->ip_address[0], session->ip_address[1],
 		       session->ip_address[2], session->ip_address[3]);
 		iscsi_disconnect(session);
-		exit(0);
+		return 0;
 	}
 
 	/* check the login status */
@@ -1341,7 +1294,7 @@ sendtargets_discovery_process(struct iscsi_discovery_process *process)
 		       session->ip_address[2], session->ip_address[3],
 		       status_class, status_detail);
 		iscsi_disconnect(session);
-		exit(0);
+		return 0;
 	case ISCSI_STATUS_CLS_TARGET_ERR:
 		/* FIXME: IPv6 */
 		log_error(
@@ -1411,7 +1364,7 @@ sendtargets_discovery_process(struct iscsi_discovery_process *process)
 			       "logout, connection timer expired",
 			       config->address, config->port);
 			iscsi_logout_and_disconnect(session);
-			exit(0);
+			return 0;
 		}
 	}
 
@@ -1481,7 +1434,6 @@ sendtargets_discovery_process(struct iscsi_discovery_process *process)
 					&info,
 					&lun_inventory_changed,
 					default_port,
-					process,
 					&active,
 					&long_lived,
 					&async_timer,
@@ -1524,7 +1476,7 @@ sendtargets_discovery_process(struct iscsi_discovery_process *process)
 					       config->address,
 					       config->port);
 					iscsi_disconnect(session);
-					exit(0);
+					return 0;
 				}
 			}
 		}
@@ -1541,7 +1493,7 @@ sendtargets_discovery_process(struct iscsi_discovery_process *process)
 				       "terminating after hangup",
 				       config->address, config->port);
 				iscsi_disconnect(session);
-				exit(0);
+				return 0;
 			}
 		}
 
@@ -1567,20 +1519,20 @@ sendtargets_discovery_process(struct iscsi_discovery_process *process)
 		} else {
 			log_error("poll error");
 			sleep(5);
-			exit(1);
+			return 1;
 		}
 	}
 
 	log_debug(1, "discovery process to %s:%d exiting",
 		 config->address, config->port);
+
+	return 0;
 }
 
-static void
-discovery_file_process(struct iscsi_discovery_process *process)
+#ifdef FILE_ENABLE
+int
+discovery_file(struct iscsi_discovery_file_config *config)
 {
-	struct iscsi_discovery_file_config *config =
-	    process->entry->config.file;
-	struct sigaction action;
 	int fd;
 	int luns_changed = 0;
 	struct string_buffer sendtargets;
@@ -1684,8 +1636,7 @@ repeat:
 			process_sendtargets_response(&sendtargets, &info, final,
 						     luns_changed,
 						     config->address,
-						     config->port,
-						     process->pipe_fd);
+						     config->port);
 
 		} while (!final);
 	} else {
@@ -1707,13 +1658,12 @@ repeat:
 
 	exit(0);
 }
+#endif
 
 #ifdef SLP_ENABLE
-
-void
-slp_discovery_process(struct iscsi_discovery_process *discovery)
+int
+slp_discovery(struct iscsi_slp_config *config)
 {
-	struct iscsi_slp_config *config = discovery->entry->config.slp;
 	struct sigaction action;
 	char *pl;
 	unsigned short flag = 0;
@@ -1756,30 +1706,3 @@ slp_discovery_process(struct iscsi_discovery_process *discovery)
 }
 
 #endif
-
-void
-discovery_process(struct iscsi_discovery_process *discovery)
-{
-	if (discovery->entry) {
-		switch (discovery->entry->type) {
-		case CONFIG_TYPE_DISCOVERY_FILE:
-			discovery_file_process(discovery);
-			break;
-		case CONFIG_TYPE_SENDTARGETS:
-			sendtargets_discovery_process(discovery);
-			break;
-		case CONFIG_TYPE_SLP:
-#ifdef SLP_ENABLE
-			slp_discovery_process(discovery);
-#else
-			log_error("this build does not support SLP");
-			exit(0);
-#endif
-			break;
-		default:
-			log_error("can't fork unexpected discovery type %d",
-			       discovery->entry->type);
-			break;
-		}
-	}
-}

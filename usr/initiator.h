@@ -30,12 +30,6 @@
 #define PID_FILE		"/var/run/iscsid.pid"
 #define INITIATOR_NAME_FILE	"/etc/initiatorname.iscsi"
 
-#define version()							\
-do {									\
-	printf("%s version %s\n", program_name, ISCSI_VERSION_STR);	\
-	exit(0);							\
-} while (0)
-
 /* daemon's session structure */
 typedef struct iscsi_session {
 	int socket_fd;

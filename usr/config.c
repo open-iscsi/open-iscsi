@@ -28,8 +28,6 @@
 #include "config.h"
 #include "log.h"
 
-#define CHAP_AUTHENTICATION     1
-
 void
 iscsi_init_config_defaults(struct iscsi_config_defaults *defaults)
 {

@@ -6,10 +6,10 @@ COMMON_SRCS = io.o auth.o login.o log.o md5.o sha1.o
 
 all: $(PROGRAMS)
 
-iscsid: $(COMMON_SRCS) iscsid.o ipc.o ctldev.o
+iscsid: $(COMMON_SRCS) iscsid.o ipc.o ctldev.o config.o
 	$(CC) $^ -o $@
 
-iscsiadm: $(COMMON_SRCS) strings.o config.o discovery.o iscsiadm.o
+iscsiadm: $(COMMON_SRCS) strings.o discovery.o iscsiadm.o
 	$(CC) $^ -o $@
 
 clean:
