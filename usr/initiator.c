@@ -747,7 +747,7 @@ __connect_timedout(void *data)
 }
 
 static int
-__session_cnx_reopen(iscsi_conn_t *conn)
+__session_cnx_reopen(iscsi_conn_t *conn, int do_stop)
 {
 	int rc;
 	iscsi_session_t *session = conn->session;
@@ -755,6 +755,16 @@ __session_cnx_reopen(iscsi_conn_t *conn)
 	log_debug(1, "re-opening session %d", session->id);
 
 	session->reopen_qtask.conn = conn;
+
+	if (do_stop) {
+		if (ksession_stop_cnx(session->ctrl_fd, conn,
+				      STOP_CNX_RECOVER)) {
+			log_error("can not safely stop connection %d",
+				  conn->id);
+			return -1;
+		}
+		iscsi_disconnect(conn);
+	}
 
 	rc = iscsi_tcp_connect(conn, 1);
 	if (rc < 0 && errno != EINPROGRESS) {
@@ -792,7 +802,7 @@ __session_cnx_timer(queue_item_t *item)
 			/* timeout during reopen connect.
 			 * try again or cleanup connection. */
 			if (--session->reopen_cnt > 0) {
-				if (__session_cnx_reopen(conn))
+				if (__session_cnx_reopen(conn, 0))
 					__session_cnx_cleanup(conn);
 			} else {
 				__session_cnx_cleanup(conn);
@@ -815,7 +825,7 @@ __session_cnx_timer(queue_item_t *item)
 						    IPC_ERR_PDU_TIMEOUT, 0);
 		} else if (session->r_stage == R_STAGE_SESSION_REOPEN) {
 			if (--session->reopen_cnt > 0) {
-				if (__session_cnx_reopen(conn))
+				if (__session_cnx_reopen(conn, 1))
 					__session_cnx_cleanup(conn);
 			} else
 				__session_cnx_cleanup(conn);
@@ -826,7 +836,6 @@ __session_cnx_timer(queue_item_t *item)
 static void
 __session_cnx_error(queue_item_t *item)
 {
-	int stop_flag;
 	enum iscsi_err error = *(enum iscsi_err *)queue_item_data(item);
 	iscsi_conn_t *conn = item->context;
 	iscsi_session_t *session = conn->session;
@@ -868,7 +877,7 @@ __session_cnx_error(queue_item_t *item)
 		if (session->r_stage == R_STAGE_SESSION_REOPEN) {
 			conn->send_pdu_timer_remove(conn);
 			if (--session->reopen_cnt > 0) {
-				if (__session_cnx_reopen(conn))
+				if (__session_cnx_reopen(conn, 1))
 					__session_cnx_cleanup(conn);
 			} else
 				__session_cnx_cleanup(conn);
@@ -880,24 +889,17 @@ __session_cnx_error(queue_item_t *item)
 		}
 	}
 
-	if (session->r_stage == R_STAGE_SESSION_CLEANUP)
-		stop_flag = STOP_CNX_TERM;
-	else if (session->r_stage == R_STAGE_SESSION_REOPEN)
-		stop_flag = STOP_CNX_RECOVER;
-	else
-		stop_flag = STOP_CNX_SUSPEND;
-
-	if (ksession_stop_cnx(session->ctrl_fd, conn, stop_flag)) {
-		log_error("can not safely stop connection %d", conn->id);
-		return;
-	}
-
-	iscsi_disconnect(conn);
-
 	if (session->r_stage == R_STAGE_SESSION_REOPEN) {
-		if (__session_cnx_reopen(conn))
+		if (__session_cnx_reopen(conn, 1))
 			__session_cnx_cleanup(conn);
 		return;
+	} else {
+		if (ksession_stop_cnx(session->ctrl_fd, conn, STOP_CNX_TERM)) {
+			log_error("can not safely stop connection %d",
+				  conn->id);
+			return;
+		}
+		iscsi_disconnect(conn);
 	}
 
 	__session_cnx_cleanup(conn);

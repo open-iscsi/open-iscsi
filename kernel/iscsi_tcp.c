@@ -529,7 +529,6 @@ iscsi_hdr_recv(struct iscsi_conn *conn)
 		}
 
 		ctask = (struct iscsi_cmd_task *)session->cmds[conn->in.itt];
-		BUG_ON(ctask != (void*)ctask->sc->SCp.ptr);
 		conn->in.ctask = ctask;
 
 		debug_scsi("rsp [op 0x%x cid %d sc %lx itt 0x%x len %d]\n",
@@ -538,6 +537,7 @@ iscsi_hdr_recv(struct iscsi_conn *conn)
 
 		switch(conn->in.opcode) {
 		case ISCSI_OP_SCSI_CMD_RSP:
+			BUG_ON((void*)ctask != ctask->sc->SCp.ptr);
 			if (ctask->in_progress == IN_PROGRESS_READ) {
 				if (!conn->in.datalen) {
 					rc = iscsi_cmd_rsp(conn, ctask);
@@ -554,6 +554,7 @@ iscsi_hdr_recv(struct iscsi_conn *conn)
 			}
 			break;
 		case ISCSI_OP_SCSI_DATA_IN:
+			BUG_ON((void*)ctask != ctask->sc->SCp.ptr);
 			/* save flags for non-exceptional status */
 			conn->in.flags = hdr->flags;
 			/* save cmd_status for sense data */
@@ -562,6 +563,7 @@ iscsi_hdr_recv(struct iscsi_conn *conn)
 			rc = iscsi_data_rsp(conn, ctask);
 			break;
 		case ISCSI_OP_R2T:
+			BUG_ON((void*)ctask != ctask->sc->SCp.ptr);
 			rc = iscsi_r2t_rsp(conn, ctask);
 			break;
 		case ISCSI_OP_NOOP_IN:
