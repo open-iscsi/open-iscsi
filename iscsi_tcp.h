@@ -149,7 +149,6 @@ typedef struct iscsi_conn {
 	iscsi_queue_t		immqueue;	/* Immediate xmit queue */
 	iscsi_queue_t		xmitqueue;	/* Data-path queue */
 	struct work_struct	xmitwork;	/* per-conn. xmit workqueue */
-	struct semaphore	xmitsema;
 	int			c_stage;	/* Connection state */
 	iscsi_cnx_h		handle;		/* CP connection handle */
 	int			in_progress_xmit; /* xmit state machine */

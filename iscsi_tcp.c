@@ -91,6 +91,16 @@ static int iscsi_proc_info(struct Scsi_Host *host, char *buffer, char **start,
  *                                                                            *
  ******************************************************************************/
 
+static inline void
+__insert(iscsi_queue_t *queue, void *data)
+{
+	if (queue->cons - 1 < 0) {
+		queue->cons = queue->max - 1;
+	}
+	__BUG_ON(queue->cons - 1 == queue->prod);
+	queue->pool[--queue->cons] = data;
+}
+
 /*
  * Insert before consumer pointer
  */
@@ -98,11 +108,7 @@ static inline void
 iscsi_insert(iscsi_queue_t *queue, void *data)
 {
 	spin_lock_bh(queue->lock);
-	if (queue->cons - 1 < 0) {
-		queue->cons = queue->max - 1;
-	}
-	__BUG_ON(queue->cons - 1 == queue->prod);
-	queue->pool[--queue->cons] = data;
+	__insert(queue, data);
 	spin_unlock_bh(queue->lock);
 }
 
@@ -1504,7 +1510,7 @@ _unsolicit_again:
 	}
 
 	if (ctask->in_progress & IN_PROGRESS_SOLICIT_HEAD) {
-		r2t = iscsi_dequeue(&ctask->r2tqueue);
+		r2t = __dequeue(&ctask->r2tqueue);
 _solicit_head_again:
 		__BUG_ON(r2t == NULL);
 		if (r2t->cont_bit) {
@@ -1516,13 +1522,13 @@ _solicit_head_again:
 			 */
 			if (iscsi_solicit_data_cont(conn, ctask, r2t,
 				r2t->data_length - r2t->sent)) {
-				iscsi_insert(&ctask->r2tqueue, r2t);
+				__insert(&ctask->r2tqueue, r2t);
 				return -EAGAIN;
 			}
 			r2t->cont_bit = 0;
 		}
 		if (iscsi_sendhdr(conn, &r2t->headbuf)) {
-			iscsi_insert(&ctask->r2tqueue, r2t);
+			__insert(&ctask->r2tqueue, r2t);
 			return -EAGAIN;
 		}
 		ctask->r2t = r2t;
@@ -1561,7 +1567,7 @@ _solicit_again:
 			if (iscsi_solicit_data_cont(conn,
 					    ctask, r2t, left)) {
 				r2t->cont_bit = 1;
-				iscsi_insert(&ctask->r2tqueue, r2t);
+				__insert(&ctask->r2tqueue, r2t);
 				ctask->in_progress = IN_PROGRESS_WRITE |
 						     IN_PROGRESS_SOLICIT_HEAD;
 				return -EAGAIN;
@@ -1576,8 +1582,8 @@ _solicit_again:
 		 * more outstanding R2T's ready to send.
 		 */
 		ctask->data_count -= r2t->data_length;
-		iscsi_enqueue(&ctask->r2tpool, r2t);
-		if ((r2t = iscsi_dequeue(&ctask->r2tqueue))) {
+		__enqueue(&ctask->r2tpool, r2t);
+		if ((r2t = __dequeue(&ctask->r2tqueue))) {
 			ctask->in_progress = IN_PROGRESS_WRITE |
 					     IN_PROGRESS_SOLICIT_HEAD;
 			goto _solicit_head_again;
@@ -1611,14 +1617,17 @@ iscsi_data_xmit(iscsi_conn_t *conn)
 	iscsi_mgmt_task_t *mtask;
 
 	/* process non-immediate(command) queue */
+	spin_lock_bh(&conn->lock);
 	while (conn->in_progress_xmit == IN_PROGRESS_XMIT_SCSI &&
-	       (ctask = iscsi_dequeue(&conn->xmitqueue)) != NULL) {
+	       (ctask = __dequeue(&conn->xmitqueue)) != NULL) {
 
 		if (iscsi_ctask_xmit(conn, ctask)) {
-			iscsi_insert(&conn->xmitqueue, ctask);
+			__insert(&conn->xmitqueue, ctask);
+			spin_unlock_bh(&conn->lock);
 			return -EAGAIN;
 		}
 	}
+	spin_unlock_bh(&conn->lock);
 
 	/* process immediate queue */
 	while ((mtask = iscsi_dequeue(&conn->immqueue)) != NULL) {
@@ -1654,11 +1663,9 @@ iscsi_xmitworker(void *data)
 	/*
 	 * We serialize Xmit worker on per-connection basis.
 	 */
-	down(&conn->xmitsema);
 	if (iscsi_data_xmit(conn)) {
 		schedule_work(&conn->xmitwork);
 	}
-	up(&conn->xmitsema);
 }
 
 #define FAILURE_BAD_HOST		1
@@ -1977,7 +1984,6 @@ iscsi_conn_create(iscsi_snx_h snxh, iscsi_cnx_h handle,
 		return NULL;
 	}
 	INIT_WORK(&conn->xmitwork, iscsi_xmitworker, conn);
-	sema_init(&conn->xmitsema, 1);
 
 	return conn;
 }
