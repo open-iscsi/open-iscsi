@@ -360,6 +360,7 @@ iscsi_conn_restore_callbacks(iscsi_conn_t *conn)
 static inline int
 iscsi_sendpage(iscsi_conn_t *conn, iscsi_buf_t *buf, int size)
 {
+	ssize_t (*sendpage)(struct socket *, struct page *, int, size_t, int);
 	struct socket *sk = conn->sock;
 	int flags = MSG_DONTWAIT;
 	int res;
@@ -376,8 +377,13 @@ iscsi_sendpage(iscsi_conn_t *conn, iscsi_buf_t *buf, int size)
 	debug_tcp("sendpage %lx %d bytes at offset %d sent %d\n",
 	       (long)page_address(buf->page), size, offset, buf->sent);
 
-	// tcp_sendpage, do_tcp_sendpages, tcp_sendmsg
-	res = sk->ops->sendpage(sk, buf->page, offset, size, flags);
+	/* tcp_sendpage */
+	sendpage = sk->ops->sendpage ? : sock_no_sendpage;
+
+	/* Hmm... We might be dealing with highmem pages */
+	if (PageHighMem(buf->page))
+		sendpage = sock_no_sendpage;
+	res = sendpage(sk, buf->page, offset, size, flags);
 
 	if (res > 0) {
 		buf->sent += res;
@@ -1538,7 +1544,10 @@ iscsi_xmitworker(void *data)
 {
 	iscsi_conn_t *conn = (iscsi_conn_t*)data;
 
-	if (conn->id != smp_processor_id()) {
+	/*
+	 * We don't want to run this connection on any other CPU.
+	 */
+	if (conn->cpu != smp_processor_id()) {
 		schedule_delayed_work_on(conn->id, &conn->xmitwork, 0);
 		return;
 	}
@@ -1615,8 +1624,15 @@ iscsi_queuecommand(struct scsi_cmnd *sc, void (*done)(struct scsi_cmnd *))
 			iscsi_conn_t *cnx;
 
 			cnx = list_entry(lh, iscsi_conn_t, item);
-			if (cnx->id == cpu) {
+			if (cnx->busy) {
 				conn = cnx;
+				conn->busy--;
+				break;
+			}
+			if (cnx->cpu == cpu && cpu_online(cpu) &&
+			    !cnx->busy) {
+				conn = cnx;
+				conn->busy = 16;
 				break;
 			}
 		}
@@ -1952,6 +1968,7 @@ iscsi_conn_start(iscsi_cnx_h cnxh)
 
 	spin_lock_irqsave(session->host->host_lock, flags);
 	conn->c_stage = ISCSI_CNX_STARTED;
+	conn->cpu = session->conn_cnt % num_online_cpus();
 	session->state = ISCSI_STATE_LOGGED_IN;
 	session->conn_cnt++;
 	spin_unlock_irqrestore(session->host->host_lock, flags);

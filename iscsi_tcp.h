@@ -137,6 +137,8 @@ typedef struct iscsi_conn {
 
 	/* control data */
 	int			senselen;	/* is data has sense? */
+	int			cpu;		/* binded CPU */
+	int			busy;
 	int			id;		/* iSCSI CID */
 	iscsi_tcp_recv_t	in;		/* TCP receive context */
 	int			in_progress;	/* Connection state machine */
