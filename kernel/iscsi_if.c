@@ -47,7 +47,7 @@ iscsi_control_recv_pdu(iscsi_cnx_h cp_cnx, struct iscsi_hdr *hdr,
 	memset(ev, 0, sizeof(*ev));
 	ev->transport_id = 0;
 	ev->type = ISCSI_KEVENT_RECV_PDU;
-	ev->r.recv_req.cnx_handle = (ulong_t)cp_cnx;
+	ev->r.recv_req.cnx_handle = cp_cnx;
 	pdu = (char*)ev + sizeof(*ev);
 	memcpy(pdu, hdr, sizeof(struct iscsi_hdr));
 	memcpy(pdu + sizeof(struct iscsi_hdr), data, data_size);
@@ -75,7 +75,7 @@ iscsi_control_cnx_error(iscsi_cnx_h cp_cnx, iscsi_err_e error)
 	ev->transport_id = 0;
 	ev->type = ISCSI_KEVENT_CNX_ERROR;
 	ev->r.cnxerror.error = error;
-	ev->r.cnxerror.cnx_handle = (ulong_t)cp_cnx;
+	ev->r.cnxerror.cnx_handle = cp_cnx;
 	skb_get(skb);
 	netlink_unicast(nls, skb, daemon_pid, MSG_DONTWAIT);
 }
@@ -126,43 +126,45 @@ iscsi_if_recv_msg(struct sk_buff *skb, struct nlmsghdr *nlh)
 
 	switch (nlh->nlmsg_type) {
 	case ISCSI_UEVENT_CREATE_SESSION:
-		ev->r.c_session_ret.handle = (ulong_t)transport->create_session(
-		       (void*)ev->u.c_session.session_handle,
+		ev->r.c_session_ret.handle = transport->create_session(
+		       ev->u.c_session.session_handle,
 		       ev->u.c_session.initial_cmdsn, &ev->r.c_session_ret.sid);
 		break;
 	case ISCSI_UEVENT_DESTROY_SESSION:
 		transport->destroy_session(
-			(void*)ev->u.d_session.session_handle);
+			ev->u.d_session.session_handle);
 		break;
 	case ISCSI_UEVENT_CREATE_CNX:
-		ev->r.handle = (ulong_t)transport->create_cnx(
-			(void*)ev->u.c_cnx.session_handle,
-			(void*)ev->u.c_cnx.cnx_handle,
+		ev->r.handle = transport->create_cnx(
+			ev->u.c_cnx.session_handle,
+			ev->u.c_cnx.cnx_handle,
 			 ev->u.c_cnx.transport_fd, ev->u.c_cnx.cid);
 		break;
 	case ISCSI_UEVENT_DESTROY_CNX:
-		transport->destroy_cnx((void*)ev->u.d_cnx.cnx_handle);
+		transport->destroy_cnx(ev->u.d_cnx.cnx_handle);
 		break;
 	case ISCSI_UEVENT_BIND_CNX:
-		ev->r.retcode = (ulong_t)transport->bind_cnx(
-			(void*)ev->u.b_cnx.session_handle,
-			(void*)ev->u.b_cnx.cnx_handle, ev->u.b_cnx.is_leading);
+		ev->r.retcode = transport->bind_cnx(
+			ev->u.b_cnx.session_handle,
+			ev->u.b_cnx.cnx_handle,
+			ev->u.b_cnx.is_leading);
 		break;
 	case ISCSI_UEVENT_SET_PARAM:
 		ev->r.retcode = transport->set_param(
-			(void*)ev->u.set_param.cnx_handle,
+			ev->u.set_param.cnx_handle,
 			ev->u.set_param.param, ev->u.set_param.value);
 		break;
 	case ISCSI_UEVENT_START_CNX:
 		ev->r.retcode = transport->start_cnx(
-			(void*)ev->u.start_cnx.cnx_handle);
+			ev->u.start_cnx.cnx_handle);
 		break;
 	case ISCSI_UEVENT_STOP_CNX:
-		transport->stop_cnx((void*)ev->u.stop_cnx.cnx_handle);
+		transport->stop_cnx(
+			ev->u.stop_cnx.cnx_handle);
 		break;
 	case ISCSI_UEVENT_SEND_PDU:
 		ev->r.retcode = transport->send_pdu(
-		       (void*)ev->u.send_pdu.cnx_handle,
+		       ev->u.send_pdu.cnx_handle,
 		       (struct iscsi_hdr*)((char*)ev + sizeof(*ev)),
 		       (char*)ev + sizeof(*ev) + ev->u.send_pdu.hdr_size,
 			ev->u.send_pdu.data_size);

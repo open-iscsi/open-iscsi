@@ -1963,7 +1963,7 @@ static iscsi_cnx_h
 iscsi_conn_create(iscsi_snx_h snxh, iscsi_cnx_h handle,
 			int transport_fd, int conn_idx)
 {
-	struct iscsi_session *session = snxh;
+	struct iscsi_session *session = iscsi_ptr(snxh);
 	struct tcp_opt *tp;
 	struct sock *sk;
 	struct iscsi_conn *conn;
@@ -1972,12 +1972,12 @@ iscsi_conn_create(iscsi_snx_h snxh, iscsi_cnx_h handle,
 
 	if (!(sock = sockfd_lookup(transport_fd, &err))) {
 		printk("iSCSI: sockfd_lookup failed %d\n", err);
-		return NULL;
+		return iscsi_handle(NULL);
 	}
 
 	conn = kmalloc(sizeof(struct iscsi_conn), GFP_KERNEL);
 	if (conn == NULL) {
-		return NULL;
+		return iscsi_handle(NULL);
 	}
 	memset(conn, 0, sizeof(struct iscsi_conn));
 
@@ -2013,13 +2013,13 @@ iscsi_conn_create(iscsi_snx_h snxh, iscsi_cnx_h handle,
 	/* initialize xmit PDU commands queue */
 	if (iscsi_queue_init(&conn->xmitqueue, session->cmds_max)) {
 		kfree(conn);
-		return NULL;
+		return iscsi_handle(NULL);
 	}
 	/* initialize immediate xmit queue */
 	if (iscsi_queue_init(&conn->immqueue, session->imm_max)) {
 		iscsi_queue_free(&conn->xmitqueue);
 		kfree(conn);
-		return NULL;
+		return iscsi_handle(NULL);
 	}
 	INIT_WORK(&conn->xmitwork, iscsi_xmitworker, conn);
 
@@ -2031,7 +2031,7 @@ iscsi_conn_create(iscsi_snx_h snxh, iscsi_cnx_h handle,
 		iscsi_queue_free(&conn->immqueue);
 		iscsi_queue_free(&conn->xmitqueue);
 		kfree(conn);
-		return NULL;
+		return iscsi_handle(NULL);
 	}
 	spin_unlock_bh(&session->lock);
 
@@ -2048,11 +2048,11 @@ iscsi_conn_create(iscsi_snx_h snxh, iscsi_cnx_h handle,
 		iscsi_queue_free(&conn->immqueue);
 		iscsi_queue_free(&conn->xmitqueue);
 		kfree(conn);
-		return NULL;
+		return iscsi_handle(NULL);
 	}
 	init_MUTEX(&conn->xmitsema);
 
-	return conn;
+	return iscsi_handle(conn);
 }
 
 /*
@@ -2061,7 +2061,7 @@ iscsi_conn_create(iscsi_snx_h snxh, iscsi_cnx_h handle,
 static void
 iscsi_conn_destroy(iscsi_cnx_h cnxh)
 {
-	struct iscsi_conn *conn = cnxh;
+	struct iscsi_conn *conn = iscsi_ptr(cnxh);
 	struct iscsi_session *session = conn->session;
 
 	BUG_ON(conn->sock == NULL);
@@ -2133,8 +2133,8 @@ iscsi_conn_destroy(iscsi_cnx_h cnxh)
 static int
 iscsi_conn_bind(iscsi_snx_h snxh, iscsi_cnx_h cnxh, int is_leading)
 {
-	struct iscsi_session *session = snxh;
-	struct iscsi_conn *conn = cnxh;
+	struct iscsi_session *session = iscsi_ptr(snxh);
+	struct iscsi_conn *conn = iscsi_ptr(cnxh);
 
 	/*
 	 * Bind iSCSI connection and session
@@ -2155,7 +2155,7 @@ iscsi_conn_bind(iscsi_snx_h snxh, iscsi_cnx_h cnxh, int is_leading)
 static int
 iscsi_conn_start(iscsi_cnx_h cnxh)
 {
-	struct iscsi_conn *conn = cnxh;
+	struct iscsi_conn *conn = iscsi_ptr(cnxh);
 	struct iscsi_session *session = conn->session;
 
 	if (session == NULL) {
@@ -2181,7 +2181,7 @@ iscsi_conn_start(iscsi_cnx_h cnxh)
 static void
 iscsi_conn_stop(iscsi_cnx_h cnxh)
 {
-	struct iscsi_conn *conn = cnxh;
+	struct iscsi_conn *conn = iscsi_ptr(cnxh);
 	struct iscsi_session *session = conn->session;
 
 	spin_lock_bh(&session->lock);
@@ -2199,7 +2199,7 @@ static int
 iscsi_send_pdu(iscsi_cnx_h cnxh, struct iscsi_hdr *hdr, char *data,
 		  int data_size)
 {
-	struct iscsi_conn *conn = cnxh;
+	struct iscsi_conn *conn = iscsi_ptr(cnxh);
 	struct iscsi_session *session = conn->session;
 	struct iscsi_mgmt_task *mtask;
 	char *pdu_data = NULL;
@@ -2393,7 +2393,8 @@ iscsi_session_create(iscsi_snx_h handle, int initial_cmdsn, int *host_no)
 
 	if ((host = scsi_host_alloc(&iscsi_sht,
 			    sizeof(struct iscsi_session))) == NULL) {
-		printk("can not allocate SCSI host for session %p\n", handle);
+		printk("can not allocate SCSI host for session %p\n",
+			iscsi_ptr(handle));
 		goto host_alloc_fault;
 	}
 	host->max_id = 1;
@@ -2445,7 +2446,7 @@ iscsi_session_create(iscsi_snx_h handle, int initial_cmdsn, int *host_no)
 		goto add_host_fault;
 	}
 
-	return session;
+	return iscsi_handle(session);
 
 add_host_fault:
 	iscsi_r2tpool_free(session);
@@ -2457,7 +2458,7 @@ cmdpool_alloc_fault:
 	scsi_remove_host(host);
 host_alloc_fault:
 	*host_no = -1;
-	return NULL;
+	return iscsi_handle(NULL);
 }
 
 static void
@@ -2465,7 +2466,7 @@ iscsi_session_destroy(iscsi_snx_h snxh)
 {
 	int cmd_i;
 	struct iscsi_data_task *dtask, *n;
-	struct iscsi_session *session = snxh;
+	struct iscsi_session *session = iscsi_ptr(snxh);
 
 	scsi_remove_host(session->host);
 
@@ -2491,7 +2492,7 @@ iscsi_session_destroy(iscsi_snx_h snxh)
 static int
 iscsi_set_param(iscsi_cnx_h cnxh, iscsi_param_e param, int value)
 {
-	struct iscsi_conn *conn = cnxh;
+	struct iscsi_conn *conn = iscsi_ptr(cnxh);
 	struct iscsi_session *session = conn->session;
 
 	if (conn->c_stage == ISCSI_CNX_INITIAL_STAGE) {

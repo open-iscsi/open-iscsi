@@ -46,57 +46,57 @@ struct iscsi_uevent {
 	union {
 		/* messages u -> k */
 		struct msg_create_session {
-			ulong_t		session_handle;
+			uint64_t	session_handle;
 			unsigned int	initial_cmdsn;
 		} c_session;
 		struct msg_destroy_session {
-			ulong_t		session_handle;
+			uint64_t	session_handle;
 		} d_session;
 		struct msg_create_cnx {
-			ulong_t		session_handle;
-			ulong_t		cnx_handle;
+			uint64_t	session_handle;
+			uint64_t	cnx_handle;
 			int		transport_fd;
 			unsigned int	cid;
 		} c_cnx;
 		struct msg_bind_cnx {
-			ulong_t		session_handle;
-			ulong_t		cnx_handle;
+			uint64_t	session_handle;
+			uint64_t	cnx_handle;
 			int		is_leading;
 		} b_cnx;
 		struct msg_destroy_cnx {
-			ulong_t		cnx_handle;
+			uint64_t	cnx_handle;
 		} d_cnx;
 		struct msg_send_pdu {
 			int		hdr_size;
 			int		data_size;
-			ulong_t		cnx_handle;
+			uint64_t	cnx_handle;
 		} send_pdu;
 		struct msg_set_param {
-			ulong_t		cnx_handle;
+			uint64_t	cnx_handle;
 			iscsi_param_e	param;
 			unsigned int	value;
 		} set_param;
 		struct msg_start_cnx {
-			ulong_t		cnx_handle;
+			uint64_t	cnx_handle;
 		} start_cnx;
 		struct msg_stop_cnx {
-			ulong_t		cnx_handle;
+			uint64_t	cnx_handle;
 		} stop_cnx;
 	} u;
 	union {
 		/* messages k -> u */
-		ulong_t			handle;
+		uint64_t		handle;
 		int			retcode;
 		struct msg_create_session_ret {
-			ulong_t		handle;
+			uint64_t	handle;
 			int		sid;
 		} c_session_ret;
 		struct msg_recv_req {
-			ulong_t		recv_handle;
-			ulong_t		cnx_handle;
+			uint64_t	recv_handle;
+			uint64_t	cnx_handle;
 		} recv_req;
 		struct msg_cnx_error {
-			ulong_t		cnx_handle;
+			uint64_t	cnx_handle;
 			iscsi_err_e	error;
 		} cnxerror;
 	} r;

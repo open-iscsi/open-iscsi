@@ -30,6 +30,7 @@
 typedef	__u8	uint8_t;
 typedef	__u16	uint16_t;
 typedef	__u32	uint32_t;
+typedef	__u64	uint64_t;
 
 #include "iscsi_if.h"
 #include "iscsi_ifev.h"
@@ -566,9 +567,9 @@ ctldev_handle(int ctrl_fd)
 		session = (iscsi_session_t *)item;
 		for (i=0; i<ISCSI_CNX_MAX; i++) {
 			if (&session->cnx[i] == (iscsi_conn_t*)
-					ev->r.recv_req.cnx_handle ||
+					iscsi_ptr(ev->r.recv_req.cnx_handle) ||
 			    &session->cnx[i] == (iscsi_conn_t*)
-					ev->r.cnxerror.cnx_handle) {
+					iscsi_ptr(ev->r.cnxerror.cnx_handle)) {
 				conn = &session->cnx[i];
 				break;
 			}

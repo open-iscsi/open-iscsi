@@ -22,10 +22,6 @@
 
 #include <iscsi_proto.h>
 
-#ifndef ulong_t
-#define ulong_t unsigned long
-#endif
-
 #define ISCSI_TRANSPORT_NAME_MAXLEN	64
 #define ISCSI_TRANSPORT_MAX		16
 #define UEVENT_BASE			10
@@ -76,8 +72,11 @@ typedef enum {
 	ISCSI_PARAM_OFMARKER_EN		= 13,
 } iscsi_param_e;
 
-typedef void* iscsi_snx_h;		/* iSCSI Data-Path session handle */
-typedef void* iscsi_cnx_h;		/* iSCSI Data-Path connection handle */
+typedef uint64_t iscsi_snx_h;		/* iSCSI Data-Path session handle */
+typedef uint64_t iscsi_cnx_h;		/* iSCSI Data-Path connection handle */
+
+#define iscsi_ptr(_handle) ((void*)(unsigned long)_handle)
+#define iscsi_handle(_ptr) ((uint64_t)(unsigned long)_ptr)
 
 /*
  * These flags presents iSCSI Data-Path capabilities.
