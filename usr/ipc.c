@@ -28,6 +28,7 @@
 
 #include "iscsid.h"
 #include "ipc.h"
+#include "log.h"
 
 int
 ipc_listen(void)
@@ -36,19 +37,29 @@ ipc_listen(void)
 	struct sockaddr_un addr;
 
 	fd = socket(AF_LOCAL, SOCK_STREAM, 0);
-	if (fd < 0)
+	if (fd < 0) {
+		log_error("can not create IPC socket");
 		return fd;
+	}
 
 	memset(&addr, 0, sizeof(addr));
 	addr.sun_family = AF_LOCAL;
 	memcpy((char *) &addr.sun_path + 1, ISCSIADM_NAMESPACE,
 		strlen(ISCSIADM_NAMESPACE));
 
-	if ((err = bind(fd, (struct sockaddr *) &addr, sizeof(addr))) < 0)
+	if ((err = bind(fd, (struct sockaddr *) &addr, sizeof(addr))) < 0) {
+		log_error("can not bind IPC socket");
+		close(fd);
 		return err;
+	}
 
-	if ((err = listen(fd, 32)) < 0)
+	if ((err = listen(fd, 32)) < 0) {
+		log_error("can not listen IPC socket");
+		close(fd);
 		return err;
+	}
+
+	log_debug(1, "IPC socket is listening...");
 
 	return fd;
 }

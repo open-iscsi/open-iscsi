@@ -865,6 +865,18 @@ idbm_discovery_read(idbm_t *db, int rec_id, discovery_rec_t *out_rec)
 }
 
 int
+idbm_node_read(idbm_t *db, int rec_id, node_rec_t *out_rec)
+{
+	node_rec_t *rec;
+
+	if ((rec = (node_rec_t*)idbm_read_with_id(db->nodedb, rec_id))) {
+		memcpy(out_rec, rec, sizeof(node_rec_t));
+		return 0;
+	}
+	return 1;
+}
+
+int
 idbm_add_discovery(idbm_t *db, discovery_rec_t *newrec)
 {
 	char *hash;

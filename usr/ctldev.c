@@ -28,6 +28,7 @@
 #include <sys/stat.h>
 
 #include "iscsid.h"
+#include "log.h"
 
 #define CTL_DEVICE	"/dev/iscsictl"
 #define SYSFS_ROOT	"/sysfs/class/iscsi"
@@ -42,7 +43,7 @@ int ctldev_open(void)
 
 	f = fopen("/proc/devices", "r");
 	if (!f) {
-		perror("Cannot open control path to the driver\n");
+		log_error("cannot open control path to the driver");
 		return -1;
 	}
 
@@ -62,22 +63,25 @@ int ctldev_open(void)
 
 	fclose(f);
 	if (!devn) {
-		printf("cannot find iscsictl in /proc/devices - "
-		     "make sure the module is loaded\n");
-		return -1;
+		log_error("cannot find iscsictl in /proc/devices - "
+		     "make sure the module is loaded");
+		//return -1;
+		return 1;
 	}
 
 	unlink(CTL_DEVICE);
 	if (mknod(CTL_DEVICE, (S_IFCHR | 0600), (devn << 8))) {
-		printf("cannot create %s %d\n", CTL_DEVICE, errno);
+		log_error("cannot create %s %d", CTL_DEVICE, errno);
 		return -1;
 	}
 
 	ctlfd = open(CTL_DEVICE, O_RDWR);
 	if (ctlfd < 0) {
-		printf("cannot open %s %d\n", CTL_DEVICE, errno);
+		log_error("cannot open %s %d", CTL_DEVICE, errno);
 		return -1;
 	}
+
+	log_debug(1, CTL_DEVICE " opened!");
 
 	return ctlfd;
 }

@@ -179,7 +179,6 @@ str_to_ipport(char *str, int *port)
 	return NULL;
 }
 
-#if 0
 static int
 iscsid_connect(void)
 {
@@ -187,16 +186,20 @@ iscsid_connect(void)
 	struct sockaddr_un addr;
 
 	fd = socket(AF_LOCAL, SOCK_STREAM, 0);
-	if (fd < 0)
+	if (fd < 0) {
+		log_error("can not create IPC socket!");
 		return fd;
+	}
 
 	memset(&addr, 0, sizeof(addr));
 	addr.sun_family = AF_LOCAL;
 	memcpy((char *) &addr.sun_path + 1, ISCSIADM_NAMESPACE,
 		strlen(ISCSIADM_NAMESPACE));
 
-	if ((err = connect(fd, (struct sockaddr *) &addr, sizeof(addr))) < 0)
+	if ((err = connect(fd, (struct sockaddr *) &addr, sizeof(addr))) < 0) {
+		log_error("can not connect to iSCSI daemon!");
 		fd = err;
+	}
 
 	return fd;
 }
@@ -222,8 +225,7 @@ iscsid_response(int fd)
 	iscsiadm_rsp_t rsp;
 
 	if ((err = read(fd, &rsp, sizeof(rsp))) != sizeof(rsp)) {
-		fprintf(stderr, "%s: got bad response %d on cmd %d\n",
-			program_name, err, rsp.command);
+		log_error("got bad response %d\n", err);
 		if (err >= 0)
 			err = -EIO;
 	} else
@@ -233,22 +235,16 @@ iscsid_response(int fd)
 }
 
 static int
-mode_sid_add(int sid)
+do_iscsid(iscsiadm_req_t *req)
 {
 	int fd = -1, err;
-	iscsiadm_req_t req;
 
 	if ((fd = iscsid_connect()) < 0) {
 		err = fd;
 		goto out;
 	}
 
-	memset(&req, 0, sizeof(req));
-	req.command = C_TARGET_ADD;
-	req.tid = tid;
-	strncpy(req.u.tadd.name, name, sizeof(req.u.tadd.name) - 1);
-
-	if ((err = iscsid_request(fd, &req)) < 0)
+	if ((err = iscsid_request(fd, req)) < 0)
 		goto out;
 
 	err = iscsid_response(fd);
@@ -258,7 +254,18 @@ out:
 
 	return err;
 }
-#endif
+
+static int
+session_login(int rid, node_rec_t *rec)
+{
+	iscsiadm_req_t req;
+
+	memset(&req, 0, sizeof(req));
+	req.command = IPC_SESSION_LOGIN;
+	req.u.session.rid = rid;
+
+	return do_iscsid(&req);
+}
 
 
 /*
@@ -415,12 +422,25 @@ main(int argc, char **argv)
 			}
 		}
 	} else if (mode == MODE_NODE) {
-		if (op < 0 || op == OP_SHOW) {
+		if (rid >= 0 && do_login) {
+			node_rec_t rec;
+
+			if (idbm_node_read(db, rid, &rec)) {
+				log_error("discovery record [%06x] "
+					  "not found!", rid);
+				rc = -1;
+				goto out;
+			}
+			if (session_login(rid, &rec)) {
+				rc = -1;
+				goto out;
+			}
+		} else if (op < 0 || op == OP_SHOW) {
 			if (!idbm_print_node(db, rid)) {
 				log_error("no records found!");
 				rc = -1;
+				goto out;
 			}
-			goto out;
 		} else {
 			log_error("Operations: insert, delete and update "
 				  "for node is not fully implemented yet.");

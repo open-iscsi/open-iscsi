@@ -119,5 +119,6 @@ extern void idbm_sendtargets_defaults(idbm_t *db,
 		      struct iscsi_sendtargets_config *cfg);
 extern void idbm_slp_defaults(idbm_t *db, struct iscsi_slp_config *cfg);
 extern int idbm_discovery_read(idbm_t *db, int rec_id, discovery_rec_t *rec);
+extern int idbm_node_read(idbm_t *db, int rec_id, node_rec_t *rec);
 
 #endif /* IDBM_H */

@@ -120,7 +120,7 @@ get_iscsi_initiatorname(char *pathname)
 			       "was not found in %s", pathname);
 			return NULL;
 		} else {
-			log_debug(5, "InitiatorName=%s\n", name);
+			log_debug(5, "InitiatorName=%s", name);
 		}
 		return name;
 	} else {
@@ -152,7 +152,7 @@ iscsi_events_handle(void)
 
 		switch (event.state) {
 		default:
-			printf("%s(%d) %u\n", __FUNCTION__, __LINE__,
+			log_error("%s(%d) %u\n", __FUNCTION__, __LINE__,
 			       event.state);
 			exit(-1);
 			break;
@@ -179,14 +179,15 @@ event_loop(void)
 		res = poll(poll_array, POLL_MAX, -1);
 		if (res <= 0) {
 			if (res < 0 && errno != EINTR) {
-				perror("poll()");
+				log_error("got poll() error (%d), errno (%d), "
+					  "exiting", res, errno);
 				exit(1);
 			}
 			continue;
 		}
 
-		if (poll_array[POLL_CTRL].revents)
-			iscsi_events_handle();
+	//	if (poll_array[POLL_CTRL].revents)
+	//		iscsi_events_handle();
 
 		if (poll_array[POLL_IPC].revents)
 			ipc_handle(ipc_fd);
@@ -233,6 +234,9 @@ main(int argc, char *argv[])
 		}
 	}
 
+	/* initialize logger */
+	log_init(program_name);
+
 	if ((ctrl_fd = ctldev_open()) < 0) {
 		exit(-1);
 	}
@@ -241,7 +245,6 @@ main(int argc, char *argv[])
 		exit(-1);
 	}
 
-	log_init(program_name);
 	if (log_daemon) {
 		char buf[64];
 		pid_t pid;
@@ -256,8 +259,10 @@ main(int argc, char *argv[])
 		if (pid < 0) {
 			log_error("starting daemon failed");
 			exit(1);
-		} else if (pid)
+		} else if (pid) {
+			log_debug(1, "daemon with pid=%d started!", pid);
 			exit(0);
+		}
 
 		chdir("/");
 		if (lockf(fd, F_TLOCK, 0) < 0) {
@@ -280,10 +285,6 @@ main(int argc, char *argv[])
 
 	if (gid && setgid(gid) < 0)
 		perror("setgid\n");
-
-	/* initialize configuration defaults */
-//	memset(&config, 0, sizeof (config));
-//	iscsi_init_config_defaults(&config.defaults);
 
 	memset(&daemon_config, 0, sizeof (daemon_config));
 	daemon_config.pid_file = PID_FILE;
@@ -313,13 +314,6 @@ main(int argc, char *argv[])
 	 */
 	log_warning("version %s variant (%s)",
 		ISCSI_VERSION_STR, ISCSI_DATE_STR);
-
-//	/* load the configuration for the first time */
-//	if (!update_iscsi_config(daemon_config.config_file, &config)) {
-//		log_error("failed to load configuration from %s",
-//		       daemon_config.config_file);
-//		exit(2);
-//	}
 
 	/*
 	 * Start Main Event Loop

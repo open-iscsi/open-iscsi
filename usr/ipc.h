@@ -25,30 +25,11 @@
 #define ISCSIADM_NAMESPACE	"ISCSIADM_ABSTRACT_NAMESPACE"
 
 typedef enum iscsiadm_cmd {
-	IPC_SESSION_ADD,
-	IPC_SESSION_REMOVE,
+	IPC_SESSION_LOGIN,
+	IPC_SESSION_LOGOUT,
 	IPC_CONN_ADD,
 	IPC_CONN_REMOVE,
 } iscsiadm_cmd_e;
-
-typedef struct msg_session_add {
-	char name[ISCSIADM_NAME_LEN];
-	char alias[ISCSIADM_NAME_LEN];
-} msg_session_add_t;
-
-typedef struct msg_session_rm {
-	int sid;
-} msg_session_rm_t;
-
-typedef struct msg_conn_add {
-        uint8_t ip_address[16];
-        int port;
-} msg_conn_add_t;
-
-typedef struct msg_conn_rm {
-	int sid;
-	int cid;
-} msg_conn_rm_t;
 
 /* IPC Request */
 typedef struct iscsiadm_req {
@@ -56,16 +37,18 @@ typedef struct iscsiadm_req {
 
 	union {
 		/* messages */
-		msg_session_add_t s_add;
-		msg_session_rm_t s_rm;
-		msg_conn_add_t c_add;
-		msg_conn_rm_t c_rm;
+		struct msg_session {
+			int rid;
+		} session;
+		struct msg_conn {
+			int rec_id;
+			int cid;
+		} conn;
 	} u;
 } iscsiadm_req_t;
 
 /* IPC Response */
 typedef struct iscsiadm_rsp {
-	iscsiadm_cmd_e command;
 	int err;
 } iscsiadm_rsp_t;
 
