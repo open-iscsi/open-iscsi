@@ -42,6 +42,12 @@
 #define IN_PROGRESS_XMIT_IMM		0x0
 #define IN_PROGRESS_XMIT_SCSI		0x1
 
+/* Task Mgmt states */
+#define	TMABORT_INITIAL			0x0
+#define	TMABORT_SUCCESS			0x1
+#define	TMABORT_FAILED			0x2
+#define	TMABORT_TIMEDOUT		0x3
+
 /* iSCSI Task Command's state machine */
 #define IN_PROGRESS_OP_MASK		0x3	/* READ | WRITE */
 #define IN_PROGRESS_IDLE		0x0
@@ -146,9 +152,9 @@ struct iscsi_conn {
 	struct iscsi_mgmt_task	*mtask;		/* xmit mtask in progress */
 	struct iscsi_cmd_task	*ctask;		/* xmit ctask in progress */
 	struct semaphore	xmitsema;
-	struct semaphore	ehsema;
+	wait_queue_head_t	ehwait;
 	struct iscsi_tm		tmhdr;
-	int			tmabort_state;
+	volatile int		tmabort_state;
 	struct timer_list	tmabort_timer;
 
 	/* configuration */

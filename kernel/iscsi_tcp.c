@@ -176,7 +176,11 @@ iscsi_ctask_cleanup(struct iscsi_conn *conn, struct iscsi_cmd_task *ctask)
 	struct scsi_cmnd *sc = ctask->sc;
 	struct iscsi_session *session = conn->session;
 
-	BUG_ON(ctask->in_progress == IN_PROGRESS_IDLE);
+	spin_lock(&session->lock);
+	if (ctask->in_progress == IN_PROGRESS_IDLE) {
+		spin_unlock(&session->lock);
+		return;
+	}
 	if (sc->sc_data_direction == DMA_TO_DEVICE) {
 		struct iscsi_data_task *dtask, *n;
 		/* WRITE: cleanup Data-Out's if any */
@@ -188,7 +192,6 @@ iscsi_ctask_cleanup(struct iscsi_conn *conn, struct iscsi_cmd_task *ctask)
 		spin_unlock(&conn->lock);
 	}
 	ctask->in_progress = IN_PROGRESS_IDLE;
-	spin_lock(&session->lock);
 	__kfifo_put(session->cmdpool.queue, (void*)&ctask, sizeof(void*));
 	spin_unlock(&session->lock);
 }
@@ -635,8 +638,10 @@ iscsi_hdr_recv(struct iscsi_conn *conn)
 				    sizeof(void*));
 			spin_unlock(&session->lock);
 			del_timer_sync(&conn->tmabort_timer);
-			conn->tmabort_state = SUCCESS;
-			up(&conn->ehsema);
+			conn->tmabort_state = ((struct iscsi_tm_rsp *)hdr)->
+				response == SCSI_TCP_TM_RESP_COMPLETE ?
+					TMABORT_SUCCESS : TMABORT_FAILED;
+			wake_up(&conn->ehwait);
 			break;
 		default:
 			rc = ISCSI_ERR_BAD_OPCODE;
@@ -1873,6 +1878,7 @@ iscsi_conn_create(iscsi_snx_h snxh, iscsi_cnx_h handle,
 	conn->id = conn_idx;
 	conn->exp_statsn = 0;
 	conn->handle = handle;
+	conn->tmabort_state = TMABORT_INITIAL;
 
 	/* initial operational parameters */
 	conn->hdr_size = sizeof(struct iscsi_hdr);
@@ -1919,7 +1925,7 @@ iscsi_conn_create(iscsi_snx_h snxh, iscsi_cnx_h handle,
 
 	init_timer(&conn->tmabort_timer);
 	init_MUTEX(&conn->xmitsema);
-	init_MUTEX_LOCKED(&conn->ehsema);
+	init_waitqueue_head(&conn->ehwait);
 
 	return iscsi_handle(conn);
 
@@ -1963,8 +1969,7 @@ iscsi_conn_destroy(iscsi_cnx_h cnxh)
 		 * Its a signal for us to give up on recovery.
 		 */
 		session->state = ISCSI_STATE_TERMINATE;
-		conn->tmabort_state = FAILED;
-		up(&conn->ehsema);
+		wake_up(&conn->ehwait);
 	}
 
 	/*
@@ -2227,10 +2232,9 @@ iscsi_tmabort_timedout(unsigned long data)
 	struct iscsi_cmd_task *ctask = (struct iscsi_cmd_task *)data;
 	struct iscsi_conn *conn = ctask->conn;
 
+	conn->tmabort_state = TMABORT_TIMEDOUT;
 	debug_scsi("tmabort timedout [sc %lx itt 0x%x]\n", (long)ctask->sc,
 		   ctask->itt);
-	conn->tmabort_state = SUCCESS;
-	up(&conn->ehsema);
 }
 
 static int
@@ -2248,8 +2252,8 @@ iscsi_eh_abort(struct scsi_cmnd *sc)
 	/*
 	 * two cases for ERL=0 here:
 	 *
-	 * 1) connection-level failure
-	 * 2) recovery due protocol error
+	 * 1) connection-level failure;
+	 * 2) recovery due protocol error;
 	 */
 	if (session->state != ISCSI_STATE_LOGGED_IN) {
 		if (session->state == ISCSI_STATE_TERMINATE)
@@ -2270,39 +2274,64 @@ iscsi_eh_abort(struct scsi_cmnd *sc)
 		hdr->rtt = ctask->hdr.itt;
 		hdr->refcmdsn = ctask->hdr.cmdsn;
 
-		/* FIXME: make it configurable */
-		conn->tmabort_timer.expires = 3*HZ + jiffies;
-		conn->tmabort_timer.function = iscsi_tmabort_timedout;
-		conn->tmabort_timer.data = (unsigned long)ctask;
-		add_timer(&conn->tmabort_timer);
+		conn->tmabort_state = TMABORT_INITIAL;
 
 		rc = iscsi_send_pdu(iscsi_handle(conn),
 			    (struct iscsi_hdr *)hdr, NULL, 0);
 		if (rc) {
+			session->state = ISCSI_STATE_FAILED;
 			iscsi_control_cnx_error(conn->handle,
 				ISCSI_ERR_CNX_FAILED);
-			session->state = ISCSI_STATE_FAILED;
+			debug_scsi("abort sent failure [itt 0x%x]", ctask->itt);
+		} else {
+			conn->tmabort_timer.expires = 3*HZ + jiffies; /*3 secs*/
+			conn->tmabort_timer.function = iscsi_tmabort_timedout;
+			conn->tmabort_timer.data = (unsigned long)ctask;
+			add_timer(&conn->tmabort_timer);
+			debug_scsi("abort sent [itt 0x%x]", ctask->itt);
+		}
+	}
+
+
+	/*
+	 * block eh thread until:
+	 *
+	 * 1) abort response;
+	 * 2) abort timeout;
+	 * 3) session re-opened;
+	 * 4) session terminated;
+	 */
+	while (1) {
+		int p_state = session->state;
+		rc = wait_event_interruptible(conn->ehwait,
+			(p_state == ISCSI_STATE_LOGGED_IN ?
+			 (session->state == ISCSI_STATE_TERMINATE ||
+			  conn->tmabort_state != TMABORT_INITIAL) :
+			 (session->state == ISCSI_STATE_TERMINATE ||
+			  session->state == ISCSI_STATE_LOGGED_IN)));
+		if (rc) {
+			/* shutdown.. */
+			session->state = ISCSI_STATE_TERMINATE;
 			goto failed;
 		}
 
-		debug_scsi("abort sent [itt 0x%x]", ctask->itt);
-	}
+		if (signal_pending(current))
+			flush_signals(current);
 
-	/*
-	 * block eh thread until will get command from control
-	 * plane on what to do next or unblocking signal.
-	 * Unblocking signal could be tm abort response, tm timer.
-	 */
-	rc = down_interruptible(&conn->ehsema);
-	if (rc) {
-		/* shutdown.. */
-		session->state = ISCSI_STATE_TERMINATE;
-		goto failed;
+		if (session->state == ISCSI_STATE_TERMINATE)
+			goto failed;
+
+		if (conn->tmabort_state == TMABORT_TIMEDOUT ||
+		    conn->tmabort_state == TMABORT_FAILED) {
+			conn->tmabort_state = TMABORT_INITIAL;
+			session->state = ISCSI_STATE_FAILED;
+			iscsi_control_cnx_error(conn->handle,
+				ISCSI_ERR_CNX_FAILED);
+			continue;
+		}
+
+		break;
 	}
-	if (session->state == ISCSI_STATE_TERMINATE)
-		goto failed;
-	if (conn->tmabort_state == FAILED)
-		goto failed;
 
 	debug_scsi("abort success [sc %lx itt 0x%x]\n", (long)sc, ctask->itt);
 	BUG_ON(session->state != ISCSI_STATE_LOGGED_IN);
