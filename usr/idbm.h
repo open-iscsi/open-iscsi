@@ -24,7 +24,7 @@
 #include "initiator.h"
 #include "config.h"
 
-#define HASH_MAXLEN	48
+#define HASH_MAXLEN	256+48
 
 #define TYPE_INT	0
 #define TYPE_INT_O	1

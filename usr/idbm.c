@@ -308,20 +308,22 @@ idbm_hash_node(discovery_rec_t *drec, node_rec_t *nrec)
 	}
 
 	if (drec == NULL) {
-		snprintf(hash, HASH_MAXLEN, "%s:%d,%d",
+		snprintf(hash, HASH_MAXLEN, "%s:%d,%d#%s",
 			nrec->cnx[0].address,
 			nrec->cnx[0].port,
-			nrec->tpgt);
+			nrec->tpgt,
+			nrec->name);
 		return hash;
 	}
 
 	if (drec->type == DISCOVERY_TYPE_SENDTARGETS) {
-		snprintf(hash, HASH_MAXLEN, "%s:%d#%s:%d,%d",
+		snprintf(hash, HASH_MAXLEN, "%s:%d#%s:%d,%d#%s",
 			drec->u.sendtargets.address,
 			drec->u.sendtargets.port,
 			nrec->cnx[0].address,
 			nrec->cnx[0].port,
-			nrec->tpgt);
+			nrec->tpgt,
+			nrec->name);
 	}
 
 	return hash;

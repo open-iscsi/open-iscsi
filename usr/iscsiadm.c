@@ -25,7 +25,7 @@
 #include <stdio.h>
 #include <unistd.h>
 #include <string.h>
-
+#include <sys/signal.h>
 #include <sys/ioctl.h>
 #include <sys/socket.h>
 #include <sys/stat.h>
@@ -411,6 +411,11 @@ verify_mode_params(int argc, char **argv, char *allowed, int skip_m)
 	return ret;
 }
 
+static void catch_sigint( int signo ) {
+	log_warning("caught SIGINT, exiting...");
+	exit(1);
+}
+
 int
 main(int argc, char **argv)
 {
@@ -419,6 +424,14 @@ main(int argc, char **argv)
 	int rc=0, rid=-1, op=-1, type=-1, do_logout=0;
 	idbm_t *db;
 	char *iname;
+	struct sigaction sa_old;
+	struct sigaction sa_new;
+
+	/* do not allow ctrl-c for now... */
+	sa_new.sa_handler = catch_sigint;
+	sigemptyset(&sa_new.sa_mask);
+	sa_new.sa_flags = 0;
+	sigaction(SIGINT, &sa_new, &sa_old );
 
 	/* enable stdout logging */
 	log_daemon = 0;
@@ -502,7 +515,8 @@ main(int argc, char **argv)
 			struct iscsi_sendtargets_config cfg;
 
 			if (ip == NULL || port < 0) {
-				log_error("You must specify right portal!");
+				log_error("please specify right portal as "
+					  "<ipaddr>:<ipport>");
 				rc = -1;
 				goto out;
 			}
