@@ -266,7 +266,7 @@ typedef struct iscsi_r2t_rsp {
 	uint32_t statsn;
 	uint32_t exp_cmdsn;
 	uint32_t max_cmdsn;
-	uint32_t rttsn;
+	uint32_t r2tsn;
 	uint32_t data_offset;
 	uint32_t data_length;
 } iscsi_r2t_rsp_t;

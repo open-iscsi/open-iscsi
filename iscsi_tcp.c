@@ -97,7 +97,7 @@ __insert(iscsi_queue_t *queue, void *data)
 	if (queue->cons - 1 < 0) {
 		queue->cons = queue->max - 1;
 	}
-	__BUG_ON(queue->cons - 1 == queue->prod);
+	__BUG_ON(queue->cons - 1 == queue->prod || queue->cons - 1  < 0);
 	queue->pool[--queue->cons] = data;
 }
 
@@ -725,11 +725,12 @@ iscsi_unsolicit_data_init(iscsi_conn_t *conn, iscsi_cmd_task_t *ctask)
 	hdr->lun[1] = ctask->hdr.lun[1];
 	hdr->itt = ctask->hdr.itt;
 	hdr->exp_statsn = htonl(conn->exp_statsn);
-	hdr->offset = htonl(ctask->total_length - ctask->data_count);
-	if (ctask->data_count > conn->max_xmit_dlength) {
+	hdr->offset = htonl(ctask->total_length - ctask->data_count -
+			    ctask->imm_data_count);
+	if (ctask->imm_data_count > conn->max_xmit_dlength) {
 		hton24(hdr->dlength, conn->max_xmit_dlength);
 	} else {
-		hton24(hdr->dlength, ctask->data_count);
+		hton24(hdr->dlength, ctask->imm_data_count);
 	}
 
 	ctask->sent = 0;
@@ -779,6 +780,7 @@ iscsi_cmd_init(iscsi_conn_t *conn, iscsi_cmd_task_t *ctask,
 		ctask->in_progress = IN_PROGRESS_READ;
 		zero_data(ctask->hdr.dlength);
 	} else if (sc->sc_data_direction == DMA_TO_DEVICE) {
+		ctask->exp_r2tsn = 0;
 		ctask->hdr.flags |= ISCSI_FLAG_CMD_WRITE;
 		ctask->in_progress = IN_PROGRESS_WRITE;
 		/* TODO: check that zero-writes are allowed by spec. */
@@ -1164,12 +1166,17 @@ iscsi_r2t_rsp(iscsi_conn_t *conn, iscsi_cmd_task_t *ctask)
 	iscsi_r2t_rsp_t *rhdr = (iscsi_r2t_rsp_t *)conn->in.hdr;
 	int max_cmdsn = ntohl(rhdr->max_cmdsn);
 	int exp_cmdsn = ntohl(rhdr->exp_cmdsn);
+	int r2tsn = ntohl(rhdr->r2tsn);
 
 	if (conn->in.ahslen) {
 		return ISCSI_ERR_AHSLEN;
 	}
 	if (conn->in.datalen) {
 		return ISCSI_ERR_DATALEN;
+	}
+
+	if (ctask->exp_r2tsn && ctask->exp_r2tsn != r2tsn) {
+		return ISCSI_ERR_R2TSN;
 	}
 
 	if (max_cmdsn < exp_cmdsn - 1) {
@@ -1215,6 +1222,7 @@ iscsi_r2t_rsp(iscsi_conn_t *conn, iscsi_cmd_task_t *ctask)
 		return rc;
 	}
 
+	ctask->exp_r2tsn = r2tsn + 1;
 	ctask->in_progress = IN_PROGRESS_WRITE |
 			     IN_PROGRESS_SOLICIT_HEAD;
 	__enqueue(&ctask->r2tqueue, r2t);
@@ -1525,6 +1533,7 @@ _unsolicit_again:
 _solicit_head_again:
 		__BUG_ON(r2t == NULL);
 		if (r2t->cont_bit) {
+			__BUG_ON(r2t->data_length - r2t->sent <= 0);
 			/*
 			 * we failed to fill-in Data-Out last time
 			 * due to memory allocation failure most likely
@@ -1558,6 +1567,8 @@ _solicit_again:
 			if (iscsi_sendpage(conn, &r2t->sendbuf,
 					   &r2t->data_count,
 					   &r2t->sent)) {
+				/* do not insert back to the queue.
+				 * ctask will continue from current! r2t */
 				return -EAGAIN;
 			}
 			if (r2t->data_count) {
@@ -1593,6 +1604,7 @@ _solicit_again:
 		 * more outstanding R2T's ready to send.
 		 */
 		ctask->data_count -= r2t->data_length;
+		__BUG_ON(ctask->data_count < 0);
 		__enqueue(&ctask->r2tpool, r2t);
 		if ((r2t = __dequeue(&ctask->r2tqueue))) {
 			ctask->in_progress = IN_PROGRESS_WRITE |
@@ -1635,6 +1647,7 @@ iscsi_data_xmit(iscsi_conn_t *conn)
 	       (ctask = __dequeue(&conn->xmitqueue)) != NULL) {
 
 		if (conn->c_stage == ISCSI_CNX_STOPPED) {
+			__insert(&conn->xmitqueue, ctask);
 			spin_unlock_bh(&conn->lock);
 			break;
 		}
@@ -1645,14 +1658,14 @@ iscsi_data_xmit(iscsi_conn_t *conn)
 			return -EAGAIN;
 		}
 	}
-	spin_unlock_bh(&conn->lock);
 
 	/* process immediate queue */
-	while ((mtask = iscsi_dequeue(&conn->immqueue)) != NULL) {
+	while ((mtask = __dequeue(&conn->immqueue)) != NULL) {
 		iscsi_session_t *session = conn->session;
 
-		iscsi_enqueue(&session->immpool, mtask);
+		__enqueue(&session->immpool, mtask);
 		if (conn->c_stage == ISCSI_CNX_STOPPED) {
+			__insert(&conn->immqueue, mtask);
 			spin_unlock_bh(&conn->lock);
 			break;
 		}
@@ -1660,10 +1673,12 @@ iscsi_data_xmit(iscsi_conn_t *conn)
 		conn->in_progress_xmit = IN_PROGRESS_XMIT_IMM;
 
 		if (iscsi_mtask_xmit(conn, mtask)) {
-			iscsi_insert(&conn->immqueue, mtask);
+			__insert(&conn->immqueue, mtask);
+			spin_unlock_bh(&conn->lock);
 			return -EAGAIN;
 		}
 	}
+	spin_unlock_bh(&conn->lock);
 
 	conn->in_progress_xmit = IN_PROGRESS_XMIT_SCSI;
 

@@ -265,7 +265,8 @@ typedef struct iscsi_cmd_task {
 	struct scatterlist	*bad_sg;		/* assert statement */
 	int			sg_count;		/* SG's to process */
 	iscsi_data_task_t	**unsolicit_data;	/* Unsolicited PDU's */
-	int			unsolicit_datasn;
+	uint32_t		unsolicit_datasn;
+	uint32_t		exp_r2tsn;
 	volatile int		in_progress;		/* State machine */
 	int			imm_count;		/* Imm-Data bytes */
 	int			imm_data_count;		/* Imm-Data-Out bytes */
