@@ -55,8 +55,6 @@ static int iscsi_tcp_data_recv(read_descriptor_t *rd_desc, struct sk_buff *skb,
 static void iscsi_tcp_data_ready(struct sock *sk, int flag);
 static void iscsi_tcp_state_change(struct sock *sk);
 static void iscsi_write_space(struct sock *sk);
-static inline int iscsi_sendpage(iscsi_conn_t *conn, iscsi_buf_t *buf,
-				 int size);
 static void iscsi_conn_set_callbacks(iscsi_conn_t *conn);
 
 /* data-path */
@@ -352,22 +350,59 @@ iscsi_conn_restore_callbacks(iscsi_conn_t *conn)
 }
 
 /*
+ * iscsi_sendhdr - send PDU Header via tcp_sendpage()
+ *
+ * This function used for fast path send. Outgoing data presents
+ * as iscsi_buf_t helper structure. This function is just light version
+ * of iscsi_sendpage.
+ */
+static inline int
+iscsi_sendhdr(iscsi_conn_t *conn, iscsi_buf_t *buf)
+{
+	struct socket *sk = conn->sock;
+	int flags = MSG_DONTWAIT;
+	int res, offset, size;
+
+	__BUG_ON(buf->sent + size > buf->size);
+
+	offset = buf->offset + buf->sent;
+	size = buf->size - buf->sent;
+	if (buf->sent + size != buf->size) {
+		flags |= MSG_MORE;
+	}
+
+	debug_tcp("sendhdr %lx %d bytes at offset %d sent %d\n",
+		  (long)page_address(buf->page), size, offset, buf->sent);
+
+	// tcp_sendpage, do_tcp_sendpages, tcp_sendmsg
+	res = sk->ops->sendpage(sk, buf->page, offset, size, flags);
+	if (res > 0) {
+		buf->sent += res;
+	}
+
+	return res;
+}
+
+/*
  * iscsi_sendpage - send one page of iSCSI Data-Out buffer
  *
  * This function used for fast path send. Outgoing data presents
  * as iscsi_buf_t helper structure.
  */
 static inline int
-iscsi_sendpage(iscsi_conn_t *conn, iscsi_buf_t *buf, int size)
+iscsi_sendpage(iscsi_conn_t *conn, iscsi_buf_t *buf, int *count, int *sent)
 {
 	ssize_t (*sendpage)(struct socket *, struct page *, int, size_t, int);
 	struct socket *sk = conn->sock;
 	int flags = MSG_DONTWAIT;
-	int res;
-	int offset;
+	int res, offset, size;
 
 	__BUG_ON(buf->sent + size > buf->size);
 
+	size = buf->size - buf->sent;
+	if (size > *count) {
+		size = *count;
+	}
 	if (buf->sent + size != buf->size) {
 		flags |= MSG_MORE;
 	}
@@ -383,10 +418,16 @@ iscsi_sendpage(iscsi_conn_t *conn, iscsi_buf_t *buf, int size)
 	/* Hmm... We might be dealing with highmem pages */
 	if (PageHighMem(buf->page))
 		sendpage = sock_no_sendpage;
-	res = sendpage(sk, buf->page, offset, size, flags);
 
+	res = sendpage(sk, buf->page, offset, size, flags);
 	if (res > 0) {
 		buf->sent += res;
+		*count -= res;
+		*sent += res;
+		if (size != res) {
+			return -EAGAIN;
+		}
+		return 0;
 	}
 
 	return res;
@@ -1266,70 +1307,77 @@ iscsi_data_rsp(iscsi_conn_t *conn, iscsi_cmd_task_t *ctask)
 	return 0;
 }
 
+/*
+ * iscsi_mtask_xmit - xmit management(immediate) task
+ *
+ * The function can return -EAGAIN in which case caller must
+ * call it again later or recover. '0' return code means successful
+ * xmit.
+ *
+ * Management xmit state machine consists of two states:
+ *	IN_PROGRESS_IMM_HEAD - PDU Header xmit in progress
+ *	IN_PROGRESS_IMM_DATA - PDU Data xmit in progress
+ */
+static int
+iscsi_mtask_xmit(iscsi_conn_t *conn, iscsi_mgmt_task_t *mtask)
+{
+	if (mtask->in_progress & IN_PROGRESS_IMM_HEAD) {
+		if (iscsi_sendhdr(conn, &mtask->headbuf)) {
+			return -EAGAIN;
+		}
+		if (mtask->data_count == 0 &&
+		    mtask->hdr.itt == ISCSI_RESERVED_TAG) {
+			return 0;
+		} else if (mtask->data_count) {
+			mtask->in_progress = IN_PROGRESS_IMM_DATA;
+		}
+	}
+
+	if (mtask->in_progress == IN_PROGRESS_IMM_DATA) {
+		/* FIXME: implement and test */
+		printk("iSCSI: immediate PDU data is not supported yet\n");
+		__BUG_ON(1);
+
+		/* FIXME: implement.
+		 *        Keep in mind that virtual buffer
+		 *        spreaded accross multiple pages... */
+		do {
+			if (iscsi_sendpage(conn, &mtask->sendbuf,
+					   &mtask->data_count,
+					   &mtask->sent)) {
+				return -EAGAIN;
+			}
+		} while (mtask->data_count);
+	}
+
+	return 0;
+}
+
 static int
 iscsi_data_xmit(iscsi_conn_t *conn)
 {
-	int len, res;
 	iscsi_cmd_task_t *ctask;
 	iscsi_mgmt_task_t *mtask;
 	iscsi_session_t *session = conn->session;
 
-	/* process immediate queue first */
+	/* process immediate queue */
 	while (conn->in_progress_xmit == IN_PROGRESS_XMIT_IMM &&
 	       (mtask = iscsi_dequeue(&conn->immqueue)) != NULL) {
-		if (mtask->in_progress & IN_PROGRESS_IMM_HEAD) {
-			len = mtask->headbuf.size - mtask->headbuf.sent;
-			res = iscsi_sendpage(conn, &mtask->headbuf, len);
-			if (len != res) {
-				iscsi_insert(&conn->immqueue, mtask);
-				return -EAGAIN;
-			}
-			if (mtask->data_count == 0 &&
-			    mtask->hdr.itt == ISCSI_RESERVED_TAG) {
-				iscsi_enqueue(&session->immpool, mtask);
-				continue;
-			} else if (mtask->data_count) {
-				mtask->in_progress = IN_PROGRESS_IMM_DATA;
-			}
+		if (iscsi_mtask_xmit(conn, mtask)) {
+			iscsi_insert(&conn->immqueue, mtask);
+			return -EAGAIN;
 		}
-		if (mtask->in_progress == IN_PROGRESS_IMM_DATA) {
-			printk("iSCSI: immediate PDU data is not supported\n");
-			__BUG_ON(1);
-_mtask_again:
-			len = mtask->sendbuf.size - mtask->sendbuf.sent;
-			if (len > mtask->data_count) {
-				len = mtask->data_count;
-			}
-			res = iscsi_sendpage(conn, &mtask->sendbuf, len);
-			if (len != res) {
-				iscsi_insert(&conn->immqueue, mtask);
-				if (res > 0) {
-					mtask->data_count -= res;
-					mtask->sent += res;
-				}
-				return -EAGAIN;
-			}
-			mtask->data_count -= res;
-			mtask->sent += res;
-			if (mtask->data_count) {
-				/* FIXME: implement.
-				 *        Keep in mind that virtual buffer
-				 *        spreaded accross multiple pages... */
-				goto _mtask_again;
-			}
-		}
+		iscsi_enqueue(&session->immpool, mtask);
 	}
 
-	/* when we done with immediate queue, process non-immediate queue */
+	/* process non-immediate queue */
 	while ((ctask = iscsi_dequeue(&conn->xmitqueue)) != NULL) {
 		iscsi_r2t_info_t *r2t;
 
 		conn->in_progress_xmit = IN_PROGRESS_XMIT_DATA;
 
 		if (ctask->in_progress & IN_PROGRESS_HEAD) {
-			len = ctask->headbuf.size - ctask->headbuf.sent;
-			res = iscsi_sendpage(conn, &ctask->headbuf, len);
-			if (len != res) {
+			if (iscsi_sendhdr(conn, &ctask->headbuf)) {
 				iscsi_insert(&conn->xmitqueue, ctask);
 				return -EAGAIN;
 			}
@@ -1343,22 +1391,12 @@ _mtask_again:
 			if (session->imm_data_en) {
 _imm_again:
 				__BUG_ON(!ctask->imm_count);
-				len = ctask->sendbuf.size - ctask->sendbuf.sent;
-				if (len > ctask->imm_count) {
-					len = ctask->imm_count;
-				}
-				res = iscsi_sendpage(conn, &ctask->sendbuf,len);
-				if (len != res) {
-					iscsi_insert(&conn->xmitqueue,
-							ctask);
-					if (res > 0) {
-						ctask->imm_count -= res;
-						ctask->sent += res;
-					}
+				if (iscsi_sendpage(conn, &ctask->sendbuf,
+						   &ctask->imm_count,
+						   &ctask->sent)) {
+					iscsi_insert(&conn->xmitqueue, ctask);
 					return -EAGAIN;
 				}
-				ctask->imm_count -= res;
-				ctask->sent += res;
 				if (ctask->imm_count) {
 					iscsi_buf_init_sg(&ctask->sendbuf,
 						 &ctask->sg[ctask->sg_count++]);
@@ -1391,9 +1429,7 @@ _imm_again:
 		}
 
 		if (ctask->in_progress & IN_PROGRESS_UNSOLICIT_HEAD) {
-			len = ctask->headbuf.size - ctask->headbuf.sent;
-			res = iscsi_sendpage(conn, &ctask->headbuf, len);
-			if (len != res) {
+			if (iscsi_sendhdr(conn, &ctask->headbuf)) {
 				iscsi_insert(&conn->xmitqueue, ctask);
 				return -EAGAIN;
 			}
@@ -1404,22 +1440,12 @@ _imm_again:
 _unsolicit_again:
 		if (ctask->in_progress & IN_PROGRESS_UNSOLICIT_WRITE) {
 			if (ctask->data_count) {
-				len = ctask->sendbuf.size - ctask->sendbuf.sent;
-				if (len > ctask->data_count) {
-					len = ctask->data_count;
-				}
-				res = iscsi_sendpage(conn, &ctask->sendbuf,len);
-				if (len != res) {
-					iscsi_insert(&conn->xmitqueue,
-							ctask);
-					if (res > 0) {
-						ctask->data_count -= res;
-						ctask->sent += res;
-					}
+				if (iscsi_sendpage(conn, &ctask->sendbuf,
+						   &ctask->data_count,
+						   &ctask->sent)) {
+					iscsi_insert(&conn->xmitqueue, ctask);
 					return -EAGAIN;
 				}
-				ctask->data_count -= res;
-				ctask->sent += res;
 				if (ctask->data_count) {
 					iscsi_buf_init_sg(&ctask->sendbuf,
 						 &ctask->sg[ctask->sg_count++]);
@@ -1448,9 +1474,7 @@ _solicit_head_again:
 				}
 				r2t->cont_bit = 0;
 			}
-			len = r2t->headbuf.size - r2t->headbuf.sent;
-			res = iscsi_sendpage(conn, &r2t->headbuf, len);
-			if (len != res) {
+			if (iscsi_sendhdr(conn, &r2t->headbuf)) {
 				iscsi_insert(&ctask->r2tqueue, r2t);
 				iscsi_insert(&conn->xmitqueue, ctask);
 				return -EAGAIN;
@@ -1468,21 +1492,12 @@ _solicit_again:
 			 * send Data-Out's payload whitnin this R2T sequence.
 			 */
 			if (r2t->data_count) {
-				len = r2t->sendbuf.size - r2t->sendbuf.sent;
-				if (len > r2t->data_count) {
-					len = r2t->data_count;
-				}
-				res = iscsi_sendpage(conn, &r2t->sendbuf,len);
-				if (len != res) {
+				if (iscsi_sendpage(conn, &r2t->sendbuf,
+						   &r2t->data_count,
+						   &r2t->sent)) {
 					iscsi_insert(&conn->xmitqueue, ctask);
-					if (res > 0) {
-						r2t->data_count -= res;
-						r2t->sent += res;
-					}
 					return -EAGAIN;
 				}
-				r2t->data_count -= res;
-				r2t->sent += res;
 				if (r2t->data_count) {
 					__BUG_ON(ctask->bad_sg == r2t->sg);
 					__BUG_ON(ctask->sc->use_sg == 0);

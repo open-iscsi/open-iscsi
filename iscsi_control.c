@@ -706,9 +706,11 @@ iscsi_control_cnx_error(iscsi_cnx_h handle, int error)
 	switch (error) {
 	case ISCSI_ERR_CNX_FAILED: {
 		iscsi_event_t *ev;
-		session->state = ISCSI_STATE_FAILED;
-		if ((ev = iscsi_event_alloc(cnx, ISCSI_EVENT_REOPEN))) {
-			iscsi_event_enqueue(ev);
+		if (session->state != ISCSI_STATE_LOGGED_IN) {
+			session->state = ISCSI_STATE_FAILED;
+			if ((ev = iscsi_event_alloc(cnx, ISCSI_EVENT_REOPEN))) {
+				iscsi_event_enqueue(ev);
+			}
 		}
 	}
 	break;
