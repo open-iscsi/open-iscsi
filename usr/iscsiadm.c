@@ -210,7 +210,7 @@ iscsid_request(int fd, iscsiadm_req_t *req)
 	int err;
 
 	if ((err = write(fd, req, sizeof(*req))) != sizeof(*req)) {
-		fprintf(stderr, "%s: got error %d on write cmd %d\n",
+		log_error("%s: got write error (%d) on cmd %d, daemon died?",
 			program_name, err, req->command);
 		if (err >= 0)
 			err = -EIO;
@@ -225,7 +225,7 @@ iscsid_response(int fd)
 	iscsiadm_rsp_t rsp;
 
 	if ((err = read(fd, &rsp, sizeof(rsp))) != sizeof(rsp)) {
-		log_error("got bad response %d\n", err);
+		log_error("got read error (%d), daemon died?", err);
 		if (err >= 0)
 			err = -EIO;
 	} else
@@ -302,6 +302,9 @@ iscsid_handle_error(int err)
 		/* 3 */ "no available memory",
 		/* 4 */ "encountered connection failure",
 		/* 5 */ "encountered iSCSI login failure",
+		/* 6 */ "encountered iSCSI database failure",
+		/* 7 */ "invalid parameter",
+		/* 8 */ "connection timed out",
 	};
 	log_error("iscsid reported error (%d - %s)", err, err_msgs[err]);
 }

@@ -23,10 +23,15 @@
 #include <unistd.h>
 
 #include <sys/socket.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
+#include <stdlib.h>
+#include <sys/socket.h>
 #include <sys/types.h>
 #include <sys/un.h>
 
 #include "iscsid.h"
+#include "idbm.h"
 #include "ipc.h"
 #include "log.h"
 
@@ -70,28 +75,90 @@ ipc_close(int fd)
 }
 
 static void
-__ipc_handle(iscsiadm_req_t *req, iscsiadm_rsp_t *rsp)
+__connect_timedout(void *data)
 {
-	log_debug(1, "got request, command %d", req->command);
+	queue_task_t *qtask = data;
+	iscsi_conn_t *conn = qtask->conn;
+	iscsi_session_t *session = conn->session;
 
-	switch(req->command) {
-	case IPC_SESSION_LOGIN:
-		rsp->err = ipc_session_login(req->u.session.rid);
-		break;
-	case IPC_SESSION_LOGOUT:
-		rsp->err = ipc_session_logout(req->u.session.rid);
-		break;
-	case IPC_CONN_ADD:
-		rsp->err = ipc_conn_add(req->u.conn.rid, req->u.conn.cid);
-		break;
-	case IPC_CONN_REMOVE:
-		rsp->err = ipc_conn_remove(req->u.conn.rid, req->u.conn.cid);
-		break;
-	default:
-		log_error("unknown request: %s(%d) %u",
-			  __FUNCTION__, __LINE__, req->command);
-		break;
+	if (conn->state == STATE_WAIT_CONNECT) {
+		queue_produce(session->queue, EV_CNX_TIMER, qtask, 0, 0);
+		sched_schedule(&session->mainloop);
 	}
+}
+
+static ipc_err_e
+ipc_session_login(queue_task_t *qtask, int rid)
+{
+	idbm_t *db;
+	node_rec_t rec;
+	iscsi_session_t *session;
+	iscsi_conn_t *conn;
+	int rc;
+
+	db = idbm_init(CONFIG_FILE);
+	if (!db) {
+		return IPC_ERR_IDBM_FAILURE;
+	}
+
+	if (idbm_node_read(db, rid, &rec)) {
+		log_error("node record [%06x] not found!", rid);
+		return IPC_ERR_NOT_FOUND;
+	}
+
+	idbm_terminate(db);
+
+	session = session_create(&rec);
+	if (session == NULL) {
+		return IPC_ERR_LOGIN_FAILURE;
+	}
+
+	if (!rec.active_cnx) {
+		session_destroy(session);
+		return IPC_ERR_INVAL;
+	}
+
+	/* create leading connection */
+	if (session_cnx_create(session, 0)) {
+		session_destroy(session);
+		return IPC_ERR_LOGIN_FAILURE;
+	}
+	conn = &session->cnx[0];
+	qtask->conn = conn;
+
+	rc = iscsi_tcp_connect(conn, 1);
+	if (rc < 0 && errno != EINPROGRESS) {
+		log_error("cannot make a connection to %s:%d (%d)",
+			 inet_ntoa(conn->addr.sin_addr), conn->port, errno);
+		session_cnx_destroy(session, 0);
+		session_destroy(session);
+		return IPC_ERR_TCP_FAILURE;
+	}
+
+	conn->state = STATE_WAIT_CONNECT;
+	queue_produce(session->queue, EV_CNX_POLL, qtask, 0, 0);
+	sched_schedule(&session->mainloop);
+	sched_timer(&conn->connect_timer, conn->login_timeout*100,
+		    __connect_timedout, qtask);
+	return IPC_OK;
+}
+
+static ipc_err_e
+ipc_session_logout(queue_task_t *qtask, int rid)
+{
+	return IPC_ERR;
+}
+
+static ipc_err_e
+ipc_conn_add(queue_task_t *qtask, int rid, int cid)
+{
+	return IPC_ERR;
+}
+
+static ipc_err_e
+ipc_conn_remove(queue_task_t *qtask, int rid, int cid)
+{
+	return IPC_ERR;
 }
 
 int
@@ -99,49 +166,78 @@ ipc_handle(int accept_fd)
 {
 	struct sockaddr addr;
 	struct ucred cred;
-	int fd, err, len;
+	int fd, rc, len;
 	iscsiadm_req_t req;
 	iscsiadm_rsp_t rsp;
+	queue_task_t *qtask;
 
 	memset(&rsp, 0, sizeof(rsp));
 	len = sizeof(addr);
 	if ((fd = accept(accept_fd, (struct sockaddr *) &addr, &len)) < 0) {
 		if (errno == EINTR)
-			err = -EINTR;
+			rc = -EINTR;
 		else
-			err = -EIO;
-
-		goto out;
+			rc = -EIO;
+		return rc;
 	}
 
 	len = sizeof(cred);
-	if ((err = getsockopt(fd, SOL_SOCKET, SO_PEERCRED,
+	if ((rc = getsockopt(fd, SOL_SOCKET, SO_PEERCRED,
 					(void *)&cred, &len)) < 0) {
-		rsp.err = -EPERM;
-		goto send;
+		rsp.err = IPC_ERR_TCP_FAILURE;
+		goto err;
 	}
 
 	if (cred.uid || cred.gid) {
-		rsp.err = -EPERM;
-		goto send;
+		rsp.err = IPC_ERR_TCP_FAILURE;
+		rc = -EPERM;
+		goto err;
 	}
 
-	err = read(fd, &req, sizeof(req));
-	if (err != sizeof(req)) {
-		if (err >= 0)
-			err = -EIO;
-		goto out;
-	}
-
-	__ipc_handle(&req, &rsp);
-
-send:
-	err = write(fd, &rsp, sizeof(rsp));
-	if (err != sizeof(rsp))
-		if (err >= 0)
-			err = -EIO;
-out:
-	if (fd > 0)
+	rc = read(fd, &req, sizeof(req));
+	if (rc != sizeof(req)) {
+		if (rc >= 0)
+			rc = -EIO;
 		close(fd);
-	return err;
+		return rc;
+	}
+
+	qtask = calloc(1, sizeof(queue_task_t));
+	if (!qtask) {
+		rsp.err = IPC_ERR_NOMEM;
+		rc = -ENOMEM;
+		goto err;
+	}
+	memcpy(&qtask->u.login.req, &req, sizeof(iscsiadm_req_t));
+	qtask->u.login.ipc_fd = fd;
+
+	switch(req.command) {
+	case IPC_SESSION_LOGIN:
+		rsp.err = ipc_session_login(qtask, req.u.session.rid);
+		break;
+	case IPC_SESSION_LOGOUT:
+		rsp.err = ipc_session_logout(qtask, req.u.session.rid);
+		break;
+	case IPC_CONN_ADD:
+		rsp.err = ipc_conn_add(qtask, req.u.conn.rid, req.u.conn.cid);
+		break;
+	case IPC_CONN_REMOVE:
+		rsp.err = ipc_conn_remove(qtask,req.u.conn.rid,req.u.conn.cid);
+		break;
+	default:
+		log_error("unknown request: %s(%d) %u",
+			  __FUNCTION__, __LINE__, req.command);
+		break;
+	}
+
+	if (rsp.err == IPC_OK)
+		return 0;
+
+err:
+	rc = write(fd, &rsp, sizeof(rsp));
+	if (rc != sizeof(rsp))
+		if (rc >= 0)
+			rc = -EIO;
+	close(fd);
+	return rc;
 }

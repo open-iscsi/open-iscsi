@@ -21,7 +21,10 @@
 #include <unistd.h>
 #include <errno.h>
 #include <signal.h>
+#include <unistd.h>
+#include <fcntl.h>
 #include <sys/uio.h>
+#include <sys/poll.h>
 #include <netinet/in.h>
 #include <netinet/tcp.h>
 #include <arpa/inet.h>
@@ -44,11 +47,127 @@ sigalarm_handler(int unused)
 	timedout = 1;
 }
 
+static void
+set_non_blocking(int fd)
+{
+	int res = fcntl(fd, F_GETFL);
+
+	if (res != -1) {
+		res = fcntl(fd, F_SETFL, res | O_NONBLOCK);
+		if (res)
+			log_warning("unable to set fd flags (%s)!",
+				    strerror(errno));
+	} else
+		log_warning("unable to get fd flags (%s)!", strerror(errno));
+
+}
+
+int
+iscsi_tcp_connect(iscsi_conn_t *conn, int non_blocking)
+{
+	int rc, onearg;
+
+	/* create a socket */
+	conn->socket_fd = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+	if (conn->socket_fd < 0) {
+		log_error("cannot create TCP socket");
+		return -1;
+	}
+
+	onearg = 1;
+	rc = setsockopt(conn->socket_fd, IPPROTO_TCP, TCP_NODELAY, &onearg,
+			sizeof (onearg));
+	if (rc < 0) {
+		log_error("cannot set TCP_NODELAY option on socket");
+		close(conn->socket_fd);
+		conn->socket_fd = -1;
+		return rc;
+	}
+
+	/* optionally set the window sizes */
+	if (conn->tcp_window_size) {
+		int window_size = conn->tcp_window_size;
+		socklen_t arglen = sizeof (window_size);
+
+		if (setsockopt(conn->socket_fd, SOL_SOCKET, SO_RCVBUF,
+		       (char *) &window_size, sizeof (window_size)) < 0) {
+			log_warning("failed to set TCP recv window size "
+				    "to %u", window_size);
+		} else {
+			if (getsockopt(conn->socket_fd, SOL_SOCKET, SO_RCVBUF,
+				       (char *) &window_size, &arglen) >= 0) {
+				log_debug(4, "set TCP recv window size to %u, "
+					  "actually got %u",
+					  conn->tcp_window_size, window_size);
+			}
+		}
+
+		window_size = conn->tcp_window_size;
+		arglen = sizeof (window_size);
+
+		if (setsockopt(conn->socket_fd, SOL_SOCKET, SO_SNDBUF,
+		       (char *) &window_size, sizeof (window_size)) < 0) {
+			log_warning("failed to set TCP send window size "
+				    "to %u", window_size);
+		} else {
+			if (getsockopt(conn->socket_fd, SOL_SOCKET, SO_SNDBUF,
+				       (char *) &window_size, &arglen) >= 0) {
+				log_debug(4, "set TCP send window size to %u, "
+					  "actually got %u",
+					  conn->tcp_window_size, window_size);
+			}
+		}
+	}
+
+	/*
+	 * Build a TCP connection to the target
+	 */
+	memset(&conn->addr, 0, sizeof (conn->addr));
+	conn->addr.sin_family = AF_INET;
+	conn->addr.sin_port = htons(conn->port);
+	memcpy(&conn->addr.sin_addr.s_addr, conn->ip_address,
+	       MIN(sizeof (conn->addr.sin_addr.s_addr), conn->ip_length));
+	log_debug(1, "connecting to %s:%d ip_length %d",
+		  inet_ntoa(conn->addr.sin_addr), conn->port, conn->ip_length);
+	if (non_blocking)
+		set_non_blocking(conn->socket_fd);
+	rc = connect(conn->socket_fd, (struct sockaddr *) &conn->addr,
+		     sizeof (conn->addr));
+	return rc;
+}
+
+int
+iscsi_tcp_poll(iscsi_conn_t *conn)
+{
+	int rc;
+	struct pollfd pdesc;
+
+	pdesc.fd = conn->socket_fd;
+	pdesc.events = POLLOUT;
+	rc = poll(&pdesc, 1, 1);
+	if (rc < 0) {
+		log_error("cannot make connection to %s:%d (%d)",
+			 inet_ntoa(conn->addr.sin_addr), conn->port, errno);
+		close(conn->socket_fd);
+		conn->socket_fd = -1;
+	} else if (rc > 0 && log_level > 0) {
+		struct sockaddr_in local;
+		socklen_t len = sizeof (local);
+
+		if (getsockname(conn->socket_fd, (struct sockaddr *) &local,
+				&len) >= 0) {
+			log_debug(1, "connected local port %d to %s:%d",
+				 ntohs(local.sin_port),
+				 inet_ntoa(conn->addr.sin_addr), conn->port);
+		}
+	}
+	return rc;
+}
+
 int
 iscsi_connect(iscsi_conn_t *conn)
 {
-	int ret, rc, sock, onearg;
-	struct sockaddr_in addr;
+	int rc, ret;
 	struct sigaction action;
 	struct sigaction old;
 
@@ -64,99 +183,37 @@ iscsi_connect(iscsi_conn_t *conn)
 	timedout = 0;
 	alarm(conn->login_timeout);
 
-	/* create a socket */
-	sock = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
-	if (sock < 0) {
-		log_error("cannot create TCP socket");
-		ret = 0;
-		goto done;
-	}
-
-	onearg = 1;
-	rc = setsockopt(sock, IPPROTO_TCP, TCP_NODELAY, &onearg,
-			sizeof (onearg));
-	if (rc < 0) {
-		ret = 0;
-		log_error("cannot set TCP_NODELAY option on socket");
-		close(sock);
-		goto done;
-	}
-
-	/* optionally set the window sizes */
-	if (conn->tcp_window_size) {
-		int window_size = conn->tcp_window_size;
-		socklen_t arglen = sizeof (window_size);
-
-		if (setsockopt
-		    (sock, SOL_SOCKET, SO_RCVBUF, (char *) &window_size,
-		     sizeof (window_size)) < 0) {
-			log_warning("failed to set TCP recv window size "
-				    "to %u\n", window_size);
-		} else
-		    if (getsockopt
-			(sock, SOL_SOCKET, SO_RCVBUF, (char *) &window_size,
-			 &arglen) >= 0) {
-			log_debug(4, "set TCP recv window size to %u, "
-				 "actually got %u\n",
-				 conn->tcp_window_size, window_size);
-		}
-
-		window_size = conn->tcp_window_size;
-		arglen = sizeof (window_size);
-
-		if (setsockopt
-		    (sock, SOL_SOCKET, SO_SNDBUF, (char *) &window_size,
-		     sizeof (window_size)) < 0) {
-			log_warning("failed to set TCP send window size "
-				    "to %u\n", window_size);
-		} else
-		    if (getsockopt
-			(sock, SOL_SOCKET, SO_SNDBUF, (char *) &window_size,
-			 &arglen) >= 0) {
-			log_debug(4, "set TCP send window size to %u, "
-				 "actually got %u\n",
-				 conn->tcp_window_size, window_size);
-		}
-	}
-
-	/*
-	 * Build a TCP connection to the target
+	/* perform blocking TCP connect operation when no async request
+	 * associated. SendTargets Discovery know to work in such a mode.
 	 */
-	memset(&addr, 0, sizeof (addr));
-	addr.sin_family = AF_INET;
-	addr.sin_port = htons(conn->port);
-	memcpy(&addr.sin_addr.s_addr, conn->ip_address,
-	       MIN(sizeof (addr.sin_addr.s_addr), conn->ip_length));
-	log_debug(1, "connecting to %s:%d ip_length %d",
-		  inet_ntoa(addr.sin_addr), conn->port, conn->ip_length);
-	rc = connect(sock, (struct sockaddr *) &addr, sizeof (addr));
+	rc = iscsi_tcp_connect(conn, 0);
 	if (timedout) {
-		log_debug(1, "socket %d connect timed out", sock);
+		log_debug(1, "socket %d connect timed out", conn->socket_fd);
 		ret = 0;
 		goto done;
 	} else if (rc < 0) {
-		log_error("cannot make connection to %s:%d",
-			 inet_ntoa(addr.sin_addr), conn->port);
-		close(sock);
+		log_error("cannot make connection to %s:%d (%d)",
+			 inet_ntoa(conn->addr.sin_addr), conn->port, errno);
+		close(conn->socket_fd);
 		ret = 0;
 		goto done;
 	} else if (log_level > 0) {
 		struct sockaddr_in local;
 		socklen_t len = sizeof (local);
 
-		if (getsockname(sock, (struct sockaddr *) &local, &len) >= 0) {
+		if (getsockname(conn->socket_fd, (struct sockaddr *) &local,
+				&len) >= 0) {
 			log_debug(1, "connected local port %d to %s:%d",
 				 ntohs(local.sin_port),
-				 inet_ntoa(addr.sin_addr), conn->port);
+				 inet_ntoa(conn->addr.sin_addr), conn->port);
 		}
 	}
 
 	ret = 1;
 
-      done:
+done:
 	alarm(0);
 	sigaction(SIGALRM, &old, NULL);
-	conn->socket_fd = sock;
 	return ret;
 }
 

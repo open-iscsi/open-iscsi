@@ -28,6 +28,8 @@
 #include "idbm.h"
 #include "log.h"
 
+static void __session_mainloop(void *data);
+
 static cnx_login_status_e
 login_response_status(iscsi_conn_t *conn,
 		      enum iscsi_login_status login_status)
@@ -211,16 +213,15 @@ setup_authentication(iscsi_session_t *session,
 	}
 }
 
-cnx_login_status_e
-establish_cnx(iscsi_session_t *session, iscsi_conn_t *conn, cnx_rec_t *cnx) {
-	uint8_t *rx_buffer;
-	uint8_t status_class;
-	uint8_t status_detail;
-	enum iscsi_login_status login_status;
+int
+session_cnx_create(iscsi_session_t *session, int cid)
+{
 	struct hostent *hostn = NULL;
-	cnx_login_status_e rc;
+	iscsi_conn_t *conn = &session->cnx[cid];
+	cnx_rec_t *cnx = &session->nrec.cnx[cid];
 
 	/* connection's timeouts */
+	conn->id = cid;
 	conn->login_timeout = cnx->timeo.login_timeout;
 	conn->auth_timeout = cnx->timeo.auth_timeout;
 	conn->active_timeout = cnx->timeo.active_timeout;
@@ -259,20 +260,37 @@ establish_cnx(iscsi_session_t *session, iscsi_conn_t *conn, cnx_rec_t *cnx) {
 				 conn->ip_address[3]);
 		} else {
 			log_error("cannot resolve host name %s", cnx->address);
-			return CNX_LOGIN_IO_ERR;
+			return 1;
 		}
 	}
 
-	rx_buffer = malloc(DEFAULT_MAX_RECV_DATA_SEGMENT_LENGTH);
-	if (rx_buffer == NULL) {
-		log_error("failed to allocate rx buffer");
-		return CNX_LOGIN_FAILED;
+	conn->rx_buffer = malloc(DEFAULT_MAX_RECV_DATA_SEGMENT_LENGTH);
+	if (conn->rx_buffer == NULL) {
+		log_error("failed to allocate connection's rx buffer");
+		return 1;
 	}
 
-	if (!iscsi_connect(conn)) {
-		free(rx_buffer);
-		return CNX_LOGIN_IO_ERR;
-	}
+	conn->state = STATE_IDLE;
+	conn->session = session;
+
+	return 0;
+}
+
+void
+session_cnx_destroy(iscsi_session_t *session, int cid)
+{
+	iscsi_conn_t *conn = &session->cnx[cid];
+	free(conn->rx_buffer);
+}
+
+#if 0
+cnx_login_status_e
+establish_cnx(iscsi_session_t *session, iscsi_conn_t *conn, cnx_rec_t *cnx) {
+	uint8_t status_class;
+	uint8_t status_detail;
+	enum iscsi_login_status login_status;
+	cnx_login_status_e rc;
+
 
 	login_status = iscsi_login(session, conn->id, rx_buffer,
 			   DEFAULT_MAX_RECV_DATA_SEGMENT_LENGTH, &status_class,
@@ -294,28 +312,33 @@ establish_cnx(iscsi_session_t *session, iscsi_conn_t *conn, cnx_rec_t *cnx) {
 	free(rx_buffer);
 	return CNX_LOGIN_SUCCESS;
 }
+#endif
 
-cnx_login_status_e
-establish_session(idbm_t *db, node_rec_t *rec, iscsi_session_t **out_session)
+iscsi_session_t*
+session_create(node_rec_t *rec)
 {
-	int cid;
 	iscsi_session_t *session;
-
-	*out_session = NULL;
 
 	session = calloc(1, sizeof (*session));
 	if (session == NULL) {
-		log_error("login process failed to allocate a session");
-		return CNX_LOGIN_FAILED;
+		log_debug(1, "can not allocate memory for session");
+		return NULL;
 	}
 
-	/*
-	 * FIXME: set these timeouts via set_param() API
-	 *
-	 * rec->session.timeo
-	 * rec->session.timeo
-	 * rec->session.err_timeo
-	 */
+	/* save node record. we might need it for redirection */
+	memcpy(&session->nrec, rec, sizeof(node_rec_t));
+
+	/* initalize per-session queue */
+	session->queue = queue_create(4096, 256*1024, NULL, session);
+	if (session->queue == NULL) {
+		log_debug(1, "can not create session's queue");
+		free(session);
+		return NULL;
+	}
+
+	/* initalize per-session event processor */
+	sched_new(&session->mainloop, __session_mainloop, session);
+	sched_schedule(&session->mainloop);
 
 	/* session's operational parameters */
 	session->initial_r2t = rec->session.iscsi.InitialR2T;
@@ -342,90 +365,130 @@ establish_session(idbm_t *db, node_rec_t *rec, iscsi_session_t **out_session)
 	/* setup authentication variables for the session*/
 	setup_authentication(session, &rec->session.auth);
 
-	for (cid=0; cid<rec->active_cnx; cid++) {
-		cnx_login_status_e rc;
-		iscsi_conn_t *conn = &session->cnx[cid];
-		cnx_rec_t *cnx = &rec->cnx[cid];
-
-		conn->id = cid;
-retry:
-		conn->status = rc = establish_cnx(session, conn, cnx);
-		if (rc == CNX_LOGIN_IMM_REDIRECT_RETRY) {
-			/* target moved permanently.
-			 * update node record */
-			idbm_node_write(db, rec->id, rec);
-			goto retry;
-		}
-		if (rc == CNX_LOGIN_IMM_RETRY)
-			goto retry;
-		if (rc != CNX_LOGIN_SUCCESS && cid == 0) {
-			free(session);
-			return rc;
-		}
-	}
-
-	/* logged in, get the new session ready */
-	*out_session = session;
-	return CNX_LOGIN_SUCCESS;
+	return session;
 }
 
-ipc_err_e
-ipc_session_login(int rid)
+void
+session_destroy(iscsi_session_t *session)
 {
-	idbm_t *db;
-	node_rec_t rec;
-	ipc_err_e rc = IPC_OK;
-	iscsi_session_t *session;
+	queue_flush(session->queue);
+	queue_destroy(session->queue);
+	sched_delete(&session->mainloop);
+	free(session);
+}
 
-	db = idbm_init(CONFIG_FILE);
-	if (!db) {
-		return IPC_ERR_IDBM_FAILURE;
+static void
+__session_cnx_recv_pdu(queue_item_t *item)
+{
+}
+
+static void
+__session_cnx_poll(queue_item_t *item)
+{
+	queue_task_t *qtask = item->context;
+	iscsi_conn_t *conn = qtask->conn;
+	iscsi_session_t *session = conn->session;
+	int rc;
+
+	if (conn->state == STATE_WAIT_CONNECT) {
+		rc = iscsi_tcp_poll(conn);
+		if (rc == 0) {
+			/* timedout: poll again */
+			queue_produce(session->queue, EV_CNX_POLL, qtask, 0, 0);
+			sched_schedule(&session->mainloop);
+		} else if (rc > 0) {
+			/* connected! proceed to the next step */
+			iscsi_login_context_t *c = &conn->login_context;
+
+			c->cid = conn->id;
+			c->buffer = calloc(1,
+					DEFAULT_MAX_RECV_DATA_SEGMENT_LENGTH);
+			if (!c->buffer) {
+				log_error("failed to allocate recv "
+					  "data buffer");
+				qtask->u.login.rsp.err = IPC_ERR_NOMEM;
+				goto err;
+			}
+			c->bufsize = DEFAULT_MAX_RECV_DATA_SEGMENT_LENGTH;
+
+			if (iscsi_login_begin(session, c)) {
+				qtask->u.login.rsp.err = IPC_ERR_LOGIN_FAILURE;
+				goto err;
+			}
+
+			if (iscsi_login_req(session, c)) {
+				qtask->u.login.rsp.err = IPC_ERR_LOGIN_FAILURE;
+				goto err;
+			}
+			conn->state = STATE_WAIT_PDU_RSP;
+		} else {
+			/* error during connect */
+			qtask->u.login.rsp.err = IPC_ERR_TCP_FAILURE;
+			goto err;
+		}
 	}
 
-	if (idbm_node_read(db, rid, &rec)) {
-		log_error("node record [%06x] not found!", rid);
-		rc = IPC_ERR_NOT_FOUND;
-		goto out;
-	}
+	return;
 
-	if ((rc = establish_session(db, &rec, &session))) {
-		switch(rc) {
-		case CNX_LOGIN_FAILED:
-			rc = IPC_ERR_LOGIN_FAILURE;
-			break;
-		case CNX_LOGIN_IO_ERR:
-			rc = IPC_ERR_IO_FAILURE;
-			break;
-		case CNX_LOGIN_RETRY:
-			/* FIXME: implement retry after delay */
-			rc = IPC_ERR;
-			break;
+err:
+	/* clean connection. write rsp. cleanup session if needed */
+	write(qtask->u.login.ipc_fd, &qtask->u.login.rsp,
+		sizeof(qtask->u.login.rsp));
+	close(qtask->u.login.ipc_fd);
+	session_cnx_destroy(session, conn->id);
+	if (conn->id == 0)
+		session_destroy(session);
+}
+
+static void
+__session_cnx_timer(queue_item_t *item)
+{
+	queue_task_t *qtask = item->context;
+	iscsi_conn_t *conn = qtask->conn;
+	iscsi_session_t *session = conn->session;
+
+	if (conn->state == STATE_WAIT_CONNECT) {
+		/* timeout during connect. clean connection. write rsp */
+		qtask->u.login.rsp.err = IPC_ERR_TCP_TIMEOUT;
+		write(qtask->u.login.ipc_fd, &qtask->u.login.rsp,
+			sizeof(qtask->u.login.rsp));
+		close(qtask->u.login.ipc_fd);
+		session_cnx_destroy(session, conn->id);
+		if (conn->id == 0)
+			session_destroy(session);
+	}
+}
+
+#if 0
+static void
+__session_cnx_logged_in(queue_item_t *item)
+{
+
+	/*
+	 * FIXME: set these timeouts via set_param() API
+	 *
+	 * rec->session.timeo
+	 * rec->session.timeo
+	 * rec->session.err_timeo
+	 */
+}
+#endif
+
+static void
+__session_mainloop(void *data)
+{
+	iscsi_session_t *session = data;
+	unsigned char item_buf[sizeof(queue_item_t) + EVENT_PAYLOAD_MAX];
+	queue_item_t *item = (queue_item_t *)(void *)item_buf;
+
+	if (queue_consume(session->queue, EVENT_PAYLOAD_MAX,
+				item) != QUEUE_IS_EMPTY) {
+		switch (item->event_type) {
+		case EV_CNX_RECV_PDU: __session_cnx_recv_pdu(item); break;
+		case EV_CNX_POLL: __session_cnx_poll(item); break;
+		case EV_CNX_TIMER: __session_cnx_timer(item); break;
 		default:
-			rc = IPC_ERR;
 			break;
 		}
-		goto out;
 	}
-
-out:
-	idbm_terminate(db);
-	return rc;
-}
-
-ipc_err_e
-ipc_session_logout(int rid)
-{
-	return IPC_ERR;
-}
-
-ipc_err_e
-ipc_conn_add(int rid, int cid)
-{
-	return IPC_ERR;
-}
-
-ipc_err_e
-ipc_conn_remove(int rid, int cid)
-{
-	return IPC_ERR;
 }

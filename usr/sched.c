@@ -17,6 +17,7 @@
  * See the file COPYING included with this distribution for more details.
  */
 
+#include <search.h>
 #include "sched.h"
 #include "log.h"
 
@@ -153,16 +154,17 @@ sched_schedule(sched_t *thread)
 }
 
 void
-sched_timer(sched_t *thread, uint32_t timeout, void *data)
+sched_timer(sched_t *thread, uint32_t timeout, void (*callback)(void *),
+	    void *data)
 {
-	thread->data = data;
+	sched_new(thread, callback, data);
 	sched_schedule_private(thread, timeout);
 }
 
 int
 sched_timer_mod(sched_t *thread, uint32_t timeout, void *data)
 {
-	if( thread->state == SCHED_WAITING ) {
+	if (thread->state == SCHED_WAITING) {
 		remque(&thread->item);
 		thread->data = data;
 		sched_schedule_private(thread, timeout);

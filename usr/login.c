@@ -1281,6 +1281,166 @@ check_status_login_response(iscsi_session_t *session, int cid,
 	return ret;
 }
 
+int
+iscsi_login_begin(iscsi_session_t *session, iscsi_login_context_t *c)
+{
+	iscsi_conn_t *conn = &session->cnx[c->cid];
+
+	c->auth_client = NULL;
+	c->login_rsp = (iscsi_login_rsp_t *)&c->pdu;
+	c->received_pdu = 0;
+	c->timeout = 0;
+	c->final = 0;
+	c->ret = LOGIN_FAILED;
+
+	/* prepare the session of the connection is leading */
+	if (c->cid ==0) {
+		session->cmdsn = 1;
+		session->exp_cmdsn = 1;
+		session->max_cmdsn = 1;
+	}
+
+	conn->exp_statsn = 0;
+	conn->current_stage = ISCSI_INITIAL_LOGIN_STAGE;
+	conn->partial_response = 0;
+
+	if (session->auth_buffers && session->num_auth_buffers) {
+		c->ret = check_for_authentication(session, c->auth_client);
+		if (c->ret != LOGIN_OK)
+			return 1;
+	}
+
+	return 0;
+}
+
+int
+iscsi_login_req(iscsi_session_t *session, iscsi_login_context_t *c)
+{
+	iscsi_conn_t *conn = &session->cnx[c->cid];
+
+	c->final = 0;
+	c->timeout = 0;
+	c->login_rsp = (iscsi_login_rsp_t *)&c->pdu;
+	c->ret = LOGIN_FAILED;
+
+	memset(c->buffer, 0, c->bufsize);
+	c->data = c->buffer;
+	c->max_data_length = c->bufsize;
+
+	/*
+	 * pick the appropriate timeout. If we know the target has
+	 * responded before, and we're in the security stage, we use a
+	 * longer timeout, since the authentication alogorithms can
+	 * take a while, especially if the target has to go talk to a
+	 * tacacs or RADIUS server (which may or may not be
+	 * responding).
+	 */
+	if (c->received_pdu && (conn->current_stage ==
+		ISCSI_SECURITY_NEGOTIATION_STAGE))
+		c->timeout = conn->auth_timeout;
+	else
+		c->timeout = conn->login_timeout;
+
+	/*
+	 * fill in the PDU header and text data based on the login
+	 * stage that we're in
+	 */
+	if (!iscsi_make_login_pdu(session, c->cid, &c->pdu, c->data,
+				  c->max_data_length)) {
+		log_error("login failed, couldn't make a login PDU");
+		c->ret = LOGIN_FAILED;
+		goto done;
+	}
+
+	/* send a PDU to the target */
+	if (!iscsi_send_pdu(conn, &c->pdu, ISCSI_DIGEST_NONE,
+			    c->data, ISCSI_DIGEST_NONE, c->timeout)) {
+		/*
+		 * FIXME: caller might want us to distinguish I/O
+		 * error and timeout. Might want to switch portals on
+		 * timeouts, but not I/O errors.
+		 */
+		log_error("Login I/O error, failed to send a PDU");
+		c->ret = LOGIN_IO_ERROR;
+		goto done;
+	}
+
+	conn->state = STATE_WAIT_PDU_RSP;
+	return 0;
+
+ done:
+	if (c->auth_client && acl_finish(c->auth_client) !=
+	    AUTH_STATUS_NO_ERROR) {
+		log_error("Login failed, error finishing c->auth_client");
+		if (c->ret == LOGIN_OK)
+			c->ret = LOGIN_FAILED;
+	}
+	return 1;
+}
+
+int
+iscsi_login_rsp(iscsi_session_t *session, iscsi_login_context_t *c)
+{
+	iscsi_conn_t *conn = &session->cnx[c->cid];
+
+	/* read the target's response into the same buffer */
+	if (!iscsi_recv_pdu(conn, &c->pdu, ISCSI_DIGEST_NONE, c->data,
+			    c->max_data_length, ISCSI_DIGEST_NONE,
+			    c->timeout)) {
+		/*
+		 * FIXME: caller might want us to distinguish I/O
+		 * error and timeout. Might want to switch portals on
+		 * timeouts, but not I/O errors.
+		 */
+		log_error("Login I/O error, failed to receive a PDU");
+		c->ret = LOGIN_IO_ERROR;
+		goto done;
+	}
+
+	c->received_pdu = 1;
+
+	/* check the PDU response type */
+	if (c->pdu.opcode == (ISCSI_OP_LOGIN_RSP | 0xC0)) {
+		/*
+		 * it's probably a draft 8 login response,
+		 * which we can't deal with
+		 */
+		log_error("Received iSCSI draft 8 login "
+			  "response opcode 0x%x, expected draft "
+			  "20 login response 0x%2x",
+			  c->pdu.opcode, ISCSI_OP_LOGIN_RSP);
+		c->ret = LOGIN_VERSION_MISMATCH;
+		goto done;
+	} else if (c->pdu.opcode != ISCSI_OP_LOGIN_RSP) {
+		c->ret = LOGIN_INVALID_PDU;
+		goto done;
+	}
+
+	/*
+	 * give the caller the status class and detail from the last
+	 * login response PDU received
+	 */
+	c->status_class = c->login_rsp->status_class;
+	c->status_detail = c->login_rsp->status_detail;
+	c->ret = check_status_login_response(session, c->cid,
+		     c->login_rsp, c->data, c->max_data_length,
+		     &c->final);
+	if (c->final)
+		goto done;
+
+	conn->state = STATE_IDLE;
+	return 0;
+
+ done:
+	if (c->auth_client && acl_finish(c->auth_client) !=
+	    AUTH_STATUS_NO_ERROR) {
+		log_error("Login failed, error finishing c->auth_client");
+		if (c->ret == LOGIN_OK)
+			c->ret = LOGIN_FAILED;
+	}
+	return 1;
+}
+
 /**
  * iscsi_login - attempt to login to the target.
  * @session: login is initiated over this session
@@ -1298,142 +1458,37 @@ check_status_login_response(iscsi_session_t *session, int cid,
  **/
 enum iscsi_login_status
 iscsi_login(iscsi_session_t *session, int cid, char *buffer, size_t bufsize,
-	    uint8_t * status_class, uint8_t * status_detail)
+	    uint8_t *status_class, uint8_t *status_detail)
 {
-	struct iscsi_acl *auth_client = NULL;
-	iscsi_hdr_t pdu;
-	iscsi_login_rsp_t *login_rsp = (iscsi_login_rsp_t *)&pdu;
-	char *data;
-	int received_pdu = 0;
-	int max_data_length;
-	int timeout = 0;
-	int final = 0;
-	enum iscsi_login_status ret = LOGIN_FAILED;
 	iscsi_conn_t *conn = &session->cnx[cid];
+	iscsi_login_context_t *c = &conn->login_context;
 
-	/* prepare the session of the connection is leading */
-	if (cid ==0) {
-		session->cmdsn = 1;
-		session->exp_cmdsn = 1;
-		session->max_cmdsn = 1;
-	}
+	c->cid = cid;
+	c->buffer = buffer;
+	c->bufsize = bufsize;
 
-	conn->exp_statsn = 0;
-	conn->current_stage = ISCSI_INITIAL_LOGIN_STAGE;
-	conn->partial_response = 0;
+	if (iscsi_login_begin(session, c))
+		return c->ret;
 
-	if (session->auth_buffers && session->num_auth_buffers) {
-		ret = check_for_authentication(session, auth_client);
-		if (ret != LOGIN_OK)
-			return ret;
-	}
-
-	/*
-	 * exchange PDUs until the login stage is complete, or an error occurs
-	 */
 	do {
-		final = 0;
-		timeout = 0;
-		login_rsp = (iscsi_login_rsp_t *)&pdu;
-		ret = LOGIN_FAILED;
-
-		memset(buffer, 0, bufsize);
-		data = buffer;
-		max_data_length = bufsize;
-
-		/*
-		 * pick the appropriate timeout. If we know the target has
-		 * responded before, and we're in the security stage, we use a
-		 * longer timeout, since the authentication alogorithms can
-		 * take a while, especially if the target has to go talk to a
-		 * tacacs or RADIUS server (which may or may not be
-		 * responding).
-		 */
-		if (received_pdu && (conn->current_stage ==
-			ISCSI_SECURITY_NEGOTIATION_STAGE))
-			timeout = conn->auth_timeout;
-		else
-			timeout = conn->login_timeout;
-
-		/*
-		 * fill in the PDU header and text data based on the login
-		 * stage that we're in
-		 */
-		if (!iscsi_make_login_pdu(session, cid, &pdu, data,
-					  max_data_length)) {
-			log_error("login failed, couldn't make a login PDU");
-			ret = LOGIN_FAILED;
-			goto done;
-		}
-
-		/* send a PDU to the target */
-		if (!iscsi_send_pdu(conn, &pdu, ISCSI_DIGEST_NONE,
-				    data, ISCSI_DIGEST_NONE, timeout)) {
-			/*
-			 * FIXME: caller might want us to distinguish I/O
-			 * error and timeout. Might want to switch portals on
-			 * timeouts, but not I/O errors.
-			 */
-			log_error("Login I/O error, failed to send a PDU");
-			ret = LOGIN_IO_ERROR;
-			goto done;
-		}
-
-		/* read the target's response into the same buffer */
-		if (!iscsi_recv_pdu(conn, &pdu, ISCSI_DIGEST_NONE, data,
-				    max_data_length, ISCSI_DIGEST_NONE,
-				    timeout)) {
-			/*
-			 * FIXME: caller might want us to distinguish I/O
-			 * error and timeout. Might want to switch portals on
-			 * timeouts, but not I/O errors.
-			 */
-			log_error("Login I/O error, failed to receive a PDU");
-			ret = LOGIN_IO_ERROR;
-			goto done;
-		}
-
-		received_pdu = 1;
-
-		/* check the PDU response type */
-		if (pdu.opcode == (ISCSI_OP_LOGIN_RSP | 0xC0)) {
-			/*
-			 * it's probably a draft 8 login response,
-			 * which we can't deal with
-			 */
-			log_error("Received iSCSI draft 8 login "
-				  "response opcode 0x%x, expected draft "
-				  "20 login response 0x%2x",
-				  pdu.opcode, ISCSI_OP_LOGIN_RSP);
-			ret = LOGIN_VERSION_MISMATCH;
-			goto done;
-		} else if (pdu.opcode != ISCSI_OP_LOGIN_RSP) {
-			ret = LOGIN_INVALID_PDU;
-			goto done;
-		}
-
-		/*
-		 * give the caller the status class and detail from the last
-		 * login response PDU received
-		 */
-		if (status_class)
-			*status_class = login_rsp->status_class;
-		if (status_detail)
-			*status_detail = login_rsp->status_detail;
-		ret = check_status_login_response(session, cid, login_rsp, data,
-						    max_data_length, &final);
-		if (final)
-			goto done;
+		if (iscsi_login_req(session, c))
+			return c->ret;
+		if (iscsi_login_rsp(session, c))
+			return c->ret;
 	} while (conn->current_stage != ISCSI_FULL_FEATURE_PHASE);
 
-	ret = LOGIN_OK;
+	c->ret = LOGIN_OK;
+	if (status_class)
+		*status_class = c->status_class;
+	if (status_detail)
+		*status_detail = c->status_detail;
 
- done:
-	if (auth_client && acl_finish(auth_client) != AUTH_STATUS_NO_ERROR) {
-		log_error("Login failed, error finishing auth_client");
-		if (ret == LOGIN_OK)
-			ret = LOGIN_FAILED;
+	if (c->auth_client && acl_finish(c->auth_client) !=
+	    AUTH_STATUS_NO_ERROR) {
+		log_error("Login failed, error finishing c->auth_client");
+		if (c->ret == LOGIN_OK)
+			c->ret = LOGIN_FAILED;
 	}
 
-	return ret;
+	return c->ret;
 }

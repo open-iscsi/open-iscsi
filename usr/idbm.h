@@ -28,53 +28,6 @@
 
 #define HASH_MAXLEN	48
 
-typedef enum iscsi_startup {
-	ISCSI_STARTUP_MANUAL,
-	ISCSI_STARTUP_AUTOMATIC,
-} iscsi_startup_e;
-
-typedef enum discovery_type {
-	DISCOVERY_TYPE_SENDTARGETS,
-	DISCOVERY_TYPE_SLP,
-	DISCOVERY_TYPE_ISNS,
-} discovery_type_e;
-
-typedef struct cnx_rec {
-	iscsi_startup_e				startup;
-	char					address[16];
-	int					port;
-	struct iscsi_tcp_config			tcp;
-	struct iscsi_connection_timeout_config	timeo;
-	struct iscsi_cnx_operational_config	iscsi;
-} cnx_rec_t;
-
-typedef struct session_rec {
-	struct iscsi_auth_config		auth;
-	struct iscsi_session_timeout_config	timeo;
-	struct iscsi_error_timeout_config	err_timeo;
-	struct iscsi_session_operational_config	iscsi;
-} session_rec_t;
-
-typedef struct node_rec {
-	int					id;
-	char					name[TARGET_NAME_MAXLEN];
-	int					tpgt;
-	int					active_cnx;
-	iscsi_startup_e				startup;
-	session_rec_t				session;
-	cnx_rec_t				cnx[ISCSI_CNX_MAX];
-} node_rec_t;
-
-typedef struct discovery_rec {
-	int					id;
-	iscsi_startup_e				startup;
-	discovery_type_e			type;
-	union {
-		struct iscsi_sendtargets_config	sendtargets;
-		struct iscsi_slp_config		slp;
-	} u;
-} discovery_rec_t;
-
 #define TYPE_INT	0
 #define TYPE_INT_O	1
 #define TYPE_STR	2

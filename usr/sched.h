@@ -20,13 +20,6 @@
 #define SCHED_H
 
 #include "types.h"
-#include <search.h>
-
-struct qelem {
-	struct qelem *q_forw;
-	struct qelem *q_back;
-};
-
 
 #define SCHED_RESOLUTION	250	/* in millis */
 #define SCHED_MAX_LOOPS		1
@@ -50,7 +43,8 @@ typedef struct sched {
 extern void sched_new(sched_t *thread, void (*callback)(void *), void * data);
 extern void sched_delete(sched_t *thread);
 extern void sched_schedule(sched_t *thread);
-extern void sched_timer(sched_t *thread, uint32_t timeout, void *data);
+extern void sched_timer(sched_t *thread, uint32_t timeout,
+			void (*callback)(void *), void *data);
 extern int sched_timer_mod(sched_t *thread, uint32_t new_timeout, void *data);
 extern void sched_poll(void);
 extern void sched_init(void);

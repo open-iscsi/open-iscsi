@@ -28,9 +28,11 @@ typedef enum ipc_err {
 	IPC_ERR			= 1,
 	IPC_ERR_NOT_FOUND	= 2,
 	IPC_ERR_NOMEM		= 3,
-	IPC_ERR_IO_FAILURE	= 4,
+	IPC_ERR_TCP_FAILURE	= 4,
 	IPC_ERR_LOGIN_FAILURE	= 5,
 	IPC_ERR_IDBM_FAILURE	= 6,
+	IPC_ERR_INVAL		= 7,
+	IPC_ERR_TCP_TIMEOUT	= 8,
 } ipc_err_e;
 
 typedef enum iscsiadm_cmd {

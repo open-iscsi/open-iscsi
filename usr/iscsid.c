@@ -32,10 +32,9 @@
 #include "ipc.h"
 #include "log.h"
 
-#define POLL_MAX		(ISCSI_SESSION_MAX + 2)
 #define POLL_CTRL		0
 #define POLL_IPC		1
-#define POLL_SESSION		2
+#define POLL_MAX		2
 
 /* global config info */
 struct iscsi_daemon_config daemon_config;
@@ -133,17 +132,12 @@ get_iscsi_initiatorname(char *pathname)
 void
 event_loop(void)
 {
-	int res, i;
+	int res;
 
 	poll_array[POLL_CTRL].fd = ctrl_fd;
 	poll_array[POLL_CTRL].events = POLLIN;
 	poll_array[POLL_IPC].fd = ipc_fd;
 	poll_array[POLL_IPC].events = POLLIN;
-
-	for (i = 0; i < ISCSI_SESSION_MAX; i++) {
-		poll_array[POLL_SESSION + i].fd = -1;
-		poll_array[POLL_SESSION + i].events = 0;
-	}
 
 	while (1) {
 		res = poll(poll_array, POLL_MAX, SCHED_RESOLUTION);

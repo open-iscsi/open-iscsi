@@ -13,4 +13,15 @@
 #include <byteswap.h>
 #include <endian.h>
 
+/* this type should represent platform's pointer size */
+#define ulong_t long
+
+struct qelem {
+	struct qelem *q_forw;
+	struct qelem *q_back;
+};
+
+#define DATASEG_MAX	8192
+#define HDRSEG_MAX	48+4
+
 #endif	/* TYPES_H */

@@ -26,9 +26,9 @@
 #include "iscsi_proto.h"
 #include "auth.h"
 #include "ipc.h"
-
-#define ISCSI_SESSION_MAX	256
-#define ISCSI_CNX_MAX		16
+#include "config.h"
+#include "sched.h"
+#include "queue.h"
 
 #define CONFIG_FILE		"/etc/iscsid.conf"
 #define PID_FILE		"/var/run/iscsid.pid"
@@ -37,17 +37,71 @@
 #define NODE_FILE		"/var/db/iscsi/node"
 
 typedef enum cnx_login_status_e {
-	CNX_LOGIN_SUCCESS,
-	CNX_LOGIN_FAILED,
-	CNX_LOGIN_IO_ERR,
-	CNX_LOGIN_RETRY,
-	CNX_LOGIN_IMM_RETRY,
-	CNX_LOGIN_IMM_REDIRECT_RETRY,
+	CNX_LOGIN_SUCCESS		= 0,
+	CNX_LOGIN_FAILED		= 1,
+	CNX_LOGIN_IO_ERR		= 2,
+	CNX_LOGIN_RETRY			= 3,
+	CNX_LOGIN_IMM_RETRY		= 4,
+	CNX_LOGIN_IMM_REDIRECT_RETRY	= 5,
 } cnx_login_status_e;
+
+enum iscsi_login_status {
+	LOGIN_OK			= 0,
+	LOGIN_IO_ERROR			= 1,
+	LOGIN_FAILED			= 2,
+	LOGIN_VERSION_MISMATCH		= 3,
+	LOGIN_NEGOTIATION_FAILED	= 4,
+	LOGIN_AUTHENTICATION_FAILED	= 5,
+	LOGIN_WRONG_PORTAL_GROUP	= 6,
+	LOGIN_REDIRECTION_FAILED	= 7,
+	LOGIN_INVALID_PDU		= 8,
+};
+
+typedef enum iscsi_cnx_state_e {
+	STATE_IDLE			= 0,
+	STATE_WAIT_CONNECT		= 1,
+	STATE_WAIT_PDU_RSP		= 2,
+} iscsi_cnx_state_e;
+
+typedef enum iscsi_event_e {
+	EV_UNKNOWN			= 0,
+	EV_CNX_RECV_PDU			= 1,
+	EV_CNX_POLL			= 2,
+	EV_CNX_TIMER			= 3,
+} iscsi_event_e;
+
+typedef struct iscsi_event {
+	queue_item_t item;
+	char payload[EVENT_PAYLOAD_MAX];
+} iscsi_event_t;
+
+typedef struct iscsi_login_context {
+	int cid;
+	char *buffer;
+	size_t bufsize;
+	uint8_t status_class;
+	uint8_t status_detail;
+	struct iscsi_acl *auth_client;
+	iscsi_hdr_t pdu;
+	iscsi_login_rsp_t *login_rsp;
+	char *data;
+	int received_pdu;
+	int max_data_length;
+	int timeout;
+	int final;
+	enum iscsi_login_status ret;
+} iscsi_login_context_t;
+
+struct iscsi_session;
 
 /* daemon's connection structure */
 typedef struct iscsi_conn {
 	int id;
+	struct iscsi_session *session;
+	iscsi_login_context_t login_context;
+	uint8_t *rx_buffer;
+	iscsi_cnx_state_e state;
+	sched_t connect_timer;
 
 	/* login state machine */
 	int current_stage;
@@ -57,6 +111,7 @@ typedef struct iscsi_conn {
 
 	/* tcp/socket settings */
 	int socket_fd;
+	struct sockaddr_in addr;
 	uint8_t ip_address[16];
 	int ip_length;
 	int port;
@@ -80,8 +135,29 @@ typedef struct iscsi_conn {
 	int max_xmit_data_segment_len;	/* the value declared by the target */
 } iscsi_conn_t;
 
+typedef struct queue_task {
+	iscsi_conn_t *conn;
+	union {
+		/* iSCSI requests originated via IPC */
+		struct ipcreq_login {
+			iscsiadm_req_t req;
+			iscsiadm_rsp_t rsp;
+			int ipc_fd;
+		} login;
+		struct ipcreq_logout {
+			iscsiadm_req_t req;
+			iscsiadm_rsp_t rsp;
+			int ipc_fd;
+		} logout;
+		/* iSCSI requests originated via CTL */
+		struct ctlreq_async_ev {
+		} async_ev;
+	} u;
+} queue_task_t;
+
 /* daemon's session structure */
 typedef struct iscsi_session {
+	node_rec_t nrec; /* copy of original Node record in database */
 	int vendor_specific_keys;
 	unsigned int irrelevant_keys_bitmap;
 	int send_async_text;
@@ -123,6 +199,10 @@ typedef struct iscsi_session {
 	uint8_t password_in[AUTH_STR_MAX_LEN];
 	int password_length_in;
 	iscsi_conn_t cnx[ISCSI_CNX_MAX];
+
+	/* session's processing */
+	sched_t mainloop;
+	queue_t *queue;
 } iscsi_session_t;
 
 /* login.c */
@@ -137,30 +217,6 @@ typedef struct iscsi_session {
 
 #define ISCSI_TEXT_SEPARATOR     '='
 
-enum iscsi_login_status {
-	LOGIN_OK = 0,		/* library worked, but caller must check
-				 * the status class and detail
-				 */
-	LOGIN_IO_ERROR,		/* PDU I/O failed, connection have been
-				 * closed or reset
-				 */
-	LOGIN_FAILED,		/* misc. failure */
-	LOGIN_VERSION_MISMATCH,	/* incompatible iSCSI protocol version */
-	LOGIN_NEGOTIATION_FAILED,	/* didn't like a key value
-					 * (or received an unknown key)
-					 */
-	LOGIN_AUTHENTICATION_FAILED,	/* auth code indicated failure */
-	LOGIN_WRONG_PORTAL_GROUP,	/* portal group tag didn't match
-					 * the one required
-					 */
-	LOGIN_REDIRECTION_FAILED,	/* couldn't handle the redirection
-					 * requested by the target
-					 */
-	LOGIN_INVALID_PDU,	/* received an incorrect opcode,
-				 * or bogus fields in a PDU
-				 */
-};
-
 /* implemented in iscsi-login.c for use on all platforms */
 extern int iscsi_add_text(iscsi_hdr_t *hdr, char *data, int max_data_length,
 			char *param, char *value);
@@ -168,6 +224,10 @@ extern enum iscsi_login_status iscsi_login(iscsi_session_t *session, int cid,
 		   char *buffer, uint32_t bufsize, uint8_t * status_class,
 		   uint8_t * status_detail);
 extern int iscsi_update_address(iscsi_conn_t *conn, char *address);
+extern int iscsi_login_begin(iscsi_session_t *session,
+			     iscsi_login_context_t *c);
+extern int iscsi_login_req(iscsi_session_t *session, iscsi_login_context_t *c);
+extern int iscsi_login_rsp(iscsi_session_t *session, iscsi_login_context_t *c);
 
 /* Digest types */
 #define ISCSI_DIGEST_NONE  0
@@ -185,6 +245,8 @@ extern int iscsi_update_address(iscsi_conn_t *conn, char *address);
 #define IRRELEVANT_DATASEQUENCEINORDER	0x80
 
 /* io.c */
+extern int iscsi_tcp_poll(iscsi_conn_t *conn);
+extern int iscsi_tcp_connect(iscsi_conn_t *conn, int non_blocking);
 extern int iscsi_connect(iscsi_conn_t *conn);
 extern void iscsi_disconnect(iscsi_conn_t *conn);
 extern int iscsi_send_pdu(iscsi_conn_t *conn, iscsi_hdr_t *hdr,
@@ -194,9 +256,9 @@ extern int iscsi_recv_pdu(iscsi_conn_t *conn, iscsi_hdr_t *hdr,
 	int timeout);
 
 /* initiator.c */
-extern ipc_err_e ipc_session_login(int rid);
-extern ipc_err_e ipc_session_logout(int rid);
-extern ipc_err_e ipc_conn_add(int rid, int cid);
-extern ipc_err_e ipc_conn_remove(int rid, int cid);
+extern iscsi_session_t* session_create(node_rec_t *rec);
+extern void session_destroy(iscsi_session_t *session);
+extern int session_cnx_create(iscsi_session_t *session, int cid);
+extern void session_cnx_destroy(iscsi_session_t *session, int cid);
 
 #endif /* INITIATOR_H */

@@ -1179,7 +1179,7 @@ reconnect:
 
 	if (!iscsi_connect(&session->cnx[0])) {
 		/* FIXME: IPv6 */
-		log_error("Connection to Discovery Address %u.%u.%u.%u "
+		log_error("connection to discovery address %u.%u.%u.%u "
 		       "failed", session->cnx[0].ip_address[0],
 		       session->cnx[0].ip_address[1],
 		       session->cnx[0].ip_address[2],
@@ -1192,7 +1192,7 @@ reconnect:
 		 */
 		goto set_address;
 	}
-	log_debug(1, "Connected to Discovery Address %u.%u.%u.%u",
+	log_debug(1, "connected to discovery address %u.%u.%u.%u",
 	       session->cnx[0].ip_address[0], session->cnx[0].ip_address[1],
 	       session->cnx[0].ip_address[2], session->cnx[0].ip_address[3]);
 
