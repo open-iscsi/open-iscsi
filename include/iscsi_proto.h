@@ -134,8 +134,8 @@ struct iscsi_cmd_rsp {
 	uint32_t exp_cmdsn;
 	uint32_t max_cmdsn;
 	uint32_t exp_datasn;
-	uint32_t residual_count;
 	uint32_t bi_residual_count;
+	uint32_t residual_count;
 	/* Response or Sense Data (optional) */
 };
 
