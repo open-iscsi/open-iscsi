@@ -1,6 +1,6 @@
 =================================================================
 
-        Linux* Open-iSCSI
+                Linux* Open-iSCSI
 
 =================================================================
 
@@ -16,14 +16,38 @@ Contents
 - 5. Open-iSCSI Configuration Utility
 - 6. Configuration
 - 7. Getting Started
+- 8. TBD
+- Appendix A. SendTargets snapshot.
 
-Appendix A. SendTargets iSCSI Discovery session snapshot.
 
 
 1. In This Release
 ==================
 
+This file describes the Linux* Open-iSCSI Initiator. The software was
+tested on AMD Opteron (TM) and Intel Xeon (TM). 
 
+The latest development release is available at:
+http://www.open-iscsi.org
+
+For questions, comments, contributions send e-mail to:
+open-iscsi@googlegroups.com 
+
+    1.1. Features
+    
+    - highly optimized and very small-footprint data path;
+    - multiple outstanding R2Ts;
+    - persistent configuration database;
+    - SendTargets discovery;
+    - CHAP;
+    - PDU header Digest;
+    - multiple sessions;
+    - multi-connection sessions.
+    
+    For the most recent list of features please refer to:
+    http://www.open-iscsi.org/cgi-bin/wiki.pl/Roadmap
+
+    
 
 2. Introduction
 ===============
@@ -35,7 +59,7 @@ Open-iSCSI is partitioned into user and kernel parts.
 
 The kernel portion of Open-iSCSI is a from-scratch code
 licensed under GPL. The kernel part implements iSCSI data path
-(that is: iSCSI Read and iSCSI Write), and consists of two
+(that is, iSCSI Read and iSCSI Write), and consists of two
 loadable modules: iscsi_if.ko and iscsi_tcp.ko.
 
 User space contains the entire control plane: configuration
@@ -44,7 +68,7 @@ connection-level error processing, Nop-In and Nop-Out handling,
 and (in the future:) Text processing, iSNS, SLP, Radius, etc.
 
 The user space Open-iSCSI consists of a daemon process called
-iscsid and a management utility iscsiadm.
+iscsid, and a management utility iscsiadm.
 
 
 3. Installation
@@ -70,9 +94,12 @@ or cross-compilation:
 4. Open-iSCSI daemon
 ====================
 
-The daemon is implementing control path of iSCSI protocol plus some management
-facilities. For example, it could be configured to automatically re-start
-discovery, nodes, etc during boot based on persistent iSCSI database.
+The daemon implements control path of iSCSI protocol, plus some management
+facilities. For example, the daemon could be configured to automatically 
+re-start discovery at startup, based on the contents of persistent 
+iSCSI database (see next section).
+
+For help, run:
 
 	./iscsid --help
 
@@ -91,14 +118,26 @@ Usage: iscsid [OPTION]
 5. Open-iSCSI Configuration Utility
 ===================================
 
-The utility presents set of operations on persistent iSCSI database.
-Usual place for iSCSI database files is:
+Open-iSCSI persistent configuration is implemented as a DBM database
+available on all Linux installations.
 
-	/var/db/iscsi/*.db
+The database contains two tables:
 
-The utility performs iSCSI Node, iSCSI Discovery and iSCSI active sessions
-operations. Some of the iSCSI Node and iSCSI Discovery operations could
-be completed without iSCSI Daemon.
+- Discovery table (discovery.db);
+- Node table (node.db).
+
+The regular place for iSCSI database files: /var/db/iscsi/*.db
+
+The iscsiadm utility is a command-line tool to manage (update, delete,
+insert, query) the persistent database.
+
+The utility presents set of operations that a user can perform 
+on iSCSI nodes, sessions, connections, and discovery records.
+
+Note that some of the iSCSI Node and iSCSI Discovery operations 
+do not require iSCSI daemon (iscsid) loaded.
+
+For help, run:
 
 	./iscsiadm --help
 
@@ -200,7 +239,7 @@ after that start iSCSI daemon process:
 
 	./iscsid
 
-or alrenatively, start it with debug enabled and with output
+or alternatively, start it with debug enabled and with output
 redirected to the current console:
 
 	./iscsid -d8 -f &
@@ -211,16 +250,25 @@ iSCSI Node records or monitor active iSCSI sessions:
 	./iscsiadm
 
 
+To login:
+
+	    ./iscsiadm -m node --record <node rec> --login
+
+where <node rec> is the record of a discovered or manually
+added iSCSI Target Node (for iscsiadm usage examples see
+previous sections).
+
+
 8. TBD
 ======
 
 To be completed:
 
-    - Features
     - Kernel tracing and Troubleshooting
     - Immediate and not-so-immediate plans
     - Useful scripts
     - White paper on Open-iSCSI design
+
 
 Appendix A. SendTargets iSCSI Discovery session snapshot.
 =========================================================
