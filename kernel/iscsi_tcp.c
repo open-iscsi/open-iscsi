@@ -455,9 +455,6 @@ iscsi_r2t_rsp(struct iscsi_conn *conn, struct iscsi_cmd_task *ctask)
 	    r2t->data_length > session->max_burst) {
 		return ISCSI_ERR_DATALEN;
 	}
-	if (ctask->hdr.lun[1] != rhdr->lun[1]) {
-		return ISCSI_ERR_LUN;
-	}
 	r2t->data_offset = ntohl(rhdr->data_offset);
 	if (r2t->data_offset + r2t->data_length > ctask->total_length) {
 		return ISCSI_ERR_DATALEN;
