@@ -2065,7 +2065,6 @@ iscsi_conn_bind(iscsi_snx_h snxh, iscsi_cnx_h cnxh, uint32_t transport_fd,
 	sk = sock->sk;
 	sk->sk_reuse = 1;
 	sk->sk_sndtimeo = 15 * HZ; /* FIXME: make it configurable */
-	sk->sk_allocation |= GFP_ATOMIC;
 
 	/* FIXME: disable Nagle's algorithm */
 
