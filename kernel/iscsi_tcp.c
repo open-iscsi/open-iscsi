@@ -1681,6 +1681,8 @@ iscsi_xmitworker(void *data)
 	 * serialize Xmit worker on a per-connection basis.
 	 */
 	down(&conn->xmitsema);
+	if (conn->suspend)
+		goto out;
 	if (iscsi_data_xmit(conn)) {
 		if (conn->c_stage == ISCSI_CNX_CLEANUP_WAIT ||
 		    conn->c_stage == ISCSI_CNX_STOPPED ||
@@ -1981,7 +1983,9 @@ iscsi_conn_destroy(iscsi_cnx_h cnxh)
 	 * Block control plane caller (a thread coming from
 	 * a user space) until all the in-progress commands for this connection
 	 * time out or fail.
+	 * We must serialize with xmitwork recv pathes.
 	 */
+	down(&conn->xmitsema);
 	conn->c_stage = ISCSI_CNX_CLEANUP_WAIT;
 	while (1) {
 		spin_lock_bh(&conn->lock);
@@ -1992,6 +1996,7 @@ iscsi_conn_destroy(iscsi_cnx_h cnxh)
 		spin_unlock_bh(&conn->lock);
 		msleep_interruptible(500);
 	}
+	up(&conn->xmitsema);
 
 	/* now free crypto */
 	if (conn->hdrdgst_en || conn->datadgst_en) {
@@ -2111,6 +2116,7 @@ iscsi_conn_stop(iscsi_cnx_h cnxh)
 
 	spin_lock_bh(&session->lock);
 	conn->c_stage = ISCSI_CNX_STOPPED;
+	conn->suspend = 1;
 	session->conn_cnt--;
 
 	if (session->conn_cnt == 0 ||
