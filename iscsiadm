@@ -347,7 +347,7 @@ sub sendtargets_discovery {
 	}
 
 	my $ttt = 0xffffffff;
-	my $i=0;
+	my $i = 0;
 	my $data = "SendTargets=All\0";
 	while(1) {
 		send_text_req($cmdsn++, $exp_statsn, $ttt, $data);
@@ -697,6 +697,8 @@ sub config_read {
 	my ($file) = @_;
 
 	my %conf = get_rc($file);
+	$target_name = $conf{target_name};
+	$target_portal = $conf{target_portal};
 	$initiator_name = $conf{initiator_name};
 	$initiator_alias = $conf{initiator_alias};
 	@isid = $conf{isid};
@@ -716,6 +718,11 @@ sub config_read {
 	$dataseq_inorder_en = $conf{dataseq_inorder_en};
 	$time2wait = $conf{time2wait};
 	$time2retain = $conf{time2retain};
+
+	# sanity check
+	if ($max_burst < $first_burst) {
+		$max_burst = $first_burst;
+	}
 }
 
 sub discovery_list_cb {
@@ -771,7 +778,7 @@ print STDERR << "EOF";
 
 iSCSI Configuration Utility
 
-	usage: iscsiadm [-hv] [-f file] [-d addr:port] [-r id]
+	usage: iscsiadm [-hval] [-f file] [-d addr:port] [-r id] [-c id]
 
 	-h            : this (help) message
 	-v            : verbose output
@@ -783,6 +790,8 @@ iSCSI Configuration Utility
 	                and all connections. Or remove only connection
 	                specified by 'cid'
 	-a            : process hotplug events
+	-l            : initiate login phase for all targets described via
+                        configuration
 
 	example: iscsiadm -f /mypath/my.conf 127.0.0.1:3260
 
@@ -791,7 +800,7 @@ exit;
 }
 
 sub init() {
-	my $opt_string = 'hvr:d:f:ac:';
+	my $opt_string = 'hvr:d:f:alc:';
 	getopts( "$opt_string", \%opt ) or usage();
 	usage() if $opt{h};
 	$iscsiadm_path = $0;
@@ -895,4 +904,7 @@ if ($opt{v}) {
 	} else {
 		show_sessions();
 	}
+}
+if ($opt{l}) {
+	discovery_login_cb(0, $target_name, $target_portal);
 }

@@ -63,7 +63,7 @@ static int iscsi_hdr_recv(iscsi_conn_t *conn);
 static int iscsi_data_recv(iscsi_conn_t *conn);
 static void iscsi_cmd_init(iscsi_conn_t *conn, iscsi_cmd_task_t *ctask,
 		     struct scsi_cmnd *sc);
-static void iscsi_unsolicit_data_init(iscsi_conn_t *conn,
+static int iscsi_unsolicit_data_init(iscsi_conn_t *conn,
 			iscsi_cmd_task_t *ctask);
 static int iscsi_solicit_data_init(iscsi_conn_t *conn,
 			iscsi_cmd_task_t *ctask, iscsi_r2t_info_t *r2t);
@@ -581,7 +581,6 @@ iscsi_solicit_data_cont(iscsi_conn_t *conn, iscsi_cmd_task_t *ctask,
 {
 	iscsi_data_t *hdr;
 	iscsi_data_task_t *dtask;
-	iscsi_buf_t *headbuf = &r2t->headbuf;
 	struct scsi_cmnd *sc = ctask->sc;
 	int new_offset;
 
@@ -613,7 +612,7 @@ iscsi_solicit_data_cont(iscsi_conn_t *conn, iscsi_cmd_task_t *ctask,
 		r2t->data_count = left;
 		hdr->flags = ISCSI_FLAG_CMD_FINAL;
 	}
-	iscsi_buf_init_virt(headbuf, (char*)hdr, sizeof(iscsi_hdr_t));
+	iscsi_buf_init_virt(&r2t->headbuf, (char*)hdr, sizeof(iscsi_hdr_t));
 
 	if (sc->use_sg) {
 		__BUG_ON(ctask->bad_sg == r2t->sg);
@@ -643,7 +642,6 @@ iscsi_solicit_data_init(iscsi_conn_t *conn, iscsi_cmd_task_t *ctask,
 {
 	iscsi_data_t *hdr;
 	iscsi_data_task_t *dtask;
-	iscsi_buf_t *headbuf = &r2t->headbuf;
 	struct scsi_cmnd *sc = ctask->sc;
 
 	dtask = mempool_alloc(ctask->datapool, GFP_ATOMIC);
@@ -676,7 +674,7 @@ iscsi_solicit_data_init(iscsi_conn_t *conn, iscsi_cmd_task_t *ctask,
 
 	r2t->sent = 0;
 
-	iscsi_buf_init_virt(headbuf, (char*)hdr, sizeof(iscsi_hdr_t));
+	iscsi_buf_init_virt(&r2t->headbuf, (char*)hdr, sizeof(iscsi_hdr_t));
 
 	if (sc->use_sg) {
 		int i, sg_count = 0;
@@ -706,15 +704,19 @@ iscsi_solicit_data_init(iscsi_conn_t *conn, iscsi_cmd_task_t *ctask,
 	return 0;
 }
 
-static void
+static int
 iscsi_unsolicit_data_init(iscsi_conn_t *conn, iscsi_cmd_task_t *ctask)
 {
 	iscsi_data_t *hdr;
-	iscsi_buf_t *headbuf;
+	iscsi_data_task_t *dtask;
 
-	hdr = (iscsi_data_t *)
-		&ctask->unsolicit_data[ctask->unsolicit_datasn]->hdr;
-	headbuf = &ctask->headbuf;
+	dtask = mempool_alloc(ctask->datapool, GFP_ATOMIC);
+	if (dtask == NULL) {
+		printk("iSCSI: datapool: out of memory itt 0x%x\n",
+		       ctask->itt);
+		return -ENOMEM;
+	}
+	hdr = &dtask->hdr;
 	hdr->flags = ISCSI_FLAG_CMD_FINAL;
 	hdr->rsvd2[0] = hdr->rsvd2[1] = hdr->rsvd3 =
 		hdr->rsvd4 = hdr->rsvd5 = hdr->rsvd6 = 0;
@@ -722,6 +724,7 @@ iscsi_unsolicit_data_init(iscsi_conn_t *conn, iscsi_cmd_task_t *ctask)
 	hdr->datasn = htonl(ctask->unsolicit_datasn);
 	ctask->unsolicit_datasn++;
 	hdr->opcode = ISCSI_OP_SCSI_DATA_OUT;
+	memset(hdr->lun, 0, 8);
 	hdr->lun[1] = ctask->hdr.lun[1];
 	hdr->itt = ctask->hdr.itt;
 	hdr->exp_statsn = htonl(conn->exp_statsn);
@@ -733,9 +736,10 @@ iscsi_unsolicit_data_init(iscsi_conn_t *conn, iscsi_cmd_task_t *ctask)
 		hton24(hdr->dlength, ctask->imm_data_count);
 	}
 
-	ctask->sent = 0;
+	iscsi_buf_init_virt(&ctask->headbuf, (char*)hdr, sizeof(iscsi_hdr_t));
 
-	iscsi_buf_init_virt(headbuf, (char*)hdr, sizeof(iscsi_hdr_t));
+	list_add(&dtask->item, &ctask->dataqueue);
+	return 0;
 }
 
 /*
@@ -1315,8 +1319,6 @@ fault:
 				list_del(&dtask->item);
 				mempool_free(dtask, ctask->datapool);
 			}
-			__BUG_ON(ctask->in_progress !=
-				(IN_PROGRESS_WRITE|IN_PROGRESS_SOLICIT_DONE));
 		}
 		spin_unlock(&conn->lock);
 	}
@@ -1475,21 +1477,24 @@ iscsi_ctask_xmit(iscsi_conn_t *conn, iscsi_cmd_task_t *ctask)
 	}
 
 	if (ctask->in_progress & IN_PROGRESS_BEGIN_WRITE_IMM) {
-_imm_again:
-		if (iscsi_sendpage(conn, &ctask->sendbuf,
-				   &ctask->imm_count,
-				   &ctask->sent)) {
-			return -EAGAIN;
-		}
-		if (ctask->imm_count) {
+		while (ctask->imm_count) {
+			if (iscsi_sendpage(conn, &ctask->sendbuf,
+					   &ctask->imm_count,
+					   &ctask->sent)) {
+				return -EAGAIN;
+			}
+			if (!ctask->imm_count) {
+				break;
+			}
 			iscsi_buf_init_sg(&ctask->sendbuf,
 				 &ctask->sg[ctask->sg_count++]);
-			goto _imm_again;
 		}
 		if (ctask->imm_data_count) {
+			if (iscsi_unsolicit_data_init(conn, ctask)) {
+				return -EAGAIN;
+			}
 			ctask->in_progress = IN_PROGRESS_WRITE |
 					     IN_PROGRESS_UNSOLICIT_HEAD;
-			iscsi_unsolicit_data_init(conn, ctask);
 		} else if (ctask->data_count) {
 			ctask->in_progress = IN_PROGRESS_WRITE |
 					     IN_PROGRESS_R2T_WAIT;
@@ -1497,9 +1502,11 @@ _imm_again:
 		}
 	} else if (ctask->in_progress & IN_PROGRESS_BEGIN_WRITE) {
 		if (ctask->imm_data_count) {
+			if (iscsi_unsolicit_data_init(conn, ctask)) {
+				return -EAGAIN;
+			}
 			ctask->in_progress = IN_PROGRESS_WRITE |
 					     IN_PROGRESS_UNSOLICIT_HEAD;
-			iscsi_unsolicit_data_init(conn, ctask);
 		} else if (ctask->data_count) {
 			ctask->in_progress = IN_PROGRESS_WRITE |
 					     IN_PROGRESS_R2T_WAIT;
@@ -1515,21 +1522,26 @@ _imm_again:
 				     IN_PROGRESS_UNSOLICIT_WRITE;
 	}
 
-_unsolicit_again:
 	if (ctask->in_progress & IN_PROGRESS_UNSOLICIT_WRITE) {
-		if (ctask->imm_data_count) {
+		while (ctask->imm_data_count) {
 			if (iscsi_sendpage(conn, &ctask->sendbuf,
 					   &ctask->imm_data_count,
 					   &ctask->sent)) {
 				return -EAGAIN;
 			}
-			if (ctask->imm_data_count) {
-				iscsi_buf_init_sg(&ctask->sendbuf,
-					 &ctask->sg[ctask->sg_count++]);
-				goto _unsolicit_again;
+			if (!ctask->imm_data_count) {
+				break;
 			}
+			iscsi_buf_init_sg(&ctask->sendbuf,
+				 &ctask->sg[ctask->sg_count++]);
 		}
-		ctask->in_progress = IN_PROGRESS_IDLE;
+		if (ctask->data_count) {
+			ctask->in_progress = IN_PROGRESS_WRITE |
+					     IN_PROGRESS_R2T_WAIT;
+		} else {
+			ctask->in_progress = IN_PROGRESS_WRITE |
+					     IN_PROGRESS_UNSOLICIT_DONE;
+		}
 		return 0;
 	}
 
@@ -2368,7 +2380,21 @@ host_alloc_fault:
 static void
 iscsi_session_destroy(iscsi_snx_h snxh)
 {
+	int cmd_i;
+	struct list_head *lh, *n;
 	iscsi_session_t *session = snxh;
+
+	for (cmd_i=0; cmd_i<session->cmds_max; cmd_i++) {
+		iscsi_cmd_task_t *ctask = session->cmds[cmd_i];
+		list_for_each_safe(lh, n, &ctask->dataqueue) {
+			iscsi_data_task_t *dtask;
+			dtask = list_entry(lh, iscsi_data_task_t, item);
+			if (dtask) {
+				list_del(&dtask->item);
+				mempool_free(dtask, ctask->datapool);
+			}
+		}
+	}
 
 	iscsi_r2tpool_free(session);
 	iscsi_pool_free(&session->cmdpool, (void**)session->cmds);

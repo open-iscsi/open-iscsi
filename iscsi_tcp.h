@@ -65,6 +65,7 @@
 #define IN_PROGRESS_IMM_DATA		0x800
 #define IN_PROGRESS_BEGIN_WRITE_IMM	0x1000
 #define IN_PROGRESS_SOLICIT_DONE	0x2000
+#define IN_PROGRESS_UNSOLICIT_DONE	0x4000
 
 #define ISCSI_DRV_VERSION	"0.1"
 #define ISCSI_DEFAULT_PORT	3260
@@ -264,7 +265,6 @@ typedef struct iscsi_cmd_task {
 	struct scatterlist	*sg;			/* per-cmd SG list */
 	struct scatterlist	*bad_sg;		/* assert statement */
 	int			sg_count;		/* SG's to process */
-	iscsi_data_task_t	**unsolicit_data;	/* Unsolicited PDU's */
 	uint32_t		unsolicit_datasn;
 	uint32_t		exp_r2tsn;
 	volatile int		in_progress;		/* State machine */
