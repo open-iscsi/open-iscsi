@@ -313,7 +313,7 @@ session_cnx_destroy(iscsi_session_t *session, int cid)
 }
 
 static iscsi_session_t*
-__session_create(node_rec_t *rec)
+__session_create(node_rec_t *rec, uint64_t transport_handle)
 {
 	iscsi_session_t *session;
 
@@ -325,6 +325,7 @@ __session_create(node_rec_t *rec)
 
 	/* opened at daemon load time (iscsid.c) */
 	session->ctrl_fd = control_fd;
+	session->transport_handle = transport_handle;
 
 	/* save node record. we might need it for redirection */
 	memcpy(&session->nrec, rec, sizeof(node_rec_t));
@@ -974,20 +975,43 @@ session_find_by_rec(node_rec_t *rec)
 	return NULL;
 }
 
+static uint64_t
+__get_transport_by_name(char *transport_name)
+{
+	struct iscsi_uevent ev;
+	int i;
+
+	if (ktrans_list(control_fd, &ev))
+		return 0;
+
+	for (i = 0; i < ISCSI_TRANSPORT_MAX; i++) {
+		if (ev.r.t_list.elements[i].handle) {
+			strncmp(ev.r.t_list.elements[i].name, transport_name,
+				ISCSI_TRANSPORT_NAME_MAXLEN);
+			return ev.r.t_list.elements[i].handle;
+		}
+	}
+	return 0;
+}
+
 int
 session_login_task(node_rec_t *rec, queue_task_t *qtask)
 {
 	int rc;
 	iscsi_session_t *session;
 	iscsi_conn_t *conn;
+	uint64_t transport_handle;
 
 	if (!rec->active_cnx)
 		return IPC_ERR_INVAL;
 
-	session = __session_create(rec);
-	if (session == NULL) {
+	transport_handle = __get_transport_by_name(rec->transport_name);
+	if (!transport_handle)
+		return IPC_ERR_TRANS_NOT_FOUND;
+
+	session = __session_create(rec, transport_handle);
+	if (!session)
 		return IPC_ERR_LOGIN_FAILURE;
-	}
 
 	/* FIXME: login all connections! marked as "automatic" */
 

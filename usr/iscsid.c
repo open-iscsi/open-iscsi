@@ -79,8 +79,7 @@ Open-iSCSI initiator daemon.\n\
 	exit(status == 0 ? 0 : -1);
 }
 
-void
-event_loop(void)
+void event_loop(void)
 {
 	int res;
 
@@ -115,8 +114,57 @@ event_loop(void)
 	}
 }
 
-int
-main(int argc, char *argv[])
+/*
+ * synchronyze registered transports and opened sessions/connections
+ */
+int trans_sync(void)
+{
+	int i, found = 0;
+	struct iscsi_uevent ev;
+
+	if (ktrans_list(control_fd, &ev))
+		return -1;
+
+	for (i = 0; i < ISCSI_TRANSPORT_MAX; i++) {
+		if (ev.r.t_list.elements[i].handle) {
+			provider[i].handle = ev.r.t_list.elements[i].handle;
+			strncpy(provider[i].name, ev.r.t_list.elements[i].name,
+				ISCSI_TRANSPORT_NAME_MAXLEN);
+
+			/* FIXME: implement session/connection sync up logic */
+			provider[i].sessions.q_forw = &provider[i].sessions;
+			provider[i].sessions.q_back = &provider[i].sessions;
+
+			found++;
+		}
+	}
+	if (!found) {
+		log_error("no registered transports found!");
+		return -1;
+	}
+	log_debug(1, "synced %d transport(s)", found);
+
+	return 0;
+}
+
+void oom_adjust(void)
+{
+	int fd;
+	char path[48];
+
+	iopl(4);
+	nice(-10);
+	sprintf(path, "/proc/%d/oom_adj", getpid());
+	fd = open(path, O_WRONLY);
+	if (fd < 0) {
+		log_debug(1, "can not adjust oom-killer's pardon");
+		return;
+	}
+	write(fd, "-16\n", 3);
+	close(fd);
+}
+
+int main(int argc, char *argv[])
 {
 	struct utsname host_info; /* will use to compound initiator alias */
 	char *config_file = CONFIG_FILE;
@@ -240,22 +288,22 @@ main(int argc, char *argv[])
 	log_warning("version %s variant (%s)",
 		ISCSI_VERSION_STR, ISCSI_DATE_STR);
 
-	/* FIXME: implement Provider Discovery */
-	provider[0].type = PROVIDER_SOFT_TCP;
-	provider[0].status = PROVIDER_STATUS_OPERATIONAL;
-	strcpy(provider[0].name, "Linux SoftNET TCP");
-	provider[0].sessions.q_forw = &provider[0].sessions;
-	provider[0].sessions.q_back = &provider[0].sessions;
+	/* oom-killer will not kill us at the night... */
+	oom_adjust();
+
+	/* in case of transports/sessions/connections been active
+	 * and we've been killed or crashed. update states.
+	 */
+	if (trans_sync()) {
+		log_error("failed to get transport list, exiting...");
+		exit(-1);
+	}
 
 	/* we don't want our active sessions to be paged out... */
 	if (mlockall(MCL_CURRENT | MCL_FUTURE)) {
 		log_error("failed to mlockall, exiting...");
 		exit(1);
 	}
-
-	/* oom-killer will not kill us at the night... */
-	iopl(4);
-	nice(-5);
 
 	/*
 	 * Start Main Event Loop

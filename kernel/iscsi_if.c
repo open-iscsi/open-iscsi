@@ -24,7 +24,7 @@
 #include <scsi/scsi_device.h>
 #include <scsi/scsi_transport.h>
 #include <scsi/scsi_transport_iscsi.h>
-#include <iscsi_if.h>
+#include <iscsi_iftrans.h>
 #include <iscsi_ifev.h>
 
 MODULE_AUTHOR("Dmitry Yusupov <dmitry_yus@yahoo.com>, "
@@ -48,6 +48,7 @@ struct iscsi_if_cnx {
 	struct sk_buff *alarm_skb;
 	volatile int active;
 	struct Scsi_Host *host;		/* originated shost */
+	struct iscsi_transport *transport;
 };
 LIST_HEAD(cnxlist);
 spinlock_t cnxlock;
@@ -57,6 +58,7 @@ struct iscsi_if_snx {
 	struct list_head connections;
 	iscsi_snx_t cp_snx;
 	iscsi_snx_t dp_snx;
+	struct iscsi_transport *transport;
 };
 LIST_HEAD(snxlist);
 spinlock_t snxlock;
@@ -86,13 +88,34 @@ iscsi_if_find_cnx(uint64_t key, int type)
 	return NULL;
 }
 
-static struct iscsi_transport*
-iscsi_if_transport_lookup(int id)
+static struct iscsi_if_snx*
+iscsi_if_find_snx(struct iscsi_transport *t)
 {
-	/* FIXME: implement transport's container */
-	if (id != 0)
-		return NULL;
-	return transport_table[id];
+	unsigned long flags;
+	struct iscsi_if_snx *snx;
+
+	spin_lock_irqsave(&snxlock, flags);
+	list_for_each_entry(snx, &snxlist, item) {
+		if (snx->transport == t) {
+			spin_unlock_irqrestore(&snxlock, flags);
+			return snx;
+		}
+	}
+	spin_unlock_irqrestore(&snxlock, flags);
+	return NULL;
+}
+
+static int
+iscsi_if_transport_lookup(struct iscsi_transport *t)
+{
+	int i;
+
+	for (i=0; i < ISCSI_TRANSPORT_MAX; i++) {
+		if (transport_table[i] == t) {
+			return i;
+		}
+	}
+	return -1;
 }
 
 #ifdef CONFIG_SCSI_ISCSI_ATTRS
@@ -106,9 +129,8 @@ iscsi_if_get_##_field (struct scsi_target *stgt)			\
 				     iscsi_handle(host), H_TYPE_HOST);	\
 	if (cnx) {							\
 		uint32_t value = 0;					\
-		struct iscsi_transport *t = iscsi_if_transport_lookup(	\
-					*(uint32_t*)host->hostdata);	\
-		BUG_ON(!t);						\
+		struct iscsi_transport *t =				\
+				iscsi_ptr(*(uint64_t *)host->hostdata);	\
 		t->get_param(cnx->dp_cnx, _param, &value);		\
 		iscsi_##_field(stgt) = value;				\
 	} else								\
@@ -224,7 +246,7 @@ int iscsi_control_recv_pdu(iscsi_cnx_t cp_cnx, struct iscsi_hdr *hdr,
 	nlh = __nlmsg_put(skb, daemon_pid, 0, 0, (len - sizeof(*nlh)));
 	ev = NLMSG_DATA(nlh);
 	memset(ev, 0, sizeof(*ev));
-	ev->transport_id = 0;
+	ev->transport_handle = iscsi_handle(cnx->transport);
 	ev->type = ISCSI_KEVENT_RECV_PDU;
 	ev->r.recv_req.cnx_handle = cp_cnx;
 	pdu = (char*)ev + sizeof(*ev);
@@ -266,7 +288,7 @@ void iscsi_control_cnx_error(iscsi_cnx_t cp_cnx, enum iscsi_err error)
 
 	nlh = __nlmsg_put(skb, daemon_pid, 0, 0, (len - sizeof(*nlh)));
 	ev = NLMSG_DATA(nlh);
-	ev->transport_id = 0;
+	ev->transport_handle = iscsi_handle(cnx->transport);
 	ev->type = ISCSI_KEVENT_CNX_ERROR;
 	ev->r.cnxerror.resource_error = resource_error;
 	ev->r.cnxerror.error = error;
@@ -305,7 +327,7 @@ iscsi_if_send_reply(int pid, int seq, int type, int done, int multi,
  * iSCSI Session's hostdata organization:
  *
  *    /------------------\ <== host->hostdata
- *    | transport_id     |
+ *    | transport        |
  *    |------------------| <== iscsi_hostdata(host->hostdata)
  *    | transport's data |
  *    |------------------| <== hostdata_snx(host->hostdata)
@@ -318,7 +340,8 @@ iscsi_if_send_reply(int pid, int seq, int type, int done, int multi,
 				 sizeof(struct iscsi_if_snx))
 
 #define hostdata_snx(_hostdata)	((void*)_hostdata + sizeof(unsigned long) + \
-	 iscsi_if_transport_lookup(*(uint32_t*)_hostdata)->hostdata_size)
+			((struct iscsi_transport *) \
+			 iscsi_ptr(*(uint64_t *)_hostdata))->hostdata_size)
 
 static int
 iscsi_if_create_snx(struct iscsi_transport *transport, struct iscsi_uevent *ev)
@@ -328,12 +351,16 @@ iscsi_if_create_snx(struct iscsi_transport *transport, struct iscsi_uevent *ev)
 	unsigned long flags;
 	int res;
 
+	if (!try_module_get(transport->owner))
+		return -EPERM;
+
 	host = scsi_host_alloc(transport->host_template,
 			       hostdata_privsize(transport));
 	if (!host) {
 		ev->r.c_session_ret.handle = iscsi_handle(NULL);
 		printk("iscsi: can not allocate SCSI host for session %p\n",
 			iscsi_ptr(ev->u.c_session.session_handle));
+		module_put(transport->owner);
 		return -ENOMEM;
 	}
 	host->max_id = 1;
@@ -344,14 +371,15 @@ iscsi_if_create_snx(struct iscsi_transport *transport, struct iscsi_uevent *ev)
 	host->transportt = iscsi_transportt;
 #endif
 
-	/* store transport_id in hostdata */
-	*(uint32_t*)host->hostdata = ev->transport_id;
+	/* store struct iscsi_transport in hostdata */
+	*(uint64_t*)host->hostdata = ev->transport_handle;
 
 	ev->r.c_session_ret.handle = transport->create_session(
 	       ev->u.c_session.session_handle, ev->u.c_session.initial_cmdsn,
 	       host);
 	if (ev->r.c_session_ret.handle == iscsi_handle(NULL)) {
 		scsi_host_put(host);
+		module_put(transport->owner);
 		return 0;
 	}
 
@@ -362,6 +390,7 @@ iscsi_if_create_snx(struct iscsi_transport *transport, struct iscsi_uevent *ev)
 	INIT_LIST_HEAD(&snx->connections);
 	snx->cp_snx = ev->u.c_session.session_handle;
 	snx->dp_snx = ev->r.c_session_ret.handle;
+	snx->transport = transport;
 
 	res = scsi_add_host(host, NULL);
 	if (res) {
@@ -370,6 +399,7 @@ iscsi_if_create_snx(struct iscsi_transport *transport, struct iscsi_uevent *ev)
 		ev->r.c_session_ret.handle = iscsi_handle(NULL);
 		printk("iscsi%d: can not add host (%d)\n",
 		       host->host_no, res);
+		module_put(transport->owner);
 		return res;
 	}
 
@@ -420,7 +450,13 @@ iscsi_if_destroy_snx(struct iscsi_transport *transport, struct iscsi_uevent *ev)
 	}
 	spin_unlock_irqrestore(&cnxlock, flags);
 
+	/* remove this session to the list of active sessions */
+	spin_lock_irqsave(&snxlock, flags);
+	list_del(&snx->item);
+	spin_unlock_irqrestore(&snxlock, flags);
+
 	scsi_host_put(host);
+	module_put(transport->owner);
 	return 0;
 }
 
@@ -441,6 +477,7 @@ iscsi_if_create_cnx(struct iscsi_transport *transport, struct iscsi_uevent *ev)
 		return -ENOMEM;
 	memset(cnx, 0, sizeof(struct iscsi_if_cnx));
 	cnx->host = host;
+	snx->transport = transport;
 	cnx->alarm_skb = alloc_skb(NLMSG_SPACE(sizeof(struct iscsi_uevent)),
 				     GFP_KERNEL);
 	if (!cnx->alarm_skb) {
@@ -490,16 +527,30 @@ static int
 iscsi_if_recv_msg(struct sk_buff *skb, struct nlmsghdr *nlh)
 {
 	int err = 0;
-	struct iscsi_transport *transport;
 	struct iscsi_uevent *ev = NLMSG_DATA(nlh);
+	struct iscsi_transport *transport = iscsi_ptr(ev->transport_handle);
 
-	transport = iscsi_if_transport_lookup(ev->transport_id);
-	if (!transport)
+	if (nlh->nlmsg_type != ISCSI_UEVENT_TRANS_LIST &&
+	    iscsi_if_transport_lookup(transport) < 0)
 		return -EEXIST;
 
 	daemon_pid = NETLINK_CREDS(skb)->pid;
 
 	switch (nlh->nlmsg_type) {
+	case ISCSI_UEVENT_TRANS_LIST: {
+		int i;
+		for (i=0; i < ISCSI_TRANSPORT_MAX; i++) {
+			if (transport_table[i]) {
+				ev->r.t_list.elements[i].handle =
+					iscsi_handle(transport_table[i]);
+				strncpy(ev->r.t_list.elements[i].name,
+					transport_table[i]->name,
+					ISCSI_TRANSPORT_NAME_MAXLEN);
+			} else
+				ev->r.t_list.elements[i].handle =
+					iscsi_handle(NULL);
+		}
+	      } break;
 	case ISCSI_UEVENT_CREATE_SESSION:
 		err = iscsi_if_create_snx(transport, ev);
 		break;
@@ -618,18 +669,40 @@ iscsi_mempool_free_skb(void *element, void *pool_data)
 	kfree_skb(element);
 }
 
-int iscsi_register_transport(struct iscsi_transport *ops, int id)
+int iscsi_register_transport(struct iscsi_transport *t)
 {
-	transport_table[id] = ops;
-	return 0;
+	int i;
+
+	BUG_ON(!t);
+	for (i=0; i < ISCSI_TRANSPORT_MAX; i++) {
+		if (transport_table[i] == t)
+			return -EEXIST;
+		if (!transport_table[i]) {
+			transport_table[i] = t;
+			printk("iscsi: registered transport (%d - %s)\n",
+			       i, t->name);
+			return 0;
+		}
+	}
+	return -EPERM;
 }
 EXPORT_SYMBOL_GPL(iscsi_register_transport);
 
-void iscsi_unregister_transport(int id)
+int iscsi_unregister_transport(struct iscsi_transport *t)
 {
+	int id;
+
+	BUG_ON(!t);
 	down(&callsema);
+	if (iscsi_if_find_snx(t)) {
+		up(&callsema);
+		return -EPERM;
+	}
+	id = iscsi_if_transport_lookup(t);
+	BUG_ON (id < 0);
 	transport_table[id] = NULL;
 	up(&callsema);
+	return 0;
 }
 EXPORT_SYMBOL_GPL(iscsi_unregister_transport);
 

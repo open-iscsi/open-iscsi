@@ -36,6 +36,7 @@ typedef enum ipc_err {
 	IPC_ERR_INTERNAL	= 9,
 	IPC_ERR_LOGOUT_FAILURE	= 10,
 	IPC_ERR_PDU_TIMEOUT	= 11,
+	IPC_ERR_TRANS_NOT_FOUND = 12,
 } ipc_err_e;
 
 typedef enum iscsiadm_cmd {

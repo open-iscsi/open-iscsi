@@ -2528,11 +2528,11 @@ static struct scsi_host_template iscsi_sht = {
 };
 
 static iscsi_snx_t
-iscsi_session_create(iscsi_snx_t handle, uint32_t initial_cmdsn, void *shost)
+iscsi_session_create(iscsi_snx_t handle, uint32_t initial_cmdsn,
+			struct Scsi_Host *host)
 {
 	int cmd_i;
 	struct iscsi_session *session;
-	struct Scsi_Host *host = shost;
 
 	session = iscsi_hostdata(host->hostdata);
 	memset(session, 0, sizeof(struct iscsi_session));
@@ -2792,6 +2792,7 @@ iscsi_get_param(iscsi_cnx_t cnxh, enum iscsi_param param, uint32_t *value)
 }
 
 struct iscsi_transport iscsi_tcp_transport = {
+	.owner			= THIS_MODULE,
 	.name                   = "tcp",
 	.caps                   = CAP_RECOVERY_L0 | CAP_MULTI_R2T,
 	.host_template		= &iscsi_sht,
@@ -2820,7 +2821,7 @@ iscsi_tcp_init(void)
 	if (!taskcache)
 		return -ENOMEM;
 
-	error = iscsi_register_transport(&iscsi_tcp_transport, 0);
+	error = iscsi_register_transport(&iscsi_tcp_transport);
 	if (error)
 		kmem_cache_destroy(taskcache);
 
@@ -2830,7 +2831,7 @@ iscsi_tcp_init(void)
 static void __exit
 iscsi_tcp_exit(void)
 {
-	iscsi_unregister_transport(0);
+	iscsi_unregister_transport(&iscsi_tcp_transport);
 	kmem_cache_destroy(taskcache);
 }
 

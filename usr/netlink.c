@@ -287,7 +287,7 @@ ksession_create(int ctrl_fd, iscsi_session_t *session)
 	memset(&ev, 0, sizeof(struct iscsi_uevent));
 
 	ev.type = ISCSI_UEVENT_CREATE_SESSION;
-	ev.transport_id = 0; /* FIXME: hardcoded */
+	ev.transport_handle = session->transport_handle;
 	ev.u.c_session.session_handle = (ulong_t)session;
 	ev.u.c_session.initial_cmdsn = session->nrec.session.initial_cmdsn;
 
@@ -316,7 +316,7 @@ ksession_destroy(int ctrl_fd, iscsi_session_t *session)
 	memset(&ev, 0, sizeof(struct iscsi_uevent));
 
 	ev.type = ISCSI_UEVENT_DESTROY_SESSION;
-	ev.transport_id = 0; /* FIXME: hardcoded */
+	ev.transport_handle = session->transport_handle;
 	ev.u.d_session.session_handle = session->handle;
 	ev.u.d_session.sid = session->id;
 
@@ -341,7 +341,7 @@ ksession_cnx_create(int ctrl_fd, iscsi_session_t *session, iscsi_conn_t *conn)
 	memset(&ev, 0, sizeof(struct iscsi_uevent));
 
 	ev.type = ISCSI_UEVENT_CREATE_CNX;
-	ev.transport_id = 0; /* FIXME: hardcoded */
+	ev.transport_handle = session->transport_handle;
 	ev.u.c_cnx.session_handle = session->handle;
 	ev.u.c_cnx.cnx_handle = (ulong_t)conn;
 	ev.u.c_cnx.cid = conn->id;
@@ -370,7 +370,7 @@ ksession_cnx_destroy(int ctrl_fd, iscsi_conn_t *conn)
 	memset(&ev, 0, sizeof(struct iscsi_uevent));
 
 	ev.type = ISCSI_UEVENT_DESTROY_CNX;
-	ev.transport_id = 0; /* FIXME: hardcoded */
+	ev.transport_handle = conn->session->transport_handle;
 	ev.u.d_cnx.cnx_handle = conn->handle;
 	ev.u.d_cnx.cid = conn->id;
 
@@ -394,7 +394,7 @@ ksession_cnx_bind(int ctrl_fd, iscsi_session_t *session, iscsi_conn_t *conn)
 	memset(&ev, 0, sizeof(struct iscsi_uevent));
 
 	ev.type = ISCSI_UEVENT_BIND_CNX;
-	ev.transport_id = 0; /* FIXME: hardcoded */
+	ev.transport_handle = session->transport_handle;
 	ev.u.b_cnx.session_handle = session->handle;
 	ev.u.b_cnx.cnx_handle = conn->handle;
 	ev.u.b_cnx.transport_fd = conn->socket_fd;
@@ -432,7 +432,7 @@ void ksession_send_pdu_begin(int ctrl_fd, iscsi_session_t *session,
 	ev = xmitbuf;
 	memset(ev, 0, sizeof(*ev));
 	ev->type = ISCSI_UEVENT_SEND_PDU;
-	ev->transport_id = 0; /* FIXME: hardcoded */
+	ev->transport_handle = session->transport_handle;
 	ev->u.send_pdu.cnx_handle = conn->handle;
 	ev->u.send_pdu.hdr_size = hdr_size;
 	ev->u.send_pdu.data_size = data_size;
@@ -495,7 +495,7 @@ ksession_set_param(int ctrl_fd, iscsi_conn_t *conn, enum iscsi_param param,
 	memset(&ev, 0, sizeof(struct iscsi_uevent));
 
 	ev.type = ISCSI_UEVENT_SET_PARAM;
-	ev.transport_id = 0; /* FIXME: hardcoded */
+	ev.transport_handle = conn->session->transport_handle;
 	ev.u.set_param.cnx_handle = (ulong_t)conn->handle;
 	ev.u.set_param.param = param;
 	ev.u.set_param.value = value;
@@ -525,7 +525,7 @@ ksession_stop_cnx(int ctrl_fd, iscsi_conn_t *conn, int flag)
 	memset(&ev, 0, sizeof(struct iscsi_uevent));
 
 	ev.type = ISCSI_UEVENT_STOP_CNX;
-	ev.transport_id = 0; /* FIXME: hardcoded */
+	ev.transport_handle = conn->session->transport_handle;
 	ev.u.stop_cnx.cnx_handle = conn->handle;
 	ev.u.stop_cnx.flag = flag;
 
@@ -550,7 +550,7 @@ ksession_start_cnx(int ctrl_fd, iscsi_conn_t *conn)
 	memset(&ev, 0, sizeof(struct iscsi_uevent));
 
 	ev.type = ISCSI_UEVENT_START_CNX;
-	ev.transport_id = 0; /* FIXME: hardcoded */
+	ev.transport_handle = conn->session->transport_handle;
 	ev.u.start_cnx.cnx_handle = conn->handle;
 
 	if ((rc = __ksession_call(ctrl_fd, &ev, sizeof(ev))) < 0) {
@@ -601,6 +601,23 @@ ksession_recv_pdu_end(int ctrl_fd, iscsi_conn_t *conn, ulong_t pdu_handle)
 
 	free((void*)pdu_handle);
 	recvbuf = NULL;
+	return 0;
+}
+
+int
+ktrans_list(int ctrl_fd, struct iscsi_uevent *ev)
+{
+	int rc;
+
+	memset(ev, 0, sizeof(struct iscsi_uevent));
+
+	ev->type = ISCSI_UEVENT_TRANS_LIST;
+
+	if ((rc = __ksession_call(ctrl_fd, ev, sizeof(*ev))) < 0) {
+		log_error("can't retreive transport list (%d)", errno);
+		return rc;
+	}
+
 	return 0;
 }
 

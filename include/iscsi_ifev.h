@@ -33,6 +33,7 @@ enum iscsi_uevent_e {
 	ISCSI_UEVENT_START_CNX		= UEVENT_BASE + 7,
 	ISCSI_UEVENT_STOP_CNX		= UEVENT_BASE + 8,
 	ISCSI_UEVENT_SEND_PDU		= UEVENT_BASE + 9,
+	ISCSI_UEVENT_TRANS_LIST		= UEVENT_BASE + 10,
 
 	/* up events */
 	ISCSI_KEVENT_RECV_PDU		= KEVENT_BASE + 1,
@@ -42,7 +43,8 @@ enum iscsi_uevent_e {
 
 struct iscsi_uevent {
 	uint32_t type; /* k/u events type */
-	uint32_t transport_id;
+	uint32_t iferror;
+	uint64_t transport_handle;
 
 	union {
 		/* messages u -> k */
@@ -105,9 +107,13 @@ struct iscsi_uevent {
 			uint32_t	error; /* enum iscsi_err */
 			uint32_t	resource_error; /* NOMEM, NOBUFS */
 		} cnxerror;
+		struct msg_trans_list {
+			struct {
+				uint64_t handle;
+				char name[ISCSI_TRANSPORT_NAME_MAXLEN];
+			} elements[ISCSI_TRANSPORT_MAX];
+		} t_list;
 	} r;
-
-	uint32_t iferror;
 };
 
 #endif /* ISCSI_IFEV_H */

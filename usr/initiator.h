@@ -202,6 +202,7 @@ typedef struct queue_task {
 typedef struct iscsi_session {
 	struct qelem item; /* must stay at the top */
 	int id;
+	uint64_t transport_handle;
 	ulong_t handle;
 	node_rec_t nrec; /* copy of original Node record in database */
 	int vendor_specific_keys;
@@ -258,14 +259,6 @@ typedef struct iscsi_session {
 	queue_t *queue;
 } iscsi_session_t;
 
-typedef enum iscsi_provider_e {
-	PROVIDER_UNKNOWN		= 0,
-	PROVIDER_SOFT_TCP		= 1,
-	PROVIDER_SOFT_ISER		= 2,
-	PROVIDER_ISER			= 3,
-	PROVIDER_ACCEL_ISCSI		= 4,
-} iscsi_provider_e;
-
 typedef enum iscsi_provider_status_e {
 	PROVIDER_STATUS_UNKNOWN		= 0,
 	PROVIDER_STATUS_OPERATIONAL	= 1,
@@ -274,7 +267,7 @@ typedef enum iscsi_provider_status_e {
 
 /* represents data path provider */
 typedef struct iscsi_provider_t {
-	iscsi_provider_e type;
+	uint64_t handle;
 	iscsi_provider_status_e status;
 	char name[ISCSI_TRANSPORT_NAME_MAXLEN];
 	struct qelem sessions;
@@ -358,5 +351,6 @@ extern int ksession_recv_pdu_begin(int ctrl_fd, iscsi_conn_t *conn,
 		ulong_t recv_handle, ulong_t *pdu_handle, int *pdu_size);
 extern int ksession_recv_pdu_end(int ctrl_fd, iscsi_conn_t *conn,
 		ulong_t pdu_handle);
+extern int ktrans_list(int ctrl_fd, struct iscsi_uevent *ev);
 
 #endif /* INITIATOR_H */

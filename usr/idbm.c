@@ -88,6 +88,20 @@
 } while(0)
 
 static int
+idbm_dbversion_check(int dbversion)
+{
+	if (dbversion != IDBM_VERSION) {
+		log_error("idbm: dbversion mismatch: %d.%d != %d.%d: "
+			  "expecting v.%d.%d, exiting...",
+			  (0xf0 & dbversion)>>4, 0xf & dbversion,
+			  (0xf0 & IDBM_VERSION)>>4, 0xf & IDBM_VERSION,
+			  (0xf0 & IDBM_VERSION)>>4, 0xf & IDBM_VERSION);
+		return -1;
+	}
+	return 0;
+}
+
+static int
 idbm_uniq_id(char *name)
 {
 	unsigned long h = 0, g;
@@ -251,6 +265,8 @@ idbm_update_node(node_rec_t *rec, node_rec_t *newrec)
 
 	/* update rec */
 	__update_rec_str(rec, newrec, name, TARGET_NAME_MAXLEN);
+	__update_rec_str(rec, newrec, transport_name,
+			 ISCSI_TRANSPORT_NAME_MAXLEN);
 	__update_rec_int(rec, newrec, tpgt);
 	__update_rec_int(rec, newrec, startup);
 
@@ -437,6 +453,7 @@ idbm_recinfo_node(node_rec_t *r, recinfo_t *ri)
 	int num = 0, i;
 
 	__recinfo_str("node.name", ri, r, name, SHOW, num);
+	__recinfo_str("node.transport_name", ri, r, transport_name, SHOW, num);
 	__recinfo_int("node.tpgt", ri, r, tpgt, SHOW, num);
 	__recinfo_int("node.active_cnx", ri, r, active_cnx, SHOW, num);
 	__recinfo_int_o2("node.startup", ri, r, startup,
@@ -625,6 +642,8 @@ idbm_print_type(idbm_t *db, int type, int rec_id)
 			if (type == PRINT_TYPE_DISCOVERY) {
 				discovery_rec_t *rec = (discovery_rec_t*)
 								data.dptr;
+				if (idbm_dbversion_check(rec->dbversion))
+					exit(-1);
 				if (rec->type == DISCOVERY_TYPE_SENDTARGETS) {
 					printf("[%06x] %s:%d via sendtargets\n",
 						rec->id,
@@ -633,6 +652,8 @@ idbm_print_type(idbm_t *db, int type, int rec_id)
 				}
 			} else if (type == PRINT_TYPE_NODE) {
 				node_rec_t *rec = (node_rec_t*)data.dptr;
+				if (idbm_dbversion_check(rec->dbversion))
+					exit(-1);
 				printf("[%06x] %s:%d,%d %s\n",
 					rec->id,
 					rec->cnx[0].address,
@@ -656,6 +677,7 @@ idbm_discovery_setup_defaults(discovery_rec_t *rec, discovery_type_e type)
 {
 	memset(rec, 0, sizeof(discovery_rec_t));
 
+	rec->dbversion = IDBM_VERSION;
 	rec->startup = ISCSI_STARTUP_MANUAL;
 	rec->type = type;
 	if (type == DISCOVERY_TYPE_SENDTARGETS) {
@@ -879,6 +901,8 @@ idbm_node_setup_defaults(node_rec_t *rec)
 
 	memset(rec, 0, sizeof(node_rec_t));
 
+	strcpy(rec->transport_name, "tcp");
+	rec->dbversion = IDBM_VERSION;
 	rec->active_cnx = 1; /* at least one connection must exist */
 	rec->tpgt = 1;
 	rec->session.initial_cmdsn = 0;
@@ -941,6 +965,8 @@ idbm_print_nodes(idbm_t *db, discovery_rec_t *drec)
 		data = dbm_fetch(dbm, key);
 		if (strstr(key.dptr, hash)) {
 			node_rec_t *rec = (node_rec_t*)data.dptr;
+			if (idbm_dbversion_check(rec->dbversion))
+				exit(-1);
 			printf("[%06x] %s:%d,%d %s\n",
 			        rec->id,
 				rec->cnx[0].address,
@@ -962,6 +988,8 @@ idbm_discovery_read(idbm_t *db, int rec_id, discovery_rec_t *out_rec)
 	discovery_rec_t *rec;
 
 	if ((rec = (discovery_rec_t*)idbm_read_with_id(db->discdb, rec_id))) {
+		if (idbm_dbversion_check(rec->dbversion))
+			exit(-1);
 		memcpy(out_rec, rec, sizeof(discovery_rec_t));
 		return 0;
 	}
@@ -974,6 +1002,8 @@ idbm_node_read(idbm_t *db, int rec_id, node_rec_t *out_rec)
 	node_rec_t *rec;
 
 	if ((rec = (node_rec_t*)idbm_read_with_id(db->nodedb, rec_id))) {
+		if (idbm_dbversion_check(rec->dbversion))
+			exit(-1);
 		memcpy(out_rec, rec, sizeof(node_rec_t));
 		return 0;
 	}

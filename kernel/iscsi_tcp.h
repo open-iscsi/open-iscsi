@@ -19,7 +19,7 @@
 #ifndef ISCSI_TCP_H
 #define ISCSI_TCP_H
 
-#include <iscsi_if.h>
+#include <iscsi_iftrans.h>
 
 /* Session's states */
 #define ISCSI_STATE_FREE	1

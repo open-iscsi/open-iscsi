@@ -41,6 +41,9 @@
 /* number of possible connections per session */
 #define ISCSI_CNX_MAX		16
 
+/* database version control */
+#define IDBM_VERSION		0x02
+
 /* the following structures store the options set in the config file.
  * a structure is defined for each logically-related group of options.
  * if you are adding a new option, first check if it should belong
@@ -176,17 +179,20 @@ typedef struct session_rec {
 } session_rec_t;
 
 typedef struct node_rec {
-	int					id;
-	char					name[TARGET_NAME_MAXLEN];
-	int					tpgt;
-	int					active_cnx;
-	iscsi_startup_e				startup;
-	session_rec_t				session;
-	cnx_rec_t				cnx[ISCSI_CNX_MAX];
+	int			id;
+	int			dbversion;
+	char			name[TARGET_NAME_MAXLEN];
+	char			transport_name[ISCSI_TRANSPORT_NAME_MAXLEN];
+	int			tpgt;
+	int			active_cnx;
+	iscsi_startup_e		startup;
+	session_rec_t		session;
+	cnx_rec_t		cnx[ISCSI_CNX_MAX];
 } node_rec_t;
 
 typedef struct discovery_rec {
 	int					id;
+	int					dbversion;
 	iscsi_startup_e				startup;
 	discovery_type_e			type;
 	union {
