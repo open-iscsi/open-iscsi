@@ -44,10 +44,8 @@ MODULE_AUTHOR("Dmitry Yusupov <dmitry_yus@yahoo.com>, "
 MODULE_DESCRIPTION("iSCSI/TCP data-path");
 MODULE_LICENSE("GPL");
 
-/*    debug kitchen     */
-/* -------------------- */
 /* #define DEBUG_TCP */
-#define DEBUG_SCSI
+/* #define DEBUG_SCSI */
 #define DEBUG_ASSERT
 
 #ifdef DEBUG_TCP
@@ -1065,6 +1063,7 @@ iscsi_write_space(struct sock *sk)
 	conn->old_write_space(sk);
 	debug_tcp("iscsi_write_space: cid %d\n", conn->id);
 	conn->suspend = 0; wmb();
+	schedule_work(&conn->xmitwork);
 }
 
 static void
