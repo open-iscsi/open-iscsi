@@ -141,7 +141,6 @@ struct iscsi_conn {
 	volatile int		suspend;	/* connection suspended */
 	struct crypto_tfm	*tx_tfm;
 	struct crypto_tfm	*rx_tfm;
-	struct semaphore	xmitsema;
 
 	/* configuration */
 	int			max_recv_dlength;
