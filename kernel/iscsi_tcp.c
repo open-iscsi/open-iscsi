@@ -2402,7 +2402,7 @@ r2tpool_alloc_fault:
 immpool_alloc_fault:
 	iscsi_pool_free(&session->cmdpool, (void**)session->cmds);
 cmdpool_alloc_fault:
-	scsi_remove_host(host);
+	scsi_host_put(host);
 host_alloc_fault:
 	*host_no = -1;
 	return iscsi_handle(NULL);
