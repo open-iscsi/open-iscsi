@@ -1,5 +1,5 @@
 /*
- * iSCSI Initiator TCP Data-Path
+ * iSCSI Initiator TCP Transport
  * Copyright (C) 2004 Dmitry Yusupov, Alex Aizman
  * maintained by open-iscsi@@googlegroups.com
  *
@@ -16,23 +16,8 @@
  * See the file COPYING included with this distribution for more details.
  */
 
-#ifndef ISCSI_IDP_TCP_H
-#define ISCSI_IDP_TCP_H
-
-#include <asm/io.h>
-#include <net/tcp.h>
-#include <linux/types.h>
-#include <linux/list.h>
-#include <linux/inet.h>
-#include <linux/blkdev.h>
-#include <linux/crypto.h>
-#include <scsi/scsi_cmnd.h>
-#include <scsi/scsi_device.h>
-#include <scsi/scsi_eh.h>
-#include <scsi/scsi_request.h>
-#include <scsi/scsi_tcq.h>
-#include <scsi/scsi_host.h>
-#include <scsi/scsi.h>
+#ifndef ISCSI_TCP_H
+#define ISCSI_TCP_H
 
 #include <iscsi_if.h>
 
