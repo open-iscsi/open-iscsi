@@ -761,6 +761,16 @@ iscsi_rcv_nl_event(struct notifier_block *this,
 			mempool_zone_complete(&cnx->z_pdu);
 		}
 		spin_unlock_irqrestore(&cnxlock, flags);
+#if defined(NETLINK_UESTABLISHED)
+	} else if (event == NETLINK_UESTABLISHED &&
+	    n->protocol == NETLINK_ISCSI && n->pid) {
+		struct sock *sk = netlink_getsockbypid(nls, n->pid);
+
+		/* override allocation priority netlink_sendmsg().
+		 * from now on, control plane will be unblocked even
+		 * if scsi device is swapper and we are under OOM pressure. */
+		sk->sk_allocation = GFP_ATOMIC;
+#endif
 	}
 
 	return NOTIFY_DONE;
