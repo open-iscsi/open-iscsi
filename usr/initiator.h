@@ -73,6 +73,7 @@ typedef enum iscsi_event_e {
 	EV_CNX_RECV_PDU			= 1,
 	EV_CNX_POLL			= 2,
 	EV_CNX_TIMER			= 3,
+	EV_CNX_ERROR			= 4,
 } iscsi_event_e;
 
 typedef struct iscsi_event {
@@ -195,6 +196,7 @@ typedef struct iscsi_session {
 	uint32_t cmdsn;
 	uint32_t exp_cmdsn;
 	uint32_t max_cmdsn;
+	int erl;
 	int imm_data_en;
 	int initial_r2t_en;
 	int first_burst;

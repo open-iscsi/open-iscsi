@@ -130,10 +130,6 @@ typedef struct iscsi_conn {
 	iscsi_hdr_t		hdr;		/* Header placeholder */
 	char			hdrext[4*sizeof(__u16) +
 				    sizeof(__u32)];
-	iscsi_hdr_t		prev_hdr;	/* Header placeholder */
-	char			prev_hdrext[4*sizeof(__u16) +
-				    sizeof(__u32)];
-	uint32_t		prev_itt;
 
 	/* FIXME: do dynamic allocation by size max_recv_dlength */
 	char			*data;		/* Data placeholder */
@@ -203,6 +199,7 @@ typedef struct iscsi_session {
 	int				id;
 	iscsi_conn_t			*leadconn;	/* Leading Conn. */
 	spinlock_t			conn_lock;
+	spinlock_t			lock;
 	volatile iscsi_session_state_e	state;
 	struct list_head		item;
 	void				*auth_client;

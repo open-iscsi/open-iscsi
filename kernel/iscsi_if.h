@@ -32,30 +32,6 @@ typedef enum {
 	ISCSI_STATE_FAILED	= 3,
 } iscsi_session_state_e;
 
-#define ISCSI_CTRL_ERR_BASE	100
-#define ISCSI_DP_ERR_BASE	1000
-
-typedef enum {
-	ISCSI_OK			= 0,
-
-	ISCSI_ERR_BAD_CNX		= ISCSI_CTRL_ERR_BASE + 1,
-
-	ISCSI_ERR_BAD_TARGET		= ISCSI_DP_ERR_BASE + 1,
-	ISCSI_ERR_DATASN		= ISCSI_DP_ERR_BASE + 2,
-	ISCSI_ERR_DATA_OFFSET		= ISCSI_DP_ERR_BASE + 3,
-	ISCSI_ERR_MAX_CMDSN		= ISCSI_DP_ERR_BASE + 4,
-	ISCSI_ERR_EXP_CMDSN		= ISCSI_DP_ERR_BASE + 5,
-	ISCSI_ERR_BAD_OPCODE		= ISCSI_DP_ERR_BASE + 6,
-	ISCSI_ERR_DATALEN		= ISCSI_DP_ERR_BASE + 7,
-	ISCSI_ERR_AHSLEN		= ISCSI_DP_ERR_BASE + 8,
-	ISCSI_ERR_PROTO			= ISCSI_DP_ERR_BASE + 9,
-	ISCSI_ERR_LUN			= ISCSI_DP_ERR_BASE + 10,
-	ISCSI_ERR_BAD_ITT		= ISCSI_DP_ERR_BASE + 11,
-	ISCSI_ERR_CNX_FAILED		= ISCSI_DP_ERR_BASE + 12,
-	ISCSI_ERR_R2TSN			= ISCSI_DP_ERR_BASE + 13,
-	ISCSI_ERR_SNX_FAILED		= ISCSI_DP_ERR_BASE + 14,
-} iscsi_err_e;
-
 /*
  * These flags presents iSCSI Data-Path capabilities.
  */
@@ -124,7 +100,7 @@ typedef struct iscsi_ops {
 
 int iscsi_control_recv_pdu(iscsi_cnx_h cp_cnx, iscsi_hdr_t *hdr,
 				char *data, int data_size);
-void iscsi_control_cnx_error(iscsi_cnx_h cp_cnx, int error);
+void iscsi_control_cnx_error(iscsi_cnx_h cp_cnx, iscsi_err_e error);
 
 /* FIXME: generic register/unregister interface needed */
 extern int iscsi_tcp_register(iscsi_ops_t *ops, iscsi_caps_t *caps);

@@ -75,22 +75,32 @@ ipc_close(int fd)
 }
 
 static ipc_err_e
-ipc_session_login(queue_task_t *qtask, int rid)
+ipc_node_read(int rid, node_rec_t *rec)
 {
 	idbm_t *db;
-	node_rec_t rec;
 
 	db = idbm_init(CONFIG_FILE);
 	if (!db) {
 		return IPC_ERR_IDBM_FAILURE;
 	}
 
-	if (idbm_node_read(db, rid, &rec)) {
+	if (idbm_node_read(db, rid, rec)) {
 		log_error("node record [%06x] not found!", rid);
 		return IPC_ERR_NOT_FOUND;
 	}
 
 	idbm_terminate(db);
+	return 0;
+}
+
+static ipc_err_e
+ipc_session_login(queue_task_t *qtask, int rid)
+{
+	ipc_err_e rc;
+	node_rec_t rec;
+
+	if ((rc = ipc_node_read(rid, &rec)))
+		return rc;
 
 	return session_login_task(&rec, qtask);
 }
@@ -98,26 +108,15 @@ ipc_session_login(queue_task_t *qtask, int rid)
 static ipc_err_e
 ipc_session_logout(queue_task_t *qtask, int rid)
 {
-	idbm_t *db;
+	ipc_err_e rc;
 	node_rec_t rec;
 	iscsi_session_t *session;
 
-	db = idbm_init(CONFIG_FILE);
-	if (!db) {
-		return IPC_ERR_IDBM_FAILURE;
-	}
+	if ((rc = ipc_node_read(rid, &rec)))
+		return rc;
 
-	if (idbm_node_read(db, rid, &rec)) {
-		log_error("node record [%06x] not found!", rid);
+	if ((session = session_find_by_rec(&rec)))
 		return IPC_ERR_NOT_FOUND;
-	}
-
-	idbm_terminate(db);
-
-	session = session_find_by_rec(&rec);
-	if (session == NULL) {
-		return IPC_ERR_NOT_FOUND;
-	}
 
 	return session_logout_task(session, qtask);
 }

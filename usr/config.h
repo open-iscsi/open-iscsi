@@ -119,6 +119,7 @@ struct iscsi_session_operational_config {
 	int DefaultTime2Wait;
 	int DefaultTime2Retain;
 	int MaxConnections;
+	int ERL;
 };
 
 #define CONFIG_DIGEST_NEVER  0

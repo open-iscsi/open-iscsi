@@ -60,6 +60,7 @@ typedef struct recv_context {
 	int pdu_size;
 	pdu_state_e state;
 	int curr_off;
+	iscsi_err_e error;
 } recv_context_t;
 
 static xmit_context_t xmit;
@@ -352,15 +353,15 @@ __recv_pdu_begin(unsigned long ptr)
 	if ((rc = copy_from_user(&ev, (void *)ptr, sizeof(ev))) < 0)
 		return rc;
 
+	spin_lock_bh(&evqueue_lock);
 	list_for_each(lh, &evqueue_busy) {
 		entry = list_entry(lh, recv_context_t, item);
 		if (entry && entry == (void*)ev.u.rp_begin.recv_handle) {
-			spin_lock_bh(&evqueue_lock);
 			list_del(&entry->item);
-			spin_unlock_bh(&evqueue_lock);
 			break;
 		}
 	}
+	spin_unlock_bh(&evqueue_lock);
 	if (entry != (void*)ev.u.rp_begin.recv_handle)
 		return -EIO;
 
@@ -492,6 +493,42 @@ __stop_cnx(unsigned long ptr)
 }
 
 static int
+__cnx_error(unsigned long ptr)
+{
+	int rc;
+	iscsi_uevent_t ev;
+	recv_context_t *entry = NULL;
+	struct list_head *lh;
+
+	if ((rc = copy_from_user(&ev, (void *)ptr, sizeof(ev))) < 0)
+		return rc;
+
+	spin_lock_bh(&evqueue_lock);
+	list_for_each(lh, &evqueue_busy) {
+		entry = list_entry(lh, recv_context_t, item);
+		if (entry && entry == (void*)ev.u.cnxerror_ack.recv_handle) {
+			list_del(&entry->item);
+			break;
+		}
+	}
+	spin_unlock_bh(&evqueue_lock);
+	if (entry != (void*)ev.u.cnxerror_ack.recv_handle)
+		return -EIO;
+
+	ev.r.cnxerror.error = entry->error;
+
+	spin_lock_bh(&evqueue_lock);
+	list_add(&entry->item, &evqueue_busy);
+	spin_unlock_bh(&evqueue_lock);
+
+	if ((rc = copy_to_user((void*)ptr, &ev, sizeof(ev))) < 0) {
+		return rc;
+	}
+
+	return 0;
+}
+
+static int
 ioctl(struct inode *inode, struct file *file,
 		 unsigned int cmd, unsigned long arg)
 {
@@ -515,6 +552,7 @@ ioctl(struct inode *inode, struct file *file,
 	case ISCSI_UEVENT_SET_PARAM: return __set_param(arg);
 	case ISCSI_UEVENT_START_CNX: return __start_cnx(arg);
 	case ISCSI_UEVENT_STOP_CNX: return __stop_cnx(arg);
+	case ISCSI_UEVENT_CNX_ERROR: return __cnx_error(arg);
 	default: return -EPERM;
 	}
 
@@ -564,7 +602,7 @@ iscsi_control_recv_pdu(iscsi_cnx_h cp_cnx, iscsi_hdr_t *hdr,
 }
 
 void
-iscsi_control_cnx_error(iscsi_cnx_h cp_cnx, int error)
+iscsi_control_cnx_error(iscsi_cnx_h cp_cnx, iscsi_err_e error)
 {
 	recv_context_t *entry;
 
@@ -578,6 +616,7 @@ iscsi_control_cnx_error(iscsi_cnx_h cp_cnx, int error)
 	entry->type = ISCSI_KEVENT_CNX_ERROR;
 	entry->state = PDU_STATE_BUSY;
 	entry->cp_cnxh = (ulong_t)cp_cnx;
+	entry->error = error;
 
 	if (in_interrupt())
 		spin_lock(&evqueue_lock);

@@ -323,6 +323,7 @@ __session_create(node_rec_t *rec)
 	session->max_burst = rec->session.iscsi.MaxBurstLength;
 	session->def_time2wait = rec->session.iscsi.DefaultTime2Wait;
 	session->def_time2retain = rec->session.iscsi.DefaultTime2Retain;
+	session->erl = rec->session.iscsi.ERL;
 	session->portal_group_tag = rec->tpgt;
 	session->type = ISCSI_SESSION_TYPE_NORMAL;
 	session->initiator_name = dconfig->initiator_name;
@@ -401,7 +402,7 @@ __ksession_destroy(iscsi_session_t *session)
 		return rc;
 	}
 
-	log_debug(3, "destroyed iSCSI session, handle 0x%p",
+	log_warning("destroyed iSCSI session, handle 0x%p",
 		  (void*)session->handle);
 
 	return 0;
@@ -453,7 +454,7 @@ __ksession_cnx_destroy(iscsi_conn_t *conn)
 		return rc;
 	}
 
-	log_debug(3, "destroyed iSCSI connection, handle 0x%p",
+	log_warning("destroyed iSCSI connection, handle 0x%p",
 		  (void*)conn->handle);
 
 	return 0;
@@ -683,6 +684,33 @@ __ksession_recv_pdu_end(iscsi_conn_t *conn, ulong_t pdu_handle)
 
 	log_debug(3, "recv PDU finished for pdu handle 0x%p",
 		  (void*)pdu_handle);
+
+	return 0;
+}
+
+static int
+__ksession_cnx_error(iscsi_conn_t *conn, ulong_t recv_handle,
+			iscsi_err_e *error)
+{
+	int rc;
+	iscsi_uevent_t ev;
+
+	memset(&ev, 0, sizeof(iscsi_uevent_t));
+
+	ev.type = ISCSI_UEVENT_CNX_ERROR;
+	ev.provider_id = 0; /* FIXME: hardcoded */
+	ev.u.cnxerror_ack.cpcnx_handle = (ulong_t)conn;
+	ev.u.cnxerror_ack.recv_handle = recv_handle;
+
+	if ((rc = ioctl(ctrl_fd, ISCSI_UEVENT_CNX_ERROR, &ev)) < 0) {
+		log_error("can't initiate error-ack operation for cnx with "
+			  "id = %d (%d)", conn->id, errno);
+		return rc;
+	}
+
+	*error = ev.r.cnxerror.error;
+
+	log_debug(3, "error-ack, error %d", *error);
 
 	return 0;
 }
@@ -997,6 +1025,78 @@ __session_cnx_timer(queue_item_t *item)
 	}
 }
 
+#define R_STAGE_NO_CHANGE	0
+#define R_STAGE_SESSION_CLEANUP	1
+#define R_STAGE_SESSION_REOPEN	2
+
+static void
+__session_cnx_error(queue_item_t *item)
+{
+	ulong_t recv_handle = *(ulong_t*)queue_item_data(item);
+	iscsi_conn_t *conn = item->context;
+	iscsi_session_t *session = conn->session;
+	iscsi_err_e error;
+	int r_stage = R_STAGE_NO_CHANGE;
+
+	if (__ksession_cnx_error(conn, recv_handle, &error)) {
+		log_error("failed to acknowlage cnx error");
+		return;
+	}
+	if (conn->state == STATE_LOGGED_IN) {
+		int i;
+
+		/* mark failed connection */
+		conn->state = STATE_CLEANUP_WAIT;
+
+		if (session->erl > 0) {
+			/* check if we still have some logged in connections */
+			for (i=0; i<ISCSI_CNX_MAX; i++) {
+				if (session->cnx[i].state == STATE_LOGGED_IN) {
+					break;
+				}
+			}
+			if (i != ISCSI_CNX_MAX) {
+				/* FIXME: re-assign leading connection
+				 *        for ERL>0 */
+			}
+		} else {
+			/* mark all connections as failed */
+			for (i=0; i<ISCSI_CNX_MAX; i++) {
+				if (session->cnx[i].state == STATE_LOGGED_IN) {
+					session->cnx[i].state =
+						STATE_CLEANUP_WAIT;
+				}
+			}
+			r_stage = R_STAGE_SESSION_CLEANUP;
+		}
+	}
+
+	if (r_stage == R_STAGE_SESSION_REOPEN) {
+		log_debug(1, "re-opening session %d", session->id);
+		/* FIXME: implement session re-open logic */
+		return;
+	}
+
+	if (__ksession_stop_cnx(conn)) {
+		log_error("can not safely stop connection %d", conn->id);
+		return;
+	}
+
+	iscsi_disconnect(conn);
+
+	if (__ksession_cnx_destroy(conn)) {
+		log_error("can not safely destroy connection %d", conn->id);
+		return;
+	}
+	session_cnx_destroy(session, conn->id);
+
+	if (__ksession_destroy(session)) {
+		log_error("can not safely destroy session %d", session->id);
+		return;
+	}
+	__session_destroy(session);
+}
+
 static void
 __session_mainloop(void *data)
 {
@@ -1010,6 +1110,7 @@ __session_mainloop(void *data)
 		case EV_CNX_RECV_PDU: __session_cnx_recv_pdu(item); break;
 		case EV_CNX_POLL: __session_cnx_poll(item); break;
 		case EV_CNX_TIMER: __session_cnx_timer(item); break;
+		case EV_CNX_ERROR: __session_cnx_error(item); break;
 		default:
 			break;
 		}

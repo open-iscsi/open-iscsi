@@ -49,22 +49,22 @@ ctldev_handle(int fd)
 		return rc;
 	}
 
-	if (ev.type == ISCSI_KEVENT_RECV_PDU) {
-
-		/* verify connection */
-		item = provider[0].sessions.q_forw;
-		while (item != &provider[0].sessions) {
-			int i;
-			session = (iscsi_session_t *)item;
-			for (i=0; i<ISCSI_CNX_MAX; i++) {
-				if (&session->cnx[i] == (iscsi_conn_t*)
-						ev.r.recv_req.cnx_handle) {
-					conn = &session->cnx[i];
-					break;
-				}
+	/* verify connection */
+	item = provider[0].sessions.q_forw;
+	while (item != &provider[0].sessions) {
+		int i;
+		session = (iscsi_session_t *)item;
+		for (i=0; i<ISCSI_CNX_MAX; i++) {
+			if (&session->cnx[i] == (iscsi_conn_t*)
+					ev.r.recv_req.cnx_handle) {
+				conn = &session->cnx[i];
+				break;
 			}
-			item = item->q_forw;
 		}
+		item = item->q_forw;
+	}
+
+	if (ev.type == ISCSI_KEVENT_RECV_PDU) {
 		if (conn == NULL) {
 			log_error("could not verify connection 0x%p for "
 				  "event RECV_PDU", conn);
@@ -77,6 +77,17 @@ ctldev_handle(int fd)
 		actor_schedule(&session->mainloop);
 
 	} else if (ev.type == ISCSI_KEVENT_CNX_ERROR) {
+		if (conn == NULL) {
+			log_error("could not verify connection 0x%p for "
+				  "event CNX_ERR", conn);
+			return -ENXIO;
+		}
+
+		/* produce an event, so session manager will handle */
+		queue_produce(session->queue, EV_CNX_ERROR, conn,
+			sizeof(ulong_t), (void*)&ev.r.recv_req.recv_handle);
+		actor_schedule(&session->mainloop);
+
 	} else {
 		log_error("unknown kernel event %d", ev.type);
 	}

@@ -492,8 +492,8 @@ main(int argc, char **argv)
 				if (!idbm_print_node(db, rid)) {
 					log_error("no records found!");
 					rc = -1;
-					goto out;
 				}
+				goto out;
 			}
 			if (do_login && (rc = session_login(rid, &rec)) > 0) {
 				iscsid_handle_error(rc);

@@ -28,6 +28,28 @@
 #define ISCSI_PROVIDER_MAX		16
 #define UEVENT_BASE			10
 #define KEVENT_BASE			100
+#define ISCSI_DP_ERR_BASE		1000
+
+typedef enum {
+	ISCSI_OK			= 0,
+
+	ISCSI_ERR_BAD_TARGET		= ISCSI_DP_ERR_BASE + 1,
+	ISCSI_ERR_DATASN		= ISCSI_DP_ERR_BASE + 2,
+	ISCSI_ERR_DATA_OFFSET		= ISCSI_DP_ERR_BASE + 3,
+	ISCSI_ERR_MAX_CMDSN		= ISCSI_DP_ERR_BASE + 4,
+	ISCSI_ERR_EXP_CMDSN		= ISCSI_DP_ERR_BASE + 5,
+	ISCSI_ERR_BAD_OPCODE		= ISCSI_DP_ERR_BASE + 6,
+	ISCSI_ERR_DATALEN		= ISCSI_DP_ERR_BASE + 7,
+	ISCSI_ERR_AHSLEN		= ISCSI_DP_ERR_BASE + 8,
+	ISCSI_ERR_PROTO			= ISCSI_DP_ERR_BASE + 9,
+	ISCSI_ERR_LUN			= ISCSI_DP_ERR_BASE + 10,
+	ISCSI_ERR_BAD_ITT		= ISCSI_DP_ERR_BASE + 11,
+	ISCSI_ERR_CNX_FAILED		= ISCSI_DP_ERR_BASE + 12,
+	ISCSI_ERR_R2TSN			= ISCSI_DP_ERR_BASE + 13,
+	ISCSI_ERR_SNX_FAILED		= ISCSI_DP_ERR_BASE + 14,
+	ISCSI_ERR_HDR_DGST		= ISCSI_DP_ERR_BASE + 15,
+	ISCSI_ERR_DATA_DGST		= ISCSI_DP_ERR_BASE + 16,
+} iscsi_err_e;
 
 typedef enum {
 	ISCSI_PARAM_MAX_RECV_DLENGTH	= 0,
@@ -63,6 +85,7 @@ typedef enum iscsi_uevent_e {
 	ISCSI_UEVENT_SET_PARAM		= UEVENT_BASE + 11,
 	ISCSI_UEVENT_START_CNX		= UEVENT_BASE + 12,
 	ISCSI_UEVENT_STOP_CNX		= UEVENT_BASE + 13,
+	ISCSI_UEVENT_CNX_ERROR		= UEVENT_BASE + 14,
 
 	/* up events */
 	ISCSI_KEVENT_RECV_PDU		= KEVENT_BASE + 1,
@@ -124,6 +147,10 @@ typedef struct iscsi_uevent {
 		struct msg_stop_cnx {
 			ulong_t		cnx_handle;
 		} stop_cnx;
+		struct msg_cnxerror_ack {
+			ulong_t		cpcnx_handle;
+			ulong_t		recv_handle;
+		} cnxerror_ack;
 	} u;
 	union {
 		/* messages k -> u */
@@ -134,7 +161,7 @@ typedef struct iscsi_uevent {
 			ulong_t		cnx_handle;
 		} recv_req;
 		struct msg_cnx_error {
-			unsigned int	cid;
+			iscsi_err_e	error;
 		} cnxerror;
 		struct msg_rp_begin_rsp {
 			ulong_t		pdu_handle;

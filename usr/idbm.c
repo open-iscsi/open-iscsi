@@ -276,6 +276,7 @@ idbm_update_node(node_rec_t *rec, node_rec_t *newrec)
 	__update_rec_int(rec, newrec, session.iscsi.MaxBurstLength);
 	__update_rec_int(rec, newrec, session.iscsi.DefaultTime2Wait);
 	__update_rec_int(rec, newrec, session.iscsi.DefaultTime2Retain);
+	__update_rec_int(rec, newrec, session.iscsi.ERL);
 
 	for (i=0; i < ISCSI_CNX_MAX; i++) {
 		/* update rec->cnx[i] */
@@ -471,6 +472,8 @@ idbm_recinfo_node(node_rec_t *r, recinfo_t *ri)
 		      session.iscsi.DefaultTime2Retain, SHOW, num);
 	__recinfo_int("node.session.iscsi.MaxConnections", ri, r,
 		      session.iscsi.MaxConnections, SHOW, num);
+	__recinfo_int("node.session.iscsi.ERL", ri, r,
+		      session.iscsi.ERL, SHOW, num);
 
 	for (i=0; i < r->active_cnx; i++) {
 		char key[NAME_MAXVAL];
@@ -662,6 +665,7 @@ idbm_node_setup_defaults(node_rec_t *rec)
 	rec->session.iscsi.DefaultTime2Wait = 0;
 	rec->session.iscsi.DefaultTime2Retain = 0;
 	rec->session.iscsi.MaxConnections = 1;
+	rec->session.iscsi.ERL = 0;
 
 	for (i=0; i<ISCSI_CNX_MAX; i++) {
 		rec->cnx[i].startup = 0;
