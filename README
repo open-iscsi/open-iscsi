@@ -42,6 +42,19 @@ command:
 	insmod iscsi_if.ko
 	insmod iscsi_tcp.ko
 
+iSCSI Daemon:
+
+	./iscsid --help
+Usage: iscsid [OPTION]
+Open-iSCSI initiator daemon.
+  -c, --config=[path]     Execute in the config file (/etc/iscsid.conf).
+  -f, --foreground        make the program run in the foreground
+  -d, --debug debuglevel  print debugging information
+  -u, --uid=uid           run as uid, default is current user
+  -g, --gid=gid           run as gid, default is current user group
+  -h, --help              display this help and exit
+  -v, --version           display version and exit
+
 after that start daemon:
 
 	iscsid
@@ -54,6 +67,44 @@ and use administration utility to add/remove/update Discovery records,
 iSCSI Node records or monitor active iSCSI sessions:
 
 	./iscsiadm --help
+
+Usage: iscsiadm [OPTION]
+iSCSI Administration Utility.
+
+  -m, --mode <op>         specify operational mode op = <discovery|node>
+  -m discovery --type=[type] --portal=[ip:port] --login
+                          perform [type] discovery for target portal with
+                          ip-address [ip] and port [port]. Initiate Login for
+                          each discovered target if --login is specified
+  -m discovery            display all discovery records from internal
+                          persistent discovery database
+  -m discovery --record=[id] --login
+                          perform discovery based on record [id] in database
+  -m discovery --record=[id] --op=[op] [--name=[name] --value=[value]]
+                          perform specific DB operation [op] for specific
+                          discovery record with [id]. It could be one of:
+                          [new], [delete], [update] or [show]. In case of
+                          [update], you have to provide [name] and [value]
+                          you wish to update
+  -m node                 display all discovered nodes from internal
+                          persistent discovery database
+  -m node --record=[id] [--login|--logout]
+  -m node --record=[id] --op=[op] [--name=[name] --value=[value]]
+                          perform specific DB operation [op] for specific
+                          node with record [id]. It could be one of:
+                          [new], [delete], [update] or [show]. In case of
+                          [update], you have to provide [name] and [value]
+                          you wish to update
+  -m session              display all active sessions and connections
+  -m session --record=[id[:cid]] [--logout]
+                          perform operation for specific session with
+                          record [id] or display statistics if no operation
+                          specified. Operation will affect one connection
+                          only if [:cid] is specified
+  -d, --debug debuglevel  print debugging information
+  -V, --version           display version and exit
+  -h, --help              display this help and exit
+
 
 Example on using administration utility for:
 
