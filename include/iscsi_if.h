@@ -50,6 +50,7 @@ enum iscsi_err {
 	ISCSI_ERR_HDR_DGST		= ISCSI_ERR_BASE + 14,
 	ISCSI_ERR_DATA_DGST		= ISCSI_ERR_BASE + 15,
 	ISCSI_ERR_PDU_GATHER_FAILED	= ISCSI_ERR_BASE + 16,
+	ISCSI_ERR_PARAM_NOT_FOUND	= ISCSI_ERR_BASE + 17,
 };
 
 /*
@@ -118,13 +119,13 @@ typedef uint64_t iscsi_cnx_t;		/* iSCSI Data-Path connection handle */
  * API provided by generic iSCSI Data Path module
  */
 struct iscsi_transport {
-	char				*name;
-	unsigned int			caps;
-	struct scsi_host_template	*host_template;
-	int				hostdata_size;
-	int				max_lun;
-	unsigned int			max_cnx;
-	unsigned int			max_cmd_len;
+	char *name;
+	unsigned int caps;
+	struct scsi_host_template *host_template;
+	int hostdata_size;
+	int max_lun;
+	unsigned int max_cnx;
+	unsigned int max_cmd_len;
 	iscsi_snx_t (*create_session) (iscsi_snx_t cp_snx,
 			uint32_t initial_cmdsn, void *shost);
 	void (*destroy_session) (iscsi_snx_t dp_snx);
@@ -137,6 +138,8 @@ struct iscsi_transport {
 	void (*destroy_cnx) (iscsi_cnx_t dp_cnx);
 	int (*set_param) (iscsi_cnx_t dp_cnx, enum iscsi_param param,
 			  uint32_t value);
+	int (*get_param) (iscsi_cnx_t dp_cnx, enum iscsi_param param,
+			  uint32_t *value);
 	int (*send_pdu) (iscsi_cnx_t dp_cnx, struct iscsi_hdr *hdr,
 			 char *data, uint32_t data_size);
 };

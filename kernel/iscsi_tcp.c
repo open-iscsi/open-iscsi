@@ -2735,6 +2735,62 @@ iscsi_set_param(iscsi_cnx_t cnxh, enum iscsi_param param, uint32_t value)
 	return 0;
 }
 
+static int
+iscsi_get_param(iscsi_cnx_t cnxh, enum iscsi_param param, uint32_t *value)
+{
+	struct iscsi_conn *conn = iscsi_ptr(cnxh);
+	struct iscsi_session *session = conn->session;
+
+	switch(param) {
+	case ISCSI_PARAM_MAX_RECV_DLENGTH:
+		*value = conn->max_recv_dlength;
+		break;
+	case ISCSI_PARAM_MAX_XMIT_DLENGTH:
+		*value = conn->max_xmit_dlength;
+		break;
+	case ISCSI_PARAM_HDRDGST_EN:
+		*value = conn->hdrdgst_en;
+		break;
+	case ISCSI_PARAM_DATADGST_EN:
+		*value = conn->datadgst_en;
+		break;
+	case ISCSI_PARAM_INITIAL_R2T_EN:
+		*value = session->initial_r2t_en;
+		break;
+	case ISCSI_PARAM_MAX_R2T:
+		*value = session->max_r2t;
+		break;
+	case ISCSI_PARAM_IMM_DATA_EN:
+		*value = session->imm_data_en;
+		break;
+	case ISCSI_PARAM_FIRST_BURST:
+		*value = session->first_burst;
+		break;
+	case ISCSI_PARAM_MAX_BURST:
+		*value = session->max_burst;
+		break;
+	case ISCSI_PARAM_PDU_INORDER_EN:
+		*value = session->pdu_inorder_en;
+		break;
+	case ISCSI_PARAM_DATASEQ_INORDER_EN:
+		*value = session->dataseq_inorder_en;
+		break;
+	case ISCSI_PARAM_ERL:
+		*value = session->erl;
+		break;
+	case ISCSI_PARAM_IFMARKER_EN:
+		*value = session->ifmarker_en;
+		break;
+	case ISCSI_PARAM_OFMARKER_EN:
+		*value = session->ifmarker_en;
+		break;
+	default:
+		return ISCSI_ERR_PARAM_NOT_FOUND;
+	}
+
+	return 0;
+}
+
 struct iscsi_transport iscsi_tcp_transport = {
 	.name                   = "tcp",
 	.caps                   = CAP_RECOVERY_L0 | CAP_MULTI_R2T,
@@ -2748,6 +2804,7 @@ struct iscsi_transport iscsi_tcp_transport = {
 	.bind_cnx               = iscsi_conn_bind,
 	.destroy_cnx            = iscsi_conn_destroy,
 	.set_param              = iscsi_set_param,
+	.get_param              = iscsi_get_param,
 	.start_cnx              = iscsi_conn_start,
 	.stop_cnx               = iscsi_conn_stop,
 	.send_pdu               = iscsi_send_pdu,

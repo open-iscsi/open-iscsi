@@ -64,14 +64,55 @@ spinlock_t snxlock;
 #define	ISCSI_CTRL_PDU_MAX	DEFAULT_MAX_RECV_DATA_SEGMENT_LENGTH
 #define	ISCSI_CTRL_POOL_MAX	32
 
+#define H_TYPE_CP	0
+#define H_TYPE_DP	1
+#define H_TYPE_HOST	2
+static struct iscsi_if_cnx*
+iscsi_if_find_cnx(uint64_t key, int type)
+{
+	unsigned long flags;
+	struct iscsi_if_cnx *cnx;
+
+	spin_lock_irqsave(&cnxlock, flags);
+	list_for_each_entry(cnx, &cnxlist, item) {
+		if ((type == H_TYPE_DP && cnx->dp_cnx == key) ||
+		    (type == H_TYPE_CP && cnx->cp_cnx == key) ||
+		    (type == H_TYPE_HOST && cnx->host == iscsi_ptr(key))) {
+			spin_unlock_irqrestore(&cnxlock, flags);
+			return cnx;
+		}
+	}
+	spin_unlock_irqrestore(&cnxlock, flags);
+	return NULL;
+}
+
+static struct iscsi_transport*
+iscsi_if_transport_lookup(int id)
+{
+	/* FIXME: implement transport's container */
+	if (id != 0)
+		return NULL;
+	return transport_table[id];
+}
+
 #ifdef CONFIG_SCSI_ISCSI_ATTRS
 static struct scsi_transport_template *iscsi_transportt;
-#define iscsi_transport_get_fn(field, param)				\
+#define iscsi_transport_get_fn(_field, _param)				\
 static void								\
-iscsi_if_get_##field (struct scsi_target *stgt)				\
+iscsi_if_get_##_field (struct scsi_target *stgt)			\
 {									\
 	struct Scsi_Host *host = dev_to_shost(stgt->dev.parent);	\
-	iscsi_##field(stgt) = 0;					\
+	struct iscsi_if_cnx *cnx = iscsi_if_find_cnx(			\
+				     iscsi_handle(host), H_TYPE_HOST);	\
+	if (cnx) {							\
+		uint32_t value = 0;					\
+		struct iscsi_transport *t = iscsi_if_transport_lookup(	\
+					*(uint32_t*)host->hostdata);	\
+		BUG_ON(!t);						\
+		t->get_param(cnx->dp_cnx, _param, &value);		\
+		iscsi_##_field(stgt) = value;				\
+	} else								\
+		iscsi_##_field(stgt) = 0;				\
 }
 
 iscsi_transport_get_fn(initial_r2t, ISCSI_PARAM_INITIAL_R2T_EN);
@@ -90,26 +131,6 @@ static struct iscsi_function_template iscsi_fnt = {
 	.show_first_burst_len	= 1,
 };
 #endif
-
-#define CNX_TYPE_CP	0
-#define CNX_TYPE_DP	1
-static struct iscsi_if_cnx*
-iscsi_if_find_cnx(iscsi_cnx_t handle, int type)
-{
-	unsigned long flags;
-	struct iscsi_if_cnx *cnx;
-
-	spin_lock_irqsave(&cnxlock, flags);
-	list_for_each_entry(cnx, &cnxlist, item) {
-		if ((type == CNX_TYPE_DP && cnx->dp_cnx == handle) ||
-		    (type == CNX_TYPE_CP && cnx->cp_cnx == handle)) {
-			spin_unlock_irqrestore(&cnxlock, flags);
-			return cnx;
-		}
-	}
-	spin_unlock_irqrestore(&cnxlock, flags);
-	return NULL;
-}
 
 static void
 iscsi_recvpool_complete(void)
@@ -190,7 +211,7 @@ int iscsi_control_recv_pdu(iscsi_cnx_t cp_cnx, struct iscsi_hdr *hdr,
 	int len = NLMSG_SPACE(sizeof(*ev) + sizeof(struct iscsi_hdr) +
 			      data_size);
 
-	cnx = iscsi_if_find_cnx(cp_cnx, CNX_TYPE_CP);
+	cnx = iscsi_if_find_cnx(cp_cnx, H_TYPE_CP);
 	BUG_ON(!cnx);
 
 	skb = iscsi_alloc_skb(len);
@@ -223,7 +244,7 @@ void iscsi_control_cnx_error(iscsi_cnx_t cp_cnx, enum iscsi_err error)
 	int len = NLMSG_SPACE(sizeof(*ev));
 	int resource_error = 0;
 
-	cnx = iscsi_if_find_cnx(cp_cnx, CNX_TYPE_CP);
+	cnx = iscsi_if_find_cnx(cp_cnx, H_TYPE_CP);
 	BUG_ON(!cnx);
 
 	skb = iscsi_alloc_skb(len);
@@ -255,15 +276,6 @@ void iscsi_control_cnx_error(iscsi_cnx_t cp_cnx, enum iscsi_err error)
 	       error, resource_error);
 }
 EXPORT_SYMBOL_GPL(iscsi_control_cnx_error);
-
-static struct iscsi_transport*
-iscsi_if_transport_lookup(int id)
-{
-	/* FIXME: implement transport's container */
-	if (id != 0)
-		return NULL;
-	return transport_table[id];
-}
 
 static int
 iscsi_if_send_reply(int pid, int seq, int type, int done, int multi,
@@ -328,6 +340,9 @@ iscsi_if_create_snx(struct iscsi_transport *transport, struct iscsi_uevent *ev)
 	host->max_channel = 0;
 	host->max_lun = transport->max_lun;
 	host->max_cmd_len = transport->max_cmd_len;
+#ifdef CONFIG_SCSI_ISCSI_ATTRS
+	host->transportt = iscsi_transportt;
+#endif
 
 	/* store transport_id in hostdata */
 	*(uint32_t*)host->hostdata = ev->transport_id;
@@ -458,7 +473,7 @@ iscsi_if_destroy_cnx(struct iscsi_transport *transport, struct iscsi_uevent *ev)
 	unsigned long flags;
 	struct iscsi_if_cnx *cnx;
 
-	cnx = iscsi_if_find_cnx(ev->u.d_cnx.cnx_handle, CNX_TYPE_DP);
+	cnx = iscsi_if_find_cnx(ev->u.d_cnx.cnx_handle, H_TYPE_DP);
 	if (!cnx)
 		return -EEXIST;
 
@@ -499,7 +514,7 @@ iscsi_if_recv_msg(struct sk_buff *skb, struct nlmsghdr *nlh)
 		break;
 	case ISCSI_UEVENT_BIND_CNX: {
 		struct iscsi_if_cnx *cnx;
-		cnx = iscsi_if_find_cnx(ev->u.b_cnx.cnx_handle, CNX_TYPE_DP);
+		cnx = iscsi_if_find_cnx(ev->u.b_cnx.cnx_handle, H_TYPE_DP);
 		if (!cnx)
 			return -EEXIST;
 		ev->r.retcode = transport->bind_cnx(
@@ -511,26 +526,26 @@ iscsi_if_recv_msg(struct sk_buff *skb, struct nlmsghdr *nlh)
 			kfree_skb(cnx->alarm_skb);
 		} break;
 	case ISCSI_UEVENT_SET_PARAM:
-		if (!iscsi_if_find_cnx(ev->u.set_param.cnx_handle, CNX_TYPE_DP))
+		if (!iscsi_if_find_cnx(ev->u.set_param.cnx_handle, H_TYPE_DP))
 			return -EEXIST;
 		ev->r.retcode = transport->set_param(
 			ev->u.set_param.cnx_handle,
 			ev->u.set_param.param, ev->u.set_param.value);
 		break;
 	case ISCSI_UEVENT_START_CNX:
-		if (!iscsi_if_find_cnx(ev->u.start_cnx.cnx_handle, CNX_TYPE_DP))
+		if (!iscsi_if_find_cnx(ev->u.start_cnx.cnx_handle, H_TYPE_DP))
 			return -EEXIST;
 		ev->r.retcode = transport->start_cnx(
 			ev->u.start_cnx.cnx_handle);
 		break;
 	case ISCSI_UEVENT_STOP_CNX:
-		if (!iscsi_if_find_cnx(ev->u.stop_cnx.cnx_handle, CNX_TYPE_DP))
+		if (!iscsi_if_find_cnx(ev->u.stop_cnx.cnx_handle, H_TYPE_DP))
 			return -EEXIST;
 		transport->stop_cnx(ev->u.stop_cnx.cnx_handle,
 			ev->u.stop_cnx.flag);
 		break;
 	case ISCSI_UEVENT_SEND_PDU:
-		if (!iscsi_if_find_cnx(ev->u.send_pdu.cnx_handle, CNX_TYPE_DP))
+		if (!iscsi_if_find_cnx(ev->u.send_pdu.cnx_handle, H_TYPE_DP))
 			return -EEXIST;
 		ev->r.retcode = transport->send_pdu(
 		       ev->u.send_pdu.cnx_handle,
