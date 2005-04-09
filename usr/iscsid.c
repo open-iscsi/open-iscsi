@@ -32,7 +32,8 @@
 
 #include "iscsid.h"
 #include "actor.h"
-#include "ipc.h"
+#include "mgmt_ipc.h"
+#include "iscsi_ipc.h"
 #include "log.h"
 
 #define POLL_CTRL		0
@@ -45,7 +46,7 @@ struct iscsi_daemon_config *dconfig = &daemon_config;
 iscsi_provider_t provider[ISCSI_TRANSPORT_MAX];
 
 static char program_name[] = "iscsid";
-int control_fd, ipc_fd;
+int control_fd, mgmt_ipc_fd;
 static struct pollfd poll_array[POLL_MAX];
 
 static struct option const long_options[] = {
@@ -86,7 +87,7 @@ void event_loop(void)
 
 	poll_array[POLL_CTRL].fd = control_fd;
 	poll_array[POLL_CTRL].events = POLLIN;
-	poll_array[POLL_IPC].fd = ipc_fd;
+	poll_array[POLL_IPC].fd = mgmt_ipc_fd;
 	poll_array[POLL_IPC].events = POLLIN;
 
 	while (1) {
@@ -108,10 +109,10 @@ void event_loop(void)
 		log_debug(6, "detected poll event %d", res);
 
 		if (poll_array[POLL_CTRL].revents)
-			ctldev_handle(control_fd);
+			ipc->ctldev_handle();
 
 		if (poll_array[POLL_IPC].revents)
-			ipc_handle(ipc_fd);
+			mgmt_ipc_handle(mgmt_ipc_fd);
 	}
 }
 
@@ -123,7 +124,7 @@ int trans_sync(void)
 	int i, found = 0;
 	struct iscsi_uevent ev;
 
-	if (ktrans_list(control_fd, &ev))
+	if (ipc->trans_list(&ev))
 		return -1;
 
 	for (i = 0; i < ISCSI_TRANSPORT_MAX; i++) {
@@ -221,7 +222,7 @@ int main(int argc, char *argv[])
 	/* initialize logger */
 	log_init(program_name);
 
-	if ((ipc_fd = ipc_listen()) < 0) {
+	if ((mgmt_ipc_fd = mgmt_ipc_listen()) < 0) {
 		exit(-1);
 	}
 
@@ -244,7 +245,7 @@ int main(int argc, char *argv[])
 			exit(0);
 		}
 
-		if ((control_fd = ctldev_open()) < 0) {
+		if ((control_fd = ipc->ctldev_open()) < 0) {
 			exit(-1);
 		}
 
@@ -263,7 +264,7 @@ int main(int argc, char *argv[])
 		dup2(0, 2);
 		setsid();
 	} else {
-		if ((control_fd = ctldev_open()) < 0) {
+		if ((control_fd = ipc->ctldev_open()) < 0) {
 			exit(-1);
 		}
 	}

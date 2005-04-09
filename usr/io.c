@@ -32,6 +32,7 @@
 
 #include "iscsi_proto.h"
 #include "initiator.h"
+#include "iscsi_ipc.h"
 #include "log.h"
 
 #define LOG_CONN_CLOSED(conn) \
@@ -63,7 +64,7 @@ set_non_blocking(int fd)
 }
 
 int
-iscsi_tcp_connect(iscsi_conn_t *conn, int non_blocking)
+iscsi_io_tcp_connect(iscsi_conn_t *conn, int non_blocking)
 {
 	int rc, onearg;
 
@@ -137,7 +138,7 @@ iscsi_tcp_connect(iscsi_conn_t *conn, int non_blocking)
 }
 
 int
-iscsi_tcp_poll(iscsi_conn_t *conn)
+iscsi_io_tcp_poll(iscsi_conn_t *conn)
 {
 	int rc;
 	struct pollfd pdesc;
@@ -165,7 +166,7 @@ iscsi_tcp_poll(iscsi_conn_t *conn)
 }
 
 int
-iscsi_connect(iscsi_conn_t *conn)
+iscsi_io_connect(iscsi_conn_t *conn)
 {
 	int rc, ret;
 	struct sigaction action;
@@ -186,7 +187,7 @@ iscsi_connect(iscsi_conn_t *conn)
 	/* perform blocking TCP connect operation when no async request
 	 * associated. SendTargets Discovery know to work in such a mode.
 	 */
-	rc = iscsi_tcp_connect(conn, 0);
+	rc = iscsi_io_tcp_connect(conn, 0);
 	if (timedout) {
 		log_debug(1, "socket %d connect timed out", conn->socket_fd);
 		ret = 0;
@@ -218,7 +219,7 @@ done:
 }
 
 void
-iscsi_disconnect(iscsi_conn_t *conn)
+iscsi_io_disconnect(iscsi_conn_t *conn)
 {
 	if (conn->socket_fd >= 0) {
 		log_debug(1, "disconnecting conn %p, fd %d", conn,
@@ -244,7 +245,7 @@ iscsi_log_text(struct iscsi_hdr *pdu, char *data)
 }
 
 int
-iscsi_send_pdu(iscsi_conn_t *conn, struct iscsi_hdr *hdr,
+iscsi_io_send_pdu(iscsi_conn_t *conn, struct iscsi_hdr *hdr,
 	       int hdr_digest, char *data, int data_digest, int timeout)
 {
 	int rc, ret = 0;
@@ -338,7 +339,7 @@ iscsi_send_pdu(iscsi_conn_t *conn, struct iscsi_hdr *hdr,
 		pad_bytes = 0;
 
 	if (conn->kernel_io) {
-		conn->send_pdu_begin(session->ctrl_fd, session, conn,
+		conn->send_pdu_begin(session->transport_handle, conn->handle,
 			end - header, ntoh24(hdr->dlength) + pad_bytes);
 		conn->send_pdu_timer_add(conn, timeout);
 	}
@@ -347,7 +348,10 @@ iscsi_send_pdu(iscsi_conn_t *conn, struct iscsi_hdr *hdr,
 		vec[0].iov_base = header;
 		vec[0].iov_len = end - header;
 
-		rc = ctldev_writev(session->ctrl_fd, 0, vec, 1);
+		if (!conn->kernel_io)
+			rc = writev(session->ctrl_fd, vec, 1);
+		else
+			rc = ipc->writev(0, vec, 1);
 		if (timedout) {
 			log_error("socket %d write timed out",
 			       conn->socket_fd);
@@ -372,7 +376,10 @@ iscsi_send_pdu(iscsi_conn_t *conn, struct iscsi_hdr *hdr,
 		vec[1].iov_base = (void *) &pad;
 		vec[1].iov_len = pad_bytes;
 
-		rc = ctldev_writev(session->ctrl_fd, 0, vec, 2);
+		if (!conn->kernel_io)
+			rc = writev(session->ctrl_fd, vec, 2);
+		else
+			rc = ipc->writev(0, vec, 2);
 		if (timedout) {
 			log_error("socket %d write timed out",
 			       conn->socket_fd);
@@ -394,7 +401,8 @@ iscsi_send_pdu(iscsi_conn_t *conn, struct iscsi_hdr *hdr,
 	}
 
 	if (conn->kernel_io) {
-		if (conn->send_pdu_end(session->ctrl_fd, session, conn)) {
+		if (conn->send_pdu_end(session->transport_handle, conn->handle,
+			&rc)) {
 			ret = 0;
 			goto done;
 		}
@@ -412,7 +420,7 @@ iscsi_send_pdu(iscsi_conn_t *conn, struct iscsi_hdr *hdr,
 }
 
 int
-iscsi_recv_pdu(iscsi_conn_t *conn, struct iscsi_hdr *hdr,
+iscsi_io_recv_pdu(iscsi_conn_t *conn, struct iscsi_hdr *hdr,
 	       int hdr_digest, char *data, int max_data_length, int data_digest,
 	       int timeout)
 {
@@ -447,7 +455,7 @@ iscsi_recv_pdu(iscsi_conn_t *conn, struct iscsi_hdr *hdr,
 		timedout = 0;
 		alarm(timeout);
 	} else {
-		if (conn->recv_pdu_begin(session->ctrl_fd, conn,
+		if (conn->recv_pdu_begin(session->ctrl_fd, conn->handle,
 				conn->recv_handle, &pdu_handle, &pdu_size)) {
 			failed = 1;
 			goto done;
@@ -456,8 +464,11 @@ iscsi_recv_pdu(iscsi_conn_t *conn, struct iscsi_hdr *hdr,
 
 	/* read a response header */
 	do {
-		rlen = ctldev_read(session->ctrl_fd, header,
-				sizeof (*hdr) - h_bytes);
+		if (!conn->kernel_io)
+			rlen = read(session->ctrl_fd, header,
+					sizeof (*hdr) - h_bytes);
+		else
+			rlen = ipc->read(header, sizeof (*hdr) - h_bytes);
 		if (timedout) {
 			log_error("socket %d header read timed out",
 			       conn->socket_fd);
@@ -510,8 +521,11 @@ iscsi_recv_pdu(iscsi_conn_t *conn, struct iscsi_hdr *hdr,
 	/* read the rest into our buffer */
 	d_bytes = 0;
 	while (d_bytes < dlength) {
-		rlen = ctldev_read(session->ctrl_fd, data + d_bytes,
-				dlength - d_bytes);
+		if (!conn->kernel_io)
+			rlen = read(session->ctrl_fd, data + d_bytes,
+					dlength - d_bytes);
+		else
+			rlen = ipc->read(data + d_bytes, dlength - d_bytes);
 		if (timedout) {
 			log_error("socket %d data read timed out",
 			       conn->socket_fd);
@@ -603,7 +617,8 @@ done:
 		sigaction(SIGALRM, &old, NULL);
 	} else {
 		/* finalyze receive transaction */
-		if (conn->recv_pdu_end(session->ctrl_fd, conn, pdu_handle)) {
+		if (conn->recv_pdu_end(session->ctrl_fd, (ulong_t)conn,
+				pdu_handle)) {
 			failed = 1;
 		}
 		conn->send_pdu_timer_remove(conn);

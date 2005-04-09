@@ -1,8 +1,8 @@
 /*
- * iSCSI Daemon/Admin IPC
+ * iSCSI Daemon/Admin Management IPC
  *
  * Copyright (C) 2004 Dmitry Yusupov, Alex Aizman
- * maintained by open-iscsi@@googlegroups.com
+ * maintained by open-iscsi@googlegroups.com
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published
@@ -16,37 +16,37 @@
  *
  * See the file COPYING included with this distribution for more details.
  */
-#ifndef IPC_H
-#define IPC_H
+#ifndef MGMT_IPC_H
+#define MGMT_IPC_H
 
 #include "types.h"
 
 #define ISCSIADM_NAMESPACE	"ISCSIADM_ABSTRACT_NAMESPACE"
 
-typedef enum ipc_err {
-	IPC_OK			= 0,
-	IPC_ERR			= 1,
-	IPC_ERR_NOT_FOUND	= 2,
-	IPC_ERR_NOMEM		= 3,
-	IPC_ERR_TCP_FAILURE	= 4,
-	IPC_ERR_LOGIN_FAILURE	= 5,
-	IPC_ERR_IDBM_FAILURE	= 6,
-	IPC_ERR_INVAL		= 7,
-	IPC_ERR_TCP_TIMEOUT	= 8,
-	IPC_ERR_INTERNAL	= 9,
-	IPC_ERR_LOGOUT_FAILURE	= 10,
-	IPC_ERR_PDU_TIMEOUT	= 11,
-	IPC_ERR_TRANS_NOT_FOUND = 12,
-} ipc_err_e;
+typedef enum mgmt_ipc_err {
+	MGMT_IPC_OK			= 0,
+	MGMT_IPC_ERR			= 1,
+	MGMT_IPC_ERR_NOT_FOUND		= 2,
+	MGMT_IPC_ERR_NOMEM		= 3,
+	MGMT_IPC_ERR_TCP_FAILURE	= 4,
+	MGMT_IPC_ERR_LOGIN_FAILURE	= 5,
+	MGMT_IPC_ERR_IDBM_FAILURE	= 6,
+	MGMT_IPC_ERR_INVAL		= 7,
+	MGMT_IPC_ERR_TCP_TIMEOUT	= 8,
+	MGMT_IPC_ERR_INTERNAL		= 9,
+	MGMT_IPC_ERR_LOGOUT_FAILURE	= 10,
+	MGMT_IPC_ERR_PDU_TIMEOUT	= 11,
+	MGMT_IPC_ERR_TRANS_NOT_FOUND	= 12,
+} mgmt_ipc_err_e;
 
 typedef enum iscsiadm_cmd {
-	IPC_UNKNOWN		= 0,
-	IPC_SESSION_LOGIN	= 1,
-	IPC_SESSION_LOGOUT	= 2,
-	IPC_SESSION_ACTIVELIST  = 3,
-	IPC_SESSION_ACTIVESTAT  = 4,
-	IPC_CONN_ADD            = 5,
-	IPC_CONN_REMOVE         = 6,
+	MGMT_IPC_UNKNOWN		= 0,
+	MGMT_IPC_SESSION_LOGIN		= 1,
+	MGMT_IPC_SESSION_LOGOUT		= 2,
+	MGMT_IPC_SESSION_ACTIVELIST	= 3,
+	MGMT_IPC_SESSION_ACTIVESTAT	= 4,
+	MGMT_IPC_CONN_ADD		= 5,
+	MGMT_IPC_CONN_REMOVE		= 6,
 } iscsiadm_cmd_e;
 
 /* IPC Request */
@@ -68,20 +68,20 @@ typedef struct iscsiadm_req {
 /* IPC Response */
 typedef struct iscsiadm_rsp {
 	iscsiadm_cmd_e command;
-	ipc_err_e err;
+	mgmt_ipc_err_e err;
 
 	union {
 		struct msg_activelist {
-#define IPC_ACTIVELIST_MAX		64
-			int sids[IPC_ACTIVELIST_MAX];
-			int rids[IPC_ACTIVELIST_MAX];
+#define MGMT_IPC_ACTIVELIST_MAX		64
+			int sids[MGMT_IPC_ACTIVELIST_MAX];
+			int rids[MGMT_IPC_ACTIVELIST_MAX];
 			int cnt;
 		} activelist;
 	} u;
 } iscsiadm_rsp_t;
 
-int ipc_handle(int accept_fd);
-int ipc_listen(void);
-void ipc_close(int fd);
+int mgmt_ipc_handle(int accept_fd);
+int mgmt_ipc_listen(void);
+void mgmt_ipc_close(int fd);
 
-#endif /* IPC_H */
+#endif /* MGMT_IPC_H */

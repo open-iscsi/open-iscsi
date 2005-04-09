@@ -1352,7 +1352,7 @@ iscsi_login_req(iscsi_session_t *session, iscsi_login_context_t *c)
 	}
 
 	/* send a PDU to the target */
-	if (!iscsi_send_pdu(conn, &c->pdu, ISCSI_DIGEST_NONE,
+	if (!iscsi_io_send_pdu(conn, &c->pdu, ISCSI_DIGEST_NONE,
 			    c->data, ISCSI_DIGEST_NONE, c->timeout)) {
 		/*
 		 * FIXME: caller might want us to distinguish I/O
@@ -1383,7 +1383,7 @@ iscsi_login_rsp(iscsi_session_t *session, iscsi_login_context_t *c)
 	iscsi_conn_t *conn = &session->cnx[c->cid];
 
 	/* read the target's response into the same buffer */
-	if (!iscsi_recv_pdu(conn, &c->pdu, ISCSI_DIGEST_NONE, c->data,
+	if (!iscsi_io_recv_pdu(conn, &c->pdu, ISCSI_DIGEST_NONE, c->data,
 			    c->max_data_length, ISCSI_DIGEST_NONE,
 			    c->timeout)) {
 		/*

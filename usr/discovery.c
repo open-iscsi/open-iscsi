@@ -68,7 +68,7 @@ send_nop_reply(iscsi_session_t *session, struct iscsi_nopin *nop,
 	log_debug(4, "sending nop reply for ttt %u, cmdsn %u, dlength %d",
 		 ntohl(out.ttt), ntohl(out.cmdsn), ntoh24(out.dlength));
 
-	return iscsi_send_pdu(&session->cnx[0], (struct iscsi_hdr *)&out,
+	return iscsi_io_send_pdu(&session->cnx[0], (struct iscsi_hdr *)&out,
 			ISCSI_DIGEST_NONE, data, ISCSI_DIGEST_NONE, timeout);
 }
 
@@ -117,7 +117,7 @@ request_targets(iscsi_session_t *session)
 	if (++session->itt == ISCSI_RESERVED_TAG)
 		session->itt = 1;
 
-	if (!iscsi_send_pdu(&session->cnx[0], hdr, ISCSI_DIGEST_NONE, data,
+	if (!iscsi_io_send_pdu(&session->cnx[0], hdr, ISCSI_DIGEST_NONE, data,
 		    ISCSI_DIGEST_NONE, session->cnx[0].active_timeout)) {
 		log_error("failed to send SendTargets PDU");
 		return 0;
@@ -148,7 +148,7 @@ iterate_targets(iscsi_session_t *session, uint32_t ttt)
 	if (++session->itt == ISCSI_RESERVED_TAG)
 		session->itt = 1;
 
-	if (!iscsi_send_pdu(&session->cnx[0], pdu, ISCSI_DIGEST_NONE, data,
+	if (!iscsi_io_send_pdu(&session->cnx[0], pdu, ISCSI_DIGEST_NONE, data,
 		    ISCSI_DIGEST_NONE, session->cnx[0].active_timeout)) {
 		log_error("failed to send empty text PDU");
 		return 0;
@@ -1024,7 +1024,7 @@ iscsi_logout_and_disconnect(iscsi_session_t * session)
 	/*
 	 * Send the logout request
 	 */
-	rc = iscsi_send_pdu(&session->cnx[0], (struct iscsi_hdr *)&logout_req,
+	rc = iscsi_io_send_pdu(&session->cnx[0],(struct iscsi_hdr *)&logout_req,
 			    ISCSI_DIGEST_NONE, NULL, ISCSI_DIGEST_NONE, 3);
 	if (!rc) {
 		log_error(
@@ -1036,8 +1036,9 @@ iscsi_logout_and_disconnect(iscsi_session_t * session)
 	 * Read the logout response
 	 */
 	memset(&logout_resp, 0, sizeof(logout_resp));
-	rc = iscsi_recv_pdu(&session->cnx[0], (struct iscsi_hdr *)&logout_resp,
-			    ISCSI_DIGEST_NONE, NULL, 0, ISCSI_DIGEST_NONE, 1);
+	rc = iscsi_io_recv_pdu(&session->cnx[0],
+		(struct iscsi_hdr *)&logout_resp, ISCSI_DIGEST_NONE, NULL,
+		0, ISCSI_DIGEST_NONE, 1);
 	if (!rc) {
 		log_error("iscsid: logout - failed to receive logout resp");
 		goto done;
@@ -1051,7 +1052,7 @@ done:
 	/*
 	 * Close the socket.
 	 */
-	iscsi_disconnect(&session->cnx[0]);
+	iscsi_io_disconnect(&session->cnx[0]);
 }
 
 int
@@ -1142,7 +1143,7 @@ set_address:
 
 reconnect:
 
-	iscsi_disconnect(&session->cnx[0]);
+	iscsi_io_disconnect(&session->cnx[0]);
 
 	session->cmdsn = 1;
 	session->itt = 1;
@@ -1175,7 +1176,7 @@ reconnect:
 		sleep(login_delay);
 	}
 
-	if (!iscsi_connect(&session->cnx[0])) {
+	if (!iscsi_io_connect(&session->cnx[0])) {
 		/* FIXME: IPv6 */
 		log_error("connection to discovery address %u.%u.%u.%u "
 		       "failed", session->cnx[0].ip_address[0],
@@ -1219,7 +1220,7 @@ reconnect:
 		       session->cnx[0].ip_address[1],
 		       session->cnx[0].ip_address[2],
 		       session->cnx[0].ip_address[3]);
-		iscsi_disconnect(&session->cnx[0]);
+		iscsi_io_disconnect(&session->cnx[0]);
 		login_failures++;
 		goto set_address;
 
@@ -1236,7 +1237,7 @@ reconnect:
 		       session->cnx[0].ip_address[1],
 		       session->cnx[0].ip_address[2],
 		       session->cnx[0].ip_address[3]);
-		iscsi_disconnect(&session->cnx[0]);
+		iscsi_io_disconnect(&session->cnx[0]);
 		return 1;
 	}
 
@@ -1303,7 +1304,7 @@ reconnect:
 		       session->cnx[0].ip_address[2],
 		       session->cnx[0].ip_address[3],
 		       status_class, status_detail);
-		iscsi_disconnect(&session->cnx[0]);
+		iscsi_io_disconnect(&session->cnx[0]);
 		return 1;
 	case ISCSI_STATUS_CLS_TARGET_ERR:
 		/* FIXME: IPv6 */
@@ -1315,7 +1316,7 @@ reconnect:
 		       session->cnx[0].ip_address[2],
 		       session->cnx[0].ip_address[3],
 		       status_class, status_detail);
-		iscsi_disconnect(&session->cnx[0]);
+		iscsi_io_disconnect(&session->cnx[0]);
 		login_failures++;
 		goto reconnect;
 	default:
@@ -1328,7 +1329,7 @@ reconnect:
 		       session->cnx[0].ip_address[2],
 		       session->cnx[0].ip_address[3],
 		       status_class, status_detail);
-		iscsi_disconnect(&session->cnx[0]);
+		iscsi_io_disconnect(&session->cnx[0]);
 		login_failures++;
 		goto reconnect;
 	}
@@ -1433,7 +1434,7 @@ reconnect:
 			    data + unused_length(&sendtargets);
 			timeout = msecs_until(&connection_timer);
 
-			if (iscsi_recv_pdu(&session->cnx[0],
+			if (iscsi_io_recv_pdu(&session->cnx[0],
 			     pdu, ISCSI_DIGEST_NONE, data,
 			     end_of_data - data, ISCSI_DIGEST_NONE,
 			     timeout)) {
@@ -1490,7 +1491,7 @@ reconnect:
 					       "terminating",
 					       config->address,
 					       config->port);
-					iscsi_disconnect(&session->cnx[0]);
+					iscsi_io_disconnect(&session->cnx[0]);
 					return 1;
 				}
 			}
@@ -1507,7 +1508,7 @@ reconnect:
 				       "discovery session to %s:%d "
 				       "terminating after hangup",
 				       config->address, config->port);
-				iscsi_disconnect(&session->cnx[0]);
+				iscsi_io_disconnect(&session->cnx[0]);
 				return 1;
 			}
 		}

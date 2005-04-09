@@ -6,7 +6,7 @@ COMMON_SRCS = io.o auth.o login.o log.o md5.o sha1.o idbm.o
 
 all: $(PROGRAMS)
 
-iscsid: $(COMMON_SRCS) iscsid.o ipc.o netlink.o initiator.o actor.o queue.o
+iscsid: $(COMMON_SRCS) iscsid.o mgmt_ipc.o netlink.o initiator.o actor.o queue.o
 	$(CC) $^ -ldb -o $@
 
 iscsiadm: $(COMMON_SRCS) strings.o discovery.o iscsiadm.o

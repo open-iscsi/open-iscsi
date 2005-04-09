@@ -2,7 +2,7 @@
  * iSCSI Initiator
  *
  * Copyright (C) 2004 Dmitry Yusupov, Alex Aizman
- * maintained by open-iscsi@@googlegroups.com
+ * maintained by open-iscsi@googlegroups.com
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published
@@ -27,7 +27,7 @@
 #include "iscsi_if.h"
 #include "iscsi_ifev.h"
 #include "auth.h"
-#include "ipc.h"
+#include "mgmt_ipc.h"
 #include "config.h"
 #include "actor.h"
 #include "queue.h"
@@ -113,14 +113,15 @@ typedef struct iscsi_login_context {
 struct iscsi_session;
 struct iscsi_conn;
 
-typedef void (*send_pdu_begin_f)(int ctrl_fd, struct iscsi_session *session,
-		struct iscsi_conn *conn, int hdr_size, int data_size);
-typedef int (*send_pdu_end_f)(int ctrl_fd, struct iscsi_session *session,
-		struct iscsi_conn *conn);
-typedef int (*recv_pdu_begin_f)(int ctrl_fd, struct iscsi_conn *conn,
-		ulong_t recv_handle, ulong_t *pdu_handle, int *pdu_size);
-typedef int (*recv_pdu_end_f)(int ctrl_fd, struct iscsi_conn *conn,
-		ulong_t pdu_handle);
+typedef void (*send_pdu_begin_f) (uint64_t transport_handle, ulong_t dp_cnx,
+                                int hdr_size, int data_size);
+typedef int (*send_pdu_end_f) (uint64_t transport_handle, ulong_t dp_cnx,
+                             int *retcode);
+typedef int (*recv_pdu_begin_f) (uint64_t transport_handle, ulong_t dp_cnx,
+                                ulong_t recv_handle, ulong_t *pdu_handle,
+                                int *pdu_size);
+typedef int (*recv_pdu_end_f) (uint64_t transport_handle, ulong_t dp_cnx,
+                             ulong_t pdu_handle);
 typedef void (*send_pdu_timer_add_f)(struct iscsi_conn *conn, int timeout);
 typedef void (*send_pdu_timer_remove_f)(struct iscsi_conn *conn);
 
@@ -145,6 +146,9 @@ typedef struct iscsi_conn {
 	recv_pdu_end_f recv_pdu_end;
 	send_pdu_timer_add_f send_pdu_timer_add;
 	send_pdu_timer_remove_f send_pdu_timer_remove;
+
+#define RECVPOOL_MAX	32
+	void* recvpool[RECVPOOL_MAX];
 
 	/* login state machine */
 	int current_stage;
@@ -185,12 +189,12 @@ typedef struct queue_task {
 		struct ipcreq_login {
 			iscsiadm_req_t req;
 			iscsiadm_rsp_t rsp;
-			int ipc_fd;
+			int mgmt_ipc_fd;
 		} login;
 		struct ipcreq_logout {
 			iscsiadm_req_t req;
 			iscsiadm_rsp_t rsp;
-			int ipc_fd;
+			int mgmt_ipc_fd;
 		} logout;
 		/* iSCSI requests originated via CTL */
 		struct ctlreq_recv_pdu {
@@ -316,13 +320,13 @@ extern int iscsi_login_rsp(iscsi_session_t *session, iscsi_login_context_t *c);
 #define IRRELEVANT_DATASEQUENCEINORDER	0x80
 
 /* io.c */
-extern int iscsi_tcp_poll(iscsi_conn_t *conn);
-extern int iscsi_tcp_connect(iscsi_conn_t *conn, int non_blocking);
-extern int iscsi_connect(iscsi_conn_t *conn);
-extern void iscsi_disconnect(iscsi_conn_t *conn);
-extern int iscsi_send_pdu(iscsi_conn_t *conn, struct iscsi_hdr *hdr,
+extern int iscsi_io_tcp_poll(iscsi_conn_t *conn);
+extern int iscsi_io_tcp_connect(iscsi_conn_t *conn, int non_blocking);
+extern int iscsi_io_connect(iscsi_conn_t *conn);
+extern void iscsi_io_disconnect(iscsi_conn_t *conn);
+extern int iscsi_io_send_pdu(iscsi_conn_t *conn, struct iscsi_hdr *hdr,
 	       int hdr_digest, char *data, int data_digest, int timeout);
-extern int iscsi_recv_pdu(iscsi_conn_t *conn, struct iscsi_hdr *hdr,
+extern int iscsi_io_recv_pdu(iscsi_conn_t *conn, struct iscsi_hdr *hdr,
 	int hdr_digest, char *data, int max_data_length, int data_digest,
 	int timeout);
 
@@ -330,27 +334,7 @@ extern int iscsi_recv_pdu(iscsi_conn_t *conn, struct iscsi_hdr *hdr,
 extern int session_login_task(node_rec_t *rec, queue_task_t *qtask);
 extern int session_logout_task(iscsi_session_t *session, queue_task_t *qtask);
 extern iscsi_session_t* session_find_by_rec(node_rec_t *rec);
-
-/* transport API Ioctl/IPC/NETLINK/etc */
-extern int ksession_create(int ctrl_fd, iscsi_session_t *session);
-extern int ksession_destroy(int ctrl_fd, iscsi_session_t *session);
-extern int ksession_cnx_create(int ctrl_fd, iscsi_session_t *session,
-		iscsi_conn_t *conn);
-extern int ksession_cnx_destroy(int ctrl_fd, iscsi_conn_t *conn);
-extern int ksession_cnx_bind(int ctrl_fd, iscsi_session_t *session,
-		iscsi_conn_t *conn);
-extern void ksession_send_pdu_begin(int ctrl_fd, iscsi_session_t *session,
-		iscsi_conn_t *conn, int hdr_size, int data_size);
-extern int ksession_send_pdu_end(int ctrl_fd, iscsi_session_t *session,
-		iscsi_conn_t *conn);
-extern int ksession_set_param(int ctrl_fd, iscsi_conn_t *conn,
-		enum iscsi_param param, uint32_t value);
-extern int ksession_stop_cnx(int ctrl_fd, iscsi_conn_t *conn, int flag);
-extern int ksession_start_cnx(int ctrl_fd, iscsi_conn_t *conn);
-extern int ksession_recv_pdu_begin(int ctrl_fd, iscsi_conn_t *conn,
-		ulong_t recv_handle, ulong_t *pdu_handle, int *pdu_size);
-extern int ksession_recv_pdu_end(int ctrl_fd, iscsi_conn_t *conn,
-		ulong_t pdu_handle);
-extern int ktrans_list(int ctrl_fd, struct iscsi_uevent *ev);
+extern void* recvpool_get(iscsi_conn_t *conn, int ev_size);
+extern void recvpool_put(iscsi_conn_t *conn, void *handle);
 
 #endif /* INITIATOR_H */

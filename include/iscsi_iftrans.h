@@ -38,7 +38,7 @@
  * @stop_cnx: suspend connection
  * @send_pdu: send iSCSI PDU, Login, Logout, NOP-Out, Reject, Text.
  *
- * API provided by generic iSCSI Data Path module
+ * API provided by iSCSI Initiator Data Path module
  */
 struct iscsi_transport {
 	struct module *owner;
@@ -68,12 +68,16 @@ struct iscsi_transport {
 };
 
 /*
- * up calls
+ * transport registration upcalls
  */
-int iscsi_register_transport(struct iscsi_transport *t);
-int iscsi_unregister_transport(struct iscsi_transport *t);
-int iscsi_control_recv_pdu(iscsi_cnx_t cp_cnx, struct iscsi_hdr *hdr,
+extern int iscsi_register_transport(struct iscsi_transport *t);
+extern int iscsi_unregister_transport(struct iscsi_transport *t);
+
+/*
+ * control plane "up" calls
+ */
+extern void iscsi_cnx_error(iscsi_cnx_t cp_cnx, enum iscsi_err error);
+extern int iscsi_recv_pdu(iscsi_cnx_t cp_cnx, struct iscsi_hdr *hdr,
 				char *data, uint32_t data_size);
-void iscsi_control_cnx_error(iscsi_cnx_t cp_cnx, enum iscsi_err error);
 
 #endif /* ISCSI_IFTRANS_H */

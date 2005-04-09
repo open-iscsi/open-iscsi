@@ -2,7 +2,7 @@
  * iSCSI Administrator Utility Socket Interface
  *
  * Copyright (C) 2004 Dmitry Yusupov, Alex Aizman
- * maintained by open-iscsi@@googlegroups.com
+ * maintained by open-iscsi@googlegroups.com
  *
  * Originally based on:
  * (C) 2004 FUJITA Tomonori <tomof@acm.org>
@@ -32,11 +32,11 @@
 
 #include "iscsid.h"
 #include "idbm.h"
-#include "ipc.h"
+#include "mgmt_ipc.h"
 #include "log.h"
 
 int
-ipc_listen(void)
+mgmt_ipc_listen(void)
 {
 	int fd, err;
 	struct sockaddr_un addr;
@@ -70,43 +70,43 @@ ipc_listen(void)
 }
 
 void
-ipc_close(int fd)
+mgmt_ipc_close(int fd)
 {
 }
 
-static ipc_err_e
-ipc_node_read(int rid, node_rec_t *rec)
+static mgmt_ipc_err_e
+mgmt_ipc_node_read(int rid, node_rec_t *rec)
 {
 	idbm_t *db;
 
 	db = idbm_init(CONFIG_FILE);
 	if (!db) {
-		return IPC_ERR_IDBM_FAILURE;
+		return MGMT_IPC_ERR_IDBM_FAILURE;
 	}
 
 	if (idbm_node_read(db, rid, rec)) {
 		log_error("node record [%06x] not found!", rid);
-		return IPC_ERR_NOT_FOUND;
+		return MGMT_IPC_ERR_NOT_FOUND;
 	}
 
 	idbm_terminate(db);
 	return 0;
 }
 
-static ipc_err_e
-ipc_session_login(queue_task_t *qtask, int rid)
+static mgmt_ipc_err_e
+mgmt_ipc_session_login(queue_task_t *qtask, int rid)
 {
-	ipc_err_e rc;
+	mgmt_ipc_err_e rc;
 	node_rec_t rec;
 
-	if ((rc = ipc_node_read(rid, &rec)))
+	if ((rc = mgmt_ipc_node_read(rid, &rec)))
 		return rc;
 
 	return session_login_task(&rec, qtask);
 }
 
-static ipc_err_e
-ipc_session_activelist(queue_task_t *qtask, iscsiadm_rsp_t *rsp)
+static mgmt_ipc_err_e
+mgmt_ipc_session_activelist(queue_task_t *qtask, iscsiadm_rsp_t *rsp)
 {
 	iscsi_session_t *session;
 	struct qelem *item;
@@ -121,42 +121,42 @@ ipc_session_activelist(queue_task_t *qtask, iscsiadm_rsp_t *rsp)
 		item = item->q_forw;
 	}
 
-	return IPC_OK;
+	return MGMT_IPC_OK;
 }
 
-static ipc_err_e
-ipc_session_logout(queue_task_t *qtask, int rid)
+static mgmt_ipc_err_e
+mgmt_ipc_session_logout(queue_task_t *qtask, int rid)
 {
-	ipc_err_e rc;
+	mgmt_ipc_err_e rc;
 	node_rec_t rec;
 	iscsi_session_t *session;
 
-	if ((rc = ipc_node_read(rid, &rec)))
+	if ((rc = mgmt_ipc_node_read(rid, &rec)))
 		return rc;
 
 	if (!(session = session_find_by_rec(&rec))) {
 		log_error("session with corresponding record [%06x] "
 			  "not found!", rid);
-		return IPC_ERR_NOT_FOUND;
+		return MGMT_IPC_ERR_NOT_FOUND;
 	}
 
 	return session_logout_task(session, qtask);
 }
 
-static ipc_err_e
-ipc_conn_add(queue_task_t *qtask, int rid, int cid)
+static mgmt_ipc_err_e
+mgmt_ipc_conn_add(queue_task_t *qtask, int rid, int cid)
 {
-	return IPC_ERR;
+	return MGMT_IPC_ERR;
 }
 
-static ipc_err_e
-ipc_conn_remove(queue_task_t *qtask, int rid, int cid)
+static mgmt_ipc_err_e
+mgmt_ipc_conn_remove(queue_task_t *qtask, int rid, int cid)
 {
-	return IPC_ERR;
+	return MGMT_IPC_ERR;
 }
 
 int
-ipc_handle(int accept_fd)
+mgmt_ipc_handle(int accept_fd)
 {
 	struct sockaddr addr;
 	struct ucred cred;
@@ -178,12 +178,12 @@ ipc_handle(int accept_fd)
 	len = sizeof(cred);
 	if ((rc = getsockopt(fd, SOL_SOCKET, SO_PEERCRED,
 					(void *)&cred, &len)) < 0) {
-		rsp.err = IPC_ERR_TCP_FAILURE;
+		rsp.err = MGMT_IPC_ERR_TCP_FAILURE;
 		goto err;
 	}
 
 	if (cred.uid || cred.gid) {
-		rsp.err = IPC_ERR_TCP_FAILURE;
+		rsp.err = MGMT_IPC_ERR_TCP_FAILURE;
 		rc = -EPERM;
 		goto err;
 	}
@@ -199,29 +199,31 @@ ipc_handle(int accept_fd)
 
 	qtask = calloc(1, sizeof(queue_task_t));
 	if (!qtask) {
-		rsp.err = IPC_ERR_NOMEM;
+		rsp.err = MGMT_IPC_ERR_NOMEM;
 		rc = -ENOMEM;
 		goto err;
 	}
 	memcpy(&qtask->u.login.req, &req, sizeof(iscsiadm_req_t));
-	qtask->u.login.ipc_fd = fd;
+	qtask->u.login.mgmt_ipc_fd = fd;
 
 	switch(req.command) {
-	case IPC_SESSION_LOGIN:
-		rsp.err = ipc_session_login(qtask, req.u.session.rid);
+	case MGMT_IPC_SESSION_LOGIN:
+		rsp.err = mgmt_ipc_session_login(qtask, req.u.session.rid);
 		break;
-	case IPC_SESSION_LOGOUT:
-		rsp.err = ipc_session_logout(qtask, req.u.session.rid);
+	case MGMT_IPC_SESSION_LOGOUT:
+		rsp.err = mgmt_ipc_session_logout(qtask, req.u.session.rid);
 		break;
-	case IPC_SESSION_ACTIVELIST:
-		rsp.err = ipc_session_activelist(qtask, &rsp);
+	case MGMT_IPC_SESSION_ACTIVELIST:
+		rsp.err = mgmt_ipc_session_activelist(qtask, &rsp);
 		immrsp = 1;
 		break;
-	case IPC_CONN_ADD:
-		rsp.err = ipc_conn_add(qtask, req.u.conn.rid, req.u.conn.cid);
+	case MGMT_IPC_CONN_ADD:
+		rsp.err = mgmt_ipc_conn_add(qtask, req.u.conn.rid,
+					    req.u.conn.cid);
 		break;
-	case IPC_CONN_REMOVE:
-		rsp.err = ipc_conn_remove(qtask,req.u.conn.rid,req.u.conn.cid);
+	case MGMT_IPC_CONN_REMOVE:
+		rsp.err = mgmt_ipc_conn_remove(qtask, req.u.conn.rid,
+					       req.u.conn.cid);
 		break;
 	default:
 		log_error("unknown request: %s(%d) %u",
@@ -229,7 +231,7 @@ ipc_handle(int accept_fd)
 		break;
 	}
 
-	if (rsp.err == IPC_OK && !immrsp)
+	if (rsp.err == MGMT_IPC_OK && !immrsp)
 		return 0;
 
 err:

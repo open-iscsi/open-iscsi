@@ -157,8 +157,8 @@ iscsi_hdr_extract(struct iscsi_conn *conn)
 			printk("iscsi_tcp: PDU gather failed! "
 			       "copylen %d conn->in.copy %d\n",
 			       copylen, conn->in.copy);
-			iscsi_control_cnx_error(conn->handle,
-						ISCSI_ERR_PDU_GATHER_FAILED);
+			iscsi_cnx_error(conn->handle,
+					ISCSI_ERR_PDU_GATHER_FAILED);
 			return 0;
 		}
 		debug_tcp("PDU gather #2 %d bytes!\n", copylen);
@@ -572,8 +572,7 @@ iscsi_hdr_recv(struct iscsi_conn *conn)
 			if (!conn->in.datalen) {
 				struct iscsi_mgmt_task *mtask;
 
-				rc = iscsi_control_recv_pdu(
-					conn->handle, hdr, NULL, 0);
+				rc = iscsi_recv_pdu(conn->handle, hdr, NULL, 0);
 				mtask = (struct iscsi_mgmt_task *)
 					session->imm_cmds[conn->in.itt -
 						ISCSI_IMM_ITT_OFFSET];
@@ -604,8 +603,7 @@ iscsi_hdr_recv(struct iscsi_conn *conn)
 		case ISCSI_OP_LOGIN_RSP:
 		case ISCSI_OP_TEXT_RSP:
 			if (!conn->in.datalen) {
-				rc = iscsi_control_recv_pdu(
-					conn->handle, hdr, NULL, 0);
+				rc = iscsi_recv_pdu(conn->handle, hdr, NULL, 0);
 				if (conn->login_mtask != mtask) {
 					spin_lock(&session->lock);
 					__kfifo_put(session->immpool.queue,
@@ -637,8 +635,7 @@ iscsi_hdr_recv(struct iscsi_conn *conn)
 	} else if (conn->in.itt == ISCSI_RESERVED_TAG) {
 		if (conn->in.opcode == ISCSI_OP_NOOP_IN &&
 		    !conn->in.datalen) {
-			rc = iscsi_control_recv_pdu(
-					conn->handle, hdr, NULL, 0);
+			rc = iscsi_recv_pdu(conn->handle, hdr, NULL, 0);
 		} else {
 			rc = ISCSI_ERR_BAD_OPCODE;
 		}
@@ -841,8 +838,8 @@ iscsi_data_recv(struct iscsi_conn *conn)
 			goto exit;
 		}
 
-		rc = iscsi_control_recv_pdu(conn->handle,
-				conn->in.hdr, conn->data, conn->in.datalen);
+		rc = iscsi_recv_pdu(conn->handle, conn->in.hdr, conn->data,
+				    conn->in.datalen);
 
 		if (mtask && conn->login_mtask != mtask) {
 			spin_lock(&session->lock);
@@ -892,7 +889,7 @@ more:
 		       if (rc == -EAGAIN)
 				goto nomore;
 		       else {
-				iscsi_control_cnx_error(conn->handle, rc);
+				iscsi_cnx_error(conn->handle, rc);
 				return 0;
 		       }
 		}
@@ -904,7 +901,7 @@ more:
 		if (!rc && conn->in.datalen) {
 			conn->in_progress = IN_PROGRESS_DATA_RECV;
 		} else if (rc) {
-			iscsi_control_cnx_error(conn->handle, rc);
+			iscsi_cnx_error(conn->handle, rc);
 			return 0;
 		}
 	}
@@ -922,7 +919,7 @@ more:
 							conn->in.ctask->sent;
 				goto again;
 			}
-			iscsi_control_cnx_error(conn->handle, rc);
+			iscsi_cnx_error(conn->handle, rc);
 			return 0;
 		}
 		conn->in.copy -= conn->in.padding;
@@ -991,7 +988,7 @@ iscsi_tcp_state_change(struct sock *sk)
 			session->state = ISCSI_STATE_FAILED;
 		}
 		spin_unlock_bh(&session->conn_lock);
-		iscsi_control_cnx_error(conn->handle, ISCSI_ERR_CNX_FAILED);
+		iscsi_cnx_error(conn->handle, ISCSI_ERR_CNX_FAILED);
 	}
 
 	old_state_change = conn->old_state_change;
@@ -1076,7 +1073,7 @@ iscsi_sendhdr(struct iscsi_conn *conn, struct iscsi_buf *buf, int datalen)
 		conn->suspend = 1;
 	} else if (res == -EPIPE) {
 		conn->suspend = 1;
-		iscsi_control_cnx_error(conn->handle, ISCSI_ERR_CNX_FAILED);
+		iscsi_cnx_error(conn->handle, ISCSI_ERR_CNX_FAILED);
 	}
 
 	return res;
@@ -1123,7 +1120,7 @@ iscsi_sendpage(struct iscsi_conn *conn, struct iscsi_buf *buf,
 		conn->suspend = 1;
 	} else if (res == -EPIPE) {
 		conn->suspend = 1;
-		iscsi_control_cnx_error(conn->handle, ISCSI_ERR_CNX_FAILED);
+		iscsi_cnx_error(conn->handle, ISCSI_ERR_CNX_FAILED);
 	}
 
 	return res;
@@ -2181,7 +2178,7 @@ iscsi_conn_stop(iscsi_cnx_t cnxh, int flag)
 }
 
 static int
-iscsi_send_pdu(iscsi_cnx_t cnxh, struct iscsi_hdr *hdr, char *data,
+iscsi_conn_send_pdu(iscsi_cnx_t cnxh, struct iscsi_hdr *hdr, char *data,
 		  uint32_t data_size)
 {
 	struct iscsi_conn *conn = iscsi_ptr(cnxh);
@@ -2339,12 +2336,11 @@ iscsi_eh_abort(struct scsi_cmnd *sc)
 
 		conn->tmabort_state = TMABORT_INITIAL;
 
-		rc = iscsi_send_pdu(iscsi_handle(conn),
+		rc = iscsi_conn_send_pdu(iscsi_handle(conn),
 			    (struct iscsi_hdr *)hdr, NULL, 0);
 		if (rc) {
 			session->state = ISCSI_STATE_FAILED;
-			iscsi_control_cnx_error(conn->handle,
-				ISCSI_ERR_CNX_FAILED);
+			iscsi_cnx_error(conn->handle, ISCSI_ERR_CNX_FAILED);
 			debug_scsi("abort sent failure [itt 0x%x]", ctask->itt);
 		} else {
 			conn->tmabort_timer.expires = 3*HZ + jiffies; /*3 secs*/
@@ -2399,8 +2395,7 @@ iscsi_eh_abort(struct scsi_cmnd *sc)
 			}
 			spin_unlock_bh(&session->lock);
 			session->state = ISCSI_STATE_FAILED;
-			iscsi_control_cnx_error(conn->handle,
-				ISCSI_ERR_CNX_FAILED);
+			iscsi_cnx_error(conn->handle, ISCSI_ERR_CNX_FAILED);
 			continue;
 		}
 
@@ -2600,7 +2595,7 @@ iscsi_session_destroy(iscsi_snx_t snxh)
 }
 
 static int
-iscsi_set_param(iscsi_cnx_t cnxh, enum iscsi_param param, uint32_t value)
+iscsi_conn_set_param(iscsi_cnx_t cnxh, enum iscsi_param param, uint32_t value)
 {
 	struct iscsi_conn *conn = iscsi_ptr(cnxh);
 	struct iscsi_session *session = conn->session;
@@ -2716,7 +2711,7 @@ iscsi_set_param(iscsi_cnx_t cnxh, enum iscsi_param param, uint32_t value)
 }
 
 static int
-iscsi_get_param(iscsi_cnx_t cnxh, enum iscsi_param param, uint32_t *value)
+iscsi_conn_get_param(iscsi_cnx_t cnxh, enum iscsi_param param, uint32_t *value)
 {
 	struct iscsi_conn *conn = iscsi_ptr(cnxh);
 	struct iscsi_session *session = conn->session;
@@ -2784,11 +2779,11 @@ struct iscsi_transport iscsi_tcp_transport = {
 	.create_cnx             = iscsi_conn_create,
 	.bind_cnx               = iscsi_conn_bind,
 	.destroy_cnx            = iscsi_conn_destroy,
-	.set_param              = iscsi_set_param,
-	.get_param              = iscsi_get_param,
+	.set_param              = iscsi_conn_set_param,
+	.get_param              = iscsi_conn_get_param,
 	.start_cnx              = iscsi_conn_start,
 	.stop_cnx               = iscsi_conn_stop,
-	.send_pdu               = iscsi_send_pdu,
+	.send_pdu               = iscsi_conn_send_pdu,
 };
 
 static int __init

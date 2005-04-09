@@ -35,9 +35,10 @@
 #include "initiator.h"
 #include "iscsiadm.h"
 #include "log.h"
-#include "ipc.h"
+#include "mgmt_ipc.h"
 #include "idbm.h"
 
+struct iscsi_ipc *ipc = NULL; /* dummy */
 static char program_name[] = "iscsiadm";
 
 char initiator_name[TARGET_NAME_MAXLEN];
@@ -220,19 +221,6 @@ iscsid_connect(void)
 	return fd;
 }
 
-int
-ctldev_read(int ctrl_fd, char *data, int count)
-{
-	return read(ctrl_fd, data, count);
-}
-
-int
-ctldev_writev(int ctrl_fd, enum iscsi_uevent_e type, struct iovec *iovp,
-	      int count)
-{
-	return writev(ctrl_fd, iovp, count);
-}
-
 static int
 iscsid_request(int fd, iscsiadm_req_t *req)
 {
@@ -292,7 +280,7 @@ session_login(int rid, node_rec_t *rec)
 	iscsiadm_rsp_t rsp;
 
 	memset(&req, 0, sizeof(req));
-	req.command = IPC_SESSION_LOGIN;
+	req.command = MGMT_IPC_SESSION_LOGIN;
 	req.u.session.rid = rid;
 
 	return do_iscsid(&req, &rsp);
@@ -305,7 +293,7 @@ session_logout(int rid, node_rec_t *rec)
 	iscsiadm_rsp_t rsp;
 
 	memset(&req, 0, sizeof(req));
-	req.command = IPC_SESSION_LOGOUT;
+	req.command = MGMT_IPC_SESSION_LOGOUT;
 	req.u.session.rid = rid;
 
 	return do_iscsid(&req, &rsp);
@@ -323,7 +311,7 @@ session_activelist(idbm_t *db)
 	iscsiadm_rsp_t rsp;
 
 	memset(&req, 0, sizeof(req));
-	req.command = IPC_SESSION_ACTIVELIST;
+	req.command = MGMT_IPC_SESSION_ACTIVELIST;
 
 	rc = do_iscsid(&req, &rsp);
 	if (rc)

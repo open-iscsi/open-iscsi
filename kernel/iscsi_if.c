@@ -266,7 +266,7 @@ iscsi_unicast_skb(struct mempool_zone *zone, struct sk_buff *skb)
 	return 0;
 }
 
-int iscsi_control_recv_pdu(iscsi_cnx_t cp_cnx, struct iscsi_hdr *hdr,
+int iscsi_recv_pdu(iscsi_cnx_t cp_cnx, struct iscsi_hdr *hdr,
 				char *data, uint32_t data_size)
 {
 	struct nlmsghdr	*nlh;
@@ -285,7 +285,7 @@ int iscsi_control_recv_pdu(iscsi_cnx_t cp_cnx, struct iscsi_hdr *hdr,
 
 	skb = mempool_zone_get_skb(&cnx->z_pdu);
 	if (!skb) {
-		iscsi_control_cnx_error(cp_cnx, ISCSI_ERR_CNX_FAILED);
+		iscsi_cnx_error(cp_cnx, ISCSI_ERR_CNX_FAILED);
 		printk("iscsi%d: can not deliver control PDU: OOM\n",
 		       cnx->host->host_no);
 		return -ENOMEM;
@@ -307,9 +307,9 @@ int iscsi_control_recv_pdu(iscsi_cnx_t cp_cnx, struct iscsi_hdr *hdr,
 
 	return rc;
 }
-EXPORT_SYMBOL_GPL(iscsi_control_recv_pdu);
+EXPORT_SYMBOL_GPL(iscsi_recv_pdu);
 
-void iscsi_control_cnx_error(iscsi_cnx_t cp_cnx, enum iscsi_err error)
+void iscsi_cnx_error(iscsi_cnx_t cp_cnx, enum iscsi_err error)
 {
 	struct nlmsghdr	*nlh;
 	struct sk_buff	*skb;
@@ -342,7 +342,7 @@ void iscsi_control_cnx_error(iscsi_cnx_t cp_cnx, enum iscsi_err error)
 
 	printk("iscsi%d: detected cnx error (%d)\n", cnx->host->host_no, error);
 }
-EXPORT_SYMBOL_GPL(iscsi_control_cnx_error);
+EXPORT_SYMBOL_GPL(iscsi_cnx_error);
 
 static int
 iscsi_if_send_reply(int pid, int seq, int type, int done, int multi,
