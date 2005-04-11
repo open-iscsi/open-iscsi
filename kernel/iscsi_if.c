@@ -197,7 +197,7 @@ static struct iscsi_function_template iscsi_fnt = {
 #endif
 
 static void*
-mempool_zone_alloc_skb(int gfp_mask, void *pool_data)
+mempool_zone_alloc_skb(unsigned int gfp_mask, void *pool_data)
 {
 	struct mempool_zone *zone = pool_data;
 

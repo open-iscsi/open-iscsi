@@ -744,6 +744,22 @@ __session_cnx_recv_pdu(queue_item_t *item)
 	}
 }
 
+static int
+__session_node_established(char *node_name)
+{
+	struct qelem *item;
+
+	item = provider[0].sessions.q_forw;
+	while (item != &provider[0].sessions) {
+		iscsi_session_t *session = (iscsi_session_t *)item;
+		if (session->cnx[0].state == STATE_LOGGED_IN &&
+		    !strncmp(session->nrec.name, node_name, TARGET_NAME_MAXLEN))
+			return 1;
+		item = item->q_forw;
+	}
+	return 0;
+}
+
 static void
 __session_cnx_poll(queue_item_t *item)
 {
@@ -783,6 +799,15 @@ __session_cnx_poll(queue_item_t *item)
 				}
 				log_debug(3, "created new iSCSI session, "
 					"handle 0x%p", (void*)session->handle);
+
+				/* unique identifier for OUI */
+				if (__session_node_established(
+					       session->nrec.name)) {
+					log_warning("picking unique OUI for "
+					    "the same target node name %s",
+					    session->nrec.name);
+					session->isid[3] = session->id;
+				}
 
 				if (ipc->create_cnx(session->transport_handle,
 					session->handle, (ulong_t)conn,
