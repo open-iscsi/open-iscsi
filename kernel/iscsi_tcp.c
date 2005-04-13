@@ -574,11 +574,11 @@ iscsi_hdr_recv(struct iscsi_conn *conn)
 
 				rc = iscsi_recv_pdu(conn->handle, hdr, NULL, 0);
 				mtask = (struct iscsi_mgmt_task *)
-					session->imm_cmds[conn->in.itt -
-						ISCSI_IMM_ITT_OFFSET];
+					session->mgmt_cmds[conn->in.itt -
+						ISCSI_MGMT_ITT_OFFSET];
 				if (conn->login_mtask != mtask) {
 					spin_lock(&session->lock);
-					__kfifo_put(session->immpool.queue,
+					__kfifo_put(session->mgmtpool.queue,
 					    (void*)&mtask, sizeof(void*));
 					spin_unlock(&session->lock);
 				}
@@ -588,12 +588,12 @@ iscsi_hdr_recv(struct iscsi_conn *conn)
 			rc = ISCSI_ERR_BAD_OPCODE;
 			break;
 		}
-	} else if (conn->in.itt >= ISCSI_IMM_ITT_OFFSET &&
-		   conn->in.itt < ISCSI_IMM_ITT_OFFSET +
-					session->imm_max) {
+	} else if (conn->in.itt >= ISCSI_MGMT_ITT_OFFSET &&
+		   conn->in.itt < ISCSI_MGMT_ITT_OFFSET +
+					session->mgmtpool_max) {
 		struct iscsi_mgmt_task *mtask = (struct iscsi_mgmt_task *)
-					session->imm_cmds[conn->in.itt -
-						ISCSI_IMM_ITT_OFFSET];
+					session->mgmt_cmds[conn->in.itt -
+						ISCSI_MGMT_ITT_OFFSET];
 
 		debug_scsi("immrsp [op 0x%x cid %d itt 0x%x len %d]\n",
 			   conn->in.opcode, conn->id, mtask->itt,
@@ -606,7 +606,7 @@ iscsi_hdr_recv(struct iscsi_conn *conn)
 				rc = iscsi_recv_pdu(conn->handle, hdr, NULL, 0);
 				if (conn->login_mtask != mtask) {
 					spin_lock(&session->lock);
-					__kfifo_put(session->immpool.queue,
+					__kfifo_put(session->mgmtpool.queue,
 					    (void*)&mtask, sizeof(void*));
 					spin_unlock(&session->lock);
 				}
@@ -618,7 +618,7 @@ iscsi_hdr_recv(struct iscsi_conn *conn)
 				break;
 			}
 			spin_lock(&session->lock);
-			__kfifo_put(session->immpool.queue, (void*)&mtask,
+			__kfifo_put(session->mgmtpool.queue, (void*)&mtask,
 				    sizeof(void*));
 			spin_unlock(&session->lock);
 			del_timer_sync(&conn->tmabort_timer);
@@ -825,8 +825,8 @@ iscsi_data_recv(struct iscsi_conn *conn)
 
 		if (conn->in.itt != ISCSI_RESERVED_TAG) {
 			mtask = (struct iscsi_mgmt_task *)
-				session->imm_cmds[conn->in.itt -
-					ISCSI_IMM_ITT_OFFSET];
+				session->mgmt_cmds[conn->in.itt -
+					ISCSI_MGMT_ITT_OFFSET];
 		}
 
 		/*
@@ -843,7 +843,7 @@ iscsi_data_recv(struct iscsi_conn *conn)
 
 		if (mtask && conn->login_mtask != mtask) {
 			spin_lock(&session->lock);
-			__kfifo_put(session->immpool.queue, (void*)&mtask,
+			__kfifo_put(session->mgmtpool.queue, (void*)&mtask,
 				    sizeof(void*));
 			spin_unlock(&session->lock);
 		}
@@ -1567,62 +1567,79 @@ iscsi_data_xmit(struct iscsi_conn *conn)
 	/*
 	 * Transmit in the following order:
 	 *
-	 * 1) in progress task
-	 * 2) write responses, if any
-	 * 3) new read/write requests
+	 * 1) un-finished xmit (ctask or mtask)
+	 * 2) immediate control PDUs
+	 * 3) write data
+	 * 4) SCSI commands
+	 * 5) non-immediate control PDUs
 	 *
-	 * Note: we don't need locking around __kfifo_get as long as
-	 * we guarantie one producer and one consumer.
+	 * No need to lock around __kfifo_get as long as
+	 * there's one producer and one consumer.
 	 */
 
-	/* process non-immediate(command) queue */
-	while (conn->in_progress_xmit == IN_PROGRESS_XMIT_SCSI &&
-	       (conn->ctask ||
-		__kfifo_get(conn->writequeue, (void*)&conn->ctask,
-			    sizeof(void*)) ||
-		__kfifo_get(conn->xmitqueue, (void*)&conn->ctask,
-			    sizeof(void*)))) {
+	BUG_ON(conn->ctask && conn->mtask);
 
+	if (conn->ctask) {
 		if (iscsi_ctask_xmit(conn, conn->ctask))
 			return -EAGAIN;
-
-		/* done with this in progress ctask */
+		/* done with this in-progress ctask */
 		conn->ctask = NULL;
-
-		/* check if we have something for immediate delivery */
-		if (__kfifo_len(conn->immqueue))
-			break;
 	}
-
-	/* process immediate queue */
-	while (conn->mtask || __kfifo_get(conn->immqueue, (void*)&conn->mtask,
-			   sizeof(void*))) {
-		struct iscsi_session *session = conn->session;
-
-		conn->in_progress_xmit = IN_PROGRESS_XMIT_IMM;
-
-		if (iscsi_mtask_xmit(conn, conn->mtask))
-			return -EAGAIN;
-
-		if (conn->mtask->hdr.itt == ISCSI_RESERVED_TAG) {
-			spin_lock_bh(&session->lock);
-			__kfifo_put(session->immpool.queue, (void*)&conn->mtask,
-				    sizeof(void*));
-			spin_unlock_bh(&session->lock);
-		}
-
-		/* done with the current mtask */
+	if (conn->mtask) {
+	        if (iscsi_mtask_xmit(conn, conn->mtask))
+		        return -EAGAIN;
+		/* done with this in-progress mtask */
 		conn->mtask = NULL;
-
-		if (__kfifo_len(conn->xmitqueue) ||
-		    __kfifo_len(conn->writequeue)) {
-			/* re-schedule xmitqueue. have to do that in case
-			 * when immediate PDU interrupts xmitqueue loop */
-			schedule_work(&conn->xmitwork);
-		}
 	}
 
-	conn->in_progress_xmit = IN_PROGRESS_XMIT_SCSI;
+	/* process immediate first */
+        if (unlikely(__kfifo_len(conn->immqueue))) {
+		struct iscsi_session *session = conn->session;
+	        while (__kfifo_get(conn->immqueue, (void*)&conn->mtask,
+			           sizeof(void*))) {
+		        if (iscsi_mtask_xmit(conn, conn->mtask))
+			        return -EAGAIN;
+
+		        if (conn->mtask->hdr.itt == ISCSI_RESERVED_TAG) {
+			        spin_lock_bh(&session->lock);
+			        __kfifo_put(session->mgmtpool.queue,
+					    (void*)&conn->mtask, sizeof(void*));
+			        spin_unlock_bh(&session->lock);
+		        }
+	        }
+	}
+
+	/* process write queue */
+	while (__kfifo_get(conn->writequeue, (void*)&conn->ctask,
+			   sizeof(void*))) {
+		if (iscsi_ctask_xmit(conn, conn->ctask))
+			return -EAGAIN;
+	}
+
+	/* process command queue */
+	while (__kfifo_get(conn->xmitqueue, (void*)&conn->ctask,
+			   sizeof(void*))) {
+		if (iscsi_ctask_xmit(conn, conn->ctask))
+			return -EAGAIN;
+	}
+
+	/* process the rest control plane PDUs, if any */
+        if (unlikely(__kfifo_len(conn->mgmtqueue))) {
+		struct iscsi_session *session = conn->session;
+	        while (__kfifo_get(conn->mgmtqueue, (void*)&conn->mtask,
+			           sizeof(void*))) {
+		        if (iscsi_mtask_xmit(conn, conn->mtask))
+			        return -EAGAIN;
+
+		        if (conn->mtask->hdr.itt == ISCSI_RESERVED_TAG) {
+			        spin_lock_bh(&session->lock);
+			        __kfifo_put(session->mgmtpool.queue,
+					    (void*)&conn->mtask,
+				            sizeof(void*));
+			        spin_unlock_bh(&session->lock);
+		        }
+	        }
+	}
 
 	return 0;
 }
@@ -1845,7 +1862,7 @@ iscsi_conn_create(iscsi_snx_t snxh, iscsi_cnx_t handle,
 
 	conn = kmalloc(sizeof(struct iscsi_conn), GFP_KERNEL);
 	if (conn == NULL)
-		goto conn_alloc_fault;
+		goto conn_alloc_fail;
 	memset(conn, 0, sizeof(struct iscsi_conn));
 
 	conn->c_stage = ISCSI_CNX_INITIAL_STAGE;
@@ -1867,27 +1884,34 @@ iscsi_conn_create(iscsi_snx_t snxh, iscsi_cnx_t handle,
 	conn->xmitqueue = kfifo_alloc(session->cmds_max * sizeof(void*),
 					GFP_KERNEL, NULL);
 	if (conn->xmitqueue == ERR_PTR(-ENOMEM))
-		goto xmitqueue_alloc_fault;
+		goto xmitqueue_alloc_fail;
 
 	/* initialize write response PDU commands queue */
 	conn->writequeue = kfifo_alloc(session->cmds_max * sizeof(void*),
 					GFP_KERNEL, NULL);
 	if (conn->writequeue == ERR_PTR(-ENOMEM))
-		goto writequeue_alloc_fault;
+		goto writequeue_alloc_fail;
 
-	/* initialize general immediate PDU commands queue */
-	conn->immqueue = kfifo_alloc(session->imm_max * sizeof(void*),
-					GFP_KERNEL, NULL);
+	/* initialize general immediate & non-immediate PDU commands queue */
+	conn->immqueue = kfifo_alloc(session->mgmtpool_max * sizeof(void*),
+			                GFP_KERNEL, NULL);
 	if (conn->immqueue == ERR_PTR(-ENOMEM))
-		goto immqueue_alloc_fault;
+		goto immqueue_alloc_fail;
+
+	conn->mgmtqueue = kfifo_alloc(session->mgmtpool_max * sizeof(void*),
+			                GFP_KERNEL, NULL);
+	if (conn->mgmtqueue == ERR_PTR(-ENOMEM))
+		goto mgmtqueue_alloc_fail;
+
 	INIT_WORK(&conn->xmitwork, iscsi_xmitworker, conn);
 
-	/* allocate login_mtask used for initial login/text sequence */
+	/* allocate login_mtask used for the login/text sequences */
 	spin_lock_bh(&session->lock);
-	if (!__kfifo_get(session->immpool.queue, (void*)&conn->login_mtask,
+	if (!__kfifo_get(session->mgmtpool.queue,
+                         (void*)&conn->login_mtask,
 			 sizeof(void*))) {
 		spin_unlock_bh(&session->lock);
-		goto login_mtask_alloc_fault;
+		goto login_mtask_alloc_fail;
 	}
 	spin_unlock_bh(&session->lock);
 
@@ -1898,7 +1922,7 @@ iscsi_conn_create(iscsi_snx_t snxh, iscsi_cnx_t handle,
 		conn->data = (void*)__get_free_pages(GFP_KERNEL,
 					get_order(conn->max_recv_dlength));
 	if (!conn->data)
-		goto max_recv_dlenght_alloc_fault;
+		goto max_recv_dlenght_alloc_fail;
 
 	init_timer(&conn->tmabort_timer);
 	init_MUTEX(&conn->xmitsema);
@@ -1906,20 +1930,22 @@ iscsi_conn_create(iscsi_snx_t snxh, iscsi_cnx_t handle,
 
 	return iscsi_handle(conn);
 
-max_recv_dlenght_alloc_fault:
+max_recv_dlenght_alloc_fail:
 	spin_lock_bh(&session->lock);
-	__kfifo_put(session->immpool.queue, (void*)&conn->login_mtask,
+	__kfifo_put(session->mgmtpool.queue, (void*)&conn->login_mtask,
 		    sizeof(void*));
 	spin_unlock_bh(&session->lock);
-login_mtask_alloc_fault:
+login_mtask_alloc_fail:
+	kfifo_free(conn->mgmtqueue);
+mgmtqueue_alloc_fail:
 	kfifo_free(conn->immqueue);
-immqueue_alloc_fault:
+immqueue_alloc_fail:
 	kfifo_free(conn->writequeue);
-writequeue_alloc_fault:
+writequeue_alloc_fail:
 	kfifo_free(conn->xmitqueue);
-xmitqueue_alloc_fault:
+xmitqueue_alloc_fail:
 	kfree(conn);
-conn_alloc_fault:
+conn_alloc_fail:
 	return iscsi_handle(NULL);
 }
 
@@ -1988,13 +2014,14 @@ iscsi_conn_destroy(iscsi_cnx_t cnxh)
 					get_order(conn->max_recv_dlength));
 
 	spin_lock_bh(&session->lock);
-	__kfifo_put(session->immpool.queue, (void*)&conn->login_mtask,
+	__kfifo_put(session->mgmtpool.queue, (void*)&conn->login_mtask,
 		    sizeof(void*));
 	spin_unlock_bh(&session->lock);
 
 	kfifo_free(conn->xmitqueue);
 	kfifo_free(conn->writequeue);
 	kfifo_free(conn->immqueue);
+	kfifo_free(conn->mgmtqueue);
 
 	spin_lock_bh(&session->conn_lock);
 	list_del(&conn->item);
@@ -2155,23 +2182,23 @@ iscsi_conn_stop(iscsi_cnx_t cnxh, int flag)
 		 * flush xmit queues.
 		 */
 		down(&conn->xmitsema);
+		spin_lock_bh(&session->lock);
 		while (__kfifo_get(conn->writequeue, (void*)&conn->ctask,
 			    sizeof(void*)) ||
 			__kfifo_get(conn->xmitqueue, (void*)&conn->ctask,
 			    sizeof(void*))) {
-			spin_lock_bh(&session->lock);
 			__kfifo_put(session->cmdpool.queue, (void*)&conn->ctask,
 				    sizeof(void*));
-			spin_unlock_bh(&session->lock);
 		}
 		conn->ctask = NULL;
 		while (__kfifo_get(conn->immqueue, (void*)&conn->mtask,
+			   sizeof(void*)) ||
+			__kfifo_get(conn->mgmtqueue, (void*)&conn->mtask,
 			   sizeof(void*))) {
-			spin_lock_bh(&session->lock);
-			__kfifo_put(session->immpool.queue, (void*)&conn->mtask,
-				    sizeof(void*));
-			spin_unlock_bh(&session->lock);
+			__kfifo_put(session->mgmtpool.queue,
+				    (void*)&conn->mtask, sizeof(void*));
 		}
+		spin_unlock_bh(&session->lock);
 		conn->mtask = NULL;
 		up(&conn->xmitsema);
 	}
@@ -2185,25 +2212,25 @@ iscsi_conn_send_pdu(iscsi_cnx_t cnxh, struct iscsi_hdr *hdr, char *data,
 	struct iscsi_session *session = conn->session;
 	struct iscsi_mgmt_task *mtask;
 
-	/* FIXME: non-immediate control commands are not supported yet */
-	BUG_ON(!(hdr->opcode & ISCSI_OP_IMMEDIATE));
-
 	spin_lock_bh(&session->lock);
-	if (conn->c_stage != ISCSI_CNX_INITIAL_STAGE && /* ! initial login */
-	    conn->c_stage != ISCSI_CNX_STOPPED) { /* ! re-open login */
-		if (!__kfifo_get(session->immpool.queue, (void*)&mtask,
-				 sizeof(void*))) {
+	if (hdr->opcode == (ISCSI_OP_LOGIN | ISCSI_OP_IMMEDIATE) ||
+	    hdr->opcode == (ISCSI_OP_TEXT | ISCSI_OP_IMMEDIATE)) {
+		/*
+		 * Login and Text are sent serially, in
+		 * request-followed-by-response sequence.
+		 * Same mtask can be used. Same ITT must be used.
+		 * Note that login_mtask is preallocated at cnx_create().
+		 */
+		mtask = conn->login_mtask;
+	} else {
+	        BUG_ON(conn->c_stage == ISCSI_CNX_INITIAL_STAGE);
+	        BUG_ON(conn->c_stage == ISCSI_CNX_STOPPED);
+
+		if (!__kfifo_get(session->mgmtpool.queue,
+				 (void*)&mtask, sizeof(void*))) {
 			spin_unlock_bh(&session->lock);
 			return -ENOSPC;
 		}
-	} else {
-		/*
-		 * Preserve ITT for all requests within this
-		 * login or text negotiation sequence. Note that mtask is
-		 * preallocated at cnx_create() and will be released
-		 * at cnx_start() or cnx_destroy().
-		 */
-		mtask = conn->login_mtask;
 	}
 
 	/*
@@ -2249,7 +2276,7 @@ iscsi_conn_send_pdu(iscsi_cnx_t cnxh, struct iscsi_hdr *hdr, char *data,
 		if(mtask->sendbuf.sg.offset + mtask->data_count > PAGE_SIZE) {
 			if (conn->c_stage == ISCSI_CNX_STARTED) {
 				spin_lock_bh(&session->lock);
-				__kfifo_put(session->immpool.queue,
+				__kfifo_put(session->mgmtpool.queue,
 					    (void*)&mtask, sizeof(void*));
 				spin_unlock_bh(&session->lock);
 			}
@@ -2257,10 +2284,14 @@ iscsi_conn_send_pdu(iscsi_cnx_t cnxh, struct iscsi_hdr *hdr, char *data,
 		}
 	}
 
-	debug_scsi("immpdu [op 0x%x itt 0x%x datalen %d]\n",
+	debug_scsi("mgmtpdu [op 0x%x itt 0x%x datalen %d]\n",
 		   hdr->opcode, ntohl(hdr->itt), data_size);
 
-	__kfifo_put(conn->immqueue, (void*)&mtask, sizeof(void*));
+        if (hdr->opcode & ISCSI_OP_IMMEDIATE)
+	        __kfifo_put(conn->immqueue, (void*)&mtask, sizeof(void*));
+	else
+	        __kfifo_put(conn->mgmtqueue, (void*)&mtask, sizeof(void*));
+
 	schedule_work(&conn->xmitwork);
 
 	return 0;
@@ -2429,7 +2460,7 @@ iscsi_r2tpool_alloc(struct iscsi_session *session)
 		/* R2T pool */
 		if (iscsi_pool_init(&ctask->r2tpool, session->max_r2t,
 			(void***)&ctask->r2ts, sizeof(struct iscsi_r2t_info))) {
-			goto r2t_alloc_fault;
+			goto r2t_alloc_fail;
 		}
 
 		/* R2T xmit queue */
@@ -2437,7 +2468,7 @@ iscsi_r2tpool_alloc(struct iscsi_session *session)
 						GFP_KERNEL, NULL);
 		if (ctask->r2tqueue == ERR_PTR(-ENOMEM)) {
 			iscsi_pool_free(&ctask->r2tpool, (void**)ctask->r2ts);
-			goto r2t_alloc_fault;
+			goto r2t_alloc_fail;
 		}
 
 		/*
@@ -2450,14 +2481,14 @@ iscsi_r2tpool_alloc(struct iscsi_session *session)
 		if (ctask->datapool == NULL) {
 			kfifo_free(ctask->r2tqueue);
 			iscsi_pool_free(&ctask->r2tpool, (void**)ctask->r2ts);
-			goto r2t_alloc_fault;
+			goto r2t_alloc_fail;
 		}
 		INIT_LIST_HEAD(&ctask->dataqueue);
 	}
 
 	return 0;
 
-r2t_alloc_fault:
+r2t_alloc_fail:
 	for (i = 0; i < cmd_i; i++) {
 		mempool_destroy(session->cmds[i]->datapool);
 		kfifo_free(session->cmds[i]->r2tqueue);
@@ -2506,7 +2537,7 @@ iscsi_session_create(iscsi_snx_t handle, uint32_t initial_cmdsn,
 	session->host = host;
 	session->id = host->host_no;
 	session->state = ISCSI_STATE_LOGGED_IN;
-	session->imm_max = ISCSI_IMM_CMDS_MAX;
+	session->mgmtpool_max = ISCSI_MGMT_CMDS_MAX;
 	session->cmds_max = ISCSI_XMIT_CMDS_MAX;
 	session->cmdsn = initial_cmdsn;
 	session->exp_cmdsn = initial_cmdsn + 1;
@@ -2517,7 +2548,7 @@ iscsi_session_create(iscsi_snx_t handle, uint32_t initial_cmdsn,
 	/* initialize SCSI PDU commands pool */
 	if (iscsi_pool_init(&session->cmdpool, session->cmds_max,
 		(void***)&session->cmds, sizeof(struct iscsi_cmd_task)))
-		goto cmdpool_alloc_fault;
+		goto cmdpool_alloc_fail;
 
 	/* pre-format cmds pool with ITT */
 	for (cmd_i = 0; cmd_i < session->cmds_max; cmd_i++) {
@@ -2529,26 +2560,26 @@ iscsi_session_create(iscsi_snx_t handle, uint32_t initial_cmdsn,
 	INIT_LIST_HEAD(&session->connections);
 
 	/* initialize immediate command pool */
-	if (iscsi_pool_init(&session->immpool, session->imm_max,
-		(void***)&session->imm_cmds, sizeof(struct iscsi_mgmt_task)))
-		goto immpool_alloc_fault;
+	if (iscsi_pool_init(&session->mgmtpool, session->mgmtpool_max,
+		(void***)&session->mgmt_cmds, sizeof(struct iscsi_mgmt_task)))
+		goto mgmtpool_alloc_fail;
 
 
 	/* pre-format immediate cmds pool with ITT */
-	for (cmd_i = 0; cmd_i < session->imm_max; cmd_i++) {
-		session->imm_cmds[cmd_i]->itt = ISCSI_IMM_ITT_OFFSET + cmd_i;
-		session->imm_cmds[cmd_i]->data = kmalloc(
+	for (cmd_i = 0; cmd_i < session->mgmtpool_max; cmd_i++) {
+		session->mgmt_cmds[cmd_i]->itt = ISCSI_MGMT_ITT_OFFSET + cmd_i;
+		session->mgmt_cmds[cmd_i]->data = kmalloc(
 			DEFAULT_MAX_RECV_DATA_SEGMENT_LENGTH, GFP_KERNEL);
-		if (!session->imm_cmds[cmd_i]->data) {
+		if (!session->mgmt_cmds[cmd_i]->data) {
 			int j;
 			for (j = 0; j < cmd_i; j++)
-				kfree(session->imm_cmds[j]->data);
-			goto immdata_alloc_fault;
+				kfree(session->mgmt_cmds[j]->data);
+			goto immdata_alloc_fail;
 		}
 	}
 
 	if (iscsi_r2tpool_alloc(session))
-		goto r2tpool_alloc_fault;
+		goto r2tpool_alloc_fail;
 
 	if (!try_module_get(THIS_MODULE)) {
 		printk("iscsi_tcp: can not reserve module\n");
@@ -2559,14 +2590,14 @@ iscsi_session_create(iscsi_snx_t handle, uint32_t initial_cmdsn,
 
 module_get_fault:
 	iscsi_r2tpool_free(session);
-r2tpool_alloc_fault:
-	for (cmd_i = 0; cmd_i < session->imm_max; cmd_i++)
-		kfree(session->imm_cmds[cmd_i]->data);
-	iscsi_pool_free(&session->immpool, (void**)session->imm_cmds);
-immdata_alloc_fault:
-immpool_alloc_fault:
+r2tpool_alloc_fail:
+	for (cmd_i = 0; cmd_i < session->mgmtpool_max; cmd_i++)
+		kfree(session->mgmt_cmds[cmd_i]->data);
+	iscsi_pool_free(&session->mgmtpool, (void**)session->mgmt_cmds);
+immdata_alloc_fail:
+mgmtpool_alloc_fail:
 	iscsi_pool_free(&session->cmdpool, (void**)session->cmds);
-cmdpool_alloc_fault:
+cmdpool_alloc_fail:
 	return iscsi_handle(NULL);
 }
 
@@ -2585,11 +2616,11 @@ iscsi_session_destroy(iscsi_snx_t snxh)
 		}
 	}
 
-	for (cmd_i = 0; cmd_i < session->imm_max; cmd_i++)
-		kfree(session->imm_cmds[cmd_i]->data);
+	for (cmd_i = 0; cmd_i < session->mgmtpool_max; cmd_i++)
+		kfree(session->mgmt_cmds[cmd_i]->data);
 
 	iscsi_r2tpool_free(session);
-	iscsi_pool_free(&session->immpool, (void**)session->imm_cmds);
+	iscsi_pool_free(&session->mgmtpool, (void**)session->mgmt_cmds);
 	iscsi_pool_free(&session->cmdpool, (void**)session->cmds);
 	module_put(THIS_MODULE);
 }

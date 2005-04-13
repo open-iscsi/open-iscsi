@@ -79,8 +79,8 @@
 #define ISCSI_DRAFT20_VERSION	0x00
 #define ISCSI_R2T_MAX		16
 #define ISCSI_XMIT_CMDS_MAX	64		/* must be power of 2 */
-#define ISCSI_IMM_CMDS_MAX	32		/* must be power of 2 */
-#define ISCSI_IMM_ITT_OFFSET	0x1000
+#define ISCSI_MGMT_CMDS_MAX	32		/* must be power of 2 */
+#define ISCSI_MGMT_ITT_OFFSET	0x1000
 #define ISCSI_SG_TABLESIZE	SG_ALL
 #define ISCSI_CMD_PER_LUN	128
 #define ISCSI_TCP_MAX_LUN	256
@@ -141,6 +141,7 @@ struct iscsi_conn {
 	struct list_head	item;		/* item's list of connections */
 	struct kfifo		*writequeue;	/* Write response xmit queue */
 	struct kfifo		*immqueue;	/* Immediate xmit queue */
+	struct kfifo		*mgmtqueue;	/* Mgmt xmit queue */
 	struct kfifo		*xmitqueue;	/* Data-path queue */
 	struct work_struct	xmitwork;	/* per-conn. xmit workqueue */
 	volatile int		c_stage;	/* Connection state */
@@ -209,9 +210,9 @@ struct iscsi_session {
 	int			cmds_max;	/* size of cmds array */
 	struct iscsi_cmd_task	**cmds;		/* Original Cmds arr */
 	struct iscsi_queue	cmdpool;	/* PDU's pool */
-	int			imm_max;	/* size of Imm array */
-	struct iscsi_mgmt_task	**imm_cmds;	/* Original Imm arr */
-	struct iscsi_queue	immpool;	/* Imm PDU's pool */
+	int			mgmtpool_max;	/* size of mgmt array */
+	struct iscsi_mgmt_task	**mgmt_cmds;	/* Original mgmt arr */
+	struct iscsi_queue	mgmtpool;	/* Mgmt PDU's pool */
 };
 
 struct iscsi_buf {
