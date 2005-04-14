@@ -26,7 +26,6 @@
 #include <string.h>
 #include <sys/mman.h>
 #include <sys/poll.h>
-#include <sys/io.h>
 #include <sys/utsname.h>
 #include <sys/signal.h>
 
@@ -154,7 +153,6 @@ void oom_adjust(void)
 	int fd;
 	char path[48];
 
-	iopl(4); /* set CAP_SYS_RAW_IO */
 	nice(-10);
 	sprintf(path, "/proc/%d/oom_adj", getpid());
 	fd = open(path, O_WRONLY);
