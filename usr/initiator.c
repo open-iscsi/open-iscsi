@@ -478,7 +478,8 @@ __session_cnx_cleanup(iscsi_conn_t *conn)
 }
 
 static void
-__session_mgmt_ipc_login_cleanup(queue_task_t *qtask, mgmt_ipc_err_e err, int cnx_cleanup)
+__session_mgmt_ipc_login_cleanup(queue_task_t *qtask, mgmt_ipc_err_e err,
+				 int cnx_cleanup)
 {
 	iscsi_conn_t *conn = qtask->conn;
 	iscsi_session_t *session = conn->session;
@@ -741,6 +742,14 @@ __session_cnx_recv_pdu(queue_item_t *item)
 		} else {
 			log_error("unsupported opcode 0x%x", hdr.opcode);
 		}
+	} else if (conn->state == STATE_XPT_WAIT) {
+		log_debug(1, "ignoring incomming PDU in XPT_WAIT. "
+			  "let connection re-establish or fail");
+		return;
+	} else if (conn->state == STATE_CLEANUP_WAIT) {
+		log_debug(1, "ignoring incomming PDU in XPT_WAIT. "
+			  "let connection cleanup");
+		return;
 	}
 }
 
@@ -892,6 +901,32 @@ __connect_timedout(void *data)
 	}
 }
 
+static void
+__session_cnx_queue_flush(iscsi_conn_t *conn)
+{
+	iscsi_session_t *session = conn->session;
+	int count = session->queue->count, i;
+	unsigned char item_buf[sizeof(queue_item_t) + EVENT_PAYLOAD_MAX];
+	queue_item_t *item = (queue_item_t *)(void *)item_buf;
+
+	log_debug(3, "flushing per-connection events");
+
+	for (i = 0; i < count; i++) {
+		if (queue_consume(session->queue, EVENT_PAYLOAD_MAX,
+					item) == QUEUE_IS_EMPTY) {
+			log_error("queue damage detected...");
+			break;
+		}
+		if (conn != item->context) {
+			queue_produce(session->queue, item->event_type,
+				 item->context, item->data_size,
+				 queue_item_data(item));
+		}
+		/* do nothing */
+		log_debug(7, "item %p(%d) flushed", item, item->event_type);
+	}
+}
+
 static int
 __session_cnx_reopen(iscsi_conn_t *conn, int do_stop)
 {
@@ -903,6 +938,7 @@ __session_cnx_reopen(iscsi_conn_t *conn, int do_stop)
 	session->reopen_qtask.conn = conn;
 
 	if (do_stop) {
+		/* state: STATE_CLEANUP_WAIT */
 		if (ipc->stop_cnx(session->transport_handle, conn->handle,
 				      STOP_CNX_RECOVER)) {
 			log_error("can't stop connection 0x%p with "
@@ -913,6 +949,7 @@ __session_cnx_reopen(iscsi_conn_t *conn, int do_stop)
 		log_debug(3, "connection 0x%p is stopped for recovery",
 			(void*)conn->handle);
 		iscsi_io_disconnect(conn);
+		__session_cnx_queue_flush(conn);
 	}
 
 	rc = iscsi_io_tcp_connect(conn, 1);
@@ -945,7 +982,7 @@ __session_cnx_timer(queue_item_t *item)
 			/* timeout during initial connect.
 			 * clean connection. write ipc rsp */
 			__session_mgmt_ipc_login_cleanup(qtask,
-						    MGMT_IPC_ERR_TCP_TIMEOUT, 0);
+					    MGMT_IPC_ERR_TCP_TIMEOUT, 0);
 		} else if (session->r_stage == R_STAGE_SESSION_REOPEN) {
 			log_debug(6, "cnx_timer popped at XPT_WAIT: reopen");
 			/* timeout during reopen connect.
@@ -1038,6 +1075,14 @@ __session_cnx_error(queue_item_t *item)
 				"let it timeout");
 			return;
 		}
+	} else if (conn->state == STATE_XPT_WAIT) {
+		log_debug(1, "ignoring cnx error in XPT_WAIT. "
+			  "let connection fail on its own");
+		return;
+	} else if (conn->state == STATE_CLEANUP_WAIT) {
+		log_debug(1, "ignoring cnx error in CLEANUP_WAIT. "
+			  "let connection stop");
+		return;
 	}
 
 	if (session->r_stage == R_STAGE_SESSION_REOPEN) {
@@ -1055,6 +1100,7 @@ __session_cnx_error(queue_item_t *item)
 		log_debug(3, "connection 0x%p is stopped for termination",
 			(void*)conn->handle);
 		iscsi_io_disconnect(conn);
+		__session_cnx_queue_flush(conn);
 	}
 
 	__session_cnx_cleanup(conn);
@@ -1198,6 +1244,7 @@ session_logout_task(iscsi_session_t *session, queue_task_t *qtask)
 	}
 
 	iscsi_io_disconnect(conn);
+	__session_cnx_queue_flush(conn);
 
 	if (ipc->destroy_cnx(session->transport_handle, conn->handle,
                 conn->id)) {

@@ -53,6 +53,7 @@ typedef struct queue_t {
 	struct qelem			list_head;
 	queued_f			queued_func;
 	void				*queued_data;
+	int				count;
 } queue_t;
 
 extern queue_t* queue_create(int pages_initial, int pages_max,

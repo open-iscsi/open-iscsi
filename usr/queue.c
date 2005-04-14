@@ -51,6 +51,7 @@ queue_create(int pages_initial, int pages_max, queued_f queued,
 	queue->pages_max = pages_max;
 	queue->list_head.q_forw = &queue->list_head;
 	queue->list_head.q_back = &queue->list_head;
+	queue->count = 0;
 
 	return queue;
 }
@@ -121,6 +122,8 @@ queue_consume(queue_t *queue, int data_max_size, queue_item_t *item)
 	queue_item_t *elem;
 
 	if (queue->list_head.q_forw == &queue->list_head) {
+		if (queue->count)
+			log_error("queue integrety lost! Bug?");
 		return QUEUE_IS_EMPTY;
 	}
 	elem = (queue_item_t *)queue->list_head.q_forw;
@@ -172,6 +175,8 @@ queue_consume(queue_t *queue, int data_max_size, queue_item_t *item)
 		/* reset buffer pointers just to be clean */
 		queue->head_ptr = queue->tail_ptr = queue->start_ptr;
 	}
+
+	queue->count--;
 
 	return QUEUE_OK;
 }
@@ -247,10 +252,12 @@ try_again:
 	elem->event_type = event_type;
 	elem->context = context;
 	memcpy(queue_item_data(elem), data, data_size);
-	insque(&elem->item, &queue->list_head);
+	insque(&elem->item, queue->list_head.q_back);
 
 	if (queue->queued_func)
 		queue->queued_func(queue->queued_data, event_type);
+
+	queue->count++;
 
 	return QUEUE_OK;
 }
