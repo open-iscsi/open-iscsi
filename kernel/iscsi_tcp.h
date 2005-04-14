@@ -240,10 +240,10 @@ struct iscsi_mgmt_task {
 };
 
 struct iscsi_r2t_info {
-	uint32_t		ttt;		/* copied from R2T */
-	uint32_t		exp_statsn;	/* copeid and incr. from R2T */
-	int			data_length;	/* copied from R2T */
-	int			data_offset;	/* copied from R2T */
+	__be32			ttt;		/* copied from R2T */
+	__be32			exp_statsn;	/* copied from R2T */
+	uint32_t		data_length;	/* copied from R2T */
+	uint32_t		data_offset;	/* copied from R2T */
 	struct iscsi_buf	headbuf;	/* Data-Out Header Buffer */
 	struct iscsi_buf	sendbuf;	/* Data-Out in progress buffer*/
 	int			sent;		/* R2T sequence progress */

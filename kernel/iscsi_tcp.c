@@ -212,8 +212,8 @@ iscsi_cmd_rsp(struct iscsi_conn *conn, struct iscsi_cmd_task *ctask)
 	struct iscsi_cmd_rsp *rhdr = (struct iscsi_cmd_rsp *)conn->in.hdr;
 	struct iscsi_session *session = conn->session;
 	struct scsi_cmnd *sc = ctask->sc;
-	int max_cmdsn = ntohl(rhdr->max_cmdsn);
-	int exp_cmdsn = ntohl(rhdr->exp_cmdsn);
+	int max_cmdsn = be32_to_cpu(rhdr->max_cmdsn);
+	int exp_cmdsn = be32_to_cpu(rhdr->exp_cmdsn);
 
 	if (max_cmdsn < exp_cmdsn - 1) {
 		rc = ISCSI_ERR_MAX_CMDSN;
@@ -222,7 +222,7 @@ iscsi_cmd_rsp(struct iscsi_conn *conn, struct iscsi_cmd_task *ctask)
 	}
 	session->max_cmdsn = max_cmdsn;
 	session->exp_cmdsn = exp_cmdsn;
-	conn->exp_statsn = ntohl(rhdr->statsn) + 1;
+	conn->exp_statsn = be32_to_cpu(rhdr->statsn) + 1;
 
 	sc->result = (DID_OK << 16) | rhdr->cmd_status;
 
@@ -237,7 +237,7 @@ iscsi_cmd_rsp(struct iscsi_conn *conn, struct iscsi_cmd_task *ctask)
 
 		if (sc->sc_data_direction != DMA_TO_DEVICE ) {
 			if (rhdr->flags & ISCSI_FLAG_CMD_UNDERFLOW) {
-				int res_count = ntohl(rhdr->residual_count);
+				int res_count = be32_to_cpu(rhdr->residual_count);
 				if (res_count > 0 &&
 				    res_count <= sc->request_bufflen) {
 					sc->resid = res_count;
@@ -249,7 +249,7 @@ iscsi_cmd_rsp(struct iscsi_conn *conn, struct iscsi_cmd_task *ctask)
 				sc->result = (DID_BAD_TARGET << 16) |
 					     rhdr->cmd_status;
 			} else if (rhdr->flags & ISCSI_FLAG_CMD_OVERFLOW) {
-				sc->resid = ntohl(rhdr->residual_count);
+				sc->resid = be32_to_cpu(rhdr->residual_count);
 			}
 		}
 	} else {
@@ -272,9 +272,9 @@ iscsi_data_rsp(struct iscsi_conn *conn, struct iscsi_cmd_task *ctask)
 {
 	struct iscsi_data_rsp *rhdr = (struct iscsi_data_rsp *)conn->in.hdr;
 	struct iscsi_session *session = conn->session;
-	int datasn = ntohl(rhdr->datasn);
-	int max_cmdsn = ntohl(rhdr->max_cmdsn);
-	int exp_cmdsn = ntohl(rhdr->exp_cmdsn);
+	int datasn = be32_to_cpu(rhdr->datasn);
+	int max_cmdsn = be32_to_cpu(rhdr->max_cmdsn);
+	int exp_cmdsn = be32_to_cpu(rhdr->exp_cmdsn);
 
 	/*
 	 * setup Data-In byte counter (gets decremented..)
@@ -295,15 +295,15 @@ iscsi_data_rsp(struct iscsi_conn *conn, struct iscsi_cmd_task *ctask)
 
 	ctask->datasn++;
 
-	ctask->data_offset = ntohl(rhdr->offset);
+	ctask->data_offset = be32_to_cpu(rhdr->offset);
 	if (ctask->data_offset + conn->in.datalen > ctask->total_length)
 		return ISCSI_ERR_DATA_OFFSET;
 
 	if (rhdr->flags & ISCSI_FLAG_DATA_STATUS) {
 		struct scsi_cmnd *sc = ctask->sc;
-		conn->exp_statsn = ntohl(rhdr->statsn) + 1;
+		conn->exp_statsn = be32_to_cpu(rhdr->statsn) + 1;
 		if (rhdr->flags & ISCSI_FLAG_CMD_UNDERFLOW) {
-			int res_count = ntohl(rhdr->residual_count);
+			int res_count = be32_to_cpu(rhdr->residual_count);
 			if (res_count > 0 &&
 			    res_count <= sc->request_bufflen) {
 				sc->resid = res_count;
@@ -315,7 +315,7 @@ iscsi_data_rsp(struct iscsi_conn *conn, struct iscsi_cmd_task *ctask)
 		} else if (rhdr->flags & ISCSI_FLAG_CMD_BIDI_UNDERFLOW) {
 			sc->result = (DID_BAD_TARGET << 16) | rhdr->cmd_status;
 		} else if (rhdr->flags & ISCSI_FLAG_CMD_OVERFLOW) {
-			sc->resid = ntohl(rhdr->residual_count);
+			sc->resid = be32_to_cpu(rhdr->residual_count);
 			sc->result = (DID_OK << 16) | rhdr->cmd_status;
 		} else {
 			sc->result = (DID_OK << 16) | rhdr->cmd_status;
@@ -346,13 +346,13 @@ iscsi_solicit_data_init(struct iscsi_conn *conn, struct iscsi_cmd_task *ctask,
 	hdr = &dtask->hdr;
 	memset(hdr, 0, sizeof(struct iscsi_data));
 	hdr->ttt = r2t->ttt;
-	hdr->datasn = htonl(r2t->solicit_datasn);
+	hdr->datasn = cpu_to_be32(r2t->solicit_datasn);
 	r2t->solicit_datasn++;
 	hdr->opcode = ISCSI_OP_SCSI_DATA_OUT;
 	hdr->lun[1] = ctask->hdr.lun[1];
 	hdr->itt = ctask->hdr.itt;
 	hdr->exp_statsn = r2t->exp_statsn;
-	hdr->offset = htonl(r2t->data_offset);
+	hdr->offset = cpu_to_be32(r2t->data_offset);
 	if (r2t->data_length > conn->max_xmit_dlength) {
 		hton24(hdr->dlength, conn->max_xmit_dlength);
 		r2t->data_count = conn->max_xmit_dlength;
@@ -413,9 +413,9 @@ iscsi_r2t_rsp(struct iscsi_conn *conn, struct iscsi_cmd_task *ctask)
 	struct iscsi_r2t_info *r2t;
 	struct iscsi_session *session = conn->session;
 	struct iscsi_r2t_rsp *rhdr = (struct iscsi_r2t_rsp *)conn->in.hdr;
-	uint32_t max_cmdsn = ntohl(rhdr->max_cmdsn);
-	uint32_t exp_cmdsn = ntohl(rhdr->exp_cmdsn);
-	int r2tsn = ntohl(rhdr->r2tsn);
+	uint32_t max_cmdsn = be32_to_cpu(rhdr->max_cmdsn);
+	uint32_t exp_cmdsn = be32_to_cpu(rhdr->exp_cmdsn);
+	int r2tsn = be32_to_cpu(rhdr->r2tsn);
 
 	if (conn->in.ahslen)
 		return ISCSI_ERR_AHSLEN;
@@ -439,12 +439,12 @@ iscsi_r2t_rsp(struct iscsi_conn *conn, struct iscsi_cmd_task *ctask)
 		return ISCSI_ERR_PROTO;
 
 	r2t->exp_statsn = rhdr->statsn;
-	r2t->data_length = ntohl(rhdr->data_length);
+	r2t->data_length = be32_to_cpu(rhdr->data_length);
 	if (r2t->data_length == 0 ||
 	    r2t->data_length > session->max_burst)
 		return ISCSI_ERR_DATALEN;
 
-	r2t->data_offset = ntohl(rhdr->data_offset);
+	r2t->data_offset = be32_to_cpu(rhdr->data_offset);
 	if (r2t->data_offset + r2t->data_length > ctask->total_length)
 		return ISCSI_ERR_DATALEN;
 
@@ -511,7 +511,7 @@ iscsi_hdr_recv(struct iscsi_conn *conn)
 
 	/* save opcode & itt for later */
 	conn->in.opcode = hdr->opcode;
-	conn->in.itt = ntohl(hdr->itt);
+	conn->in.itt = be32_to_cpu(hdr->itt);
 
 	debug_tcp("opcode 0x%x offset %d copy %d ahslen %d datalen %d\n",
 		  hdr->opcode, conn->in.offset, conn->in.copy,
@@ -568,7 +568,7 @@ iscsi_hdr_recv(struct iscsi_conn *conn)
 		case ISCSI_OP_ASYNC_EVENT:
 		case ISCSI_OP_REJECT:
 			/* update ExpStatSN */
-			conn->exp_statsn = ntohl(hdr->statsn) + 1;
+			conn->exp_statsn = be32_to_cpu(hdr->statsn) + 1;
 			if (!conn->in.datalen) {
 				struct iscsi_mgmt_task *mtask;
 
@@ -1148,14 +1148,14 @@ iscsi_solicit_data_cont(struct iscsi_conn *conn, struct iscsi_cmd_task *ctask,
 	hdr = &dtask->hdr;
 	memset(hdr, 0, sizeof(struct iscsi_data));
 	hdr->ttt = r2t->ttt;
-	hdr->datasn = htonl(r2t->solicit_datasn);
+	hdr->datasn = cpu_to_be32(r2t->solicit_datasn);
 	r2t->solicit_datasn++;
 	hdr->opcode = ISCSI_OP_SCSI_DATA_OUT;
 	hdr->lun[1] = ctask->hdr.lun[1];
 	hdr->itt = ctask->hdr.itt;
 	hdr->exp_statsn = r2t->exp_statsn;
 	new_offset = r2t->data_offset + r2t->sent;
-	hdr->offset = htonl(new_offset);
+	hdr->offset = cpu_to_be32(new_offset);
 	if (left > conn->max_xmit_dlength) {
 		hton24(hdr->dlength, conn->max_xmit_dlength);
 		r2t->data_count = conn->max_xmit_dlength;
@@ -1193,15 +1193,16 @@ iscsi_unsolicit_data_init(struct iscsi_conn *conn, struct iscsi_cmd_task *ctask)
 	BUG_ON(!dtask);
 	hdr = &dtask->hdr;
 	memset(hdr, 0, sizeof(struct iscsi_data));
-	hdr->ttt = ISCSI_RESERVED_TAG;
-	hdr->datasn = htonl(ctask->unsol_datasn);
+	hdr->ttt = cpu_to_be32(ISCSI_RESERVED_TAG);
+	hdr->datasn = cpu_to_be32(ctask->unsol_datasn);
 	ctask->unsol_datasn++;
 	hdr->opcode = ISCSI_OP_SCSI_DATA_OUT;
 	hdr->lun[1] = ctask->hdr.lun[1];
 	hdr->itt = ctask->hdr.itt;
-	hdr->exp_statsn = htonl(conn->exp_statsn);
-	hdr->offset = htonl(ctask->total_length - ctask->r2t_data_count -
-			    ctask->unsol_count);
+	hdr->exp_statsn = cpu_to_be32(conn->exp_statsn);
+	hdr->offset = cpu_to_be32(ctask->total_length -
+				  ctask->r2t_data_count -
+				  ctask->unsol_count);
 	if (ctask->unsol_count > conn->max_xmit_dlength) {
 		hton24(hdr->dlength, conn->max_xmit_dlength);
 		ctask->data_count = conn->max_xmit_dlength;
@@ -1232,10 +1233,10 @@ iscsi_cmd_init(struct iscsi_conn *conn, struct iscsi_cmd_task *ctask,
 	ctask->hdr.opcode = ISCSI_OP_SCSI_CMD;
 	ctask->hdr.flags = ISCSI_ATTR_SIMPLE;
 	ctask->hdr.lun[1] = sc->device->lun;
-	ctask->hdr.itt = htonl(ctask->itt);
-	ctask->hdr.data_length = htonl(sc->request_bufflen);
-	ctask->hdr.cmdsn = htonl(session->cmdsn); session->cmdsn++;
-	ctask->hdr.exp_statsn = htonl(conn->exp_statsn);
+	ctask->hdr.itt = cpu_to_be32(ctask->itt);
+	ctask->hdr.data_length = cpu_to_be32(sc->request_bufflen);
+	ctask->hdr.cmdsn = cpu_to_be32(session->cmdsn); session->cmdsn++;
+	ctask->hdr.exp_statsn = cpu_to_be32(conn->exp_statsn);
 	memcpy(ctask->hdr.cdb, sc->cmnd, sc->cmd_len);
 	memset(&ctask->hdr.cdb[sc->cmd_len], 0, MAX_COMMAND_SIZE - sc->cmd_len);
 
@@ -1600,7 +1601,7 @@ iscsi_data_xmit(struct iscsi_conn *conn)
 		        if (iscsi_mtask_xmit(conn, conn->mtask))
 			        return -EAGAIN;
 
-		        if (conn->mtask->hdr.itt == ISCSI_RESERVED_TAG) {
+		        if (conn->mtask->hdr.itt == cpu_to_be32(ISCSI_RESERVED_TAG)) {
 			        spin_lock_bh(&session->lock);
 			        __kfifo_put(session->mgmtpool.queue,
 					    (void*)&conn->mtask, sizeof(void*));
@@ -1631,7 +1632,7 @@ iscsi_data_xmit(struct iscsi_conn *conn)
 		        if (iscsi_mtask_xmit(conn, conn->mtask))
 			        return -EAGAIN;
 
-		        if (conn->mtask->hdr.itt == ISCSI_RESERVED_TAG) {
+		        if (conn->mtask->hdr.itt == cpu_to_be32(ISCSI_RESERVED_TAG)) {
 			        spin_lock_bh(&session->lock);
 			        __kfifo_put(session->mgmtpool.queue,
 					    (void*)&conn->mtask,
@@ -2210,6 +2211,7 @@ iscsi_conn_send_pdu(iscsi_cnx_t cnxh, struct iscsi_hdr *hdr, char *data,
 {
 	struct iscsi_conn *conn = iscsi_ptr(cnxh);
 	struct iscsi_session *session = conn->session;
+	struct iscsi_nopout *nop = (struct iscsi_nopout *)hdr;
 	struct iscsi_mgmt_task *mtask;
 
 	spin_lock_bh(&session->lock);
@@ -2236,17 +2238,17 @@ iscsi_conn_send_pdu(iscsi_cnx_t cnxh, struct iscsi_hdr *hdr, char *data,
 	/*
 	 * pre-format CmdSN and ExpStatSN for outgoing PDU.
 	 */
-	if (hdr->itt != ISCSI_RESERVED_TAG) {
-		hdr->itt = htonl(mtask->itt);
-		((struct iscsi_nopout*)hdr)->cmdsn = htonl(session->cmdsn);
-		if (conn->c_stage == ISCSI_CNX_STARTED) {
+	if (hdr->itt != cpu_to_be32(ISCSI_RESERVED_TAG)) {
+		hdr->itt = cpu_to_be32(mtask->itt);
+		nop->cmdsn = cpu_to_be32(session->cmdsn);
+		if (conn->c_stage == ISCSI_CNX_STARTED)
 			session->cmdsn++;
-		}
 	} else {
 		/* do not advance CmdSN */
-		((struct iscsi_nopout*)hdr)->cmdsn = htonl(session->cmdsn);
+		nop->cmdsn = cpu_to_be32(session->cmdsn);
 	}
-	((struct iscsi_nopout*)hdr)->exp_statsn = htonl(conn->exp_statsn);
+
+	nop->exp_statsn = cpu_to_be32(conn->exp_statsn);
 
 	memcpy(&mtask->hdr, hdr, sizeof(struct iscsi_hdr));
 
@@ -2285,7 +2287,7 @@ iscsi_conn_send_pdu(iscsi_cnx_t cnxh, struct iscsi_hdr *hdr, char *data,
 	}
 
 	debug_scsi("mgmtpdu [op 0x%x itt 0x%x datalen %d]\n",
-		   hdr->opcode, ntohl(hdr->itt), data_size);
+		   hdr->opcode, be32_to_cpu(hdr->itt), data_size);
 
         if (hdr->opcode & ISCSI_OP_IMMEDIATE)
 	        __kfifo_put(conn->immqueue, (void*)&mtask, sizeof(void*));
