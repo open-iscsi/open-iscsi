@@ -237,7 +237,8 @@ iscsi_cmd_rsp(struct iscsi_conn *conn, struct iscsi_cmd_task *ctask)
 
 		if (sc->sc_data_direction != DMA_TO_DEVICE ) {
 			if (rhdr->flags & ISCSI_FLAG_CMD_UNDERFLOW) {
-				int res_count = be32_to_cpu(rhdr->residual_count);
+				int res_count =
+					be32_to_cpu(rhdr->residual_count);
 				if (res_count > 0 &&
 				    res_count <= sc->request_bufflen) {
 					sc->resid = res_count;
@@ -1601,13 +1602,16 @@ iscsi_data_xmit(struct iscsi_conn *conn)
 		        if (iscsi_mtask_xmit(conn, conn->mtask))
 			        return -EAGAIN;
 
-		        if (conn->mtask->hdr.itt == cpu_to_be32(ISCSI_RESERVED_TAG)) {
+		        if (conn->mtask->hdr.itt ==
+					cpu_to_be32(ISCSI_RESERVED_TAG)) {
 			        spin_lock_bh(&session->lock);
 			        __kfifo_put(session->mgmtpool.queue,
 					    (void*)&conn->mtask, sizeof(void*));
 			        spin_unlock_bh(&session->lock);
 		        }
 	        }
+		/* done with this mtask */
+		conn->mtask = NULL;
 	}
 
 	/* process write queue */
@@ -1615,6 +1619,9 @@ iscsi_data_xmit(struct iscsi_conn *conn)
 			   sizeof(void*))) {
 		if (iscsi_ctask_xmit(conn, conn->ctask))
 			return -EAGAIN;
+
+		/* done with this ctask */
+		conn->ctask = NULL;
 	}
 
 	/* process command queue */
@@ -1622,6 +1629,9 @@ iscsi_data_xmit(struct iscsi_conn *conn)
 			   sizeof(void*))) {
 		if (iscsi_ctask_xmit(conn, conn->ctask))
 			return -EAGAIN;
+
+		/* done with this ctask */
+		conn->ctask = NULL;
 	}
 
 	/* process the rest control plane PDUs, if any */
@@ -1632,7 +1642,8 @@ iscsi_data_xmit(struct iscsi_conn *conn)
 		        if (iscsi_mtask_xmit(conn, conn->mtask))
 			        return -EAGAIN;
 
-		        if (conn->mtask->hdr.itt == cpu_to_be32(ISCSI_RESERVED_TAG)) {
+		        if (conn->mtask->hdr.itt ==
+					cpu_to_be32(ISCSI_RESERVED_TAG)) {
 			        spin_lock_bh(&session->lock);
 			        __kfifo_put(session->mgmtpool.queue,
 					    (void*)&conn->mtask,
@@ -1640,6 +1651,8 @@ iscsi_data_xmit(struct iscsi_conn *conn)
 			        spin_unlock_bh(&session->lock);
 		        }
 	        }
+		/* done with this mtask */
+		conn->mtask = NULL;
 	}
 
 	return 0;
@@ -2663,7 +2676,7 @@ iscsi_conn_set_param(iscsi_cnx_t cnxh, enum iscsi_param param, uint32_t value)
 		}
 		break;
 		case ISCSI_PARAM_MAX_XMIT_DLENGTH:
-			conn->max_xmit_dlength = value;
+			conn->max_xmit_dlength =  value;
 			break;
 		case ISCSI_PARAM_HDRDGST_EN:
 			conn->hdrdgst_en = value;
