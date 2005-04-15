@@ -37,7 +37,7 @@ MODULE_LICENSE("GPL");
 static struct iscsi_transport *transport_table[ISCSI_TRANSPORT_MAX];
 static struct sock *nls;
 static int daemon_pid;
-DECLARE_MUTEX(callsema);
+static DECLARE_MUTEX(callsema);
 
 struct mempool_zone {
 	mempool_t *pool;
@@ -51,37 +51,19 @@ struct mempool_zone {
 
 static struct mempool_zone z_reply;
 
-#define Z_REPLY		0
 #define Z_SIZE_REPLY	NLMSG_SPACE(sizeof(struct iscsi_uevent))
 #define Z_MAX_REPLY	8
 #define Z_HIWAT_REPLY	6
 
-#define Z_PDU		1
 #define Z_SIZE_PDU	NLMSG_SPACE(sizeof(struct iscsi_uevent) + \
 				    sizeof(struct iscsi_hdr) + \
 				    DEFAULT_MAX_RECV_DATA_SEGMENT_LENGTH)
 #define Z_MAX_PDU	8
 #define Z_HIWAT_PDU	6
 
-#define Z_ERROR		2
 #define Z_SIZE_ERROR	NLMSG_SPACE(sizeof(struct iscsi_uevent))
 #define Z_MAX_ERROR	16
 #define Z_HIWAT_ERROR	12
-
-#define zone_init(_zp, _zone) ({ \
-	(_zp)->pool = mempool_create(Z_MAX_##_zone, \
-			mempool_zone_alloc_skb, mempool_zone_free_skb, \
-			(void*)(_zp)); \
-	if ((_zp)->pool) { \
-		(_zp)->max = Z_MAX_##_zone; \
-		(_zp)->size = Z_SIZE_##_zone; \
-		(_zp)->hiwat = Z_HIWAT_##_zone; \
-		INIT_LIST_HEAD(&(_zp)->freequeue); \
-		spin_lock_init(&(_zp)->freelock); \
-		(_zp)->allocated = 0; \
-	} \
-	(_zp)->pool; \
-})
 
 struct iscsi_if_cnx {
 	struct list_head item;		/* item in cnxlist */
@@ -95,8 +77,8 @@ struct iscsi_if_cnx {
 	struct mempool_zone z_pdu;
 	struct list_head freequeue;
 };
-LIST_HEAD(cnxlist);
-spinlock_t cnxlock;
+static LIST_HEAD(cnxlist);
+static DEFINE_SPINLOCK(cnxlock);
 
 struct iscsi_if_snx {
 	struct list_head item;	/* item in snxlist */
@@ -105,8 +87,8 @@ struct iscsi_if_snx {
 	iscsi_snx_t dp_snx;
 	struct iscsi_transport *transport;
 };
-LIST_HEAD(snxlist);
-spinlock_t snxlock;
+static LIST_HEAD(snxlist);
+static DEFINE_SPINLOCK(snxlock);
 
 #define H_TYPE_CP	0
 #define H_TYPE_DP	1
@@ -230,6 +212,26 @@ mempool_zone_complete(struct mempool_zone *zone)
 	spin_unlock_irqrestore(&zone->freelock, flags);
 }
 
+static int zone_init(struct mempool_zone *zp, unsigned max,
+		unsigned size, unsigned hiwat)
+{
+	zp->pool = mempool_create(max, mempool_zone_alloc_skb,
+				  mempool_zone_free_skb, zp);
+	if (!zp->pool)
+		return -ENOMEM;
+
+	zp->max = max;
+	zp->size = size;
+	zp->hiwat = hiwat;
+
+	INIT_LIST_HEAD(&zp->freequeue);
+	spin_lock_init(&zp->freelock);
+	zp->allocated = 0;
+
+	return 0;
+}
+
+
 static struct sk_buff*
 mempool_zone_get_skb(struct mempool_zone *zone)
 {
@@ -274,7 +276,6 @@ int iscsi_recv_pdu(iscsi_cnx_t cp_cnx, struct iscsi_hdr *hdr,
 	struct iscsi_uevent *ev;
 	struct iscsi_if_cnx *cnx;
 	char *pdu;
-	int rc;
 	int len = NLMSG_SPACE(sizeof(*ev) + sizeof(struct iscsi_hdr) +
 			      data_size);
 
@@ -303,9 +304,7 @@ int iscsi_recv_pdu(iscsi_cnx_t cp_cnx, struct iscsi_hdr *hdr,
 	memcpy(pdu, hdr, sizeof(struct iscsi_hdr));
 	memcpy(pdu + sizeof(struct iscsi_hdr), data, data_size);
 
-	rc =  iscsi_unicast_skb(&cnx->z_pdu, skb);
-
-	return rc;
+	return iscsi_unicast_skb(&cnx->z_pdu, skb);
 }
 EXPORT_SYMBOL_GPL(iscsi_recv_pdu);
 
@@ -395,7 +394,7 @@ iscsi_if_create_snx(struct iscsi_transport *transport, struct iscsi_uevent *ev)
 	struct iscsi_if_snx *snx;
 	struct Scsi_Host *host;
 	unsigned long flags;
-	int res;
+	int error;
 
 	if (!try_module_get(transport->owner))
 		return -EPERM;
@@ -406,8 +405,8 @@ iscsi_if_create_snx(struct iscsi_transport *transport, struct iscsi_uevent *ev)
 		ev->r.c_session_ret.handle = iscsi_handle(NULL);
 		printk("iscsi: can not allocate SCSI host for session %p\n",
 			iscsi_ptr(ev->u.c_session.session_handle));
-		module_put(transport->owner);
-		return -ENOMEM;
+		error = -ENOMEM;
+		goto out_module_put;
 	}
 	host->max_id = 1;
 	host->max_channel = 0;
@@ -424,9 +423,8 @@ iscsi_if_create_snx(struct iscsi_transport *transport, struct iscsi_uevent *ev)
 	       ev->u.c_session.session_handle, ev->u.c_session.initial_cmdsn,
 	       host);
 	if (ev->r.c_session_ret.handle == iscsi_handle(NULL)) {
-		scsi_host_put(host);
-		module_put(transport->owner);
-		return 0;
+		error = 0;
+		goto out_host_put;
 	}
 
 	/* host_no becomes assigned SID */
@@ -438,22 +436,25 @@ iscsi_if_create_snx(struct iscsi_transport *transport, struct iscsi_uevent *ev)
 	snx->dp_snx = ev->r.c_session_ret.handle;
 	snx->transport = transport;
 
-	res = scsi_add_host(host, NULL);
-	if (res) {
-		transport->destroy_session(ev->r.c_session_ret.handle);
-		scsi_host_put(host);
-		ev->r.c_session_ret.handle = iscsi_handle(NULL);
-		printk("iscsi%d: can not add host (%d)\n",
-		       host->host_no, res);
-		module_put(transport->owner);
-		return res;
-	}
+	error = scsi_add_host(host, NULL);
+	if (error)
+		goto out_destroy_session;
 
 	/* add this session to the list of active sessions */
 	spin_lock_irqsave(&snxlock, flags);
 	list_add(&snx->item, &snxlist);
 	spin_unlock_irqrestore(&snxlock, flags);
+
 	return 0;
+
+ out_destroy_session:
+	transport->destroy_session(ev->r.c_session_ret.handle);
+	ev->r.c_session_ret.handle = iscsi_handle(NULL);
+ out_host_put:
+	scsi_host_put(host);
+ out_module_put:
+	module_put(transport->owner);
+	return error;
 }
 
 static int
@@ -511,6 +512,8 @@ iscsi_if_create_cnx(struct iscsi_transport *transport, struct iscsi_uevent *ev)
 	struct iscsi_if_snx *snx;
 	struct Scsi_Host *host;
 	struct iscsi_if_cnx *cnx;
+	unsigned long flags;
+	int error;
 
 	host = scsi_host_lookup(ev->u.c_cnx.sid);
 	if (host == ERR_PTR(-ENXIO))
@@ -524,38 +527,45 @@ iscsi_if_create_cnx(struct iscsi_transport *transport, struct iscsi_uevent *ev)
 	cnx->host = host;
 	snx->transport = transport;
 
-	if (!zone_init(&cnx->z_pdu, PDU)) {
+	error = zone_init(&cnx->z_pdu, Z_MAX_PDU, Z_SIZE_PDU, Z_HIWAT_PDU);
+	if (error) {
 		printk("iscsi%d: can not allocate pdu zone for new cnx\n",
 		       host->host_no);
-		kfree(cnx);
-		return -ENOMEM;
+		goto out_free_cnx;
 	}
-	if (!zone_init(&cnx->z_error, ERROR)) {
+	error = zone_init(&cnx->z_error, Z_MAX_ERROR,
+			  Z_SIZE_ERROR, Z_HIWAT_ERROR);
+	if (error) {
 		printk("iscsi%d: can not allocate error zone for new cnx\n",
 		       host->host_no);
-		mempool_destroy(cnx->z_pdu.pool);
-		kfree(cnx);
-		return -ENOMEM;
+		goto out_free_pdu_pool;
 	}
 
 	ev->r.handle = transport->create_cnx(ev->u.c_cnx.session_handle,
 			     ev->u.c_cnx.cnx_handle, ev->u.c_cnx.cid);
 	if (!ev->r.handle) {
-		mempool_destroy(cnx->z_pdu.pool);
-		mempool_destroy(cnx->z_error.pool);
-		kfree(cnx);
-	} else {
-		unsigned long flags;
-
-		cnx->cp_cnx = ev->u.c_cnx.cnx_handle;
-		cnx->dp_cnx = ev->r.handle;
-		spin_lock_irqsave(&cnxlock, flags);
-		list_add(&cnx->item, &cnxlist);
-		list_add(&cnx->snxitem, &snx->connections);
-		spin_unlock_irqrestore(&cnxlock, flags);
-		cnx->active = 1;
+		error = -ENODEV;
+		goto out_free_error_pool;
 	}
+
+	cnx->cp_cnx = ev->u.c_cnx.cnx_handle;
+	cnx->dp_cnx = ev->r.handle;
+
+	spin_lock_irqsave(&cnxlock, flags);
+	list_add(&cnx->item, &cnxlist);
+	list_add(&cnx->snxitem, &snx->connections);
+	spin_unlock_irqrestore(&cnxlock, flags);
+
+	cnx->active = 1;
 	return 0;
+
+ out_free_error_pool:
+	mempool_destroy(cnx->z_error.pool);
+ out_free_pdu_pool:
+	mempool_destroy(cnx->z_pdu.pool);
+ out_free_cnx:
+	kfree(cnx);
+	return error;
 }
 
 static int
@@ -773,27 +783,24 @@ static struct notifier_block iscsi_nl_notifier = {
 static int __init
 iscsi_if_init(void)
 {
-	spin_lock_init(&cnxlock);
-	spin_lock_init(&snxlock);
+	int error;
 
 	netlink_register_notifier(&iscsi_nl_notifier);
 	nls = netlink_kernel_create(NETLINK_ISCSI, iscsi_if_rx);
-	if (nls == NULL)
-		return -ENOBUFS;
-
-	if (!zone_init(&z_reply, REPLY)) {
-		sock_release(nls->sk_socket);
-		netlink_unregister_notifier(&iscsi_nl_notifier);
-		return -ENOMEM;
+	if (!nls) {
+		error = -ENOBUFS;
+		goto out_unregister_notifier;
 	}
+
+	error = zone_init(&z_reply, Z_MAX_REPLY, Z_SIZE_REPLY, Z_HIWAT_REPLY);
+	if (error)
+		goto out_release_sock;
 
 #ifdef CONFIG_SCSI_ISCSI_ATTRS
 	iscsi_transportt = iscsi_attach_transport(&iscsi_fnt);
 	if (!iscsi_transportt) {
-		mempool_destroy(z_reply.pool);
-		sock_release(nls->sk_socket);
-		netlink_unregister_notifier(&iscsi_nl_notifier);
-		return -ENOMEM;
+		error = -ENOMEM;
+		goto out_reply_pool_destroy;
 	}
 #endif
 
@@ -801,6 +808,16 @@ iscsi_if_init(void)
 			ISCSI_VERSION_STR " variant (" ISCSI_DATE_STR ")\n");
 
 	return 0;
+
+#ifdef CONFIG_SCSI_ISCSI_ATTRS
+ out_reply_pool_destroy:
+	mempool_destroy(z_reply.pool);
+#endif
+ out_release_sock:
+	sock_release(nls->sk_socket);
+ out_unregister_notifier:
+	netlink_unregister_notifier(&iscsi_nl_notifier);
+	return error;
 }
 
 static void __exit
