@@ -1696,7 +1696,7 @@ iscsi_xmitworker(void *data)
 #define FAILURE_WINDOW_CLOSED		4
 #define FAILURE_SESSION_TERMINATE	5
 
-int
+static int
 iscsi_queuecommand(struct scsi_cmnd *sc, void (*done)(struct scsi_cmnd *))
 {
 	struct Scsi_Host *host;
@@ -2812,7 +2812,7 @@ iscsi_conn_get_param(iscsi_cnx_t cnxh, enum iscsi_param param, uint32_t *value)
 	return 0;
 }
 
-struct iscsi_transport iscsi_tcp_transport = {
+static struct iscsi_transport iscsi_tcp_transport = {
 	.owner			= THIS_MODULE,
 	.name                   = "tcp",
 	.caps                   = CAP_RECOVERY_L0 | CAP_MULTI_R2T,
