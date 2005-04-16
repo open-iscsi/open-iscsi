@@ -49,14 +49,14 @@ int control_fd, mgmt_ipc_fd;
 static struct pollfd poll_array[POLL_MAX];
 
 static struct option const long_options[] = {
-	{"config", required_argument, 0, 'c'},
-	{"foreground", no_argument, 0, 'f'},
-	{"debug", required_argument, 0, 'd'},
-	{"uid", required_argument, 0, 'u'},
-	{"gid", required_argument, 0, 'g'},
-	{"help", no_argument, 0, 'h'},
-	{"version", no_argument, 0, 'v'},
-	{0, 0, 0, 0},
+	{"config", required_argument, NULL, 'c'},
+	{"foreground", no_argument, NULL, 'f'},
+	{"debug", required_argument, NULL, 'd'},
+	{"uid", required_argument, NULL, 'u'},
+	{"gid", required_argument, NULL, 'g'},
+	{"help", no_argument, NULL, 'h'},
+	{"version", no_argument, NULL, 'v'},
+	{NULL, 0, NULL, 0},
 };
 
 static void usage(int status)

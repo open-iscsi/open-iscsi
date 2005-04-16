@@ -527,7 +527,7 @@ __send_pdu_timedout(void *data)
 	iscsi_session_t *session = conn->session;
 
 	if (conn->send_pdu_in_progress) {
-		queue_produce(session->queue, EV_CNX_TIMER, qtask, 0, 0);
+		queue_produce(session->queue, EV_CNX_TIMER, qtask, 0, NULL);
 		actor_schedule(&session->mainloop);
 	}
 }
@@ -783,7 +783,8 @@ __session_cnx_poll(queue_item_t *item)
 		rc = iscsi_io_tcp_poll(conn);
 		if (rc == 0) {
 			/* timedout: poll again */
-			queue_produce(session->queue, EV_CNX_POLL, qtask, 0, 0);
+			queue_produce(session->queue, EV_CNX_POLL,
+					qtask, 0, NULL);
 			actor_schedule(&session->mainloop);
 		} else if (rc > 0) {
 
@@ -896,7 +897,7 @@ __connect_timedout(void *data)
 	iscsi_session_t *session = conn->session;
 
 	if (conn->state == STATE_XPT_WAIT) {
-		queue_produce(session->queue, EV_CNX_TIMER, qtask, 0, 0);
+		queue_produce(session->queue, EV_CNX_TIMER, qtask, 0, NULL);
 		actor_schedule(&session->mainloop);
 	}
 }
@@ -961,7 +962,7 @@ __session_cnx_reopen(iscsi_conn_t *conn, int do_stop)
 
 	conn->state = STATE_XPT_WAIT;
 	queue_produce(session->queue, EV_CNX_POLL,
-		      &session->reopen_qtask, 0, 0);
+		      &session->reopen_qtask, 0, NULL);
 	actor_schedule(&session->mainloop);
 	actor_timer(&conn->connect_timer, conn->login_timeout*1000,
 		    __connect_timedout, &session->reopen_qtask);

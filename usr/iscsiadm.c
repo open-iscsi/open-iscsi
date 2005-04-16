@@ -59,19 +59,19 @@ enum iscsiadm_op {
 
 static struct option const long_options[] =
 {
-	{"mode", required_argument, 0, 'm'},
-	{"portal", required_argument, 0, 'p'},
-	{"op", required_argument, 0, 'o'},
-	{"type", required_argument, 0, 't'},
-	{"name", required_argument, 0, 'n'},
-	{"value", required_argument, 0, 'v'},
-	{"record", required_argument, 0, 'r'},
-	{"login", no_argument, 0, 'l'},
-	{"logout", no_argument, 0, 'u'},
-	{"debug", required_argument, 0, 'g'},
-	{"version", no_argument, 0, 'V'},
-	{"help", no_argument, 0, 'h'},
-	{0, 0, 0, 0},
+	{"mode", required_argument, NULL, 'm'},
+	{"portal", required_argument, NULL, 'p'},
+	{"op", required_argument, NULL, 'o'},
+	{"type", required_argument, NULL, 't'},
+	{"name", required_argument, NULL, 'n'},
+	{"value", required_argument, NULL, 'v'},
+	{"record", required_argument, NULL, 'r'},
+	{"login", no_argument, NULL, 'l'},
+	{"logout", no_argument, NULL, 'u'},
+	{"debug", required_argument, NULL, 'g'},
+	{"version", no_argument, NULL, 'V'},
+	{"help", no_argument, NULL, 'h'},
+	{NULL, 0, NULL, 0},
 };
 static char *short_options = "lVhm:p:d:r:n:v:o:t:u";
 
@@ -668,7 +668,7 @@ main(int argc, char **argv)
 				goto out;
 			}
 			printf("new iSCSI node record added: [%06x]\n",
-			       nrec.id);
+				nrec.id);
 		} else if (op == OP_DELETE) {
 			log_error("--record required for delete operation");
 			rc = -1;

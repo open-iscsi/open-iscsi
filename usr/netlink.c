@@ -617,7 +617,7 @@ ktrans_list(struct iscsi_uevent *ev)
 }
 
 static int
-ctldev_handle()
+ctldev_handle(void)
 {
 	int rc;
 	struct iscsi_uevent *ev;

@@ -334,7 +334,7 @@ acl_authmethod_optn_to_text(int value)
 		s = acl_authmethod_set_chap_alg_list;
 		break;
 	default:
-		s = 0;
+		s = NULL;
 	}
 	return s;
 }
@@ -602,7 +602,7 @@ acl_get_key_val(struct auth_key_block *key_blk, int key_type)
 	key_blk->key[key_type].processed = 1;
 
 	if (!key_blk->key[key_type].present)
-		return 0;
+		return NULL;
 
 	return key_blk->key[key_type].string;
 }
@@ -666,7 +666,7 @@ acl_set_key(struct iscsi_acl *client, int key_type, unsigned int option_count,
 	}
 
 	if (option_count == 1 && option_list[0] == AUTH_OPTION_NOT_PRESENT) {
-		acl_set_key_value(&client->send_key_block, key_type, 0);
+		acl_set_key_value(&client->send_key_block, key_type, NULL);
 		return;
 	}
 
@@ -758,14 +758,14 @@ acl_set_chap_alg_key(struct iscsi_acl *client, unsigned int chap_alg_count,
 
 	if (chap_alg_count == 0) {
 		acl_set_key_value(&client->send_key_block,
-				  AUTH_KEY_TYPE_CHAP_ALG, 0);
+				  AUTH_KEY_TYPE_CHAP_ALG, NULL);
 		return;
 	}
 
 	if (chap_alg_count == 1 &&
 	    chap_alg_list[0] == AUTH_OPTION_NOT_PRESENT) {
 		acl_set_key_value(&client->send_key_block,
-				  AUTH_KEY_TYPE_CHAP_ALG, 0);
+				  AUTH_KEY_TYPE_CHAP_ALG, NULL);
 		return;
 	}
 
@@ -1476,7 +1476,7 @@ acl_get_key_name(int key_type)
 	};
 
 	if (key_type < AUTH_KEY_TYPE_FIRST || key_type > AUTH_KEY_TYPE_LAST)
-		return 0;
+		return NULL;
 
 	return key_names[key_type];
 }
@@ -1922,7 +1922,7 @@ acl_set_user_name(struct iscsi_acl *client, const char *username)
 		return AUTH_STATUS_ERROR;
 
 	if (client->phase != AUTH_PHASE_CONFIGURE ||
-	    acl_chk_string(username, AUTH_STR_MAX_LEN, 0)) {
+	    acl_chk_string(username, AUTH_STR_MAX_LEN, NULL)) {
 		client->phase = AUTH_PHASE_ERROR;
 		return AUTH_STATUS_ERROR;
 	}
