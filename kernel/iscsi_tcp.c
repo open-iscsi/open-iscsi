@@ -1789,18 +1789,7 @@ fault:
 	sc->sense_buffer[12] = 0x08;
 	sc->sense_buffer[13] = 0x00;
 	sc->result = (DID_NO_CONNECT << 16);
-	switch (sc->cmnd[0]) {
-	case INQUIRY:
-	case REQUEST_SENSE:
-		sc->resid = sc->cmnd[4];
-	case REPORT_LUNS:
-		sc->resid = sc->cmnd[6] << 24;
-		sc->resid |= sc->cmnd[7] << 16;
-		sc->resid |= sc->cmnd[8] << 8;
-		sc->resid |= sc->cmnd[9];
-	default:
-		sc->resid = sc->request_bufflen;
-	}
+	sc->resid = sc->request_bufflen;
 	sc->scsi_done(sc);
 	return 0;
 }
