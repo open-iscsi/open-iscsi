@@ -2133,10 +2133,6 @@ iscsi_conn_start(iscsi_cnx_t cnxh)
 		return -EPERM;
 	}
 
-	if (session->state == ISCSI_STATE_LOGGED_IN &&
-	    session->leadconn == conn)
-		scsi_scan_host(session->host);
-
 	spin_lock_bh(&session->lock);
 	conn->c_stage = ISCSI_CNX_STARTED;
 	conn->cpu = session->conn_cnt % num_online_cpus();

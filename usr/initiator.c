@@ -129,6 +129,25 @@ __session_delete_luns(iscsi_session_t *session)
 	} while (++lu < 256); /* FIXME: hardcoded */
 }
 
+/*
+ * Scan a session from usersapce using sysfs
+ */
+static void
+__session_scan_host(iscsi_session_t *session)
+{
+ 	int fd;
+
+	sprintf(sysfs_file, "/sys/class/scsi_host/host%d/scan", session->id);
+	fd = open(sysfs_file, O_WRONLY);
+	if (fd < 0) {
+		log_error("could not scan scsi host%d\n", session->id);
+		return;
+	}
+	log_debug(4, "scanning host%d using %s", session->id, sysfs_file);
+	write(fd, "- - -", 5);
+	close(fd);
+}
+
 static cnx_login_status_e
 __login_response_status(iscsi_conn_t *conn,
 		      enum iscsi_login_status login_status)
@@ -710,6 +729,12 @@ __session_cnx_recv_pdu(queue_item_t *item)
 
 			conn->state = STATE_LOGGED_IN;
 			if (session->r_stage == R_STAGE_NO_CHANGE) {
+				/*
+				 * scan host is one-time deal. We
+				 * don't want to re-scan it on recovery.
+				 */
+				if (conn->id == 0)
+					__session_scan_host(session);
 				c->qtask->u.login.rsp.err = MGMT_IPC_OK;
 				write(c->qtask->u.login.mgmt_ipc_fd,
 					&c->qtask->u.login.rsp,
