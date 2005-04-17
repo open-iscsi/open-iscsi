@@ -468,6 +468,7 @@ iscsi_if_destroy_snx(struct iscsi_transport *transport, struct iscsi_uevent *ev)
 	host = scsi_host_lookup(ev->u.d_session.sid);
 	if (host == ERR_PTR(-ENXIO))
 		return -EEXIST;
+	scsi_host_put(host);
 	snx = hostdata_snx(host->hostdata);
 
 	/* check if we have active connections */
@@ -518,6 +519,7 @@ iscsi_if_create_cnx(struct iscsi_transport *transport, struct iscsi_uevent *ev)
 	host = scsi_host_lookup(ev->u.c_cnx.sid);
 	if (host == ERR_PTR(-ENXIO))
 		return -EEXIST;
+	scsi_host_put(host);
 	snx = hostdata_snx(host->hostdata);
 
 	cnx = kmalloc(sizeof(struct iscsi_if_cnx), GFP_KERNEL);
