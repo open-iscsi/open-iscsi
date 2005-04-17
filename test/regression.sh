@@ -19,7 +19,27 @@
 
 PATH=$PATH:.
 
+trap regress_signal INT QUIT TERM
+regress_signal() {
+    printf "\nterminating, restore defaults: "
+./iscsiadm -m node -r $record -o update \
+	-n node.session.iscsi.ImmediateData -v Yes
+./iscsiadm -m node -r $record -o update \
+	-n node.session.iscsi.InitialR2T -v No
+./iscsiadm -m node -r $record -o update \
+	-n node.cnx[0].iscsi.HeaderDigest -v None,CRC32C
+./iscsiadm -m node -r $record -o update \
+	-n node.session.iscsi.FirstBurstLength -v $((256*1024))
+./iscsiadm -m node -r $record -o update \
+	-n node.session.iscsi.MaxBurstLength -v $((16*1024*1024-1024))
+./iscsiadm -m node -r $record -o update \
+	-n node.cnx[0].iscsi.MaxRecvDataSegmentLength -v $((128*1024))
+    printf "done\n"
+    exit 0
+}
+
 function update_cfg() {
+./iscsiadm -m node -r $record -u
 ./iscsiadm -m node -r $record -o update \
 	-n node.session.iscsi.ImmediateData -v $imm_data_en
 ./iscsiadm -m node -r $record -o update \
@@ -32,6 +52,7 @@ function update_cfg() {
 	-n node.session.iscsi.MaxBurstLength -v $max_burst
 ./iscsiadm -m node -r $record -o update \
 	-n node.cnx[0].iscsi.MaxRecvDataSegmentLength -v $max_recv_dlength
+./iscsiadm -m node -r $record -l
 }
 
 function disktest_run() {
@@ -70,6 +91,22 @@ record=$1
 device=$2
 test x$3 != x && begin=$3
 
+printf "
+BIG FAT WARNING!
+
+Open-iSCSI Regression Test Suite is about to start. It is going
+to use "$device" for its testing. iSCSI session could be re-opened
+during the tests several times and as the result device name could
+not match provided device name if some other SCSI activity happened
+during the test.
+
+Are you sure you want to continue? [y/n]: "
+read line
+if test x$line = xn -o x$line = xN -o x$line = xno -o x$line = xNO; then
+	echo "aborting..."
+	exit
+fi
+
 i=0
 cat regression.dat | while read line; do
 	if test x$begin != x; then
@@ -98,5 +135,6 @@ cat regression.dat | while read line; do
 	if ! disktest_run; then break; fi
 	let i=i+1
 done
+regress_signal
 echo
 echo "===================== THE END ========================"
