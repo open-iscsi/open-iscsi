@@ -1558,10 +1558,6 @@ _solicit_again:
  * The function can return -EAGAIN in which case the caller must
  * re-schedule it again later or recover. '0' return code means successful
  * xmit.
- *
- * Common data xmit state machine consists of two states:
- *	IN_PROGRESS_XMIT_IMM - xmit of Immediate PDU in progress
- *	IN_PROGRESS_XMIT_SCSI - xmit of SCSI command PDU in progress
  */
 static int
 iscsi_data_xmit(struct iscsi_conn *conn)
@@ -1881,7 +1877,6 @@ iscsi_conn_create(iscsi_snx_t snxh, iscsi_cnx_t handle,
 
 	conn->c_stage = ISCSI_CNX_INITIAL_STAGE;
 	conn->in_progress = IN_PROGRESS_WAIT_HEADER;
-	conn->in_progress_xmit = IN_PROGRESS_XMIT_SCSI;
 	conn->id = conn_idx;
 	conn->exp_statsn = 0;
 	conn->handle = handle;

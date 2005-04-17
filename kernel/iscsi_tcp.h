@@ -38,10 +38,6 @@
 #define IN_PROGRESS_HEADER_GATHER	0x1
 #define IN_PROGRESS_DATA_RECV		0x2
 
-/* Socket's Xmit state machine */
-#define IN_PROGRESS_XMIT_IMM		0x0
-#define IN_PROGRESS_XMIT_SCSI		0x1
-
 /* Task Mgmt states */
 #define	TMABORT_INITIAL			0x0
 #define	TMABORT_SUCCESS			0x1
@@ -78,7 +74,7 @@
 #define ISCSI_PAD_LEN		4
 #define ISCSI_DRAFT20_VERSION	0x00
 #define ISCSI_R2T_MAX		16
-#define ISCSI_XMIT_CMDS_MAX	64		/* must be power of 2 */
+#define ISCSI_XMIT_CMDS_MAX	128		/* must be power of 2 */
 #define ISCSI_MGMT_CMDS_MAX	32		/* must be power of 2 */
 #define ISCSI_MGMT_ITT_OFFSET	0x1000
 #define ISCSI_SG_TABLESIZE	SG_ALL
@@ -135,7 +131,6 @@ struct iscsi_conn {
 	int			id;		/* iSCSI CID */
 	struct iscsi_tcp_recv	in;		/* TCP receive context */
 	int			in_progress;	/* Connection state machine */
-	int			in_progress_xmit; /* xmit state machine */
 	struct socket           *sock;          /* BSD socket layer */
 	struct iscsi_session	*session;	/* Parent session */
 	struct list_head	item;		/* item's list of connections */
