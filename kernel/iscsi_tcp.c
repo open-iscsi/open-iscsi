@@ -1914,11 +1914,11 @@ iscsi_conn_create(iscsi_snx_t snxh, iscsi_cnx_t handle,
 	spin_unlock_bh(&session->lock);
 
 	/* allocate initial PDU receive place holder */
-	if (conn->max_recv_dlength <= PAGE_SIZE)
-		conn->data = kmalloc(conn->max_recv_dlength, GFP_KERNEL);
+	if (conn->data_size <= PAGE_SIZE)
+		conn->data = kmalloc(conn->data_size, GFP_KERNEL);
 	else
 		conn->data = (void*)__get_free_pages(GFP_KERNEL,
-					get_order(conn->max_recv_dlength));
+					get_order(conn->data_size));
 	if (!conn->data)
 		goto max_recv_dlenght_alloc_fail;
 
@@ -2005,11 +2005,11 @@ iscsi_conn_destroy(iscsi_cnx_t cnxh)
 	}
 
 	/* free conn->data, size = MaxRecvDataSegmentLength */
-	if (conn->max_recv_dlength <= PAGE_SIZE)
+	if (conn->data_size <= PAGE_SIZE)
 		kfree(conn->data);
 	else
 		free_pages((unsigned long)conn->data,
-					get_order(conn->max_recv_dlength));
+					get_order(conn->data_size));
 
 	spin_lock_bh(&session->lock);
 	__kfifo_put(session->mgmtpool.queue, (void*)&conn->login_mtask,
@@ -2631,26 +2631,30 @@ iscsi_conn_set_param(iscsi_cnx_t cnxh, enum iscsi_param param, uint32_t value)
 		switch(param) {
 		case ISCSI_PARAM_MAX_RECV_DLENGTH: {
 			char *saveptr = conn->data;
+			int flags = GFP_KERNEL;
 
 			if (conn->data_size >= value) {
 				conn->max_recv_dlength = value;
 				break;
 			}
 
+			if (conn->stop_stage == STOP_CNX_RECOVER)
+				flags = GFP_ATOMIC;
+
 			if (value <= PAGE_SIZE)
-				conn->data = kmalloc(value, GFP_KERNEL);
+				conn->data = kmalloc(value, flags);
 			else
-				conn->data = (void*)__get_free_pages(GFP_KERNEL,
+				conn->data = (void*)__get_free_pages(flags,
 					get_order(value));
 			if (conn->data == NULL) {
 				conn->data = saveptr;
 				return -ENOMEM;
 			}
-			if (conn->max_recv_dlength <= PAGE_SIZE)
+			if (conn->data_size <= PAGE_SIZE)
 				kfree(saveptr);
 			else
 				free_pages((unsigned long)saveptr,
-					get_order(conn->max_recv_dlength));
+					get_order(conn->data_size));
 			conn->max_recv_dlength = value;
 			conn->data_size = value;
 		}
