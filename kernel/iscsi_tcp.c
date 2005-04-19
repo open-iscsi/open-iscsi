@@ -1615,9 +1615,6 @@ iscsi_data_xmit(struct iscsi_conn *conn)
 			   sizeof(void*))) {
 		if (iscsi_ctask_xmit(conn, conn->ctask))
 			return -EAGAIN;
-
-		/* done with this ctask */
-		conn->ctask = NULL;
 	}
 
 	/* process command queue */
@@ -1625,10 +1622,9 @@ iscsi_data_xmit(struct iscsi_conn *conn)
 			   sizeof(void*))) {
 		if (iscsi_ctask_xmit(conn, conn->ctask))
 			return -EAGAIN;
-
-		/* done with this ctask */
-		conn->ctask = NULL;
 	}
+	/* done with this ctask */
+	conn->ctask = NULL;
 
 	/* process the rest control plane PDUs, if any */
         if (unlikely(__kfifo_len(conn->mgmtqueue))) {
