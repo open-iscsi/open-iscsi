@@ -417,6 +417,7 @@ iscsi_r2t_rsp(struct iscsi_conn *conn, struct iscsi_cmd_task *ctask)
 	uint32_t max_cmdsn = be32_to_cpu(rhdr->max_cmdsn);
 	uint32_t exp_cmdsn = be32_to_cpu(rhdr->exp_cmdsn);
 	int r2tsn = be32_to_cpu(rhdr->r2tsn);
+	int rc;
 
 	if (conn->in.ahslen)
 		return ISCSI_ERR_AHSLEN;
@@ -436,8 +437,8 @@ iscsi_r2t_rsp(struct iscsi_conn *conn, struct iscsi_cmd_task *ctask)
 	/* FIXME: use R2TSN to detect missing R2T */
 
 	/* fill-in new R2T associated with the task */
-	if (!__kfifo_get(ctask->r2tpool.queue, (void*)&r2t, sizeof(void*)))
-		return ISCSI_ERR_PROTO;
+	rc = __kfifo_get(ctask->r2tpool.queue, (void*)&r2t, sizeof(void*));
+	BUG_ON(!rc);
 
 	r2t->exp_statsn = rhdr->statsn;
 	r2t->data_length = be32_to_cpu(rhdr->data_length);
@@ -1530,6 +1531,7 @@ _solicit_again:
 		if (left) {
 			iscsi_solicit_data_cont(conn, ctask, r2t, left);
 			ctask->xmstate |= XMSTATE_SOL_DATA;
+			ctask->xmstate &= ~XMSTATE_SOL_HDR;
 			goto _solicit_head_again;
 		}
 
@@ -1544,6 +1546,7 @@ _solicit_again:
 		if (__kfifo_get(ctask->r2tqueue, (void*)&r2t, sizeof(void*))) {
 			ctask->r2t = r2t;
 			ctask->xmstate |= XMSTATE_SOL_DATA;
+			ctask->xmstate &= ~XMSTATE_SOL_HDR;
 			goto _solicit_head_again;
 		}
 	}
@@ -2448,15 +2451,21 @@ iscsi_r2tpool_alloc(struct iscsi_session *session)
 	for (cmd_i = 0; cmd_i < session->cmds_max; cmd_i++) {
 	        struct iscsi_cmd_task *ctask = session->cmds[cmd_i];
 
+		/*
+		 * pre-allocated twice as much r2ts to handle race when
+		 * target acks DataOut faster than we data_xmit() queues
+		 * could replenish r2tqueue.
+		 */
+
 		/* R2T pool */
-		if (iscsi_pool_init(&ctask->r2tpool, session->max_r2t,
+		if (iscsi_pool_init(&ctask->r2tpool, session->max_r2t * 2,
 			(void***)&ctask->r2ts, sizeof(struct iscsi_r2t_info))) {
 			goto r2t_alloc_fail;
 		}
 
 		/* R2T xmit queue */
-		ctask->r2tqueue = kfifo_alloc(session->max_r2t * sizeof(void*),
-						GFP_KERNEL, NULL);
+		ctask->r2tqueue = kfifo_alloc(
+		      session->max_r2t * 2 * sizeof(void*), GFP_KERNEL, NULL);
 		if (ctask->r2tqueue == ERR_PTR(-ENOMEM)) {
 			iscsi_pool_free(&ctask->r2tpool, (void**)ctask->r2ts);
 			goto r2t_alloc_fail;
