@@ -1232,7 +1232,7 @@ session_login_task(node_rec_t *rec, queue_task_t *qtask)
 	}
 
 	conn->state = STATE_XPT_WAIT;
-	queue_produce(session->queue, EV_CNX_POLL, qtask, 0, 0);
+	queue_produce(session->queue, EV_CNX_POLL, qtask, 0, NULL);
 	actor_schedule(&session->mainloop);
 	actor_timer(&conn->connect_timer, conn->login_timeout*1000,
 		    __connect_timedout, qtask);
