@@ -292,8 +292,8 @@ __kipc_call(void *iov_base, int iov_len)
 }
 
 static int
-kcreate_session(uint64_t transport_handle, ulong_t cp_snx,
-		uint32_t initial_cmdsn, ulong_t *out_handle, int *out_sid)
+kcreate_session(uint64_t transport_handle, uintptr_t cp_snx,
+		uint32_t initial_cmdsn, uintptr_t *out_handle, int *out_sid)
 {
 	int rc;
 	struct iscsi_uevent ev;
@@ -320,7 +320,7 @@ kcreate_session(uint64_t transport_handle, ulong_t cp_snx,
 }
 
 static int
-kdestroy_session(uint64_t transport_handle, ulong_t dp_snx, int sid)
+kdestroy_session(uint64_t transport_handle, uintptr_t dp_snx, int sid)
 {
 	int rc;
 	struct iscsi_uevent ev;
@@ -342,8 +342,8 @@ kdestroy_session(uint64_t transport_handle, ulong_t dp_snx, int sid)
 }
 
 static int
-kcreate_cnx(uint64_t transport_handle, ulong_t dp_snx, ulong_t cp_cnx,
-	    uint32_t sid, uint32_t cid, ulong_t *out_handle)
+kcreate_cnx(uint64_t transport_handle, uintptr_t dp_snx, uintptr_t cp_cnx,
+	    uint32_t sid, uint32_t cid, uintptr_t *out_handle)
 {
 	int rc;
 	struct iscsi_uevent ev;
@@ -370,7 +370,7 @@ kcreate_cnx(uint64_t transport_handle, ulong_t dp_snx, ulong_t cp_cnx,
 }
 
 static int
-kdestroy_cnx(uint64_t transport_handle, ulong_t dp_cnx, int cid)
+kdestroy_cnx(uint64_t transport_handle, uintptr_t dp_cnx, int cid)
 {
 	int rc;
 	struct iscsi_uevent ev;
@@ -392,7 +392,7 @@ kdestroy_cnx(uint64_t transport_handle, ulong_t dp_cnx, int cid)
 }
 
 static int
-kbind_cnx(uint64_t transport_handle, ulong_t dp_snx, ulong_t dp_cnx,
+kbind_cnx(uint64_t transport_handle, uintptr_t dp_snx, uintptr_t dp_cnx,
 	  uint32_t transport_fd, int is_leading, int *retcode)
 {
 	int rc;
@@ -419,7 +419,7 @@ kbind_cnx(uint64_t transport_handle, ulong_t dp_snx, ulong_t dp_cnx,
 }
 
 static void
-ksend_pdu_begin(uint64_t transport_handle, ulong_t dp_cnx,
+ksend_pdu_begin(uint64_t transport_handle, uintptr_t dp_cnx,
 			int hdr_size, int data_size)
 {
 	struct iscsi_uevent *ev;
@@ -447,7 +447,7 @@ ksend_pdu_begin(uint64_t transport_handle, ulong_t dp_cnx,
 }
 
 static int
-ksend_pdu_end(uint64_t transport_handle, ulong_t dp_cnx, int *retcode)
+ksend_pdu_end(uint64_t transport_handle, uintptr_t dp_cnx, int *retcode)
 {
 	int rc;
 	struct iscsi_uevent *ev;
@@ -491,7 +491,7 @@ err:
 }
 
 static int
-kset_param(uint64_t transport_handle, ulong_t dp_cnx,
+kset_param(uint64_t transport_handle, uintptr_t dp_cnx,
 	       enum iscsi_param param, uint32_t value, int *retcode)
 {
 	int rc;
@@ -517,7 +517,7 @@ kset_param(uint64_t transport_handle, ulong_t dp_cnx,
 }
 
 static int
-kstop_cnx(uint64_t transport_handle, ulong_t dp_cnx, int flag)
+kstop_cnx(uint64_t transport_handle, uintptr_t dp_cnx, int flag)
 {
 	int rc;
 	struct iscsi_uevent ev;
@@ -539,7 +539,7 @@ kstop_cnx(uint64_t transport_handle, ulong_t dp_cnx, int flag)
 }
 
 static int
-kstart_cnx(uint64_t transport_handle, ulong_t dp_cnx, int *retcode)
+kstart_cnx(uint64_t transport_handle, uintptr_t dp_cnx, int *retcode)
 {
 	int rc;
 	struct iscsi_uevent ev;
@@ -561,8 +561,8 @@ kstart_cnx(uint64_t transport_handle, ulong_t dp_cnx, int *retcode)
 }
 
 static int
-krecv_pdu_begin(uint64_t transport_handle, ulong_t dp_cnx,
-		ulong_t recv_handle, ulong_t *pdu_handle, int *pdu_size)
+krecv_pdu_begin(uint64_t transport_handle, uintptr_t dp_cnx,
+		uintptr_t recv_handle, uintptr_t *pdu_handle, int *pdu_size)
 {
 	log_debug(7, "in %s", __FUNCTION__);
 
@@ -581,7 +581,7 @@ krecv_pdu_begin(uint64_t transport_handle, ulong_t dp_cnx,
 }
 
 static int
-krecv_pdu_end(uint64_t transport_handle, ulong_t cp_cnx, ulong_t pdu_handle)
+krecv_pdu_end(uint64_t transport_handle, uintptr_t cp_cnx, uintptr_t pdu_handle)
 {
 	log_debug(7, "in %s", __FUNCTION__);
 
@@ -624,7 +624,7 @@ ctldev_handle(void)
 	struct qelem *item;
 	iscsi_session_t *session = NULL;
 	iscsi_conn_t *conn = NULL;
-	ulong_t recv_handle;
+	uintptr_t recv_handle;
 	char nlm_ev[NLMSG_SPACE(sizeof(struct iscsi_uevent))];
 	struct nlmsghdr *nlh;
 	int ev_size;
@@ -666,7 +666,7 @@ ctldev_handle(void)
 	}
 
 	ev_size = nlh->nlmsg_len - NLMSG_ALIGN(sizeof(struct nlmsghdr));
-	recv_handle = (ulong_t)recvpool_get(conn, ev_size);
+	recv_handle = (uintptr_t)recvpool_get(conn, ev_size);
 	if (!recv_handle) {
 		log_error("can not allocate memory for receive handle");
 		return -ENOMEM;
@@ -685,12 +685,12 @@ ctldev_handle(void)
 	if (ev->type == ISCSI_KEVENT_RECV_PDU) {
 		/* produce an event, so session manager will handle */
 		queue_produce(session->queue, EV_CNX_RECV_PDU, conn,
-			sizeof(ulong_t), &recv_handle);
+			sizeof(uintptr_t), &recv_handle);
 		actor_schedule(&session->mainloop);
 	} else if (ev->type == ISCSI_KEVENT_CNX_ERROR) {
 		/* produce an event, so session manager will handle */
 		queue_produce(session->queue, EV_CNX_ERROR, conn,
-			sizeof(ulong_t), (void*)&ev->r.cnxerror.error);
+			sizeof(uintptr_t), (void*)&ev->r.cnxerror.error);
 		actor_schedule(&session->mainloop);
 		recvpool_put(conn, (void*)recv_handle);
 	} else {

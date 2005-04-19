@@ -579,7 +579,7 @@ __session_cnx_recv_pdu(queue_item_t *item)
 	iscsi_conn_t *conn = item->context;
 	iscsi_session_t *session = conn->session;
 
-	conn->recv_handle = *(ulong_t*)queue_item_data(item);
+	conn->recv_handle = *(uintptr_t*)queue_item_data(item);
 
 	if (conn->state == STATE_IN_LOGIN) {
 		iscsi_login_context_t *c = &conn->login_context;
@@ -824,7 +824,7 @@ __session_cnx_poll(queue_item_t *item)
 				if (conn->id == 0 &&
 				    ipc->create_session(
 					session->transport_handle,
-					(ulong_t)session,
+					(uintptr_t)session,
 					session->nrec.session.initial_cmdsn,
 					&session->handle, &session->id)) {
 					log_error("can't create session (%d)",
@@ -845,7 +845,7 @@ __session_cnx_poll(queue_item_t *item)
 				}
 
 				if (ipc->create_cnx(session->transport_handle,
-					session->handle, (ulong_t)conn,
+					session->handle, (uintptr_t)conn,
 					session->id, conn->id, &conn->handle)) {
 					err = MGMT_IPC_ERR_INTERNAL;
 					goto s_cleanup;

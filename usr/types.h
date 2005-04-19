@@ -13,11 +13,6 @@
 #include <byteswap.h>
 #include <endian.h>
 
-/* this type should represent platform's pointer size */
-#ifndef ulong_t
-#define ulong_t unsigned long
-#endif
-
 struct qelem {
 	struct qelem *q_forw;
 	struct qelem *q_back;

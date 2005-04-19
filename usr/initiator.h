@@ -113,15 +113,15 @@ typedef struct iscsi_login_context {
 struct iscsi_session;
 struct iscsi_conn;
 
-typedef void (*send_pdu_begin_f) (uint64_t transport_handle, ulong_t dp_cnx,
+typedef void (*send_pdu_begin_f) (uint64_t transport_handle, uintptr_t dp_cnx,
                                 int hdr_size, int data_size);
-typedef int (*send_pdu_end_f) (uint64_t transport_handle, ulong_t dp_cnx,
+typedef int (*send_pdu_end_f) (uint64_t transport_handle, uintptr_t dp_cnx,
                              int *retcode);
-typedef int (*recv_pdu_begin_f) (uint64_t transport_handle, ulong_t dp_cnx,
-                                ulong_t recv_handle, ulong_t *pdu_handle,
+typedef int (*recv_pdu_begin_f) (uint64_t transport_handle, uintptr_t dp_cnx,
+                                uintptr_t recv_handle, uintptr_t *pdu_handle,
                                 int *pdu_size);
-typedef int (*recv_pdu_end_f) (uint64_t transport_handle, ulong_t dp_cnx,
-                             ulong_t pdu_handle);
+typedef int (*recv_pdu_end_f) (uint64_t transport_handle, uintptr_t dp_cnx,
+                             uintptr_t pdu_handle);
 typedef void (*send_pdu_timer_add_f)(struct iscsi_conn *conn, int timeout);
 typedef void (*send_pdu_timer_remove_f)(struct iscsi_conn *conn);
 
@@ -129,8 +129,8 @@ typedef void (*send_pdu_timer_remove_f)(struct iscsi_conn *conn);
 typedef struct iscsi_conn {
 	struct qelem item; /* must stay at the top */
 	int id;
-	ulong_t handle;
-	ulong_t recv_handle;
+	uintptr_t handle;
+	uintptr_t recv_handle;
 	struct iscsi_session *session;
 	iscsi_login_context_t login_context;
 	char data[DEFAULT_MAX_RECV_DATA_SEGMENT_LENGTH];
@@ -207,7 +207,7 @@ typedef struct iscsi_session {
 	struct qelem item; /* must stay at the top */
 	int id;
 	uint64_t transport_handle;
-	ulong_t handle;
+	uintptr_t handle;
 	node_rec_t nrec; /* copy of original Node record in database */
 	int vendor_specific_keys;
 	unsigned int irrelevant_keys_bitmap;

@@ -436,7 +436,7 @@ iscsi_io_recv_pdu(iscsi_conn_t *conn, struct iscsi_hdr *hdr,
 	char *end = data + max_data_length;
 	struct sigaction action;
 	struct sigaction old;
-	ulong_t pdu_handle;
+	uintptr_t pdu_handle;
 	int pdu_size;
 	iscsi_session_t *session = conn->session;
 
@@ -617,7 +617,7 @@ done:
 		sigaction(SIGALRM, &old, NULL);
 	} else {
 		/* finalyze receive transaction */
-		if (conn->recv_pdu_end(session->ctrl_fd, (ulong_t)conn,
+		if (conn->recv_pdu_end(session->ctrl_fd, (uintptr_t)conn,
 				pdu_handle)) {
 			failed = 1;
 		}
