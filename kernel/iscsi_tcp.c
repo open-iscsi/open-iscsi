@@ -2169,7 +2169,6 @@ iscsi_conn_stop(iscsi_cnx_t cnxh, int flag)
 		sock_hold(conn->sock->sk);
 		iscsi_conn_restore_callbacks(conn);
 		sock_put(conn->sock->sk);
-		sock_release(conn->sock);
 
 		/*
 		 * flush xmit queues.
@@ -2194,6 +2193,12 @@ iscsi_conn_stop(iscsi_cnx_t cnxh, int flag)
 		spin_unlock_bh(&session->lock);
 		conn->mtask = NULL;
 		up(&conn->xmitsema);
+
+		/*
+		 * release socket only after we stopped data_xmit()
+		 * activity and flushed all outstandings
+		 */
+		sock_release(conn->sock);
 	}
 }
 
