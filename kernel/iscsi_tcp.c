@@ -1380,7 +1380,7 @@ iscsi_ctask_xmit(struct iscsi_conn *conn, struct iscsi_cmd_task *ctask)
 {
 	struct iscsi_r2t_info *r2t = NULL;
 
-	debug_scsi("ctask deq [cid %d state %x itt 0x%x]\n",
+	debug_scsi("ctask deq [cid %d xmstate %x itt 0x%x]\n",
 		conn->id, ctask->xmstate, ctask->itt);
 
 	if (ctask->xmstate & XMSTATE_R_HDR) {
@@ -1758,7 +1758,7 @@ iscsi_queuecommand(struct scsi_cmnd *sc, void (*done)(struct scsi_cmnd *))
 
 	__kfifo_put(conn->xmitqueue, (void*)&ctask, sizeof(void*));
 	debug_scsi(
-		"queued [%s cid %d sc %lx itt 0x%x len %d cmdsn %d win %d]\n",
+	       "ctask enq [%s cid %d sc %lx itt 0x%x len %d cmdsn %d win %d]\n",
 		sc->sc_data_direction == DMA_TO_DEVICE ? "write" : "read",
 		conn->id, (long)sc, ctask->itt, sc->request_bufflen,
 		session->cmdsn, session->max_cmdsn - session->exp_cmdsn + 1);
@@ -1992,6 +1992,9 @@ iscsi_conn_destroy(iscsi_cnx_t cnxh)
 		}
 		spin_unlock_bh(&conn->lock);
 		msleep_interruptible(500);
+		debug_scsi("destroy_cnx(): host_busy %d host_failed %d\n",
+			   session->host->host_busy,
+			   session->host->host_failed);
 	}
 	up(&conn->xmitsema);
 
