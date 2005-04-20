@@ -56,7 +56,9 @@ function update_cfg() {
 }
 
 function disktest_run() {
-	for bs in 512 1024 2048 4096 8192 16384 32768 65536 131072 1000000; do
+	bsizes="512 1024 2048 4096 8192 16384 32768 65536 131072 1000000"
+	test x$bsize != x && bsizes=$bsize
+	for bs in $bsizes; do
 		echo -n "disktest -T2 -K8 -B$bs -r -ID $device: "
 		if ! disktest -T2 -K8 -B$bs -r -ID $device >/dev/null; then
 			echo "FAILED"
@@ -75,7 +77,7 @@ function disktest_run() {
 
 function fatal() {
 	echo "regression.sh: $1"
-	echo "Usage: regression.sh <node record> <device> [test#]"
+	echo "Usage: regression.sh <node record> <device> [test#] [bsize]"
 	exit 1
 }
 
@@ -90,6 +92,7 @@ test x$2 = x && fatal "SCSI device parameter error"
 record=$1
 device=$2
 test x$3 != x && begin=$3
+test x$4 != x && bsize=$4
 
 printf "
 BIG FAT WARNING!
