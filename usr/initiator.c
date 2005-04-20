@@ -27,6 +27,7 @@
 #include <fcntl.h>
 #include <sys/socket.h>
 #include <sys/param.h>
+#include <sys/wait.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
 
@@ -115,6 +116,7 @@ __session_delete_luns(iscsi_session_t *session)
 	int lu = 0;
 
 	do {
+		pid_t pid;
 		int fd;
 
 		sprintf(sysfs_file, "/sys/class/scsi_host/host%d/"
@@ -123,9 +125,22 @@ __session_delete_luns(iscsi_session_t *session)
 		fd = open(sysfs_file, O_WRONLY);
 		if (fd < 0)
 			continue;
-		log_debug(4, "deleting device using %s", sysfs_file);
-		write(fd, "1\n", 3);
-		close(fd);
+		if (!(pid = fork())) {
+			/* child */
+			log_debug(4, "deleting device using %s", sysfs_file);
+			write(fd, "1\n", 3);
+			close(fd);
+			exit(0);
+		}
+		if (pid > 0) {
+			int attempts = 3, status, rc;
+			while (!(rc = waitpid(pid, &status, WNOHANG)) &&
+			       attempts--)
+				sleep(1);
+			if (!rc)
+				log_debug(4, "could not delete device %s "
+					  "after delay\n", sysfs_file);
+		}
 	} while (++lu < 256); /* FIXME: hardcoded */
 }
 
@@ -135,7 +150,8 @@ __session_delete_luns(iscsi_session_t *session)
 static void
 __session_scan_host(iscsi_session_t *session)
 {
- 	int fd;
+	pid_t pid;
+	int fd;
 
 	sprintf(sysfs_file, "/sys/class/scsi_host/host%d/scan", session->id);
 	fd = open(sysfs_file, O_WRONLY);
@@ -143,9 +159,22 @@ __session_scan_host(iscsi_session_t *session)
 		log_error("could not scan scsi host%d\n", session->id);
 		return;
 	}
-	log_debug(4, "scanning host%d using %s", session->id, sysfs_file);
-	write(fd, "- - -", 5);
-	close(fd);
+	if (!(pid = fork())) {
+		/* child */
+		log_debug(4, "scanning host%d using %s",session->id,
+			  sysfs_file);
+		write(fd, "- - -", 5);
+		close(fd);
+		exit(0);
+	}
+	if (pid > 0) {
+		int attempts = 3, status, rc;
+		while (!(rc = waitpid(pid, &status, WNOHANG)) && attempts--)
+			sleep(1);
+		if (!rc)
+			log_debug(4, "could not finish scan scsi host%d "
+				  "after delay\n", session->id);
+	}
 }
 
 static cnx_login_status_e
