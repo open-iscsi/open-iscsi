@@ -44,6 +44,23 @@ static void __session_mainloop(void *data);
 
 static char sysfs_file[PATH_MAX];
 
+/*
+ * calculate parameter's padding
+ */
+static unsigned int
+__padding(unsigned int param)
+{
+	int pad;
+
+	pad = param & 3;
+	if (pad) {
+		pad = 4 - pad;
+		log_debug(1, "parameter's value %d padded to %d bytes\n",
+			   param, param + pad);
+	}
+	return param + pad;
+}
+
 static int
 __recvpool_alloc(iscsi_conn_t *conn)
 {
@@ -382,7 +399,7 @@ __session_cnx_create(iscsi_session_t *session, int cid)
 
 	/* operational parameters */
 	conn->max_recv_dlength =
-			cnx->iscsi.MaxRecvDataSegmentLength;
+			__padding(cnx->iscsi.MaxRecvDataSegmentLength);
 	/*
 	 * iSCSI default, unless declared otherwise by the
 	 * target during login
@@ -462,8 +479,8 @@ __session_create(node_rec_t *rec, uint64_t transport_handle)
 	/* session's operational parameters */
 	session->initial_r2t_en = rec->session.iscsi.InitialR2T;
 	session->imm_data_en = rec->session.iscsi.ImmediateData;
-	session->first_burst = rec->session.iscsi.FirstBurstLength;
-	session->max_burst = rec->session.iscsi.MaxBurstLength;
+	session->first_burst = __padding(rec->session.iscsi.FirstBurstLength);
+	session->max_burst = __padding(rec->session.iscsi.MaxBurstLength);
 	session->def_time2wait = rec->session.iscsi.DefaultTime2Wait;
 	session->def_time2retain = rec->session.iscsi.DefaultTime2Retain;
 	session->erl = rec->session.iscsi.ERL;
