@@ -494,11 +494,11 @@ iscsi_hdr_recv(struct iscsi_conn *conn)
 		return ISCSI_ERR_AHSLEN;
 	}
 
-	/* calculate padding */
+	/* calculate read padding */
 	conn->in.padding = conn->in.datalen & (ISCSI_PAD_LEN-1);
 	if (conn->in.padding) {
 		conn->in.padding = ISCSI_PAD_LEN - conn->in.padding;
-		debug_scsi("padding %d bytes\n", conn->in.padding);
+		debug_scsi("read padding %d bytes\n", conn->in.padding);
 	}
 
 	if (conn->hdrdgst_en) {
@@ -1277,11 +1277,21 @@ iscsi_cmd_init(struct iscsi_conn *conn, struct iscsi_cmd_task *ctask,
 		 *			immediate data
 		 *
 		 *	r2t_data_count	bytes to be sent via R2T ack's
+		 *
+		 *      pad_count       bytes to be sent as zero-padding
 		 */
 		ctask->imm_count = 0;
 		ctask->unsol_count = 0;
 		ctask->unsol_datasn = 0;
 		ctask->xmstate = XMSTATE_W_HDR;
+		/* calculate write padding */
+		ctask->pad_count = ctask->total_length & (ISCSI_PAD_LEN-1);
+		if (ctask->pad_count) {
+			ctask->pad_count = ISCSI_PAD_LEN - ctask->pad_count;
+			debug_scsi("write padding %d bytes\n",
+				ctask->pad_count);
+			ctask->xmstate |= XMSTATE_W_PAD;
+		}
 		if (session->imm_data_en) {
 			if (ctask->total_length >= session->first_burst) {
 				ctask->imm_count = min(session->first_burst,
@@ -1467,8 +1477,7 @@ _unsolicit_head_again:
 			goto _unsolicit_head_again;
 		}
 
-		BUG_ON(ctask->xmstate != XMSTATE_IDLE);
-		return 0;
+		goto _done;
 	}
 
 	if (ctask->xmstate & XMSTATE_SOL_HDR) {
@@ -1551,6 +1560,22 @@ _solicit_again:
 		}
 	}
 
+_done:
+	/*
+	 * Last thing to check is whether we need to send write
+	 * padding. Note that we check for xmstate equality, not just the bit.
+	 */
+	if (ctask->xmstate == XMSTATE_W_PAD) {
+		int sent;
+		ctask->xmstate &= ~XMSTATE_W_PAD;
+		iscsi_buf_init_virt(&ctask->sendbuf, (char*)&ctask->pad,
+				    ctask->pad_count);
+		if (iscsi_sendpage(conn, &ctask->sendbuf, &ctask->pad_count,
+				&sent)) {
+			ctask->xmstate |= XMSTATE_W_PAD;
+			return -EAGAIN;
+		}
+	}
 	BUG_ON(ctask->xmstate != XMSTATE_IDLE);
 	return 0;
 }

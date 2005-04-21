@@ -1,7 +1,7 @@
 /*
  * iSCSI Initiator TCP Transport
  * Copyright (C) 2004 Dmitry Yusupov, Alex Aizman
- * maintained by open-iscsi@@googlegroups.com
+ * maintained by open-iscsi@googlegroups.com
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published
@@ -60,6 +60,7 @@
 #define	XMSTATE_UNS_DATA		0x40
 #define	XMSTATE_SOL_HDR			0x80
 #define	XMSTATE_SOL_DATA		0x100
+#define	XMSTATE_W_PAD			0x200
 
 #define ISCSI_DEFAULT_PORT	3260
 #define ISCSI_STRING_MAX	255
@@ -251,6 +252,7 @@ struct iscsi_cmd_task {
 	struct iscsi_cmd	hdr;			/* orig. SCSI PDU */
 	char			hdrext[4*sizeof(__u16)+	/* one AHS */
 				    sizeof(__u32)];	/* Header-Digest */
+	char			pad[ISCSI_PAD_LEN];
 	int			itt;			/* this ITT */
 	int			datasn;			/* DataSN numbering */
 	struct iscsi_buf	headbuf;		/* Header Buffer */
@@ -267,6 +269,7 @@ struct iscsi_cmd_task {
 	int			unsol_count;		/* Imm-Data-Out bytes */
 	int			r2t_data_count;		/* R2T Data-Out bytes */
 	int			data_count;		/* Remaining Data-Out */
+	int			pad_count;		/* Padded bytes */
 	struct scsi_cmnd	*sc;			/* Assoc. SCSI cmnd */
 	int			total_length;
 	int			data_offset;
