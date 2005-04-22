@@ -112,6 +112,8 @@ fi
 
 i=0
 cat regression.dat | while read line; do
+	if echo $line | grep "^#" >/dev/null; then continue; fi
+	if echo $line | grep "^$" >/dev/null; then continue; fi
 	if test x$begin != x; then
 		if test x$begin != x$i; then
 			let i=i+1
