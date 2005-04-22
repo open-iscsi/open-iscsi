@@ -1171,8 +1171,8 @@ iscsi_solicit_data_cont(struct iscsi_conn *conn, struct iscsi_cmd_task *ctask,
 			   (u8 *)dtask->hdrext);
 
 	if (sc->use_sg) {
-		BUG_ON(ctask->bad_sg == r2t->sg);
 		if (!iscsi_buf_left(&r2t->sendbuf)) {
+			BUG_ON(ctask->bad_sg == r2t->sg);
 			iscsi_buf_init_sg(&r2t->sendbuf, r2t->sg);
 			r2t->sg += 1;
 		}
@@ -1520,9 +1520,9 @@ _solicit_again:
 			}
 			BUG_ON(r2t->data_count < 0);
 			if (r2t->data_count) {
-				BUG_ON(ctask->bad_sg == r2t->sg);
 				BUG_ON(ctask->sc->use_sg == 0);
 				if (!iscsi_buf_left(&r2t->sendbuf)) {
+					BUG_ON(ctask->bad_sg == r2t->sg);
 					iscsi_buf_init_sg(&r2t->sendbuf,
 							  r2t->sg);
 					r2t->sg += 1;
