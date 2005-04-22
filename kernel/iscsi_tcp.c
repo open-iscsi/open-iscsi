@@ -1576,7 +1576,6 @@ _done:
 			return -EAGAIN;
 		}
 	}
-	BUG_ON(ctask->xmstate != XMSTATE_IDLE);
 	return 0;
 }
 
