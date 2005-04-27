@@ -149,7 +149,7 @@ int trans_sync(void)
 	return 0;
 }
 
-void oom_adjust(void)
+static void oom_adjust(void)
 {
 	int fd;
 	char path[48];
@@ -219,7 +219,7 @@ int main(int argc, char *argv[])
 	}
 
 	/* initialize logger */
-	log_init(program_name);
+	log_init(program_name, DEFAULT_AREA_SIZE);
 
 	if ((mgmt_ipc_fd = mgmt_ipc_listen()) < 0) {
 		exit(-1);

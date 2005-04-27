@@ -1,8 +1,10 @@
 /*
- * iSCSI Logging and Tracing Library
+ * iSCSI Safe Logging and Tracing Library
  *
  * Copyright (C) 2004 Dmitry Yusupov, Alex Aizman
- * maintained by open-iscsi@@googlegroups.com
+ * maintained by open-iscsi@googlegroups.com
+ *
+ * circular buffer code based on log.c from dm-multipath project
  *
  * heavily based on code from log.c:
  *   Copyright (C) 2002-2003 Ardis Technolgies <roman@ardistech.com>,
@@ -26,10 +28,41 @@
 
 #include "iscsid.h"
 
+#include <sys/sem.h>
+
+#define DEFAULT_AREA_SIZE 16384
+#define MAX_MSG_SIZE 256
+
 extern int log_daemon;
 extern int log_level;
 
-extern void log_init(char *program_name);
+struct logmsg {
+	short int prio;
+	void *next;
+	char *str;
+};
+
+struct logarea {
+	int empty;
+	void *head;
+	void *tail;
+	void *start;
+	void *end;
+	char *buff;
+	struct sembuf ops[1];
+	int semid;
+	union semun {
+		int val;
+		struct semid_ds *buf;
+		ushort *array;
+	} semarg;
+};
+
+struct logarea *la;
+
+extern int log_init (char * progname, int size);
+extern void log_close (void);
+extern void dump_logmsg (void *);
 extern void log_warning(const char *fmt, ...)
 	__attribute__ ((format (printf, 1, 2)));
 extern void log_error(const char *fmt, ...)

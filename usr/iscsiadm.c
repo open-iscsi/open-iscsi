@@ -425,7 +425,7 @@ main(int argc, char **argv)
 
 	/* enable stdout logging */
 	log_daemon = 0;
-	log_init(program_name);
+	log_init(program_name, 1024);
 
 	iname = get_iscsi_initiatorname(INITIATOR_NAME_FILE);
 	if (!iname) {
