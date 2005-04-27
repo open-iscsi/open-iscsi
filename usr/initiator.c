@@ -768,7 +768,7 @@ __session_cnx_recv_pdu(queue_item_t *item)
 						MGMT_IPC_ERR_INTERNAL, 1);
 				log_error("can't start connection 0x%p with "
 					"id = %d, retcode %d (%d)",
-					(void*)conn->handle, conn->id, rc,
+					iscsi_ptr(conn->handle), conn->id, rc,
 					errno);
 				return;
 			}
@@ -788,11 +788,12 @@ __session_cnx_recv_pdu(queue_item_t *item)
 				close(c->qtask->u.login.mgmt_ipc_fd);
 				free(c->qtask);
 				log_debug(3, "connection 0x%p is operational "
-					"now", (void*)conn->handle);
+					"now", iscsi_ptr(conn->handle));
 			} else {
 				session->r_stage = R_STAGE_NO_CHANGE;
 				log_debug(3, "connection 0x%p is operational "
-					"after recovery", (void*)conn->handle);
+					"after recovery",
+					iscsi_ptr(conn->handle));
 			}
 		}
 	} else if (conn->state == STATE_LOGGED_IN) {
@@ -870,7 +871,6 @@ __session_cnx_poll(queue_item_t *item)
 				if (conn->id == 0 &&
 				    ipc->create_session(
 					session->transport_handle,
-					(uintptr_t)session,
 					session->nrec.session.initial_cmdsn,
 					&session->handle, &session->id)) {
 					log_error("can't create session (%d)",
@@ -879,7 +879,8 @@ __session_cnx_poll(queue_item_t *item)
 					goto cleanup;
 				}
 				log_debug(3, "created new iSCSI session, "
-					"handle 0x%p", (void*)session->handle);
+					"handle 0x%p",
+					iscsi_ptr(session->handle));
 
 				/* unique identifier for OUI */
 				if (__session_node_established(
@@ -891,13 +892,13 @@ __session_cnx_poll(queue_item_t *item)
 				}
 
 				if (ipc->create_cnx(session->transport_handle,
-					session->handle, (uintptr_t)conn,
-					session->id, conn->id, &conn->handle)) {
+					session->handle, session->id, conn->id,
+					&conn->handle)) {
 					err = MGMT_IPC_ERR_INTERNAL;
 					goto s_cleanup;
 				}
 				log_debug(3, "created new iSCSI connection, "
-					"handle 0x%p", (void*)conn->handle);
+					"handle 0x%p", iscsi_ptr(conn->handle));
 			}
 
 			if (ipc->bind_cnx(session->transport_handle,
@@ -910,8 +911,9 @@ __session_cnx_poll(queue_item_t *item)
 				goto c_cleanup;
 			}
 			log_debug(3, "bound iSCSI connection (handle 0x%p) to "
-				  "session (handle 0x%p)", (void*)conn->handle,
-				  (void*)session->handle);
+				  "session (handle 0x%p)",
+				  iscsi_ptr(conn->handle),
+				  iscsi_ptr(session->handle));
 
 			conn->kernel_io = 1;
 			conn->send_pdu_begin = ipc->send_pdu_begin;
@@ -1014,12 +1016,12 @@ __session_cnx_reopen(iscsi_conn_t *conn, int do_stop)
 		if (ipc->stop_cnx(session->transport_handle, conn->handle,
 				      STOP_CNX_RECOVER)) {
 			log_error("can't stop connection 0x%p with "
-				  "id = %d (%d)", (void*)conn->handle,
+				  "id = %d (%d)", iscsi_ptr(conn->handle),
 				  conn->id, errno);
 			return -1;
 		}
 		log_debug(3, "connection 0x%p is stopped for recovery",
-			(void*)conn->handle);
+			iscsi_ptr(conn->handle));
 		iscsi_io_disconnect(conn);
 		__session_cnx_queue_flush(conn);
 	}
@@ -1101,7 +1103,7 @@ __session_cnx_error(queue_item_t *item)
 	iscsi_session_t *session = conn->session;
 
 	log_warning("detected iSCSI connection (handle %p) error (%d)",
-			(void*)conn->handle, error);
+			iscsi_ptr(conn->handle), error);
 
 	if (conn->state == STATE_LOGGED_IN) {
 		int i;
@@ -1165,12 +1167,12 @@ __session_cnx_error(queue_item_t *item)
 		if (ipc->stop_cnx(session->transport_handle, conn->handle,
 				      STOP_CNX_TERM)) {
 			log_error("can't stop connection 0x%p with "
-				  "id = %d (%d)", (void*)conn->handle,
+				  "id = %d (%d)", iscsi_ptr(conn->handle),
 				  conn->id, errno);
 			return;
 		}
 		log_debug(3, "connection 0x%p is stopped for termination",
-			(void*)conn->handle);
+			iscsi_ptr(conn->handle));
 		iscsi_io_disconnect(conn);
 		__session_cnx_queue_flush(conn);
 	}
@@ -1230,10 +1232,10 @@ __get_transport_by_name(char *transport_name)
 	}
 
 	for (i = 0; i < ISCSI_TRANSPORT_MAX; i++) {
-		if (ev.r.t_list.elements[i].handle) {
+		if (ev.r.t_list.elements[i].trans_handle) {
 			strncmp(ev.r.t_list.elements[i].name, transport_name,
 				ISCSI_TRANSPORT_NAME_MAXLEN);
-			return ev.r.t_list.elements[i].handle;
+			return ev.r.t_list.elements[i].trans_handle;
 		}
 	}
 	return 0;
@@ -1307,12 +1309,12 @@ session_logout_task(iscsi_session_t *session, queue_task_t *qtask)
 		if (ipc->stop_cnx(session->transport_handle, conn->handle,
 				      STOP_CNX_TERM)) {
 			log_error("can't stop connection 0x%p with "
-				  "id = %d (%d)", (void*)conn->handle,
+				  "id = %d (%d)", iscsi_ptr(conn->handle),
 				  conn->id, errno);
 			return MGMT_IPC_ERR_INTERNAL;
 		}
 		log_debug(3, "connection 0x%p is stopped for termination",
-			(void*)conn->handle);
+			iscsi_ptr(conn->handle));
 	}
 
 	iscsi_io_disconnect(conn);

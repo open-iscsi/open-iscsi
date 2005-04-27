@@ -49,7 +49,6 @@ struct iscsi_uevent {
 	union {
 		/* messages u -> k */
 		struct msg_create_session {
-			uint64_t	session_handle;
 			uint32_t	initial_cmdsn;
 		} c_session;
 		struct msg_destroy_session {
@@ -58,7 +57,6 @@ struct iscsi_uevent {
 		} d_session;
 		struct msg_create_cnx {
 			uint64_t	session_handle;
-			uint64_t	cnx_handle;
 			uint32_t	cid;
 			uint32_t	sid;
 		} c_cnx;
@@ -95,7 +93,7 @@ struct iscsi_uevent {
 		uint64_t		handle;
 		int			retcode;
 		struct msg_create_session_ret {
-			uint64_t	handle;
+			uint64_t	session_handle;
 			uint32_t	sid;
 		} c_session_ret;
 		struct msg_recv_req {
@@ -108,7 +106,7 @@ struct iscsi_uevent {
 		} cnxerror;
 		struct msg_trans_list {
 			struct {
-				uint64_t handle;
+				uint64_t trans_handle;
 				char name[ISCSI_TRANSPORT_NAME_MAXLEN];
 			} elements[ISCSI_TRANSPORT_MAX];
 		} t_list;

@@ -127,8 +127,9 @@ int trans_sync(void)
 		return -1;
 
 	for (i = 0; i < ISCSI_TRANSPORT_MAX; i++) {
-		if (ev.r.t_list.elements[i].handle) {
-			provider[i].handle = ev.r.t_list.elements[i].handle;
+		if (ev.r.t_list.elements[i].trans_handle) {
+			provider[i].handle =
+				ev.r.t_list.elements[i].trans_handle;
 			strncpy(provider[i].name, ev.r.t_list.elements[i].name,
 				ISCSI_TRANSPORT_NAME_MAXLEN);
 

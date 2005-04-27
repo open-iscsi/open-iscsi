@@ -49,21 +49,20 @@ struct iscsi_transport {
 	int max_lun;
 	unsigned int max_cnx;
 	unsigned int max_cmd_len;
-	iscsi_snx_t (*create_session) (iscsi_snx_t cp_snx,
-			uint32_t initial_cmdsn, struct Scsi_Host *shost);
-	void (*destroy_session) (iscsi_snx_t dp_snx);
-	iscsi_cnx_t (*create_cnx) (iscsi_snx_t dp_snx, iscsi_cnx_t cp_cnx,
-			uint32_t cid);
-	int (*bind_cnx) (iscsi_snx_t dp_snx, iscsi_cnx_t dp_cnx,
+	iscsi_snx_t (*create_session) (uint32_t initial_cmdsn,
+				       struct Scsi_Host *shost);
+	void (*destroy_session) (iscsi_snx_t snx);
+	iscsi_cnx_t (*create_cnx) (iscsi_snx_t snx, uint32_t cid);
+	int (*bind_cnx) (iscsi_snx_t snx, iscsi_cnx_t cnx,
 			uint32_t transport_fd, int is_leading);
-	int (*start_cnx) (iscsi_cnx_t dp_cnx);
-	void (*stop_cnx) (iscsi_cnx_t dp_cnx, int flag);
-	void (*destroy_cnx) (iscsi_cnx_t dp_cnx);
-	int (*set_param) (iscsi_cnx_t dp_cnx, enum iscsi_param param,
+	int (*start_cnx) (iscsi_cnx_t cnx);
+	void (*stop_cnx) (iscsi_cnx_t cnx, int flag);
+	void (*destroy_cnx) (iscsi_cnx_t cnx);
+	int (*set_param) (iscsi_cnx_t cnx, enum iscsi_param param,
 			  uint32_t value);
-	int (*get_param) (iscsi_cnx_t dp_cnx, enum iscsi_param param,
+	int (*get_param) (iscsi_cnx_t cnx, enum iscsi_param param,
 			  uint32_t *value);
-	int (*send_pdu) (iscsi_cnx_t dp_cnx, struct iscsi_hdr *hdr,
+	int (*send_pdu) (iscsi_cnx_t cnx, struct iscsi_hdr *hdr,
 			 char *data, uint32_t data_size);
 };
 
@@ -74,10 +73,10 @@ extern int iscsi_register_transport(struct iscsi_transport *t);
 extern int iscsi_unregister_transport(struct iscsi_transport *t);
 
 /*
- * control plane "up" calls
+ * control plane upcalls
  */
-extern void iscsi_cnx_error(iscsi_cnx_t cp_cnx, enum iscsi_err error);
-extern int iscsi_recv_pdu(iscsi_cnx_t cp_cnx, struct iscsi_hdr *hdr,
+extern void iscsi_cnx_error(iscsi_cnx_t cnx, enum iscsi_err error);
+extern int iscsi_recv_pdu(iscsi_cnx_t cnx, struct iscsi_hdr *hdr,
 				char *data, uint32_t data_size);
 
 #endif /* ISCSI_IFTRANS_H */
