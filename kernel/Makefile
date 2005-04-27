@@ -12,4 +12,4 @@ all:
 	make -C $(KSRC) SUBDIRS=`pwd` $(KARCH)
 
 clean:
-	rm -f *.mod.c .*cmd *.o *.ko
+	rm -f -r *.mod.c .*cmd *.o *.ko .tmp_versions
