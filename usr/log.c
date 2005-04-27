@@ -11,6 +11,7 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <syslog.h>
+#include <signal.h>
 #include <sys/ipc.h>
 #include <sys/shm.h>
 #include <sys/types.h>
@@ -335,11 +336,31 @@ void log_pdu(int level, iscsi_pdu_t *pdu)
 	dump_line();
 }
 
+static void log_flush(void)
+{
+	while (!la->empty) {
+		la->ops[0].sem_op = -1;
+		if (semop(la->semid, la->ops, 1) < 0) {
+			syslog(LOG_ERR, "semop up failed");
+			exit(1);
+		}
+		log_dequeue(la->buff);
+		la->ops[0].sem_op = 1;
+		if (semop(la->semid, la->ops, 1) < 0) {
+			syslog(LOG_ERR, "semop down failed");
+			exit(1);
+		}
+		log_syslog(la->buff);
+	}
+}
+
 int log_init(char *program_name, int size)
 {
 	logdbg(stderr,"enter log_init\n");
 	log_name = program_name;
 	if (log_daemon) {
+		struct sigaction sa_old;
+		struct sigaction sa_new;
 		pid_t pid;
 
 		openlog(log_name, 0, LOG_DAEMON);
@@ -357,21 +378,15 @@ int log_init(char *program_name, int size)
 			       "iSCSI logger with pid=%d started!", pid);
 			return 0;
 		}
+
+		/* flush on daemon's crash */
+		sa_new.sa_handler = (void*)log_flush;
+		sigemptyset(&sa_new.sa_mask);
+		sa_new.sa_flags = 0;
+		sigaction(SIGSEGV, &sa_new, &sa_old );
+
 		while(1) {
-			while (!la->empty) {
-				la->ops[0].sem_op = -1;
-				if (semop(la->semid, la->ops, 1) < 0) {
-					syslog(LOG_ERR, "semop up failed");
-					exit(1);
-				}
-				log_dequeue(la->buff);
-				la->ops[0].sem_op = 1;
-				if (semop(la->semid, la->ops, 1) < 0) {
-					syslog(LOG_ERR, "semop down failed");
-					exit(1);
-				}
-				log_syslog(la->buff);
-			}
+			log_flush();
 			sleep(1);
 		}
 		exit(0);
