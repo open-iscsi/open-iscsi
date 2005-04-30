@@ -792,6 +792,12 @@ __session_cnx_recv_pdu(queue_item_t *item)
 				log_debug(3, "connection 0x%p is operational "
 					"now", iscsi_ptr(conn->handle));
 			} else {
+				/*
+				 * reset ERL=0 reopen counter
+				 */
+				session->reopen_cnt =
+					session->nrec.session.reopen_max;
+
 				session->r_stage = R_STAGE_NO_CHANGE;
 				log_debug(3, "connection 0x%p is operational "
 					"after recovery",
