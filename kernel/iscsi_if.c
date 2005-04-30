@@ -459,8 +459,11 @@ iscsi_if_destroy_snx(struct iscsi_transport *transport, struct iscsi_uevent *ev)
 	struct iscsi_if_cnx *cnx;
 
 	host = scsi_host_lookup(ev->u.d_session.sid);
-	if (host == ERR_PTR(-ENXIO))
+	if (host == ERR_PTR(-ENXIO)) {
+		printk("can not find session with host_no %d\n",
+			ev->u.d_session.sid);
 		return -EEXIST;
+	}
 	scsi_host_put(host);
 	snx = hostdata_snx(host->hostdata);
 

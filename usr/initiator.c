@@ -158,6 +158,7 @@ __session_delete_luns(iscsi_session_t *session)
 				log_debug(4, "could not delete device %s "
 					  "after delay\n", sysfs_file);
 		}
+		close(fd);
 	} while (++lu < 256); /* FIXME: hardcoded */
 }
 
@@ -192,6 +193,7 @@ __session_scan_host(iscsi_session_t *session)
 			log_debug(4, "could not finish scan scsi host%d "
 				  "after delay\n", session->id);
 	}
+	close(fd);
 }
 
 static cnx_login_status_e
