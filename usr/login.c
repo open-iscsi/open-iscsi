@@ -1421,6 +1421,8 @@ iscsi_login_rsp(iscsi_session_t *session, iscsi_login_context_t *c)
 	 */
 	c->status_class = c->login_rsp->status_class;
 	c->status_detail = c->login_rsp->status_detail;
+	log_debug(1, "login response status %02d%02d",
+			c->status_class, c->status_detail);
 	c->ret = check_status_login_response(session, c->cid,
 		     c->login_rsp, c->data, c->max_data_length,
 		     &c->final);

@@ -2226,6 +2226,15 @@ iscsi_conn_stop(iscsi_cnx_t cnxh, int flag)
 		 * activity and flushed all outstandings
 		 */
 		sock_release(conn->sock);
+
+		/*
+		 * for connection level recovery we should not calculate
+		 * header digest. conn->hdr_size used for optimization
+		 * in hdr_extract() and will be re-negotiated at
+		 * set_param() time.
+		 */
+		if (flag == STOP_CNX_RECOVER)
+			conn->hdr_size = sizeof(struct iscsi_hdr);
 	}
 }
 
@@ -2276,12 +2285,14 @@ iscsi_conn_send_pdu(iscsi_cnx_t cnxh, struct iscsi_hdr *hdr, char *data,
 
 	memcpy(&mtask->hdr, hdr, sizeof(struct iscsi_hdr));
 
-	if (conn->c_stage != ISCSI_CNX_INITIAL_STAGE) {
-		iscsi_buf_init_hdr(conn, &mtask->headbuf, (char*)&mtask->hdr,
-				    (u8 *)mtask->hdrext);
-	} else {
+	if (conn->c_stage == ISCSI_CNX_INITIAL_STAGE ||
+	    conn->stop_stage == STOP_CNX_RECOVER) {
 		iscsi_buf_init_virt(&mtask->headbuf, (char*)&mtask->hdr,
 				    sizeof(struct iscsi_hdr));
+	} else {
+		/* this will update header digest */
+		iscsi_buf_init_hdr(conn, &mtask->headbuf, (char*)&mtask->hdr,
+				    (u8 *)mtask->hdrext);
 	}
 	spin_unlock_bh(&session->lock);
 

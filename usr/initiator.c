@@ -1009,7 +1009,8 @@ __session_cnx_reopen(iscsi_conn_t *conn, int do_stop)
 	int rc;
 	iscsi_session_t *session = conn->session;
 
-	log_debug(1, "re-opening session %d", session->id);
+	log_debug(1, "re-opening session %d (reopen_cnt %d)", session->id,
+			session->reopen_cnt);
 
 	session->reopen_qtask.conn = conn;
 
@@ -1104,8 +1105,8 @@ __session_cnx_error(queue_item_t *item)
 	iscsi_conn_t *conn = item->context;
 	iscsi_session_t *session = conn->session;
 
-	log_warning("detected iSCSI connection (handle %p) error (%d)",
-			iscsi_ptr(conn->handle), error);
+	log_warning("detected iSCSI connection (handle %p) error (%d) "
+		"state (%d)", iscsi_ptr(conn->handle), error, conn->state);
 
 	if (conn->state == STATE_LOGGED_IN) {
 		int i;
