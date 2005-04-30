@@ -77,7 +77,7 @@ function disktest_run() {
 
 function fatal() {
 	echo "regression.sh: $1"
-	echo "Usage: regression.sh <node record> <device> [test#] [bsize]"
+	echo "Usage: regression.sh <node record> <device> [test#[:#]] [bsize]"
 	exit 1
 }
 
@@ -93,6 +93,11 @@ record=$1
 device=$2
 test x$3 != x && begin=$3
 test x$4 != x && bsize=$4
+
+if test x$begin != x; then
+	end=`echo $begin | awk -F: '{print $2}'`
+	begin=`echo $begin | awk -F: '{print $1}'`
+fi
 
 printf "
 BIG FAT WARNING!
@@ -115,9 +120,14 @@ cat regression.dat | while read line; do
 	if echo $line | grep "^#" >/dev/null; then continue; fi
 	if echo $line | grep "^$" >/dev/null; then continue; fi
 	if test x$begin != x; then
-		if test x$begin != x$i; then
+		if test x$begin != x$i -a x$end = x; then
 			let i=i+1
 			continue
+		elif test x$begin != x -a x$end != x; then
+			if test $i -lt $begin -o $i -gt $end; then
+				let i=i+1
+				continue
+			fi
 		fi
 	fi
 	imm_data_en=`echo $line | awk '/^[YesNo]+/ {print $1}'`
