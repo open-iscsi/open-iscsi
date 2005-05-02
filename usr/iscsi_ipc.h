@@ -22,6 +22,10 @@
 #ifndef ISCSI_IPC_H
 #define ISCSI_IPC_H
 
+#if defined(FreeBSD)
+#include <sys/_iovec.h>
+#endif
+
 /**
  * struct iscsi_ipc - Open-iSCSI Interface for Kernel IPC
  *

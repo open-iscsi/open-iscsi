@@ -51,11 +51,7 @@ struct logarea {
 	char *buff;
 	struct sembuf ops[1];
 	int semid;
-	union semun {
-		int val;
-		struct semid_ds *buf;
-		ushort *array;
-	} semarg;
+	union semun semarg;
 };
 
 struct logarea *la;

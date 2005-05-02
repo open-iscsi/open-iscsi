@@ -10,8 +10,6 @@
 #include <netinet/in.h>
 #include <stdint.h>
 #include <sys/types.h>
-#include <byteswap.h>
-#include <endian.h>
 
 struct qelem {
 	struct qelem *q_forw;

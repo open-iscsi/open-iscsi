@@ -25,7 +25,7 @@
 #include <stdio.h>
 #include <unistd.h>
 #include <string.h>
-#include <sys/signal.h>
+#include <signal.h>
 #include <sys/ioctl.h>
 #include <sys/socket.h>
 #include <sys/stat.h>
@@ -376,6 +376,7 @@ iscsid_handle_error(int err)
 		/* 10 */ "encountered iSCSI logout failure",
 		/* 11 */ "iSCSI PDU timed out",
 		/* 12 */ "iSCSI transport not found",
+		/* 13 */ "daemon access denied",
 	};
 	log_error("iscsid reported error (%d - %s)", err, err_msgs[err]);
 }

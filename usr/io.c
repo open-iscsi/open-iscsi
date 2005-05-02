@@ -29,6 +29,7 @@
 #include <netinet/tcp.h>
 #include <arpa/inet.h>
 #include <sys/param.h>
+#include <sys/socket.h>
 
 #include "iscsi_proto.h"
 #include "initiator.h"

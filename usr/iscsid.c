@@ -24,6 +24,7 @@
 #include <stdio.h>
 #include <unistd.h>
 #include <string.h>
+#include <signal.h>
 #include <sys/mman.h>
 #include <sys/poll.h>
 #include <sys/utsname.h>

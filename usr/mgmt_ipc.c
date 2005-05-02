@@ -22,6 +22,7 @@
 #include <errno.h>
 #include <unistd.h>
 
+#include <string.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
@@ -29,11 +30,14 @@
 #include <sys/socket.h>
 #include <sys/types.h>
 #include <sys/un.h>
+#include <pwd.h>
 
 #include "iscsid.h"
 #include "idbm.h"
 #include "mgmt_ipc.h"
 #include "log.h"
+
+#define PEERUSER_MAX	64
 
 int
 mgmt_ipc_listen(void)
@@ -155,15 +159,99 @@ mgmt_ipc_conn_remove(queue_task_t *qtask, int rid, int cid)
 	return MGMT_IPC_ERR;
 }
 
+static int
+mgmt_peeruser(int sock, char *user)
+{
+#if defined(SO_PEERCRED)
+	/* Linux style: use getsockopt(SO_PEERCRED) */
+	struct ucred peercred;
+	ACCEPT_TYPE_ARG3 so_len = sizeof(peercred);
+	struct passwd *pass;
+
+	errno = 0;
+	if (getsockopt(sock, SOL_SOCKET, SO_PEERCRED, &peercred,
+		&so_len) != 0 || so_len != sizeof(peercred)) {
+		/* We didn't get a valid credentials struct. */
+		log_error("peeruser_unux: error receiving credentials: %m");
+		return 0;
+	}
+
+	pass = getpwuid(peercred.uid);
+	if (pass == NULL) {
+		log_error("peeruser_unix: unknown local user with uid %d",
+				(int) peercred.uid);
+		return 0;
+	}
+
+	strncpy(user, pass->pw_name, PEERUSER_MAX);
+	return 1;
+
+#elif defined(SCM_CREDS)
+	struct msghdr msg;
+	typedef struct cmsgcred Cred;
+#define cruid cmcred_uid
+	Cred *cred;
+
+	/* Compute size without padding */
+	/* for NetBSD */
+	char cmsgmem[_ALIGN(sizeof(struct cmsghdr)) + _ALIGN(sizeof(Cred))];
+
+	/* Point to start of first structure */
+	struct cmsghdr *cmsg = (struct cmsghdr *) cmsgmem;
+
+	struct iovec iov;
+	char buf;
+	struct passwd *pw;
+
+	memset(&msg, 0, sizeof(msg));
+	msg.msg_iov = &iov;
+	msg.msg_iovlen = 1;
+	msg.msg_control = (char *) cmsg;
+	msg.msg_controllen = sizeof(cmsgmem);
+	memset(cmsg, 0, sizeof(cmsgmem));
+
+	/*
+	 * The one character which is received here is not meaningful; its
+	 * purposes is only to make sure that recvmsg() blocks long enough for
+	 * the other side to send its credentials.
+	 */
+	iov.iov_base = &buf;
+	iov.iov_len = 1;
+
+	if (recvmsg(sock, &msg, 0) < 0 || cmsg->cmsg_len < sizeof(cmsgmem) ||
+			cmsg->cmsg_type != SCM_CREDS) {
+		log_error("ident_unix: error receiving credentials: %m");
+		return 0;
+	}
+
+	cred = (Cred *) CMSG_DATA(cmsg);
+
+	pw = getpwuid(cred->cruid);
+	if (pw == NULL) {
+		log_error("ident_unix: unknown local user with uid %d",
+				(int) cred->cruid);
+		return 0;
+	}
+
+	strncpy(user, pw->pw_name, PEERUSER_MAX);
+	return 1;
+
+#else
+	log_error("'mgmg_ipc' auth is not supported on local connections "
+		"on this platform");
+	return 0;
+#endif
+}
+
 int
 mgmt_ipc_handle(int accept_fd)
 {
 	struct sockaddr addr;
-	struct ucred cred;
 	int fd, rc, len, immrsp = 0;
 	iscsiadm_req_t req;
 	iscsiadm_rsp_t rsp;
 	queue_task_t *qtask = NULL;
+	char user[PEERUSER_MAX];
 
 	memset(&rsp, 0, sizeof(rsp));
 	len = sizeof(addr);
@@ -175,16 +263,9 @@ mgmt_ipc_handle(int accept_fd)
 		return rc;
 	}
 
-	len = sizeof(cred);
-	if ((rc = getsockopt(fd, SOL_SOCKET, SO_PEERCRED,
-					(void *)&cred, &len)) < 0) {
-		rsp.err = MGMT_IPC_ERR_TCP_FAILURE;
-		goto err;
-	}
-
-	if (cred.uid || cred.gid) {
-		rsp.err = MGMT_IPC_ERR_TCP_FAILURE;
-		rc = -EPERM;
+	if (!mgmt_peeruser(accept_fd, user) ||
+	    strncmp(user, "root", PEERUSER_MAX)) {
+		rsp.err = MGMT_IPC_ERR_ACCESS;
 		goto err;
 	}
 

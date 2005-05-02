@@ -25,17 +25,23 @@
 #include <fcntl.h>
 #include <sys/stat.h>
 #include <sys/file.h>
+
+#if defined(Linux)
 #define DB_DBM_HSEARCH 1
 #include <db.h>
+#elif defined(FreeBSD)
+#define DB_DBM_HSEARCH 1
+#include <ndbm.h>
+#endif
 
 #include "idbm.h"
 #include "log.h"
 
-#define LOCK_EX 2    /* Exclusive lock.  */
-#define LOCK_UN 8    /* Unlock.  */
-#define HIDE	0    /* Hide parameter when print. */
-#define SHOW	1    /* Show parameter when print. */
-#define MASKED	2    /* Show "stars" instead of real value when print */
+#define IDBM_LOCK_EX	2    /* Exclusive lock.  */
+#define IDBM_LOCK_UN	8    /* Unlock.  */
+#define IDBM_HIDE	0    /* Hide parameter when print. */
+#define IDBM_SHOW	1    /* Show parameter when print. */
+#define IDBM_MASKED	2    /* Show "stars" instead of real value when print */
 
 #define __recinfo_str(_key, _info, _rec, _name, _show, _n) do { \
 	_info[_n].type = TYPE_STR; \
@@ -174,11 +180,11 @@ static int
 idbm_lock(DBM *dbm)
 {
 #ifndef DB_DBM_HSEARCH
-	if (flock(dbm->dbm_dirf, LOCK_EX) == -1 ||
-	    flock(dbm->dbm_pagf, LOCK_EX) == -1)
+	if (flock(dbm->dbm_dirf, IDBM_LOCK_EX) == -1 ||
+	    flock(dbm->dbm_pagf, IDBM_LOCK_EX) == -1)
 		return 1;
 #else
-	if (flock(dbm_dirfno(dbm), LOCK_EX) == -1)
+	if (flock(dbm_dirfno(dbm), IDBM_LOCK_EX) == -1)
 		return 1;
 #endif
 	return 0;
@@ -188,10 +194,10 @@ static void
 idbm_unlock(DBM *dbm)
 {
 #ifndef DB_DBM_HSEARCH
-	flock(dbm->dbm_dirf, LOCK_UN);
-	flock(dbm->dbm_pagf, LOCK_UN);
+	flock(dbm->dbm_dirf, IDBM_LOCK_UN);
+	flock(dbm->dbm_pagf, IDBM_LOCK_UN);
 #else
-	flock(dbm_dirfno(dbm), LOCK_UN);
+	flock(dbm_dirfno(dbm), IDBM_LOCK_UN);
 #endif
 }
 
@@ -405,45 +411,45 @@ idbm_recinfo_discovery(discovery_rec_t *r, recinfo_t *ri)
 {
 	int num = 0;
 
-	__recinfo_int_o2("discovery.startup", ri, r, startup, SHOW,
+	__recinfo_int_o2("discovery.startup", ri, r, startup, IDBM_SHOW,
 			"manual", "automatic", num);
-	__recinfo_int_o3("discovery.type", ri, r, type, SHOW,
+	__recinfo_int_o3("discovery.type", ri, r, type, IDBM_SHOW,
 			"sendtargets", "slp", "isns", num);
 	if (r->type == DISCOVERY_TYPE_SENDTARGETS) {
 		__recinfo_str("discovery.sendtargets.address", ri, r,
-			u.sendtargets.address, SHOW, num);
+			u.sendtargets.address, IDBM_SHOW, num);
 		__recinfo_int("discovery.sendtargets.port", ri, r,
-			u.sendtargets.port, SHOW, num);
+			u.sendtargets.port, IDBM_SHOW, num);
 		__recinfo_int("discovery.sendtargets.continuous", ri, r,
-			u.sendtargets.continuous, SHOW, num);
+			u.sendtargets.continuous, IDBM_SHOW, num);
 		__recinfo_int("discovery.sendtargets.send_async_text", ri, r,
-			u.sendtargets.send_async_text, SHOW, num);
+			u.sendtargets.send_async_text, IDBM_SHOW, num);
 		__recinfo_int_o2("discovery.sendtargets.auth.authmethod", ri, r,
 			u.sendtargets.auth.authmethod,
-			SHOW, "None", "CHAP", num);
+			IDBM_SHOW, "None", "CHAP", num);
 		__recinfo_str("discovery.sendtargets.auth.username", ri, r,
-			u.sendtargets.auth.username, SHOW, num);
+			u.sendtargets.auth.username, IDBM_SHOW, num);
 		__recinfo_str("discovery.sendtargets.auth.password", ri, r,
-			u.sendtargets.auth.password, MASKED, num);
+			u.sendtargets.auth.password, IDBM_MASKED, num);
 		__recinfo_str("discovery.sendtargets.auth.username_in", ri, r,
-			u.sendtargets.auth.username_in, SHOW, num);
+			u.sendtargets.auth.username_in, IDBM_SHOW, num);
 		__recinfo_str("discovery.sendtargets.auth.password_in", ri, r,
-			u.sendtargets.auth.password_in, MASKED, num);
+			u.sendtargets.auth.password_in, IDBM_MASKED, num);
 		__recinfo_int("discovery.sendtargets.timeo.login_timeout",ri, r,
 			u.sendtargets.cnx_timeo.login_timeout,
-			SHOW, num);
+			IDBM_SHOW, num);
 		__recinfo_int("discovery.sendtargets.timeo.auth_timeout", ri, r,
 			u.sendtargets.cnx_timeo.auth_timeout,
-			SHOW, num);
+			IDBM_SHOW, num);
 		__recinfo_int("discovery.sendtargets.timeo.active_timeout",ri,r,
 			u.sendtargets.cnx_timeo.active_timeout,
-			SHOW, num);
+			IDBM_SHOW, num);
 		__recinfo_int("discovery.sendtargets.timeo.idle_timeout", ri, r,
 			u.sendtargets.cnx_timeo.idle_timeout,
-			SHOW, num);
+			IDBM_SHOW, num);
 		__recinfo_int("discovery.sendtargets.timeo.ping_timeout", ri, r,
 			u.sendtargets.cnx_timeo.ping_timeout,
-			SHOW, num);
+			IDBM_SHOW, num);
 	}
 }
 
@@ -452,90 +458,92 @@ idbm_recinfo_node(node_rec_t *r, recinfo_t *ri)
 {
 	int num = 0, i;
 
-	__recinfo_str("node.name", ri, r, name, SHOW, num);
-	__recinfo_str("node.transport_name", ri, r, transport_name, SHOW, num);
-	__recinfo_int("node.tpgt", ri, r, tpgt, SHOW, num);
-	__recinfo_int("node.active_cnx", ri, r, active_cnx, SHOW, num);
+	__recinfo_str("node.name", ri, r, name, IDBM_SHOW, num);
+	__recinfo_str("node.transport_name", ri, r, transport_name,
+		      IDBM_SHOW, num);
+	__recinfo_int("node.tpgt", ri, r, tpgt, IDBM_SHOW, num);
+	__recinfo_int("node.active_cnx", ri, r, active_cnx, IDBM_SHOW, num);
 	__recinfo_int_o2("node.startup", ri, r, startup,
-			SHOW, "manual", "automatic", num);
+			IDBM_SHOW, "manual", "automatic", num);
 	__recinfo_int("node.session.initial_cmdsn", ri, r,
-		      session.initial_cmdsn, SHOW, num);
+		      session.initial_cmdsn, IDBM_SHOW, num);
 	__recinfo_int("node.session.reopen_max", ri, r,
-		      session.reopen_max, SHOW, num);
+		      session.reopen_max, IDBM_SHOW, num);
 	__recinfo_str("node.session.auth.username", ri, r,
-		      session.auth.username, SHOW, num);
+		      session.auth.username, IDBM_SHOW, num);
 	__recinfo_str("node.session.auth.password", ri, r,
-		      session.auth.password, MASKED, num);
+		      session.auth.password, IDBM_MASKED, num);
 	__recinfo_str("node.session.auth.username_in", ri, r,
-		      session.auth.username_in, SHOW, num);
+		      session.auth.username_in, IDBM_SHOW, num);
 	__recinfo_str("node.session.auth.password_in", ri, r,
-		      session.auth.password_in, MASKED, num);
+		      session.auth.password_in, IDBM_MASKED, num);
 	__recinfo_int("node.session.timeo.replacement_timeout", ri, r,
 		      session.timeo.replacement_timeout,
-		      SHOW, num);
+		      IDBM_SHOW, num);
 	__recinfo_int("node.session.err_timeo.abort_timeout", ri, r,
 		      session.err_timeo.abort_timeout,
-		      SHOW, num);
+		      IDBM_SHOW, num);
 	__recinfo_int("node.session.err_timeo.reset_timeout", ri, r,
 		      session.err_timeo.reset_timeout,
-		      SHOW, num);
+		      IDBM_SHOW, num);
 	__recinfo_int_o2("node.session.iscsi.InitialR2T", ri, r,
-			 session.iscsi.InitialR2T, SHOW,
+			 session.iscsi.InitialR2T, IDBM_SHOW,
 			"No", "Yes", num);
 	__recinfo_int_o2("node.session.iscsi.ImmediateData",
-			 ri, r, session.iscsi.ImmediateData, SHOW,
+			 ri, r, session.iscsi.ImmediateData, IDBM_SHOW,
 			"No", "Yes", num);
 	__recinfo_int("node.session.iscsi.FirstBurstLength", ri, r,
-		      session.iscsi.FirstBurstLength, SHOW, num);
+		      session.iscsi.FirstBurstLength, IDBM_SHOW, num);
 	__recinfo_int("node.session.iscsi.MaxBurstLength", ri, r,
-		      session.iscsi.MaxBurstLength, SHOW, num);
+		      session.iscsi.MaxBurstLength, IDBM_SHOW, num);
 	__recinfo_int("node.session.iscsi.DefaultTime2Retain", ri, r,
-		      session.iscsi.DefaultTime2Wait, SHOW, num);
+		      session.iscsi.DefaultTime2Wait, IDBM_SHOW, num);
 	__recinfo_int("node.session.iscsi.DefaultTime2Wait", ri, r,
-		      session.iscsi.DefaultTime2Retain, SHOW, num);
+		      session.iscsi.DefaultTime2Retain, IDBM_SHOW, num);
 	__recinfo_int("node.session.iscsi.MaxConnections", ri, r,
-		      session.iscsi.MaxConnections, SHOW, num);
+		      session.iscsi.MaxConnections, IDBM_SHOW, num);
 	__recinfo_int("node.session.iscsi.ERL", ri, r,
-		      session.iscsi.ERL, SHOW, num);
+		      session.iscsi.ERL, IDBM_SHOW, num);
 
 	for (i=0; i < r->active_cnx; i++) {
 		char key[NAME_MAXVAL];
 		sprintf(key, "node.cnx[%d].address", i);
-		__recinfo_str(key, ri, r, cnx[i].address, SHOW, num);
+		__recinfo_str(key, ri, r, cnx[i].address, IDBM_SHOW, num);
 		sprintf(key, "node.cnx[%d].port", i);
-		__recinfo_int(key, ri, r, cnx[i].port, SHOW, num);
+		__recinfo_int(key, ri, r, cnx[i].port, IDBM_SHOW, num);
 		sprintf(key, "node.cnx[%d].startup", i);
-		__recinfo_int_o2(key, ri, r, cnx[i].startup, SHOW,
+		__recinfo_int_o2(key, ri, r, cnx[i].startup, IDBM_SHOW,
 				 "manual", "automatic", num);
 		sprintf(key, "node.cnx[%d].tcp.window_size", i);
-		__recinfo_int(key, ri, r, cnx[i].tcp.window_size, SHOW, num);
+		__recinfo_int(key, ri, r, cnx[i].tcp.window_size,
+			      IDBM_SHOW, num);
 		sprintf(key, "node.cnx[%d].tcp.type_of_service", i);
 		__recinfo_int(key, ri, r, cnx[i].tcp.type_of_service,
-				SHOW, num);
+				IDBM_SHOW, num);
 		sprintf(key, "node.cnx[%d].timeo.login_timeout", i);
 		__recinfo_int(key, ri, r, cnx[i].timeo.login_timeout,
-				SHOW, num);
+				IDBM_SHOW, num);
 		sprintf(key, "node.cnx[%d].timeo.auth_timeout", i);
 		__recinfo_int(key, ri, r, cnx[i].timeo.auth_timeout,
-				SHOW, num);
+				IDBM_SHOW, num);
 		sprintf(key, "node.cnx[%d].timeo.active_timeout", i);
 		__recinfo_int(key, ri, r, cnx[i].timeo.active_timeout,
-				SHOW, num);
+				IDBM_SHOW, num);
 		sprintf(key, "node.cnx[%d].timeo.idle_timeout", i);
 		__recinfo_int(key, ri, r, cnx[i].timeo.idle_timeout,
-				SHOW, num);
+				IDBM_SHOW, num);
 		sprintf(key, "node.cnx[%d].timeo.ping_timeout", i);
 		__recinfo_int(key, ri, r, cnx[i].timeo.ping_timeout,
-				SHOW, num);
+				IDBM_SHOW, num);
 		sprintf(key, "node.cnx[%d].iscsi.MaxRecvDataSegmentLength", i);
 		__recinfo_int(key, ri, r,
-			cnx[i].iscsi.MaxRecvDataSegmentLength, SHOW, num);
+			cnx[i].iscsi.MaxRecvDataSegmentLength, IDBM_SHOW, num);
 		sprintf(key, "node.cnx[%d].iscsi.HeaderDigest", i);
-		__recinfo_int_o4(key, ri, r, cnx[i].iscsi.HeaderDigest, SHOW,
-				 "None", "CRC32C", "CRC32C,None",
+		__recinfo_int_o4(key, ri, r, cnx[i].iscsi.HeaderDigest,
+				 IDBM_SHOW, "None", "CRC32C", "CRC32C,None",
 				 "None,CRC32C", num);
 		sprintf(key, "node.cnx[%d].iscsi.DataDigest", i);
-		__recinfo_int_o4(key, ri, r, cnx[i].iscsi.DataDigest, SHOW,
+		__recinfo_int_o4(key, ri, r, cnx[i].iscsi.DataDigest, IDBM_SHOW,
 				 "None", "CRC32C", "CRC32C,None",
 				 "None,CRC32C", num);
 	}
@@ -614,7 +622,7 @@ idbm_print(int type, void *rec)
 	for (i=0; i<MAX_KEYS; i++) {
 		if (!info[i].visible)
 			continue;
-		if (info[i].visible == MASKED) {
+		if (info[i].visible == IDBM_MASKED) {
 			if (*(char*)info[i].data)
 				printf("%s = ********\n", info[i].name);
 			else
