@@ -165,7 +165,7 @@ mgmt_peeruser(int sock, char *user)
 #if defined(SO_PEERCRED)
 	/* Linux style: use getsockopt(SO_PEERCRED) */
 	struct ucred peercred;
-	ACCEPT_TYPE_ARG3 so_len = sizeof(peercred);
+	socklen_t so_len = sizeof(peercred);
 	struct passwd *pass;
 
 	errno = 0;

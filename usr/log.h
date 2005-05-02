@@ -28,6 +28,14 @@
 
 #include "iscsid.h"
 
+#if defined(Linux)
+union semun {
+	int val;
+	struct semid_ds *buf;
+	unsigned short int *array;
+	struct seminfo *__buf;
+};
+#endif
 #include <sys/sem.h>
 
 #define DEFAULT_AREA_SIZE 16384
