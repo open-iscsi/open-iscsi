@@ -664,6 +664,48 @@ iscsi_if_recv_msg(struct sk_buff *skb, struct nlmsghdr *nlh)
 		       (char*)ev + sizeof(*ev) + ev->u.send_pdu.hdr_size,
 			ev->u.send_pdu.data_size);
 		break;
+	case ISCSI_UEVENT_GET_STATS: {
+		struct iscsi_stats *stats;
+		struct sk_buff *skbstat;
+		struct iscsi_if_cnx *cnx;
+		struct nlmsghdr	*nlhstat;
+		struct iscsi_uevent *evstat;
+		int len = NLMSG_SPACE(sizeof(*ev) +
+				DEFAULT_MAX_RECV_DATA_SEGMENT_LENGTH);
+		int err;
+
+		cnx = iscsi_if_find_cnx(ev->u.get_stats.cnx_handle,
+					H_TYPE_TRANS);
+		if (!cnx)
+			return -EEXIST;
+
+		do {
+			skbstat = mempool_zone_get_skb(&cnx->z_pdu);
+			if (!skbstat) {
+				printk("iscsi%d: can not deliver stats: OOM\n",
+				       cnx->host->host_no);
+				return -ENOMEM;
+			}
+
+			nlhstat = __nlmsg_put(skbstat, daemon_pid, 0, 0,
+						(len - sizeof(*nlhstat)));
+			evstat = NLMSG_DATA(nlhstat);
+			memset(evstat, 0, sizeof(*evstat));
+			evstat->transport_handle = iscsi_handle(cnx->transport);
+			evstat->type = nlh->nlmsg_type;
+			if (cnx->z_pdu.allocated >= cnx->z_pdu.hiwat)
+				evstat->iferror = -ENOMEM;
+			evstat->u.get_stats.cnx_handle =
+					ev->u.get_stats.cnx_handle;
+			stats = (struct iscsi_stats *)
+					((char*)evstat + sizeof(*evstat));
+			memset(stats, 0, sizeof(*stats));
+
+			transport->get_stats(ev->u.get_stats.cnx_handle, stats);
+
+			err = iscsi_unicast_skb(&cnx->z_pdu, skbstat);
+		} while (err < 0 && err != -ECONNREFUSED);
+		} break;
 	default:
 		err = -EINVAL;
 		break;
@@ -703,6 +745,14 @@ iscsi_if_rx(struct sock *sk, int len)
 				ev->iferror = err;
 			}
 			do {
+				/*
+				 * special case for GET_STATS:
+				 * on success - sending reply and stats from
+				 * inside of if_recv_msg(),
+				 * on error - fall through.
+				 */
+				if (ev->type == ISCSI_UEVENT_GET_STATS && !err)
+					break;
 				err = iscsi_if_send_reply(
 					NETLINK_CREDS(skb)->pid, nlh->nlmsg_seq,
 					nlh->nlmsg_type, 0, 0, ev, sizeof(*ev));

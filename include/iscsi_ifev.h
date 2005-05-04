@@ -34,6 +34,8 @@ enum iscsi_uevent_e {
 	ISCSI_UEVENT_STOP_CNX		= UEVENT_BASE + 8,
 	ISCSI_UEVENT_SEND_PDU		= UEVENT_BASE + 9,
 	ISCSI_UEVENT_TRANS_LIST		= UEVENT_BASE + 10,
+	ISCSI_UEVENT_GET_STATS		= UEVENT_BASE + 11,
+	ISCSI_UEVENT_GET_PARAM		= UEVENT_BASE + 12,
 
 	/* up events */
 	ISCSI_KEVENT_RECV_PDU		= KEVENT_BASE + 1,
@@ -87,6 +89,9 @@ struct iscsi_uevent {
 			uint64_t	cnx_handle;
 			uint32_t	flag;
 		} stop_cnx;
+		struct msg_get_stats {
+			uint64_t	cnx_handle;
+		} get_stats;
 	} u;
 	union {
 		/* messages k -> u */
@@ -111,6 +116,6 @@ struct iscsi_uevent {
 			} elements[ISCSI_TRANSPORT_MAX];
 		} t_list;
 	} r;
-};
+} __attribute__ ((aligned (sizeof(unsigned long))));
 
 #endif /* ISCSI_IFEV_H */

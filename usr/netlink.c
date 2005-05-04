@@ -279,6 +279,9 @@ __kipc_call(void *iov_base, int iov_len)
 			 *	- RECV_PDU
 			 */
 			ctldev_handle();
+		} else if (ev->type == ISCSI_UEVENT_GET_STATS) {
+			/* kget_stats() will read */
+			return 0;
 		} else {
 			if ((rc = nlpayload_read(ctrl_fd, (void*)ev,
 						 sizeof(*ev), 0)) < 0) {
@@ -616,6 +619,52 @@ ktrans_list(struct iscsi_uevent *ev)
 }
 
 static int
+kget_stats(uint64_t transport_handle, uint64_t cnxh, char *statsbuf,
+	int statsbuf_max)
+{
+	int rc;
+	int ev_size;
+	struct iscsi_uevent ev;
+	char nlm_ev[NLMSG_SPACE(sizeof(struct iscsi_uevent))];
+	struct nlmsghdr *nlh;
+
+	log_debug(7, "in %s", __FUNCTION__);
+
+	memset(&ev, 0, sizeof(struct iscsi_uevent));
+
+	ev.type = ISCSI_UEVENT_GET_STATS;
+	ev.transport_handle = transport_handle;
+	ev.u.get_stats.cnx_handle = cnxh;
+
+	if ((rc = __kipc_call(&ev, sizeof(ev))) < 0) {
+		return rc;
+	}
+
+	if ((rc = nl_read(ctrl_fd, nlm_ev,
+		NLMSG_SPACE(sizeof(struct iscsi_uevent)), MSG_PEEK)) < 0) {
+		log_error("can not read nlm_ev, error %d", rc);
+		return rc;
+	}
+	nlh = (struct nlmsghdr *)nlm_ev;
+	ev_size = nlh->nlmsg_len - NLMSG_ALIGN(sizeof(struct nlmsghdr));
+
+	log_debug(6, "message real length is %d bytes", nlh->nlmsg_len);
+
+	if (ev_size > statsbuf_max) {
+		log_error("destanation buffer for statistics is "
+			"not big enough to fit %d bytes", statsbuf_max);
+		ev_size = statsbuf_max;
+	}
+
+	if ((rc = nlpayload_read(ctrl_fd, (void*)statsbuf, ev_size, 0)) < 0) {
+		log_error("can not read from NL socket, error %d", rc);
+		return rc;
+	}
+
+	return 0;
+}
+
+static int
 ctldev_handle(void)
 {
 	int rc;
@@ -781,6 +830,7 @@ struct iscsi_ipc nl_ipc = {
 	.get_param              = NULL,
 	.start_cnx              = kstart_cnx,
 	.stop_cnx               = kstop_cnx,
+	.get_stats		= kget_stats,
 	.writev			= kwritev,
 	.send_pdu_begin         = ksend_pdu_begin,
 	.send_pdu_end           = ksend_pdu_end,

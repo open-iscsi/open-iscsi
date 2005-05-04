@@ -48,6 +48,7 @@ typedef enum iscsiadm_cmd {
 	MGMT_IPC_SESSION_ACTIVESTAT	= 4,
 	MGMT_IPC_CONN_ADD		= 5,
 	MGMT_IPC_CONN_REMOVE		= 6,
+	MGMT_IPC_SESSION_STATS		= 7,
 } iscsiadm_cmd_e;
 
 /* IPC Request */
@@ -58,9 +59,11 @@ typedef struct iscsiadm_req {
 		/* messages */
 		struct msg_session {
 			int rid;
+			int sid;
 		} session;
 		struct msg_conn {
 			int rid;
+			int sid;
 			int cid;
 		} conn;
 	} u;
@@ -78,6 +81,16 @@ typedef struct iscsiadm_rsp {
 			int rids[MGMT_IPC_ACTIVELIST_MAX];
 			int cnt;
 		} activelist;
+#define MGMT_IPC_GETSTATS_BUF_MAX	(sizeof(struct iscsi_uevent) + \
+					sizeof(struct iscsi_stats) + \
+					sizeof(struct iscsi_stats_custom) * \
+						ISCSI_STATS_CUSTOM_MAX)
+		struct msg_getstats {
+			struct iscsi_uevent ev;
+			struct iscsi_stats stats;
+			char custom[sizeof(struct iscsi_stats_custom) *
+					ISCSI_STATS_CUSTOM_MAX];
+		} getstats;
 	} u;
 } iscsiadm_rsp_t;
 

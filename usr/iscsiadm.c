@@ -68,6 +68,7 @@ static struct option const long_options[] =
 	{"record", required_argument, NULL, 'r'},
 	{"login", no_argument, NULL, 'l'},
 	{"logout", no_argument, NULL, 'u'},
+	{"stats", no_argument, NULL, 's'},
 	{"debug", required_argument, NULL, 'g'},
 	{"version", no_argument, NULL, 'V'},
 	{"help", no_argument, NULL, 'h'},
@@ -111,11 +112,11 @@ iSCSI Administration Utility.\n\
                           you wish to update. For new record portal must be\n\
 		          specified\n\
   -m session              display all active sessions and connections\n\
-  -m session --record=[id[:cid]] [--logout]\n\
+  -m session --record=[id[:cid]] [--logout|--stats]\n\
                           perform operation for specific session with\n\
-			  record [id] or display statistics if no operation\n\
-			  specified. Operation will affect one connection\n\
-			  only if [:cid] is specified\n\
+			  record [id] or display negotiated parameters if\n\
+                          no operation specified. Operation will affect \n\
+                          one connection only if [:cid] is specified\n\
   -d, --debug debuglevel  print debugging information\n\
   -V, --version           display version and exit\n\
   -h, --help              display this help and exit\n\
@@ -194,6 +195,23 @@ str_to_ipport(char *str, int *port)
 		*port = DEF_ISCSI_PORT;
 	}
 	return str;
+}
+
+static int
+str_to_ridsid(char *str, int *sid)
+{
+	char *ptr;
+
+	if ((ptr = strchr(str, ':'))) {
+		*ptr = '\0';
+		ptr++;
+		*sid = strtoul(str, NULL, 10);
+	} else {
+		*sid = -1;
+		ptr = str;
+	}
+
+	return strtoul(ptr, NULL, 16);
 }
 
 static int
@@ -335,6 +353,93 @@ session_activelist(idbm_t *db)
 	return i;
 }
 
+static int
+session_stats(idbm_t *db, int rid, int sid)
+{
+	int rc, i;
+	iscsiadm_req_t req;
+	iscsiadm_rsp_t rsp;
+	node_rec_t rec;
+
+	if (idbm_node_read(db, rid, &rec)) {
+		log_error("no record [%06x] found!", rid);
+		return -1;
+	}
+
+	memset(&req, 0, sizeof(req));
+	req.command = MGMT_IPC_SESSION_STATS;
+	req.u.session.rid = rid;
+	req.u.session.sid = sid;
+
+	rc = do_iscsid(&req, &rsp);
+	if (rc)
+		return rc;
+
+	printf("[%02d:%06x] %s:%d,%d %s\n",
+		sid, rid, rec.cnx[0].address, rec.cnx[0].port,
+		rec.tpgt, rec.name);
+	printf( "iSCSI SNMP:\n"
+
+		"\ttxdata_octets: %lld\n"
+		"\trxdata_octets: %lld\n"
+
+		"\tnoptx_pdus: %u\n"
+		"\tscsicmd_pdus: %u\n"
+		"\ttmfcmd_pdus: %u\n"
+		"\tlogin_pdus: %u\n"
+		"\ttext_pdus: %u\n"
+		"\tdataout_pdus: %u\n"
+		"\tlogout_pdus: %u\n"
+		"\tsnack_pdus: %u\n"
+
+		"\tnoprx_pdus: %u\n"
+		"\tscsirsp_pdus: %u\n"
+		"\ttmfrsp_pdus: %u\n"
+		"\ttextrsp_pdus: %u\n"
+		"\tdatain_pdus: %u\n"
+		"\tlogoutrsp_pdus: %u\n"
+		"\tr2t_pdus: %u\n"
+		"\tasync_pdus: %u\n"
+		"\trjt_pdus: %u\n"
+
+		"\tdigest_err: %u\n"
+		"\ttimeout_err: %u\n",
+		(unsigned long long)rsp.u.getstats.stats.txdata_octets,
+		(unsigned long long)rsp.u.getstats.stats.rxdata_octets,
+
+		rsp.u.getstats.stats.noptx_pdus,
+		rsp.u.getstats.stats.scsicmd_pdus,
+		rsp.u.getstats.stats.tmfcmd_pdus,
+		rsp.u.getstats.stats.login_pdus,
+		rsp.u.getstats.stats.text_pdus,
+		rsp.u.getstats.stats.dataout_pdus,
+		rsp.u.getstats.stats.logout_pdus,
+		rsp.u.getstats.stats.snack_pdus,
+
+		rsp.u.getstats.stats.noprx_pdus,
+		rsp.u.getstats.stats.scsirsp_pdus,
+		rsp.u.getstats.stats.tmfrsp_pdus,
+		rsp.u.getstats.stats.textrsp_pdus,
+		rsp.u.getstats.stats.datain_pdus,
+		rsp.u.getstats.stats.logoutrsp_pdus,
+		rsp.u.getstats.stats.r2t_pdus,
+		rsp.u.getstats.stats.async_pdus,
+		rsp.u.getstats.stats.rjt_pdus,
+
+		rsp.u.getstats.stats.digest_err,
+		rsp.u.getstats.stats.timeout_err);
+
+	if (rsp.u.getstats.stats.custom_length)
+		printf( "iSCSI Extended:\n");
+
+	for (i = 0; i < rsp.u.getstats.stats.custom_length; i++) {
+		printf("\t%s: %llx\n", rsp.u.getstats.stats.custom[i].desc,
+		      (unsigned long long)rsp.u.getstats.stats.custom[i].value);
+	}
+
+	return 0;
+}
+
 /*
  * start sendtargets discovery process based on the
  * particular config
@@ -412,7 +517,7 @@ main(int argc, char **argv)
 {
 	char *ip = NULL, *name = NULL, *value = NULL;
 	int ch, longindex, mode=-1, port=-1, do_login=0;
-	int rc=0, rid=-1, op=-1, type=-1, do_logout=0;
+	int rc=0, rid=-1, sid=-1, op=-1, type=-1, do_logout=0, do_stats=0;
 	idbm_t *db;
 	char *iname;
 	struct sigaction sa_old;
@@ -457,13 +562,16 @@ main(int argc, char **argv)
 			value = optarg;
 			break;
 		case 'r':
-			rid = strtoul(optarg, NULL, 16);
+			rid = str_to_ridsid(optarg, &sid);
 			break;
 		case 'l':
 			do_login = 1;
 			break;
 		case 'u':
 			do_logout = 1;
+			break;
+		case 's':
+			do_stats = 1;
 			break;
 		case 'd':
 			log_level = atoi(optarg);
@@ -680,20 +788,53 @@ main(int argc, char **argv)
 			goto out;
 		}
 	} else if (mode == MODE_SESSION) {
-		if ((rc = verify_mode_params(argc, argv, "dm", 1))) {
+		if ((rc = verify_mode_params(argc, argv, "dmrus", 1))) {
 			log_error("session mode: option '-%c' is not "
 				  "allowed or supported", rc);
 			rc = -1;
 			goto out;
 		}
-		printf("Active sessions:\n");
-		if ((rc = session_activelist(db)) < 0) {
-			log_error("can not get list of active sessions (%d)",
-				  rc);
-			rc = -1;
-			goto out;
-		} else if (!rc) {
-			printf("\tno active sessions\n");
+		if (rid >= 0) {
+			if (do_logout && do_stats) {
+				log_error("--logout or --stats? what exactly?");
+				rc = -1;
+				goto out;
+			}
+			if (do_logout) {
+				log_error("operation is not implemented yet.");
+				rc = -1;
+				goto out;
+			}
+			if (do_stats) {
+				if ((rc = session_stats(db, rid, sid)) > 0) {
+					iscsid_handle_error(rc);
+					log_error("can not get statistics for "
+						"session with SID %d (%d)",
+						sid, rc);
+					rc = -1;
+					goto out;
+				}
+			}
+		} else {
+			if (do_logout) {
+				log_error("--logout requires record id");
+				rc = -1;
+				goto out;
+			}
+			if (do_stats) {
+				log_error("--stats requires record id");
+				rc = -1;
+				goto out;
+			}
+			printf("Active sessions:\n");
+			if ((rc = session_activelist(db)) < 0) {
+				log_error("can not get list of active "
+					"sessions (%d)", rc);
+				rc = -1;
+				goto out;
+			} else if (!rc) {
+				printf("\tno active sessions\n");
+			}
 		}
 	} else {
 		log_error("This mode is not yet supported");

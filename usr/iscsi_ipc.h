@@ -70,6 +70,9 @@ struct iscsi_ipc {
 			  enum iscsi_param param, uint32_t *value,
 			  int *retcode);
 
+	int (*get_stats) (uint64_t transport_handle, uint64_t cnxh,
+			  char *statsbuf, int statsbuf_max);
+
 	int (*start_cnx) (uint64_t transport_handle, uint64_t cnxh,
 			  int *retcode);
 

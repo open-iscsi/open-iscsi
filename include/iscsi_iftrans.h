@@ -64,6 +64,7 @@ struct iscsi_transport {
 			  uint32_t *value);
 	int (*send_pdu) (iscsi_cnx_t cnx, struct iscsi_hdr *hdr,
 			 char *data, uint32_t data_size);
+	void (*get_stats) (iscsi_cnx_t cnx, struct iscsi_stats *stats);
 };
 
 /*

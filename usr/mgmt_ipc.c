@@ -35,6 +35,7 @@
 #include "iscsid.h"
 #include "idbm.h"
 #include "mgmt_ipc.h"
+#include "iscsi_ipc.h"
 #include "log.h"
 
 #define PEERUSER_MAX	64
@@ -126,6 +127,35 @@ mgmt_ipc_session_activelist(queue_task_t *qtask, iscsiadm_rsp_t *rsp)
 	}
 
 	return MGMT_IPC_OK;
+}
+
+static mgmt_ipc_err_e
+mgmt_ipc_session_getstats(queue_task_t *qtask, int rid, int sid,
+		iscsiadm_rsp_t *rsp)
+{
+	iscsi_session_t *session;
+	struct qelem *item;
+
+	item = provider[0].sessions.q_forw;
+	while (item != &provider[0].sessions) {
+		session = (iscsi_session_t *)item;
+		if (session->id == sid) {
+			int rc;
+
+			rc = ipc->get_stats(session->transport_handle,
+				session->cnx[0].handle, (void*)&rsp->u.getstats,
+				MGMT_IPC_GETSTATS_BUF_MAX);
+			if (rc) {
+				log_error("get_stats(): IPC error %d "
+					"session [%02d:%06x]", rc, sid, rid);
+				return MGMT_IPC_ERR_INTERNAL;
+			}	
+			return MGMT_IPC_OK;
+		}
+		item = item->q_forw;
+	}
+
+	return MGMT_IPC_ERR_NOT_FOUND;
 }
 
 static mgmt_ipc_err_e
@@ -296,6 +326,11 @@ mgmt_ipc_handle(int accept_fd)
 		break;
 	case MGMT_IPC_SESSION_ACTIVELIST:
 		rsp.err = mgmt_ipc_session_activelist(qtask, &rsp);
+		immrsp = 1;
+		break;
+	case MGMT_IPC_SESSION_STATS:
+		rsp.err = mgmt_ipc_session_getstats(qtask, req.u.session.rid,
+				req.u.session.sid, &rsp);
 		immrsp = 1;
 		break;
 	case MGMT_IPC_CONN_ADD:

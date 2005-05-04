@@ -158,6 +158,21 @@ struct iscsi_conn {
 	void			(*old_data_ready)(struct sock *, int);
 	void			(*old_state_change)(struct sock *);
 	void			(*old_write_space)(struct sock *);
+
+	/* MIB-statistics */
+	uint64_t		txdata_octets;
+	uint64_t		rxdata_octets;
+	uint32_t		scsicmd_pdus_cnt;
+	uint32_t		dataout_pdus_cnt;
+	uint32_t		scsirsp_pdus_cnt;
+	uint32_t		datain_pdus_cnt;
+	uint32_t		r2t_pdus_cnt;
+	uint32_t		tmfcmd_pdus_cnt;
+	int32_t			tmfrsp_pdus_cnt;
+
+	/* custom statistics */
+	uint32_t		sendpage_failures_cnt;
+	uint32_t		discontiguous_hdr_cnt;
 };
 
 struct iscsi_session {

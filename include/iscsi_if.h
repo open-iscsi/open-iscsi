@@ -100,4 +100,56 @@ typedef uint64_t iscsi_cnx_t;		/* iSCSI Data-Path connection handle */
 #define STOP_CNX_SUSPEND	0x2
 #define STOP_CNX_RECOVER	0x3
 
+#define ISCSI_STATS_CUSTOM_MAX		32
+#define ISCSI_STATS_CUSTOM_DESC_MAX	64
+struct iscsi_stats_custom {
+	char desc[ISCSI_STATS_CUSTOM_DESC_MAX];
+	uint64_t value;
+};
+
+/*
+ * struct iscsi_stats - iSCSI Statistics (iSCSI MIB)
+ *
+ * Note: this structure contains counters collected on per-connection basis.
+ */
+struct iscsi_stats {
+	/* octets */
+	uint64_t txdata_octets;
+	uint64_t rxdata_octets;
+
+	/* xmit pdus */
+	uint32_t noptx_pdus;
+	uint32_t scsicmd_pdus;
+	uint32_t tmfcmd_pdus;
+	uint32_t login_pdus;
+	uint32_t text_pdus;
+	uint32_t dataout_pdus;
+	uint32_t logout_pdus;
+	uint32_t snack_pdus;
+
+	/* recv pdus */
+	uint32_t noprx_pdus;
+	uint32_t scsirsp_pdus;
+	uint32_t tmfrsp_pdus;
+	uint32_t textrsp_pdus;
+	uint32_t datain_pdus;
+	uint32_t logoutrsp_pdus;
+	uint32_t r2t_pdus;
+	uint32_t async_pdus;
+	uint32_t rjt_pdus;
+
+	/* errors */
+	uint32_t digest_err;
+	uint32_t timeout_err;
+
+	/*
+	 * iSCSI Custom Statistics support, i.e. Transport could
+	 * extend existing MIB statistics with its own specific statistics
+	 * up to ISCSI_STATS_CUSTOM_MAX
+	 */
+	uint32_t custom_length;
+	struct iscsi_stats_custom custom[0]
+		__attribute__ ((aligned (sizeof(unsigned long))));
+};
+
 #endif
