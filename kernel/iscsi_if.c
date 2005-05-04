@@ -671,7 +671,9 @@ iscsi_if_recv_msg(struct sk_buff *skb, struct nlmsghdr *nlh)
 		struct nlmsghdr	*nlhstat;
 		struct iscsi_uevent *evstat;
 		int len = NLMSG_SPACE(sizeof(*ev) +
-				DEFAULT_MAX_RECV_DATA_SEGMENT_LENGTH);
+				sizeof(struct iscsi_stats) +
+                                sizeof(struct iscsi_stats_custom) *
+                                                ISCSI_STATS_CUSTOM_MAX);
 		int err;
 
 		cnx = iscsi_if_find_cnx(ev->u.get_stats.cnx_handle,
@@ -680,6 +682,8 @@ iscsi_if_recv_msg(struct sk_buff *skb, struct nlmsghdr *nlh)
 			return -EEXIST;
 
 		do {
+			int actual_size;
+
 			skbstat = mempool_zone_get_skb(&cnx->z_pdu);
 			if (!skbstat) {
 				printk("iscsi%d: can not deliver stats: OOM\n",
@@ -702,6 +706,14 @@ iscsi_if_recv_msg(struct sk_buff *skb, struct nlmsghdr *nlh)
 			memset(stats, 0, sizeof(*stats));
 
 			transport->get_stats(ev->u.get_stats.cnx_handle, stats);
+			actual_size = NLMSG_SPACE(sizeof(struct iscsi_uevent) +
+					sizeof(struct iscsi_stats) +
+                                	sizeof(struct iscsi_stats_custom) *
+						stats->custom_length);
+			actual_size -= sizeof(*nlhstat);
+			actual_size = NLMSG_LENGTH(actual_size);
+			skb_trim(skb, NLMSG_ALIGN(actual_size));
+			nlhstat->nlmsg_len = actual_size;
 
 			err = iscsi_unicast_skb(&cnx->z_pdu, skbstat);
 		} while (err < 0 && err != -ECONNREFUSED);
