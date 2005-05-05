@@ -31,6 +31,7 @@
 #include <sys/param.h>
 #include <sys/socket.h>
 
+#include "types.h"
 #include "iscsi_proto.h"
 #include "initiator.h"
 #include "iscsi_ipc.h"

@@ -19,4 +19,11 @@ struct qelem {
 #define DATASEG_MAX	8192
 #define HDRSEG_MAX	48+4
 
+/*
+ * using the __be types allows stricter static
+ * typechecking in the kernel using sparse
+ */
+typedef uint16_t __be16;
+typedef uint32_t __be32;
+
 #endif	/* TYPES_H */

@@ -33,6 +33,7 @@
 #include <arpa/inet.h>
 
 #include "strings.h"
+#include "types.h"
 #include "iscsi_proto.h"
 #include "initiator.h"
 #include "iscsiadm.h"

@@ -27,6 +27,7 @@
 #include <sys/types.h>
 #include <linux/netlink.h>
 
+#include "types.h"
 #include "iscsi_if.h"
 #include "iscsi_ifev.h"
 #include "iscsid.h"
