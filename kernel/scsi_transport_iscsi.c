@@ -471,7 +471,8 @@ iscsi_if_create_snx(struct iscsi_transport *transport, struct iscsi_uevent *ev)
 	snprintf(snx->dev.bus_id, BUS_ID_SIZE, "session%u", shost->host_no);
 	snx->dev.parent = &shost->shost_gendev;
 	snx->dev.release = iscsi_if_snx_dev_release;
-	if (device_register(&snx->dev)) {
+	error = device_register(&snx->dev);
+	if (error) {
 		printk(KERN_ERR "iscsi: could not register session%d's dev\n",
 		       shost->host_no);
 		goto out_remove_host;
@@ -504,11 +505,11 @@ iscsi_if_destroy_snx(struct iscsi_transport *transport, struct iscsi_uevent *ev)
 	struct iscsi_if_snx *snx;
 	unsigned long flags;
 	struct iscsi_if_cnx *cnx;
+	int error = 0;
 
 	shost = scsi_host_lookup(ev->u.d_session.sid);
 	if (shost == ERR_PTR(-ENXIO))
 		return -EEXIST;
-	scsi_host_put(shost);
 	snx = hostdata_snx(shost->hostdata);
 
 	/* check if we have active connections */
@@ -519,7 +520,8 @@ iscsi_if_destroy_snx(struct iscsi_transport *transport, struct iscsi_uevent *ev)
 			       "has active connection (%p)\n",
 			       shost->host_no, iscsi_ptr(cnx->cnxh));
 			spin_unlock_irqrestore(&cnxlock, flags);
-			return -EIO;
+			error = EIO;
+			goto out_release_ref;
 		}
 	}
 	spin_unlock_irqrestore(&cnxlock, flags);
@@ -534,8 +536,12 @@ iscsi_if_destroy_snx(struct iscsi_transport *transport, struct iscsi_uevent *ev)
 	list_del(&snx->item);
 	spin_unlock_irqrestore(&snxlock, flags);
 
+	/* ref from host alloc */
 	scsi_host_put(shost);
-	return 0;
+ out_release_ref:
+	/* ref from host lookup */
+	scsi_host_put(shost);
+	return error;
 }
 
 static void iscsi_if_cnx_dev_release(struct device *dev)
@@ -558,12 +564,13 @@ iscsi_if_create_cnx(struct iscsi_transport *transport, struct iscsi_uevent *ev)
 	shost = scsi_host_lookup(ev->u.c_cnx.sid);
 	if (shost == ERR_PTR(-ENXIO))
 		return -EEXIST;
-	scsi_host_put(shost);
 	snx = hostdata_snx(shost->hostdata);
 
 	cnx = kmalloc(sizeof(struct iscsi_if_cnx), GFP_KERNEL);
-	if (!cnx)
-		return -ENOMEM;
+	if (!cnx) {
+		error = -ENOMEM;
+		goto out_release_ref;
+	}
 	memset(cnx, 0, sizeof(struct iscsi_if_cnx));
 	cnx->host = shost;
 	snx->transport = transport;
@@ -592,17 +599,19 @@ iscsi_if_create_cnx(struct iscsi_transport *transport, struct iscsi_uevent *ev)
 	cnx->cnxh = ev->r.handle;
 
 	/*
-	 * this is released in the dev's release function)
+	 * this is released in the dev's release function
 	 */
-	scsi_host_get(shost);
+	if (!scsi_host_get(shost))
+		goto out_destroy_cnx;
 	snprintf(cnx->dev.bus_id, BUS_ID_SIZE, "connection%d:%u",
 		 shost->host_no, ev->u.c_cnx.cid);
 	cnx->dev.parent = &snx->dev;
 	cnx->dev.release = iscsi_if_cnx_dev_release;
-	if (device_register(&cnx->dev)) {
+	error = device_register(&cnx->dev);
+	if (error) {
 		printk(KERN_ERR "iscsi%d: could not register connections%u "
 		       "dev\n", shost->host_no, ev->u.c_cnx.cid);
-		goto out_destroy_cnx;
+		goto out_release_parent_ref;
 	}
 	transport_register_device(&cnx->dev);
 
@@ -612,8 +621,11 @@ iscsi_if_create_cnx(struct iscsi_transport *transport, struct iscsi_uevent *ev)
 	spin_unlock_irqrestore(&cnxlock, flags);
 
 	cnx->active = 1;
+	scsi_host_put(shost);
 	return 0;
 
+ out_release_parent_ref:
+	scsi_host_put(shost);
  out_destroy_cnx:
 	transport->destroy_cnx(ev->r.handle);
  out_free_error_pool:
@@ -622,6 +634,8 @@ iscsi_if_create_cnx(struct iscsi_transport *transport, struct iscsi_uevent *ev)
 	mempool_destroy(cnx->z_pdu.pool);
  out_free_cnx:
 	kfree(cnx);
+ out_release_ref:
+	scsi_host_put(shost);
 	return error;
 }
 
