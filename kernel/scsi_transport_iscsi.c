@@ -180,11 +180,9 @@ iscsi_if_transport_lookup(struct iscsi_transport *t)
 {
 	int i;
 
-	for (i=0; i < ISCSI_TRANSPORT_MAX; i++) {
-		if (transport_table[i] == t) {
+	for (i = 0; i < ISCSI_TRANSPORT_MAX; i++)
+		if (transport_table[i] == t)
 			return i;
-		}
-	}
 	return -1;
 }
 
@@ -223,7 +221,7 @@ mempool_zone_complete(struct mempool_zone *zone)
 }
 
 static int zone_init(struct mempool_zone *zp, unsigned max,
-		unsigned size, unsigned hiwat)
+		     unsigned size, unsigned hiwat)
 {
 	zp->pool = mempool_create(max, mempool_zone_alloc_skb,
 				  mempool_zone_free_skb, zp);
@@ -665,7 +663,8 @@ iscsi_if_recv_msg(struct sk_buff *skb, struct nlmsghdr *nlh)
 	switch (nlh->nlmsg_type) {
 	case ISCSI_UEVENT_TRANS_LIST: {
 		int i;
-		for (i=0; i < ISCSI_TRANSPORT_MAX; i++) {
+
+		for (i = 0; i < ISCSI_TRANSPORT_MAX; i++) {
 			if (transport_table[i]) {
 				ev->r.t_list.elements[i].trans_handle =
 					iscsi_handle(transport_table[i]);
@@ -735,7 +734,6 @@ iscsi_if_recv_msg(struct sk_buff *skb, struct nlmsghdr *nlh)
 		struct iscsi_if_cnx *cnx;
 		struct nlmsghdr	*nlhstat;
 		struct iscsi_uevent *evstat;
-
 		int len = NLMSG_SPACE(sizeof(*ev) +
 				sizeof(struct iscsi_stats) +
                                 sizeof(struct iscsi_stats_custom) *
