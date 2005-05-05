@@ -652,8 +652,12 @@ iscsi_if_recv_msg(struct sk_buff *skb, struct nlmsghdr *nlh)
 {
 	int err = 0;
 	struct iscsi_uevent *ev = NLMSG_DATA(nlh);
-	struct iscsi_transport *transport = iscsi_ptr(ev->transport_handle);
+	struct iscsi_transport *transport;
 
+	if (NETLINK_CREDS(skb)->uid)
+		return -EPERM;
+
+	transport = iscsi_ptr(ev->transport_handle);
 	if (nlh->nlmsg_type != ISCSI_UEVENT_TRANS_LIST &&
 	    iscsi_if_transport_lookup(transport) < 0)
 		return -EEXIST;
