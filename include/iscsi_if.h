@@ -149,7 +149,7 @@ struct iscsi_stats {
 	 */
 	uint32_t custom_length;
 	struct iscsi_stats_custom custom[0]
-		__attribute__ ((aligned (sizeof(unsigned long))));
+		__attribute__ ((aligned (sizeof(uint64_t))));
 };
 
 #endif

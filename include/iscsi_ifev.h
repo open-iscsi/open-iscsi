@@ -116,6 +116,6 @@ struct iscsi_uevent {
 			} elements[ISCSI_TRANSPORT_MAX];
 		} t_list;
 	} r;
-} __attribute__ ((aligned (sizeof(unsigned long))));
+} __attribute__ ((aligned (sizeof(uint64_t))));
 
 #endif /* ISCSI_IFEV_H */
