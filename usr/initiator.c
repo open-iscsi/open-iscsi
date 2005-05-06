@@ -374,8 +374,10 @@ __setup_authentication(iscsi_session_t *session,
 		    sizeof (session->auth_send_binary_block);
 
 		session->num_auth_buffers = 5;
+		log_debug(6, "authentication setup complete...");
 	} else {
 		session->num_auth_buffers = 0;
+		log_debug(6, "no authentication configured...");
 	}
 }
 
