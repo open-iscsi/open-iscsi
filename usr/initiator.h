@@ -40,14 +40,14 @@
 
 #define DEF_ISCSI_PORT		3260
 
-typedef enum cnx_login_status_e {
-	CNX_LOGIN_SUCCESS		= 0,
-	CNX_LOGIN_FAILED		= 1,
-	CNX_LOGIN_IO_ERR		= 2,
-	CNX_LOGIN_RETRY			= 3,
-	CNX_LOGIN_IMM_RETRY		= 4,
-	CNX_LOGIN_IMM_REDIRECT_RETRY	= 5,
-} cnx_login_status_e;
+typedef enum conn_login_status_e {
+	CONN_LOGIN_SUCCESS		= 0,
+	CONN_LOGIN_FAILED		= 1,
+	CONN_LOGIN_IO_ERR		= 2,
+	CONN_LOGIN_RETRY		= 3,
+	CONN_LOGIN_IMM_RETRY		= 4,
+	CONN_LOGIN_IMM_REDIRECT_RETRY	= 5,
+} conn_login_status_e;
 
 enum iscsi_login_status {
 	LOGIN_OK			= 0,
@@ -61,7 +61,7 @@ enum iscsi_login_status {
 	LOGIN_INVALID_PDU		= 8,
 };
 
-typedef enum iscsi_cnx_state_e {
+typedef enum iscsi_conn_state_e {
 	STATE_FREE			= 0,
 	STATE_XPT_WAIT			= 1,
 	STATE_IN_LOGIN			= 2,
@@ -69,20 +69,20 @@ typedef enum iscsi_cnx_state_e {
 	STATE_IN_LOGOUT			= 4,
 	STATE_LOGOUT_REQUESTED		= 5,
 	STATE_CLEANUP_WAIT		= 6,
-} iscsi_cnx_state_e;
+} iscsi_conn_state_e;
 
-typedef enum iscsi_snx_r_stage_e {
+typedef enum iscsi_session_r_stage_e {
 	R_STAGE_NO_CHANGE		= 0,
 	R_STAGE_SESSION_CLEANUP		= 1,
 	R_STAGE_SESSION_REOPEN		= 2,
-} iscsi_snx_r_stage_e;
+} iscsi_session_r_stage_e;
 
 typedef enum iscsi_event_e {
 	EV_UNKNOWN			= 0,
-	EV_CNX_RECV_PDU			= 1,
-	EV_CNX_POLL			= 2,
-	EV_CNX_TIMER			= 3,
-	EV_CNX_ERROR			= 4,
+	EV_CONN_RECV_PDU		= 1,
+	EV_CONN_POLL			= 2,
+	EV_CONN_TIMER			= 3,
+	EV_CONN_ERROR			= 4,
 } iscsi_event_e;
 
 typedef struct iscsi_event {
@@ -113,11 +113,11 @@ typedef struct iscsi_login_context {
 struct iscsi_session;
 struct iscsi_conn;
 
-typedef void (*send_pdu_begin_f) (uint64_t transport_handle, uint64_t cnxh,
+typedef void (*send_pdu_begin_f) (uint64_t transport_handle, uint64_t connh,
                                 int hdr_size, int data_size);
-typedef int (*send_pdu_end_f) (uint64_t transport_handle, uint64_t cnxh,
+typedef int (*send_pdu_end_f) (uint64_t transport_handle, uint64_t connh,
                              int *retcode);
-typedef int (*recv_pdu_begin_f) (uint64_t transport_handle, uint64_t cnxh,
+typedef int (*recv_pdu_begin_f) (uint64_t transport_handle, uint64_t connh,
                                 uintptr_t recv_handle, uintptr_t *pdu_handle,
                                 int *pdu_size);
 typedef int (*recv_pdu_end_f) (uint64_t transport_handle, uintptr_t conn_handle,
@@ -134,7 +134,7 @@ typedef struct iscsi_conn {
 	struct iscsi_session *session;
 	iscsi_login_context_t login_context;
 	char data[DEFAULT_MAX_RECV_DATA_SEGMENT_LENGTH];
-	iscsi_cnx_state_e state;
+	iscsi_conn_state_e state;
 	actor_t connect_timer;
 	actor_t send_pdu_timer;
 	int send_pdu_in_progress;
@@ -154,7 +154,7 @@ typedef struct iscsi_conn {
 	int current_stage;
 	int next_stage;
 	int partial_response;
-	cnx_login_status_e status;
+	conn_login_status_e status;
 
 	/* tcp/socket settings */
 	int socket_fd;
@@ -250,13 +250,13 @@ typedef struct iscsi_session {
 	char username_in[AUTH_STR_MAX_LEN];
 	uint8_t password_in[AUTH_STR_MAX_LEN];
 	int password_length_in;
-	iscsi_conn_t cnx[ISCSI_CNX_MAX];
+	iscsi_conn_t conn[ISCSI_CONN_MAX];
 	int ctrl_fd;
 
 	/* connection reopens during recovery */
 	int reopen_cnt;
 	queue_task_t reopen_qtask;
-	iscsi_snx_r_stage_e r_stage;
+	iscsi_session_r_stage_e r_stage;
 
 	/* session's processing */
 	actor_t mainloop;

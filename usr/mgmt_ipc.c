@@ -143,7 +143,7 @@ mgmt_ipc_session_getstats(queue_task_t *qtask, int rid, int sid,
 			int rc;
 
 			rc = ipc->get_stats(session->transport_handle,
-				session->cnx[0].handle, (void*)&rsp->u.getstats,
+				session->conn[0].handle, (void*)&rsp->u.getstats,
 				MGMT_IPC_GETSTATS_BUF_MAX);
 			if (rc) {
 				log_error("get_stats(): IPC error %d "

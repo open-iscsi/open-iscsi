@@ -47,24 +47,24 @@ struct iscsi_transport {
 	struct scsi_host_template *host_template;
 	int hostdata_size;
 	int max_lun;
-	unsigned int max_cnx;
+	unsigned int max_conn;
 	unsigned int max_cmd_len;
-	iscsi_snx_t (*create_session) (uint32_t initial_cmdsn,
+	iscsi_sessionh_t (*create_session) (uint32_t initial_cmdsn,
 				       struct Scsi_Host *shost);
-	void (*destroy_session) (iscsi_snx_t snx);
-	iscsi_cnx_t (*create_cnx) (iscsi_snx_t snx, uint32_t cid);
-	int (*bind_cnx) (iscsi_snx_t snx, iscsi_cnx_t cnx,
+	void (*destroy_session) (iscsi_sessionh_t session);
+	iscsi_connh_t (*create_conn) (iscsi_sessionh_t session, uint32_t cid);
+	int (*bind_conn) (iscsi_sessionh_t session, iscsi_connh_t conn,
 			uint32_t transport_fd, int is_leading);
-	int (*start_cnx) (iscsi_cnx_t cnx);
-	void (*stop_cnx) (iscsi_cnx_t cnx, int flag);
-	void (*destroy_cnx) (iscsi_cnx_t cnx);
-	int (*set_param) (iscsi_cnx_t cnx, enum iscsi_param param,
+	int (*start_conn) (iscsi_connh_t conn);
+	void (*stop_conn) (iscsi_connh_t conn, int flag);
+	void (*destroy_conn) (iscsi_connh_t conn);
+	int (*set_param) (iscsi_connh_t conn, enum iscsi_param param,
 			  uint32_t value);
-	int (*get_param) (iscsi_cnx_t cnx, enum iscsi_param param,
+	int (*get_param) (iscsi_connh_t conn, enum iscsi_param param,
 			  uint32_t *value);
-	int (*send_pdu) (iscsi_cnx_t cnx, struct iscsi_hdr *hdr,
+	int (*send_pdu) (iscsi_connh_t conn, struct iscsi_hdr *hdr,
 			 char *data, uint32_t data_size);
-	void (*get_stats) (iscsi_cnx_t cnx, struct iscsi_stats *stats);
+	void (*get_stats) (iscsi_connh_t conn, struct iscsi_stats *stats);
 };
 
 /*
@@ -76,8 +76,8 @@ extern int iscsi_unregister_transport(struct iscsi_transport *t);
 /*
  * control plane upcalls
  */
-extern void iscsi_cnx_error(iscsi_cnx_t cnx, enum iscsi_err error);
-extern int iscsi_recv_pdu(iscsi_cnx_t cnx, struct iscsi_hdr *hdr,
+extern void iscsi_conn_error(iscsi_connh_t conn, enum iscsi_err error);
+extern int iscsi_recv_pdu(iscsi_connh_t conn, struct iscsi_hdr *hdr,
 				char *data, uint32_t data_size);
 
 #endif /* ISCSI_IFTRANS_H */

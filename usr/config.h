@@ -39,7 +39,7 @@
 #define TCP_WINDOW_SIZE (256 * 1024)
 
 /* number of possible connections per session */
-#define ISCSI_CNX_MAX		16
+#define ISCSI_CONN_MAX		16
 
 /* database version control */
 #define IDBM_VERSION		0x02
@@ -103,7 +103,7 @@ struct iscsi_tcp_config {
 	int type_of_service;	/* try to set IP TOS bits */
 };
 
-struct iscsi_cnx_operational_config {
+struct iscsi_conn_operational_config {
 	int MaxRecvDataSegmentLength;
 	int HeaderDigest;
 	int DataDigest;
@@ -136,7 +136,7 @@ struct iscsi_sendtargets_config {
 	int continuous;
 	int send_async_text;
 	struct iscsi_auth_config auth;
-	struct iscsi_connection_timeout_config cnx_timeo;
+	struct iscsi_connection_timeout_config conn_timeo;
 };
 
 struct iscsi_slp_config {
@@ -160,14 +160,14 @@ typedef enum discovery_type {
 	DISCOVERY_TYPE_ISNS,
 } discovery_type_e;
 
-typedef struct cnx_rec {
+typedef struct conn_rec {
 	iscsi_startup_e				startup;
 	char					address[16];
 	int					port;
 	struct iscsi_tcp_config			tcp;
 	struct iscsi_connection_timeout_config	timeo;
-	struct iscsi_cnx_operational_config	iscsi;
-} cnx_rec_t;
+	struct iscsi_conn_operational_config	iscsi;
+} conn_rec_t;
 
 typedef struct session_rec {
 	int					initial_cmdsn;
@@ -184,10 +184,10 @@ typedef struct node_rec {
 	char			name[TARGET_NAME_MAXLEN];
 	char			transport_name[ISCSI_TRANSPORT_NAME_MAXLEN];
 	int			tpgt;
-	int			active_cnx;
+	int			active_conn;
 	iscsi_startup_e		startup;
 	session_rec_t		session;
-	cnx_rec_t		cnx[ISCSI_CNX_MAX];
+	conn_rec_t		conn[ISCSI_CONN_MAX];
 } node_rec_t;
 
 typedef struct discovery_rec {

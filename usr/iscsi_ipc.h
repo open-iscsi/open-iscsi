@@ -50,48 +50,48 @@ struct iscsi_ipc {
 			       uint32_t initial_cmdsn, uint64_t *out_handle,
 			       uint32_t *out_sid);
 
-	int (*destroy_session) (uint64_t transport_handle, uint64_t snxh,
+	int (*destroy_session) (uint64_t transport_handle, uint64_t sessionh,
 				uint32_t sid);
 
-	int (*create_cnx) (uint64_t transport_handle, uint64_t snxh,
-			   uint32_t sid, uint32_t cid, uint64_t *out_handle);
+	int (*create_conn) (uint64_t transport_handle, uint64_t sessionh,
+			    uint32_t sid, uint32_t cid, uint64_t *out_handle);
 
-	int (*destroy_cnx) (uint64_t transport_handle, uint64_t cnxh, int cid);
+	int (*destroy_conn) (uint64_t transport_handle, uint64_t connh, int cid);
 
-	int (*bind_cnx) (uint64_t transport_handle, uint64_t snxh,
-			 uint64_t cnxh, uint32_t transport_fd,
-			 int is_leading, int *retcode);
+	int (*bind_conn) (uint64_t transport_handle, uint64_t sessionh,
+			  uint64_t connh, uint32_t transport_fd,
+			  int is_leading, int *retcode);
 
-	int (*set_param) (uint64_t transport_handle, uint64_t cnxh,
+	int (*set_param) (uint64_t transport_handle, uint64_t connh,
 			  enum iscsi_param param, uint32_t value, int *retcode);
 
 	/* not implemented yet */
-	int (*get_param) (uint64_t transport_handle, uint64_t cnxh,
+	int (*get_param) (uint64_t transport_handle, uint64_t connh,
 			  enum iscsi_param param, uint32_t *value,
 			  int *retcode);
 
-	int (*get_stats) (uint64_t transport_handle, uint64_t cnxh,
+	int (*get_stats) (uint64_t transport_handle, uint64_t connh,
 			  char *statsbuf, int statsbuf_max);
 
-	int (*start_cnx) (uint64_t transport_handle, uint64_t cnxh,
-			  int *retcode);
+	int (*start_conn) (uint64_t transport_handle, uint64_t connh,
+			   int *retcode);
 
-	int (*stop_cnx) (uint64_t transport_handle, uint64_t cnxh,
-			 int flag);
+	int (*stop_conn) (uint64_t transport_handle, uint64_t connh,
+			  int flag);
 
 	int (*read) (char *data, int count);
 
-	void (*send_pdu_begin) (uint64_t transport_handle, uint64_t cnxh,
+	void (*send_pdu_begin) (uint64_t transport_handle, uint64_t connh,
 				int hdr_size, int data_size);
 
-	int (*send_pdu_end) (uint64_t transport_handle, uint64_t cnxh,
+	int (*send_pdu_end) (uint64_t transport_handle, uint64_t connh,
 			     int *retcode);
 
 	int (*writev) (enum iscsi_uevent_e type, struct iovec *iovp, int count);
 
-	int (*recv_pdu_begin) (uint64_t transport_handle, uint64_t cnxh,
-				uintptr_t recv_handle, uintptr_t *pdu_handle,
-				int *pdu_size);
+	int (*recv_pdu_begin) (uint64_t transport_handle, uint64_t connh,
+			       uintptr_t recv_handle, uintptr_t *pdu_handle,
+			       int *pdu_size);
 
 	int (*recv_pdu_end) (uint64_t transport_handle, uintptr_t conn_handle,
 			     uintptr_t pdu_handle);

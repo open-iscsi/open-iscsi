@@ -346,8 +346,8 @@ session_activelist(idbm_t *db)
 			return -1;
 		}
 		printf("[%02d:%06x] %s:%d,%d %s\n",
-			rsp.u.activelist.sids[i], rec.id, rec.cnx[0].address,
-			rec.cnx[0].port, rec.tpgt, rec.name);
+			rsp.u.activelist.sids[i], rec.id, rec.conn[0].address,
+			rec.conn[0].port, rec.tpgt, rec.name);
 	}
 
 	return i;
@@ -376,7 +376,7 @@ session_stats(idbm_t *db, int rid, int sid)
 		return rc;
 
 	printf("[%02d:%06x] %s:%d,%d %s\n",
-		sid, rid, rec.cnx[0].address, rec.cnx[0].port,
+		sid, rid, rec.conn[0].address, rec.conn[0].port,
 		rec.tpgt, rec.name);
 	printf( "iSCSI SNMP:\n"
 
@@ -769,8 +769,8 @@ main(int argc, char **argv)
 			idbm_node_setup_defaults(&nrec);
 			strncpy(nrec.name, "<not specified>",
 				TARGET_NAME_MAXLEN);
-			nrec.cnx[0].port = port;
-			strncpy(nrec.cnx[0].address, ip, 16);
+			nrec.conn[0].port = port;
+			strncpy(nrec.conn[0].address, ip, 16);
 			if (idbm_new_node(db, &nrec)) {
 				log_error("can not add new record.");
 				rc = -1;

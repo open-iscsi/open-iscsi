@@ -229,15 +229,15 @@ idbm_update_discovery(discovery_rec_t *rec, discovery_rec_t *newrec)
 	__update_rec_int(rec, newrec,
 			 u.sendtargets.auth.password_length_in);
 	__update_rec_int(rec, newrec,
-		 u.sendtargets.cnx_timeo.login_timeout);
+		 u.sendtargets.conn_timeo.login_timeout);
 	__update_rec_int(rec, newrec,
-		 u.sendtargets.cnx_timeo.auth_timeout);
+		 u.sendtargets.conn_timeo.auth_timeout);
 	__update_rec_int(rec, newrec,
-		 u.sendtargets.cnx_timeo.active_timeout);
+		 u.sendtargets.conn_timeo.active_timeout);
 	__update_rec_int(rec, newrec,
-		 u.sendtargets.cnx_timeo.idle_timeout);
+		 u.sendtargets.conn_timeo.idle_timeout);
 	__update_rec_int(rec, newrec,
-		 u.sendtargets.cnx_timeo.ping_timeout);
+		 u.sendtargets.conn_timeo.ping_timeout);
 }
 
 static char*
@@ -302,22 +302,22 @@ idbm_update_node(node_rec_t *rec, node_rec_t *newrec)
 	__update_rec_int(rec, newrec, session.iscsi.DefaultTime2Retain);
 	__update_rec_int(rec, newrec, session.iscsi.ERL);
 
-	for (i=0; i < ISCSI_CNX_MAX; i++) {
-		/* update rec->cnx[i] */
-		__update_rec_str(rec, newrec, cnx[i].address, 16);
-		__update_rec_int(rec, newrec, cnx[i].port);
-		__update_rec_int(rec, newrec, cnx[i].startup);
-		__update_rec_int(rec, newrec, cnx[i].tcp.window_size);
-		__update_rec_int(rec, newrec, cnx[i].tcp.type_of_service);
-		__update_rec_int(rec, newrec, cnx[i].timeo.login_timeout);
-		__update_rec_int(rec, newrec, cnx[i].timeo.auth_timeout);
-		__update_rec_int(rec, newrec, cnx[i].timeo.active_timeout);
-		__update_rec_int(rec, newrec, cnx[i].timeo.idle_timeout);
-		__update_rec_int(rec, newrec, cnx[i].timeo.ping_timeout);
+	for (i=0; i < ISCSI_CONN_MAX; i++) {
+		/* update rec->conn[i] */
+		__update_rec_str(rec, newrec, conn[i].address, 16);
+		__update_rec_int(rec, newrec, conn[i].port);
+		__update_rec_int(rec, newrec, conn[i].startup);
+		__update_rec_int(rec, newrec, conn[i].tcp.window_size);
+		__update_rec_int(rec, newrec, conn[i].tcp.type_of_service);
+		__update_rec_int(rec, newrec, conn[i].timeo.login_timeout);
+		__update_rec_int(rec, newrec, conn[i].timeo.auth_timeout);
+		__update_rec_int(rec, newrec, conn[i].timeo.active_timeout);
+		__update_rec_int(rec, newrec, conn[i].timeo.idle_timeout);
+		__update_rec_int(rec, newrec, conn[i].timeo.ping_timeout);
 		__update_rec_int(rec, newrec,
-				 cnx[i].iscsi.MaxRecvDataSegmentLength);
-		__update_rec_int(rec, newrec, cnx[i].iscsi.HeaderDigest);
-		__update_rec_int(rec, newrec, cnx[i].iscsi.DataDigest);
+				 conn[i].iscsi.MaxRecvDataSegmentLength);
+		__update_rec_int(rec, newrec, conn[i].iscsi.HeaderDigest);
+		__update_rec_int(rec, newrec, conn[i].iscsi.DataDigest);
 	}
 }
 
@@ -333,8 +333,8 @@ idbm_hash_node(discovery_rec_t *drec, node_rec_t *nrec)
 
 	if (drec == NULL) {
 		snprintf(hash, HASH_MAXLEN, "%s:%d,%d#%s",
-			nrec->cnx[0].address,
-			nrec->cnx[0].port,
+			nrec->conn[0].address,
+			nrec->conn[0].port,
 			nrec->tpgt,
 			nrec->name);
 		return hash;
@@ -344,8 +344,8 @@ idbm_hash_node(discovery_rec_t *drec, node_rec_t *nrec)
 		snprintf(hash, HASH_MAXLEN, "%s:%d#%s:%d,%d#%s",
 			drec->u.sendtargets.address,
 			drec->u.sendtargets.port,
-			nrec->cnx[0].address,
-			nrec->cnx[0].port,
+			nrec->conn[0].address,
+			nrec->conn[0].port,
 			nrec->tpgt,
 			nrec->name);
 	}
@@ -443,19 +443,19 @@ idbm_recinfo_discovery(discovery_rec_t *r, recinfo_t *ri)
 			ri, r, u.sendtargets.auth.password_length_in,
 			IDBM_HIDE, num);
 		__recinfo_int("discovery.sendtargets.timeo.login_timeout",ri, r,
-			u.sendtargets.cnx_timeo.login_timeout,
+			u.sendtargets.conn_timeo.login_timeout,
 			IDBM_SHOW, num);
 		__recinfo_int("discovery.sendtargets.timeo.auth_timeout", ri, r,
-			u.sendtargets.cnx_timeo.auth_timeout,
+			u.sendtargets.conn_timeo.auth_timeout,
 			IDBM_SHOW, num);
 		__recinfo_int("discovery.sendtargets.timeo.active_timeout",ri,r,
-			u.sendtargets.cnx_timeo.active_timeout,
+			u.sendtargets.conn_timeo.active_timeout,
 			IDBM_SHOW, num);
 		__recinfo_int("discovery.sendtargets.timeo.idle_timeout", ri, r,
-			u.sendtargets.cnx_timeo.idle_timeout,
+			u.sendtargets.conn_timeo.idle_timeout,
 			IDBM_SHOW, num);
 		__recinfo_int("discovery.sendtargets.timeo.ping_timeout", ri, r,
-			u.sendtargets.cnx_timeo.ping_timeout,
+			u.sendtargets.conn_timeo.ping_timeout,
 			IDBM_SHOW, num);
 	}
 }
@@ -469,7 +469,7 @@ idbm_recinfo_node(node_rec_t *r, recinfo_t *ri)
 	__recinfo_str("node.transport_name", ri, r, transport_name,
 		      IDBM_SHOW, num);
 	__recinfo_int("node.tpgt", ri, r, tpgt, IDBM_SHOW, num);
-	__recinfo_int("node.active_cnx", ri, r, active_cnx, IDBM_SHOW, num);
+	__recinfo_int("node.active_conn", ri, r, active_conn, IDBM_SHOW, num);
 	__recinfo_int_o2("node.startup", ri, r, startup,
 			IDBM_SHOW, "manual", "automatic", num);
 	__recinfo_int("node.session.initial_cmdsn", ri, r,
@@ -518,45 +518,45 @@ idbm_recinfo_node(node_rec_t *r, recinfo_t *ri)
 	__recinfo_int("node.session.iscsi.ERL", ri, r,
 		      session.iscsi.ERL, IDBM_SHOW, num);
 
-	for (i=0; i < r->active_cnx; i++) {
+	for (i=0; i < r->active_conn; i++) {
 		char key[NAME_MAXVAL];
-		sprintf(key, "node.cnx[%d].address", i);
-		__recinfo_str(key, ri, r, cnx[i].address, IDBM_SHOW, num);
-		sprintf(key, "node.cnx[%d].port", i);
-		__recinfo_int(key, ri, r, cnx[i].port, IDBM_SHOW, num);
-		sprintf(key, "node.cnx[%d].startup", i);
-		__recinfo_int_o2(key, ri, r, cnx[i].startup, IDBM_SHOW,
+		sprintf(key, "node.conn[%d].address", i);
+		__recinfo_str(key, ri, r, conn[i].address, IDBM_SHOW, num);
+		sprintf(key, "node.conn[%d].port", i);
+		__recinfo_int(key, ri, r, conn[i].port, IDBM_SHOW, num);
+		sprintf(key, "node.conn[%d].startup", i);
+		__recinfo_int_o2(key, ri, r, conn[i].startup, IDBM_SHOW,
 				 "manual", "automatic", num);
-		sprintf(key, "node.cnx[%d].tcp.window_size", i);
-		__recinfo_int(key, ri, r, cnx[i].tcp.window_size,
+		sprintf(key, "node.conn[%d].tcp.window_size", i);
+		__recinfo_int(key, ri, r, conn[i].tcp.window_size,
 			      IDBM_SHOW, num);
-		sprintf(key, "node.cnx[%d].tcp.type_of_service", i);
-		__recinfo_int(key, ri, r, cnx[i].tcp.type_of_service,
+		sprintf(key, "node.conn[%d].tcp.type_of_service", i);
+		__recinfo_int(key, ri, r, conn[i].tcp.type_of_service,
 				IDBM_SHOW, num);
-		sprintf(key, "node.cnx[%d].timeo.login_timeout", i);
-		__recinfo_int(key, ri, r, cnx[i].timeo.login_timeout,
+		sprintf(key, "node.conn[%d].timeo.login_timeout", i);
+		__recinfo_int(key, ri, r, conn[i].timeo.login_timeout,
 				IDBM_SHOW, num);
-		sprintf(key, "node.cnx[%d].timeo.auth_timeout", i);
-		__recinfo_int(key, ri, r, cnx[i].timeo.auth_timeout,
+		sprintf(key, "node.conn[%d].timeo.auth_timeout", i);
+		__recinfo_int(key, ri, r, conn[i].timeo.auth_timeout,
 				IDBM_SHOW, num);
-		sprintf(key, "node.cnx[%d].timeo.active_timeout", i);
-		__recinfo_int(key, ri, r, cnx[i].timeo.active_timeout,
+		sprintf(key, "node.conn[%d].timeo.active_timeout", i);
+		__recinfo_int(key, ri, r, conn[i].timeo.active_timeout,
 				IDBM_SHOW, num);
-		sprintf(key, "node.cnx[%d].timeo.idle_timeout", i);
-		__recinfo_int(key, ri, r, cnx[i].timeo.idle_timeout,
+		sprintf(key, "node.conn[%d].timeo.idle_timeout", i);
+		__recinfo_int(key, ri, r, conn[i].timeo.idle_timeout,
 				IDBM_SHOW, num);
-		sprintf(key, "node.cnx[%d].timeo.ping_timeout", i);
-		__recinfo_int(key, ri, r, cnx[i].timeo.ping_timeout,
+		sprintf(key, "node.conn[%d].timeo.ping_timeout", i);
+		__recinfo_int(key, ri, r, conn[i].timeo.ping_timeout,
 				IDBM_SHOW, num);
-		sprintf(key, "node.cnx[%d].iscsi.MaxRecvDataSegmentLength", i);
+		sprintf(key, "node.conn[%d].iscsi.MaxRecvDataSegmentLength", i);
 		__recinfo_int(key, ri, r,
-			cnx[i].iscsi.MaxRecvDataSegmentLength, IDBM_SHOW, num);
-		sprintf(key, "node.cnx[%d].iscsi.HeaderDigest", i);
-		__recinfo_int_o4(key, ri, r, cnx[i].iscsi.HeaderDigest,
+			conn[i].iscsi.MaxRecvDataSegmentLength, IDBM_SHOW, num);
+		sprintf(key, "node.conn[%d].iscsi.HeaderDigest", i);
+		__recinfo_int_o4(key, ri, r, conn[i].iscsi.HeaderDigest,
 				 IDBM_SHOW, "None", "CRC32C", "CRC32C,None",
 				 "None,CRC32C", num);
-		sprintf(key, "node.cnx[%d].iscsi.DataDigest", i);
-		__recinfo_int_o4(key, ri, r, cnx[i].iscsi.DataDigest, IDBM_SHOW,
+		sprintf(key, "node.conn[%d].iscsi.DataDigest", i);
+		__recinfo_int_o4(key, ri, r, conn[i].iscsi.DataDigest, IDBM_SHOW,
 				 "None", "CRC32C", "CRC32C,None",
 				 "None,CRC32C", num);
 	}
@@ -677,8 +677,8 @@ idbm_print_type(idbm_t *db, int type, int rec_id)
 					exit(-1);
 				printf("[%06x] %s:%d,%d %s\n",
 					rec->id,
-					rec->cnx[0].address,
-					rec->cnx[0].port,
+					rec->conn[0].address,
+					rec->conn[0].port,
 					rec->tpgt,
 					rec->name);
 			}
@@ -707,11 +707,11 @@ idbm_discovery_setup_defaults(discovery_rec_t *rec, discovery_type_e type)
 		rec->u.sendtargets.auth.authmethod = 0;
 		rec->u.sendtargets.auth.password_length = 0;
 		rec->u.sendtargets.auth.password_length_in = 0;
-		rec->u.sendtargets.cnx_timeo.login_timeout=15;
-		rec->u.sendtargets.cnx_timeo.auth_timeout = 45;
-		rec->u.sendtargets.cnx_timeo.active_timeout=5;
-		rec->u.sendtargets.cnx_timeo.idle_timeout = 60;
-		rec->u.sendtargets.cnx_timeo.ping_timeout = 5;
+		rec->u.sendtargets.conn_timeo.login_timeout=15;
+		rec->u.sendtargets.conn_timeo.auth_timeout = 45;
+		rec->u.sendtargets.conn_timeo.active_timeout=5;
+		rec->u.sendtargets.conn_timeo.idle_timeout = 60;
+		rec->u.sendtargets.conn_timeo.ping_timeout = 5;
 	} else if (type == DISCOVERY_TYPE_SLP) {
 		rec->u.slp.interfaces = NULL;
 		rec->u.slp.scopes = NULL;
@@ -947,7 +947,7 @@ idbm_node_setup_defaults(node_rec_t *rec)
 
 	strcpy(rec->transport_name, "tcp");
 	rec->dbversion = IDBM_VERSION;
-	rec->active_cnx = 1; /* at least one connection must exist */
+	rec->active_conn = 1; /* at least one connection must exist */
 	rec->tpgt = 1;
 	rec->session.initial_cmdsn = 0;
 	rec->session.reopen_max = 32;
@@ -966,18 +966,18 @@ idbm_node_setup_defaults(node_rec_t *rec)
 	rec->session.iscsi.MaxConnections = 1;
 	rec->session.iscsi.ERL = 0;
 
-	for (i=0; i<ISCSI_CNX_MAX; i++) {
-		rec->cnx[i].startup = 0;
-		rec->cnx[i].tcp.window_size = 512 * 1024;
-		rec->cnx[i].tcp.type_of_service = 0;
-		rec->cnx[i].timeo.login_timeout=15;
-		rec->cnx[i].timeo.auth_timeout = 45;
-		rec->cnx[i].timeo.active_timeout=5;
-		rec->cnx[i].timeo.idle_timeout = 60;
-		rec->cnx[i].timeo.ping_timeout = 5;
-		rec->cnx[i].iscsi.MaxRecvDataSegmentLength = 128 * 1024;
-		rec->cnx[i].iscsi.HeaderDigest = CONFIG_DIGEST_PREFER_OFF;
-		rec->cnx[i].iscsi.DataDigest = CONFIG_DIGEST_PREFER_OFF;
+	for (i=0; i<ISCSI_CONN_MAX; i++) {
+		rec->conn[i].startup = 0;
+		rec->conn[i].tcp.window_size = 512 * 1024;
+		rec->conn[i].tcp.type_of_service = 0;
+		rec->conn[i].timeo.login_timeout=15;
+		rec->conn[i].timeo.auth_timeout = 45;
+		rec->conn[i].timeo.active_timeout=5;
+		rec->conn[i].timeo.idle_timeout = 60;
+		rec->conn[i].timeo.ping_timeout = 5;
+		rec->conn[i].iscsi.MaxRecvDataSegmentLength = 128 * 1024;
+		rec->conn[i].iscsi.HeaderDigest = CONFIG_DIGEST_PREFER_OFF;
+		rec->conn[i].iscsi.DataDigest = CONFIG_DIGEST_PREFER_OFF;
 	}
 
 }
@@ -1015,8 +1015,8 @@ idbm_print_nodes(idbm_t *db, discovery_rec_t *drec)
 				exit(-1);
 			printf("[%06x] %s:%d,%d %s\n",
 			        rec->id,
-				rec->cnx[0].address,
-				rec->cnx[0].port,
+				rec->conn[0].address,
+				rec->conn[0].port,
 				rec->tpgt,
 				rec->name);
 			found++;
@@ -1268,9 +1268,9 @@ idbm_new_discovery(idbm_t *db, char *ip, int port,
 			} else if (!strcmp(ptr, "TT")) {
 				nrec->tpgt = strtoul(dp, NULL, 10);
 			} else if (!strcmp(ptr, "TP")) {
-				nrec->cnx[0].port = strtoul(dp, NULL, 10);
+				nrec->conn[0].port = strtoul(dp, NULL, 10);
 			} else if (!strcmp(ptr, "TA")) {
-				strncpy(nrec->cnx[0].address, dp, 16);
+				strncpy(nrec->conn[0].address, dp, 16);
 				if (idbm_add_discovery(db, drec)) {
 					log_error("can not update discovery "
 						  "record.");

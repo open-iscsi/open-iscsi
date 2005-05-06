@@ -196,60 +196,60 @@ __session_scan_host(iscsi_session_t *session)
 	close(fd);
 }
 
-static cnx_login_status_e
+static conn_login_status_e
 __login_response_status(iscsi_conn_t *conn,
 		      enum iscsi_login_status login_status)
 {
 	switch (login_status) {
 	case LOGIN_OK:
 		/* check the status class and detail */
-		return CNX_LOGIN_SUCCESS;
+		return CONN_LOGIN_SUCCESS;
 	case LOGIN_IO_ERROR:
 	case LOGIN_WRONG_PORTAL_GROUP:
 	case LOGIN_REDIRECTION_FAILED:
 		iscsi_io_disconnect(conn);
-		return CNX_LOGIN_RETRY;
+		return CONN_LOGIN_RETRY;
 	default:
 		iscsi_io_disconnect(conn);
-		log_error("cnx %d giving up on login attempts", conn->id);
+		log_error("conn %d giving up on login attempts", conn->id);
 		break;
 	}
 
-	return CNX_LOGIN_FAILED;
+	return CONN_LOGIN_FAILED;
 }
 
-static cnx_login_status_e
+static conn_login_status_e
 __check_iscsi_status_class(iscsi_session_t *session, int cid,
 			uint8_t status_class, uint8_t status_detail)
 {
-	iscsi_conn_t *conn = &session->cnx[cid];
+	iscsi_conn_t *conn = &session->conn[cid];
 
 	switch (status_class) {
 	case ISCSI_STATUS_CLS_SUCCESS:
-		return CNX_LOGIN_SUCCESS;
+		return CONN_LOGIN_SUCCESS;
 	case ISCSI_STATUS_CLS_REDIRECT:
 		switch (status_detail) {
 		case ISCSI_LOGIN_STATUS_TGT_MOVED_TEMP:
-			return CNX_LOGIN_IMM_RETRY;
+			return CONN_LOGIN_IMM_RETRY;
 		case ISCSI_LOGIN_STATUS_TGT_MOVED_PERM:
 			/*
 			 * for a permanent redirect, we need to update the
 			 * portal address within a record,  and then try again.
 			 */
-                        return CNX_LOGIN_IMM_REDIRECT_RETRY;
+                        return CONN_LOGIN_IMM_REDIRECT_RETRY;
 		default:
-			log_error("cnx %d login rejected: redirection "
+			log_error("conn %d login rejected: redirection "
 			        "type 0x%x not supported",
 				conn->id, status_detail);
 			iscsi_io_disconnect(conn);
-			return CNX_LOGIN_RETRY;
+			return CONN_LOGIN_RETRY;
 		}
 	case ISCSI_STATUS_CLS_INITIATOR_ERR:
 		iscsi_io_disconnect(conn);
 
 		switch (status_detail) {
 		case ISCSI_LOGIN_STATUS_AUTH_FAILED:
-			log_error("cnx %d login rejected: Initiator "
+			log_error("conn %d login rejected: Initiator "
 			       "failed authentication with target", conn->id);
 			if ((session->num_auth_buffers < 5) &&
 			    (session->username || session->password_length ||
@@ -258,54 +258,54 @@ __check_iscsi_status_class(iscsi_session_t *session, int cid,
 				 * retry, and hope we can allocate the auth
 				 * structures next time.
 				 */
-				return CNX_LOGIN_RETRY;
+				return CONN_LOGIN_RETRY;
 			else
-				return CNX_LOGIN_FAILED;
+				return CONN_LOGIN_FAILED;
 		case ISCSI_LOGIN_STATUS_TGT_FORBIDDEN:
-			log_error("cnx %d login rejected: initiator "
+			log_error("conn %d login rejected: initiator "
 			       "failed authorization with target", conn->id);
-			return CNX_LOGIN_FAILED;
+			return CONN_LOGIN_FAILED;
 		case ISCSI_LOGIN_STATUS_TGT_NOT_FOUND:
-			log_error("cnx %d login rejected: initiator "
+			log_error("conn %d login rejected: initiator "
 			       "error - target not found (%02x/%02x)",
 			       conn->id, status_class, status_detail);
-			return CNX_LOGIN_FAILED;
+			return CONN_LOGIN_FAILED;
 		case ISCSI_LOGIN_STATUS_NO_VERSION:
 			/*
 			 * FIXME: if we handle multiple protocol versions,
 			 * before we log an error, try the other supported
 			 * versions.
 			 */
-			log_error("cnx %d login rejected: incompatible "
+			log_error("conn %d login rejected: incompatible "
 			       "version (%02x/%02x), non-retryable, "
 			       "giving up", conn->id, status_class,
 			       status_detail);
-			return CNX_LOGIN_FAILED;
+			return CONN_LOGIN_FAILED;
 		default:
-			log_error("cnx %d login rejected: initiator "
+			log_error("conn %d login rejected: initiator "
 			       "error (%02x/%02x), non-retryable, "
 			       "giving up", conn->id, status_class,
 			       status_detail);
-			return CNX_LOGIN_FAILED;
+			return CONN_LOGIN_FAILED;
 		}
 	case ISCSI_STATUS_CLS_TARGET_ERR:
-		log_error("cnx %d login rejected: target error "
+		log_error("conn %d login rejected: target error "
 		       "(%02x/%02x)\n", conn->id, status_class, status_detail);
 		iscsi_io_disconnect(conn);
 		/*
 		 * We have no idea what the problem is. But spec says initiator
 		 * may retry later.
 		 */
-		 return CNX_LOGIN_RETRY;
+		 return CONN_LOGIN_RETRY;
 	default:
-		log_error("cnx %d login response with unknown status "
+		log_error("conn %d login response with unknown status "
 		       "class 0x%x, detail 0x%x\n", conn->id, status_class,
 		       status_detail);
 		iscsi_io_disconnect(conn);
 		break;
 	}
 
-	return CNX_LOGIN_FAILED;
+	return CONN_LOGIN_FAILED;
 }
 
 static void
@@ -382,56 +382,57 @@ __setup_authentication(iscsi_session_t *session,
 }
 
 static int
-__session_cnx_create(iscsi_session_t *session, int cid)
+__session_conn_create(iscsi_session_t *session, int cid)
 {
 	struct hostent *hostn = NULL;
-	iscsi_conn_t *conn = &session->cnx[cid];
-	cnx_rec_t *cnx = &session->nrec.cnx[cid];
+	iscsi_conn_t *conn = &session->conn[cid];
+	conn_rec_t *conn_rec = &session->nrec.conn[cid];
 
 	if (__recvpool_alloc(conn)) {
-		log_error("cannot allocate recvpool for cnx cid %d", cid);
+		log_error("cannot allocate recvpool for conn cid %d", cid);
 		return -ENOMEM;
 	}
 
 	/* connection's timeouts */
 	conn->id = cid;
-	conn->login_timeout = cnx->timeo.login_timeout;
-	conn->auth_timeout = cnx->timeo.auth_timeout;
-	conn->active_timeout = cnx->timeo.active_timeout;
-	conn->idle_timeout = cnx->timeo.idle_timeout;
-	conn->ping_timeout = cnx->timeo.ping_timeout;
+	conn->login_timeout = conn_rec->timeo.login_timeout;
+	conn->auth_timeout = conn_rec->timeo.auth_timeout;
+	conn->active_timeout = conn_rec->timeo.active_timeout;
+	conn->idle_timeout = conn_rec->timeo.idle_timeout;
+	conn->ping_timeout = conn_rec->timeo.ping_timeout;
 
 	/* operational parameters */
 	conn->max_recv_dlength =
-			__padding(cnx->iscsi.MaxRecvDataSegmentLength);
+			__padding(conn_rec->iscsi.MaxRecvDataSegmentLength);
 	/*
 	 * iSCSI default, unless declared otherwise by the
 	 * target during login
 	 */
 	conn->max_xmit_dlength = DEFAULT_MAX_RECV_DATA_SEGMENT_LENGTH;
-	conn->hdrdgst_en = cnx->iscsi.HeaderDigest;
-	conn->datadgst_en = cnx->iscsi.DataDigest;
+	conn->hdrdgst_en = conn_rec->iscsi.HeaderDigest;
+	conn->datadgst_en = conn_rec->iscsi.DataDigest;
 
 	/* TCP options */
-	conn->tcp_window_size = cnx->tcp.window_size;
+	conn->tcp_window_size = conn_rec->tcp.window_size;
 	/* FIXME: type_of_service */
 
 	/* resolve the string address to an IP address */
 	while (!hostn) {
-		hostn = gethostbyname(cnx->address);
+		hostn = gethostbyname(conn_rec->address);
 		if (hostn) {
 			/* save the resolved address */
 			conn->ip_length = hostn->h_length;
-			conn->port = cnx->port;
+			conn->port = conn_rec->port;
 			memcpy(&conn->ip_address, hostn->h_addr,
-			       MIN(sizeof(cnx->address), hostn->h_length));
+			       MIN(sizeof(conn_rec->address), hostn->h_length));
 			/* FIXME: IPv6 */
 			log_debug(4, "resolved %s to %u.%u.%u.%u",
-				 cnx->address, conn->ip_address[0],
+				 conn_rec->address, conn->ip_address[0],
 				 conn->ip_address[1], conn->ip_address[2],
 				 conn->ip_address[3]);
 		} else {
-			log_error("cannot resolve host name %s", cnx->address);
+			log_error("cannot resolve host name %s",
+				  conn_rec->address);
 			return 1;
 		}
 	}
@@ -443,9 +444,9 @@ __session_cnx_create(iscsi_session_t *session, int cid)
 }
 
 void
-session_cnx_destroy(iscsi_session_t *session, int cid)
+session_conn_destroy(iscsi_session_t *session, int cid)
 {
-	iscsi_conn_t *conn = &session->cnx[cid];
+	iscsi_conn_t *conn = &session->conn[cid];
 
 	__recvpool_free(conn);
 }
@@ -526,16 +527,16 @@ __session_destroy(iscsi_session_t *session)
 }
 
 static void
-__session_cnx_cleanup(iscsi_conn_t *conn)
+__session_conn_cleanup(iscsi_conn_t *conn)
 {
 	iscsi_session_t *session = conn->session;
 
-	if (ipc->destroy_cnx(session->transport_handle, conn->handle,
+	if (ipc->destroy_conn(session->transport_handle, conn->handle,
 		conn->id)) {
 		log_error("can not safely destroy connection %d", conn->id);
 		return;
 	}
-	session_cnx_destroy(session, conn->id);
+	session_conn_destroy(session, conn->id);
 
 	if (ipc->destroy_session(session->transport_handle, session->handle,
 			session->id)) {
@@ -548,16 +549,16 @@ __session_cnx_cleanup(iscsi_conn_t *conn)
 
 static void
 __session_mgmt_ipc_login_cleanup(queue_task_t *qtask, mgmt_ipc_err_e err,
-				 int cnx_cleanup)
+				 int conn_cleanup)
 {
 	iscsi_conn_t *conn = qtask->conn;
 	iscsi_session_t *session = conn->session;
 
-	if (cnx_cleanup) {
+	if (conn_cleanup) {
 		iscsi_io_disconnect(conn);
-		__session_cnx_cleanup(conn);
+		__session_conn_cleanup(conn);
 	} else {
-		session_cnx_destroy(session, conn->id);
+		session_conn_destroy(session, conn->id);
 		if (conn->id == 0)
 			__session_destroy(session);
 	}
@@ -596,7 +597,7 @@ __send_pdu_timedout(void *data)
 	iscsi_session_t *session = conn->session;
 
 	if (conn->send_pdu_in_progress) {
-		queue_produce(session->queue, EV_CNX_TIMER, qtask, 0, NULL);
+		queue_produce(session->queue, EV_CONN_TIMER, qtask, 0, NULL);
 		actor_schedule(&session->mainloop);
 	}
 }
@@ -624,7 +625,7 @@ __send_pdu_timer_remove(struct iscsi_conn *conn)
 }
 
 static void
-__session_cnx_recv_pdu(queue_item_t *item)
+__session_conn_recv_pdu(queue_item_t *item)
 {
 	iscsi_conn_t *conn = item->context;
 	iscsi_session_t *session = conn->session;
@@ -652,67 +653,67 @@ __session_cnx_recv_pdu(queue_item_t *item)
 		} else {
 			int i, rc;
 			uint32_t one = 1, zero = 0;
-			struct cnxparam {
+			struct connparam {
 				int param;
 				uint32_t *value;
-				int cnx_only; } cnxtbl[ISCSI_PARAM_MAX] = {
+				int conn_only; } conntbl[ISCSI_PARAM_MAX] = {
 
 				{
 				.param = ISCSI_PARAM_MAX_RECV_DLENGTH,
 				.value = &conn->max_recv_dlength,
-				.cnx_only = 1,
+				.conn_only = 1,
 				}, {
 				.param = ISCSI_PARAM_MAX_XMIT_DLENGTH,
 				.value = &conn->max_xmit_dlength,
-				.cnx_only = 1,
+				.conn_only = 1,
 				}, {
 				.param = ISCSI_PARAM_HDRDGST_EN,
 				.value = &conn->hdrdgst_en,
-				.cnx_only = 1,
+				.conn_only = 1,
 				}, {
 				.param = ISCSI_PARAM_DATADGST_EN,
 				.value = &conn->datadgst_en,
-				.cnx_only = 1,
+				.conn_only = 1,
 				}, {
 				.param = ISCSI_PARAM_INITIAL_R2T_EN,
 				.value = &session->initial_r2t_en,
-				.cnx_only = 0,
+				.conn_only = 0,
 				}, {
 				.param = ISCSI_PARAM_MAX_R2T,
 				.value = &one, /* FIXME: session->max_r2t */
-				.cnx_only = 0,
+				.conn_only = 0,
 				}, {
 				.param = ISCSI_PARAM_IMM_DATA_EN,
 				.value = &session->imm_data_en,
-				.cnx_only = 0,
+				.conn_only = 0,
 				}, {
 				.param = ISCSI_PARAM_FIRST_BURST,
 				.value = &session->first_burst,
-				.cnx_only = 0,
+				.conn_only = 0,
 				}, {
 				.param = ISCSI_PARAM_MAX_BURST,
 				.value = &session->max_burst,
-				.cnx_only = 0,
+				.conn_only = 0,
 				}, {
 				.param = ISCSI_PARAM_PDU_INORDER_EN,
 				.value = &session->pdu_inorder_en,
-				.cnx_only = 0,
+				.conn_only = 0,
 				}, {
 				.param =ISCSI_PARAM_DATASEQ_INORDER_EN,
 				.value = &session->dataseq_inorder_en,
-				.cnx_only = 0,
+				.conn_only = 0,
 				}, {
 				.param = ISCSI_PARAM_ERL,
 				.value = &zero, /* FIXME: session->erl */
-				.cnx_only = 0,
+				.conn_only = 0,
 				}, {
 				.param = ISCSI_PARAM_IFMARKER_EN,
 				.value = &zero,/* FIXME: session->ifmarker_en */
-				.cnx_only = 0,
+				.conn_only = 0,
 				}, {
 				.param = ISCSI_PARAM_OFMARKER_EN,
 				.value = &zero,/* FIXME: session->ofmarker_en */
-				.cnx_only = 0,
+				.conn_only = 0,
 				}
 
 				/*
@@ -727,7 +728,7 @@ __session_cnx_recv_pdu(queue_item_t *item)
 			/* almost! entered full-feature phase */
 
 			if (__login_response_status(conn, c->ret) !=
-						CNX_LOGIN_SUCCESS) {
+						CONN_LOGIN_SUCCESS) {
 				__session_mgmt_ipc_login_cleanup(c->qtask,
 						MGMT_IPC_ERR_LOGIN_FAILURE, 1);
 				return;
@@ -736,7 +737,7 @@ __session_cnx_recv_pdu(queue_item_t *item)
 			/* check the login status */
 			if (__check_iscsi_status_class(session, conn->id,
 				c->status_class, c->status_detail) !=
-							CNX_LOGIN_SUCCESS) {
+							CONN_LOGIN_SUCCESS) {
 				__session_mgmt_ipc_login_cleanup(c->qtask,
 						MGMT_IPC_ERR_LOGIN_FAILURE, 1);
 				return;
@@ -745,16 +746,16 @@ __session_cnx_recv_pdu(queue_item_t *item)
 			/* Entered full-feature phase! */
 
 			for (i = 0; i < ISCSI_PARAM_MAX; i++) {
-				if (conn->id != 0 && !cnxtbl[i].cnx_only)
+				if (conn->id != 0 && !conntbl[i].conn_only)
 					continue;
 				if (ipc->set_param(
 					session->transport_handle,
-					conn->handle, cnxtbl[i].param,
-					*cnxtbl[i].value, &rc) || rc) {
+					conn->handle, conntbl[i].param,
+					*conntbl[i].value, &rc) || rc) {
 					log_error("can't set operational "
-						"parameter %d for cnx with "
+						"parameter %d for conn with "
 						"id = %d, retcode %d (%d)",
-						cnxtbl[i].param, conn->id,
+						conntbl[i].param, conn->id,
 						rc, errno);
 					__session_mgmt_ipc_login_cleanup(
 						c->qtask,
@@ -762,11 +763,11 @@ __session_cnx_recv_pdu(queue_item_t *item)
 					return;
 				}
 				log_debug(3, "set operational parameter %d "
-					"to %u", cnxtbl[i].param,
-					*cnxtbl[i].value);
+					"to %u", conntbl[i].param,
+					*conntbl[i].value);
 			}
 
-			if (ipc->start_cnx(session->transport_handle,
+			if (ipc->start_conn(session->transport_handle,
 				conn->handle, &rc) || rc) {
 				__session_mgmt_ipc_login_cleanup(c->qtask,
 						MGMT_IPC_ERR_INTERNAL, 1);
@@ -843,7 +844,7 @@ __session_node_established(char *node_name)
 	item = provider[0].sessions.q_forw;
 	while (item != &provider[0].sessions) {
 		iscsi_session_t *session = (iscsi_session_t *)item;
-		if (session->cnx[0].state == STATE_LOGGED_IN &&
+		if (session->conn[0].state == STATE_LOGGED_IN &&
 		    !strncmp(session->nrec.name, node_name, TARGET_NAME_MAXLEN))
 			return 1;
 		item = item->q_forw;
@@ -852,7 +853,7 @@ __session_node_established(char *node_name)
 }
 
 static void
-__session_cnx_poll(queue_item_t *item)
+__session_conn_poll(queue_item_t *item)
 {
 	mgmt_ipc_err_e err = MGMT_IPC_OK;
 	queue_task_t *qtask = item->context;
@@ -865,7 +866,7 @@ __session_cnx_poll(queue_item_t *item)
 		rc = iscsi_io_tcp_poll(conn);
 		if (rc == 0) {
 			/* timedout: poll again */
-			queue_produce(session->queue, EV_CNX_POLL,
+			queue_produce(session->queue, EV_CONN_POLL,
 					qtask, 0, NULL);
 			actor_schedule(&session->mainloop);
 		} else if (rc > 0) {
@@ -901,7 +902,7 @@ __session_cnx_poll(queue_item_t *item)
 					session->isid[3] = session->id;
 				}
 
-				if (ipc->create_cnx(session->transport_handle,
+				if (ipc->create_conn(session->transport_handle,
 					session->handle, session->id, conn->id,
 					&conn->handle)) {
 					err = MGMT_IPC_ERR_INTERNAL;
@@ -911,10 +912,10 @@ __session_cnx_poll(queue_item_t *item)
 					"handle 0x%p", iscsi_ptr(conn->handle));
 			}
 
-			if (ipc->bind_cnx(session->transport_handle,
+			if (ipc->bind_conn(session->transport_handle,
 				session->handle, conn->handle, conn->socket_fd,
 				(conn->id == 0), &rc) || rc) {
-				log_error("can't bind a cnx with id = %d, "
+				log_error("can't bind a conn with id = %d, "
 					  "retcode %d (%d)", conn->id, rc,
 					  errno);
 				err = MGMT_IPC_ERR_INTERNAL;
@@ -959,7 +960,7 @@ __session_cnx_poll(queue_item_t *item)
 	return;
 
 c_cleanup:
-	if (ipc->destroy_cnx(session->transport_handle, conn->handle,
+	if (ipc->destroy_conn(session->transport_handle, conn->handle,
                 conn->id)) {
 		log_error("can not safely destroy connection %d", conn->id);
 	}
@@ -980,13 +981,13 @@ __connect_timedout(void *data)
 	iscsi_session_t *session = conn->session;
 
 	if (conn->state == STATE_XPT_WAIT) {
-		queue_produce(session->queue, EV_CNX_TIMER, qtask, 0, NULL);
+		queue_produce(session->queue, EV_CONN_TIMER, qtask, 0, NULL);
 		actor_schedule(&session->mainloop);
 	}
 }
 
 static void
-__session_cnx_queue_flush(iscsi_conn_t *conn)
+__session_conn_queue_flush(iscsi_conn_t *conn)
 {
 	iscsi_session_t *session = conn->session;
 	int count = session->queue->count, i;
@@ -1012,7 +1013,7 @@ __session_cnx_queue_flush(iscsi_conn_t *conn)
 }
 
 static int
-__session_cnx_reopen(iscsi_conn_t *conn, int do_stop)
+__session_conn_reopen(iscsi_conn_t *conn, int do_stop)
 {
 	int rc;
 	iscsi_session_t *session = conn->session;
@@ -1024,8 +1025,8 @@ __session_cnx_reopen(iscsi_conn_t *conn, int do_stop)
 
 	if (do_stop) {
 		/* state: STATE_CLEANUP_WAIT */
-		if (ipc->stop_cnx(session->transport_handle, conn->handle,
-				      STOP_CNX_RECOVER)) {
+		if (ipc->stop_conn(session->transport_handle, conn->handle,
+				      STOP_CONN_RECOVER)) {
 			log_error("can't stop connection 0x%p with "
 				  "id = %d (%d)", iscsi_ptr(conn->handle),
 				  conn->id, errno);
@@ -1034,7 +1035,7 @@ __session_cnx_reopen(iscsi_conn_t *conn, int do_stop)
 		log_debug(3, "connection 0x%p is stopped for recovery",
 			iscsi_ptr(conn->handle));
 		iscsi_io_disconnect(conn);
-		__session_cnx_queue_flush(conn);
+		__session_conn_queue_flush(conn);
 	}
 
 	rc = iscsi_io_tcp_connect(conn, 1);
@@ -1045,7 +1046,7 @@ __session_cnx_reopen(iscsi_conn_t *conn, int do_stop)
 	}
 
 	conn->state = STATE_XPT_WAIT;
-	queue_produce(session->queue, EV_CNX_POLL,
+	queue_produce(session->queue, EV_CONN_POLL,
 		      &session->reopen_qtask, 0, NULL);
 	actor_schedule(&session->mainloop);
 	actor_timer(&conn->connect_timer, conn->login_timeout*1000,
@@ -1055,7 +1056,7 @@ __session_cnx_reopen(iscsi_conn_t *conn, int do_stop)
 }
 
 static void
-__session_cnx_timer(queue_item_t *item)
+__session_conn_timer(queue_item_t *item)
 {
 	queue_task_t *qtask = item->context;
 	iscsi_conn_t *conn = qtask->conn;
@@ -1063,28 +1064,28 @@ __session_cnx_timer(queue_item_t *item)
 
 	if (conn->state == STATE_XPT_WAIT) {
 		if (session->r_stage == R_STAGE_NO_CHANGE) {
-			log_debug(6, "cnx_timer popped at XPT_WAIT: login");
+			log_debug(6, "conn_timer popped at XPT_WAIT: login");
 			/* timeout during initial connect.
 			 * clean connection. write ipc rsp */
 			__session_mgmt_ipc_login_cleanup(qtask,
 					    MGMT_IPC_ERR_TCP_TIMEOUT, 0);
 		} else if (session->r_stage == R_STAGE_SESSION_REOPEN) {
-			log_debug(6, "cnx_timer popped at XPT_WAIT: reopen");
+			log_debug(6, "conn_timer popped at XPT_WAIT: reopen");
 			/* timeout during reopen connect.
 			 * try again or cleanup connection. */
 			if (--session->reopen_cnt > 0) {
-				if (__session_cnx_reopen(conn, 0))
-					__session_cnx_cleanup(conn);
+				if (__session_conn_reopen(conn, 0))
+					__session_conn_cleanup(conn);
 			} else {
-				__session_cnx_cleanup(conn);
+				__session_conn_cleanup(conn);
 			}
 		}
 	} else if (conn->state == STATE_IN_LOGIN) {
 		iscsi_io_disconnect(conn);
 		if (session->r_stage == R_STAGE_NO_CHANGE) {
-			log_debug(6, "cnx_timer popped at IN_LOGIN");
+			log_debug(6, "conn_timer popped at IN_LOGIN");
 			/* send pdu timeout. clean connection. write rsp */
-			if (ipc->destroy_cnx(session->transport_handle,
+			if (ipc->destroy_conn(session->transport_handle,
 				conn->handle, conn->id)) {
 				log_error("can not safely destroy "
 					  "connection %d", conn->id);
@@ -1098,16 +1099,16 @@ __session_cnx_timer(queue_item_t *item)
 					    MGMT_IPC_ERR_PDU_TIMEOUT, 0);
 		} else if (session->r_stage == R_STAGE_SESSION_REOPEN) {
 			if (--session->reopen_cnt > 0) {
-				if (__session_cnx_reopen(conn, 1))
-					__session_cnx_cleanup(conn);
+				if (__session_conn_reopen(conn, 1))
+					__session_conn_cleanup(conn);
 			} else
-				__session_cnx_cleanup(conn);
+				__session_conn_cleanup(conn);
 		}
 	}
 }
 
 static void
-__session_cnx_error(queue_item_t *item)
+__session_conn_error(queue_item_t *item)
 {
 	enum iscsi_err error = *(enum iscsi_err *)queue_item_data(item);
 	iscsi_conn_t *conn = item->context;
@@ -1124,20 +1125,20 @@ __session_cnx_error(queue_item_t *item)
 
 		if (session->erl > 0) {
 			/* check if we still have some logged in connections */
-			for (i=0; i<ISCSI_CNX_MAX; i++) {
-				if (session->cnx[i].state == STATE_LOGGED_IN) {
+			for (i=0; i<ISCSI_CONN_MAX; i++) {
+				if (session->conn[i].state == STATE_LOGGED_IN) {
 					break;
 				}
 			}
-			if (i != ISCSI_CNX_MAX) {
+			if (i != ISCSI_CONN_MAX) {
 				/* FIXME: re-assign leading connection
 				 *        for ERL>0 */
 			}
 		} else {
 			/* mark all connections as failed */
-			for (i=0; i<ISCSI_CNX_MAX; i++) {
-				if (session->cnx[i].state == STATE_LOGGED_IN) {
-					session->cnx[i].state =
+			for (i=0; i<ISCSI_CONN_MAX; i++) {
+				if (session->conn[i].state == STATE_LOGGED_IN) {
+					session->conn[i].state =
 						STATE_CLEANUP_WAIT;
 				}
 			}
@@ -1150,33 +1151,33 @@ __session_cnx_error(queue_item_t *item)
 		if (session->r_stage == R_STAGE_SESSION_REOPEN) {
 			conn->send_pdu_timer_remove(conn);
 			if (--session->reopen_cnt > 0) {
-				if (__session_cnx_reopen(conn, 1))
-					__session_cnx_cleanup(conn);
+				if (__session_conn_reopen(conn, 1))
+					__session_conn_cleanup(conn);
 			} else
-				__session_cnx_cleanup(conn);
+				__session_conn_cleanup(conn);
 			return;
 		} else {
-			log_debug(1, "ignoring cnx error in login. "
+			log_debug(1, "ignoring conn error in login. "
 				"let it timeout");
 			return;
 		}
 	} else if (conn->state == STATE_XPT_WAIT) {
-		log_debug(1, "ignoring cnx error in XPT_WAIT. "
+		log_debug(1, "ignoring conn error in XPT_WAIT. "
 			  "let connection fail on its own");
 		return;
 	} else if (conn->state == STATE_CLEANUP_WAIT) {
-		log_debug(1, "ignoring cnx error in CLEANUP_WAIT. "
+		log_debug(1, "ignoring conn error in CLEANUP_WAIT. "
 			  "let connection stop");
 		return;
 	}
 
 	if (session->r_stage == R_STAGE_SESSION_REOPEN) {
-		if (__session_cnx_reopen(conn, 1))
-			__session_cnx_cleanup(conn);
+		if (__session_conn_reopen(conn, 1))
+			__session_conn_cleanup(conn);
 		return;
 	} else {
-		if (ipc->stop_cnx(session->transport_handle, conn->handle,
-				      STOP_CNX_TERM)) {
+		if (ipc->stop_conn(session->transport_handle, conn->handle,
+				      STOP_CONN_TERM)) {
 			log_error("can't stop connection 0x%p with "
 				  "id = %d (%d)", iscsi_ptr(conn->handle),
 				  conn->id, errno);
@@ -1185,10 +1186,10 @@ __session_cnx_error(queue_item_t *item)
 		log_debug(3, "connection 0x%p is stopped for termination",
 			iscsi_ptr(conn->handle));
 		iscsi_io_disconnect(conn);
-		__session_cnx_queue_flush(conn);
+		__session_conn_queue_flush(conn);
 	}
 
-	__session_cnx_cleanup(conn);
+	__session_conn_cleanup(conn);
 }
 
 static void
@@ -1201,10 +1202,10 @@ __session_mainloop(void *data)
 	if (queue_consume(session->queue, EVENT_PAYLOAD_MAX,
 				item) != QUEUE_IS_EMPTY) {
 		switch (item->event_type) {
-		case EV_CNX_RECV_PDU: __session_cnx_recv_pdu(item); break;
-		case EV_CNX_POLL: __session_cnx_poll(item); break;
-		case EV_CNX_TIMER: __session_cnx_timer(item); break;
-		case EV_CNX_ERROR: __session_cnx_error(item); break;
+		case EV_CONN_RECV_PDU: __session_conn_recv_pdu(item); break;
+		case EV_CONN_POLL: __session_conn_poll(item); break;
+		case EV_CONN_TIMER: __session_conn_timer(item); break;
+		case EV_CONN_ERROR: __session_conn_error(item); break;
 		default:
 			break;
 		}
@@ -1260,7 +1261,7 @@ session_login_task(node_rec_t *rec, queue_task_t *qtask)
 	iscsi_conn_t *conn;
 	uint64_t transport_handle;
 
-	if (!rec->active_cnx)
+	if (!rec->active_conn)
 		return MGMT_IPC_ERR_INVAL;
 
 	transport_handle = __get_transport_by_name(rec->transport_name);
@@ -1274,24 +1275,24 @@ session_login_task(node_rec_t *rec, queue_task_t *qtask)
 	/* FIXME: login all connections! marked as "automatic" */
 
 	/* create leading connection */
-	if (__session_cnx_create(session, 0)) {
+	if (__session_conn_create(session, 0)) {
 		__session_destroy(session);
 		return MGMT_IPC_ERR_LOGIN_FAILURE;
 	}
-	conn = &session->cnx[0];
+	conn = &session->conn[0];
 	qtask->conn = conn;
 
 	rc = iscsi_io_tcp_connect(conn, 1);
 	if (rc < 0 && errno != EINPROGRESS) {
 		log_error("cannot make a connection to %s:%d (%d)",
 			 inet_ntoa(conn->addr.sin_addr), conn->port, errno);
-		session_cnx_destroy(session, 0);
+		session_conn_destroy(session, 0);
 		__session_destroy(session);
 		return MGMT_IPC_ERR_TCP_FAILURE;
 	}
 
 	conn->state = STATE_XPT_WAIT;
-	queue_produce(session->queue, EV_CNX_POLL, qtask, 0, NULL);
+	queue_produce(session->queue, EV_CONN_POLL, qtask, 0, NULL);
 	actor_schedule(&session->mainloop);
 	actor_timer(&conn->connect_timer, conn->login_timeout*1000,
 		    __connect_timedout, qtask);
@@ -1305,7 +1306,7 @@ session_logout_task(iscsi_session_t *session, queue_task_t *qtask)
 	iscsi_conn_t *conn;
 
 	/* FIXME: logout all active connections */
-	conn = &session->cnx[0];
+	conn = &session->conn[0];
 	if (conn->state != STATE_LOGGED_IN &&
 	    conn->state != STATE_CLEANUP_WAIT) {
 		return MGMT_IPC_ERR_INTERNAL;
@@ -1317,8 +1318,8 @@ session_logout_task(iscsi_session_t *session, queue_task_t *qtask)
 
 	/* stop if connection is logged in */
 	if (conn->state == STATE_LOGGED_IN) {
-		if (ipc->stop_cnx(session->transport_handle, conn->handle,
-				      STOP_CNX_TERM)) {
+		if (ipc->stop_conn(session->transport_handle, conn->handle,
+				      STOP_CONN_TERM)) {
 			log_error("can't stop connection 0x%p with "
 				  "id = %d (%d)", iscsi_ptr(conn->handle),
 				  conn->id, errno);
@@ -1329,13 +1330,13 @@ session_logout_task(iscsi_session_t *session, queue_task_t *qtask)
 	}
 
 	iscsi_io_disconnect(conn);
-	__session_cnx_queue_flush(conn);
+	__session_conn_queue_flush(conn);
 
-	if (ipc->destroy_cnx(session->transport_handle, conn->handle,
+	if (ipc->destroy_conn(session->transport_handle, conn->handle,
                 conn->id)) {
 		return MGMT_IPC_ERR_INTERNAL;
 	}
-	session_cnx_destroy(session, conn->id);
+	session_conn_destroy(session, conn->id);
 
 	if (ipc->destroy_session(session->transport_handle, session->handle,
                         session->id)) {

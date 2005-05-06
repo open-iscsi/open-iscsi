@@ -28,10 +28,10 @@
 #define ISCSI_STATE_TERMINATE	4
 
 /* Connection's states */
-#define ISCSI_CNX_INITIAL_STAGE		0
-#define ISCSI_CNX_STARTED		1
-#define ISCSI_CNX_STOPPED		2
-#define ISCSI_CNX_CLEANUP_WAIT		3
+#define ISCSI_CONN_INITIAL_STAGE	0
+#define ISCSI_CONN_STARTED		1
+#define ISCSI_CONN_STOPPED		2
+#define ISCSI_CONN_CLEANUP_WAIT		3
 
 /* Socket's Receive state machine */
 #define IN_PROGRESS_WAIT_HEADER		0x0
@@ -145,7 +145,7 @@ struct iscsi_conn {
 	struct iscsi_tm		tmhdr;
 	volatile int		tmabort_state;
 	struct timer_list	tmabort_timer;
-	volatile int		stop_stage;	/* cnx_stop() state machine */
+	volatile int		stop_stage;	/* conn_stop() state machine */
 	int			data_size;	/* actual recv_dlength size */
 
 	/* configuration */

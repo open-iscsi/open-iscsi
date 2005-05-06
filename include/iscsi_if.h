@@ -44,9 +44,9 @@ enum iscsi_err {
 	ISCSI_ERR_PROTO			= ISCSI_ERR_BASE + 8,
 	ISCSI_ERR_LUN			= ISCSI_ERR_BASE + 9,
 	ISCSI_ERR_BAD_ITT		= ISCSI_ERR_BASE + 10,
-	ISCSI_ERR_CNX_FAILED		= ISCSI_ERR_BASE + 11,
+	ISCSI_ERR_CONN_FAILED		= ISCSI_ERR_BASE + 11,
 	ISCSI_ERR_R2TSN			= ISCSI_ERR_BASE + 12,
-	ISCSI_ERR_SNX_FAILED		= ISCSI_ERR_BASE + 13,
+	ISCSI_ERR_SESSION_FAILED	= ISCSI_ERR_BASE + 13,
 	ISCSI_ERR_HDR_DGST		= ISCSI_ERR_BASE + 14,
 	ISCSI_ERR_DATA_DGST		= ISCSI_ERR_BASE + 15,
 	ISCSI_ERR_PDU_GATHER_FAILED	= ISCSI_ERR_BASE + 16,
@@ -74,8 +74,8 @@ enum iscsi_param {
 };
 #define ISCSI_PARAM_MAX			14
 
-typedef uint64_t iscsi_snx_t;		/* iSCSI Data-Path session handle */
-typedef uint64_t iscsi_cnx_t;		/* iSCSI Data-Path connection handle */
+typedef uint64_t iscsi_sessionh_t;	/* iSCSI Data-Path session handle */
+typedef uint64_t iscsi_connh_t;		/* iSCSI Data-Path connection handle */
 
 #define iscsi_ptr(_handle) ((void*)(unsigned long)_handle)
 #define iscsi_handle(_ptr) ((uint64_t)(unsigned long)_ptr)
@@ -90,15 +90,15 @@ typedef uint64_t iscsi_cnx_t;		/* iSCSI Data-Path connection handle */
 #define CAP_MULTI_R2T		0x8
 #define CAP_HDRDGST		0x10
 #define CAP_DATADGST		0x20
-#define CAP_MULTI_CNX		0x40
+#define CAP_MULTI_CONN		0x40
 #define CAP_TEXT_NEGO		0x80
 
 /*
- * These flags describes reason of stop_cnx() call
+ * These flags describes reason of stop_conn() call
  */
-#define STOP_CNX_TERM		0x1
-#define STOP_CNX_SUSPEND	0x2
-#define STOP_CNX_RECOVER	0x3
+#define STOP_CONN_TERM		0x1
+#define STOP_CONN_SUSPEND	0x2
+#define STOP_CONN_RECOVER	0x3
 
 #define ISCSI_STATS_CUSTOM_MAX		32
 #define ISCSI_STATS_CUSTOM_DESC_MAX	64

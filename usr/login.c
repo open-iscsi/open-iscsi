@@ -230,7 +230,7 @@ get_security_text_keys(iscsi_session_t *session, int cid, char **data,
 		 * ip_address and port to the new TargetAddress for
 		 * leading connection
 		 */
-		if (iscsi_update_address(&session->cnx[cid], value)) {
+		if (iscsi_update_address(&session->conn[cid], value)) {
 			text = value_end;
 		} else {
 			log_error("Login redirection failed, "
@@ -282,7 +282,7 @@ get_op_params_text_keys(iscsi_session_t *session, int cid,
 	char *value = NULL;
 	char *value_end = NULL;
 	size_t size;
-	iscsi_conn_t *conn = &session->cnx[cid];
+	iscsi_conn_t *conn = &session->conn[cid];
 
 	if (iscsi_find_key_value("TargetAlias", text, end, &value,
 				 &value_end)) {
@@ -592,7 +592,7 @@ iscsi_process_login_response(iscsi_session_t *session, int cid,
 	int pdu_current_stage, pdu_next_stage;
 	enum iscsi_login_status ret;
 	struct iscsi_acl *auth_client;
-	iscsi_conn_t *conn = &session->cnx[cid];
+	iscsi_conn_t *conn = &session->conn[cid];
 
 	auth_client = (session->auth_buffers && session->num_auth_buffers) ?
 		(struct iscsi_acl *)session->auth_buffers[0].address : NULL;
@@ -763,7 +763,7 @@ add_vendor_specific_text(iscsi_session_t *session, int cid, struct iscsi_hdr *pd
                     char *data, int max_data_length)
 {
 	char value[AUTH_STR_MAX_LEN];
-	iscsi_conn_t *conn = &session->cnx[cid];
+	iscsi_conn_t *conn = &session->conn[cid];
 
 	/*
 	 * adjust the target's PingTimeout for normal sessions,
@@ -918,7 +918,7 @@ fill_op_params_text(iscsi_session_t *session, int cid, struct iscsi_hdr *pdu,
 		    char *data, int max_data_length, int *transit)
 {
 	char value[AUTH_STR_MAX_LEN];
-	iscsi_conn_t *conn = &session->cnx[cid];
+	iscsi_conn_t *conn = &session->conn[cid];
 
 	/* we always try to go from op params to full feature stage */
 	conn->current_stage = ISCSI_OP_PARMS_NEGOTIATION_STAGE;
@@ -1025,7 +1025,7 @@ fill_security_params_text(iscsi_session_t *session, int cid, struct iscsi_hdr *p
 {
 	int keytype = AUTH_KEY_TYPE_NONE;
 	int rc = acl_send_transit_bit(auth_client, transit);
-	iscsi_conn_t *conn = &session->cnx[cid];
+	iscsi_conn_t *conn = &session->conn[cid];
 
 	/* see if we're ready for a stage change */
 	if (rc != AUTH_STATUS_NO_ERROR)
@@ -1080,7 +1080,7 @@ iscsi_make_login_pdu(iscsi_session_t *session, int cid, struct iscsi_hdr *hdr,
 	int ret;
 	struct iscsi_login *login_hdr = (struct iscsi_login *)hdr;
 	struct iscsi_acl *auth_client;
-	iscsi_conn_t *conn = &session->cnx[cid];
+	iscsi_conn_t *conn = &session->conn[cid];
 
 	auth_client = (session->auth_buffers && session->num_auth_buffers) ?
 		(struct iscsi_acl *)session->auth_buffers[0].address : NULL;
@@ -1283,7 +1283,7 @@ check_status_login_response(iscsi_session_t *session, int cid,
 int
 iscsi_login_begin(iscsi_session_t *session, iscsi_login_context_t *c)
 {
-	iscsi_conn_t *conn = &session->cnx[c->cid];
+	iscsi_conn_t *conn = &session->conn[c->cid];
 
 	c->auth_client = NULL;
 	c->login_rsp = (struct iscsi_login_rsp *)&c->pdu;
@@ -1315,7 +1315,7 @@ iscsi_login_begin(iscsi_session_t *session, iscsi_login_context_t *c)
 int
 iscsi_login_req(iscsi_session_t *session, iscsi_login_context_t *c)
 {
-	iscsi_conn_t *conn = &session->cnx[c->cid];
+	iscsi_conn_t *conn = &session->conn[c->cid];
 
 	c->final = 0;
 	c->timeout = 0;
@@ -1380,7 +1380,7 @@ iscsi_login_req(iscsi_session_t *session, iscsi_login_context_t *c)
 int
 iscsi_login_rsp(iscsi_session_t *session, iscsi_login_context_t *c)
 {
-	iscsi_conn_t *conn = &session->cnx[c->cid];
+	iscsi_conn_t *conn = &session->conn[c->cid];
 
 	/* read the target's response into the same buffer */
 	if (!iscsi_io_recv_pdu(conn, &c->pdu, ISCSI_DIGEST_NONE, c->data,
@@ -1461,7 +1461,7 @@ enum iscsi_login_status
 iscsi_login(iscsi_session_t *session, int cid, char *buffer, size_t bufsize,
 	    uint8_t *status_class, uint8_t *status_detail)
 {
-	iscsi_conn_t *conn = &session->cnx[cid];
+	iscsi_conn_t *conn = &session->conn[cid];
 	iscsi_login_context_t *c = &conn->login_context;
 
 	conn->kernel_io = 0;
