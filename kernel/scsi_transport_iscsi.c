@@ -2,7 +2,9 @@
  * iSCSI transport class definitions
  *
  * Copyright (C) IBM Corporation, 2004
- * Copyright (C) Mike Christie, Dmitry Yusupov, Alex Aizman, 2004 - 2005
+ * Copyright (C) Mike Christie, 2004 - 2005
+ * Copyright (C) Dmitry Yusupov, 2004 - 2005
+ * Copyright (C) Alex Aizman, 2004 - 2005
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -33,8 +35,8 @@
 
 struct iscsi_internal {
 	struct scsi_transport_template t;
-	struct iscsi_transport *tt;
-
+	struct iscsi_transport *iscsi_transport;
+	struct list_head list;
 	/*
 	 * based on transport capabilities, at register time we sets these
 	 * bits to tell the transport class it wants the attributes
@@ -51,6 +53,16 @@ struct iscsi_internal {
 	struct class_device_attribute *session_attrs[ISCSI_SESSION_ATTRS + 1];
 };
 
+/*
+ * list of registered transports and lock that must
+ * be held while accessing list. The iscsi_transport_lock must
+ * be acquired after the callsema.
+ *
+ * TODO: can we use RCU for this instead?
+ */
+static LIST_HEAD(iscsi_transports);
+static DEFINE_SPINLOCK(iscsi_transport_lock);
+
 #define to_iscsi_internal(tmpl) container_of(tmpl, struct iscsi_internal, t)
 
 static DECLARE_TRANSPORT_CLASS(iscsi_session_class,
@@ -65,7 +77,6 @@ static DECLARE_TRANSPORT_CLASS(iscsi_connection_class,
 			       NULL,
 			       NULL);
 
-static struct iscsi_transport *transport_table[ISCSI_TRANSPORT_MAX];
 static struct sock *nls;
 static int daemon_pid;
 static DECLARE_MUTEX(callsema);
@@ -175,15 +186,20 @@ iscsi_if_find_snx(struct iscsi_transport *t)
 	return NULL;
 }
 
-static int
-iscsi_if_transport_lookup(struct iscsi_transport *t)
+static struct iscsi_internal *
+iscsi_if_transport_lookup(struct iscsi_transport *tt)
 {
-	int i;
+	struct iscsi_internal *priv;
+	unsigned long flags;
 
-	for (i = 0; i < ISCSI_TRANSPORT_MAX; i++)
-		if (transport_table[i] == t)
-			return i;
-	return -1;
+	spin_lock_irqsave(&iscsi_transport_lock, flags);
+	list_for_each_entry(priv, &iscsi_transports, list)
+		if (tt == priv->iscsi_transport) {
+			spin_unlock_irqrestore(&iscsi_transport_lock, flags);
+			return priv;
+		}
+	spin_unlock_irqrestore(&iscsi_transport_lock, flags);
+	return NULL;
 }
 
 static void*
@@ -418,8 +434,9 @@ static void iscsi_if_snx_dev_release(struct device *dev)
 }
 
 static int
-iscsi_if_create_snx(struct iscsi_transport *transport, struct iscsi_uevent *ev)
+iscsi_if_create_snx(struct iscsi_internal *priv, struct iscsi_uevent *ev)
 {
+	struct iscsi_transport *transport = priv->iscsi_transport;
 	struct iscsi_if_snx *snx;
 	struct Scsi_Host *shost;
 	unsigned long flags;
@@ -440,7 +457,7 @@ iscsi_if_create_snx(struct iscsi_transport *transport, struct iscsi_uevent *ev)
 	shost->max_channel = 0;
 	shost->max_lun = transport->max_lun;
 	shost->max_cmd_len = transport->max_cmd_len;
-	shost->transportt = transport->scsi_transport;
+	shost->transportt = &priv->t;
 
 	/* store struct iscsi_transport in hostdata */
 	*(uint64_t*)shost->hostdata = ev->transport_handle;
@@ -666,36 +683,43 @@ iscsi_if_recv_msg(struct sk_buff *skb, struct nlmsghdr *nlh)
 {
 	int err = 0;
 	struct iscsi_uevent *ev = NLMSG_DATA(nlh);
-	struct iscsi_transport *transport;
+	struct iscsi_transport *transport = NULL;
+	struct iscsi_internal *priv;
 
 	if (NETLINK_CREDS(skb)->uid)
 		return -EPERM;
 
-	transport = iscsi_ptr(ev->transport_handle);
-	if (nlh->nlmsg_type != ISCSI_UEVENT_TRANS_LIST &&
-	    iscsi_if_transport_lookup(transport) < 0)
+	priv = iscsi_if_transport_lookup(iscsi_ptr(ev->transport_handle));
+	if (priv)
+		transport = priv->iscsi_transport;
+	else if (nlh->nlmsg_type != ISCSI_UEVENT_TRANS_LIST)
 		return -EEXIST;
 
 	daemon_pid = NETLINK_CREDS(skb)->pid;
 
 	switch (nlh->nlmsg_type) {
 	case ISCSI_UEVENT_TRANS_LIST: {
-		int i;
+		unsigned long flags;
+		int i = 0;
 
-		for (i = 0; i < ISCSI_TRANSPORT_MAX; i++) {
-			if (transport_table[i]) {
-				ev->r.t_list.elements[i].trans_handle =
-					iscsi_handle(transport_table[i]);
-				strncpy(ev->r.t_list.elements[i].name,
-					transport_table[i]->name,
-					ISCSI_TRANSPORT_NAME_MAXLEN);
-			} else
-				ev->r.t_list.elements[i].trans_handle =
-					iscsi_handle(NULL);
+		/*
+		 * Bleh! Close your eyes. Will fix properly in next
+		 * patches. See sysfs based transport table discovery.
+		 */
+		spin_lock_irqsave(&iscsi_transport_lock, flags);
+		list_for_each_entry(priv, &iscsi_transports, list) {
+			ev->r.t_list.elements[i].trans_handle =
+					iscsi_handle(priv->iscsi_transport);
+			strncpy(ev->r.t_list.elements[i].name,
+				priv->iscsi_transport->name,
+				ISCSI_TRANSPORT_NAME_MAXLEN);
+			i++;
 		}
+		spin_unlock_irqrestore(&iscsi_transport_lock, flags);
+
 	      } break;
 	case ISCSI_UEVENT_CREATE_SESSION:
-		err = iscsi_if_create_snx(transport, ev);
+		err = iscsi_if_create_snx(priv, ev);
 		break;
 	case ISCSI_UEVENT_DESTROY_SESSION:
 		err = iscsi_if_destroy_snx(transport, ev);
@@ -873,7 +897,7 @@ show_cnx_int_param_##param(struct class_device *cdev, char *buf)	\
 									\
 	priv = to_iscsi_internal(cnx->host->transportt);		\
 	if (priv->param_mask & (1 << param))				\
-		priv->tt->get_param(cnx->cnxh, param, &value);		\
+		priv->iscsi_transport->get_param(cnx->cnxh, param, &value); \
 	return snprintf(buf, 20, format"\n", value);			\
 }
 
@@ -904,7 +928,8 @@ show_snx_int_param_##param(struct class_device *cdev, char *buf)	\
 				     iscsi_handle(shost), H_TYPE_HOST);	\
 	if (cnx)							\
 		if (priv->param_mask & (1 << param))			\
-			priv->tt->get_param(cnx->cnxh, param, &value);	\
+			priv->iscsi_transport->get_param(cnx->cnxh,	\
+							 param, &value);\
 	return snprintf(buf, 20, format"\n", value);			\
 }
 
@@ -990,26 +1015,21 @@ static int iscsi_cnx_match(struct attribute_container *cont,
 int iscsi_register_transport(struct iscsi_transport *tt)
 {
 	struct iscsi_internal *priv;
-	int count = 0, i, id = -1;
+	unsigned long flags;
+	int count = 0;
 
 	BUG_ON(!tt);
-	for (i = 0; i < ISCSI_TRANSPORT_MAX; i++) {
-		if (transport_table[i] == tt)
-			return -EEXIST;
-		if (!transport_table[i]) {
-			id = i;
-			break;
-		}
-	}
-	if (id == -1)
-		return -EPERM;
+	
+	priv = iscsi_if_transport_lookup(tt);
+	if (priv)
+		return -EEXIST;
 
-	priv = kmalloc(sizeof(struct iscsi_internal), GFP_KERNEL);
+	priv = kmalloc(sizeof(*priv), GFP_KERNEL);
 	if (!priv)
 		return -ENOMEM;
-	memset(priv, 0, sizeof(struct iscsi_internal));
-
-	priv->tt = tt;
+	memset(priv, 0, sizeof(*priv));
+	INIT_LIST_HEAD(&priv->list);
+	priv->iscsi_transport = tt;
 
 	/* setup parameters mask */
 	priv->param_mask = 0xFFFFFFFF;
@@ -1055,17 +1075,19 @@ int iscsi_register_transport(struct iscsi_transport *tt)
 	BUG_ON(count > ISCSI_SESSION_ATTRS);
 	priv->session_attrs[count] = NULL;
 
-	transport_table[id] = tt;
-	tt->scsi_transport = &priv->t;
-	printk("iscsi: registered transport (%d - %s)\n", id, tt->name);
+	spin_lock_irqsave(&iscsi_transport_lock, flags);
+	list_add(&priv->list, &iscsi_transports);
+	spin_unlock_irqrestore(&iscsi_transport_lock, flags);
+
+	printk("iscsi: registered transport (%s)\n", tt->name);
 	return 0;
 }
 EXPORT_SYMBOL_GPL(iscsi_register_transport);
 
 int iscsi_unregister_transport(struct iscsi_transport *tt)
 {
-	struct iscsi_internal *priv = to_iscsi_internal(tt->scsi_transport);
-	int id;
+	struct iscsi_internal *priv;
+	unsigned long flags;
 
 	BUG_ON(!tt);
 
@@ -1074,12 +1096,17 @@ int iscsi_unregister_transport(struct iscsi_transport *tt)
 		up(&callsema);
 		return -EPERM;
 	}
-	id = iscsi_if_transport_lookup(tt);
-	BUG_ON (id < 0);
+
+	priv = iscsi_if_transport_lookup(tt);
+	BUG_ON (!priv);
+
+	spin_lock_irqsave(&iscsi_transport_lock, flags);
+	list_del(&priv->list);
+	spin_unlock_irqrestore(&iscsi_transport_lock, flags);
+
 	transport_container_unregister(&priv->connection_cont);
 	transport_container_unregister(&priv->session_cont);
 	kfree(priv);
-	transport_table[id] = NULL;
 	up(&callsema);
 
 	return 0;
