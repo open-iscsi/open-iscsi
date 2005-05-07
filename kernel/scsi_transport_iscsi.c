@@ -1033,6 +1033,10 @@ int iscsi_register_transport(struct iscsi_transport *tt)
 		priv->param_mask &= ~(1 << ISCSI_PARAM_HDRDGST_EN);
 	if (!(tt->caps & CAP_DATADGST))
 		priv->param_mask &= ~(1 << ISCSI_PARAM_DATADGST_EN);
+	if (!(tt->caps & CAP_MARKERS)) {
+		priv->param_mask &= ~(1 << ISCSI_PARAM_IFMARKER_EN);
+		priv->param_mask &= ~(1 << ISCSI_PARAM_OFMARKER_EN);
+	}
 
 	/* connection parameters */
 	priv->conn_cont.ac.attrs = &priv->conn_attrs[0];

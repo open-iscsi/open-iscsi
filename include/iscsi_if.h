@@ -92,6 +92,7 @@ typedef uint64_t iscsi_connh_t;		/* iSCSI Data-Path connection handle */
 #define CAP_DATADGST		0x20
 #define CAP_MULTI_CONN		0x40
 #define CAP_TEXT_NEGO		0x80
+#define CAP_MARKERS		0x100
 
 /*
  * These flags describes reason of stop_conn() call
