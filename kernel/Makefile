@@ -13,6 +13,7 @@ ifeq ($(shell cat $(KSRC)/Makefile | awk -F= '/^SUBLEVEL =/ {print $$2}' | \
 		sed 's/^[ \t]*//;s/[ \t]*$$//'),11)
 	@if cat scsi_transport_iscsi.c | \
 	    grep transport_container_register > /dev/null; then  \
+	    echo "kernel check... FAILED"; \
 	    echo "Please apply backward-compile-2.6.11.patch first!"; exit 1; fi
 	@echo "kernel check... OK"
 else
