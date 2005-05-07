@@ -328,6 +328,11 @@ void iscsi_conn_error(iscsi_connh_t connh, enum iscsi_err error)
 	conn = iscsi_if_find_conn(connh);
 	BUG_ON(!conn);
 
+	/*
+	 * move transport's connection into SUSPEND state
+	 */
+	conn->transport->stop_conn(connh, STOP_CONN_SUSPEND);
+
 	mempool_zone_complete(&conn->z_error);
 
 	skb = mempool_zone_get_skb(&conn->z_error);
@@ -580,7 +585,7 @@ iscsi_if_create_conn(struct iscsi_transport *transport, struct iscsi_uevent *ev)
 	INIT_LIST_HEAD(&conn->session_list);
 	INIT_LIST_HEAD(&conn->conn_list);
 	conn->host = shost;
-	session->transport = transport;
+	conn->transport = transport;
 
 	error = zone_init(&conn->z_pdu, Z_MAX_PDU, Z_SIZE_PDU, Z_HIWAT_PDU);
 	if (error) {

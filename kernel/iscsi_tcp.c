@@ -892,6 +892,9 @@ iscsi_tcp_data_recv(read_descriptor_t *rd_desc, struct sk_buff *skb,
 more:
 	conn->in.copied = 0;
 	rc = 0;
+	
+	if (conn->suspend)
+		return 0;
 
 	if (conn->in_progress == IN_PROGRESS_WAIT_HEADER ||
 	    conn->in_progress == IN_PROGRESS_HEADER_GATHER) {
@@ -2168,18 +2171,29 @@ iscsi_conn_start(iscsi_connh_t connh)
 	conn->c_stage = ISCSI_CONN_STARTED;
 	conn->cpu = session->conn_cnt % num_online_cpus();
 	session->state = ISCSI_STATE_LOGGED_IN;
-	session->conn_cnt++;
 
-	if (conn->stop_stage == STOP_CONN_RECOVER) {
+	switch(conn->stop_stage) {
+	case STOP_CONN_RECOVER:
 		/*
 		 * unblock eh_abort() if it is blocked. re-try all
 		 * commands after successful recovery
 		 */
+		session->conn_cnt++;
 		conn->stop_stage = 0;
 		session->generation++;
 		wake_up(&conn->ehwait);
-	} else
+		break;
+	case STOP_CONN_TERM:
+		session->conn_cnt++;
 		conn->stop_stage = 0;
+		break;
+	case STOP_CONN_SUSPEND:
+		conn->stop_stage = 0;
+		conn->suspend = 0;
+		break;
+	default:
+		break;
+	}
 	spin_unlock_bh(&session->lock);
 
 	return 0;
@@ -2195,8 +2209,10 @@ iscsi_conn_stop(iscsi_connh_t connh, int flag)
 
 	spin_lock_bh(&session->lock);
 	conn->c_stage = ISCSI_CONN_STOPPED;
-	session->conn_cnt--;
 	conn->suspend = 1;
+
+	if (flag != STOP_CONN_SUSPEND)
+		session->conn_cnt--;
 
 	if (session->conn_cnt == 0 || session->leadconn == conn)
 		session->state = ISCSI_STATE_FAILED;
