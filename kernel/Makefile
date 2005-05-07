@@ -4,13 +4,20 @@
 
 EXTRA_CFLAGS += -I$(obj) -I$(obj)/../include -DNETLINK_ISCSI=10
 
-# Note: For kernels >= 2.6.11 use iscsi_if.o (depricated)
-#       For kernels >= 2.6.12-rc3 use scsi_transport_iscsi.o
 obj-m = scsi_transport_iscsi.o iscsi_tcp.o 
 
 KSRC ?= /lib/modules/`uname -r`/build
 
 all:
+ifeq ($(shell cat $(KSRC)/Makefile | awk -F= '/^SUBLEVEL =/ {print $$2}' | \
+		sed 's/^[ \t]*//;s/[ \t]*$$//'),11)
+	@if cat scsi_transport_iscsi.c | \
+	    grep transport_container_register > /dev/null; then  \
+	    echo "Please apply backward-compile-2.6.11.patch first!"; exit 1; fi
+	@echo "kernel check... OK"
+else
+	@echo "kernel check... OK"
+endif
 	make -C $(KSRC) SUBDIRS=`pwd` $(KARCH)
 
 clean:

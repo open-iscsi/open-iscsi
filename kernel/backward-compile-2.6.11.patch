@@ -1,0 +1,92 @@
+Index: scsi_transport_iscsi.c
+===================================================================
+--- scsi_transport_iscsi.c	(revision 279)
++++ scsi_transport_iscsi.c	(working copy)
+@@ -56,9 +56,9 @@
+ 	/*
+ 	 * We do not have any private or other attrs.
+ 	 */
+-	struct transport_container conn_cont;
++	struct attribute_container conn_cont;
+ 	struct class_device_attribute *conn_attrs[ISCSI_CONN_ATTRS + 1];
+-	struct transport_container session_cont;
++	struct attribute_container session_cont;
+ 	struct class_device_attribute *session_attrs[ISCSI_SESSION_ATTRS + 1];
+ };
+ 
+@@ -188,7 +188,7 @@
+ }
+ 
+ static void*
+-mempool_zone_alloc_skb(unsigned int gfp_mask, void *pool_data)
++mempool_zone_alloc_skb(int gfp_mask, void *pool_data)
+ {
+ 	struct mempool_zone *zone = pool_data;
+ 
+@@ -971,10 +971,10 @@
+ 		return 0;
+ 
+ 	priv = to_iscsi_internal(shost->transportt);
+-	if (priv->session_cont.ac.class != &iscsi_session_class.class)
++	if (priv->session_cont.class != &iscsi_session_class.class)
+ 		return 0;
+ 
+-	return &priv->session_cont.ac == cont;
++	return &priv->session_cont == cont;
+ }
+ 
+ static int iscsi_is_conn_dev(const struct device *dev)
+@@ -998,10 +998,10 @@
+ 		return 0;
+ 
+ 	priv = to_iscsi_internal(shost->transportt);
+-	if (priv->conn_cont.ac.class != &iscsi_connection_class.class)
++	if (priv->conn_cont.class != &iscsi_connection_class.class)
+ 		return 0;
+ 
+-	return &priv->conn_cont.ac == cont;
++	return &priv->conn_cont == cont;
+ }
+ 
+ int iscsi_register_transport(struct iscsi_transport *tt)
+@@ -1039,10 +1039,10 @@
+ 	}
+ 
+ 	/* connection parameters */
+-	priv->conn_cont.ac.attrs = &priv->conn_attrs[0];
+-	priv->conn_cont.ac.class = &iscsi_connection_class.class;
+-	priv->conn_cont.ac.match = iscsi_conn_match;
+-	transport_container_register(&priv->conn_cont);
++	priv->conn_cont.attrs = &priv->conn_attrs[0];
++	priv->conn_cont.class = &iscsi_connection_class.class;
++	priv->conn_cont.match = iscsi_conn_match;
++	attribute_container_register(&priv->conn_cont);
+ 
+ 	SETUP_CONN_RD_ATTR(max_recv_dlength, ISCSI_PARAM_MAX_RECV_DLENGTH);
+ 	SETUP_CONN_RD_ATTR(max_xmit_dlength, ISCSI_PARAM_MAX_XMIT_DLENGTH);
+@@ -1056,10 +1056,10 @@
+ 	count = 0;
+ 
+ 	/* session parameters */
+-	priv->session_cont.ac.attrs = &priv->session_attrs[0];
+-	priv->session_cont.ac.class = &iscsi_session_class.class;
+-	priv->session_cont.ac.match = iscsi_session_match;
+-	transport_container_register(&priv->session_cont);
++	priv->session_cont.attrs = &priv->session_attrs[0];
++	priv->session_cont.class = &iscsi_session_class.class;
++	priv->session_cont.match = iscsi_session_match;
++	attribute_container_register(&priv->session_cont);
+ 
+ 	SETUP_SESSION_RD_ATTR(initial_r2t, ISCSI_PARAM_INITIAL_R2T_EN);
+ 	SETUP_SESSION_RD_ATTR(max_outstanding_r2t, ISCSI_PARAM_MAX_R2T);
+@@ -1106,8 +1106,8 @@
+ 	list_del(&priv->list);
+ 	spin_unlock_irqrestore(&iscsi_transport_lock, flags);
+ 
+-	transport_container_unregister(&priv->conn_cont);
+-	transport_container_unregister(&priv->session_cont);
++	attribute_container_unregister(&priv->conn_cont);
++	attribute_container_unregister(&priv->session_cont);
+ 	kfree(priv);
+ 	up(&callsema);
+ 
