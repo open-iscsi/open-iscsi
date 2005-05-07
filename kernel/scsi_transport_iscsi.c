@@ -38,6 +38,15 @@ struct iscsi_internal {
 	struct iscsi_transport *iscsi_transport;
 	struct list_head list;
 	/*
+	 * List of sessions for this transport
+	 */
+	struct list_head sessions;
+	/*
+	 * lock to serialize access to the sessions list which must
+	 * be taken after the callsema
+	 */
+	spinlock_t session_lock;
+	/*
 	 * based on transport capabilities, at register time we sets these
 	 * bits to tell the transport class it wants the attributes
 	 * displayed in sysfs.
@@ -108,8 +117,8 @@ static struct mempool_zone z_reply;
 #define Z_HIWAT_ERROR	12
 
 struct iscsi_if_conn {
-	struct list_head item;		/* item in connlist */
-	struct list_head session_item;	/* item in session->connections */
+	struct list_head conn_list;	/* item in connlist */
+	struct list_head session_list;	/* item in session->connections */
 	iscsi_connh_t connh;
 	volatile int active;
 	struct Scsi_Host *host;		/* originated shost */
@@ -130,7 +139,7 @@ static LIST_HEAD(connlist);
 static DEFINE_SPINLOCK(connlock);
 
 struct iscsi_if_session {
-	struct list_head item;	/* item in session_list */
+	struct list_head list;	/* item in session_list */
 	struct list_head connections;
 	iscsi_sessionh_t sessionh;
 	struct iscsi_transport *transport;
@@ -146,43 +155,19 @@ struct iscsi_if_session {
 #define iscsi_if_session_to_shost(_session) \
 	dev_to_shost(_session->dev.parent)
 
-static LIST_HEAD(session_list);
-static DEFINE_SPINLOCK(session_lock);
-
-#define H_TYPE_TRANS	1
-#define H_TYPE_HOST	2
 static struct iscsi_if_conn*
-iscsi_if_find_conn(uint64_t key, int type)
+iscsi_if_find_conn(uint64_t key)
 {
 	unsigned long flags;
 	struct iscsi_if_conn *conn;
 
 	spin_lock_irqsave(&connlock, flags);
-	list_for_each_entry(conn, &connlist, item) {
-		if ((type == H_TYPE_TRANS && conn->connh == key) ||
-		    (type == H_TYPE_HOST && conn->host == iscsi_ptr(key))) {
+	list_for_each_entry(conn, &connlist, conn_list)
+		if (conn->connh == key) {
 			spin_unlock_irqrestore(&connlock, flags);
 			return conn;
 		}
-	}
 	spin_unlock_irqrestore(&connlock, flags);
-	return NULL;
-}
-
-static struct iscsi_if_session*
-iscsi_if_find_session(struct iscsi_transport *t)
-{
-	unsigned long flags;
-	struct iscsi_if_session *session;
-
-	spin_lock_irqsave(&session_lock, flags);
-	list_for_each_entry(session, &session_list, item) {
-		if (session->transport == t) {
-			spin_unlock_irqrestore(&session_lock, flags);
-			return session;
-		}
-	}
-	spin_unlock_irqrestore(&session_lock, flags);
 	return NULL;
 }
 
@@ -303,7 +288,7 @@ int iscsi_recv_pdu(iscsi_connh_t connh, struct iscsi_hdr *hdr,
 	int len = NLMSG_SPACE(sizeof(*ev) + sizeof(struct iscsi_hdr) +
 			      data_size);
 
-	conn = iscsi_if_find_conn(connh, H_TYPE_TRANS);
+	conn = iscsi_if_find_conn(connh);
 	BUG_ON(!conn);
 
 	mempool_zone_complete(&conn->z_pdu);
@@ -340,7 +325,7 @@ void iscsi_conn_error(iscsi_connh_t connh, enum iscsi_err error)
 	struct iscsi_if_conn *conn;
 	int len = NLMSG_SPACE(sizeof(*ev));
 
-	conn = iscsi_if_find_conn(connh, H_TYPE_TRANS);
+	conn = iscsi_if_find_conn(connh);
 	BUG_ON(!conn);
 
 	mempool_zone_complete(&conn->z_error);
@@ -417,13 +402,14 @@ static void iscsi_if_session_dev_release(struct device *dev)
 	struct iscsi_if_session *session = iscsi_dev_to_if_session(dev);
 	struct iscsi_transport *transport = session->transport;
 	struct Scsi_Host *shost = iscsi_if_session_to_shost(session);
-	struct iscsi_if_conn *conn;
+	struct iscsi_if_conn *conn, *tmp;
 	unsigned long flags;
 
 	/* now free connections */
 	spin_lock_irqsave(&connlock, flags);
-	list_for_each_entry(conn, &session->connections, session_item) {
-		list_del(&conn->item);
+	list_for_each_entry_safe(conn, tmp, &session->connections,
+				 session_list) {
+		list_del(&conn->session_list);
 		mempool_destroy(conn->z_pdu.pool);
 		mempool_destroy(conn->z_error.pool);
 		kfree(conn);
@@ -474,6 +460,7 @@ iscsi_if_create_session(struct iscsi_internal *priv, struct iscsi_uevent *ev)
 	/* initialize session */
 	session = hostdata_session(shost->hostdata);
 	INIT_LIST_HEAD(&session->connections);
+	INIT_LIST_HEAD(&session->list);
 	session->sessionh = ev->r.c_session_ret.session_handle;
 	session->transport = transport;
 
@@ -497,9 +484,9 @@ iscsi_if_create_session(struct iscsi_internal *priv, struct iscsi_uevent *ev)
 	transport_register_device(&session->dev);
 
 	/* add this session to the list of active sessions */
-	spin_lock_irqsave(&session_lock, flags);
-	list_add(&session->item, &session_list);
-	spin_unlock_irqrestore(&session_lock, flags);
+	spin_lock_irqsave(&priv->session_lock, flags);
+	list_add(&session->list, &priv->sessions);
+	spin_unlock_irqrestore(&priv->session_lock, flags);
 
 	return 0;
 
@@ -516,8 +503,9 @@ iscsi_if_create_session(struct iscsi_internal *priv, struct iscsi_uevent *ev)
 }
 
 static int
-iscsi_if_destroy_session(struct iscsi_transport *transport, struct iscsi_uevent *ev)
+iscsi_if_destroy_session(struct iscsi_internal *priv, struct iscsi_uevent *ev)
 {
+	struct iscsi_transport *transport = priv->iscsi_transport;
 	struct Scsi_Host *shost;
 	struct iscsi_if_session *session;
 	unsigned long flags;
@@ -531,7 +519,7 @@ iscsi_if_destroy_session(struct iscsi_transport *transport, struct iscsi_uevent 
 
 	/* check if we have active connections */
 	spin_lock_irqsave(&connlock, flags);
-	list_for_each_entry(conn, &session->connections, session_item) {
+	list_for_each_entry(conn, &session->connections, session_list) {
 		if (conn->active) {
 			printk("iscsi%d: can not destroy session: "
 			       "has active connection (%p)\n",
@@ -549,9 +537,9 @@ iscsi_if_destroy_session(struct iscsi_transport *transport, struct iscsi_uevent 
 	device_unregister(&session->dev);
 
 	/* remove this session from the list of active sessions */
-	spin_lock_irqsave(&session_lock, flags);
-	list_del(&session->item);
-	spin_unlock_irqrestore(&session_lock, flags);
+	spin_lock_irqsave(&priv->session_lock, flags);
+	list_del(&session->list);
+	spin_unlock_irqrestore(&priv->session_lock, flags);
 
 	/* ref from host alloc */
 	scsi_host_put(shost);
@@ -589,6 +577,8 @@ iscsi_if_create_conn(struct iscsi_transport *transport, struct iscsi_uevent *ev)
 		goto out_release_ref;
 	}
 	memset(conn, 0, sizeof(struct iscsi_if_conn));
+	INIT_LIST_HEAD(&conn->session_list);
+	INIT_LIST_HEAD(&conn->conn_list);
 	conn->host = shost;
 	session->transport = transport;
 
@@ -633,8 +623,8 @@ iscsi_if_create_conn(struct iscsi_transport *transport, struct iscsi_uevent *ev)
 	transport_register_device(&conn->dev);
 
 	spin_lock_irqsave(&connlock, flags);
-	list_add(&conn->item, &connlist);
-	list_add(&conn->session_item, &session->connections);
+	list_add(&conn->conn_list, &connlist);
+	list_add(&conn->session_list, &session->connections);
 	spin_unlock_irqrestore(&connlock, flags);
 
 	conn->active = 1;
@@ -662,7 +652,7 @@ iscsi_if_destroy_conn(struct iscsi_transport *transport, struct iscsi_uevent *ev
 	unsigned long flags;
 	struct iscsi_if_conn *conn;
 
-	conn = iscsi_if_find_conn(ev->u.d_conn.conn_handle, H_TYPE_TRANS);
+	conn = iscsi_if_find_conn(ev->u.d_conn.conn_handle);
 	if (!conn)
 		return -EEXIST;
 
@@ -670,7 +660,7 @@ iscsi_if_destroy_conn(struct iscsi_transport *transport, struct iscsi_uevent *ev
 	conn->active = 0;
 
 	spin_lock_irqsave(&connlock, flags);
-	list_del(&conn->session_item);
+	list_del(&conn->conn_list);
 	spin_unlock_irqrestore(&connlock, flags);
 
 	transport_unregister_device(&conn->dev);
@@ -722,7 +712,7 @@ iscsi_if_recv_msg(struct sk_buff *skb, struct nlmsghdr *nlh)
 		err = iscsi_if_create_session(priv, ev);
 		break;
 	case ISCSI_UEVENT_DESTROY_SESSION:
-		err = iscsi_if_destroy_session(transport, ev);
+		err = iscsi_if_destroy_session(priv, ev);
 		break;
 	case ISCSI_UEVENT_CREATE_CONN:
 		err = iscsi_if_create_conn(transport, ev);
@@ -731,7 +721,7 @@ iscsi_if_recv_msg(struct sk_buff *skb, struct nlmsghdr *nlh)
 		err = iscsi_if_destroy_conn(transport, ev);
 		break;
 	case ISCSI_UEVENT_BIND_CONN:
-		if (!iscsi_if_find_conn(ev->u.b_conn.conn_handle, H_TYPE_TRANS))
+		if (!iscsi_if_find_conn(ev->u.b_conn.conn_handle))
 			return -EEXIST;
 		ev->r.retcode = transport->bind_conn(
 			ev->u.b_conn.session_handle,
@@ -740,29 +730,26 @@ iscsi_if_recv_msg(struct sk_buff *skb, struct nlmsghdr *nlh)
 			ev->u.b_conn.is_leading);
 		break;
 	case ISCSI_UEVENT_SET_PARAM:
-		if (!iscsi_if_find_conn(ev->u.set_param.conn_handle,
-				       H_TYPE_TRANS))
+		if (!iscsi_if_find_conn(ev->u.set_param.conn_handle))
 			return -EEXIST;
 		ev->r.retcode = transport->set_param(
 			ev->u.set_param.conn_handle,
 			ev->u.set_param.param, ev->u.set_param.value);
 		break;
 	case ISCSI_UEVENT_START_CONN:
-		if (!iscsi_if_find_conn(ev->u.start_conn.conn_handle,
-				       H_TYPE_TRANS))
+		if (!iscsi_if_find_conn(ev->u.start_conn.conn_handle))
 			return -EEXIST;
 		ev->r.retcode = transport->start_conn(
 			ev->u.start_conn.conn_handle);
 		break;
 	case ISCSI_UEVENT_STOP_CONN:
-		if (!iscsi_if_find_conn(ev->u.stop_conn.conn_handle, H_TYPE_TRANS))
+		if (!iscsi_if_find_conn(ev->u.stop_conn.conn_handle))
 			return -EEXIST;
 		transport->stop_conn(ev->u.stop_conn.conn_handle,
 			ev->u.stop_conn.flag);
 		break;
 	case ISCSI_UEVENT_SEND_PDU:
-		if (!iscsi_if_find_conn(ev->u.send_pdu.conn_handle,
-				       H_TYPE_TRANS))
+		if (!iscsi_if_find_conn(ev->u.send_pdu.conn_handle))
 			return -EEXIST;
 		ev->r.retcode = transport->send_pdu(
 		       ev->u.send_pdu.conn_handle,
@@ -782,8 +769,7 @@ iscsi_if_recv_msg(struct sk_buff *skb, struct nlmsghdr *nlh)
                                                 ISCSI_STATS_CUSTOM_MAX);
 		int err;
 
-		conn = iscsi_if_find_conn(ev->u.get_stats.conn_handle,
-					H_TYPE_TRANS);
+		conn = iscsi_if_find_conn(ev->u.get_stats.conn_handle);
 		if (!conn)
 			return -EEXIST;
 
@@ -892,7 +878,7 @@ static ssize_t								\
 show_conn_int_param_##param(struct class_device *cdev, char *buf)	\
 {									\
 	uint32_t value = 0;						\
-	struct iscsi_if_conn *conn = iscsi_cdev_to_if_conn(cdev);		\
+	struct iscsi_if_conn *conn = iscsi_cdev_to_if_conn(cdev);	\
 	struct iscsi_internal *priv;					\
 									\
 	priv = to_iscsi_internal(conn->host->transportt);		\
@@ -922,14 +908,20 @@ show_session_int_param_##param(struct class_device *cdev, char *buf)	\
 	uint32_t value = 0;						\
 	struct iscsi_if_session *session = iscsi_cdev_to_if_session(cdev); \
 	struct Scsi_Host *shost = iscsi_if_session_to_shost(session);	\
-	struct iscsi_internal *priv = to_iscsi_internal(		\
-						shost->transportt);	\
-	struct iscsi_if_conn *conn = iscsi_if_find_conn(		\
-				     iscsi_handle(shost), H_TYPE_HOST);	\
-	if (conn)							\
-		if (priv->param_mask & (1 << param))			\
+	struct iscsi_internal *priv = to_iscsi_internal(shost->transportt); \
+	struct iscsi_if_conn *conn = NULL;				\
+	unsigned long  flags;						\
+									\
+	spin_lock_irqsave(&connlock, flags);				\
+	if (!list_empty(&session->connections)) {			\
+		conn = list_entry(session->connections.next,		\
+				  struct iscsi_if_conn, session_list);	\
+	spin_unlock_irqrestore(&connlock, flags);			\
+									\
+	if (conn && (priv->param_mask & (1 << param)))			\
 			priv->iscsi_transport->get_param(conn->connh,	\
 							 param, &value);\
+	}								\
 	return snprintf(buf, 20, format"\n", value);			\
 }
 
@@ -1029,6 +1021,8 @@ int iscsi_register_transport(struct iscsi_transport *tt)
 		return -ENOMEM;
 	memset(priv, 0, sizeof(*priv));
 	INIT_LIST_HEAD(&priv->list);
+	INIT_LIST_HEAD(&priv->sessions);
+	spin_lock_init(&priv->session_lock);
 	priv->iscsi_transport = tt;
 
 	/* setup parameters mask */
@@ -1092,13 +1086,17 @@ int iscsi_unregister_transport(struct iscsi_transport *tt)
 	BUG_ON(!tt);
 
 	down(&callsema);
-	if (iscsi_if_find_session(tt)) {
-		up(&callsema);
-		return -EPERM;
-	}
 
 	priv = iscsi_if_transport_lookup(tt);
 	BUG_ON (!priv);
+
+	spin_lock_irqsave(&priv->session_lock, flags);
+	if (!list_empty(&priv->sessions)) {
+		spin_unlock_irqrestore(&priv->session_lock, flags);
+		up(&callsema);
+		return -EPERM;
+	}
+	spin_unlock_irqrestore(&priv->session_lock, flags);
 
 	spin_lock_irqsave(&iscsi_transport_lock, flags);
 	list_del(&priv->list);
@@ -1125,7 +1123,7 @@ iscsi_rcv_nl_event(struct notifier_block *this, unsigned long event, void *ptr)
 
 		mempool_zone_complete(&z_reply);
 		spin_lock_irqsave(&connlock, flags);
-		list_for_each_entry(conn, &connlist, item) {
+		list_for_each_entry(conn, &connlist, conn_list) {
 			mempool_zone_complete(&conn->z_error);
 			mempool_zone_complete(&conn->z_pdu);
 		}
