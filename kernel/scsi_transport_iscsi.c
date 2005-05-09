@@ -102,17 +102,16 @@ struct mempool_zone {
 
 static struct mempool_zone z_reply;
 
-#define Z_SIZE_REPLY	NLMSG_SPACE(sizeof(struct iscsi_uevent))
+/*
+ * Z_MAX_* - actual mempool size allocated at the mempool_zone_init() time
+ * Z_HIWAT_* - zone's high watermark when if_error bit will be set to -ENOMEM
+ *             so daemon will notice OOM on NETLINK tranposrt level and will
+ *             be able to predict or change operational behavior
+ */
 #define Z_MAX_REPLY	8
 #define Z_HIWAT_REPLY	6
-
-#define Z_SIZE_PDU	NLMSG_SPACE(sizeof(struct iscsi_uevent) + \
-				    sizeof(struct iscsi_hdr) + \
-				    DEFAULT_MAX_RECV_DATA_SEGMENT_LENGTH)
 #define Z_MAX_PDU	8
 #define Z_HIWAT_PDU	6
-
-#define Z_SIZE_ERROR	NLMSG_SPACE(sizeof(struct iscsi_uevent))
 #define Z_MAX_ERROR	16
 #define Z_HIWAT_ERROR	12
 
@@ -221,8 +220,9 @@ mempool_zone_complete(struct mempool_zone *zone)
 	spin_unlock_irqrestore(&zone->freelock, flags);
 }
 
-static int zone_init(struct mempool_zone *zp, unsigned max,
-		     unsigned size, unsigned hiwat)
+static int
+mempool_zone_init(struct mempool_zone *zp, unsigned max, unsigned size,
+		unsigned hiwat)
 {
 	zp->pool = mempool_create(max, mempool_zone_alloc_skb,
 				  mempool_zone_free_skb, zp);
@@ -587,14 +587,19 @@ iscsi_if_create_conn(struct iscsi_transport *transport, struct iscsi_uevent *ev)
 	conn->host = shost;
 	conn->transport = transport;
 
-	error = zone_init(&conn->z_pdu, Z_MAX_PDU, Z_SIZE_PDU, Z_HIWAT_PDU);
+	error = mempool_zone_init(&conn->z_pdu, Z_MAX_PDU,
+			NLMSG_SPACE(sizeof(struct iscsi_uevent) +
+				    sizeof(struct iscsi_hdr) +
+				    DEFAULT_MAX_RECV_DATA_SEGMENT_LENGTH),
+			Z_HIWAT_PDU);
 	if (error) {
 		printk("iscsi%d: can not allocate pdu zone for new conn\n",
 		       shost->host_no);
 		goto out_free_conn;
 	}
-	error = zone_init(&conn->z_error, Z_MAX_ERROR,
-			  Z_SIZE_ERROR, Z_HIWAT_ERROR);
+	error = mempool_zone_init(&conn->z_error, Z_MAX_ERROR,
+			NLMSG_SPACE(sizeof(struct iscsi_uevent)),
+			Z_HIWAT_ERROR);
 	if (error) {
 		printk("iscsi%d: can not allocate error zone for new conn\n",
 		       shost->host_no);
@@ -1165,7 +1170,8 @@ static __init int iscsi_transport_init(void)
 		goto unregister_notifier;
 	}
 
-	err = zone_init(&z_reply, Z_MAX_REPLY, Z_SIZE_REPLY, Z_HIWAT_REPLY);
+	err = mempool_zone_init(&z_reply, Z_MAX_REPLY,
+		NLMSG_SPACE(sizeof(struct iscsi_uevent)), Z_HIWAT_REPLY);
 	if (!err)
 		return 0;
 
