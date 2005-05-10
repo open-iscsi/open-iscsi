@@ -183,11 +183,11 @@ iscsi_ctask_cleanup(struct iscsi_conn *conn, struct iscsi_cmd_task *ctask)
 	struct iscsi_session *session = conn->session;
 
 	spin_lock(&session->lock);
-	if (sc->SCp.Status == SUCCESS) {
+	if (unlikely(sc->SCp.Status == SUCCESS)) {
 		spin_unlock(&session->lock);
 		return;
 	}
-	if (ctask->in_progress == IN_PROGRESS_IDLE) {
+	if (unlikely(ctask->in_progress == IN_PROGRESS_IDLE)) {
 		spin_unlock(&session->lock);
 		return;
 	}
