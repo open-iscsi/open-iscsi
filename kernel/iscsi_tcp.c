@@ -183,6 +183,10 @@ iscsi_ctask_cleanup(struct iscsi_conn *conn, struct iscsi_cmd_task *ctask)
 	struct iscsi_session *session = conn->session;
 
 	spin_lock(&session->lock);
+	if (sc->SCp.Status == SUCCESS) {
+		spin_unlock(&session->lock);
+		return;
+	}
 	if (ctask->in_progress == IN_PROGRESS_IDLE) {
 		spin_unlock(&session->lock);
 		return;
@@ -630,11 +634,11 @@ iscsi_hdr_recv(struct iscsi_conn *conn)
 			spin_lock(&session->lock);
 			__kfifo_put(session->mgmtpool.queue, (void*)&mtask,
 				    sizeof(void*));
-			spin_unlock(&session->lock);
 			del_timer_sync(&conn->tmabort_timer);
 			conn->tmabort_state = ((struct iscsi_tm_rsp *)hdr)->
 				response == SCSI_TCP_TM_RESP_COMPLETE ?
 					TMABORT_SUCCESS : TMABORT_FAILED;
+			spin_unlock(&session->lock);
 			/* unblock eh_abort() and proceed with next command */
 			wake_up(&conn->ehwait);
 			break;
@@ -2444,12 +2448,29 @@ iscsi_eh_abort(struct scsi_cmnd *sc)
 					ISCSI_ERR_CONN_FAILED);
 			debug_scsi("abort sent failure [itt 0x%x]", ctask->itt);
 		} else {
-			conn->tmfcmd_pdus_cnt++;
-			conn->tmabort_timer.expires = 3*HZ + jiffies; /*3 secs*/
-			conn->tmabort_timer.function = iscsi_tmabort_timedout;
-			conn->tmabort_timer.data = (unsigned long)ctask;
-			add_timer(&conn->tmabort_timer);
-			debug_scsi("abort sent [itt 0x%x]", ctask->itt);
+			/*
+			 * TMF abort vs. TMF response race logic
+			 */
+			spin_lock_bh(&session->lock);
+			if (conn->tmabort_state == TMABORT_INITIAL) {
+				conn->tmfcmd_pdus_cnt++;
+				conn->tmabort_timer.expires = 3*HZ + jiffies;
+				conn->tmabort_timer.function =
+						iscsi_tmabort_timedout;
+				conn->tmabort_timer.data = (unsigned long)ctask;
+				add_timer(&conn->tmabort_timer);
+				debug_scsi("abort sent [itt 0x%x]", ctask->itt);
+			} else {
+				if (sc->SCp.Status == SUCCESS ||
+				    conn->tmabort_state == TMABORT_SUCCESS) {
+					spin_unlock_bh(&session->lock);
+					goto success;
+				}
+				session->state = ISCSI_STATE_FAILED;
+				iscsi_conn_error(iscsi_handle(conn),
+						ISCSI_ERR_CONN_FAILED);
+			}
+			spin_unlock_bh(&session->lock);
 		}
 	}
 
@@ -2508,11 +2529,17 @@ iscsi_eh_abort(struct scsi_cmnd *sc)
 success:
 	debug_scsi("abort success [sc %lx itt 0x%x]\n", (long)sc, ctask->itt);
 	BUG_ON(session->state != ISCSI_STATE_LOGGED_IN);
+	local_bh_disable();
+	iscsi_ctask_cleanup(conn, ctask);
+	local_bh_enable();
 	spin_lock_irq(session->host->host_lock);
 	return SUCCESS;
 failed:
-	iscsi_ctask_cleanup(conn, ctask);
+	BUG_ON(session->state != ISCSI_STATE_TERMINATE);
 	debug_scsi("abort failed [sc %lx itt 0x%x]\n", (long)sc, ctask->itt);
+	local_bh_disable();
+	iscsi_ctask_cleanup(conn, ctask);
+	local_bh_enable();
 	spin_lock_irq(session->host->host_lock);
 	return FAILED;
 }

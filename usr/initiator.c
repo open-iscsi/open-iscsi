@@ -792,9 +792,15 @@ __session_conn_recv_pdu(queue_item_t *item)
 					sizeof(c->qtask->u.login.rsp));
 				close(c->qtask->u.login.mgmt_ipc_fd);
 				free(c->qtask);
-				log_debug(3, "connection 0x%p is operational "
-					"now", iscsi_ptr(conn->handle));
+				log_warning("connection%d:%d is operational "
+					"now", session->id, conn->id);
 			} else {
+				log_warning("connection%d:%d is operational "
+					"after recovery (%d attempts)",
+					session->id, conn->id,
+					session->nrec.session.reopen_max -
+							session->reopen_cnt);
+
 				/*
 				 * reset ERL=0 reopen counter
 				 */
@@ -802,9 +808,6 @@ __session_conn_recv_pdu(queue_item_t *item)
 					session->nrec.session.reopen_max;
 
 				session->r_stage = R_STAGE_NO_CHANGE;
-				log_debug(3, "connection 0x%p is operational "
-					"after recovery",
-					iscsi_ptr(conn->handle));
 			}
 		}
 	} else if (conn->state == STATE_LOGGED_IN) {
