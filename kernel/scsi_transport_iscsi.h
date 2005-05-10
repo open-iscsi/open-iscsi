@@ -26,16 +26,16 @@
 /**
  * struct iscsi_transport - iSCSI Transport template
  *
- * @name:        	transport name
- * @caps:        	iSCSI Data-Path capabilities
+ * @name:		transport name
+ * @caps:		iSCSI Data-Path capabilities
  * @create_session:	create new iSCSI session object
  * @destroy_session:	destroy existing iSCSI session object
  * @create_conn:	create new iSCSI connection
  * @bind_conn:		associate this connection with existing iSCSI session
- * 			and specified transport descriptor
+ *			and specified transport descriptor
  * @destroy_conn:	destroy inactive iSCSI connection
  * @set_param:		set iSCSI Data-Path operational parameter
- * @start_conn: 	set connection to be operational
+ * @start_conn:		set connection to be operational
  * @stop_conn:		suspend/recover/terminate connection
  * @send_pdu:		send iSCSI PDU, Login, Logout, NOP-Out, Reject, Text.
  *
