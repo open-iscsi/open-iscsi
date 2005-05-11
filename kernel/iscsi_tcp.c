@@ -2394,6 +2394,7 @@ iscsi_eh_abort(struct scsi_cmnd *sc)
 
 	spin_unlock_irq(session->host->host_lock);
 
+	conn->eh_abort_cnt++;
 	debug_scsi("aborting [sc %lx itt 0x%x]\n", (long)sc, ctask->itt);
 
 	/*
@@ -2920,11 +2921,13 @@ iscsi_conn_get_stats(iscsi_connh_t connh, struct iscsi_stats *stats)
 	stats->r2t_pdus = conn->r2t_pdus_cnt;
 	stats->tmfcmd_pdus = conn->tmfcmd_pdus_cnt;
 	stats->tmfrsp_pdus = conn->tmfrsp_pdus_cnt;
-	stats->custom_length = 2;
+	stats->custom_length = 3;
 	strcpy(stats->custom[0].desc, "tx_sendpage_failures");
 	stats->custom[0].value = conn->sendpage_failures_cnt;
 	strcpy(stats->custom[1].desc, "rx_discontiguous_hdr");
 	stats->custom[1].value = conn->discontiguous_hdr_cnt;
+	strcpy(stats->custom[2].desc, "eh_abort_cnt");
+	stats->custom[2].value = conn->eh_abort_cnt;
 }
 
 static struct iscsi_transport iscsi_tcp_transport = {

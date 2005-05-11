@@ -173,6 +173,7 @@ struct iscsi_conn {
 	/* custom statistics */
 	uint32_t		sendpage_failures_cnt;
 	uint32_t		discontiguous_hdr_cnt;
+	uint32_t		eh_abort_cnt;
 };
 
 struct iscsi_session {
