@@ -119,7 +119,7 @@ struct iscsi_if_conn {
 	struct list_head conn_list;	/* item in connlist */
 	struct list_head session_list;	/* item in session->connections */
 	iscsi_connh_t connh;
-	volatile int active;
+	int active;			/* must be accessed with the connlock */
 	struct Scsi_Host *host;		/* originated shost */
 	struct device dev;		/* sysfs transport/container device */
 	struct iscsi_transport *transport;
@@ -633,9 +633,9 @@ iscsi_if_create_conn(struct iscsi_transport *transport, struct iscsi_uevent *ev)
 	spin_lock_irqsave(&connlock, flags);
 	list_add(&conn->conn_list, &connlist);
 	list_add(&conn->session_list, &session->connections);
+	conn->active = 1;
 	spin_unlock_irqrestore(&connlock, flags);
 
-	conn->active = 1;
 	scsi_host_put(shost);
 	return 0;
 
@@ -665,9 +665,9 @@ iscsi_if_destroy_conn(struct iscsi_transport *transport, struct iscsi_uevent *ev
 		return -EEXIST;
 
 	transport->destroy_conn(ev->u.d_conn.conn_handle);
-	conn->active = 0;
 
 	spin_lock_irqsave(&connlock, flags);
+	conn->active = 0;
 	list_del(&conn->conn_list);
 	spin_unlock_irqrestore(&connlock, flags);
 
