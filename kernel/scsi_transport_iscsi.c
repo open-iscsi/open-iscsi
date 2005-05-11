@@ -244,15 +244,12 @@ mempool_zone_init(struct mempool_zone *zp, unsigned max, unsigned size,
 static struct sk_buff*
 mempool_zone_get_skb(struct mempool_zone *zone)
 {
-	struct sk_buff *skb;
+	struct sk_buff *skb = NULL;
 
 	if (zone->allocated < zone->max) {
 		skb = mempool_alloc(zone->pool, GFP_ATOMIC);
-		BUG_ON(!skb);
 		zone->allocated++;
-	} else
-		return NULL;
-
+	}
 	return skb;
 }
 
@@ -371,6 +368,7 @@ iscsi_if_send_reply(int pid, int seq, int type, int done, int multi,
 
 	skb = mempool_zone_get_skb(&z_reply);
 	/*
+	 * FIXME:
 	 * user is supposed to react on iferror == -ENOMEM;
 	 * see iscsi_if_rx().
 	 */
