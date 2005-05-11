@@ -280,6 +280,7 @@ struct iscsi_cmd_task {
 	int			total_length;
 	int			data_offset;
 	struct iscsi_conn	*conn;			/* used connection */
+	struct iscsi_mgmt_task	*mtask;			/* tmf mtask in progr */
 
 	struct iscsi_r2t_info	*r2t;			/* in progress R2T */
 	struct iscsi_queue	r2tpool;

@@ -632,15 +632,18 @@ iscsi_hdr_recv(struct iscsi_conn *conn)
 			}
 			conn->tmfrsp_pdus_cnt++;
 			spin_lock(&session->lock);
-			__kfifo_put(session->mgmtpool.queue, (void*)&mtask,
-				    sizeof(void*));
-			del_timer_sync(&conn->tmabort_timer);
-			conn->tmabort_state = ((struct iscsi_tm_rsp *)hdr)->
-				response == SCSI_TCP_TM_RESP_COMPLETE ?
-					TMABORT_SUCCESS : TMABORT_FAILED;
+			if (conn->tmabort_state == TMABORT_INITIAL) {
+				__kfifo_put(session->mgmtpool.queue,
+						(void*)&mtask, sizeof(void*));
+				del_timer_sync(&conn->tmabort_timer);
+				conn->tmabort_state =
+					((struct iscsi_tm_rsp *)hdr)->
+					response == SCSI_TCP_TM_RESP_COMPLETE ?
+						TMABORT_SUCCESS:TMABORT_FAILED;
+				/* unblock eh_abort() */
+				wake_up(&conn->ehwait);
+			}
 			spin_unlock(&session->lock);
-			/* unblock eh_abort() and proceed with next command */
-			wake_up(&conn->ehwait);
 			break;
 		default:
 			rc = ISCSI_ERR_BAD_OPCODE;
@@ -2184,6 +2187,7 @@ iscsi_conn_start(iscsi_connh_t connh)
 		 */
 		session->conn_cnt++;
 		conn->stop_stage = 0;
+		conn->tmabort_state = TMABORT_INITIAL;
 		session->generation++;
 		wake_up(&conn->ehwait);
 		break;
@@ -2375,13 +2379,19 @@ iscsi_tmabort_timedout(unsigned long data)
 {
 	struct iscsi_cmd_task *ctask = (struct iscsi_cmd_task *)data;
 	struct iscsi_conn *conn = ctask->conn;
+	struct iscsi_session *session = conn->session;
 
-	conn->tmabort_state = TMABORT_TIMEDOUT;
-	debug_scsi("tmabort timedout [sc %lx itt 0x%x]\n", (long)ctask->sc,
-		   ctask->itt);
-
-	/* unblock eh_abort() */
-	wake_up(&conn->ehwait);
+	spin_lock(&session->lock);
+	if (conn->tmabort_state == TMABORT_INITIAL) {
+		__kfifo_put(session->mgmtpool.queue,
+				(void*)&ctask->mtask, sizeof(void*));
+		conn->tmabort_state = TMABORT_TIMEDOUT;
+		debug_scsi("tmabort timedout [sc %lx itt 0x%x]\n",
+			(long)ctask->sc, ctask->itt);
+		/* unblock eh_abort() */
+		wake_up(&conn->ehwait);
+	}
+	spin_unlock(&session->lock);
 }
 
 static int
@@ -2453,6 +2463,9 @@ iscsi_eh_abort(struct scsi_cmnd *sc)
 			 * TMF abort vs. TMF response race logic
 			 */
 			spin_lock_bh(&session->lock);
+			ctask->mtask = (struct iscsi_mgmt_task *)
+				session->mgmt_cmds[be32_to_cpu(hdr->itt) -
+							ISCSI_MGMT_ITT_OFFSET];
 			if (conn->tmabort_state == TMABORT_INITIAL) {
 				conn->tmfcmd_pdus_cnt++;
 				conn->tmabort_timer.expires = 3*HZ + jiffies;
@@ -2464,9 +2477,11 @@ iscsi_eh_abort(struct scsi_cmnd *sc)
 			} else {
 				if (sc->SCp.Status == SUCCESS ||
 				    conn->tmabort_state == TMABORT_SUCCESS) {
+					conn->tmabort_state = TMABORT_INITIAL;
 					spin_unlock_bh(&session->lock);
 					goto success;
 				}
+				conn->tmabort_state = TMABORT_INITIAL;
 				session->state = ISCSI_STATE_FAILED;
 				iscsi_conn_error(iscsi_handle(conn),
 						ISCSI_ERR_CONN_FAILED);
@@ -2504,8 +2519,9 @@ iscsi_eh_abort(struct scsi_cmnd *sc)
 		if (session->state == ISCSI_STATE_TERMINATE)
 			goto failed;
 
-		if (conn->tmabort_state == TMABORT_TIMEDOUT ||
-		    conn->tmabort_state == TMABORT_FAILED) {
+		if (sc->SCp.phase == session->generation &&
+		   (conn->tmabort_state == TMABORT_TIMEDOUT ||
+		    conn->tmabort_state == TMABORT_FAILED)) {
 			conn->tmabort_state = TMABORT_INITIAL;
 			spin_lock_bh(&session->lock);
 			if (sc->SCp.Status == SUCCESS) {
