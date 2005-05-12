@@ -39,6 +39,7 @@
 #include "idbm.h"
 
 struct iscsi_ipc *ipc = NULL; /* dummy */
+static int ipc_fd = -1;
 static char program_name[] = "iscsiadm";
 
 char initiator_name[TARGET_NAME_MAXLEN];
@@ -271,22 +272,23 @@ iscsid_response(int fd, iscsiadm_rsp_t *rsp)
 static int
 do_iscsid(iscsiadm_req_t *req, iscsiadm_rsp_t *rsp)
 {
-	int fd = -1, err;
+	int err;
 
-	if ((fd = iscsid_connect()) < 0) {
-		err = fd;
+	if ((ipc_fd = iscsid_connect()) < 0) {
+		err = ipc_fd;
 		goto out;
 	}
 
-	if ((err = iscsid_request(fd, req)) < 0)
+	if ((err = iscsid_request(ipc_fd, req)) < 0)
 		goto out;
 
-	err = iscsid_response(fd, rsp);
+	err = iscsid_response(ipc_fd, rsp);
 	if (!err && req->command != rsp->command)
 		err = -EIO;
 out:
-	if (fd > 0)
-		close(fd);
+	if (ipc_fd > 0)
+		close(ipc_fd);
+	ipc_fd = -1;
 
 	return err;
 }
@@ -509,6 +511,8 @@ verify_mode_params(int argc, char **argv, char *allowed, int skip_m)
 
 static void catch_sigint( int signo ) {
 	log_warning("caught SIGINT, exiting...");
+	if (ipc_fd > 0)
+		close(ipc_fd);
 	exit(1);
 }
 

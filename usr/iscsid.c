@@ -186,6 +186,7 @@ int main(int argc, char *argv[])
 	sigemptyset(&sa_new.sa_mask);
 	sa_new.sa_flags = 0;
 	sigaction(SIGINT, &sa_new, &sa_old );
+	sigaction(SIGPIPE, &sa_new, &sa_old );
 	sigaction(SIGTERM, &sa_new, &sa_old );
 
 	while ((ch = getopt_long(argc, argv, "c:fd:u:g:vh", long_options,
