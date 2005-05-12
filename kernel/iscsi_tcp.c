@@ -900,7 +900,7 @@ more:
 	conn->in.copied = 0;
 	rc = 0;
 	
-	if (conn->suspend)
+	if (unlikely(test_bit(RX_SUSPEND, &conn->suspend)))
 		return 0;
 
 	if (conn->in_progress == IN_PROGRESS_WAIT_HEADER ||
@@ -1012,6 +1012,8 @@ iscsi_tcp_state_change(struct sock *sk)
 			session->state = ISCSI_STATE_FAILED;
 		}
 		spin_unlock_bh(&session->conn_lock);
+		set_bit(TX_SUSPEND, &conn->suspend);
+		set_bit(RX_SUSPEND, &conn->suspend);
 		iscsi_conn_error(iscsi_handle(conn), ISCSI_ERR_CONN_FAILED);
 	}
 
@@ -1031,7 +1033,7 @@ iscsi_write_space(struct sock *sk)
 	struct iscsi_conn *conn = (struct iscsi_conn*)sk->sk_user_data;
 	conn->old_write_space(sk);
 	debug_tcp("iscsi_write_space: cid %d\n", conn->id);
-	conn->suspend = 0;
+	clear_bit(TX_SUSPEND, &conn->suspend);
 	schedule_work(&conn->xmitwork);
 }
 
@@ -1096,9 +1098,10 @@ iscsi_sendhdr(struct iscsi_conn *conn, struct iscsi_buf *buf, int datalen)
 		return 0;
 	} else if (res == -EAGAIN) {
 		conn->sendpage_failures_cnt++;
-		conn->suspend = 1;
+		set_bit(TX_SUSPEND, &conn->suspend);
 	} else if (res == -EPIPE) {
-		conn->suspend = 1;
+		set_bit(TX_SUSPEND, &conn->suspend);
+		set_bit(RX_SUSPEND, &conn->suspend);
 		iscsi_conn_error(iscsi_handle(conn), ISCSI_ERR_CONN_FAILED);
 	}
 
@@ -1145,9 +1148,10 @@ iscsi_sendpage(struct iscsi_conn *conn, struct iscsi_buf *buf,
 		return 0;
 	} else if (res == -EAGAIN) {
 		conn->sendpage_failures_cnt++;
-		conn->suspend = 1;
+		set_bit(TX_SUSPEND, &conn->suspend);
 	} else if (res == -EPIPE) {
-		conn->suspend = 1;
+		set_bit(TX_SUSPEND, &conn->suspend);
+		set_bit(RX_SUSPEND, &conn->suspend);
 		iscsi_conn_error(iscsi_handle(conn), ISCSI_ERR_CONN_FAILED);
 	}
 
@@ -1710,14 +1714,14 @@ iscsi_data_xmit_more(struct iscsi_conn *conn)
 {
 	int rc;
 
-	if (unlikely(conn->suspend))
+	if (unlikely(test_bit(TX_SUSPEND, &conn->suspend)))
 		return 0;
 	rc = iscsi_data_xmit(conn);
 	if (rc) {
 		if (conn->stop_stage != STOP_CONN_RECOVER &&
 		    (conn->c_stage == ISCSI_CONN_CLEANUP_WAIT ||
 		     conn->c_stage == ISCSI_CONN_STOPPED ||
-		     conn->suspend))
+		     test_bit(TX_SUSPEND, &conn->suspend)))
 			return 0;
 	}
 	return rc;
@@ -2156,7 +2160,8 @@ iscsi_conn_bind(iscsi_sessionh_t sessionh, iscsi_connh_t connh,
 	 * Unblock xmitworker().
 	 * Login Phase will pass through.
 	 */
-	conn->suspend = 0;
+	clear_bit(TX_SUSPEND, &conn->suspend);
+	clear_bit(RX_SUSPEND, &conn->suspend);
 
 	return 0;
 }
@@ -2197,7 +2202,8 @@ iscsi_conn_start(iscsi_connh_t connh)
 		break;
 	case STOP_CONN_SUSPEND:
 		conn->stop_stage = 0;
-		conn->suspend = 0;
+		clear_bit(TX_SUSPEND, &conn->suspend);
+		clear_bit(RX_SUSPEND, &conn->suspend);
 		break;
 	default:
 		break;
@@ -2217,7 +2223,8 @@ iscsi_conn_stop(iscsi_connh_t connh, int flag)
 
 	spin_lock_bh(&session->lock);
 	conn->c_stage = ISCSI_CONN_STOPPED;
-	conn->suspend = 1;
+	set_bit(TX_SUSPEND, &conn->suspend);
+	set_bit(RX_SUSPEND, &conn->suspend);
 
 	if (flag != STOP_CONN_SUSPEND)
 		session->conn_cnt--;
@@ -2246,6 +2253,15 @@ iscsi_conn_stop(iscsi_connh_t connh, int flag)
 			    sizeof(void*)) ||
 			__kfifo_get(conn->xmitqueue, (void*)&conn->ctask,
 			    sizeof(void*))) {
+			/*
+			 * flush ctask's r2t queues
+			 */
+			while (__kfifo_get(conn->ctask->r2tqueue,
+				(void*)&conn->ctask->r2t, sizeof(void*))) {
+				__kfifo_put(conn->ctask->r2tpool.queue,
+				      (void*)&conn->ctask->r2t, sizeof(void*));
+			}
+			conn->ctask->r2t = NULL;
 			__kfifo_put(session->cmdpool.queue, (void*)&conn->ctask,
 				    sizeof(void*));
 		}
@@ -2314,7 +2330,8 @@ iscsi_conn_send_pdu(iscsi_connh_t connh, struct iscsi_hdr *hdr, char *data,
 	if (hdr->itt != cpu_to_be32(ISCSI_RESERVED_TAG)) {
 		hdr->itt = cpu_to_be32(mtask->itt);
 		nop->cmdsn = cpu_to_be32(session->cmdsn);
-		if (conn->c_stage == ISCSI_CONN_STARTED)
+		if (conn->c_stage == ISCSI_CONN_STARTED &&
+		    !(hdr->opcode & ISCSI_OP_IMMEDIATE))
 			session->cmdsn++;
 	} else {
 		/* do not advance CmdSN */
@@ -2454,6 +2471,8 @@ iscsi_eh_abort(struct scsi_cmnd *sc)
 		rc = iscsi_conn_send_pdu(iscsi_handle(conn),
 			    (struct iscsi_hdr *)hdr, NULL, 0);
 		if (rc) {
+			set_bit(TX_SUSPEND, &conn->suspend);
+			set_bit(RX_SUSPEND, &conn->suspend);
 			session->state = ISCSI_STATE_FAILED;
 			iscsi_conn_error(iscsi_handle(conn),
 					ISCSI_ERR_CONN_FAILED);
@@ -2481,6 +2500,8 @@ iscsi_eh_abort(struct scsi_cmnd *sc)
 					spin_unlock_bh(&session->lock);
 					goto success;
 				}
+				set_bit(TX_SUSPEND, &conn->suspend);
+				set_bit(RX_SUSPEND, &conn->suspend);
 				conn->tmabort_state = TMABORT_INITIAL;
 				session->state = ISCSI_STATE_FAILED;
 				iscsi_conn_error(iscsi_handle(conn),
@@ -2534,6 +2555,8 @@ iscsi_eh_abort(struct scsi_cmnd *sc)
 				break;
 			}
 			spin_unlock_bh(&session->lock);
+			set_bit(TX_SUSPEND, &conn->suspend);
+			set_bit(RX_SUSPEND, &conn->suspend);
 			session->state = ISCSI_STATE_FAILED;
 			iscsi_conn_error(iscsi_handle(conn),
 					ISCSI_ERR_CONN_FAILED);

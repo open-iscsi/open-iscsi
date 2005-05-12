@@ -435,7 +435,7 @@ session_stats(idbm_t *db, int rid, int sid)
 		printf( "iSCSI Extended:\n");
 
 	for (i = 0; i < rsp.u.getstats.stats.custom_length; i++) {
-		printf("\t%s: %llx\n", rsp.u.getstats.stats.custom[i].desc,
+		printf("\t%s: %llu\n", rsp.u.getstats.stats.custom[i].desc,
 		      (unsigned long long)rsp.u.getstats.stats.custom[i].value);
 	}
 

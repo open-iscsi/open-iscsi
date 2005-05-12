@@ -33,6 +33,10 @@
 #define ISCSI_CONN_STOPPED		2
 #define ISCSI_CONN_CLEANUP_WAIT		3
 
+/* Connection's suspend states */
+#define RX_SUSPEND			0
+#define TX_SUSPEND			1
+
 /* Socket's Receive state machine */
 #define IN_PROGRESS_WAIT_HEADER		0x0
 #define IN_PROGRESS_HEADER_GATHER	0x1
@@ -132,10 +136,10 @@ struct iscsi_conn {
 	struct kfifo		*mgmtqueue;	/* Mgmt xmit queue */
 	struct kfifo		*xmitqueue;	/* Data-path queue */
 	struct work_struct	xmitwork;	/* per-conn. xmit workqueue */
+	unsigned long		suspend;	/* suspend bits */
 	volatile int		c_stage;	/* Connection state */
 	struct iscsi_mgmt_task	*login_mtask;	/* mtask used for login/text */
 	spinlock_t		lock;		/* general connection lock */
-	volatile int		suspend;	/* connection suspended */
 	struct crypto_tfm	*tx_tfm;
 	struct crypto_tfm	*rx_tfm;
 	struct iscsi_mgmt_task	*mtask;		/* xmit mtask in progress */
@@ -233,7 +237,7 @@ struct iscsi_mgmt_task {
 	struct iscsi_hdr hdr;			/* mgmt. PDU */
 	char		hdrext[sizeof(__u32)];	/* Header-Digest */
 	char		*data;			/* mgmt payload */
-	volatile int	xmstate;		/* mgmt xmit progress */
+	int		xmstate;		/* mgmt xmit progress */
 	int		data_count;		/* counts data to be sent */
 	struct iscsi_buf headbuf;		/* Header Buffer */
 	struct iscsi_buf sendbuf;		/* in progress buffer */
@@ -270,7 +274,7 @@ struct iscsi_cmd_task {
 	uint32_t		unsol_datasn;
 	uint32_t		exp_r2tsn;
 	volatile int		in_progress;		/* State machine */
-	volatile int		xmstate;		/* Xmit State machine */
+	int			xmstate;		/* Xmit State machine */
 	int			imm_count;		/* Imm-Data bytes */
 	int			unsol_count;		/* Imm-Data-Out bytes */
 	int			r2t_data_count;		/* R2T Data-Out bytes */

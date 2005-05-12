@@ -325,11 +325,6 @@ void iscsi_conn_error(iscsi_connh_t connh, enum iscsi_err error)
 	conn = iscsi_if_find_conn(connh);
 	BUG_ON(!conn);
 
-	/*
-	 * move transport's connection into SUSPEND state
-	 */
-	conn->transport->stop_conn(connh, STOP_CONN_SUSPEND);
-
 	mempool_zone_complete(&conn->z_error);
 
 	skb = mempool_zone_get_skb(&conn->z_error);
