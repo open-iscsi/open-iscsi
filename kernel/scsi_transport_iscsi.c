@@ -670,6 +670,66 @@ iscsi_if_destroy_conn(struct iscsi_transport *transport, struct iscsi_uevent *ev
 }
 
 static int
+iscsi_if_get_stats(struct iscsi_transport *transport, struct sk_buff *skb,
+		   struct nlmsghdr *nlh)
+{
+	struct iscsi_uevent *ev = NLMSG_DATA(nlh);
+	struct iscsi_stats *stats;
+	struct sk_buff *skbstat;
+	struct iscsi_if_conn *conn;
+	struct nlmsghdr	*nlhstat;
+	struct iscsi_uevent *evstat;
+	int len = NLMSG_SPACE(sizeof(*ev) +
+			      sizeof(struct iscsi_stats) +
+			      sizeof(struct iscsi_stats_custom) *
+			      ISCSI_STATS_CUSTOM_MAX);
+	int err = 0;
+
+	conn = iscsi_if_find_conn(ev->u.get_stats.conn_handle);
+	if (!conn)
+		return -EEXIST;
+
+	do {
+		int actual_size;
+
+		skbstat = mempool_zone_get_skb(&conn->z_pdu);
+		if (!skbstat) {
+			printk("iscsi%d: can not deliver stats: OOM\n",
+			       conn->host->host_no);
+			return -ENOMEM;
+		}
+
+		nlhstat = __nlmsg_put(skbstat, daemon_pid, 0, 0,
+				      (len - sizeof(*nlhstat)));
+		evstat = NLMSG_DATA(nlhstat);
+		memset(evstat, 0, sizeof(*evstat));
+		evstat->transport_handle = iscsi_handle(conn->transport);
+		evstat->type = nlh->nlmsg_type;
+		if (conn->z_pdu.allocated >= conn->z_pdu.hiwat)
+			evstat->iferror = -ENOMEM;
+		evstat->u.get_stats.conn_handle =
+			ev->u.get_stats.conn_handle;
+		stats = (struct iscsi_stats *)
+			((char*)evstat + sizeof(*evstat));
+		memset(stats, 0, sizeof(*stats));
+
+		transport->get_stats(ev->u.get_stats.conn_handle, stats);
+		actual_size = NLMSG_SPACE(sizeof(struct iscsi_uevent) +
+					  sizeof(struct iscsi_stats) +
+					  sizeof(struct iscsi_stats_custom) *
+					  stats->custom_length);
+		actual_size -= sizeof(*nlhstat);
+		actual_size = NLMSG_LENGTH(actual_size);
+		skb_trim(skb, NLMSG_ALIGN(actual_size));
+		nlhstat->nlmsg_len = actual_size;
+
+		err = iscsi_unicast_skb(&conn->z_pdu, skbstat);
+	} while (err < 0 && err != -ECONNREFUSED);
+
+	return err;
+}
+
+static int
 iscsi_if_recv_msg(struct sk_buff *skb, struct nlmsghdr *nlh)
 {
 	int err = 0;
@@ -758,59 +818,9 @@ iscsi_if_recv_msg(struct sk_buff *skb, struct nlmsghdr *nlh)
 		       (char*)ev + sizeof(*ev) + ev->u.send_pdu.hdr_size,
 			ev->u.send_pdu.data_size);
 		break;
-	case ISCSI_UEVENT_GET_STATS: {
-		struct iscsi_stats *stats;
-		struct sk_buff *skbstat;
-		struct iscsi_if_conn *conn;
-		struct nlmsghdr	*nlhstat;
-		struct iscsi_uevent *evstat;
-		int len = NLMSG_SPACE(sizeof(*ev) +
-				sizeof(struct iscsi_stats) +
-                                sizeof(struct iscsi_stats_custom) *
-                                                ISCSI_STATS_CUSTOM_MAX);
-		int err;
-
-		conn = iscsi_if_find_conn(ev->u.get_stats.conn_handle);
-		if (!conn)
-			return -EEXIST;
-
-		do {
-			int actual_size;
-
-			skbstat = mempool_zone_get_skb(&conn->z_pdu);
-			if (!skbstat) {
-				printk("iscsi%d: can not deliver stats: OOM\n",
-				       conn->host->host_no);
-				return -ENOMEM;
-			}
-
-			nlhstat = __nlmsg_put(skbstat, daemon_pid, 0, 0,
-						(len - sizeof(*nlhstat)));
-			evstat = NLMSG_DATA(nlhstat);
-			memset(evstat, 0, sizeof(*evstat));
-			evstat->transport_handle = iscsi_handle(conn->transport);
-			evstat->type = nlh->nlmsg_type;
-			if (conn->z_pdu.allocated >= conn->z_pdu.hiwat)
-				evstat->iferror = -ENOMEM;
-			evstat->u.get_stats.conn_handle =
-					ev->u.get_stats.conn_handle;
-			stats = (struct iscsi_stats *)
-					((char*)evstat + sizeof(*evstat));
-			memset(stats, 0, sizeof(*stats));
-
-			transport->get_stats(ev->u.get_stats.conn_handle, stats);
-			actual_size = NLMSG_SPACE(sizeof(struct iscsi_uevent) +
-					sizeof(struct iscsi_stats) +
-                                	sizeof(struct iscsi_stats_custom) *
-						stats->custom_length);
-			actual_size -= sizeof(*nlhstat);
-			actual_size = NLMSG_LENGTH(actual_size);
-			skb_trim(skb, NLMSG_ALIGN(actual_size));
-			nlhstat->nlmsg_len = actual_size;
-
-			err = iscsi_unicast_skb(&conn->z_pdu, skbstat);
-		} while (err < 0 && err != -ECONNREFUSED);
-		} break;
+	case ISCSI_UEVENT_GET_STATS:
+		err = iscsi_if_get_stats(transport, skb, nlh);
+		break;
 	default:
 		err = -EINVAL;
 		break;
