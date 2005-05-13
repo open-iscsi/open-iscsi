@@ -90,9 +90,8 @@ static DECLARE_MUTEX(rx_queue_sema);
 
 struct mempool_zone {
 	mempool_t *pool;
-	volatile int allocated;
+	atomic_t allocated;
 	int size;
-	int max;
 	int hiwat;
 	struct list_head freequeue;
 	spinlock_t freelock;
@@ -216,8 +215,7 @@ mempool_zone_complete(struct mempool_zone *zone)
 		if (!skb_shared(skb)) {
 			list_del(skb_to_lh(skb));
 			mempool_free(skb, zone->pool);
-			zone->allocated--;
-			BUG_ON(zone->allocated < 0);
+			atomic_dec(&zone->allocated);
 		}
 	}
 	spin_unlock_irqrestore(&zone->freelock, flags);
@@ -232,13 +230,12 @@ mempool_zone_init(struct mempool_zone *zp, unsigned max, unsigned size,
 	if (!zp->pool)
 		return -ENOMEM;
 
-	zp->max = max;
 	zp->size = size;
 	zp->hiwat = hiwat;
 
 	INIT_LIST_HEAD(&zp->freequeue);
 	spin_lock_init(&zp->freelock);
-	zp->allocated = 0;
+	atomic_set(&zp->allocated, 0);
 
 	return 0;
 }
@@ -247,12 +244,11 @@ mempool_zone_init(struct mempool_zone *zp, unsigned max, unsigned size,
 static struct sk_buff*
 mempool_zone_get_skb(struct mempool_zone *zone)
 {
-	struct sk_buff *skb = NULL;
+	struct sk_buff *skb;
 
-	if (zone->allocated < zone->max) {
-		skb = mempool_alloc(zone->pool, GFP_ATOMIC);
-		zone->allocated++;
-	}
+	skb = mempool_alloc(zone->pool, GFP_ATOMIC);
+	if (skb)
+		atomic_inc(&zone->allocated);
 	return skb;
 }
 
@@ -306,7 +302,7 @@ int iscsi_recv_pdu(iscsi_connh_t connh, struct iscsi_hdr *hdr,
 	memset(ev, 0, sizeof(*ev));
 	ev->transport_handle = iscsi_handle(conn->transport);
 	ev->type = ISCSI_KEVENT_RECV_PDU;
-	if (conn->z_pdu.allocated >= conn->z_pdu.hiwat)
+	if (atomic_read(&conn->z_pdu.allocated) >= conn->z_pdu.hiwat)
 		ev->iferror = -ENOMEM;
 	ev->r.recv_req.conn_handle = connh;
 	pdu = (char*)ev + sizeof(*ev);
@@ -341,7 +337,7 @@ void iscsi_conn_error(iscsi_connh_t connh, enum iscsi_err error)
 	ev = NLMSG_DATA(nlh);
 	ev->transport_handle = iscsi_handle(conn->transport);
 	ev->type = ISCSI_KEVENT_CONN_ERROR;
-	if (conn->z_error.allocated >= conn->z_error.hiwat)
+	if (atomic_read(&conn->z_error.allocated) >= conn->z_error.hiwat)
 		ev->iferror = -ENOMEM;
 	ev->r.connerror.error = error;
 	ev->r.connerror.conn_handle = connh;
@@ -712,7 +708,7 @@ iscsi_if_get_stats(struct iscsi_transport *transport, struct sk_buff *skb,
 		memset(evstat, 0, sizeof(*evstat));
 		evstat->transport_handle = iscsi_handle(conn->transport);
 		evstat->type = nlh->nlmsg_type;
-		if (conn->z_pdu.allocated >= conn->z_pdu.hiwat)
+		if (atomic_read(&conn->z_pdu.allocated) >= conn->z_pdu.hiwat)
 			evstat->iferror = -ENOMEM;
 		evstat->u.get_stats.conn_handle =
 			ev->u.get_stats.conn_handle;
@@ -878,7 +874,8 @@ iscsi_if_rx(struct sock *sk, int len)
 				err = iscsi_if_send_reply(
 					NETLINK_CREDS(skb)->pid, nlh->nlmsg_seq,
 					nlh->nlmsg_type, 0, 0, ev, sizeof(*ev));
-				if (z_reply.allocated >= z_reply.hiwat)
+				if (atomic_read(&z_reply.allocated) >=
+						z_reply.hiwat)
 					ev->iferror = -ENOMEM;
 			} while (err < 0 && err != -ECONNREFUSED);
 			skb_pull(skb, rlen);
