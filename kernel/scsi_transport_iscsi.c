@@ -184,6 +184,11 @@ iscsi_if_transport_lookup(struct iscsi_transport *tt)
 	return NULL;
 }
 
+static inline struct list_head *skb_to_lh(struct sk_buff *skb)
+{
+	return (struct list_head *)&skb->cb;
+}
+
 static void*
 mempool_zone_alloc_skb(unsigned int gfp_mask, void *pool_data)
 {
@@ -209,7 +214,7 @@ mempool_zone_complete(struct mempool_zone *zone)
 		struct sk_buff *skb = (struct sk_buff *)((char *)lh -
 				offsetof(struct sk_buff, cb));
 		if (!skb_shared(skb)) {
-			list_del((void*)&skb->cb);
+			list_del(skb_to_lh(skb));
 			mempool_free(skb, zone->pool);
 			zone->allocated--;
 			BUG_ON(zone->allocated < 0);
@@ -266,7 +271,7 @@ iscsi_unicast_skb(struct mempool_zone *zone, struct sk_buff *skb)
 	}
 
 	spin_lock_irqsave(&zone->freelock, flags);
-	list_add((void*)&skb->cb, &zone->freequeue);
+	list_add(skb_to_lh(skb), &zone->freequeue);
 	spin_unlock_irqrestore(&zone->freelock, flags);
 
 	return 0;
