@@ -692,6 +692,8 @@ iscsi_if_get_stats(struct iscsi_transport *transport, struct sk_buff *skb,
 	do {
 		int actual_size;
 
+		mempool_zone_complete(&conn->z_pdu);
+
 		skbstat = mempool_zone_get_skb(&conn->z_pdu);
 		if (!skbstat) {
 			printk("iscsi%d: can not deliver stats: OOM\n",
@@ -1022,7 +1024,7 @@ int iscsi_register_transport(struct iscsi_transport *tt)
 	int count = 0;
 
 	BUG_ON(!tt);
-	
+
 	priv = iscsi_if_transport_lookup(tt);
 	if (priv)
 		return -EEXIST;
