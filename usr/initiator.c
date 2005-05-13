@@ -597,8 +597,12 @@ __send_pdu_timedout(void *data)
 	iscsi_session_t *session = conn->session;
 
 	if (conn->send_pdu_in_progress) {
+		/*
+		 * redirect timeout processing to __session_conn_timer()
+		 */
 		queue_produce(session->queue, EV_CONN_TIMER, qtask, 0, NULL);
 		actor_schedule(&session->mainloop);
+		log_debug(7, "send_pdu timer timedout!");
 	}
 }
 
@@ -960,6 +964,7 @@ __session_conn_poll(queue_item_t *item)
 		}
 	}
 
+	actor_schedule(&session->mainloop);
 	return;
 
 c_cleanup:
@@ -1048,6 +1053,7 @@ __session_conn_reopen(iscsi_conn_t *conn, int do_stop)
 		return MGMT_IPC_ERR_TCP_FAILURE;
 	}
 
+	conn->send_pdu_in_progress = 0;
 	conn->state = STATE_XPT_WAIT;
 	queue_produce(session->queue, EV_CONN_POLL,
 		      &session->reopen_qtask, 0, NULL);

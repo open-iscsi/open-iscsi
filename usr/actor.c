@@ -24,10 +24,10 @@
 static struct qelem pend_list;
 static struct qelem poll_list;
 static struct qelem actor_list;
-static uint32_t previous_time;
-static uint32_t scheduler_loops;
-static int poll_in_progress;
-static uint64_t actor_jiffies = 0;
+static volatile uint32_t previous_time;
+static volatile uint32_t scheduler_loops;
+static volatile int poll_in_progress;
+static volatile uint64_t actor_jiffies = 0;
 
 #define actor_diff(_time1, _time2) ({ \
         uint32_t __ret; \
@@ -187,9 +187,11 @@ actor_check(uint32_t current_time)
 		/* it is time to schedule this entry */
 		remque(pend_list.q_forw);
 
-		log_debug(2, "thread %08lx was scheduled at %u:%u, curtime %u",
-			  (long)thread, thread->scheduled_at,
-			  thread->ttschedule, current_time);
+		log_debug(2, "thread %08lx was scheduled at %u:%u, curtime %u "
+			"q_forw %p &pend_list %p", (long)thread,
+			thread->scheduled_at, thread->ttschedule, current_time,
+			pend_list.q_forw, &pend_list);
+		sleep(1);
 
 		if (poll_in_progress) {
 			thread->state = ACTOR_POLL_WAITING;
