@@ -445,18 +445,29 @@ iscsi_r2t_rsp(struct iscsi_conn *conn, struct iscsi_cmd_task *ctask)
 	/* FIXME: use R2TSN to detect missing R2T */
 
 	/* fill-in new R2T associated with the task */
+	spin_lock(&session->lock);
+	if (session->state != ISCSI_STATE_LOGGED_IN) {
+		printk("iscsi_tcp: dropping R2T itt %d in recovery...\n",
+		       ctask->itt);
+		spin_unlock(&session->lock);
+		return 0;
+	}
 	rc = __kfifo_get(ctask->r2tpool.queue, (void*)&r2t, sizeof(void*));
 	BUG_ON(!rc);
 
 	r2t->exp_statsn = rhdr->statsn;
 	r2t->data_length = be32_to_cpu(rhdr->data_length);
 	if (r2t->data_length == 0 ||
-	    r2t->data_length > session->max_burst)
+	    r2t->data_length > session->max_burst) {
+		spin_unlock(&session->lock);
 		return ISCSI_ERR_DATALEN;
+	}
 
 	r2t->data_offset = be32_to_cpu(rhdr->data_offset);
-	if (r2t->data_offset + r2t->data_length > ctask->total_length)
+	if (r2t->data_offset + r2t->data_length > ctask->total_length) {
+		spin_unlock(&session->lock);
 		return ISCSI_ERR_DATALEN;
+	}
 
 	r2t->ttt = rhdr->ttt; /* no flip */
 	r2t->solicit_datasn = 0;
@@ -470,6 +481,8 @@ iscsi_r2t_rsp(struct iscsi_conn *conn, struct iscsi_cmd_task *ctask)
 
 	schedule_work(&conn->xmitwork);
 	conn->r2t_pdus_cnt++;
+	spin_unlock(&session->lock);
+
 	return 0;
 }
 
@@ -1420,6 +1433,7 @@ iscsi_mtask_xmit(struct iscsi_conn *conn, struct iscsi_mgmt_task *mtask)
 static int
 iscsi_ctask_xmit(struct iscsi_conn *conn, struct iscsi_cmd_task *ctask)
 {
+	struct iscsi_session *session = conn->session;
 	struct iscsi_r2t_info *r2t = NULL;
 
 	debug_scsi("ctask deq [cid %d xmstate %x itt 0x%x]\n",
@@ -1583,7 +1597,9 @@ _solicit_again:
 		BUG_ON(ctask->r2t_data_count - r2t->data_length < 0);
 		ctask->r2t_data_count -= r2t->data_length;
 		ctask->r2t = NULL;
+		spin_lock_bh(&session->lock);
 		__kfifo_put(ctask->r2tpool.queue, (void*)&r2t, sizeof(void*));
+		spin_unlock_bh(&session->lock);
 		if (__kfifo_get(ctask->r2tqueue, (void*)&r2t, sizeof(void*))) {
 			ctask->r2t = r2t;
 			ctask->xmstate |= XMSTATE_SOL_DATA;
