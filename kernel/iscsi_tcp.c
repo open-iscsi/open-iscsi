@@ -1533,9 +1533,9 @@ _unsolicit_head_again:
 			__kfifo_get(ctask->r2tqueue, (void*)&r2t,
 				    sizeof(void*));
 			ctask->r2t = r2t;
-		}
+		} else
+			r2t = ctask->r2t;
 _solicit_head_again:
-		BUG_ON(r2t == NULL);
 		if (iscsi_sendhdr(conn, &r2t->headbuf, r2t->data_count)) {
 			ctask->xmstate &= ~XMSTATE_SOL_DATA;
 			ctask->xmstate |= XMSTATE_SOL_HDR;
