@@ -262,7 +262,7 @@ iscsi_unicast_skb(struct mempool_zone *zone, struct sk_buff *skb)
 	rc = netlink_unicast(nls, skb, daemon_pid, MSG_DONTWAIT);
 	if (rc < 0) {
 		mempool_free(skb, zone->pool);
-		printk("iscsi: can not unicast skb (%d)\n", rc);
+		printk(KERN_ERR "iscsi: can not unicast skb (%d)\n", rc);
 		return rc;
 	}
 
@@ -292,7 +292,7 @@ int iscsi_recv_pdu(iscsi_connh_t connh, struct iscsi_hdr *hdr,
 	skb = mempool_zone_get_skb(&conn->z_pdu);
 	if (!skb) {
 		iscsi_conn_error(connh, ISCSI_ERR_CONN_FAILED);
-		printk("iscsi%d: can not deliver control PDU: OOM\n",
+		printk(KERN_ERR "iscsi%d: can not deliver control PDU: OOM\n",
 		       conn->host->host_no);
 		return -ENOMEM;
 	}
@@ -328,7 +328,7 @@ void iscsi_conn_error(iscsi_connh_t connh, enum iscsi_err error)
 
 	skb = mempool_zone_get_skb(&conn->z_error);
 	if (!skb) {
-		printk("iscsi%d: gracefully ignored conn error (%d)\n",
+		printk(KERN_ERR "iscsi%d: gracefully ignored conn error (%d)\n",
 		       conn->host->host_no, error);
 		return;
 	}
@@ -344,7 +344,8 @@ void iscsi_conn_error(iscsi_connh_t connh, enum iscsi_err error)
 
 	iscsi_unicast_skb(&conn->z_error, skb);
 
-	printk("iscsi%d: detected conn error (%d)\n", conn->host->host_no, error);
+	printk(KERN_INFO "iscsi%d: detected conn error (%d)\n",
+	       conn->host->host_no, error);
 }
 EXPORT_SYMBOL_GPL(iscsi_conn_error);
 
@@ -432,7 +433,8 @@ iscsi_if_create_session(struct iscsi_internal *priv, struct iscsi_uevent *ev)
 				hostdata_privsize(transport));
 	if (!shost) {
 		ev->r.c_session_ret.session_handle = iscsi_handle(NULL);
-		printk("iscsi: can not allocate SCSI host for session\n");
+		printk(KERN_ERR "iscsi: can not allocate SCSI host for "
+		       "session\n");
 		error = -ENOMEM;
 		goto out_module_put;
 	}
@@ -518,7 +520,7 @@ iscsi_if_destroy_session(struct iscsi_internal *priv, struct iscsi_uevent *ev)
 	spin_lock_irqsave(&connlock, flags);
 	list_for_each_entry(conn, &session->connections, session_list) {
 		if (conn->active) {
-			printk("iscsi%d: can not destroy session: "
+			printk(KERN_ERR "iscsi%d: can not destroy session: "
 			       "has active connection (%p)\n",
 			       shost->host_no, iscsi_ptr(conn->connh));
 			spin_unlock_irqrestore(&connlock, flags);
@@ -585,16 +587,16 @@ iscsi_if_create_conn(struct iscsi_transport *transport, struct iscsi_uevent *ev)
 				    DEFAULT_MAX_RECV_DATA_SEGMENT_LENGTH),
 			Z_HIWAT_PDU);
 	if (error) {
-		printk("iscsi%d: can not allocate pdu zone for new conn\n",
-		       shost->host_no);
+		printk(KERN_ERR "iscsi%d: can not allocate pdu zone for new "
+		       "conn\n", shost->host_no);
 		goto out_free_conn;
 	}
 	error = mempool_zone_init(&conn->z_error, Z_MAX_ERROR,
 			NLMSG_SPACE(sizeof(struct iscsi_uevent)),
 			Z_HIWAT_ERROR);
 	if (error) {
-		printk("iscsi%d: can not allocate error zone for new conn\n",
-		       shost->host_no);
+		printk(KERN_ERR "iscsi%d: can not allocate error zone for "
+		       "new conn\n", shost->host_no);
 		goto out_free_pdu_pool;
 	}
 
@@ -697,7 +699,7 @@ iscsi_if_get_stats(struct iscsi_transport *transport, struct sk_buff *skb,
 
 		skbstat = mempool_zone_get_skb(&conn->z_pdu);
 		if (!skbstat) {
-			printk("iscsi%d: can not deliver stats: OOM\n",
+			printk(KERN_ERR "iscsi%d: can not deliver stats: OOM\n",
 			       conn->host->host_no);
 			return -ENOMEM;
 		}
@@ -754,20 +756,20 @@ iscsi_if_recv_msg(struct sk_buff *skb, struct nlmsghdr *nlh)
 	switch (nlh->nlmsg_type) {
 	case ISCSI_UEVENT_TRANS_LIST: {
 		unsigned long flags;
-		int i = 0;
 
 		/*
-		 * Bleh! Close your eyes. Will fix properly in next
-		 * patches. See sysfs based transport table discovery.
+		 * this will always succeed for now since there
+		 * is only one transport. We can kill this event
+		 * and just export the info in sysfs when we settle
+		 * the iscsi sysfs layout debate
 		 */
 		spin_lock_irqsave(&iscsi_transport_lock, flags);
 		list_for_each_entry(priv, &iscsi_transports, list) {
-			ev->r.t_list.elements[i].trans_handle =
+			ev->r.t_list.elements[0].trans_handle =
 					iscsi_handle(priv->iscsi_transport);
-			strncpy(ev->r.t_list.elements[i].name,
+			strncpy(ev->r.t_list.elements[0].name,
 				priv->iscsi_transport->name,
 				ISCSI_TRANSPORT_NAME_MAXLEN);
-			i++;
 		}
 		spin_unlock_irqrestore(&iscsi_transport_lock, flags);
 
@@ -1092,7 +1094,7 @@ int iscsi_register_transport(struct iscsi_transport *tt)
 	list_add(&priv->list, &iscsi_transports);
 	spin_unlock_irqrestore(&iscsi_transport_lock, flags);
 
-	printk("iscsi: registered transport (%s)\n", tt->name);
+	printk(KERN_NOTICE "iscsi: registered transport (%s)\n", tt->name);
 	return 0;
 }
 EXPORT_SYMBOL_GPL(iscsi_register_transport);
