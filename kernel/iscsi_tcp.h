@@ -234,15 +234,15 @@ struct iscsi_data_task {
 #define ISCSI_DTASK_DEFAULT_MAX	ISCSI_SG_TABLESIZE * PAGE_SIZE / 512
 
 struct iscsi_mgmt_task {
-	struct iscsi_hdr hdr;			/* mgmt. PDU */
-	char		hdrext[sizeof(__u32)];	/* Header-Digest */
-	char		*data;			/* mgmt payload */
-	int		xmstate;		/* mgmt xmit progress */
-	int		data_count;		/* counts data to be sent */
-	struct iscsi_buf headbuf;		/* Header Buffer */
-	struct iscsi_buf sendbuf;		/* in progress buffer */
-	int		sent;
-	uint32_t	itt;			/* this ITT */
+	struct iscsi_hdr	hdr;		/* mgmt. PDU */
+	char			hdrext[sizeof(__u32)];	/* Header-Digest */
+	char			*data;		/* mgmt payload */
+	int			xmstate;	/* mgmt xmit progress */
+	int			data_count;	/* counts data to be sent */
+	struct iscsi_buf	headbuf;	/* Header Buffer */
+	struct iscsi_buf	sendbuf;	/* in progress buffer */
+	int			sent;
+	uint32_t		itt;		/* this ITT */
 };
 
 struct iscsi_r2t_info {

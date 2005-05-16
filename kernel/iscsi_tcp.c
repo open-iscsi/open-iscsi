@@ -116,6 +116,12 @@ iscsi_conn_failure(struct iscsi_conn *conn, enum iscsi_err err)
 
 	spin_lock_irqsave(&session->lock, sflags);
 	spin_lock_irqsave(&session->conn_lock, cflags);
+	if (conn->c_stage != ISCSI_CONN_STARTED) {
+		/* drop any secondary errors */
+		spin_unlock_irqrestore(&session->conn_lock, cflags);
+		spin_unlock_irqrestore(&session->lock, sflags);
+		return;
+	}
 	if (session->conn_cnt == 1 ||
 	    session->leadconn == conn) {
 		session->state = ISCSI_STATE_FAILED;
