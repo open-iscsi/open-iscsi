@@ -78,6 +78,8 @@ actor_new(actor_t *thread, void (*callback)(void *), void *data)
 void
 actor_delete(actor_t *thread)
 {
+	log_debug(7, "thread %08lx delete: state %d", (long)thread,
+			thread->state);
 	switch(thread->state) {
 	case ACTOR_SCHEDULED:
 	case ACTOR_WAITING:
@@ -100,6 +102,9 @@ actor_schedule_private(actor_t *thread, uint32_t ttschedule)
 	delay_time = ACTOR_MS_TO_TICKS(ttschedule);
 	current_time = ACTOR_TICKS;
 
+	log_debug(7, "thread %08lx schedule: delay %d state %d", (long)thread,
+			delay_time, thread->state);
+
 	/* convert ttscheduled msecs in 10s of msecs by dividing for now.
 	 * later we will change param to 10s of msecs */
 	switch(thread->state) {
@@ -112,10 +117,10 @@ actor_schedule_private(actor_t *thread, uint32_t ttschedule)
 		if (delay_time == 0) {
 			if (poll_in_progress) {
 				thread->state = ACTOR_POLL_WAITING;
-				insque(&thread->item, &poll_list);
+				insque(&thread->item, poll_list.q_back);
 			} else {
 				thread->state = ACTOR_SCHEDULED;
-				insque(&thread->item, &actor_list);
+				insque(&thread->item, actor_list.q_back);
 			}
 		}
 		else {
@@ -176,17 +181,18 @@ actor_timer_mod(actor_t *thread, uint32_t timeout, void *data)
 void
 actor_check(uint32_t current_time)
 {
-_start:
 	while (pend_list.q_forw != &pend_list) {
 		actor_t *thread = (actor_t *)pend_list.q_forw;
 
 		if (actor_diff_time(thread, current_time)) {
+			log_debug(7, "thread %08lx wait some more",
+				(long)thread);
 			/* wait some more */
 			break;
 		}
 
 		/* it is time to schedule this entry */
-		remque(pend_list.q_forw);
+		remque(&thread->item);
 
 		log_debug(2, "thread %08lx was scheduled at %u:%u, curtime %u "
 			"q_forw %p &pend_list %p", (long)thread,
@@ -195,12 +201,15 @@ _start:
 
 		if (poll_in_progress) {
 			thread->state = ACTOR_POLL_WAITING;
-			insque(&thread->item, &poll_list);
+			insque(&thread->item, poll_list.q_back);
+			log_debug(7, "thread %08lx now in poll_list",
+				(long)thread);
 		} else {
 			thread->state = ACTOR_SCHEDULED;
-			insque(&thread->item, &actor_list);
+			insque(&thread->item, actor_list.q_back);
+			log_debug(7, "thread %08lx now in actor_list",
+				(long)thread);
 		}
-		goto _start;
 	}
 }
 
@@ -235,19 +244,23 @@ actor_poll(void)
 		actor_t *thread = (actor_t *)actor_list.q_forw;
 		if (thread->state != ACTOR_SCHEDULED)
 			log_debug(1, "actor_list: thread state corrupted!");
-		remque(actor_list.q_forw);
+		remque(&thread->item);
 		thread->state = ACTOR_NOTSCHEDULED;
 		thread->callback(thread->data);
+		log_debug(7, "thread %08lx removed from actor_list",
+			(long)thread);
 	}
 	poll_in_progress = 0;
 
 	while (poll_list.q_forw != &poll_list) {
 		actor_t *thread = (actor_t *)poll_list.q_forw;
-		remque(poll_list.q_forw);
 		if (thread->state != ACTOR_POLL_WAITING)
 			log_debug(1, "poll_list: thread state corrupted!");
+		remque(&thread->item);
 		thread->state = ACTOR_SCHEDULED;
-		insque(&thread->item, &actor_list);
+		insque(&thread->item, actor_list.q_back);
+		log_debug(7, "thread %08lx removed from poll_list",
+			(long)thread);
 	}
 
 	ACTOR_TICKS++;

@@ -32,7 +32,7 @@ typedef enum actor_state_e {
 } actor_state_e;
 
 typedef struct actor {
-    struct qelem item;
+    struct qelem item; /* must be first element in the struct */
     actor_state_e state;
     void *data;
     void (*callback)(void * );
