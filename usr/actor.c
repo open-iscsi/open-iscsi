@@ -176,6 +176,7 @@ actor_timer_mod(actor_t *thread, uint32_t timeout, void *data)
 void
 actor_check(uint32_t current_time)
 {
+_start:
 	while (pend_list.q_forw != &pend_list) {
 		actor_t *thread = (actor_t *)pend_list.q_forw;
 
@@ -191,7 +192,6 @@ actor_check(uint32_t current_time)
 			"q_forw %p &pend_list %p", (long)thread,
 			thread->scheduled_at, thread->ttschedule, current_time,
 			pend_list.q_forw, &pend_list);
-		sleep(1);
 
 		if (poll_in_progress) {
 			thread->state = ACTOR_POLL_WAITING;
@@ -200,6 +200,7 @@ actor_check(uint32_t current_time)
 			thread->state = ACTOR_SCHEDULED;
 			insque(&thread->item, &actor_list);
 		}
+		goto _start;
 	}
 }
 

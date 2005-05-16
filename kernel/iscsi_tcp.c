@@ -931,8 +931,10 @@ more:
 	conn->in.copied = 0;
 	rc = 0;
 	
-	if (unlikely(test_bit(RX_SUSPEND, &conn->suspend)))
+	if (unlikely(test_bit(RX_SUSPEND, &conn->suspend))) {
+		debug_tcp("conn %d Rx suspended!\n", conn->id);
 		return 0;
+	}
 
 	if (conn->in_progress == IN_PROGRESS_WAIT_HEADER ||
 	    conn->in_progress == IN_PROGRESS_HEADER_GATHER) {
@@ -1736,8 +1738,10 @@ iscsi_data_xmit_more(struct iscsi_conn *conn)
 {
 	int rc;
 
-	if (unlikely(test_bit(TX_SUSPEND, &conn->suspend)))
+	if (unlikely(test_bit(TX_SUSPEND, &conn->suspend))) {
+		debug_tcp("conn %d Tx suspended!\n", conn->id);
 		return 0;
+	}
 	rc = iscsi_data_xmit(conn);
 	if (rc) {
 		if (conn->stop_stage != STOP_CONN_RECOVER &&
@@ -2173,6 +2177,11 @@ iscsi_conn_bind(iscsi_sessionh_t sessionh, iscsi_connh_t connh,
 		 * processing.
 		 */
 		iscsi_conn_set_callbacks(conn);
+
+		/*
+		 * set receive state machine into initial state
+		 */
+		conn->in_progress = IN_PROGRESS_WAIT_HEADER;
 	}
 
 	if (is_leading)
