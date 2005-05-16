@@ -563,11 +563,13 @@ __session_mgmt_ipc_login_cleanup(queue_task_t *qtask, mgmt_ipc_err_e err,
 			__session_destroy(session);
 	}
 
-	qtask->u.login.rsp.err = err;
-	write(qtask->u.login.mgmt_ipc_fd, &qtask->u.login.rsp,
-		sizeof(qtask->u.login.rsp));
-	close(qtask->u.login.mgmt_ipc_fd);
-	free(qtask);
+	if (session->r_stage != R_STAGE_SESSION_REOPEN) {
+		qtask->u.login.rsp.err = err;
+		write(qtask->u.login.mgmt_ipc_fd, &qtask->u.login.rsp,
+			sizeof(qtask->u.login.rsp));
+		close(qtask->u.login.mgmt_ipc_fd);
+		free(qtask);
+	}
 }
 
 static int
