@@ -936,7 +936,7 @@ iscsi_tcp_data_recv(read_descriptor_t *rd_desc, struct sk_buff *skb,
 more:
 	conn->in.copied = 0;
 	rc = 0;
-	
+
 	if (unlikely(test_bit(RX_SUSPEND, &conn->suspend))) {
 		debug_tcp("conn %d Rx suspended!\n", conn->id);
 		return 0;
@@ -2041,17 +2041,6 @@ iscsi_conn_destroy(iscsi_connh_t connh)
 	struct iscsi_conn *conn = iscsi_ptr(connh);
 	struct iscsi_session *session = conn->session;
 
-	if (conn->c_stage == ISCSI_CONN_INITIAL_STAGE) {
-		/*
-		 * conn_start() was never been called!
-		 * we must cleanup socket.
-		 */
-		sock_hold(conn->sock->sk);
-		iscsi_conn_restore_callbacks(conn);
-		sock_put(conn->sock->sk);
-		sock_release(conn->sock);
-	}
-
 	del_timer_sync(&conn->tmabort_timer);
 	if (session->leadconn == conn) {
 		/*
@@ -2069,6 +2058,8 @@ iscsi_conn_destroy(iscsi_connh_t connh)
 	 * We must serialize with xmitwork recv pathes.
 	 */
 	down(&conn->xmitsema);
+	set_bit(TX_SUSPEND, &conn->suspend);
+	set_bit(RX_SUSPEND, &conn->suspend);
 	conn->c_stage = ISCSI_CONN_CLEANUP_WAIT;
 	for (;;) {
 		spin_lock_bh(&conn->lock);
@@ -2083,6 +2074,17 @@ iscsi_conn_destroy(iscsi_connh_t connh)
 			   session->host->host_failed);
 	}
 	up(&conn->xmitsema);
+
+	if (conn->c_stage == ISCSI_CONN_INITIAL_STAGE && conn->sock) {
+		/*
+		 * conn_start() was never been called!
+		 * we must cleanup socket.
+		 */
+		sock_hold(conn->sock->sk);
+		iscsi_conn_restore_callbacks(conn);
+		sock_put(conn->sock->sk);
+		sock_release(conn->sock);
+	}
 
 	/* now free crypto */
 	if (conn->hdrdgst_en || conn->datadgst_en) {
