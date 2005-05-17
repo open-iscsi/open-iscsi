@@ -553,6 +553,7 @@ __session_mgmt_ipc_login_cleanup(queue_task_t *qtask, mgmt_ipc_err_e err,
 {
 	iscsi_conn_t *conn = qtask->conn;
 	iscsi_session_t *session = conn->session;
+	iscsi_session_r_stage_e r_stage = session->r_stage;
 
 	if (conn_cleanup) {
 		iscsi_io_disconnect(conn);
@@ -563,7 +564,7 @@ __session_mgmt_ipc_login_cleanup(queue_task_t *qtask, mgmt_ipc_err_e err,
 			__session_destroy(session);
 	}
 
-	if (session->r_stage != R_STAGE_SESSION_REOPEN) {
+	if (r_stage != R_STAGE_SESSION_REOPEN) {
 		qtask->u.login.rsp.err = err;
 		write(qtask->u.login.mgmt_ipc_fd, &qtask->u.login.rsp,
 			sizeof(qtask->u.login.rsp));
