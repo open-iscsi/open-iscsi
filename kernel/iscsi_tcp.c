@@ -2162,7 +2162,8 @@ iscsi_conn_bind(iscsi_sessionh_t sessionh, iscsi_connh_t connh,
 	int err;
 
 	/* lookup for existing socket */
-	if (!(sock = sockfd_lookup(transport_fd, &err))) {
+	sock = sockfd_lookup(transport_fd, &err);
+	if (!sock) {
 		printk("iscsi_tcp: sockfd_lookup failed %d\n", err);
 		return -EEXIST;
 	}
