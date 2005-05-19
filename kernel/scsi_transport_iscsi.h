@@ -2,7 +2,9 @@
  * iSCSI transport class definitions
  *
  * Copyright (C) IBM Corporation, 2004
- * Copyright (C) Mike Christie, Dmitry Yusupov, Alex Aizman, 2004 - 2005
+ * Copyright (C) Mike Christie, 2004 - 2005
+ * Copyright (C) Dmitry Yusupov, 2004 - 2005
+ * Copyright (C) Alex Aizman, 2004 - 2005
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
