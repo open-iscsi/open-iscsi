@@ -238,7 +238,7 @@ iscsi_cmd_rsp(struct iscsi_conn *conn, struct iscsi_cmd_task *ctask)
 	if (max_cmdsn < exp_cmdsn - 1) {
 		rc = ISCSI_ERR_MAX_CMDSN;
 		sc->result = (DID_ERROR << 16);
-		goto fault;
+		goto out;
 	}
 	session->max_cmdsn = max_cmdsn;
 	session->exp_cmdsn = exp_cmdsn;
@@ -246,38 +246,34 @@ iscsi_cmd_rsp(struct iscsi_conn *conn, struct iscsi_cmd_task *ctask)
 
 	sc->result = (DID_OK << 16) | rhdr->cmd_status;
 
-	if (rhdr->response == ISCSI_STATUS_CMD_COMPLETED) {
-		if (rhdr->cmd_status == SAM_STAT_CHECK_CONDITION &&
-		    conn->senselen) {
-			int sensecopy = min(conn->senselen,
-					    SCSI_SENSE_BUFFERSIZE);
-			memcpy(sc->sense_buffer, conn->data + 2, sensecopy);
-			debug_scsi("copied %d bytes of sense\n", sensecopy);
-		}
-
-		if (sc->sc_data_direction != DMA_TO_DEVICE ) {
-			if (rhdr->flags & ISCSI_FLAG_CMD_UNDERFLOW) {
-				int res_count =
-					be32_to_cpu(rhdr->residual_count);
-				if (res_count > 0 &&
-				    res_count <= sc->request_bufflen) {
-					sc->resid = res_count;
-				} else {
-					sc->result = (DID_BAD_TARGET << 16) |
-						     rhdr->cmd_status;
-				}
-			} else if (rhdr->flags& ISCSI_FLAG_CMD_BIDI_UNDERFLOW) {
-				sc->result = (DID_BAD_TARGET << 16) |
-					     rhdr->cmd_status;
-			} else if (rhdr->flags & ISCSI_FLAG_CMD_OVERFLOW) {
-				sc->resid = be32_to_cpu(rhdr->residual_count);
-			}
-		}
-	} else {
+	if (rhdr->response != ISCSI_STATUS_CMD_COMPLETED) {
 		sc->result = (DID_ERROR << 16);
+		goto out;
 	}
 
-fault:
+	if (rhdr->cmd_status == SAM_STAT_CHECK_CONDITION && conn->senselen) {
+		int sensecopy = min(conn->senselen, SCSI_SENSE_BUFFERSIZE);
+
+		memcpy(sc->sense_buffer, conn->data + 2, sensecopy);
+		debug_scsi("copied %d bytes of sense\n", sensecopy);
+	}
+
+	if (sc->sc_data_direction == DMA_TO_DEVICE)
+		goto out;
+
+	if (rhdr->flags & ISCSI_FLAG_CMD_UNDERFLOW) {
+		int res_count = be32_to_cpu(rhdr->residual_count);
+
+		if (res_count > 0 && res_count <= sc->request_bufflen)
+			sc->resid = res_count;
+		else
+			sc->result = (DID_BAD_TARGET << 16) | rhdr->cmd_status;
+	} else if (rhdr->flags & ISCSI_FLAG_CMD_BIDI_UNDERFLOW)
+		sc->result = (DID_BAD_TARGET << 16) | rhdr->cmd_status;
+	else if (rhdr->flags & ISCSI_FLAG_CMD_OVERFLOW)
+		sc->resid = be32_to_cpu(rhdr->residual_count);
+
+out:
 	debug_scsi("done [sc %lx res %d itt 0x%x]\n",
 		   (long)sc, sc->result, ctask->itt);
 	conn->scsirsp_pdus_cnt++;
