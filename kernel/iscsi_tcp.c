@@ -461,7 +461,7 @@ iscsi_r2t_rsp(struct iscsi_conn *conn, struct iscsi_cmd_task *ctask)
 
 	/* fill-in new R2T associated with the task */
 	spin_lock(&session->lock);
-	if (session->state != ISCSI_STATE_LOGGED_IN) {
+	if (!ctask->sc || session->state != ISCSI_STATE_LOGGED_IN) {
 		printk("iscsi_tcp: dropping R2T itt %d in recovery...\n",
 		       ctask->itt);
 		spin_unlock(&session->lock);
@@ -2282,16 +2282,18 @@ iscsi_conn_stop(iscsi_connh_t connh, int flag)
 {
 	struct iscsi_conn *conn = iscsi_ptr(connh);
 	struct iscsi_session *session = conn->session;
+	struct sock *sk = conn->sock->sk;
 	unsigned long flags;
 
+	down(&conn->xmitsema);
 	conn->stop_stage = flag;
 
 	/*
 	 * guaranteed Rx callback serialization
 	 */
-	write_lock_bh(&conn->sock->sk->sk_callback_lock);
+	write_lock_bh(&sk->sk_callback_lock);
 	set_bit(RX_SUSPEND, &conn->suspend);
-	write_unlock_bh(&conn->sock->sk->sk_callback_lock);
+	write_unlock_bh(&sk->sk_callback_lock);
 
 	/*
 	 * guaranteed Tx queuecommand serialization
@@ -2325,7 +2327,6 @@ iscsi_conn_stop(iscsi_connh_t connh, int flag)
 		/*
 		 * flush xmit queues.
 		 */
-		down(&conn->xmitsema);
 		spin_lock_bh(&session->lock);
 		while (__kfifo_get(conn->writequeue, (void*)&ctask,
 			    sizeof(void*)) ||
@@ -2357,7 +2358,6 @@ iscsi_conn_stop(iscsi_connh_t connh, int flag)
 		}
 		conn->mtask = NULL;
 		spin_unlock_bh(&session->lock);
-		up(&conn->xmitsema);
 
 		/*
 		 * release socket only after we stopped data_xmit()
@@ -2374,6 +2374,7 @@ iscsi_conn_stop(iscsi_connh_t connh, int flag)
 		if (flag == STOP_CONN_RECOVER)
 			conn->hdr_size = sizeof(struct iscsi_hdr);
 	}
+	up(&conn->xmitsema);
 }
 
 static int
@@ -2513,6 +2514,7 @@ iscsi_eh_abort(struct scsi_cmnd *sc)
 	struct iscsi_cmd_task *ctask = (struct iscsi_cmd_task *)sc->SCp.ptr;
 	struct iscsi_conn *conn = ctask->conn;
 	struct iscsi_session *session = conn->session;
+	struct sock *sk;
 
 	spin_unlock_irq(session->host->host_lock);
 
@@ -2651,19 +2653,23 @@ iscsi_eh_abort(struct scsi_cmnd *sc)
 success:
 	debug_scsi("abort success [sc %lx itt 0x%x]\n", (long)sc, ctask->itt);
 	BUG_ON(session->state != ISCSI_STATE_LOGGED_IN);
-	local_bh_disable();
-	iscsi_ctask_cleanup(conn, ctask);
-	local_bh_enable();
-	spin_lock_irq(session->host->host_lock);
-	return SUCCESS;
+	rc = SUCCESS;
+	goto exit;
+
 failed:
 	BUG_ON(session->state != ISCSI_STATE_TERMINATE);
 	debug_scsi("abort failed [sc %lx itt 0x%x]\n", (long)sc, ctask->itt);
-	local_bh_disable();
+	rc = FAILED;
+
+exit:
+	down(&conn->xmitsema);
+	sk = conn->sock->sk;
+	write_lock_bh(&sk->sk_callback_lock);
 	iscsi_ctask_cleanup(conn, ctask);
-	local_bh_enable();
+	write_unlock_bh(&sk->sk_callback_lock);
+	up(&conn->xmitsema);
 	spin_lock_irq(session->host->host_lock);
-	return FAILED;
+	return rc;
 }
 
 static int
