@@ -48,11 +48,6 @@
 #define	TMABORT_FAILED			0x2
 #define	TMABORT_TIMEDOUT		0x3
 
-/* iSCSI Task Command's state machine */
-#define IN_PROGRESS_IDLE		0x0
-#define IN_PROGRESS_READ		0x1
-#define IN_PROGRESS_WRITE		0x2
-
 /* xmit state machine */
 #define	XMSTATE_IDLE			0x0
 #define	XMSTATE_R_HDR			0x1
@@ -73,11 +68,17 @@
 #define ISCSI_R2T_MAX		16
 #define ISCSI_XMIT_CMDS_MAX	128		/* must be power of 2 */
 #define ISCSI_MGMT_CMDS_MAX	32		/* must be power of 2 */
-#define ISCSI_MGMT_ITT_OFFSET	0x1000
+#define ISCSI_MGMT_ITT_OFFSET	0xa00
 #define ISCSI_SG_TABLESIZE	SG_ALL
 #define ISCSI_CMD_PER_LUN	128
 #define ISCSI_TCP_MAX_LUN	256
 #define ISCSI_TCP_MAX_CMD_LEN	16
+
+#define ITT_MASK		(0xfff)
+#define CID_SHIFT		12
+#define CID_MASK		(0xffff<<CID_SHIFT)
+#define AGE_SHIFT		28
+#define AGE_MASK		(0xf<<AGE_SHIFT)
 
 struct iscsi_queue {
 	struct kfifo		*queue;		/* FIFO Queue */
@@ -273,7 +274,6 @@ struct iscsi_cmd_task {
 	int			sg_count;		/* SG's to process */
 	uint32_t		unsol_datasn;
 	uint32_t		exp_r2tsn;
-	volatile int		in_progress;		/* State machine */
 	int			xmstate;		/* Xmit State machine */
 	int			imm_count;		/* Imm-Data bytes */
 	int			unsol_count;		/* Imm-Data-Out bytes */
