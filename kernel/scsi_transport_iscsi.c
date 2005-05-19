@@ -1170,7 +1170,10 @@ static __init int iscsi_transport_init(void)
 	if (err)
 		goto unregister_conn_class;
 
-	netlink_register_notifier(&iscsi_nl_notifier);
+	err = netlink_register_notifier(&iscsi_nl_notifier);
+	if (err)
+		goto unregister_session_class;
+
 	nls = netlink_kernel_create(NETLINK_ISCSI, iscsi_if_rx);
 	if (!nls) {
 		err = -ENOBUFS;
@@ -1185,6 +1188,8 @@ static __init int iscsi_transport_init(void)
 	sock_release(nls->sk_socket);
  unregister_notifier:
 	netlink_unregister_notifier(&iscsi_nl_notifier);
+ unregister_session_class:
+	transport_class_unregister(&iscsi_session_class);
  unregister_conn_class:
 	transport_class_unregister(&iscsi_connection_class);
 	return err;
