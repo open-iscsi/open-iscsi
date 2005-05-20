@@ -828,54 +828,55 @@ iscsi_data_recv(struct iscsi_conn *conn)
 
 	switch(conn->in.opcode) {
 	case ISCSI_OP_SCSI_DATA_IN: {
-	    struct iscsi_cmd_task *ctask = conn->in.ctask;
-	    struct scsi_cmnd *sc = ctask->sc;
-	    BUG_ON((void*)ctask != sc->SCp.ptr);
+		struct iscsi_cmd_task *ctask = conn->in.ctask;
+		struct scsi_cmnd *sc = ctask->sc;
+		BUG_ON((void*)ctask != sc->SCp.ptr);
 
-	    /*
-	     * copying Data-In into the Scsi_Cmnd
-	     */
-	    if (sc->use_sg) {
-		int i;
-		struct scatterlist *sg = sc->request_buffer;
+		/*
+		 * copying Data-In into the Scsi_Cmnd
+		 */
+		if (sc->use_sg) {
+			int i;
+			struct scatterlist *sg = sc->request_buffer;
 
-		for (i = ctask->sg_count; i < sc->use_sg; i++) {
-			char *dest;
+			for (i = ctask->sg_count; i < sc->use_sg; i++) {
+				char *dest;
 
-			dest = kmap_atomic(sg[i].page, KM_USER0);
-			rc = iscsi_ctask_copy(conn, ctask, dest + sg[i].offset,
-					      sg->length);
-			kunmap_atomic(dest, KM_USER0);
+				dest = kmap_atomic(sg[i].page, KM_USER0);
+				rc = iscsi_ctask_copy(conn, ctask,
+						      dest + sg[i].offset,
+						      sg->length);
+				kunmap_atomic(dest, KM_USER0);
+				if (rc == -EAGAIN)
+					/* continue with the next SKB/PDU */
+					goto exit;
+				if (!rc)
+					ctask->sg_count++;
+				if (!ctask->data_count) {
+					rc = 0;
+					break;
+				}
+				if (!conn->in.copy) {
+					rc = -EAGAIN;
+					goto exit;
+				}
+			}
+		} else {
+			rc = iscsi_ctask_copy(conn, ctask, sc->request_buffer,
+					      sc->request_bufflen);
 			if (rc == -EAGAIN)
-				/* continue with the next SKB/PDU */
 				goto exit;
-			if (!rc)
-				ctask->sg_count++;
-			if (!ctask->data_count) {
-				rc = 0;
-				break;
-			}
-			if (!conn->in.copy) {
-				rc = -EAGAIN;
-				goto exit;
-			}
+			rc = 0;
 		}
-	    } else {
-		rc = iscsi_ctask_copy(conn, ctask, sc->request_buffer,
-				      sc->request_bufflen);
-		if (rc == -EAGAIN)
-			goto exit;
-		rc = 0;
-	    }
 
-	    /* check for non-exceptional status */
-	    if (conn->in.flags & ISCSI_FLAG_DATA_STATUS) {
-		    debug_scsi("done [sc %lx res %d itt 0x%x]\n",
-			       (long)sc, sc->result, ctask->itt);
-	    	    conn->scsirsp_pdus_cnt++;
-		    iscsi_ctask_cleanup(conn, ctask);
-		    sc->scsi_done(sc);
-	    }
+		/* check for non-exceptional status */
+		if (conn->in.flags & ISCSI_FLAG_DATA_STATUS) {
+			debug_scsi("done [sc %lx res %d itt 0x%x]\n",
+				   (long)sc, sc->result, ctask->itt);
+			conn->scsirsp_pdus_cnt++;
+			iscsi_ctask_cleanup(conn, ctask);
+			sc->scsi_done(sc);
+		}
 	}
 	break;
 	case ISCSI_OP_SCSI_CMD_RSP: {
