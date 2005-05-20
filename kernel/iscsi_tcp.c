@@ -457,7 +457,8 @@ iscsi_r2t_rsp(struct iscsi_conn *conn, struct iscsi_cmd_task *ctask)
 
 	/* fill-in new R2T associated with the task */
 	spin_lock(&session->lock);
-	if (!ctask->sc || session->state != ISCSI_STATE_LOGGED_IN) {
+	if (!ctask->sc || ctask->mtask ||
+	     session->state != ISCSI_STATE_LOGGED_IN) {
 		printk("iscsi_tcp: dropping R2T itt %d in recovery...\n",
 		       ctask->itt);
 		spin_unlock(&session->lock);
@@ -1326,6 +1327,7 @@ iscsi_cmd_init(struct iscsi_conn *conn, struct iscsi_cmd_task *ctask,
 	memcpy(ctask->hdr.cdb, sc->cmnd, sc->cmd_len);
 	memset(&ctask->hdr.cdb[sc->cmd_len], 0, MAX_COMMAND_SIZE - sc->cmd_len);
 
+	ctask->mtask = NULL;
 	ctask->sent = 0;
 	ctask->sg_count = 0;
 
@@ -1475,6 +1477,12 @@ iscsi_ctask_xmit(struct iscsi_conn *conn, struct iscsi_cmd_task *ctask)
 
 	debug_scsi("ctask deq [cid %d xmstate %x itt 0x%x]\n",
 		conn->id, ctask->xmstate, ctask->itt);
+
+	/*
+	 * serialize with TMF AbortTask
+	 */
+	if (ctask->mtask)
+		return 0;
 
 	if (ctask->xmstate & XMSTATE_R_HDR) {
 		ctask->xmstate &= ~XMSTATE_R_HDR;
@@ -2061,16 +2069,6 @@ iscsi_conn_destroy(iscsi_connh_t connh)
 	struct iscsi_conn *conn = iscsi_ptr(connh);
 	struct iscsi_session *session = conn->session;
 
-	del_timer_sync(&conn->tmabort_timer);
-	if (session->leadconn == conn) {
-		/*
-		 * Control plane decided to destroy leading connection?
-		 * Its a signal for us to give up on recovery.
-		 */
-		session->state = ISCSI_STATE_TERMINATE;
-		wake_up(&conn->ehwait);
-	}
-
 	/*
 	 * Block control plane caller (a thread coming from
 	 * a user space) until all the in-progress commands for this connection
@@ -2079,8 +2077,37 @@ iscsi_conn_destroy(iscsi_connh_t connh)
 	 */
 	down(&conn->xmitsema);
 	set_bit(TX_SUSPEND, &conn->suspend);
-	set_bit(RX_SUSPEND, &conn->suspend);
+	if (conn->c_stage == ISCSI_CONN_INITIAL_STAGE && conn->sock) {
+		struct sock *sk = conn->sock->sk;
+
+		/*
+		 * conn_start() was never been called!
+		 * we must cleanup socket.
+		 */
+
+		write_lock_bh(&sk->sk_callback_lock);
+		set_bit(RX_SUSPEND, &conn->suspend);
+		write_unlock_bh(&sk->sk_callback_lock);
+
+		sock_hold(conn->sock->sk);
+		iscsi_conn_restore_callbacks(conn);
+		sock_put(conn->sock->sk);
+		sock_release(conn->sock);
+	}
 	conn->c_stage = ISCSI_CONN_CLEANUP_WAIT;
+	del_timer_sync(&conn->tmabort_timer);
+
+	if (session->leadconn == conn) {
+		/*
+		 * Control plane decided to destroy leading connection?
+		 * Its a signal for us to give up on recovery.
+		 */
+		spin_lock_bh(&session->lock);
+		session->state = ISCSI_STATE_TERMINATE;
+		spin_unlock_bh(&session->lock);
+		wake_up(&conn->ehwait);
+	}
+
 	for (;;) {
 		spin_lock_bh(&conn->lock);
 		if (!session->host->host_busy) { /* OK for ERL == 0 */
@@ -2093,18 +2120,8 @@ iscsi_conn_destroy(iscsi_connh_t connh)
 			   session->host->host_busy,
 			   session->host->host_failed);
 	}
-	up(&conn->xmitsema);
 
-	if (conn->c_stage == ISCSI_CONN_INITIAL_STAGE && conn->sock) {
-		/*
-		 * conn_start() was never been called!
-		 * we must cleanup socket.
-		 */
-		sock_hold(conn->sock->sk);
-		iscsi_conn_restore_callbacks(conn);
-		sock_put(conn->sock->sk);
-		sock_release(conn->sock);
-	}
+	up(&conn->xmitsema);
 
 	/* now free crypto */
 	if (conn->hdrdgst_en || conn->datadgst_en) {
@@ -2383,6 +2400,10 @@ iscsi_conn_send_pdu(iscsi_connh_t connh, struct iscsi_hdr *hdr, char *data,
 	struct iscsi_mgmt_task *mtask;
 
 	spin_lock_bh(&session->lock);
+	if (session->state == ISCSI_STATE_TERMINATE) {
+		spin_unlock_bh(&session->lock);
+		return -EPERM;
+	}
 	if (hdr->opcode == (ISCSI_OP_LOGIN | ISCSI_OP_IMMEDIATE) ||
 	    hdr->opcode == (ISCSI_OP_TEXT | ISCSI_OP_IMMEDIATE)) {
 		/*
@@ -2523,9 +2544,15 @@ iscsi_eh_abort(struct scsi_cmnd *sc)
 	 * 1) connection-level failure;
 	 * 2) recovery due protocol error;
 	 */
+	down(&conn->xmitsema);
+	spin_lock_bh(&session->lock);
 	if (session->state != ISCSI_STATE_LOGGED_IN) {
-		if (session->state == ISCSI_STATE_TERMINATE)
+		if (session->state == ISCSI_STATE_TERMINATE) {
+			spin_unlock_bh(&session->lock);
+			up(&conn->xmitsema);
 			goto failed;
+		}
+		spin_unlock_bh(&session->lock);
 	} else {
 		struct iscsi_tm *hdr = &conn->tmhdr;
 
@@ -2533,7 +2560,6 @@ iscsi_eh_abort(struct scsi_cmnd *sc)
 		 * Still LOGGED_IN...
 		 */
 
-		spin_lock_bh(&session->lock);
 		if (!ctask->sc || sc->SCp.phase != session->generation) {
 			/*
 			 * 1) ctask completed before time out. But session
@@ -2541,6 +2567,7 @@ iscsi_eh_abort(struct scsi_cmnd *sc)
 			 * 2) session was re-open during time out of ctask.
 			 */
 			spin_unlock_bh(&session->lock);
+			up(&conn->xmitsema);
 			goto success;
 		}
 		spin_unlock_bh(&session->lock);
@@ -2566,6 +2593,8 @@ iscsi_eh_abort(struct scsi_cmnd *sc)
 			iscsi_conn_failure(conn, ISCSI_ERR_CONN_FAILED);
 			debug_scsi("abort sent failure [itt 0x%x]", ctask->itt);
 		} else {
+			struct iscsi_r2t_info *r2t;
+
 			/*
 			 * TMF abort vs. TMF response race logic
 			 */
@@ -2573,6 +2602,14 @@ iscsi_eh_abort(struct scsi_cmnd *sc)
 			ctask->mtask = (struct iscsi_mgmt_task *)
 				session->mgmt_cmds[(hdr->itt & ITT_MASK) -
 							ISCSI_MGMT_ITT_OFFSET];
+			/*
+			 * have to flush r2tqueue to avoid r2t leaks
+			 */
+			while (__kfifo_get(ctask->r2tqueue, (void*)&r2t,
+				sizeof(void*))) {
+				__kfifo_put(ctask->r2tpool.queue, (void*)&r2t,
+					sizeof(void*));
+			}
 			if (conn->tmabort_state == TMABORT_INITIAL) {
 				conn->tmfcmd_pdus_cnt++;
 				conn->tmabort_timer.expires = 3*HZ + jiffies;
@@ -2586,6 +2623,7 @@ iscsi_eh_abort(struct scsi_cmnd *sc)
 				    conn->tmabort_state == TMABORT_SUCCESS) {
 					conn->tmabort_state = TMABORT_INITIAL;
 					spin_unlock_bh(&session->lock);
+					up(&conn->xmitsema);
 					goto success;
 				}
 				conn->tmabort_state = TMABORT_INITIAL;
@@ -2594,6 +2632,7 @@ iscsi_eh_abort(struct scsi_cmnd *sc)
 			spin_unlock_bh(&session->lock);
 		}
 	}
+	up(&conn->xmitsema);
 
 
 	/*
