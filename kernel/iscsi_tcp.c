@@ -222,9 +222,11 @@ iscsi_ctask_cleanup(struct iscsi_conn *conn, struct iscsi_cmd_task *ctask)
 	spin_unlock(&session->lock);
 }
 
-/*
- * SCSI Command Response processing
- */
+/**
+ * iscsi_cmd_rsp - SCSI Command Response processing
+ * @conn: iscsi connection
+ * @ctask: scsi command task
+ **/
 static int
 iscsi_cmd_rsp(struct iscsi_conn *conn, struct iscsi_cmd_task *ctask)
 {
@@ -282,9 +284,11 @@ out:
 	return rc;
 }
 
-/*
- * SCSI Data-In Response processing
- */
+/**
+ * iscsi_data_rsp - SCSI Data-In Response processing
+ * @conn: iscsi connection
+ * @ctask: scsi command task
+ **/
 static int
 iscsi_data_rsp(struct iscsi_conn *conn, struct iscsi_cmd_task *ctask)
 {
@@ -344,14 +348,18 @@ iscsi_data_rsp(struct iscsi_conn *conn, struct iscsi_cmd_task *ctask)
 	return 0;
 }
 
-/*
+/**
  * iscsi_solicit_data_init - initialize first Data-Out
+ * @conn: iscsi connection
+ * @ctask: scsi command task
+ * @r2t: R2T info 
  *
- * Initialize first Data-Out within this R2T sequence and finds
- * proper data_offset within this SCSI command.
+ * Notes:
+ *	Initialize first Data-Out within this R2T sequence and finds
+ *	proper data_offset within this SCSI command.
  *
- * This function is called with connection lock taken.
- */
+ *	This function is called with connection lock taken.
+ **/
 static void
 iscsi_solicit_data_init(struct iscsi_conn *conn, struct iscsi_cmd_task *ctask,
 			struct iscsi_r2t_info *r2t)
@@ -424,9 +432,11 @@ iscsi_solicit_data_init(struct iscsi_conn *conn, struct iscsi_cmd_task *ctask,
 	list_add(&dtask->item, &ctask->dataqueue);
 }
 
-/*
- * iSCSI R2T Response processing
- */
+/**
+ * iscsi_r2t_rsp - iSCSI R2T Response processing
+ * @conn: iscsi connection
+ * @ctask: scsi command task
+ **/
 static int
 iscsi_r2t_rsp(struct iscsi_conn *conn, struct iscsi_cmd_task *ctask)
 {
@@ -725,12 +735,28 @@ iscsi_hdr_recv(struct iscsi_conn *conn)
 	return rc;
 }
 
-/*
+/**
  * iscsi_ctask_copy - copy skb bits to the destanation cmd task
+ * @conn: iscsi connection
+ * @ctask: scsi command task
+ * @buf: buffer to copy to
+ * @buf_size: size of buffer
  *
- * The function calls skb_copy_bits() and updates per-connection and
- * per-cmd byte counters.
- */
+ * Notes:
+ *	The function calls skb_copy_bits() and updates per-connection and
+ *	per-cmd byte counters.
+ *
+ *	Read counters (in bytes):
+ *
+ *	conn->in.offset		offset within in progress SKB
+ *	conn->in.copy		left to copy from in progress SKB
+ *				including padding
+ *	conn->in.copied		copied already from in progress SKB
+ *	conn->data_copied	copied already from in progress buffer
+ *	ctask->sent		total bytes sent up to the MidLayer
+ *	ctask->data_count	left to copy from in progress Data-In
+ *	buf_left		left to copy from in progress buffer
+ **/
 static inline int
 iscsi_ctask_copy(struct iscsi_conn *conn, struct iscsi_cmd_task *ctask,
 		void *buf, int buf_size)
@@ -738,19 +764,6 @@ iscsi_ctask_copy(struct iscsi_conn *conn, struct iscsi_cmd_task *ctask,
 	int buf_left = buf_size - conn->data_copied;
 	int size = min(conn->in.copy, buf_left);
 	int rc;
-
-	/*
-	 * Read counters (in bytes):
-	 *
-	 *	conn->in.offset		offset within in progress SKB
-	 *	conn->in.copy		left to copy from in progress SKB
-	 *				including padding
-	 *	conn->in.copied		copied already from in progress SKB
-	 *	conn->data_copied	copied already from in progress buffer
-	 *	ctask->sent		total bytes sent up to the MidLayer
-	 *	ctask->data_count	left to copy from in progress Data-In
-	 *	buf_left		left to copy from in progress buffer
-	 */
 
 	size = min(size, ctask->data_count);
 
@@ -789,11 +802,16 @@ iscsi_ctask_copy(struct iscsi_conn *conn, struct iscsi_cmd_task *ctask,
 	return 0;
 }
 
-/*
+/**
  * iscsi_tcp_copy - copy skb bits to the destanation buffer
+ * @conn: iscsi connection
+ * @buf: buffer to copy to
+ * @buf_size: number of bytes to copy 
  *
- * The function calls skb_copy_bits() and updates per-connection byte counters.
- */
+ * Notes:
+ *	The function calls skb_copy_bits() and updates per-connection
+ *	byte counters.
+ **/
 static inline int
 iscsi_tcp_copy(struct iscsi_conn *conn, void *buf, int buf_size)
 {
@@ -935,9 +953,13 @@ exit:
 	return rc;
 }
 
-/*
- * TCP receive
- */
+/**
+ * iscsi_tcp_data_recv - TCP receive in sendfile fashion
+ * @rd_desc: read descriptor
+ * @skb: socket buffer
+ * @offset: offset in skb
+ * @len: skb->len - offset
+ **/
 static int
 iscsi_tcp_data_recv(read_descriptor_t *rd_desc, struct sk_buff *skb,
 		unsigned int offset, size_t len)
@@ -1080,9 +1102,10 @@ iscsi_tcp_state_change(struct sock *sk)
 	old_state_change(sk);
 }
 
-/*
- * Called when more output buffer space is available for this socket.
- */
+/**
+ * iscsi_write_space - Called when more output buffer space is available
+ * @sk: socket space is available for
+ **/
 static void
 iscsi_write_space(struct sock *sk)
 {
@@ -1125,10 +1148,15 @@ iscsi_conn_restore_callbacks(struct iscsi_conn *conn)
 	write_unlock_bh(&sk->sk_callback_lock);
 }
 
-/*
+/**
  * iscsi_sendhdr - send PDU Header via tcp_sendpage()
- * (Tx, Fast Path)
- */
+ * @conn: iscsi connection
+ * @buf: buffer to write from
+ * @datalen: lenght of data to be sent after the header
+ *
+ * Notes:
+ *	(Tx, Fast Path)
+ **/
 static inline int
 iscsi_sendhdr(struct iscsi_conn *conn, struct iscsi_buf *buf, int datalen)
 {
@@ -1162,10 +1190,16 @@ iscsi_sendhdr(struct iscsi_conn *conn, struct iscsi_buf *buf, int datalen)
 	return res;
 }
 
-/*
+/**
  * iscsi_sendpage - send one page of iSCSI Data-Out.
- * (Tx, Fast Path)
- */
+ * @conn: iscsi connection
+ * @buf: buffer to write from
+ * @count: remaining data
+ * @sent: number of bytes sent
+ *
+ * Notes:
+ *	(Tx, Fast Path)
+ **/
 static inline int
 iscsi_sendpage(struct iscsi_conn *conn, struct iscsi_buf *buf,
 	       int *count, int *sent)
@@ -1210,14 +1244,19 @@ iscsi_sendpage(struct iscsi_conn *conn, struct iscsi_buf *buf,
 	return res;
 }
 
-/*
+/**
  * iscsi_solicit_data_cont - initialize next Data-Out
+ * @conn: iscsi connection
+ * @ctask: scsi command task
+ * @r2t: R2T info
+ * @left: bytes left to transfer
  *
- * Initialize next Data-Out within this R2T sequence and continue
- * to process next Scatter-Gather element(if any) of this SCSI command.
+ * Notes:
+ *	Initialize next Data-Out within this R2T sequence and continue
+ *	to process next Scatter-Gather element(if any) of this SCSI command.
  *
- * Called under connection lock.
- */
+ *	Called under connection lock.
+ **/
 static void
 iscsi_solicit_data_cont(struct iscsi_conn *conn, struct iscsi_cmd_task *ctask,
 			struct iscsi_r2t_info *r2t, int left)
@@ -1304,9 +1343,12 @@ iscsi_unsolicit_data_init(struct iscsi_conn *conn, struct iscsi_cmd_task *ctask)
 	list_add(&dtask->item, &ctask->dataqueue);
 }
 
-/*
- * Initialize iSCSI SCSI_READ or SCSI_WRITE commands
- */
+/**
+ * iscsi_cmd_init - Initialize iSCSI SCSI_READ or SCSI_WRITE commands
+ * @conn: iscsi connection
+ * @ctask: scsi command task
+ * @sc: scsi command
+ **/
 static void
 iscsi_cmd_init(struct iscsi_conn *conn, struct iscsi_cmd_task *ctask,
 		struct scsi_cmnd *sc)
@@ -1421,17 +1463,20 @@ iscsi_cmd_init(struct iscsi_conn *conn, struct iscsi_cmd_task *ctask,
 	conn->scsicmd_pdus_cnt++;
 }
 
-/*
+/**
  * iscsi_mtask_xmit - xmit management(immediate) task
+ * @conn: iscsi connection
+ * @mtask: task management task
  *
- * The function can return -EAGAIN in which case caller must
- * call it again later, or recover. '0' return code means successful
- * xmit.
+ * Notes:
+ *	The function can return -EAGAIN in which case caller must
+ *	call it again later, or recover. '0' return code means successful
+ *	xmit.
  *
- * Management xmit state machine consists of two states:
- *	IN_PROGRESS_IMM_HEAD - PDU Header xmit in progress
- *	IN_PROGRESS_IMM_DATA - PDU Data xmit in progress
- */
+ *	Management xmit state machine consists of two states:
+ *		IN_PROGRESS_IMM_HEAD - PDU Header xmit in progress
+ *		IN_PROGRESS_IMM_DATA - PDU Data xmit in progress
+ **/
 static int
 iscsi_mtask_xmit(struct iscsi_conn *conn, struct iscsi_mgmt_task *mtask)
 {
@@ -1673,13 +1718,15 @@ _done:
 	return 0;
 }
 
-/*
+/**
  * iscsi_data_xmit - xmit any command into the scheduled connection
+ * @conn: iscsi connection
  *
- * The function can return -EAGAIN in which case the caller must
- * re-schedule it again later or recover. '0' return code means successful
- * xmit.
- */
+ * Notes:
+ *	The function can return -EAGAIN in which case the caller must
+ *	re-schedule it again later or recover. '0' return code means
+ *	successful xmit.
+ **/
 static int
 iscsi_data_xmit(struct iscsi_conn *conn)
 {
@@ -1964,10 +2011,6 @@ iscsi_pool_free(struct iscsi_queue *q, void **items)
 	kfree(items);
 }
 
-/*
- * Allocate a new connection within the session and bind it to
- * the given socket.
- */
 static iscsi_connh_t
 iscsi_conn_create(iscsi_sessionh_t sessionh, uint32_t conn_idx)
 {
@@ -2061,9 +2104,6 @@ conn_alloc_fail:
 	return iscsi_handle(NULL);
 }
 
-/*
- * Terminate connection queues, free all associated resources.
- */
 static void
 iscsi_conn_destroy(iscsi_connh_t connh)
 {
