@@ -1567,7 +1567,7 @@ iscsi_ctask_xmit(struct iscsi_conn *conn, struct iscsi_cmd_task *ctask)
 	if (ctask->xmstate & XMSTATE_UNS_HDR) {
 		BUG_ON(!ctask->unsol_count);
 		ctask->xmstate &= ~XMSTATE_UNS_HDR;
-_unsolicit_head_again:
+unsolicit_head_again:
 		ctask->xmstate |= XMSTATE_UNS_DATA;
 		if (ctask->xmstate & XMSTATE_UNS_INIT) {
 			iscsi_unsolicit_data_init(conn, ctask);
@@ -1611,10 +1611,10 @@ _unsolicit_head_again:
 		 */
 		if (ctask->unsol_count) {
 			ctask->xmstate |= XMSTATE_UNS_INIT;
-			goto _unsolicit_head_again;
+			goto unsolicit_head_again;
 		}
 
-		goto _done;
+		goto done;
 	}
 
 	if (ctask->xmstate & XMSTATE_SOL_HDR) {
@@ -1626,7 +1626,7 @@ _unsolicit_head_again:
 			ctask->r2t = r2t;
 		} else
 			r2t = ctask->r2t;
-_solicit_head_again:
+solicit_head_again:
 		if (iscsi_sendhdr(conn, &r2t->headbuf, r2t->data_count)) {
 			ctask->xmstate &= ~XMSTATE_SOL_DATA;
 			ctask->xmstate |= XMSTATE_SOL_HDR;
@@ -1643,7 +1643,7 @@ _solicit_head_again:
 
 		ctask->xmstate &= ~XMSTATE_SOL_DATA;
 		r2t = ctask->r2t;
-_solicit_again:
+solicit_again:
 		/*
 		 * send Data-Out whitnin this R2T sequence.
 		 */
@@ -1664,7 +1664,7 @@ _solicit_again:
 							  r2t->sg);
 					r2t->sg += 1;
 				}
-				goto _solicit_again;
+				goto solicit_again;
 			}
 		}
 
@@ -1678,7 +1678,7 @@ _solicit_again:
 			iscsi_solicit_data_cont(conn, ctask, r2t, left);
 			ctask->xmstate |= XMSTATE_SOL_DATA;
 			ctask->xmstate &= ~XMSTATE_SOL_HDR;
-			goto _solicit_head_again;
+			goto solicit_head_again;
 		}
 
 		/*
@@ -1695,11 +1695,11 @@ _solicit_again:
 			ctask->r2t = r2t;
 			ctask->xmstate |= XMSTATE_SOL_DATA;
 			ctask->xmstate &= ~XMSTATE_SOL_HDR;
-			goto _solicit_head_again;
+			goto solicit_head_again;
 		}
 	}
 
-_done:
+done:
 	/*
 	 * Last thing to check is whether we need to send write
 	 * padding. Note that we check for xmstate equality, not just the bit.
