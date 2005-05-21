@@ -1,3 +1,6 @@
-Christoph Hellwig <hch@infradead.org>
-Mike Christie <mikenc@us.ibm.com>
-Ming Zhang <mingz@ele.uri.edu>
+contribution: Christoph Hellwig <hch@infradead.org>
+contribution: Mike Christie <mikenc@us.ibm.com>
+contribution: Ming Zhang <mingz@ele.uri.edu>
+testing: FUJITA Tomonori <fujita.tomonori@lab.ntt.co.jp>
+testing: Harald Kubota <hkubota@gmx.net>
+testing: Pascal Renauld <prenauld@istorageinc.com>
