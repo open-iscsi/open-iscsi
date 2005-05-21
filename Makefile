@@ -16,5 +16,5 @@ all:
 	@echo Read README file for detailed information.
 
 clean:
-	make -C usr
+	make -C usr clean
 	make -C kernel clean

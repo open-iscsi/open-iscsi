@@ -930,15 +930,13 @@ show_session_int_param_##param(struct class_device *cdev, char *buf)	\
 	unsigned long  flags;						\
 									\
 	spin_lock_irqsave(&connlock, flags);				\
-	if (!list_empty(&session->connections)) {			\
+	if (!list_empty(&session->connections)) 			\
 		conn = list_entry(session->connections.next,		\
 				  struct iscsi_if_conn, session_list);	\
 	spin_unlock_irqrestore(&connlock, flags);			\
 									\
 	if (conn && (priv->param_mask & (1 << param)))			\
-			priv->iscsi_transport->get_param(conn->connh,	\
-							 param, &value);\
-	}								\
+		priv->iscsi_transport->get_param(conn->connh, param, &value);\
 	return snprintf(buf, 20, format"\n", value);			\
 }
 
