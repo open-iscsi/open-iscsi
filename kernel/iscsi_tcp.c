@@ -556,10 +556,10 @@ iscsi_hdr_recv(struct iscsi_conn *conn)
 	/* verify itt (itt encoding: age+cid+itt) */
 	if (hdr->itt != cpu_to_be32(ISCSI_RESERVED_TAG)) {
 		if ((hdr->itt & AGE_MASK) !=
-				(session->generation << AGE_SHIFT)) {
+				(session->age << AGE_SHIFT)) {
 			printk("iscsi_tcp: received itt %x expected "
 				"session age (%x)\n", hdr->itt,
-				session->generation & AGE_MASK);
+				session->age & AGE_MASK);
 			return ISCSI_ERR_BAD_ITT;
 		}
 
@@ -592,10 +592,10 @@ iscsi_hdr_recv(struct iscsi_conn *conn)
 			return 0;
 		}
 
-		if (ctask->sc->SCp.phase != session->generation) {
+		if (ctask->sc->SCp.phase != session->age) {
 			printk("iscsi_tcp: ctask's session age %d, "
 				"expected %d\n", ctask->sc->SCp.phase,
-				session->generation);
+				session->age);
 			return ISCSI_ERR_SESSION_FAILED;
 		}
 
@@ -1358,7 +1358,7 @@ iscsi_cmd_init(struct iscsi_conn *conn, struct iscsi_cmd_task *ctask,
 	ctask->hdr.flags = ISCSI_ATTR_SIMPLE;
 	ctask->hdr.lun[1] = sc->device->lun;
 	ctask->hdr.itt = ctask->itt | (conn->id << CID_SHIFT) |
-			 (session->generation << AGE_SHIFT);
+			 (session->age << AGE_SHIFT);
 	ctask->hdr.data_length = cpu_to_be32(sc->request_bufflen);
 	ctask->hdr.cmdsn = cpu_to_be32(session->cmdsn); session->cmdsn++;
 	ctask->hdr.exp_statsn = cpu_to_be32(conn->exp_statsn);
@@ -1910,7 +1910,7 @@ iscsi_queuecommand(struct scsi_cmnd *sc, void (*done)(struct scsi_cmnd *))
 	__kfifo_get(session->cmdpool.queue, (void*)&ctask, sizeof(void*));
 	BUG_ON(ctask->sc);
 
-	sc->SCp.phase = session->generation;
+	sc->SCp.phase = session->age;
 	sc->SCp.ptr = (char*)ctask;
 	iscsi_cmd_init(conn, ctask, sc);
 
@@ -2284,6 +2284,7 @@ iscsi_conn_start(iscsi_connh_t connh)
 {
 	struct iscsi_conn *conn = iscsi_ptr(connh);
 	struct iscsi_session *session = conn->session;
+	struct sock *sk;
 
 	/* FF phase warming up... */
 
@@ -2292,6 +2293,9 @@ iscsi_conn_start(iscsi_connh_t connh)
 		return -EPERM;
 	}
 
+	sk = conn->sock->sk;
+
+	write_lock_bh(&sk->sk_callback_lock);
 	spin_lock_bh(&session->lock);
 	conn->c_stage = ISCSI_CONN_STARTED;
 	conn->cpu = session->conn_cnt % num_online_cpus();
@@ -2306,7 +2310,7 @@ iscsi_conn_start(iscsi_connh_t connh)
 		session->conn_cnt++;
 		conn->stop_stage = 0;
 		conn->tmabort_state = TMABORT_INITIAL;
-		session->generation++;
+		session->age++;
 		wake_up(&conn->ehwait);
 		break;
 	case STOP_CONN_TERM:
@@ -2322,6 +2326,7 @@ iscsi_conn_start(iscsi_connh_t connh)
 		break;
 	}
 	spin_unlock_bh(&session->lock);
+	write_unlock_bh(&sk->sk_callback_lock);
 
 	return 0;
 }
@@ -2465,7 +2470,7 @@ iscsi_conn_send_pdu(iscsi_connh_t connh, struct iscsi_hdr *hdr, char *data,
 	 */
 	if (hdr->itt != cpu_to_be32(ISCSI_RESERVED_TAG)) {
 		hdr->itt = mtask->itt | (conn->id << CID_SHIFT) |
-			   (session->generation << AGE_SHIFT);
+			   (session->age << AGE_SHIFT);
 		nop->cmdsn = cpu_to_be32(session->cmdsn);
 		if (conn->c_stage == ISCSI_CONN_STARTED &&
 		    !(hdr->opcode & ISCSI_OP_IMMEDIATE))
@@ -2536,7 +2541,7 @@ iscsi_eh_host_reset(struct scsi_cmnd *sc)
 	iscsi_conn_failure(conn, ISCSI_ERR_CONN_FAILED);
 	debug_scsi("failing connection CID %d due to SCSI host reset "
 		"[itt 0x%x age %d]", conn->cid, ctask->itt,
-		conn->session->generation);
+		conn->session->age);
 	return SUCCESS;
 }
 
@@ -2596,7 +2601,7 @@ iscsi_eh_abort(struct scsi_cmnd *sc)
 		 * Still LOGGED_IN...
 		 */
 
-		if (!ctask->sc || sc->SCp.phase != session->generation) {
+		if (!ctask->sc || sc->SCp.phase != session->age) {
 			/*
 			 * 1) ctask completed before time out. But session
 			 *    is still ok => Happy Retry.
@@ -2699,7 +2704,7 @@ iscsi_eh_abort(struct scsi_cmnd *sc)
 		if (session->state == ISCSI_STATE_TERMINATE)
 			goto failed;
 
-		if (sc->SCp.phase == session->generation &&
+		if (sc->SCp.phase == session->age &&
 		   (conn->tmabort_state == TMABORT_TIMEDOUT ||
 		    conn->tmabort_state == TMABORT_FAILED)) {
 			conn->tmabort_state = TMABORT_INITIAL;

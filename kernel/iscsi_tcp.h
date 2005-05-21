@@ -211,7 +211,7 @@ struct iscsi_session {
 	struct list_head	item;
 	void			*auth_client;
 	int			conn_cnt;
-	volatile int		generation;
+	int			age;		/* reopen session's age */
 
 	struct list_head	connections;	/* list of connects. */
 	int			cmds_max;	/* size of cmds array */
