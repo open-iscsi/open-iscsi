@@ -127,13 +127,13 @@ iscsi_conn_failure(struct iscsi_conn *conn, enum iscsi_err err)
 	iscsi_conn_error(iscsi_handle(conn), err);
 }
 
-static int
+static inline int
 iscsi_hdr_extract(struct iscsi_conn *conn)
 {
 	struct sk_buff *skb = conn->in.skb;
 
 	if (conn->in.copy >= conn->hdr_size &&
-	    conn->in_progress != IN_PROGRESS_HEADER_GATHER) {
+	    conn->in_progress == IN_PROGRESS_WAIT_HEADER) {
 		/*
 		 * Zero-copy PDU Header: using connection context
 		 * to store header pointer.
@@ -151,50 +151,45 @@ iscsi_hdr_extract(struct iscsi_conn *conn)
 		}
 		conn->in.offset += conn->hdr_size;
 		conn->in.copy -= conn->hdr_size;
-		conn->in.hdr_offset = 0;
 	} else {
+		int hdr_remains;
 		int copylen;
 
 		/*
 		 * PDU header scattered across SKB's,
 		 * copying it... This'll happen quite rarely.
 		 */
-		if (conn->in_progress == IN_PROGRESS_WAIT_HEADER) {
-			skb_copy_bits(skb, conn->in.offset,
-				&conn->hdr, conn->in.copy);
-			conn->in_progress = IN_PROGRESS_HEADER_GATHER;
-			conn->in.hdr_offset = conn->in.copy;
-			conn->in.offset += conn->in.copy;
-			conn->in.copy = 0;
-			debug_tcp("PDU gather #1 %d bytes!\n",
-			       conn->in.hdr_offset);
-			return -EAGAIN;
-		}
 
-		copylen = conn->hdr_size - conn->in.hdr_offset;
-		if (copylen > conn->in.copy) {
-			printk("iscsi_tcp: PDU gather failed! "
-			       "copylen %d conn->in.copy %d\n",
-			       copylen, conn->in.copy);
-			iscsi_conn_failure(conn, ISCSI_ERR_PDU_GATHER_FAILED);
-			return 0;
-		}
-		debug_tcp("PDU gather #2 %d bytes!\n", copylen);
+		if (conn->in_progress == IN_PROGRESS_WAIT_HEADER)
+			conn->in.hdr_offset = 0;
 
+		hdr_remains = conn->hdr_size - conn->in.hdr_offset;
+		BUG_ON(hdr_remains <= 0);
+
+		copylen = min(conn->in.copy, hdr_remains);
 		skb_copy_bits(skb, conn->in.offset,
-		    (char*)&conn->hdr + conn->in.hdr_offset, copylen);
+			(char*)&conn->hdr + conn->in.hdr_offset, copylen);
+
+		debug_tcp("PDU gather offset %d bytes %d in.offset %d "
+		       "in.copy %d\n", conn->in.hdr_offset, copylen,
+		       conn->in.offset, conn->in.copy);
+
 		conn->in.offset += copylen;
 		conn->in.copy -= copylen;
-		conn->in.hdr_offset = 0;
+		if (copylen < hdr_remains)  {
+			conn->in_progress = IN_PROGRESS_HEADER_GATHER;
+			conn->in.hdr_offset += copylen;
+		        return -EAGAIN;
+		}
 		conn->in.hdr = &conn->hdr;
-		conn->in_progress = IN_PROGRESS_WAIT_HEADER;
 		conn->discontiguous_hdr_cnt++;
+	        conn->in_progress = IN_PROGRESS_WAIT_HEADER;
 	}
 
 	return 0;
 }
 
-static void
+static inline void
 iscsi_ctask_cleanup(struct iscsi_conn *conn, struct iscsi_cmd_task *ctask)
 {
 	struct scsi_cmnd *sc = ctask->sc;
@@ -591,7 +586,7 @@ iscsi_hdr_recv(struct iscsi_conn *conn)
 		ctask = (struct iscsi_cmd_task *)session->cmds[conn->in.itt];
 
 		if (!ctask->sc) {
-			printk("iscsi_tcp: dropping ctask with itt 0x%x",
+			printk("iscsi_tcp: dropping ctask with itt 0x%x\n",
 				ctask->itt);
 			conn->in.datalen = 0; /* force drop */
 			return 0;
@@ -599,7 +594,7 @@ iscsi_hdr_recv(struct iscsi_conn *conn)
 
 		if (ctask->sc->SCp.phase != session->generation) {
 			printk("iscsi_tcp: ctask's session age %d, "
-				"expected %d ", ctask->sc->SCp.phase,
+				"expected %d\n", ctask->sc->SCp.phase,
 				session->generation);
 			return ISCSI_ERR_SESSION_FAILED;
 		}
