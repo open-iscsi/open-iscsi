@@ -50,13 +50,13 @@ MODULE_LICENSE("GPL");
 #define DEBUG_ASSERT
 
 #ifdef DEBUG_TCP
-#define debug_tcp(fmt...) printk("tcp: " fmt)
+#define debug_tcp(fmt...) printk(KERN_DEBUG "tcp: " fmt)
 #else
 #define debug_tcp(fmt...)
 #endif
 
 #ifdef DEBUG_SCSI
-#define debug_scsi(fmt...) printk("scsi: " fmt)
+#define debug_scsi(fmt...) printk(KERN_DEBUG "scsi: " fmt)
 #else
 #define debug_scsi(fmt...)
 #endif
@@ -464,8 +464,8 @@ iscsi_r2t_rsp(struct iscsi_conn *conn, struct iscsi_cmd_task *ctask)
 	spin_lock(&session->lock);
 	if (!ctask->sc || ctask->mtask ||
 	     session->state != ISCSI_STATE_LOGGED_IN) {
-		printk("iscsi_tcp: dropping R2T itt %d in recovery...\n",
-		       ctask->itt);
+		printk(KERN_INFO "iscsi_tcp: dropping R2T itt %d in "
+		       "recovery...\n", ctask->itt);
 		spin_unlock(&session->lock);
 		return 0;
 	}
@@ -517,8 +517,8 @@ iscsi_hdr_recv(struct iscsi_conn *conn)
 	/* verify PDU length */
 	conn->in.datalen = ntoh24(hdr->dlength);
 	if (conn->in.datalen > conn->max_recv_dlength) {
-		printk("iscsi_tcp: datalen %d > %d\n", conn->in.datalen,
-		       conn->max_recv_dlength);
+		printk(KERN_ERR "iscsi_tcp: datalen %d > %d\n",
+		       conn->in.datalen, conn->max_recv_dlength);
 		return ISCSI_ERR_DATALEN;
 	}
 	conn->data_copied = 0;
@@ -528,8 +528,8 @@ iscsi_hdr_recv(struct iscsi_conn *conn)
 	conn->in.offset += conn->in.ahslen;
 	conn->in.copy -= conn->in.ahslen;
 	if (conn->in.copy < 0) {
-		printk("iscsi_tcp: can't handle AHS with length %d bytes\n",
-		       conn->in.ahslen);
+		printk(KERN_ERR "iscsi_tcp: can't handle AHS with length "
+		       "%d bytes\n", conn->in.ahslen);
 		return ISCSI_ERR_AHSLEN;
 	}
 
@@ -557,14 +557,14 @@ iscsi_hdr_recv(struct iscsi_conn *conn)
 	if (hdr->itt != cpu_to_be32(ISCSI_RESERVED_TAG)) {
 		if ((hdr->itt & AGE_MASK) !=
 				(session->age << AGE_SHIFT)) {
-			printk("iscsi_tcp: received itt %x expected "
+			printk(KERN_ERR "iscsi_tcp: received itt %x expected "
 				"session age (%x)\n", hdr->itt,
 				session->age & AGE_MASK);
 			return ISCSI_ERR_BAD_ITT;
 		}
 
 		if ((hdr->itt & CID_MASK) != (conn->id << CID_SHIFT)) {
-			printk("iscsi_tcp: received itt %x, expected "
+			printk(KERN_ERR "iscsi_tcp: received itt %x, expected "
 				"CID (%x)\n", hdr->itt, conn->id);
 			return ISCSI_ERR_BAD_ITT;
 		}
@@ -578,22 +578,23 @@ iscsi_hdr_recv(struct iscsi_conn *conn)
 
 	if (conn->in.itt < session->cmds_max) {
 		if (conn->hdrdgst_en && cdgst != rdgst) {
-			printk("iscsi_tcp: itt %x: hdrdgst error recv 0x%x "
-			       "calc 0x%x\n", conn->in.itt, rdgst, cdgst);
+			printk(KERN_ERR "iscsi_tcp: itt %x: hdrdgst error "
+			       "recv 0x%x calc 0x%x\n", conn->in.itt, rdgst,
+			       cdgst);
 			return ISCSI_ERR_HDR_DGST;
 		}
 
 		ctask = (struct iscsi_cmd_task *)session->cmds[conn->in.itt];
 
 		if (!ctask->sc) {
-			printk("iscsi_tcp: dropping ctask with itt 0x%x\n",
-				ctask->itt);
+			printk(KERN_INFO "iscsi_tcp: dropping ctask with "
+			       "itt 0x%x\n", ctask->itt);
 			conn->in.datalen = 0; /* force drop */
 			return 0;
 		}
 
 		if (ctask->sc->SCp.phase != session->age) {
-			printk("iscsi_tcp: ctask's session age %d, "
+			printk(KERN_ERR "iscsi_tcp: ctask's session age %d, "
 				"expected %d\n", ctask->sc->SCp.phase,
 				session->age);
 			return ISCSI_ERR_SESSION_FAILED;
@@ -1940,7 +1941,8 @@ reject:
 
 fault:
 	spin_unlock(&session->lock);
-	printk("iscsi_tcp: cmd 0x%x is not queued (%d)\n", sc->cmnd[0], reason);
+	printk(KERN_ERR "iscsi_tcp: cmd 0x%x is not queued (%d)\n",
+	       sc->cmnd[0], reason);
 	sc->sense_buffer[0] = 0x70;
 	sc->sense_buffer[2] = NOT_READY;
 	sc->sense_buffer[7] = 0x6;
@@ -2213,7 +2215,7 @@ iscsi_conn_bind(iscsi_sessionh_t sessionh, iscsi_connh_t connh,
 	/* lookup for existing socket */
 	sock = sockfd_lookup(transport_fd, &err);
 	if (!sock) {
-		printk("iscsi_tcp: sockfd_lookup failed %d\n", err);
+		printk(KERN_ERR "iscsi_tcp: sockfd_lookup failed %d\n", err);
 		return -EEXIST;
 	}
 
@@ -2223,9 +2225,9 @@ iscsi_conn_bind(iscsi_sessionh_t sessionh, iscsi_connh_t connh,
 		if (tmp == conn) {
 			if (conn->c_stage != ISCSI_CONN_STOPPED ||
 			    conn->stop_stage == STOP_CONN_TERM) {
-				printk("iscsi_tcp: can't bind non-stopped "
-				       "connection (%d:%d)\n", conn->c_stage,
-				       conn->stop_stage);
+				printk(KERN_ERR "iscsi_tcp: can't bind "
+				       "non-stopped connection (%d:%d)\n",
+				       conn->c_stage, conn->stop_stage);
 				spin_unlock_bh(&session->conn_lock);
 				return -EIO;
 			}
@@ -2289,7 +2291,7 @@ iscsi_conn_start(iscsi_connh_t connh)
 	/* FF phase warming up... */
 
 	if (session == NULL) {
-		printk("iscsi_tcp: can't start not-binded connection\n");
+		printk(KERN_ERR "iscsi_tcp: can't start unbound connection\n");
 		return -EPERM;
 	}
 
@@ -2888,7 +2890,7 @@ iscsi_session_create(uint32_t initial_cmdsn, struct Scsi_Host *host)
 		goto r2tpool_alloc_fail;
 
 	if (!try_module_get(THIS_MODULE)) {
-		printk("iscsi_tcp: can not reserve module\n");
+		printk(KERN_ERR "iscsi_tcp: can not reserve module\n");
 		goto module_get_fault;
 	}
 
@@ -3046,7 +3048,8 @@ iscsi_conn_set_param(iscsi_connh_t connh, enum iscsi_param param,
 			break;
 		}
 	} else {
-		printk("iscsi_tcp: can not change parameter [%d]\n", param);
+		printk(KERN_ERR "iscsi_tcp: can not change parameter [%d]\n",
+		       param);
 	}
 
 	return 0;
