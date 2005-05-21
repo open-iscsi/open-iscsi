@@ -2889,15 +2889,8 @@ iscsi_session_create(uint32_t initial_cmdsn, struct Scsi_Host *host)
 	if (iscsi_r2tpool_alloc(session))
 		goto r2tpool_alloc_fail;
 
-	if (!try_module_get(THIS_MODULE)) {
-		printk(KERN_ERR "iscsi_tcp: can not reserve module\n");
-		goto module_get_fault;
-	}
-
 	return iscsi_handle(session);
 
-module_get_fault:
-	iscsi_r2tpool_free(session);
 r2tpool_alloc_fail:
 	for (cmd_i = 0; cmd_i < session->mgmtpool_max; cmd_i++)
 		kfree(session->mgmt_cmds[cmd_i]->data);
@@ -2930,7 +2923,6 @@ iscsi_session_destroy(iscsi_sessionh_t sessionh)
 	iscsi_r2tpool_free(session);
 	iscsi_pool_free(&session->mgmtpool, (void**)session->mgmt_cmds);
 	iscsi_pool_free(&session->cmdpool, (void**)session->cmds);
-	module_put(THIS_MODULE);
 }
 
 static int
