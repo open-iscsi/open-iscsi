@@ -347,7 +347,7 @@ iscsi_data_rsp(struct iscsi_conn *conn, struct iscsi_cmd_task *ctask)
  * iscsi_solicit_data_init - initialize first Data-Out
  * @conn: iscsi connection
  * @ctask: scsi command task
- * @r2t: R2T info 
+ * @r2t: R2T info
  *
  * Notes:
  *	Initialize first Data-Out within this R2T sequence and finds
@@ -2723,12 +2723,10 @@ iscsi_eh_abort(struct scsi_cmnd *sc)
 
 success:
 	debug_scsi("abort success [sc %lx itt 0x%x]\n", (long)sc, ctask->itt);
-	BUG_ON(session->state != ISCSI_STATE_LOGGED_IN);
 	rc = SUCCESS;
 	goto exit;
 
 failed:
-	BUG_ON(session->state != ISCSI_STATE_TERMINATE);
 	debug_scsi("abort failed [sc %lx itt 0x%x]\n", (long)sc, ctask->itt);
 	rc = FAILED;
 

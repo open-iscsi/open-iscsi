@@ -207,7 +207,7 @@ struct iscsi_session {
 	struct iscsi_conn	*leadconn;	/* Leading Conn. */
 	spinlock_t		conn_lock;
 	spinlock_t		lock;
-	volatile int		state;
+	int			state;		/* always under session->lock */
 	struct list_head	item;
 	void			*auth_client;
 	int			conn_cnt;
