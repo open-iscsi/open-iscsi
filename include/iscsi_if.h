@@ -1,7 +1,8 @@
 /*
  * iSCSI User/Kernel Shares (Defines, Constants, Protocol definitions, etc)
  *
- * Copyright (C) 2005 Dmitry Yusupov, Alex Aizman
+ * Copyright (C) 2005 Dmitry Yusupov
+ * Copyright (C) 2005 Alex Aizman
  * maintained by open-iscsi@googlegroups.com
  *
  * This program is free software; you can redistribute it and/or modify
