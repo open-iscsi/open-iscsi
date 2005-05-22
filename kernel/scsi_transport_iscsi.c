@@ -28,7 +28,7 @@
 #include <scsi/scsi_device.h>
 #include <scsi/scsi_transport.h>
 #include <scsi_transport_iscsi.h>
-#include <iscsi_ifev.h>
+#include <iscsi_if.h>
 
 #define ISCSI_SESSION_ATTRS 8
 #define ISCSI_CONN_ATTRS 6

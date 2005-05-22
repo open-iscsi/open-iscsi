@@ -25,7 +25,6 @@
 #include "types.h"
 #include "iscsi_proto.h"
 #include "iscsi_if.h"
-#include "iscsi_ifev.h"
 #include "auth.h"
 #include "mgmt_ipc.h"
 #include "config.h"

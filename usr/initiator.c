@@ -34,7 +34,6 @@
 #include "initiator.h"
 #include "iscsid.h"
 #include "iscsi_if.h"
-#include "iscsi_ifev.h"
 #include "mgmt_ipc.h"
 #include "iscsi_ipc.h"
 #include "idbm.h"

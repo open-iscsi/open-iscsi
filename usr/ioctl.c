@@ -28,7 +28,6 @@
 #include <sys/stat.h>
 
 #include "iscsi_if.h"
-#include "iscsi_ifev.h"
 #include "iscsid.h"
 #include "log.h"
 #include "iscsi_ipc.h"
