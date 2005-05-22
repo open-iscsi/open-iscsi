@@ -27,13 +27,13 @@ regress_signal() {
 ./iscsiadm -m node -r $record -o update \
 	-n node.session.iscsi.InitialR2T -v No
 ./iscsiadm -m node -r $record -o update \
-	-n node.cnx[0].iscsi.HeaderDigest -v None,CRC32C
+	-n node.conn[0].iscsi.HeaderDigest -v None,CRC32C
 ./iscsiadm -m node -r $record -o update \
 	-n node.session.iscsi.FirstBurstLength -v $((256*1024))
 ./iscsiadm -m node -r $record -o update \
 	-n node.session.iscsi.MaxBurstLength -v $((16*1024*1024-1024))
 ./iscsiadm -m node -r $record -o update \
-	-n node.cnx[0].iscsi.MaxRecvDataSegmentLength -v $((128*1024))
+	-n node.conn[0].iscsi.MaxRecvDataSegmentLength -v $((128*1024))
     printf "done\n"
     exit 0
 }
@@ -45,13 +45,13 @@ function update_cfg() {
 ./iscsiadm -m node -r $record -o update \
 	-n node.session.iscsi.InitialR2T -v $initial_r2t_en
 ./iscsiadm -m node -r $record -o update \
-	-n node.cnx[0].iscsi.HeaderDigest -v $hdrdgst_en
+	-n node.conn[0].iscsi.HeaderDigest -v $hdrdgst_en
 ./iscsiadm -m node -r $record -o update \
 	-n node.session.iscsi.FirstBurstLength -v $first_burst
 ./iscsiadm -m node -r $record -o update \
 	-n node.session.iscsi.MaxBurstLength -v $max_burst
 ./iscsiadm -m node -r $record -o update \
-	-n node.cnx[0].iscsi.MaxRecvDataSegmentLength -v $max_recv_dlength
+	-n node.conn[0].iscsi.MaxRecvDataSegmentLength -v $max_recv_dlength
 ./iscsiadm -m node -r $record -l
 }
 
@@ -75,9 +75,57 @@ function disktest_run() {
 	return 0;
 }
 
+function mkfs_run() {
+	echo "fdisk $device: "
+	if ! echo "
+p
+d
+n
+p
+1
+
+
+w
+q
+" | fdisk $device 2>/dev/null >/dev/null; then
+		echo "FAILED"
+		return 1;
+	fi
+	echo "PASSED"
+	echo -n "mke2fs $device: "
+	if ! mke2fs $device"1" 2>/dev/null >/dev/null; then
+		echo "FAILED"
+		return 1;
+	fi
+	echo "PASSED"
+	return 0;
+}
+
+function bonnie_run() {
+	dir="/tmp/iscsi.regression"
+	umount $dir 2>/dev/null >/dev/null
+	rm -rf $dir; mkdir $dir
+	echo -n "mount $dir: "
+	if ! mount -t ext2 $device"1" $dir; then
+		echo "FAILED"
+		return 1;
+	fi
+	echo "PASSED"
+	echo -n "cd $dir; bonnie++ -r16 -s32 -uroot -f"
+	pushd $dir >/dev/null
+	if ! bonnie++ -r16 -s32 -uroot -f >/dev/null; then
+		popd $dir >/dev/null
+		echo "FAILED"
+		return 1;
+	fi
+	popd $dir >/dev/null
+	echo "PASSED"
+	return 0;
+}
+
 function fatal() {
 	echo "regression.sh: $1"
-	echo "Usage: regression.sh <node record> <device> [test#[:#]] [bsize]"
+	echo "Usage: regression.sh <rec#|-f> <device> [test#[:#]] [bsize]"
 	exit 1
 }
 
@@ -86,11 +134,17 @@ function fatal() {
 test ! -e regression.dat && fatal "can not find regression.dat"
 test ! -e disktest && fatal "can not find disktest"
 test ! -e iscsiadm && fatal "can not find iscsiadm"
+test ! -e bonnie++ && fatal "can not find bonnie++"
 test x$1 = x && fatal "node record parameter error"
 test x$2 = x && fatal "SCSI device parameter error"
 
-record=$1
 device=$2
+if test x$1 = "x-f" -o x$1 = "x--format"; then
+	mkfs_run
+	exit
+fi
+
+record=$1
 test x$3 != x && begin=$3
 test x$4 != x && bsize=$4
 
@@ -148,6 +202,8 @@ cat regression.dat | while read line; do
 	echo "max_recv_dlength = $max_recv_dlength"
 	echo "max_r2t = $max_r2t"
 	if ! disktest_run; then break; fi
+	if ! mkfs_run; then break; fi
+	if ! bonnie_run; then break; fi
 	let i=i+1
 done
 regress_signal
