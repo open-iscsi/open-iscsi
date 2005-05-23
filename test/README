@@ -3,5 +3,13 @@ This directory contains regression suite.
 I would appreciate if developer will run it at least once after
 modifications done before commit or mailing list submit.
 
+./regression.sh script expects next binaries and data files exists
+in current directory:
+
+	- regression.dat
+	- iscsiadm
+	- bonnie++ (source: http://www.open-iscsi.org/bits/bonnie++.tar.gz)
+	- disktest (source: http://www.open-iscsi.org/bits/disktest.tar.gz)
+
 Thanks!
 Dmitry

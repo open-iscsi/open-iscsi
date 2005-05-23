@@ -58,6 +58,7 @@ function update_cfg() {
 function disktest_run() {
 	bsizes="512 1024 2048 4096 8192 16384 32768 65536 131072 1000000"
 	test x$bsize != x && bsizes=$bsize
+	test x$bsize = xbonnie && return 0;
 	for bs in $bsizes; do
 		echo -n "disktest -T2 -K8 -B$bs -r -ID $device: "
 		if ! disktest -T2 -K8 -B$bs -r -ID $device >/dev/null; then
@@ -75,7 +76,7 @@ function disktest_run() {
 	return 0;
 }
 
-function mkfs_run() {
+function fdisk_run() {
 	echo "fdisk $device: "
 	if ! echo "
 p
@@ -92,6 +93,10 @@ q
 		return 1;
 	fi
 	echo "PASSED"
+	return 0;
+}
+
+function mkfs_run() {
 	echo -n "mke2fs $device: "
 	if ! mke2fs $device"1" 2>/dev/null >/dev/null; then
 		echo "FAILED"
@@ -102,7 +107,8 @@ q
 }
 
 function bonnie_run() {
-	dir="/tmp/iscsi.regression"
+	dir="/tmp/iscsi.bonnie.regression"
+	bonnie_dir=`pwd`
 	umount $dir 2>/dev/null >/dev/null
 	rm -rf $dir; mkdir $dir
 	echo -n "mount $dir: "
@@ -111,14 +117,16 @@ function bonnie_run() {
 		return 1;
 	fi
 	echo "PASSED"
-	echo -n "cd $dir; bonnie++ -r16 -s32 -uroot -f"
+	echo -n "bonnie++ -r0 -n10:0:0 -s16 -uroot -f -q: "
 	pushd $dir >/dev/null
-	if ! bonnie++ -r16 -s32 -uroot -f >/dev/null; then
-		popd $dir >/dev/null
+	if ! $bonnie_dir/bonnie++ -r0 -n10:0:0 -s16 -uroot -f -q 2>/dev/null >/dev/null; then
+		popd >/dev/null
+		umount $dir 2>/dev/null >/dev/null
 		echo "FAILED"
 		return 1;
 	fi
-	popd $dir >/dev/null
+	popd >/dev/null
+	umount $dir 2>/dev/null >/dev/null
 	echo "PASSED"
 	return 0;
 }
@@ -202,6 +210,7 @@ cat regression.dat | while read line; do
 	echo "max_recv_dlength = $max_recv_dlength"
 	echo "max_r2t = $max_r2t"
 	if ! disktest_run; then break; fi
+	if ! fdisk_run; then break; fi
 	if ! mkfs_run; then break; fi
 	if ! bonnie_run; then break; fi
 	let i=i+1
