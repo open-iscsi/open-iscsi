@@ -861,7 +861,7 @@ iscsi_data_recv(struct iscsi_conn *conn)
 				dest = kmap_atomic(sg[i].page, KM_USER0);
 				rc = iscsi_ctask_copy(conn, ctask,
 						      dest + sg[i].offset,
-						      sg->length);
+						      sg[i].length);
 				kunmap_atomic(dest, KM_USER0);
 				if (rc == -EAGAIN)
 					/* continue with the next SKB/PDU */
@@ -877,6 +877,7 @@ iscsi_data_recv(struct iscsi_conn *conn)
 					goto exit;
 				}
 			}
+			BUG_ON(ctask->data_count);
 		} else {
 			rc = iscsi_ctask_copy(conn, ctask, sc->request_buffer,
 					      sc->request_bufflen);
@@ -1021,7 +1022,7 @@ more:
 		if (rc) {
 			if (rc == -EAGAIN) {
 				rd_desc->count = conn->in.datalen -
-							conn->in.ctask->sent;
+						conn->in.ctask->data_count;
 				goto again;
 			}
 			iscsi_conn_failure(conn, rc);
@@ -2544,7 +2545,7 @@ iscsi_eh_host_reset(struct scsi_cmnd *sc)
 	struct iscsi_conn *conn = ctask->conn;
 	iscsi_conn_failure(conn, ISCSI_ERR_CONN_FAILED);
 	debug_scsi("failing connection CID %d due to SCSI host reset "
-		"[itt 0x%x age %d]", conn->cid, ctask->itt,
+		"[itt 0x%x age %d]", conn->id, ctask->itt,
 		conn->session->age);
 	return SUCCESS;
 }
