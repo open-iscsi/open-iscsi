@@ -38,6 +38,7 @@
 #include <scsi/scsi_tcq.h>
 #include <scsi/scsi_host.h>
 #include <scsi/scsi.h>
+#include "scsi_transport_iscsi.h"
 
 #include "iscsi_tcp.h"
 
