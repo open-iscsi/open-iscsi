@@ -357,7 +357,7 @@ iscsi_if_send_reply(int pid, int seq, int type, int done, int multi,
 	struct nlmsghdr	*nlh;
 	int len = NLMSG_SPACE(size);
 	int flags = multi ? NLM_F_MULTI : 0;
-	int t = done ? NLMSG_DONE  : type;
+	int t = done ? NLMSG_DONE : type;
 
 	mempool_zone_complete(&z_reply);
 
