@@ -2985,7 +2985,7 @@ iscsi_conn_set_param(iscsi_connh_t connh, enum iscsi_param param,
 			break;
 		case ISCSI_PARAM_DATADGST_EN:
 			/* FIXME: DataDigest is not implemented yet */
-			if (value != ISCSI_DIGEST_NONE)
+			if (value) /* != ISCSI_DIGEST_NONE) */
 				return -EPERM;
 			conn->datadgst_en = value;
 			break;
