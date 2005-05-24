@@ -489,14 +489,14 @@ iscsi_if_create_session(struct iscsi_internal *priv, struct iscsi_uevent *ev)
 
 	return 0;
 
- out_remove_host:
+out_remove_host:
 	scsi_remove_host(shost);
- out_destroy_session:
+out_destroy_session:
 	transport->destroy_session(ev->r.c_session_ret.session_handle);
 	ev->r.c_session_ret.session_handle = iscsi_handle(NULL);
- out_host_put:
+out_host_put:
 	scsi_host_put(shost);
- out_module_put:
+out_module_put:
 	module_put(transport->owner);
 	return error;
 }
@@ -542,7 +542,7 @@ iscsi_if_destroy_session(struct iscsi_internal *priv, struct iscsi_uevent *ev)
 
 	/* ref from host alloc */
 	scsi_host_put(shost);
- out_release_ref:
+out_release_ref:
 	/* ref from host lookup */
 	scsi_host_put(shost);
 	return error;
@@ -635,17 +635,17 @@ iscsi_if_create_conn(struct iscsi_transport *transport, struct iscsi_uevent *ev)
 	scsi_host_put(shost);
 	return 0;
 
- out_release_parent_ref:
+out_release_parent_ref:
 	scsi_host_put(shost);
- out_destroy_conn:
+out_destroy_conn:
 	transport->destroy_conn(ev->r.handle);
- out_free_error_pool:
+out_free_error_pool:
 	mempool_destroy(conn->z_error.pool);
- out_free_pdu_pool:
+out_free_pdu_pool:
 	mempool_destroy(conn->z_pdu.pool);
- out_free_conn:
+out_free_conn:
 	kfree(conn);
- out_release_ref:
+out_release_ref:
 	scsi_host_put(shost);
 	return error;
 }
@@ -1184,11 +1184,11 @@ static __init int iscsi_transport_init(void)
 		return 0;
 
 	sock_release(nls->sk_socket);
- unregister_notifier:
+unregister_notifier:
 	netlink_unregister_notifier(&iscsi_nl_notifier);
- unregister_session_class:
+unregister_session_class:
 	transport_class_unregister(&iscsi_session_class);
- unregister_conn_class:
+unregister_conn_class:
 	transport_class_unregister(&iscsi_connection_class);
 	return err;
 }
