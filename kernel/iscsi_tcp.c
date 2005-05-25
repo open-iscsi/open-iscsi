@@ -3017,7 +3017,7 @@ iscsi_conn_set_param(iscsi_connh_t connh, enum iscsi_param param,
 		break;
 	case ISCSI_PARAM_OFMARKER_EN:
 		BUG_ON(value);
-		session->ifmarker_en = value;
+		session->ofmarker_en = value;
 		break;
 	default:
 		break;
