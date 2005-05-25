@@ -137,7 +137,7 @@ struct iscsi_conn {
 	struct kfifo		*xmitqueue;	/* Data-path queue */
 	struct work_struct	xmitwork;	/* per-conn. xmit workqueue */
 	unsigned long		suspend;	/* suspend bits */
-	volatile int		c_stage;	/* Connection state */
+	int			c_stage;	/* Connection state */
 	struct iscsi_mgmt_task	*login_mtask;	/* mtask used for login/text */
 	spinlock_t		lock;		/* general connection lock */
 	struct crypto_tfm	*tx_tfm;
@@ -204,7 +204,6 @@ struct iscsi_session {
 	struct Scsi_Host	*host;
 	int			id;
 	struct iscsi_conn	*leadconn;	/* Leading Conn. */
-	spinlock_t		conn_lock;
 	spinlock_t		lock;
 	int			state;		/* always under session->lock */
 	struct list_head	item;

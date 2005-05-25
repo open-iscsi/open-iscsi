@@ -114,14 +114,12 @@ static void
 iscsi_conn_failure(struct iscsi_conn *conn, enum iscsi_err err)
 {
 	struct iscsi_session *session = conn->session;
-	unsigned long sflags, cflags;
+	unsigned long flags;
 
-	spin_lock_irqsave(&session->lock, sflags);
-	spin_lock_irqsave(&session->conn_lock, cflags);
+	spin_lock_irqsave(&session->lock, flags);
 	if (session->conn_cnt == 1 || session->leadconn == conn)
 		session->state = ISCSI_STATE_FAILED;
-	spin_unlock_irqrestore(&session->conn_lock, cflags);
-	spin_unlock_irqrestore(&session->lock, sflags);
+	spin_unlock_irqrestore(&session->lock, flags);
 	set_bit(TX_SUSPEND, &conn->suspend);
 	set_bit(RX_SUSPEND, &conn->suspend);
 	iscsi_conn_error(iscsi_handle(conn), err);
@@ -1080,7 +1078,6 @@ iscsi_tcp_state_change(struct sock *sk)
 	if (sk->sk_state == TCP_CLOSE_WAIT ||
 	    sk->sk_state == TCP_CLOSE) {
 		debug_tcp("iscsi_tcp_state_change: TCP_CLOSE|TCP_CLOSE_WAIT\n");
-		conn->c_stage = ISCSI_CONN_CLEANUP_WAIT;
 		iscsi_conn_failure(conn, ISCSI_ERR_CONN_FAILED);
 	}
 
@@ -1816,9 +1813,7 @@ iscsi_data_xmit_more(struct iscsi_conn *conn)
 	rc = iscsi_data_xmit(conn);
 	if (rc) {
 		if (conn->stop_stage != STOP_CONN_RECOVER &&
-		    (conn->c_stage == ISCSI_CONN_CLEANUP_WAIT ||
-		     conn->c_stage == ISCSI_CONN_STOPPED ||
-		     test_bit(TX_SUSPEND, &conn->suspend)))
+		    test_bit(TX_SUSPEND, &conn->suspend))
 			return 0;
 	}
 	return rc;
@@ -1888,14 +1883,12 @@ iscsi_queuecommand(struct scsi_cmnd *sc, void (*done)(struct scsi_cmnd *))
 		struct iscsi_conn *conn;
 		int cpu = smp_processor_id();
 
-		spin_lock(&session->conn_lock);
 		list_for_each_entry(conn, &session->connections, item) {
 			if (conn->cpu == cpu && cpu_online(cpu)) {
 				conn = conn;
 				break;
 			}
 		}
-		spin_unlock(&session->conn_lock);
 	}
 
 	__kfifo_get(session->cmdpool.queue, (void*)&ctask, sizeof(void*));
@@ -2110,7 +2103,7 @@ iscsi_conn_destroy(iscsi_connh_t connh)
 		struct sock *sk = conn->sock->sk;
 
 		/*
-		 * conn_start() was never been called!
+		 * conn_start() has never been called!
 		 * we must cleanup socket.
 		 */
 
@@ -2123,19 +2116,19 @@ iscsi_conn_destroy(iscsi_connh_t connh)
 		sock_put(conn->sock->sk);
 		sock_release(conn->sock);
 	}
+
+	spin_lock_bh(&session->lock);
 	conn->c_stage = ISCSI_CONN_CLEANUP_WAIT;
 	del_timer_sync(&conn->tmabort_timer);
-
 	if (session->leadconn == conn) {
 		/*
 		 * Control plane decided to destroy leading connection?
 		 * Its a signal for us to give up on recovery.
 		 */
-		spin_lock_bh(&session->lock);
 		session->state = ISCSI_STATE_TERMINATE;
-		spin_unlock_bh(&session->lock);
 		wake_up(&conn->ehwait);
 	}
+	spin_unlock_bh(&session->lock);
 
 	for (;;) {
 		spin_lock_bh(&conn->lock);
@@ -2170,26 +2163,22 @@ iscsi_conn_destroy(iscsi_connh_t connh)
 	spin_lock_bh(&session->lock);
 	__kfifo_put(session->mgmtpool.queue, (void*)&conn->login_mtask,
 		    sizeof(void*));
-	spin_unlock_bh(&session->lock);
-
-	kfifo_free(conn->xmitqueue);
-	kfifo_free(conn->writequeue);
-	kfifo_free(conn->immqueue);
-	kfifo_free(conn->mgmtqueue);
-
-	spin_lock_bh(&session->conn_lock);
 	list_del(&conn->item);
 	if (list_empty(&session->connections))
 		session->leadconn = NULL;
 	if (session->leadconn && session->leadconn == conn)
 		session->leadconn = container_of(session->connections.next,
 			struct iscsi_conn, item);
-	spin_unlock_bh(&session->conn_lock);
 
 	if (session->leadconn == NULL)
-		/* non connections exits.. reset sequencing */
+		/* none connections exits.. reset sequencing */
 		session->cmdsn = session->max_cmdsn = session->exp_cmdsn = 1;
+	spin_unlock_bh(&session->lock);
 
+	kfifo_free(conn->xmitqueue);
+	kfifo_free(conn->writequeue);
+	kfifo_free(conn->immqueue);
+	kfifo_free(conn->mgmtqueue);
 	kfree(conn);
 }
 
@@ -2211,7 +2200,7 @@ iscsi_conn_bind(iscsi_sessionh_t sessionh, iscsi_connh_t connh,
 	}
 
 	/* lookup for existing connection */
-	spin_lock_bh(&session->conn_lock);
+	spin_lock_bh(&session->lock);
 	list_for_each_entry(tmp, &session->connections, item) {
 		if (tmp == conn) {
 			if (conn->c_stage != ISCSI_CONN_STOPPED ||
@@ -2219,21 +2208,19 @@ iscsi_conn_bind(iscsi_sessionh_t sessionh, iscsi_connh_t connh,
 				printk(KERN_ERR "iscsi_tcp: can't bind "
 				       "non-stopped connection (%d:%d)\n",
 				       conn->c_stage, conn->stop_stage);
-				spin_unlock_bh(&session->conn_lock);
+				spin_unlock_bh(&session->lock);
 				return -EIO;
 			}
 			break;
 		}
 	}
-	spin_unlock_bh(&session->conn_lock);
 	if (tmp != conn) {
 		/* bind new iSCSI connection to session */
 		conn->session = session;
 
-		spin_lock_bh(&session->conn_lock);
 		list_add(&conn->item, &session->connections);
-		spin_unlock_bh(&session->conn_lock);
 	}
+	spin_unlock_bh(&session->lock);
 
 	if (conn->stop_stage != STOP_CONN_SUSPEND) {
 		/* bind iSCSI connection and socket */
@@ -2502,23 +2489,23 @@ iscsi_conn_send_pdu(iscsi_connh_t connh, struct iscsi_hdr *hdr, char *data,
 		 *        mtask->sendbuf. Keep in mind that virtual buffer
 		 *        could be spreaded across multiple pages... */
 		if(mtask->sendbuf.sg.offset + mtask->data_count > PAGE_SIZE) {
-			if (conn->c_stage == ISCSI_CONN_STARTED) {
-				spin_lock_bh(&session->lock);
-				__kfifo_put(session->mgmtpool.queue,
+			spin_lock_bh(&session->lock);
+			__kfifo_put(session->mgmtpool.queue,
 					    (void*)&mtask, sizeof(void*));
-				spin_unlock_bh(&session->lock);
-			}
-			return -ENOMEM;
+			spin_unlock_bh(&session->lock);
+			return -EIO;
 		}
 	}
 
 	debug_scsi("mgmtpdu [op 0x%x hdr->itt 0x%x datalen %d]\n",
 		   hdr->opcode, hdr->itt, data_size);
 
+	down(&conn->xmitsema);
         if (hdr->opcode & ISCSI_OP_IMMEDIATE)
 	        __kfifo_put(conn->immqueue, (void*)&mtask, sizeof(void*));
 	else
 	        __kfifo_put(conn->mgmtqueue, (void*)&mtask, sizeof(void*));
+	up(&conn->xmitsema);
 
 	schedule_work(&conn->xmitwork);
 
@@ -2853,7 +2840,6 @@ iscsi_session_create(uint32_t initial_cmdsn, struct Scsi_Host *host)
 		session->cmds[cmd_i]->itt = cmd_i;
 
 	spin_lock_init(&session->lock);
-	spin_lock_init(&session->conn_lock);
 	INIT_LIST_HEAD(&session->connections);
 
 	/* initialize immediate command pool */
@@ -2922,12 +2908,15 @@ iscsi_conn_set_param(iscsi_connh_t connh, enum iscsi_param param,
 	struct iscsi_conn *conn = iscsi_ptr(connh);
 	struct iscsi_session *session = conn->session;
 
+	spin_lock_bh(&session->lock);
 	if (conn->c_stage != ISCSI_CONN_INITIAL_STAGE &&
 	    conn->stop_stage != STOP_CONN_RECOVER) {
 		printk(KERN_ERR "iscsi_tcp: can not change parameter [%d]\n",
 		       param);
+		spin_unlock_bh(&session->lock);
 		return 0;
 	}
+	spin_unlock_bh(&session->lock);
 
 	switch(param) {
 	case ISCSI_PARAM_MAX_RECV_DLENGTH: {
