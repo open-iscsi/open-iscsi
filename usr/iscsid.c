@@ -133,6 +133,8 @@ int trans_sync(void)
 				ev.r.t_list.elements[i].trans_handle;
 			strncpy(provider[i].name, ev.r.t_list.elements[i].name,
 				ISCSI_TRANSPORT_NAME_MAXLEN);
+			provider[i].caps_mask =
+					ev.r.t_list.elements[i].caps_mask;
 
 			/* FIXME: implement session/connection sync up logic */
 			provider[i].sessions.q_forw = &provider[i].sessions;

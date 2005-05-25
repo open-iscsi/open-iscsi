@@ -121,6 +121,8 @@ struct iscsi_uevent {
 		struct msg_trans_list {
 			struct {
 				uint64_t trans_handle;
+				uint32_t caps_mask;
+				uint32_t unused;
 				char name[ISCSI_TRANSPORT_NAME_MAXLEN];
 			} elements[ISCSI_TRANSPORT_MAX];
 		} t_list;

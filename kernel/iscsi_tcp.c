@@ -2975,9 +2975,7 @@ iscsi_conn_set_param(iscsi_connh_t connh, enum iscsi_param param,
 		}
 		break;
 	case ISCSI_PARAM_DATADGST_EN:
-		/* FIXME: DataDigest is not implemented yet */
-		if (value) /* != ISCSI_DIGEST_NONE) */
-			return -EPERM;
+		BUG_ON(value); /* not implemented yet */
 		conn->datadgst_en = value;
 		break;
 	case ISCSI_PARAM_INITIAL_R2T_EN:
@@ -3012,9 +3010,11 @@ iscsi_conn_set_param(iscsi_connh_t connh, enum iscsi_param param,
 		session->erl = value;
 		break;
 	case ISCSI_PARAM_IFMARKER_EN:
+		BUG_ON(value);
 		session->ifmarker_en = value;
 		break;
 	case ISCSI_PARAM_OFMARKER_EN:
+		BUG_ON(value);
 		session->ifmarker_en = value;
 		break;
 	default:

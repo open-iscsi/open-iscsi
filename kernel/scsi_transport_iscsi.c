@@ -756,6 +756,7 @@ iscsi_if_recv_msg(struct sk_buff *skb, struct nlmsghdr *nlh)
 	switch (nlh->nlmsg_type) {
 	case ISCSI_UEVENT_TRANS_LIST: {
 		unsigned long flags;
+		int i = 0;
 
 		/*
 		 * this will always succeed for now since there
@@ -765,11 +766,13 @@ iscsi_if_recv_msg(struct sk_buff *skb, struct nlmsghdr *nlh)
 		 */
 		spin_lock_irqsave(&iscsi_transport_lock, flags);
 		list_for_each_entry(priv, &iscsi_transports, list) {
-			ev->r.t_list.elements[0].trans_handle =
+			ev->r.t_list.elements[i].trans_handle =
 					iscsi_handle(priv->iscsi_transport);
-			strncpy(ev->r.t_list.elements[0].name,
+			strncpy(ev->r.t_list.elements[i].name,
 				priv->iscsi_transport->name,
 				ISCSI_TRANSPORT_NAME_MAXLEN);
+			ev->r.t_list.elements[i].caps_mask = priv->param_mask;
+			i++;
 		}
 		spin_unlock_irqrestore(&iscsi_transport_lock, flags);
 

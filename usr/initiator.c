@@ -754,6 +754,9 @@ __session_conn_recv_pdu(queue_item_t *item)
 			for (i = 0; i < ISCSI_PARAM_MAX; i++) {
 				if (conn->id != 0 && !conntbl[i].conn_only)
 					continue;
+				if (!(provider[0].caps_mask &
+						(1 << conntbl[i].param)))
+					continue;
 				if (ipc->set_param(
 					session->transport_handle,
 					conn->handle, conntbl[i].param,

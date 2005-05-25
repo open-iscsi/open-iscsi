@@ -77,7 +77,7 @@ function disktest_run() {
 }
 
 function fdisk_run() {
-	echo "fdisk $device: "
+	echo -n "fdisk $device: "
 	if ! echo "
 p
 d
