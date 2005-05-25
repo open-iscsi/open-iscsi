@@ -2500,12 +2500,17 @@ iscsi_conn_send_pdu(iscsi_connh_t connh, struct iscsi_hdr *hdr, char *data,
 	debug_scsi("mgmtpdu [op 0x%x hdr->itt 0x%x datalen %d]\n",
 		   hdr->opcode, hdr->itt, data_size);
 
-	down(&conn->xmitsema);
+	/*
+	 * since send_pdu() could be called at least from two contexts,
+	 * we need to serialize __kfifo_put, so we don't have to take
+	 * additional lock on fast data-path
+	 */
+	spin_lock_bh(&session->lock);
         if (hdr->opcode & ISCSI_OP_IMMEDIATE)
 	        __kfifo_put(conn->immqueue, (void*)&mtask, sizeof(void*));
 	else
 	        __kfifo_put(conn->mgmtqueue, (void*)&mtask, sizeof(void*));
-	up(&conn->xmitsema);
+	spin_unlock_bh(&session->lock);
 
 	schedule_work(&conn->xmitwork);
 
