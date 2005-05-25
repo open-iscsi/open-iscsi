@@ -2923,117 +2923,114 @@ iscsi_conn_set_param(iscsi_connh_t connh, enum iscsi_param param,
 	struct iscsi_conn *conn = iscsi_ptr(connh);
 	struct iscsi_session *session = conn->session;
 
-	if (conn->c_stage == ISCSI_CONN_INITIAL_STAGE ||
-	    conn->stop_stage == STOP_CONN_RECOVER) {
-		switch(param) {
-		case ISCSI_PARAM_MAX_RECV_DLENGTH: {
-			char *saveptr = conn->data;
-			int flags = GFP_KERNEL;
-
-			if (conn->data_size >= value) {
-				conn->max_recv_dlength = value;
-				break;
-			}
-
-			if (conn->stop_stage == STOP_CONN_RECOVER)
-				flags = GFP_ATOMIC;
-
-			if (value <= PAGE_SIZE)
-				conn->data = kmalloc(value, flags);
-			else
-				conn->data = (void*)__get_free_pages(flags,
-					get_order(value));
-			if (conn->data == NULL) {
-				conn->data = saveptr;
-				return -ENOMEM;
-			}
-			if (conn->data_size <= PAGE_SIZE)
-				kfree(saveptr);
-			else
-				free_pages((unsigned long)saveptr,
-					get_order(conn->data_size));
-			conn->max_recv_dlength = value;
-			conn->data_size = value;
-		}
-		break;
-		case ISCSI_PARAM_MAX_XMIT_DLENGTH:
-			conn->max_xmit_dlength =  value;
-			break;
-		case ISCSI_PARAM_HDRDGST_EN:
-			conn->hdrdgst_en = value;
-			conn->hdr_size = sizeof(struct iscsi_hdr);
-			if (conn->hdrdgst_en) {
-				conn->hdr_size += sizeof(__u32);
-				if (!conn->tx_tfm)
-					conn->tx_tfm =
-						crypto_alloc_tfm("crc32c", 0);
-				if (!conn->tx_tfm)
-					return -ENOMEM;
-				if (!conn->rx_tfm)
-					conn->rx_tfm =
-						crypto_alloc_tfm("crc32c", 0);
-				if (!conn->rx_tfm) {
-					crypto_free_tfm(conn->tx_tfm);
-					return -ENOMEM;
-				}
-			} else {
-				if (conn->tx_tfm)
-					crypto_free_tfm(conn->tx_tfm);
-				if (conn->rx_tfm)
-					crypto_free_tfm(conn->rx_tfm);
-			}
-			break;
-		case ISCSI_PARAM_DATADGST_EN:
-			/* FIXME: DataDigest is not implemented yet */
-			if (value) /* != ISCSI_DIGEST_NONE) */
-				return -EPERM;
-			conn->datadgst_en = value;
-			break;
-		case ISCSI_PARAM_INITIAL_R2T_EN:
-			session->initial_r2t_en = value;
-			break;
-		case ISCSI_PARAM_MAX_R2T:
-			if (session->max_r2t == roundup_pow_of_two(value))
-				break;
-			iscsi_r2tpool_free(session);
-			session->max_r2t = value;
-			if (session->max_r2t & (session->max_r2t - 1))
-				session->max_r2t =
-					roundup_pow_of_two(session->max_r2t);
-
-			if (iscsi_r2tpool_alloc(session))
-				return -ENOMEM;
-			break;
-		case ISCSI_PARAM_IMM_DATA_EN:
-			session->imm_data_en = value;
-			break;
-		case ISCSI_PARAM_FIRST_BURST:
-			session->first_burst = value;
-			break;
-		case ISCSI_PARAM_MAX_BURST:
-			session->max_burst = value;
-			break;
-		case ISCSI_PARAM_PDU_INORDER_EN:
-			session->pdu_inorder_en = value;
-			break;
-		case ISCSI_PARAM_DATASEQ_INORDER_EN:
-			session->dataseq_inorder_en = value;
-			break;
-		case ISCSI_PARAM_ERL:
-			session->erl = value;
-			break;
-		case ISCSI_PARAM_IFMARKER_EN:
-			session->ifmarker_en = value;
-			break;
-		case ISCSI_PARAM_OFMARKER_EN:
-			session->ifmarker_en = value;
-			break;
-		default:
-			break;
-		}
-	} else {
+	if (conn->c_stage != ISCSI_CONN_INITIAL_STAGE &&
+	    conn->stop_stage != STOP_CONN_RECOVER) {
 		printk(KERN_ERR "iscsi_tcp: can not change parameter [%d]\n",
 		       param);
+		return 0;
+	}
+
+	switch(param) {
+	case ISCSI_PARAM_MAX_RECV_DLENGTH: {
+		char *saveptr = conn->data;
+		int flags = GFP_KERNEL;
+
+		if (conn->data_size >= value) {
+			conn->max_recv_dlength = value;
+			break;
+		}
+
+		if (conn->stop_stage == STOP_CONN_RECOVER)
+			flags = GFP_ATOMIC;
+
+		if (value <= PAGE_SIZE)
+			conn->data = kmalloc(value, flags);
+		else
+			conn->data = (void*)__get_free_pages(flags,
+							     get_order(value));
+		if (conn->data == NULL) {
+			conn->data = saveptr;
+			return -ENOMEM;
+		}
+		if (conn->data_size <= PAGE_SIZE)
+			kfree(saveptr);
+		else
+			free_pages((unsigned long)saveptr,
+				   get_order(conn->data_size));
+		conn->max_recv_dlength = value;
+		conn->data_size = value;
+		}
+		break;
+	case ISCSI_PARAM_MAX_XMIT_DLENGTH:
+		conn->max_xmit_dlength =  value;
+		break;
+	case ISCSI_PARAM_HDRDGST_EN:
+		conn->hdrdgst_en = value;
+		conn->hdr_size = sizeof(struct iscsi_hdr);
+		if (conn->hdrdgst_en) {
+			conn->hdr_size += sizeof(__u32);
+			if (!conn->tx_tfm)
+				conn->tx_tfm = crypto_alloc_tfm("crc32c", 0);
+			if (!conn->tx_tfm)
+				return -ENOMEM;
+			if (!conn->rx_tfm)
+				conn->rx_tfm = crypto_alloc_tfm("crc32c", 0);
+			if (!conn->rx_tfm) {
+				crypto_free_tfm(conn->tx_tfm);
+				return -ENOMEM;
+			}
+		} else {
+			if (conn->tx_tfm)
+				crypto_free_tfm(conn->tx_tfm);
+			if (conn->rx_tfm)
+				crypto_free_tfm(conn->rx_tfm);
+		}
+		break;
+	case ISCSI_PARAM_DATADGST_EN:
+		/* FIXME: DataDigest is not implemented yet */
+		if (value) /* != ISCSI_DIGEST_NONE) */
+			return -EPERM;
+		conn->datadgst_en = value;
+		break;
+	case ISCSI_PARAM_INITIAL_R2T_EN:
+		session->initial_r2t_en = value;
+		break;
+	case ISCSI_PARAM_MAX_R2T:
+		if (session->max_r2t == roundup_pow_of_two(value))
+			break;
+		iscsi_r2tpool_free(session);
+		session->max_r2t = value;
+		if (session->max_r2t & (session->max_r2t - 1))
+			session->max_r2t = roundup_pow_of_two(session->max_r2t);
+		if (iscsi_r2tpool_alloc(session))
+			return -ENOMEM;
+		break;
+	case ISCSI_PARAM_IMM_DATA_EN:
+		session->imm_data_en = value;
+		break;
+	case ISCSI_PARAM_FIRST_BURST:
+		session->first_burst = value;
+		break;
+	case ISCSI_PARAM_MAX_BURST:
+		session->max_burst = value;
+		break;
+	case ISCSI_PARAM_PDU_INORDER_EN:
+		session->pdu_inorder_en = value;
+		break;
+	case ISCSI_PARAM_DATASEQ_INORDER_EN:
+		session->dataseq_inorder_en = value;
+		break;
+	case ISCSI_PARAM_ERL:
+		session->erl = value;
+		break;
+	case ISCSI_PARAM_IFMARKER_EN:
+		session->ifmarker_en = value;
+		break;
+	case ISCSI_PARAM_OFMARKER_EN:
+		session->ifmarker_en = value;
+		break;
+	default:
+		break;
 	}
 
 	return 0;
