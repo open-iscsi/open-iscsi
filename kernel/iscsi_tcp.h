@@ -147,7 +147,7 @@ struct iscsi_conn {
 	struct semaphore	xmitsema;
 	wait_queue_head_t	ehwait;
 	struct iscsi_tm		tmhdr;
-	volatile int		tmabort_state;
+	int			tmabort_state;
 	struct timer_list	tmabort_timer;
 	volatile int		stop_stage;	/* conn_stop() state machine */
 	int			data_size;	/* actual recv_dlength size */

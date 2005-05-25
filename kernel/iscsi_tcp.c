@@ -2603,6 +2603,7 @@ iscsi_eh_abort(struct scsi_cmnd *sc)
 			up(&conn->xmitsema);
 			goto success;
 		}
+		conn->tmabort_state = TMABORT_INITIAL;
 		spin_unlock_bh(&session->lock);
 
 		/*
@@ -2617,8 +2618,6 @@ iscsi_eh_abort(struct scsi_cmnd *sc)
 		memcpy(hdr->lun, ctask->hdr.lun, 8);
 		hdr->rtt = ctask->hdr.itt;
 		hdr->refcmdsn = ctask->hdr.cmdsn;
-
-		conn->tmabort_state = TMABORT_INITIAL;
 
 		rc = iscsi_conn_send_pdu(iscsi_handle(conn),
 			    (struct iscsi_hdr *)hdr, NULL, 0);
@@ -2697,11 +2696,11 @@ iscsi_eh_abort(struct scsi_cmnd *sc)
 		if (session->state == ISCSI_STATE_TERMINATE)
 			goto failed;
 
+		spin_lock_bh(&session->lock);
 		if (sc->SCp.phase == session->age &&
 		   (conn->tmabort_state == TMABORT_TIMEDOUT ||
 		    conn->tmabort_state == TMABORT_FAILED)) {
 			conn->tmabort_state = TMABORT_INITIAL;
-			spin_lock_bh(&session->lock);
 			if (!ctask->sc) {
 				/*
 				 * ctask completed before tmf abort response or
@@ -2715,7 +2714,7 @@ iscsi_eh_abort(struct scsi_cmnd *sc)
 			iscsi_conn_failure(conn, ISCSI_ERR_CONN_FAILED);
 			continue;
 		}
-
+		spin_unlock_bh(&session->lock);
 		break;
 	}
 
