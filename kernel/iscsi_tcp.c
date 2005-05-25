@@ -2320,7 +2320,6 @@ iscsi_conn_stop(iscsi_connh_t connh, int flag)
 	unsigned long flags;
 
 	down(&conn->xmitsema);
-	conn->stop_stage = flag;
 
 	/*
 	 * guaranteed Rx callback serialization
@@ -2334,6 +2333,7 @@ iscsi_conn_stop(iscsi_connh_t connh, int flag)
 	 */
 	spin_lock_irqsave(session->host->host_lock, flags);
 	spin_lock(&session->lock);
+	conn->stop_stage = flag;
 	conn->c_stage = ISCSI_CONN_STOPPED;
 	set_bit(TX_SUSPEND, &conn->suspend);
 
@@ -2928,8 +2928,10 @@ iscsi_conn_set_param(iscsi_connh_t connh, enum iscsi_param param,
 			break;
 		}
 
+		spin_lock_bh(&session->lock);
 		if (conn->stop_stage == STOP_CONN_RECOVER)
 			flags = GFP_ATOMIC;
+		spin_unlock_bh(&session->lock);
 
 		if (value <= PAGE_SIZE)
 			conn->data = kmalloc(value, flags);
