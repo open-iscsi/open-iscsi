@@ -122,20 +122,12 @@ void event_loop(void)
 int trans_sync(void)
 {
 	int i, found = 0;
-	struct iscsi_uevent ev;
 
-	if (ipc->trans_list(&ev))
+	if (ipc->trans_list())
 		return -1;
 
 	for (i = 0; i < ISCSI_TRANSPORT_MAX; i++) {
-		if (ev.r.t_list.elements[i].trans_handle) {
-			provider[i].handle =
-				ev.r.t_list.elements[i].trans_handle;
-			strncpy(provider[i].name, ev.r.t_list.elements[i].name,
-				ISCSI_TRANSPORT_NAME_MAXLEN);
-			provider[i].caps_mask =
-					ev.r.t_list.elements[i].caps_mask;
-
+		if (provider[i].handle) {
 			/* FIXME: implement session/connection sync up logic */
 			provider[i].sessions.q_forw = &provider[i].sessions;
 			provider[i].sessions.q_back = &provider[i].sessions;

@@ -1249,20 +1249,18 @@ session_find_by_rec(node_rec_t *rec)
 static uint64_t
 __get_transport_by_name(char *transport_name)
 {
-	struct iscsi_uevent ev;
 	int i;
 
-	if (ipc->trans_list(&ev)) {
+	if (ipc->trans_list()) {
 		log_error("can't retreive transport list (%d)", errno);
 		return 0;
 	}
 
 	for (i = 0; i < ISCSI_TRANSPORT_MAX; i++) {
-		if (ev.r.t_list.elements[i].trans_handle) {
-			strncmp(ev.r.t_list.elements[i].name, transport_name,
-				ISCSI_TRANSPORT_NAME_MAXLEN);
-			return ev.r.t_list.elements[i].trans_handle;
-		}
+		if (provider[i].handle &&
+		   !strncmp(provider[i].name, transport_name,
+			     ISCSI_TRANSPORT_NAME_MAXLEN))
+			return provider[i].handle;
 	}
 	return 0;
 }

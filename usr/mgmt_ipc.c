@@ -106,7 +106,6 @@ mgmt_ipc_session_login(queue_task_t *qtask, int rid)
 
 	if ((rc = mgmt_ipc_node_read(rid, &rec)))
 		return rc;
-
 	return session_login_task(&rec, qtask);
 }
 

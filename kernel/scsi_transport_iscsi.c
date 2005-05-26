@@ -47,12 +47,14 @@ struct iscsi_internal {
 	 */
 	spinlock_t session_lock;
 	/*
-	 * based on transport capabilities, at register time we sets these
-	 * bits to tell the transport class it wants the attributes
-	 * displayed in sysfs.
+	 * based on transport capabilities, at register time we set these
+	 * bits to tell the transport class it wants attributes displayed
+	 * in sysfs or that it can support different iSCSI Data-Path
+	 * capabilities
 	 */
-	uint32_t param_mask;
+	uint32_t caps_mask;
 
+	struct class_device cdev;
 	/*
 	 * We do not have any private or other attrs.
 	 */
@@ -70,7 +72,54 @@ struct iscsi_internal {
 static LIST_HEAD(iscsi_transports);
 static DEFINE_SPINLOCK(iscsi_transport_lock);
 
-#define to_iscsi_internal(tmpl) container_of(tmpl, struct iscsi_internal, t)
+#define to_iscsi_internal(tmpl) \
+	container_of(tmpl, struct iscsi_internal, t)
+
+#define cdev_to_iscsi_internal(_cdev) \
+	container_of(_cdev, struct iscsi_internal, cdev)
+
+static void iscsi_transport_release(struct class_device *cdev)
+{
+	struct iscsi_internal *priv = cdev_to_iscsi_internal(cdev);
+	kfree(priv);
+}
+
+/*
+ * iscsi_transport_class represents the iscsi_transports that are
+ * registered.
+ */
+static struct class iscsi_transport_class = {
+	.name = "iscsi_transport",
+	.release = iscsi_transport_release,
+};
+
+static ssize_t
+show_transport_handle(struct class_device *cdev, char *buf)
+{
+	struct iscsi_internal *priv = cdev_to_iscsi_internal(cdev);
+	return sprintf(buf, "%llu", iscsi_handle(priv->iscsi_transport));
+}
+
+static CLASS_DEVICE_ATTR(handle, S_IRUGO, show_transport_handle, NULL);
+
+static ssize_t
+show_caps_mask(struct class_device *cdev, char *buf)
+{
+	struct iscsi_internal *priv = cdev_to_iscsi_internal(cdev);
+	return sprintf(buf, "0x%x", priv->caps_mask);
+}
+
+static CLASS_DEVICE_ATTR(caps_mask, S_IRUGO, show_caps_mask, NULL);
+
+static struct attribute *iscsi_transport_attrs[] = {
+	&class_device_attr_handle.attr,
+	&class_device_attr_caps_mask.attr,
+	NULL,
+};
+
+static struct attribute_group iscsi_transport_group = {
+	.attrs = iscsi_transport_attrs,
+};
 
 static DECLARE_TRANSPORT_CLASS(iscsi_session_class,
 			       "iscsi_session",
@@ -174,11 +223,12 @@ iscsi_if_transport_lookup(struct iscsi_transport *tt)
 	unsigned long flags;
 
 	spin_lock_irqsave(&iscsi_transport_lock, flags);
-	list_for_each_entry(priv, &iscsi_transports, list)
+	list_for_each_entry(priv, &iscsi_transports, list) {
 		if (tt == priv->iscsi_transport) {
 			spin_unlock_irqrestore(&iscsi_transport_lock, flags);
 			return priv;
 		}
+	}
 	spin_unlock_irqrestore(&iscsi_transport_lock, flags);
 	return NULL;
 }
@@ -746,37 +796,13 @@ iscsi_if_recv_msg(struct sk_buff *skb, struct nlmsghdr *nlh)
 		return -EPERM;
 
 	priv = iscsi_if_transport_lookup(iscsi_ptr(ev->transport_handle));
-	if (priv)
-		transport = priv->iscsi_transport;
-	else if (nlh->nlmsg_type != ISCSI_UEVENT_TRANS_LIST)
-		return -EEXIST;
+	if (!priv)
+		return -EINVAL;
+	transport = priv->iscsi_transport;
 
 	daemon_pid = NETLINK_CREDS(skb)->pid;
 
 	switch (nlh->nlmsg_type) {
-	case ISCSI_UEVENT_TRANS_LIST: {
-		unsigned long flags;
-		int i = 0;
-
-		/*
-		 * this will always succeed for now since there
-		 * is only one transport. We can kill this event
-		 * and just export the info in sysfs when we settle
-		 * the iscsi sysfs layout debate
-		 */
-		spin_lock_irqsave(&iscsi_transport_lock, flags);
-		list_for_each_entry(priv, &iscsi_transports, list) {
-			ev->r.t_list.elements[i].trans_handle =
-					iscsi_handle(priv->iscsi_transport);
-			strncpy(ev->r.t_list.elements[i].name,
-				priv->iscsi_transport->name,
-				ISCSI_TRANSPORT_NAME_MAXLEN);
-			ev->r.t_list.elements[i].caps_mask = priv->param_mask;
-			i++;
-		}
-		spin_unlock_irqrestore(&iscsi_transport_lock, flags);
-
-	      } break;
 	case ISCSI_UEVENT_CREATE_SESSION:
 		err = iscsi_if_create_session(priv, ev);
 		break;
@@ -902,7 +928,7 @@ show_conn_int_param_##param(struct class_device *cdev, char *buf)	\
 	struct iscsi_internal *priv;					\
 									\
 	priv = to_iscsi_internal(conn->host->transportt);		\
-	if (priv->param_mask & (1 << param))				\
+	if (priv->caps_mask & (1 << param))				\
 		priv->iscsi_transport->get_param(conn->connh, param, &value); \
 	return snprintf(buf, 20, format"\n", value);			\
 }
@@ -938,7 +964,7 @@ show_session_int_param_##param(struct class_device *cdev, char *buf)	\
 				  struct iscsi_if_conn, session_list);	\
 	spin_unlock_irqrestore(&connlock, flags);			\
 									\
-	if (conn && (priv->param_mask & (1 << param)))			\
+	if (conn && (priv->caps_mask & (1 << param)))			\
 		priv->iscsi_transport->get_param(conn->connh, param, &value);\
 	return snprintf(buf, 20, format"\n", value);			\
 }
@@ -957,13 +983,13 @@ iscsi_session_int_attr(data_seq_in_order, ISCSI_PARAM_DATASEQ_INORDER_EN, "%d");
 iscsi_session_int_attr(erl, ISCSI_PARAM_ERL, "%d");
 
 #define SETUP_SESSION_RD_ATTR(field, param)				\
-	if (priv->param_mask & (1 << param)) {				\
+	if (priv->caps_mask & (1 << param)) {				\
 		priv->session_attrs[count] = &class_device_attr_##field;\
 		count++;						\
 	}
 
 #define SETUP_CONN_RD_ATTR(field, param)				\
-	if (priv->param_mask & (1 << param)) {				\
+	if (priv->caps_mask & (1 << param)) {				\
 		priv->conn_attrs[count] = &class_device_attr_##field;	\
 		count++;						\
 	}
@@ -1026,7 +1052,7 @@ int iscsi_register_transport(struct iscsi_transport *tt)
 {
 	struct iscsi_internal *priv;
 	unsigned long flags;
-	int count = 0;
+	int count = 0, err;
 
 	BUG_ON(!tt);
 
@@ -1043,17 +1069,27 @@ int iscsi_register_transport(struct iscsi_transport *tt)
 	spin_lock_init(&priv->session_lock);
 	priv->iscsi_transport = tt;
 
+	priv->cdev.class = &iscsi_transport_class;
+	snprintf(priv->cdev.class_id, BUS_ID_SIZE, "%s", tt->name);
+	err = class_device_register(&priv->cdev);
+	if (err)
+		goto free_priv;
+
+	err = sysfs_create_group(&priv->cdev.kobj, &iscsi_transport_group);
+	if (err)
+		goto unregister_cdev;
+
 	/* setup parameters mask */
-	priv->param_mask = 0xFFFFFFFF;
+	priv->caps_mask = 0xFFFFFFFF;
 	if (!(tt->caps & CAP_MULTI_R2T))
-		priv->param_mask &= ~(1 << ISCSI_PARAM_MAX_R2T);
+		priv->caps_mask &= ~(1 << ISCSI_PARAM_MAX_R2T);
 	if (!(tt->caps & CAP_HDRDGST))
-		priv->param_mask &= ~(1 << ISCSI_PARAM_HDRDGST_EN);
+		priv->caps_mask &= ~(1 << ISCSI_PARAM_HDRDGST_EN);
 	if (!(tt->caps & CAP_DATADGST))
-		priv->param_mask &= ~(1 << ISCSI_PARAM_DATADGST_EN);
+		priv->caps_mask &= ~(1 << ISCSI_PARAM_DATADGST_EN);
 	if (!(tt->caps & CAP_MARKERS)) {
-		priv->param_mask &= ~(1 << ISCSI_PARAM_IFMARKER_EN);
-		priv->param_mask &= ~(1 << ISCSI_PARAM_OFMARKER_EN);
+		priv->caps_mask &= ~(1 << ISCSI_PARAM_IFMARKER_EN);
+		priv->caps_mask &= ~(1 << ISCSI_PARAM_OFMARKER_EN);
 	}
 
 	/* connection parameters */
@@ -1097,6 +1133,12 @@ int iscsi_register_transport(struct iscsi_transport *tt)
 
 	printk(KERN_NOTICE "iscsi: registered transport (%s)\n", tt->name);
 	return 0;
+
+unregister_cdev:
+	class_device_unregister(&priv->cdev);
+free_priv:
+	kfree(priv);
+	return err;
 }
 EXPORT_SYMBOL_GPL(iscsi_register_transport);
 
@@ -1126,7 +1168,9 @@ int iscsi_unregister_transport(struct iscsi_transport *tt)
 
 	transport_container_unregister(&priv->conn_cont);
 	transport_container_unregister(&priv->session_cont);
-	kfree(priv);
+
+	sysfs_remove_group(&priv->cdev.kobj, &iscsi_transport_group);
+	class_device_unregister(&priv->cdev);
 	up(&rx_queue_sema);
 
 	return 0;
@@ -1163,9 +1207,13 @@ static __init int iscsi_transport_init(void)
 {
 	int err;
 
-	err = transport_class_register(&iscsi_connection_class);
+	err = class_register(&iscsi_transport_class);
 	if (err)
 		return err;
+
+	err = transport_class_register(&iscsi_connection_class);
+	if (err)
+		goto unregister_transport_class;
 
 	err = transport_class_register(&iscsi_session_class);
 	if (err)
@@ -1193,6 +1241,8 @@ unregister_session_class:
 	transport_class_unregister(&iscsi_session_class);
 unregister_conn_class:
 	transport_class_unregister(&iscsi_connection_class);
+unregister_transport_class:
+	class_unregister(&iscsi_transport_class);
 	return err;
 }
 
@@ -1203,6 +1253,7 @@ static void __exit iscsi_transport_exit(void)
 	netlink_unregister_notifier(&iscsi_nl_notifier);
 	transport_class_unregister(&iscsi_connection_class);
 	transport_class_unregister(&iscsi_session_class);
+	class_unregister(&iscsi_transport_class);
 }
 
 module_init(iscsi_transport_init);

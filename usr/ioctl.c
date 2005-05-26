@@ -380,20 +380,33 @@ krecv_pdu_end(uint64_t transport_handle, uintptr_t conn_handle,
 }
 
 static int
-ktrans_list(struct iscsi_uevent *ev)
+ktrans_list(void)
 {
+	struct iscsi_uevent ev;
 	int rc;
 
 	log_debug(7, "in %s", __FUNCTION__);
 
 	memset(ev, 0, sizeof(struct iscsi_uevent));
-
+	/*
+	 * need to define this for bsd
+	 */
 	ev->type = ISCSI_UEVENT_TRANS_LIST;
 
-	if ((rc = __kipc_call(ev, sizeof(*ev))) < 0) {
+	if ((rc = __kipc_call(&ev, sizeof(ev))) < 0) {
 		return rc;
 	}
 
+	for (i = 0; i < ISCSI_TRANSPORT_MAX; i++) {
+		if (ev.r.t_list.elements[i].trans_handle) {
+			provider[i].handle =
+				ev.r.t_list.elements[i].trans_handle;
+			strncpy(provider[i].name, ev.r.t_list.elements[i].name,
+				ISCSI_TRANSPORT_NAME_MAXLEN);
+			provider[i].caps_mask =
+					ev.r.t_list.elements[i].caps_mask;
+		}
+	}
 	return 0;
 }
 

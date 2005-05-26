@@ -23,8 +23,6 @@
 
 #include <iscsi_proto.h>
 
-#define ISCSI_TRANSPORT_NAME_MAXLEN	16
-#define ISCSI_TRANSPORT_MAX		1
 #define UEVENT_BASE			10
 #define KEVENT_BASE			100
 #define ISCSI_ERR_BASE			1000
@@ -42,9 +40,8 @@ enum iscsi_uevent_e {
 	ISCSI_UEVENT_START_CONN		= UEVENT_BASE + 7,
 	ISCSI_UEVENT_STOP_CONN		= UEVENT_BASE + 8,
 	ISCSI_UEVENT_SEND_PDU		= UEVENT_BASE + 9,
-	ISCSI_UEVENT_TRANS_LIST		= UEVENT_BASE + 10,
-	ISCSI_UEVENT_GET_STATS		= UEVENT_BASE + 11,
-	ISCSI_UEVENT_GET_PARAM		= UEVENT_BASE + 12,
+	ISCSI_UEVENT_GET_STATS		= UEVENT_BASE + 10,
+	ISCSI_UEVENT_GET_PARAM		= UEVENT_BASE + 11,
 
 	/* up events */
 	ISCSI_KEVENT_RECV_PDU		= KEVENT_BASE + 1,
@@ -118,14 +115,6 @@ struct iscsi_uevent {
 			uint64_t	conn_handle;
 			uint32_t	error; /* enum iscsi_err */
 		} connerror;
-		struct msg_trans_list {
-			struct {
-				uint64_t trans_handle;
-				uint32_t caps_mask;
-				uint32_t unused;
-				char name[ISCSI_TRANSPORT_NAME_MAXLEN];
-			} elements[ISCSI_TRANSPORT_MAX];
-		} t_list;
 	} r;
 } __attribute__ ((aligned (sizeof(uint64_t))));
 

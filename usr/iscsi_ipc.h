@@ -43,8 +43,7 @@ struct iscsi_ipc {
 
 	int (*ctldev_handle) (void);
 
-	/* FIXME: do not use iscsi_uevent... */
-	int (*trans_list) (struct iscsi_uevent *ev);
+	int (*trans_list) (void);
 
 	int (*create_session) (uint64_t transport_handle,
 			       uint32_t initial_cmdsn, uint64_t *out_handle,

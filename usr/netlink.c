@@ -19,9 +19,11 @@
 
 #include <string.h>
 #include <stdlib.h>
+#include <stdio.h>
 #include <unistd.h>
 #include <stdint.h>
 #include <errno.h>
+#include <dirent.h>
 #include <asm/types.h>
 #include <sys/socket.h>
 #include <sys/types.h>
@@ -51,6 +53,9 @@ static int ctldev_handle(void);
 
 #define PDU_SENDBUF_DEFAULT_MAX \
 	(DEFAULT_MAX_RECV_DATA_SEGMENT_LENGTH + sizeof(struct iscsi_hdr))
+
+
+#define ISCSI_TRANSPORT_DIR "/sys/class/iscsi_transport"
 
 static int
 kread(char *data, int count)
@@ -601,21 +606,73 @@ krecv_pdu_end(uint64_t transport_handle, uintptr_t conn_handle,
 }
 
 static int
-ktrans_list(struct iscsi_uevent *ev)
+read_transport_file(char *filename, void *value, char *format)
 {
-	int rc;
+	FILE *file;
+	char buffer[32], *line;
+	int err = 0;
+
+	file = fopen(filename, "r");
+	if (file) {
+		line = fgets(buffer, sizeof(buffer), file);
+		if (line)
+			sscanf(buffer, format, value);
+		else {
+			log_error("Could not open %s.\n", filename);
+			err = -EIO;
+		}
+		fclose(file);
+	}
+	return err;
+}
+
+static int
+trans_filter(const struct dirent *dir)
+{
+	return strcmp(dir->d_name, ".") && strcmp(dir->d_name, "..");
+}
+
+static int
+ktrans_list(void)
+{
+	struct dirent **namelist;
+	char filename[64];
+	int i, n, err = 0;
 
 	log_debug(7, "in %s", __FUNCTION__);
 
-	memset(ev, 0, sizeof(struct iscsi_uevent));
-
-	ev->type = ISCSI_UEVENT_TRANS_LIST;
-
-	if ((rc = __kipc_call(ev, sizeof(*ev))) < 0) {
-		return rc;
+	n = scandir(ISCSI_TRANSPORT_DIR, &namelist, trans_filter,
+		    alphasort);
+	if (n < 0) {
+		log_error("Could not scan %s.", ISCSI_TRANSPORT_DIR);
+		return n;
 	}
 
-	return 0;
+	for (i = 0; i < ISCSI_TRANSPORT_MAX && i < n; i++) {
+		strncpy(provider[i].name, namelist[i]->d_name,
+			ISCSI_TRANSPORT_NAME_MAXLEN);
+		free(namelist[i]);
+
+		sprintf(filename, ISCSI_TRANSPORT_DIR"/%s/handle",
+			provider[i].name);
+		err = read_transport_file(filename, &provider[i].handle,
+					  "%lu");
+		if (err)
+			break;
+
+		sprintf(filename, ISCSI_TRANSPORT_DIR"/%s/caps_mask",
+			provider[i].name);		
+		err = read_transport_file(filename, &provider[i].caps_mask,
+					  "0x%x");
+		if (err)
+			break;
+	}
+
+	for (i++; i < n; i++)
+		free(namelist[i]);
+	free(namelist);
+
+	return err;
 }
 
 static int
