@@ -1,8 +1,8 @@
 Index: scsi_transport_iscsi.c
 ===================================================================
---- scsi_transport_iscsi.c	(revision 279)
+--- scsi_transport_iscsi.c	(revision 350)
 +++ scsi_transport_iscsi.c	(working copy)
-@@ -56,9 +56,9 @@
+@@ -58,9 +58,9 @@
  	/*
  	 * We do not have any private or other attrs.
  	 */
@@ -14,16 +14,7 @@ Index: scsi_transport_iscsi.c
  	struct class_device_attribute *session_attrs[ISCSI_SESSION_ATTRS + 1];
  };
  
-@@ -188,7 +188,7 @@
- }
- 
- static void*
--mempool_zone_alloc_skb(unsigned int gfp_mask, void *pool_data)
-+mempool_zone_alloc_skb(int gfp_mask, void *pool_data)
- {
- 	struct mempool_zone *zone = pool_data;
- 
-@@ -971,10 +971,10 @@
+@@ -1015,10 +1015,10 @@
  		return 0;
  
  	priv = to_iscsi_internal(shost->transportt);
@@ -36,7 +27,7 @@ Index: scsi_transport_iscsi.c
  }
  
  static int iscsi_is_conn_dev(const struct device *dev)
-@@ -998,10 +998,10 @@
+@@ -1042,10 +1042,10 @@
  		return 0;
  
  	priv = to_iscsi_internal(shost->transportt);
@@ -49,7 +40,7 @@ Index: scsi_transport_iscsi.c
  }
  
  int iscsi_register_transport(struct iscsi_transport *tt)
-@@ -1039,10 +1039,10 @@
+@@ -1093,10 +1093,10 @@
  	}
  
  	/* connection parameters */
@@ -64,7 +55,7 @@ Index: scsi_transport_iscsi.c
  
  	SETUP_CONN_RD_ATTR(max_recv_dlength, ISCSI_PARAM_MAX_RECV_DLENGTH);
  	SETUP_CONN_RD_ATTR(max_xmit_dlength, ISCSI_PARAM_MAX_XMIT_DLENGTH);
-@@ -1056,10 +1056,10 @@
+@@ -1110,10 +1110,10 @@
  	count = 0;
  
  	/* session parameters */
@@ -79,14 +70,14 @@ Index: scsi_transport_iscsi.c
  
  	SETUP_SESSION_RD_ATTR(initial_r2t, ISCSI_PARAM_INITIAL_R2T_EN);
  	SETUP_SESSION_RD_ATTR(max_outstanding_r2t, ISCSI_PARAM_MAX_R2T);
-@@ -1106,8 +1106,8 @@
+@@ -1166,8 +1166,8 @@
  	list_del(&priv->list);
  	spin_unlock_irqrestore(&iscsi_transport_lock, flags);
  
 -	transport_container_unregister(&priv->conn_cont);
 -	transport_container_unregister(&priv->session_cont);
-+	attribute_container_unregister(&priv->conn_cont);
-+	attribute_container_unregister(&priv->session_cont);
- 	kfree(priv);
- 	up(&callsema);
++ 	attribute_container_unregister(&priv->conn_cont);
++ 	attribute_container_unregister(&priv->session_cont);
  
+ 	sysfs_remove_group(&priv->cdev.kobj, &iscsi_transport_group);
+ 	class_device_unregister(&priv->cdev);
