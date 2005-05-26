@@ -2412,10 +2412,9 @@ iscsi_conn_stop(iscsi_connh_t connh, int flag)
 }
 
 static int
-iscsi_conn_send_pdu(iscsi_connh_t connh, struct iscsi_hdr *hdr, char *data,
-		    uint32_t data_size)
+iscsi_conn_send_generic(struct iscsi_conn *conn, struct iscsi_hdr *hdr,
+			char *data, uint32_t data_size)
 {
-	struct iscsi_conn *conn = iscsi_ptr(connh);
 	struct iscsi_session *session = conn->session;
 	struct iscsi_nopout *nop = (struct iscsi_nopout *)hdr;
 	struct iscsi_mgmt_task *mtask;
@@ -2505,12 +2504,10 @@ iscsi_conn_send_pdu(iscsi_connh_t connh, struct iscsi_hdr *hdr, char *data,
 	 * we need to serialize __kfifo_put, so we don't have to take
 	 * additional lock on fast data-path
 	 */
-	spin_lock_bh(&session->lock);
         if (hdr->opcode & ISCSI_OP_IMMEDIATE)
 	        __kfifo_put(conn->immqueue, (void*)&mtask, sizeof(void*));
 	else
 	        __kfifo_put(conn->mgmtqueue, (void*)&mtask, sizeof(void*));
-	spin_unlock_bh(&session->lock);
 
 	schedule_work(&conn->xmitwork);
 
@@ -2611,8 +2608,8 @@ iscsi_eh_abort(struct scsi_cmnd *sc)
 		hdr->rtt = ctask->hdr.itt;
 		hdr->refcmdsn = ctask->hdr.cmdsn;
 
-		rc = iscsi_conn_send_pdu(iscsi_handle(conn),
-			    (struct iscsi_hdr *)hdr, NULL, 0);
+		rc = iscsi_conn_send_generic(conn, (struct iscsi_hdr *)hdr,
+					     NULL, 0);
 		if (rc) {
 			iscsi_conn_failure(conn, ISCSI_ERR_CONN_FAILED);
 			debug_scsi("abort sent failure [itt 0x%x]", ctask->itt);
@@ -3109,6 +3106,20 @@ iscsi_conn_get_stats(iscsi_connh_t connh, struct iscsi_stats *stats)
 	stats->custom[1].value = conn->discontiguous_hdr_cnt;
 	strcpy(stats->custom[2].desc, "eh_abort_cnt");
 	stats->custom[2].value = conn->eh_abort_cnt;
+}
+
+static int
+iscsi_conn_send_pdu(iscsi_connh_t connh, struct iscsi_hdr *hdr, char *data,
+		    uint32_t data_size)
+{
+	struct iscsi_conn *conn = iscsi_ptr(connh);
+	int rc;
+
+	down(&conn->xmitsema);
+	rc = iscsi_conn_send_generic(conn, hdr, data, data_size);
+	up(&conn->xmitsema);
+
+	return rc;
 }
 
 static struct iscsi_transport iscsi_tcp_transport = {
