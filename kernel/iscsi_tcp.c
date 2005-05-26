@@ -2099,7 +2099,6 @@ iscsi_conn_destroy(iscsi_connh_t connh)
 
 	spin_lock_bh(&session->lock);
 	conn->c_stage = ISCSI_CONN_CLEANUP_WAIT;
-	del_timer_sync(&conn->tmabort_timer);
 	if (session->leadconn == conn) {
 		/*
 		 * Control plane decided to destroy leading connection?
@@ -2109,6 +2108,8 @@ iscsi_conn_destroy(iscsi_connh_t connh)
 		wake_up(&conn->ehwait);
 	}
 	spin_unlock_bh(&session->lock);
+
+	up(&conn->xmitsema);
 
 	for (;;) {
 		spin_lock_bh(&conn->lock);
@@ -2122,8 +2123,6 @@ iscsi_conn_destroy(iscsi_connh_t connh)
 			   session->host->host_busy,
 			   session->host->host_failed);
 	}
-
-	up(&conn->xmitsema);
 
 	/* now free crypto */
 	if (conn->hdrdgst_en || conn->datadgst_en) {
@@ -2696,6 +2695,8 @@ failed:
 	rc = FAILED;
 
 exit:
+	del_timer_sync(&conn->tmabort_timer);
+
 	down(&conn->xmitsema);
 	sk = conn->sock->sk;
 	write_lock_bh(&sk->sk_callback_lock);
