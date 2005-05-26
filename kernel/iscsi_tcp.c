@@ -1879,18 +1879,6 @@ iscsi_queuecommand(struct scsi_cmnd *sc, void (*done)(struct scsi_cmnd *))
 
 	conn = session->leadconn;
 
-	if (unlikely(session->conn_cnt > 1)) {
-		struct iscsi_conn *conn;
-		int cpu = smp_processor_id();
-
-		list_for_each_entry(conn, &session->connections, item) {
-			if (conn->cpu == cpu && cpu_online(cpu)) {
-				conn = conn;
-				break;
-			}
-		}
-	}
-
 	__kfifo_get(session->cmdpool.queue, (void*)&ctask, sizeof(void*));
 	BUG_ON(ctask->sc);
 
@@ -2278,7 +2266,6 @@ iscsi_conn_start(iscsi_connh_t connh)
 	write_lock_bh(&sk->sk_callback_lock);
 	spin_lock_bh(&session->lock);
 	conn->c_stage = ISCSI_CONN_STARTED;
-	conn->cpu = session->conn_cnt % num_online_cpus();
 	session->state = ISCSI_STATE_LOGGED_IN;
 
 	switch(conn->stop_stage) {

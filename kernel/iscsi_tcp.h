@@ -123,8 +123,6 @@ struct iscsi_conn {
 
 	/* control data */
 	int			senselen;	/* is data has sense? */
-	int			cpu;		/* binded CPU */
-	int			busy;
 	int			id;		/* iSCSI CID */
 	struct iscsi_tcp_recv	in;		/* TCP receive context */
 	int			in_progress;	/* Connection state machine */
