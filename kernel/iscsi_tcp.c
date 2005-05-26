@@ -1712,6 +1712,11 @@ done:
 static int
 iscsi_data_xmit(struct iscsi_conn *conn)
 {
+	if (unlikely(test_bit(TX_SUSPEND, &conn->suspend))) {
+		debug_tcp("conn %d Tx suspended!\n", conn->id);
+		return 0;
+	}
+
 	/*
 	 * Transmit in the following order:
 	 *
@@ -1729,13 +1734,13 @@ iscsi_data_xmit(struct iscsi_conn *conn)
 
 	if (conn->ctask) {
 		if (iscsi_ctask_xmit(conn, conn->ctask))
-			return -EAGAIN;
+			goto again;
 		/* done with this in-progress ctask */
 		conn->ctask = NULL;
 	}
 	if (conn->mtask) {
 	        if (iscsi_mtask_xmit(conn, conn->mtask))
-		        return -EAGAIN;
+		        goto again;
 		/* done with this in-progress mtask */
 		conn->mtask = NULL;
 	}
@@ -1746,7 +1751,7 @@ iscsi_data_xmit(struct iscsi_conn *conn)
 	        while (__kfifo_get(conn->immqueue, (void*)&conn->mtask,
 			           sizeof(void*))) {
 		        if (iscsi_mtask_xmit(conn, conn->mtask))
-			        return -EAGAIN;
+			        goto again;
 
 		        if (conn->mtask->hdr.itt ==
 					cpu_to_be32(ISCSI_RESERVED_TAG)) {
@@ -1764,14 +1769,14 @@ iscsi_data_xmit(struct iscsi_conn *conn)
 	while (__kfifo_get(conn->writequeue, (void*)&conn->ctask,
 			   sizeof(void*))) {
 		if (iscsi_ctask_xmit(conn, conn->ctask))
-			return -EAGAIN;
+			goto again;
 	}
 
 	/* process command queue */
 	while (__kfifo_get(conn->xmitqueue, (void*)&conn->ctask,
 			   sizeof(void*))) {
 		if (iscsi_ctask_xmit(conn, conn->ctask))
-			return -EAGAIN;
+			goto again;
 	}
 	/* done with this ctask */
 	conn->ctask = NULL;
@@ -1783,7 +1788,7 @@ iscsi_data_xmit(struct iscsi_conn *conn)
 	        while (__kfifo_get(conn->mgmtqueue, (void*)&conn->mtask,
 			           sizeof(void*))) {
 		        if (iscsi_mtask_xmit(conn, conn->mtask))
-			        return -EAGAIN;
+			        goto again;
 
 		        if (conn->mtask->hdr.itt ==
 					cpu_to_be32(ISCSI_RESERVED_TAG)) {
@@ -1799,24 +1804,11 @@ iscsi_data_xmit(struct iscsi_conn *conn)
 	}
 
 	return 0;
-}
 
-static inline int
-iscsi_data_xmit_more(struct iscsi_conn *conn)
-{
-	int rc;
-
-	if (unlikely(test_bit(TX_SUSPEND, &conn->suspend))) {
-		debug_tcp("conn %d Tx suspended!\n", conn->id);
+again:
+	if (test_bit(TX_SUSPEND, &conn->suspend))
 		return 0;
-	}
-	rc = iscsi_data_xmit(conn);
-	if (rc) {
-		if (conn->stop_stage != STOP_CONN_RECOVER &&
-		    test_bit(TX_SUSPEND, &conn->suspend))
-			return 0;
-	}
-	return rc;
+	return -EAGAIN;
 }
 
 static void
@@ -1828,7 +1820,7 @@ iscsi_xmitworker(void *data)
 	 * serialize Xmit worker on a per-connection basis.
 	 */
 	down(&conn->xmitsema);
-	if (iscsi_data_xmit_more(conn))
+	if (iscsi_data_xmit(conn))
 		schedule_work(&conn->xmitwork);
 	up(&conn->xmitsema);
 }
@@ -1896,7 +1888,7 @@ iscsi_queuecommand(struct scsi_cmnd *sc, void (*done)(struct scsi_cmnd *))
 
         if (!in_interrupt() && !down_trylock(&conn->xmitsema)) {
 		spin_unlock_irq(host->host_lock);
-		if (iscsi_data_xmit_more(conn))
+		if (iscsi_data_xmit(conn))
 			schedule_work(&conn->xmitwork);
 		up(&conn->xmitsema);
 		spin_lock_irq(host->host_lock);
