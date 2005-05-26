@@ -90,7 +90,7 @@ struct iscsi_hdr {
 #define ISCSI_OP_ASYNC_EVENT		0x32
 #define ISCSI_OP_REJECT			0x3f
 
-/* SCSI Command Header */
+/* iSCSI PDU Header */
 struct iscsi_cmd {
 	uint8_t opcode;
 	uint8_t flags;

@@ -119,38 +119,43 @@ struct iscsi_conn {
 
 	/* iSCSI connection-wide sequencing */
 	uint32_t		exp_statsn;
-	int			hdr_size;	/* PDU Header size pre-calc. */
+	int			hdr_size;	/* PDU header size */
 
 	/* control data */
-	int			senselen;	/* is data has sense? */
-	int			id;		/* iSCSI CID */
+	int			senselen;	/* scsi sense length */
+	int			id;		/* CID */
 	struct iscsi_tcp_recv	in;		/* TCP receive context */
-	int			in_progress;	/* Connection state machine */
-	struct socket           *sock;          /* BSD socket layer */
-	struct iscsi_session	*session;	/* Parent session */
-	struct list_head	item;		/* item's list of connections */
-	struct kfifo		*writequeue;	/* Write response xmit queue */
-	struct kfifo		*immqueue;	/* Immediate xmit queue */
-	struct kfifo		*mgmtqueue;	/* Mgmt xmit queue */
-	struct kfifo		*xmitqueue;	/* Data-path queue */
+	int			in_progress;	/* connection state machine */
+	struct socket           *sock;          /* TCP socket */
+	struct iscsi_session	*session;	/* parent session */
+	struct list_head	item;		/* maintains list of conns */
+	struct kfifo		*writequeue;	/* write cmds for Data-Outs */
+	struct kfifo		*immqueue;	/* immediate xmit queue */
+	struct kfifo		*mgmtqueue;	/* mgmt (control) xmit queue */
+	struct kfifo		*xmitqueue;	/* data-path cmd queue */
 	struct work_struct	xmitwork;	/* per-conn. xmit workqueue */
 	unsigned long		suspend;	/* suspend bits */
-	int			c_stage;	/* Connection state */
+	int			c_stage;	/* connection state */
 	struct iscsi_mgmt_task	*login_mtask;	/* mtask used for login/text */
-	spinlock_t		lock;		/* general connection lock */
+	spinlock_t		lock;		/* FIXME: to be removed */
 	struct crypto_tfm	*tx_tfm;
 	struct crypto_tfm	*rx_tfm;
 	struct iscsi_mgmt_task	*mtask;		/* xmit mtask in progress */
 	struct iscsi_cmd_task	*ctask;		/* xmit ctask in progress */
-	struct semaphore	xmitsema;
-	wait_queue_head_t	ehwait;
+	struct semaphore	xmitsema;	/* serializes connection xmit,
+						 * access to kfifos:	  *
+						 * xmitqueue, writequeue, *
+						 * immqueue, mgmtqueue    */
+	wait_queue_head_t	ehwait;		/* used in eh_abort()     */
 	struct iscsi_tm		tmhdr;
-	int			tmabort_state;
-	struct timer_list	tmabort_timer;
-	int			stop_stage;	/* conn_stop() state machine */
-	int			data_size;	/* actual recv_dlength size */
+	int			tmabort_state;  /* see TMABORT_INITIAL, etc.*/
+	struct timer_list	tmabort_timer;  /* abort timer */
+	int			stop_stage;	/* conn_stop() flag: *
+						 * stop to recover,  *
+						 * stop to terminate */
+	int			data_size;	/* actual recv_dlength */
 
-	/* configuration */
+	/* negotiated params */
 	int			max_recv_dlength;
 	int			max_xmit_dlength;
 	int			hdrdgst_en;
@@ -201,15 +206,20 @@ struct iscsi_session {
 	/* control data */
 	struct Scsi_Host	*host;
 	int			id;
-	struct iscsi_conn	*leadconn;	/* Leading Conn. */
-	spinlock_t		lock;
-	int			state;		/* always under session->lock */
+	struct iscsi_conn	*leadconn;	/* leading connection */
+	spinlock_t		lock;		/* protects session state, *
+						 * sequence numbers,       *
+						 * session resources:      *
+						 * - cmdpool,		   *
+						 * - mgmtpool,		   *
+						 * - r2tpool		   */
+	int			state;		/* session state           */
 	struct list_head	item;
 	void			*auth_client;
 	int			conn_cnt;
-	int			age;		/* reopen session's age */
+	int			age;		/* counts session re-opens */
 
-	struct list_head	connections;	/* list of connects. */
+	struct list_head	connections;	/* list of connections */
 	int			cmds_max;	/* size of cmds array */
 	struct iscsi_cmd_task	**cmds;		/* Original Cmds arr */
 	struct iscsi_queue	cmdpool;	/* PDU's pool */
@@ -236,7 +246,7 @@ struct iscsi_mgmt_task {
 	char			*data;		/* mgmt payload */
 	int			xmstate;	/* mgmt xmit progress */
 	int			data_count;	/* counts data to be sent */
-	struct iscsi_buf	headbuf;	/* Header Buffer */
+	struct iscsi_buf	headbuf;	/* header buffer */
 	struct iscsi_buf	sendbuf;	/* in progress buffer */
 	int			sent;
 	uint32_t		itt;		/* this ITT */
@@ -256,33 +266,33 @@ struct iscsi_r2t_info {
 };
 
 struct iscsi_cmd_task {
-	struct iscsi_cmd	hdr;			/* orig. SCSI PDU */
-	char			hdrext[4*sizeof(__u16)+	/* one AHS */
-				    sizeof(__u32)];	/* Header-Digest */
+	struct iscsi_cmd	hdr;			/* iSCSI PDU header */
+	char			hdrext[4*sizeof(__u16)+	/* AHS */
+				    sizeof(__u32)];	/* HeaderDigest */
 	char			pad[ISCSI_PAD_LEN];
 	int			itt;			/* this ITT */
-	int			datasn;			/* DataSN numbering */
-	struct iscsi_buf	headbuf;		/* Header Buffer */
-	struct iscsi_buf	sendbuf;		/* in progress buffer */
+	int			datasn;			/* DataSN */
+	struct iscsi_buf	headbuf;		/* header buf (xmit) */
+	struct iscsi_buf	sendbuf;		/* in progress buffer*/
 	int			sent;
-	struct scatterlist	*sg;			/* per-cmd SG list */
+	struct scatterlist	*sg;			/* per-cmd SG list  */
 	struct scatterlist	*bad_sg;		/* assert statement */
-	int			sg_count;		/* SG's to process */
+	int			sg_count;		/* SG's to process  */
 	uint32_t		unsol_datasn;
 	uint32_t		exp_r2tsn;
-	int			xmstate;		/* Xmit State machine */
-	int			imm_count;		/* Imm-Data bytes */
-	int			unsol_count;		/* Imm-Data-Out bytes */
+	int			xmstate;		/* xmit xtate machine */
+	int			imm_count;		/* imm-data (bytes)   */
+	int			unsol_count;		/* unsolicited (bytes)*/
 	int			r2t_data_count;		/* R2T Data-Out bytes */
-	int			data_count;		/* Remaining Data-Out */
-	int			pad_count;		/* Padded bytes */
-	struct scsi_cmnd	*sc;			/* Assoc. SCSI cmnd */
+	int			data_count;		/* remaining Data-Out */
+	int			pad_count;		/* padded bytes */
+	struct scsi_cmnd	*sc;			/* associated SCSI cmd*/
 	int			total_length;
 	int			data_offset;
-	struct iscsi_conn	*conn;			/* used connection */
+	struct iscsi_conn	*conn;			/* used connection    */
 	struct iscsi_mgmt_task	*mtask;			/* tmf mtask in progr */
 
-	struct iscsi_r2t_info	*r2t;			/* in progress R2T */
+	struct iscsi_r2t_info	*r2t;			/* in progress R2T    */
 	struct iscsi_queue	r2tpool;
 	struct kfifo		*r2tqueue;
 	struct iscsi_r2t_info	**r2ts;
