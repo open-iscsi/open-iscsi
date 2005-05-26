@@ -46,10 +46,11 @@
 #define __recinfo_str(_key, _info, _rec, _name, _show, _n) do { \
 	_info[_n].type = TYPE_STR; \
 	strncpy(_info[_n].name, _key, NAME_MAXVAL); \
-	if (strlen(_rec->_name)) \
-		strncpy(_info[_n].value, _rec->_name, VALUE_MAXVAL); \
+	if (strlen((char*)_rec->_name)) \
+		strncpy((char*)_info[_n].value, (char*)_rec->_name, \
+			VALUE_MAXVAL); \
 	else \
-		strcpy(_info[_n].value, "<empty>"); \
+		strcpy((char*)_info[_n].value, "<empty>"); \
 	_info[_n].data = &_rec->_name; \
 	_info[_n].visible = _show; \
 	_n++; \
@@ -207,7 +208,7 @@ idbm_update_discovery(discovery_rec_t *rec, discovery_rec_t *newrec)
 #define __update_rec_int(r, n, fld) \
 	if (n->fld) r->fld = n->fld
 #define __update_rec_str(r, n, fld, len) \
-	if (strlen(n->fld)) strncpy(r->fld, n->fld, len)
+	if (strlen((char*)n->fld)) strncpy((char*)r->fld, (char*)n->fld, len)
 
 	__update_rec_int(rec, newrec, startup);
 	__update_rec_int(rec, newrec, type);
@@ -267,7 +268,7 @@ idbm_update_node(node_rec_t *rec, node_rec_t *newrec)
 #define __update_rec_int(r, n, fld) \
 	if (n->fld) r->fld = n->fld
 #define __update_rec_str(r, n, fld, len) \
-	if (strlen(n->fld)) strncpy(r->fld, n->fld, len)
+	if (strlen((char*)n->fld)) strncpy((char*)r->fld, (char*)n->fld, len)
 
 	/* update rec */
 	__update_rec_str(rec, newrec, name, TARGET_NAME_MAXLEN);
@@ -901,22 +902,22 @@ idbm_sync_config(idbm_t *db)
 	/* update password lengths */
 	if (*db->drec_st.u.sendtargets.auth.password)
 		db->drec_st.u.sendtargets.auth.password_length =
-			strlen(db->drec_st.u.sendtargets.auth.password);
+			strlen((char*)db->drec_st.u.sendtargets.auth.password);
 	if (*db->drec_st.u.sendtargets.auth.password_in)
 		db->drec_st.u.sendtargets.auth.password_length_in =
-		     strlen(db->drec_st.u.sendtargets.auth.password_in);
+		     strlen((char*)db->drec_st.u.sendtargets.auth.password_in);
 	if (*db->drec_slp.u.slp.auth.password)
 		db->drec_slp.u.slp.auth.password_length =
-			strlen(db->drec_slp.u.slp.auth.password);
+			strlen((char*)db->drec_slp.u.slp.auth.password);
 	if (*db->drec_slp.u.slp.auth.password_in)
 		db->drec_slp.u.slp.auth.password_length_in =
-			strlen(db->drec_slp.u.slp.auth.password_in);
+			strlen((char*)db->drec_slp.u.slp.auth.password_in);
 	if (*db->nrec.session.auth.password)
 		db->nrec.session.auth.password_length =
-			strlen(db->nrec.session.auth.password);
+			strlen((char*)db->nrec.session.auth.password);
 	if (*db->nrec.session.auth.password_in)
 		db->nrec.session.auth.password_length_in =
-			strlen(db->nrec.session.auth.password_in);
+			strlen((char*)db->nrec.session.auth.password_in);
 
 	fclose(f);
 }

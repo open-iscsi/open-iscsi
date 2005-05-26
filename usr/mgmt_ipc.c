@@ -276,11 +276,12 @@ int
 mgmt_ipc_handle(int accept_fd)
 {
 	struct sockaddr addr;
-	int fd, rc, len, immrsp = 0;
+	int fd, rc, immrsp = 0;
 	iscsiadm_req_t req;
 	iscsiadm_rsp_t rsp;
 	queue_task_t *qtask = NULL;
 	char user[PEERUSER_MAX];
+	socklen_t len;
 
 	memset(&rsp, 0, sizeof(rsp));
 	len = sizeof(addr);

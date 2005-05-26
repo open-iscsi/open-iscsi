@@ -175,10 +175,10 @@ typedef struct iscsi_conn {
 	uint32_t exp_statsn;
 
 	/* negotiated parameters */
-	int hdrdgst_en;
-	int datadgst_en;
-	int max_recv_dlength;	/* the value we declare */
-	int max_xmit_dlength;	/* the value declared by the target */
+	uint32_t hdrdgst_en;
+	uint32_t datadgst_en;
+	uint32_t max_recv_dlength;	/* the value we declare */
+	uint32_t max_xmit_dlength;	/* the value declared by the target */
 } iscsi_conn_t;
 
 typedef struct queue_task {
@@ -204,7 +204,7 @@ typedef struct queue_task {
 /* daemon's session structure */
 typedef struct iscsi_session {
 	struct qelem item; /* must stay at the top */
-	int id;
+	uint32_t id;
 	uint64_t transport_handle;
 	uint64_t handle;
 	node_rec_t nrec; /* copy of original Node record in database */
@@ -216,14 +216,14 @@ typedef struct iscsi_session {
 	uint32_t exp_cmdsn;
 	uint32_t max_cmdsn;
 	int erl;
-	int imm_data_en;
-	int initial_r2t_en;
-	int first_burst;
-	int max_burst;
-	int pdu_inorder_en;
-	int dataseq_inorder_en;
-	int def_time2wait;
-	int def_time2retain;
+	uint32_t imm_data_en;
+	uint32_t initial_r2t_en;
+	uint32_t first_burst;
+	uint32_t max_burst;
+	uint32_t pdu_inorder_en;
+	uint32_t dataseq_inorder_en;
+	uint32_t def_time2wait;
+	uint32_t def_time2retain;
 	int type;
 	int portal_group_tag;
 	uint8_t isid[6];
