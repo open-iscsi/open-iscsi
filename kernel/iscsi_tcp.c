@@ -698,7 +698,6 @@ iscsi_hdr_recv(struct iscsi_conn *conn)
 			if (conn->tmabort_state == TMABORT_INITIAL) {
 				__kfifo_put(session->mgmtpool.queue,
 						(void*)&mtask, sizeof(void*));
-				del_timer_sync(&conn->tmabort_timer);
 				conn->tmabort_state =
 					((struct iscsi_tm_rsp *)hdr)->
 					response == SCSI_TCP_TM_RESP_COMPLETE ?
