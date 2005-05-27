@@ -2118,9 +2118,13 @@ iscsi_conn_destroy(iscsi_connh_t connh)
 		}
 		spin_unlock_bh(&conn->lock);
 		msleep_interruptible(500);
-		debug_scsi("destroy_conn(): host_busy %d host_failed %d\n",
+		debug_scsi("conn_destroy(): host_busy %d host_failed %d\n",
 			   session->host->host_busy,
 			   session->host->host_failed);
+		/*
+		 * force eh_abort() to unblock
+		 */
+		wake_up(&conn->ehwait);
 	}
 
 	/* now free crypto */
