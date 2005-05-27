@@ -3074,7 +3074,7 @@ iscsi_conn_get_param(iscsi_connh_t connh, enum iscsi_param param,
 		*value = session->ifmarker_en;
 		break;
 	case ISCSI_PARAM_OFMARKER_EN:
-		*value = session->ifmarker_en;
+		*value = session->ofmarker_en;
 		break;
 	default:
 		return ISCSI_ERR_PARAM_NOT_FOUND;
