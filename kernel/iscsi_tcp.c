@@ -2500,10 +2500,25 @@ iscsi_eh_host_reset(struct scsi_cmnd *sc)
 {
 	struct iscsi_cmd_task *ctask = (struct iscsi_cmd_task *)sc->SCp.ptr;
 	struct iscsi_conn *conn = ctask->conn;
-	iscsi_conn_failure(conn, ISCSI_ERR_CONN_FAILED);
+	struct iscsi_session *session = conn->session;
+
+	spin_unlock_irq(session->host->host_lock);
+	spin_lock_bh(&session->lock);
+	if (session->state == ISCSI_STATE_TERMINATE) {
+		debug_scsi("failing host reset: session terminated "
+			   "[CID %d age %d]", conn->id, session->age);
+		spin_unlock_bh(&session->lock);
+		spin_lock_irq(session->host->host_lock);
+		return FAILED;
+	}
+	spin_unlock_bh(&session->lock);
+	spin_lock_irq(session->host->host_lock);
+
 	debug_scsi("failing connection CID %d due to SCSI host reset "
-		"[itt 0x%x age %d]", conn->id, ctask->itt,
-		conn->session->age);
+		   "[itt 0x%x age %d]", conn->id, ctask->itt,
+		   session->age);
+	iscsi_conn_failure(conn, ISCSI_ERR_CONN_FAILED);
+
 	return SUCCESS;
 }
 
