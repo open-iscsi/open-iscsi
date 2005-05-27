@@ -660,9 +660,9 @@ ktrans_list(void)
 		if (err)
 			break;
 
-		sprintf(filename, ISCSI_TRANSPORT_DIR"/%s/caps_mask",
-			provider[i].name);		
-		err = read_transport_file(filename, &provider[i].caps_mask,
+		sprintf(filename, ISCSI_TRANSPORT_DIR"/%s/caps",
+			provider[i].name);
+		err = read_transport_file(filename, &provider[i].caps,
 					  "0x%x");
 		if (err)
 			break;

@@ -103,6 +103,8 @@ idbm_dbversion_check(int dbversion)
 			  (0xf0 & dbversion)>>4, 0xf & dbversion,
 			  (0xf0 & IDBM_VERSION)>>4, 0xf & IDBM_VERSION,
 			  (0xf0 & IDBM_VERSION)>>4, 0xf & IDBM_VERSION);
+		log_warning("Sorry! We are currently do not support an "
+			    "upgrade option.");
 		return -1;
 	}
 	return 0;
@@ -302,6 +304,8 @@ idbm_update_node(node_rec_t *rec, node_rec_t *newrec)
 	__update_rec_int(rec, newrec, session.iscsi.DefaultTime2Wait);
 	__update_rec_int(rec, newrec, session.iscsi.DefaultTime2Retain);
 	__update_rec_int(rec, newrec, session.iscsi.ERL);
+	__update_rec_int(rec, newrec, session.iscsi.MaxConnections);
+	__update_rec_int(rec, newrec, session.iscsi.MaxOutstandingR2T);
 
 	for (i=0; i < ISCSI_CONN_MAX; i++) {
 		/* update rec->conn[i] */
@@ -319,6 +323,8 @@ idbm_update_node(node_rec_t *rec, node_rec_t *newrec)
 				 conn[i].iscsi.MaxRecvDataSegmentLength);
 		__update_rec_int(rec, newrec, conn[i].iscsi.HeaderDigest);
 		__update_rec_int(rec, newrec, conn[i].iscsi.DataDigest);
+		__update_rec_int(rec, newrec, conn[i].iscsi.IFMarker);
+		__update_rec_int(rec, newrec, conn[i].iscsi.OFMarker);
 	}
 }
 
@@ -516,6 +522,8 @@ idbm_recinfo_node(node_rec_t *r, recinfo_t *ri)
 		      session.iscsi.DefaultTime2Retain, IDBM_SHOW, num);
 	__recinfo_int("node.session.iscsi.MaxConnections", ri, r,
 		      session.iscsi.MaxConnections, IDBM_SHOW, num);
+	__recinfo_int("node.session.iscsi.MaxOutstandingR2T", ri, r,
+		      session.iscsi.MaxOutstandingR2T, IDBM_SHOW, num);
 	__recinfo_int("node.session.iscsi.ERL", ri, r,
 		      session.iscsi.ERL, IDBM_SHOW, num);
 
@@ -560,6 +568,12 @@ idbm_recinfo_node(node_rec_t *r, recinfo_t *ri)
 		__recinfo_int_o4(key, ri, r, conn[i].iscsi.DataDigest, IDBM_SHOW,
 				 "None", "CRC32C", "CRC32C,None",
 				 "None,CRC32C", num);
+		sprintf(key, "node.conn[%d].iscsi.IFMarker", i);
+		__recinfo_int_o2(key, ri, r, conn[i].iscsi.IFMarker, IDBM_SHOW,
+				"No", "Yes", num);
+		sprintf(key, "node.conn[%d].iscsi.OFMarker", i);
+		__recinfo_int_o2(key, ri, r, conn[i].iscsi.OFMarker, IDBM_SHOW,
+				"No", "Yes", num);
 	}
 }
 
@@ -965,6 +979,7 @@ idbm_node_setup_defaults(node_rec_t *rec)
 	rec->session.iscsi.DefaultTime2Wait = 0;
 	rec->session.iscsi.DefaultTime2Retain = 0;
 	rec->session.iscsi.MaxConnections = 1;
+	rec->session.iscsi.MaxOutstandingR2T = 1;
 	rec->session.iscsi.ERL = 0;
 
 	for (i=0; i<ISCSI_CONN_MAX; i++) {
@@ -978,7 +993,9 @@ idbm_node_setup_defaults(node_rec_t *rec)
 		rec->conn[i].timeo.ping_timeout = 5;
 		rec->conn[i].iscsi.MaxRecvDataSegmentLength = 128 * 1024;
 		rec->conn[i].iscsi.HeaderDigest = CONFIG_DIGEST_PREFER_OFF;
-		rec->conn[i].iscsi.DataDigest = CONFIG_DIGEST_PREFER_OFF;
+		rec->conn[i].iscsi.DataDigest = CONFIG_DIGEST_NEVER;
+		rec->conn[i].iscsi.IFMarker = 0;
+		rec->conn[i].iscsi.OFMarker = 0;
 	}
 
 }

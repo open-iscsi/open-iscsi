@@ -42,7 +42,7 @@
 #define ISCSI_CONN_MAX		16
 
 /* database version control */
-#define IDBM_VERSION		0x02
+#define IDBM_VERSION		0x03
 
 /* the following structures store the options set in the config file.
  * a structure is defined for each logically-related group of options.
@@ -107,6 +107,8 @@ struct iscsi_conn_operational_config {
 	int MaxRecvDataSegmentLength;
 	int HeaderDigest;
 	int DataDigest;
+	int IFMarker;
+	int OFMarker;
 };
 
 /* all iSCSI operational params go in this structure.
@@ -122,6 +124,7 @@ struct iscsi_session_operational_config {
 	int DefaultTime2Wait;
 	int DefaultTime2Retain;
 	int MaxConnections;
+	int MaxOutstandingR2T;
 	int ERL;
 };
 

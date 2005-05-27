@@ -3107,6 +3107,7 @@ static struct iscsi_transport iscsi_tcp_transport = {
 	.caps			= CAP_RECOVERY_L0 | CAP_MULTI_R2T | CAP_HDRDGST,
 	.host_template		= &iscsi_sht,
 	.hostdata_size		= sizeof(struct iscsi_session),
+	.max_conn		= 1,
 	.max_lun		= ISCSI_TCP_MAX_LUN,
 	.max_cmd_len		= ISCSI_TCP_MAX_CMD_LEN,
 	.create_session		= iscsi_session_create,

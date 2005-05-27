@@ -403,8 +403,7 @@ ktrans_list(void)
 				ev.r.t_list.elements[i].trans_handle;
 			strncpy(provider[i].name, ev.r.t_list.elements[i].name,
 				ISCSI_TRANSPORT_NAME_MAXLEN);
-			provider[i].caps_mask =
-					ev.r.t_list.elements[i].caps_mask;
+			provider[i].caps = ev.r.t_list.elements[i].caps;
 		}
 	}
 	return 0;

@@ -251,6 +251,7 @@ typedef struct iscsi_session {
 	int password_length_in;
 	iscsi_conn_t conn[ISCSI_CONN_MAX];
 	int ctrl_fd;
+	uint32_t param_mask;
 
 	/* connection reopens during recovery */
 	int reopen_cnt;
@@ -271,7 +272,7 @@ typedef enum iscsi_provider_status_e {
 /* represents data path provider */
 typedef struct iscsi_provider_t {
 	uint64_t handle;
-	uint32_t caps_mask;
+	uint32_t caps;
 	iscsi_provider_status_e status;
 	char name[ISCSI_TRANSPORT_NAME_MAXLEN];
 	struct qelem sessions;

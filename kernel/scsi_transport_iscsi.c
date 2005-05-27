@@ -52,7 +52,7 @@ struct iscsi_internal {
 	 * in sysfs or that it can support different iSCSI Data-Path
 	 * capabilities
 	 */
-	uint32_t caps_mask;
+	uint32_t param_mask;
 
 	struct class_device cdev;
 	/*
@@ -99,21 +99,28 @@ show_transport_handle(struct class_device *cdev, char *buf)
 	struct iscsi_internal *priv = cdev_to_iscsi_internal(cdev);
 	return sprintf(buf, "%llu", iscsi_handle(priv->iscsi_transport));
 }
-
 static CLASS_DEVICE_ATTR(handle, S_IRUGO, show_transport_handle, NULL);
 
-static ssize_t
-show_caps_mask(struct class_device *cdev, char *buf)
-{
-	struct iscsi_internal *priv = cdev_to_iscsi_internal(cdev);
-	return sprintf(buf, "0x%x", priv->caps_mask);
-}
+#define show_transport_attr(name, format)				\
+static ssize_t								\
+show_transport_##name(struct class_device *cdev, char *buf)		\
+{									\
+	struct iscsi_internal *priv = cdev_to_iscsi_internal(cdev);	\
+	return sprintf(buf, format"\n", priv->iscsi_transport->name);	\
+}									\
+static CLASS_DEVICE_ATTR(name, S_IRUGO, show_transport_##name, NULL);
 
-static CLASS_DEVICE_ATTR(caps_mask, S_IRUGO, show_caps_mask, NULL);
+show_transport_attr(caps, "0x%x");
+show_transport_attr(max_lun, "%d");
+show_transport_attr(max_conn, "%d");
+show_transport_attr(max_cmd_len, "%d");
 
 static struct attribute *iscsi_transport_attrs[] = {
 	&class_device_attr_handle.attr,
-	&class_device_attr_caps_mask.attr,
+	&class_device_attr_caps.attr,
+	&class_device_attr_max_lun.attr,
+	&class_device_attr_max_conn.attr,
+	&class_device_attr_max_cmd_len.attr,
 	NULL,
 };
 
@@ -928,7 +935,7 @@ show_conn_int_param_##param(struct class_device *cdev, char *buf)	\
 	struct iscsi_internal *priv;					\
 									\
 	priv = to_iscsi_internal(conn->host->transportt);		\
-	if (priv->caps_mask & (1 << param))				\
+	if (priv->param_mask & (1 << param))				\
 		priv->iscsi_transport->get_param(conn->connh, param, &value); \
 	return snprintf(buf, 20, format"\n", value);			\
 }
@@ -959,12 +966,12 @@ show_session_int_param_##param(struct class_device *cdev, char *buf)	\
 	unsigned long  flags;						\
 									\
 	spin_lock_irqsave(&connlock, flags);				\
-	if (!list_empty(&session->connections)) 			\
+	if (!list_empty(&session->connections))				\
 		conn = list_entry(session->connections.next,		\
 				  struct iscsi_if_conn, session_list);	\
 	spin_unlock_irqrestore(&connlock, flags);			\
 									\
-	if (conn && (priv->caps_mask & (1 << param)))			\
+	if (conn && (priv->param_mask & (1 << param)))			\
 		priv->iscsi_transport->get_param(conn->connh, param, &value);\
 	return snprintf(buf, 20, format"\n", value);			\
 }
@@ -983,13 +990,13 @@ iscsi_session_int_attr(data_seq_in_order, ISCSI_PARAM_DATASEQ_INORDER_EN, "%d");
 iscsi_session_int_attr(erl, ISCSI_PARAM_ERL, "%d");
 
 #define SETUP_SESSION_RD_ATTR(field, param)				\
-	if (priv->caps_mask & (1 << param)) {				\
+	if (priv->param_mask & (1 << param)) {				\
 		priv->session_attrs[count] = &class_device_attr_##field;\
 		count++;						\
 	}
 
 #define SETUP_CONN_RD_ATTR(field, param)				\
-	if (priv->caps_mask & (1 << param)) {				\
+	if (priv->param_mask & (1 << param)) {				\
 		priv->conn_attrs[count] = &class_device_attr_##field;	\
 		count++;						\
 	}
@@ -1080,16 +1087,16 @@ int iscsi_register_transport(struct iscsi_transport *tt)
 		goto unregister_cdev;
 
 	/* setup parameters mask */
-	priv->caps_mask = 0xFFFFFFFF;
+	priv->param_mask = 0xFFFFFFFF;
 	if (!(tt->caps & CAP_MULTI_R2T))
-		priv->caps_mask &= ~(1 << ISCSI_PARAM_MAX_R2T);
+		priv->param_mask &= ~(1 << ISCSI_PARAM_MAX_R2T);
 	if (!(tt->caps & CAP_HDRDGST))
-		priv->caps_mask &= ~(1 << ISCSI_PARAM_HDRDGST_EN);
+		priv->param_mask &= ~(1 << ISCSI_PARAM_HDRDGST_EN);
 	if (!(tt->caps & CAP_DATADGST))
-		priv->caps_mask &= ~(1 << ISCSI_PARAM_DATADGST_EN);
+		priv->param_mask &= ~(1 << ISCSI_PARAM_DATADGST_EN);
 	if (!(tt->caps & CAP_MARKERS)) {
-		priv->caps_mask &= ~(1 << ISCSI_PARAM_IFMARKER_EN);
-		priv->caps_mask &= ~(1 << ISCSI_PARAM_OFMARKER_EN);
+		priv->param_mask &= ~(1 << ISCSI_PARAM_IFMARKER_EN);
+		priv->param_mask &= ~(1 << ISCSI_PARAM_OFMARKER_EN);
 	}
 
 	/* connection parameters */

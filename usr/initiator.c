@@ -451,7 +451,7 @@ session_conn_destroy(iscsi_session_t *session, int cid)
 }
 
 static iscsi_session_t*
-__session_create(node_rec_t *rec, uint64_t transport_handle)
+__session_create(node_rec_t *rec, iscsi_provider_t *provider)
 {
 	iscsi_session_t *session;
 
@@ -463,7 +463,7 @@ __session_create(node_rec_t *rec, uint64_t transport_handle)
 
 	/* opened at daemon load time (iscsid.c) */
 	session->ctrl_fd = control_fd;
-	session->transport_handle = transport_handle;
+	session->transport_handle = provider->handle;
 
 	/* save node record. we might need it for redirection */
 	memcpy(&session->nrec, rec, sizeof(node_rec_t));
@@ -510,7 +510,19 @@ __session_create(node_rec_t *rec, uint64_t transport_handle)
 	/* setup authentication variables for the session*/
 	__setup_authentication(session, &rec->session.auth);
 
-	insque(&session->item, &provider[0].sessions);
+	session->param_mask = 0xFFFFFFFF;
+	if (!(provider->caps & CAP_MULTI_R2T))
+		session->param_mask &= ~(1 << ISCSI_PARAM_MAX_R2T);
+	if (!(provider->caps & CAP_HDRDGST))
+		session->param_mask &= ~(1 << ISCSI_PARAM_HDRDGST_EN);
+	if (!(provider->caps & CAP_DATADGST))
+		session->param_mask &= ~(1 << ISCSI_PARAM_DATADGST_EN);
+	if (!(provider->caps & CAP_MARKERS)) {
+		session->param_mask &= ~(1 << ISCSI_PARAM_IFMARKER_EN);
+		session->param_mask &= ~(1 << ISCSI_PARAM_OFMARKER_EN);
+	}
+
+	insque(&session->item, &provider->sessions);
 
 	return session;
 }
@@ -754,7 +766,7 @@ __session_conn_recv_pdu(queue_item_t *item)
 			for (i = 0; i < ISCSI_PARAM_MAX; i++) {
 				if (conn->id != 0 && !conntbl[i].conn_only)
 					continue;
-				if (!(provider[0].caps_mask &
+				if (!(session->param_mask &
 						(1 << conntbl[i].param)))
 					continue;
 				if (ipc->set_param(
@@ -1246,23 +1258,23 @@ session_find_by_rec(node_rec_t *rec)
 	return NULL;
 }
 
-static uint64_t
+static iscsi_provider_t*
 __get_transport_by_name(char *transport_name)
 {
 	int i;
 
 	if (ipc->trans_list()) {
 		log_error("can't retreive transport list (%d)", errno);
-		return 0;
+		return NULL;
 	}
 
 	for (i = 0; i < ISCSI_TRANSPORT_MAX; i++) {
 		if (provider[i].handle &&
 		   !strncmp(provider[i].name, transport_name,
 			     ISCSI_TRANSPORT_NAME_MAXLEN))
-			return provider[i].handle;
+			return &provider[i];
 	}
-	return 0;
+	return NULL;
 }
 
 int
@@ -1271,16 +1283,61 @@ session_login_task(node_rec_t *rec, queue_task_t *qtask)
 	int rc;
 	iscsi_session_t *session;
 	iscsi_conn_t *conn;
-	uint64_t transport_handle;
+	iscsi_provider_t *provider;
 
 	if (!rec->active_conn)
 		return MGMT_IPC_ERR_INVAL;
 
-	transport_handle = __get_transport_by_name(rec->transport_name);
-	if (!transport_handle)
+	provider = __get_transport_by_name(rec->transport_name);
+	if (!provider)
 		return MGMT_IPC_ERR_TRANS_NOT_FOUND;
 
-	session = __session_create(rec, transport_handle);
+	if ((!(provider->caps & CAP_RECOVERY_L0) &&
+	     rec->session.iscsi.ERL != 0) ||
+	    (!(provider->caps & CAP_RECOVERY_L1) &&
+	     rec->session.iscsi.ERL > 1)) {
+		log_error("transport '%s' does not support ERL %d",
+			  provider->name, rec->session.iscsi.ERL);
+		return MGMT_IPC_ERR_TRANS_CAPS;
+	}
+
+	if (!(provider->caps & CAP_MULTI_R2T) &&
+	    rec->session.iscsi.MaxOutstandingR2T) {
+		log_error("transport '%s' does not support "
+			  "MaxOutstandingR2T %d", provider->name,
+			  rec->session.iscsi.MaxOutstandingR2T);
+		return MGMT_IPC_ERR_TRANS_CAPS;
+	}
+
+	if (!(provider->caps & CAP_HDRDGST) &&
+	    rec->conn[0].iscsi.HeaderDigest) {
+		log_error("transport '%s' does not support "
+			  "HeaderDigest != None", provider->name);
+		return MGMT_IPC_ERR_TRANS_CAPS;
+	}
+
+	if (!(provider->caps & CAP_DATADGST) &&
+	    rec->conn[0].iscsi.DataDigest) {
+		log_error("transport '%s' does not support "
+			  "DataDigest != None", provider->name);
+		return MGMT_IPC_ERR_TRANS_CAPS;
+	}
+
+	if (!(provider->caps & CAP_MARKERS) &&
+	    rec->conn[0].iscsi.IFMarker) {
+		log_error("transport '%s' does not support IFMarker",
+			  provider->name);
+		return MGMT_IPC_ERR_TRANS_CAPS;
+	}
+
+	if (!(provider->caps & CAP_MARKERS) &&
+	    rec->conn[0].iscsi.OFMarker) {
+		log_error("transport '%s' does not support OFMarker",
+			  provider->name);
+		return MGMT_IPC_ERR_TRANS_CAPS;
+	}
+
+	session = __session_create(rec, provider);
 	if (!session)
 		return MGMT_IPC_ERR_LOGIN_FAILURE;
 

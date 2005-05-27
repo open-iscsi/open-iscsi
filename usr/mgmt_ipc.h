@@ -38,6 +38,7 @@ typedef enum mgmt_ipc_err {
 	MGMT_IPC_ERR_PDU_TIMEOUT	= 11,
 	MGMT_IPC_ERR_TRANS_NOT_FOUND	= 12,
 	MGMT_IPC_ERR_ACCESS		= 13,
+	MGMT_IPC_ERR_TRANS_CAPS		= 14,
 } mgmt_ipc_err_e;
 
 typedef enum iscsiadm_cmd {
