@@ -120,8 +120,8 @@ iscsi_conn_failure(struct iscsi_conn *conn, enum iscsi_err err)
 	if (session->conn_cnt == 1 || session->leadconn == conn)
 		session->state = ISCSI_STATE_FAILED;
 	spin_unlock_irqrestore(&session->lock, flags);
-	set_bit(TX_SUSPEND, &conn->suspend);
-	set_bit(RX_SUSPEND, &conn->suspend);
+	set_bit(SUSPEND_BIT, &conn->suspend_tx);
+	set_bit(SUSPEND_BIT, &conn->suspend_rx);
 	iscsi_conn_error(iscsi_handle(conn), err);
 }
 
@@ -793,7 +793,7 @@ iscsi_ctask_copy(struct iscsi_conn *conn, struct iscsi_cmd_task *ctask,
  * iscsi_tcp_copy - copy skb bits to the destanation buffer
  * @conn: iscsi connection
  * @buf: buffer to copy to
- * @buf_size: number of bytes to copy 
+ * @buf_size: number of bytes to copy
  *
  * Notes:
  *	The function calls skb_copy_bits() and updates per-connection
@@ -971,7 +971,7 @@ more:
 	conn->in.copied = 0;
 	rc = 0;
 
-	if (unlikely(test_bit(RX_SUSPEND, &conn->suspend))) {
+	if (unlikely(conn->suspend_rx)) {
 		debug_tcp("conn %d Rx suspended!\n", conn->id);
 		return 0;
 	}
@@ -1097,7 +1097,7 @@ iscsi_write_space(struct sock *sk)
 	struct iscsi_conn *conn = (struct iscsi_conn*)sk->sk_user_data;
 	conn->old_write_space(sk);
 	debug_tcp("iscsi_write_space: cid %d\n", conn->id);
-	clear_bit(TX_SUSPEND, &conn->suspend);
+	clear_bit(SUSPEND_BIT, &conn->suspend_tx);
 	schedule_work(&conn->xmitwork);
 }
 
@@ -1167,7 +1167,7 @@ iscsi_sendhdr(struct iscsi_conn *conn, struct iscsi_buf *buf, int datalen)
 		return 0;
 	} else if (res == -EAGAIN) {
 		conn->sendpage_failures_cnt++;
-		set_bit(TX_SUSPEND, &conn->suspend);
+		set_bit(SUSPEND_BIT, &conn->suspend_tx);
 	} else if (res == -EPIPE)
 		iscsi_conn_failure(conn, ISCSI_ERR_CONN_FAILED);
 
@@ -1220,7 +1220,7 @@ iscsi_sendpage(struct iscsi_conn *conn, struct iscsi_buf *buf,
 		return 0;
 	} else if (res == -EAGAIN) {
 		conn->sendpage_failures_cnt++;
-		set_bit(TX_SUSPEND, &conn->suspend);
+		set_bit(SUSPEND_BIT, &conn->suspend_tx);
 	} else if (res == -EPIPE)
 		iscsi_conn_failure(conn, ISCSI_ERR_CONN_FAILED);
 
@@ -1711,7 +1711,7 @@ done:
 static int
 iscsi_data_xmit(struct iscsi_conn *conn)
 {
-	if (unlikely(test_bit(TX_SUSPEND, &conn->suspend))) {
+	if (unlikely(conn->suspend_tx)) {
 		debug_tcp("conn %d Tx suspended!\n", conn->id);
 		return 0;
 	}
@@ -1805,8 +1805,9 @@ iscsi_data_xmit(struct iscsi_conn *conn)
 	return 0;
 
 again:
-	if (test_bit(TX_SUSPEND, &conn->suspend))
+	if (unlikely(conn->suspend_tx))
 		return 0;
+
 	return -EAGAIN;
 }
 
@@ -2070,24 +2071,17 @@ iscsi_conn_destroy(iscsi_connh_t connh)
 	struct iscsi_conn *conn = iscsi_ptr(connh);
 	struct iscsi_session *session = conn->session;
 
-	/*
-	 * Block control plane caller (a thread coming from
-	 * a user space) until all the in-progress commands for this connection
-	 * time out or fail.
-	 * We must serialize with xmitwork recv pathes.
-	 */
 	down(&conn->xmitsema);
-	set_bit(TX_SUSPEND, &conn->suspend);
+	set_bit(SUSPEND_BIT, &conn->suspend_tx);
 	if (conn->c_stage == ISCSI_CONN_INITIAL_STAGE && conn->sock) {
 		struct sock *sk = conn->sock->sk;
 
 		/*
 		 * conn_start() has never been called!
-		 * we must cleanup socket.
+		 * need to cleanup the socket.
 		 */
-
 		write_lock_bh(&sk->sk_callback_lock);
-		set_bit(RX_SUSPEND, &conn->suspend);
+		set_bit(SUSPEND_BIT, &conn->suspend_rx);
 		write_unlock_bh(&sk->sk_callback_lock);
 
 		sock_hold(conn->sock->sk);
@@ -2100,8 +2094,7 @@ iscsi_conn_destroy(iscsi_connh_t connh)
 	conn->c_stage = ISCSI_CONN_CLEANUP_WAIT;
 	if (session->leadconn == conn) {
 		/*
-		 * Control plane decided to destroy leading connection?
-		 * Its a signal for us to give up on recovery.
+		 * leading connection? then give up on recovery.
 		 */
 		session->state = ISCSI_STATE_TERMINATE;
 		wake_up(&conn->ehwait);
@@ -2110,6 +2103,10 @@ iscsi_conn_destroy(iscsi_connh_t connh)
 
 	up(&conn->xmitsema);
 
+	/*
+	 * Block until all in-progress commands for this connection
+	 * time out or fail.
+	 */
 	for (;;) {
 		spin_lock_bh(&conn->lock);
 		if (!session->host->host_busy) { /* OK for ERL == 0 */
@@ -2232,11 +2229,10 @@ iscsi_conn_bind(iscsi_sessionh_t sessionh, iscsi_connh_t connh,
 		session->leadconn = conn;
 
 	/*
-	 * Unblock xmitworker().
-	 * Login Phase will pass through.
+	 * Unblock xmitworker(), Login Phase will pass through.
 	 */
-	clear_bit(TX_SUSPEND, &conn->suspend);
-	clear_bit(RX_SUSPEND, &conn->suspend);
+	clear_bit(SUSPEND_BIT, &conn->suspend_rx);
+	clear_bit(SUSPEND_BIT, &conn->suspend_tx);
 
 	return 0;
 }
@@ -2280,8 +2276,8 @@ iscsi_conn_start(iscsi_connh_t connh)
 		break;
 	case STOP_CONN_SUSPEND:
 		conn->stop_stage = 0;
-		clear_bit(TX_SUSPEND, &conn->suspend);
-		clear_bit(RX_SUSPEND, &conn->suspend);
+		clear_bit(SUSPEND_BIT, &conn->suspend_rx);
+		clear_bit(SUSPEND_BIT, &conn->suspend_tx);
 		break;
 	default:
 		break;
@@ -2300,23 +2296,17 @@ iscsi_conn_stop(iscsi_connh_t connh, int flag)
 	struct sock *sk = conn->sock->sk;
 	unsigned long flags;
 
-	down(&conn->xmitsema);
-
-	/*
-	 * guaranteed Rx callback serialization
-	 */
 	write_lock_bh(&sk->sk_callback_lock);
-	set_bit(RX_SUSPEND, &conn->suspend);
+	set_bit(SUSPEND_BIT, &conn->suspend_rx);
 	write_unlock_bh(&sk->sk_callback_lock);
 
-	/*
-	 * guaranteed Tx queuecommand serialization
-	 */
+	down(&conn->xmitsema);
+
 	spin_lock_irqsave(session->host->host_lock, flags);
 	spin_lock(&session->lock);
 	conn->stop_stage = flag;
 	conn->c_stage = ISCSI_CONN_STOPPED;
-	set_bit(TX_SUSPEND, &conn->suspend);
+	set_bit(SUSPEND_BIT, &conn->suspend_tx);
 
 	if (flag != STOP_CONN_SUSPEND)
 		session->conn_cnt--;

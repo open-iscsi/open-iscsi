@@ -21,10 +21,10 @@
 #define ISCSI_TCP_H
 
 /* Session's states */
-#define ISCSI_STATE_FREE	1
-#define ISCSI_STATE_LOGGED_IN	2
-#define ISCSI_STATE_FAILED	3
-#define ISCSI_STATE_TERMINATE	4
+#define ISCSI_STATE_FREE		1
+#define ISCSI_STATE_LOGGED_IN		2
+#define ISCSI_STATE_FAILED		3
+#define ISCSI_STATE_TERMINATE		4
 
 /* Connection's states */
 #define ISCSI_CONN_INITIAL_STAGE	0
@@ -32,9 +32,8 @@
 #define ISCSI_CONN_STOPPED		2
 #define ISCSI_CONN_CLEANUP_WAIT		3
 
-/* Connection's suspend states */
-#define RX_SUSPEND			0
-#define TX_SUSPEND			1
+/* Connection suspend "bit" */
+#define SUSPEND_BIT			1
 
 /* Socket's Receive state machine */
 #define IN_PROGRESS_WAIT_HEADER		0x0
@@ -60,24 +59,24 @@
 #define	XMSTATE_SOL_DATA		0x100
 #define	XMSTATE_W_PAD			0x200
 
-#define ISCSI_CONN_MAX		1
-#define ISCSI_CONN_RCVBUF_MIN	262144
-#define ISCSI_CONN_SNDBUF_MIN	262144
-#define ISCSI_PAD_LEN		4
-#define ISCSI_R2T_MAX		16
-#define ISCSI_XMIT_CMDS_MAX	128		/* must be power of 2 */
-#define ISCSI_MGMT_CMDS_MAX	32		/* must be power of 2 */
-#define ISCSI_MGMT_ITT_OFFSET	0xa00
-#define ISCSI_SG_TABLESIZE	SG_ALL
-#define ISCSI_CMD_PER_LUN	128
-#define ISCSI_TCP_MAX_LUN	256
-#define ISCSI_TCP_MAX_CMD_LEN	16
+#define ISCSI_CONN_MAX			1
+#define ISCSI_CONN_RCVBUF_MIN		262144
+#define ISCSI_CONN_SNDBUF_MIN		262144
+#define ISCSI_PAD_LEN			4
+#define ISCSI_R2T_MAX			16
+#define ISCSI_XMIT_CMDS_MAX		128	/* must be power of 2 */
+#define ISCSI_MGMT_CMDS_MAX		32	/* must be power of 2 */
+#define ISCSI_MGMT_ITT_OFFSET		0xa00
+#define ISCSI_SG_TABLESIZE		SG_ALL
+#define ISCSI_CMD_PER_LUN		128
+#define ISCSI_TCP_MAX_LUN		256
+#define ISCSI_TCP_MAX_CMD_LEN		16
 
-#define ITT_MASK		(0xfff)
-#define CID_SHIFT		12
-#define CID_MASK		(0xffff<<CID_SHIFT)
-#define AGE_SHIFT		28
-#define AGE_MASK		(0xf<<AGE_SHIFT)
+#define ITT_MASK			(0xfff)
+#define CID_SHIFT			12
+#define CID_MASK			(0xffff<<CID_SHIFT)
+#define AGE_SHIFT			28
+#define AGE_MASK			(0xf<<AGE_SHIFT)
 
 struct iscsi_queue {
 	struct kfifo		*queue;		/* FIFO Queue */
@@ -111,60 +110,65 @@ struct iscsi_tcp_recv {
 };
 
 struct iscsi_conn {
-	struct iscsi_hdr	hdr;		/* Header placeholder */
+	struct iscsi_hdr	hdr;		/* header placeholder */
 	char			hdrext[4*sizeof(__u16) +
 				    sizeof(__u32)];
-	char			*data;		/* Data placeholder */
 	int			data_copied;
-
+	char			*data;		/* data placeholder */
+	struct socket           *sock;          /* TCP socket */
+	int			data_size;	/* actual recv_dlength */
+	int			stop_stage;	/* conn_stop() flag: *
+						 * stop to recover,  *
+						 * stop to terminate */
 	/* iSCSI connection-wide sequencing */
 	uint32_t		exp_statsn;
 	int			hdr_size;	/* PDU header size */
+	unsigned long		suspend_rx;	/* suspend Rx */
+
+	struct crypto_tfm	*rx_tfm;	/* CRC32C (Rx) */
 
 	/* control data */
 	int			senselen;	/* scsi sense length */
 	int			id;		/* CID */
 	struct iscsi_tcp_recv	in;		/* TCP receive context */
-	int			in_progress;	/* connection state machine */
-	struct socket           *sock;          /* TCP socket */
 	struct iscsi_session	*session;	/* parent session */
 	struct list_head	item;		/* maintains list of conns */
+	int			in_progress;	/* connection state machine */
+	int			c_stage;	/* connection state */
+	struct iscsi_mgmt_task	*login_mtask;	/* mtask used for login/text */
+	struct iscsi_mgmt_task	*mtask;		/* xmit mtask in progress */
+	struct iscsi_cmd_task	*ctask;		/* xmit ctask in progress */
+	spinlock_t		lock;		/* FIXME: to be removed */
+
+	/* old values for socket callbacks */
+	void			(*old_data_ready)(struct sock *, int);
+	void			(*old_state_change)(struct sock *);
+	void			(*old_write_space)(struct sock *);
+
+	/* xmit */
+	struct crypto_tfm	*tx_tfm;	/* CRC32C (Tx) */
 	struct kfifo		*writequeue;	/* write cmds for Data-Outs */
 	struct kfifo		*immqueue;	/* immediate xmit queue */
 	struct kfifo		*mgmtqueue;	/* mgmt (control) xmit queue */
 	struct kfifo		*xmitqueue;	/* data-path cmd queue */
 	struct work_struct	xmitwork;	/* per-conn. xmit workqueue */
-	unsigned long		suspend;	/* suspend bits */
-	int			c_stage;	/* connection state */
-	struct iscsi_mgmt_task	*login_mtask;	/* mtask used for login/text */
-	spinlock_t		lock;		/* FIXME: to be removed */
-	struct crypto_tfm	*tx_tfm;
-	struct crypto_tfm	*rx_tfm;
-	struct iscsi_mgmt_task	*mtask;		/* xmit mtask in progress */
-	struct iscsi_cmd_task	*ctask;		/* xmit ctask in progress */
 	struct semaphore	xmitsema;	/* serializes connection xmit,
 						 * access to kfifos:	  *
 						 * xmitqueue, writequeue, *
 						 * immqueue, mgmtqueue    */
+	unsigned long		suspend_tx;	/* suspend Tx */
+
+	/* abort */
 	wait_queue_head_t	ehwait;		/* used in eh_abort()     */
 	struct iscsi_tm		tmhdr;
-	int			tmabort_state;  /* see TMABORT_INITIAL, etc.*/
 	struct timer_list	tmabort_timer;  /* abort timer */
-	int			stop_stage;	/* conn_stop() flag: *
-						 * stop to recover,  *
-						 * stop to terminate */
-	int			data_size;	/* actual recv_dlength */
+	int			tmabort_state;  /* see TMABORT_INITIAL, etc.*/
 
 	/* negotiated params */
 	int			max_recv_dlength;
 	int			max_xmit_dlength;
 	int			hdrdgst_en;
 	int			datadgst_en;
-
-	/* old values for socket callbacks */
-	void			(*old_data_ready)(struct sock *, int);
-	void			(*old_state_change)(struct sock *);
-	void			(*old_write_space)(struct sock *);
 
 	/* MIB-statistics */
 	uint64_t		txdata_octets;
