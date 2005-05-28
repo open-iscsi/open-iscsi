@@ -484,6 +484,7 @@ iscsid_handle_error(int err)
 		/* 11 */ "iSCSI PDU timed out",
 		/* 12 */ "iSCSI transport not found",
 		/* 13 */ "daemon access denied",
+		/* 14 */ "iSCSI transport capability failure",
 	};
 	log_error("iscsid reported error (%d - %s)", err, err_msgs[err]);
 }
