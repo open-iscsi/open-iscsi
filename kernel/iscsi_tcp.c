@@ -2088,6 +2088,7 @@ iscsi_conn_destroy(iscsi_connh_t connh)
 		iscsi_conn_restore_callbacks(conn);
 		sock_put(conn->sock->sk);
 		sock_release(conn->sock);
+		conn->sock = NULL;
 	}
 
 	spin_lock_bh(&session->lock);
@@ -2115,9 +2116,8 @@ iscsi_conn_destroy(iscsi_connh_t connh)
 		}
 		spin_unlock_bh(&conn->lock);
 		msleep_interruptible(500);
-		debug_scsi("conn_destroy(): host_busy %d host_failed %d\n",
-			   session->host->host_busy,
-			   session->host->host_failed);
+		printk("conn_destroy(): host_busy %d host_failed %d\n",
+			session->host->host_busy, session->host->host_failed);
 		/*
 		 * force eh_abort() to unblock
 		 */
@@ -2293,9 +2293,11 @@ iscsi_conn_stop(iscsi_connh_t connh, int flag)
 {
 	struct iscsi_conn *conn = iscsi_ptr(connh);
 	struct iscsi_session *session = conn->session;
-	struct sock *sk = conn->sock->sk;
+	struct sock *sk;
 	unsigned long flags;
 
+	BUG_ON(!conn->sock);
+	sk = conn->sock->sk;
 	write_lock_bh(&sk->sk_callback_lock);
 	set_bit(SUSPEND_BIT, &conn->suspend_rx);
 	write_unlock_bh(&sk->sk_callback_lock);
@@ -2320,7 +2322,6 @@ iscsi_conn_stop(iscsi_connh_t connh, int flag)
 	if (flag == STOP_CONN_TERM || flag == STOP_CONN_RECOVER) {
 		struct iscsi_cmd_task *ctask;
 		struct iscsi_mgmt_task *mtask;
-		BUG_ON(!conn->sock);
 
 		/*
 		 * Socket must go now.
@@ -2369,6 +2370,7 @@ iscsi_conn_stop(iscsi_connh_t connh, int flag)
 		 * activity and flushed all outstandings
 		 */
 		sock_release(conn->sock);
+		conn->sock = NULL;
 
 		/*
 		 * for connection level recovery we should not calculate
@@ -2539,7 +2541,6 @@ iscsi_eh_abort(struct scsi_cmnd *sc)
 	struct iscsi_cmd_task *ctask = (struct iscsi_cmd_task *)sc->SCp.ptr;
 	struct iscsi_conn *conn = ctask->conn;
 	struct iscsi_session *session = conn->session;
-	struct sock *sk;
 
 	spin_unlock_irq(session->host->host_lock);
 
@@ -2706,10 +2707,13 @@ exit:
 	del_timer_sync(&conn->tmabort_timer);
 
 	down(&conn->xmitsema);
-	sk = conn->sock->sk;
-	write_lock_bh(&sk->sk_callback_lock);
-	iscsi_ctask_cleanup(conn, ctask);
-	write_unlock_bh(&sk->sk_callback_lock);
+	if (conn->sock) {
+		struct sock *sk = conn->sock->sk;
+
+		write_lock_bh(&sk->sk_callback_lock);
+		iscsi_ctask_cleanup(conn, ctask);
+		write_unlock_bh(&sk->sk_callback_lock);
+	}
 	up(&conn->xmitsema);
 	spin_lock_irq(session->host->host_lock);
 	return rc;
