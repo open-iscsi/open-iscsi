@@ -234,6 +234,7 @@ struct iscsi_session {
 
 struct iscsi_buf {
 	struct scatterlist	sg;
+	struct kvec		iov;
 	unsigned int		sent;
 };
 

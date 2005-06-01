@@ -81,6 +81,21 @@ iscsi_buf_init_virt(struct iscsi_buf *ibuf, char *vbuf, int size)
 }
 
 static inline void
+iscsi_buf_init_iov(struct iscsi_buf *ibuf, char *vbuf, int size)
+{
+	ibuf->sg.page = (void*)vbuf;
+	ibuf->sg.offset = (unsigned int)-1;
+	ibuf->sg.length = size;
+	ibuf->sent = 0;
+}
+
+static inline void*
+iscsi_buf_iov_base(struct iscsi_buf *ibuf)
+{
+	return (char*)ibuf->sg.page + ibuf->sent;
+}
+
+static inline void
 iscsi_buf_init_sg(struct iscsi_buf *ibuf, struct scatterlist *sg)
 {
 	ibuf->sg.page = sg->page;
@@ -417,7 +432,7 @@ iscsi_solicit_data_init(struct iscsi_conn *conn, struct iscsi_cmd_task *ctask,
 		}
 		BUG_ON(r2t->sg == NULL);
 	} else
-		iscsi_buf_init_virt(&ctask->sendbuf,
+		iscsi_buf_init_iov(&ctask->sendbuf,
 			    (char*)sc->request_buffer + r2t->data_offset,
 			    r2t->data_count);
 
@@ -1134,6 +1149,45 @@ iscsi_conn_restore_callbacks(struct iscsi_conn *conn)
 }
 
 /**
+ * iscsi_send - generic send routine
+ * @sk: kernel's socket
+ * @buf: buffer to write from
+ * @size: actual size to write
+ * @flags: socket's flags
+ *
+ * Notes:
+ *	depending on buffer will use tcp_sendpage() or tcp_sendmsg().
+ *	buf->sg.offset == -1 tells us that buffer is non S/G and forces
+ *	to use tcp_sendmsg().
+ */
+static inline int
+iscsi_send(struct socket *sk, struct iscsi_buf *buf, int size, int flags)
+{
+	int res;
+
+	if ((int)buf->sg.offset >= 0) {
+		int offset = buf->sg.offset + buf->sent;
+
+		/* tcp_sendpage */
+		res = sk->ops->sendpage(sk, buf->sg.page, offset, size, flags);
+printk("sendpage %d\n", res);
+	} else {
+		struct msghdr msg;
+
+		buf->iov.iov_base = iscsi_buf_iov_base(buf);
+		buf->iov.iov_len = size;
+
+		memset(&msg, 0, sizeof(struct msghdr));
+
+		/* tcp_sendmsg */
+		res = kernel_sendmsg(sk, &msg, &buf->iov, 1, size);
+printk("kernel_sendmsg %d\n", res);
+	}
+
+	return res;
+}
+
+/**
  * iscsi_sendhdr - send PDU Header via tcp_sendpage()
  * @conn: iscsi connection
  * @buf: buffer to write from
@@ -1147,18 +1201,16 @@ iscsi_sendhdr(struct iscsi_conn *conn, struct iscsi_buf *buf, int datalen)
 {
 	struct socket *sk = conn->sock;
 	int flags = 0; /* MSG_DONTWAIT; */
-	int res, offset, size;
+	int res, size;
 
-	offset = buf->sg.offset + buf->sent;
 	size = buf->sg.length - buf->sent;
 	BUG_ON(buf->sent + size > buf->sg.length);
 	if (buf->sent + size != buf->sg.length || datalen)
 		flags |= MSG_MORE;
 
-	/* sendpage */
-	res = sk->ops->sendpage(sk, buf->sg.page, offset, size, flags);
-	debug_tcp("sendhdr %p %d bytes at offset %d sent %d res %d\n",
-		page_address(buf->sg.page), size, offset, buf->sent, res);
+	res = iscsi_send(sk, buf, size, flags);
+	debug_tcp("sendhdr: %d bytes at offset %d sent %d res %d\n",
+		size, offset, buf->sent, res);
 	if (res >= 0) {
 		conn->txdata_octets += res;
 		buf->sent += res;
@@ -1188,10 +1240,9 @@ static inline int
 iscsi_sendpage(struct iscsi_conn *conn, struct iscsi_buf *buf,
 	       int *count, int *sent)
 {
-	ssize_t (*sendpage)(struct socket *, struct page *, int, size_t, int);
 	struct socket *sk = conn->sock;
 	int flags = 0; /* MSG_DONTWAIT; */
-	int res, offset, size;
+	int res, size;
 
 	size = buf->sg.length - buf->sent;
 	BUG_ON(buf->sent + size > buf->sg.length);
@@ -1200,16 +1251,10 @@ iscsi_sendpage(struct iscsi_conn *conn, struct iscsi_buf *buf,
 	if (buf->sent + size != buf->sg.length)
 		flags |= MSG_MORE;
 
-	offset = buf->sg.offset + buf->sent;
-
-	/* tcp_sendpage */
-	sendpage = sk->ops->sendpage ? : sock_no_sendpage;
-
-	res = sendpage(sk, buf->sg.page, offset, size, flags);
-	debug_tcp("sendpage %p %d bytes, boff %d bsent %d "
-		  "left %d sent %d res %d\n",
-		  page_address(buf->sg.page), size, offset,
-		  buf->sent, *count, *sent, res);
+	res = iscsi_send(sk, buf, size, flags);
+	debug_tcp("sendpage: %d bytes, boff %d bsent %d "
+		  "left %d sent %d res %d\n", size, offset, buf->sent,
+		  *count, *sent, res);
 	if (res >= 0) {
 		conn->txdata_octets += res;
 		buf->sent += res;
@@ -1280,7 +1325,7 @@ iscsi_solicit_data_cont(struct iscsi_conn *conn, struct iscsi_cmd_task *ctask,
 		iscsi_buf_init_sg(&r2t->sendbuf, r2t->sg);
 		r2t->sg += 1;
 	} else
-		iscsi_buf_init_virt(&ctask->sendbuf,
+		iscsi_buf_init_iov(&ctask->sendbuf,
 			    (char*)sc->request_buffer + new_offset,
 			    r2t->data_count);
 
@@ -1368,9 +1413,8 @@ iscsi_cmd_init(struct iscsi_conn *conn, struct iscsi_cmd_task *ctask,
 			ctask->sg = sg;
 			ctask->bad_sg = sg + sc->use_sg;
 		} else {
-			iscsi_buf_init_virt(&ctask->sendbuf, sc->request_buffer,
+			iscsi_buf_init_iov(&ctask->sendbuf, sc->request_buffer,
 					sc->request_bufflen);
-			BUG_ON(sc->request_bufflen > PAGE_SIZE);
 		}
 
 		/*
@@ -2455,18 +2499,8 @@ iscsi_conn_send_generic(struct iscsi_conn *conn, struct iscsi_hdr *hdr,
 	mtask->xmstate = XMSTATE_IMM_HDR;
 
 	if (mtask->data_count) {
-		iscsi_buf_init_virt(&mtask->sendbuf, (char*)mtask->data,
+		iscsi_buf_init_iov(&mtask->sendbuf, (char*)mtask->data,
 				    mtask->data_count);
-		/* FIXME: implement: convertion of mtask->data into 1st
-		 *        mtask->sendbuf. Keep in mind that virtual buffer
-		 *        could be spreaded across multiple pages... */
-		if(mtask->sendbuf.sg.offset + mtask->data_count > PAGE_SIZE) {
-			spin_lock_bh(&session->lock);
-			__kfifo_put(session->mgmtpool.queue,
-					    (void*)&mtask, sizeof(void*));
-			spin_unlock_bh(&session->lock);
-			return -EIO;
-		}
 	}
 
 	debug_scsi("mgmtpdu [op 0x%x hdr->itt 0x%x datalen %d]\n",
