@@ -98,9 +98,15 @@ iscsi_buf_iov_base(struct iscsi_buf *ibuf)
 static inline void
 iscsi_buf_init_sg(struct iscsi_buf *ibuf, struct scatterlist *sg)
 {
-	ibuf->sg.page = sg->page;
-	ibuf->sg.offset = sg->offset;
-	ibuf->sg.length = sg->length;
+	/*
+	 * Fastpath: sg element fits into single page
+	 */
+	if (sg->length + sg->offset <= PAGE_SIZE) {
+		ibuf->sg.page = sg->page;
+		ibuf->sg.offset = sg->offset;
+		ibuf->sg.length = sg->length;
+	} else
+		iscsi_buf_init_iov(ibuf, page_address(sg->page), sg->length);
 	ibuf->sent = 0;
 }
 
@@ -1170,7 +1176,6 @@ iscsi_send(struct socket *sk, struct iscsi_buf *buf, int size, int flags)
 
 		/* tcp_sendpage */
 		res = sk->ops->sendpage(sk, buf->sg.page, offset, size, flags);
-printk("sendpage %d\n", res);
 	} else {
 		struct msghdr msg;
 
@@ -1181,7 +1186,6 @@ printk("sendpage %d\n", res);
 
 		/* tcp_sendmsg */
 		res = kernel_sendmsg(sk, &msg, &buf->iov, 1, size);
-printk("kernel_sendmsg %d\n", res);
 	}
 
 	return res;
@@ -1209,8 +1213,7 @@ iscsi_sendhdr(struct iscsi_conn *conn, struct iscsi_buf *buf, int datalen)
 		flags |= MSG_MORE;
 
 	res = iscsi_send(sk, buf, size, flags);
-	debug_tcp("sendhdr: %d bytes at offset %d sent %d res %d\n",
-		size, offset, buf->sent, res);
+	debug_tcp("sendhdr %d bytes, sent %d res %d\n", size, buf->sent, res);
 	if (res >= 0) {
 		conn->txdata_octets += res;
 		buf->sent += res;
@@ -1252,9 +1255,8 @@ iscsi_sendpage(struct iscsi_conn *conn, struct iscsi_buf *buf,
 		flags |= MSG_MORE;
 
 	res = iscsi_send(sk, buf, size, flags);
-	debug_tcp("sendpage: %d bytes, boff %d bsent %d "
-		  "left %d sent %d res %d\n", size, offset, buf->sent,
-		  *count, *sent, res);
+	debug_tcp("sendpage: %d bytes, sent %d left %d sent %d res %d\n",
+		  size, buf->sent, *count, *sent, res);
 	if (res >= 0) {
 		conn->txdata_octets += res;
 		buf->sent += res;
