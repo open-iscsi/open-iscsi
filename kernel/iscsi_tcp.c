@@ -101,7 +101,7 @@ iscsi_buf_init_sg(struct iscsi_buf *ibuf, struct scatterlist *sg)
 	/*
 	 * Fastpath: sg element fits into single page
 	 */
-	if (sg->length + sg->offset <= PAGE_SIZE) {
+	if (sg->length + sg->offset <= PAGE_SIZE && page_count(sg->page) >= 2) {
 		ibuf->sg.page = sg->page;
 		ibuf->sg.offset = sg->offset;
 		ibuf->sg.length = sg->length;
