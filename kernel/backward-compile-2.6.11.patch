@@ -1,6 +1,6 @@
 Index: scsi_transport_iscsi.c
 ===================================================================
---- scsi_transport_iscsi.c	(revision 350)
+--- scsi_transport_iscsi.c	(revision 364)
 +++ scsi_transport_iscsi.c	(working copy)
 @@ -58,9 +58,9 @@
  	/*
@@ -14,7 +14,7 @@ Index: scsi_transport_iscsi.c
  	struct class_device_attribute *session_attrs[ISCSI_SESSION_ATTRS + 1];
  };
  
-@@ -1015,10 +1015,10 @@
+@@ -1022,10 +1022,10 @@
  		return 0;
  
  	priv = to_iscsi_internal(shost->transportt);
@@ -27,7 +27,7 @@ Index: scsi_transport_iscsi.c
  }
  
  static int iscsi_is_conn_dev(const struct device *dev)
-@@ -1042,10 +1042,10 @@
+@@ -1049,10 +1049,10 @@
  		return 0;
  
  	priv = to_iscsi_internal(shost->transportt);
@@ -40,7 +40,7 @@ Index: scsi_transport_iscsi.c
  }
  
  int iscsi_register_transport(struct iscsi_transport *tt)
-@@ -1093,10 +1093,10 @@
+@@ -1100,10 +1100,10 @@
  	}
  
  	/* connection parameters */
@@ -55,7 +55,7 @@ Index: scsi_transport_iscsi.c
  
  	SETUP_CONN_RD_ATTR(max_recv_dlength, ISCSI_PARAM_MAX_RECV_DLENGTH);
  	SETUP_CONN_RD_ATTR(max_xmit_dlength, ISCSI_PARAM_MAX_XMIT_DLENGTH);
-@@ -1110,10 +1110,10 @@
+@@ -1117,10 +1117,10 @@
  	count = 0;
  
  	/* session parameters */
@@ -70,7 +70,7 @@ Index: scsi_transport_iscsi.c
  
  	SETUP_SESSION_RD_ATTR(initial_r2t, ISCSI_PARAM_INITIAL_R2T_EN);
  	SETUP_SESSION_RD_ATTR(max_outstanding_r2t, ISCSI_PARAM_MAX_R2T);
-@@ -1166,8 +1166,8 @@
+@@ -1173,8 +1173,8 @@
  	list_del(&priv->list);
  	spin_unlock_irqrestore(&iscsi_transport_lock, flags);
  
