@@ -68,10 +68,6 @@ struct iscsi_transport {
 	int (*send_pdu) (iscsi_connh_t conn, struct iscsi_hdr *hdr,
 			 char *data, uint32_t data_size);
 	void (*get_stats) (iscsi_connh_t conn, struct iscsi_stats *stats);
-	/*
-	 * transport class private data
-	 */
-	struct scsi_transport_template *scsi_transport;
 };
 
 /*
