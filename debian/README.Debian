@@ -1,0 +1,44 @@
+linux-iscsi for Debian
+-----------------------------------
+
+The linux-iscsi package contains the userspace portion the Linux iSCSI project.
+It has a dependency on the linux-iscsi-modules package, which needs to be built from the linux-iscsi-modules-source against the specific kernel version running
+on your system.
+
+Building
+--------
+Modules cannot be built against the kernel-headers alone.  You will need
+to extract and configure your kernel tree, then use the make-kpkg command
+(from the kernel-package package) to build a new kernel and modules.
+See the make-kpkg man page, particularly the modules-image section.  The
+following example shows how to build the linux-iscsi-modules package; just
+substitute the appropriate version strings.  Follow these instructions 
+(as root) in order to build the linux-iscsi-modules package for your kernel:
+
+dpkg -i linux-iscsi-modules-source_5.0.0.0.3rc6-363_all.deb
+cd /usr/src
+rm -rf modules/linux-iscsi
+tar jxpvf linux-iscsi-modules-source.tar.bz2
+cd linux-2.6.11.11 (or your appropriate version)
+make-kpkg --added-modules linux-iscsi modules-image
+
+By default, make-kpkg will assume /usr/src/linux-iscsi-modules-source.tar.bz2 
+has been extracted under /usr/src.  However, that also requires building as 
+root.  If you want to do the build as a non-root user, you need to use the 
+MODULE_LOC environment variable.  For example:
+
+cd ~/builds
+export MODULES_LOC=$PWD/modules
+tar jxpvf /usr/src/linux-iscsi-modules-source.tar.bz2
+cd ~/builds/linux-2.6.11.11 (or your appropriate version)
+make-kpkg --added-modules linux-iscsi modules-image
+
+Installing
+----------
+
+Once you have built the linux-iscsi-modules package, you can install the
+binaries:
+
+dpkg -i linux-iscsi_5.0.0.0.3rc6-363_i386.deb linux-iscsi-modules-2.6.11.11_5.0.0.0.3rc6-363+10.00.Custom_i386.deb
+
+ -- Chad Tindel <chad.tindel@hp.com>, Mon, 30 May 2005 15:17:53 -0600

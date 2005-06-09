@@ -81,7 +81,7 @@ kernel config. You also need to enable "CRC32c CRC algorithm" if
 you use header or data digests. They are the kernel options,
 CONFIG_CRYPTO and CONFIG_CRYPTO_CRC32C, respectively.
 
-Compilation of the kernel Opne-iSCSI modules requires a path
+Compilation of the kernel Open-iSCSI modules requires a path
 to kernel sources:
 
 	make KSRC=<kernel-src>
@@ -90,6 +90,9 @@ or cross-compilation:
 
 	make KSRC=<kernel-src> KARCH="ARCH=um"
 
+If you choose to install the Debian packages instead of building from source,
+please read the file /usr/share/doc/linux-iscsi/README.debian for information
+on how to build kernel modules against your specific kernel.
 
 4. Open-iSCSI daemon
 ====================

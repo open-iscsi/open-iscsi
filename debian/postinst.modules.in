@@ -1,0 +1,11 @@
+#!/bin/sh
+
+set -e
+                                          
+if [ "`uname -r`" = "_KVERS_" ]; then
+	/sbin/depmod -a &
+fi
+
+#DEBHELPER#
+
+exit 0

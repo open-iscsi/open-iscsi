@@ -1,0 +1,39 @@
+#!/usr/bin/make -f
+
+# module-assistant stuff
+PACKAGE = linux-iscsi-modules
+MA_DIR ?= /usr/share/modass
+-include $(MA_DIR)/include/generic.make
+-include $(MA_DIR)/include/common-rules.make
+
+kdist_clean: prep-deb-files
+	dh_clean
+	#$(MAKE) clean KERNEL_PATH=$(KSRC)
+	make clean
+
+kdist_config: prep-deb-files
+
+TARGET = $(CURDIR)/debian/linux-iscsi-modules-$(KVERS)
+MODULES_TARGET = $(TARGET)/lib/modules/$(KVERS)/kernel/net/iscsi
+
+binary-modules: kdist_config
+	dh_testdir
+	dh_testroot
+	dh_clean -k
+	dh_installdirs lib/modules/$(KVERS)
+
+	# build and install the module
+	patch -d kernel < kernel/backward-compile-2.6.11.patch
+	make -C kernel KSRC=$(KSRC)
+	mkdir -p $(MODULES_TARGET)
+	install -m 755 kernel/iscsi_tcp.ko $(MODULES_TARGET)
+	install -m 755 kernel/scsi_transport_iscsi.ko $(MODULES_TARGET)
+
+	dh_installdocs
+	dh_installchangelogs
+	dh_compress
+	dh_fixperms
+	dh_installdeb
+	dh_gencontrol -- -v$(VERSION)
+	dh_md5sums
+	dh_builddeb --destdir=$(DEB_DESTDIR)

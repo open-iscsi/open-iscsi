@@ -1,0 +1,27 @@
+Source: linux-iscsi
+Section: net
+Priority: optional
+Maintainer: Chad Tindel <chad.tindel@hp.com>
+Build-Depends: debhelper (>= 4.0.0), libdb4.3, libdb4.3-dev
+Standards-Version: 3.6.1
+
+Package: linux-iscsi
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}, linux-iscsi-modules
+Description: high performance, transport independent implementation of RFC3720. 
+ linux-iscsi is a high performance, transport independent, implementation of 
+ RFC3720.
+
+#Package: linux-iscsi
+#Architecture: all
+#Description: Documentation for linux-iscsi
+#linux-iscsi is a high performance, transport independent, implementation of 
+#RFC3720.
+
+Package: linux-iscsi-modules-source
+Architecture: all
+Depends: ${shlibs:Depends}, ${misc:Depends}, module-assistant, debhelper (>= 4.0.0), bzip2
+Description: Source Code for the Linux iSCSI Kernel Modules
+ Along with make-kpkg, this package maybe used to build a linux-iscsi-modules 
+ package for a kernel-image package.
+

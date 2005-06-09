@@ -1,6 +1,7 @@
-contribution: Christoph Hellwig <hch@infradead.org>
-contribution: Mike Christie <mikenc@us.ibm.com>
-contribution: Ming Zhang <mingz@ele.uri.edu>
-testing: FUJITA Tomonori <fujita.tomonori@lab.ntt.co.jp>
-testing: Harald Kubota <hkubota@gmx.net>
-testing: Pascal Renauld <prenauld@istorageinc.com>
+contribution: Christoph Hellwig <hch at infradead.org>
+contribution: Mike Christie <mikenc at us.ibm.com>
+contribution: Ming Zhang <mingz at ele.uri.edu>
+packaging: Chad Tindel <ctindel at gmail.com>
+testing: FUJITA Tomonori <fujita.tomonori at lab.ntt.co.jp>
+testing: Harald Kubota <hkubota at gmx.net>
+testing: Pascal Renauld <prenauld at istorageinc.com>

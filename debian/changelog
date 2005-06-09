@@ -1,0 +1,6 @@
+linux-iscsi (5.0.0.0.3rc6-363) unstable; urgency=low
+
+  * Initial Release.
+
+ -- Chad Tindel <chad.tindel@hp.com>  Mon, 30 May 2005 15:17:53 -0600
+
