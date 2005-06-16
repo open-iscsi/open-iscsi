@@ -687,7 +687,7 @@ main(int argc, char **argv)
 			}
 		}
 	} else if (mode == MODE_NODE) {
-		if ((rc = verify_mode_params(argc, argv, "dmlronvu", 0))) {
+		if ((rc = verify_mode_params(argc, argv, "dmlronvup", 0))) {
 			log_error("node mode: option '-%c' is not "
 				  "allowed/supported", rc);
 			rc = -1;
