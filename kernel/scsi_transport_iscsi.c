@@ -354,7 +354,7 @@ int iscsi_recv_pdu(iscsi_connh_t connh, struct iscsi_hdr *hdr,
 		return -ENOMEM;
 	}
 
-	nlh = __nlmsg_put(skb, daemon_pid, 0, 0, (len - sizeof(*nlh)));
+	nlh = __nlmsg_put(skb, daemon_pid, 0, 0, (len - sizeof(*nlh)), 0);
 	ev = NLMSG_DATA(nlh);
 	memset(ev, 0, sizeof(*ev));
 	ev->transport_handle = iscsi_handle(conn->transport);
@@ -390,7 +390,7 @@ void iscsi_conn_error(iscsi_connh_t connh, enum iscsi_err error)
 		return;
 	}
 
-	nlh = __nlmsg_put(skb, daemon_pid, 0, 0, (len - sizeof(*nlh)));
+	nlh = __nlmsg_put(skb, daemon_pid, 0, 0, (len - sizeof(*nlh)), 0);
 	ev = NLMSG_DATA(nlh);
 	ev->transport_handle = iscsi_handle(conn->transport);
 	ev->type = ISCSI_KEVENT_CONN_ERROR;
@@ -426,7 +426,7 @@ iscsi_if_send_reply(int pid, int seq, int type, int done, int multi,
 	 */
 	BUG_ON(!skb);
 
-	nlh = __nlmsg_put(skb, pid, seq, t, (len - sizeof(*nlh)));
+	nlh = __nlmsg_put(skb, pid, seq, t, (len - sizeof(*nlh)), 0);
 	nlh->nlmsg_flags = flags;
 	memcpy(NLMSG_DATA(nlh), payload, size);
 	return iscsi_unicast_skb(&z_reply, skb);
@@ -762,7 +762,7 @@ iscsi_if_get_stats(struct iscsi_transport *transport, struct sk_buff *skb,
 		}
 
 		nlhstat = __nlmsg_put(skbstat, daemon_pid, 0, 0,
-				      (len - sizeof(*nlhstat)));
+				      (len - sizeof(*nlhstat)), 0);
 		evstat = NLMSG_DATA(nlhstat);
 		memset(evstat, 0, sizeof(*evstat));
 		evstat->transport_handle = iscsi_handle(conn->transport);

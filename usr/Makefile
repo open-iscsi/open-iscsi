@@ -3,7 +3,7 @@
 OSNAME=$(shell uname -s)
 
 ifeq ($(OSNAME),Linux)
-IPC_CFLAGS=-DNETLINK_ISCSI=10
+IPC_CFLAGS=-DNETLINK_ISCSI=12
 IPC_OBJ=netlink.o
 DBM_LIB=-ldb
 else
