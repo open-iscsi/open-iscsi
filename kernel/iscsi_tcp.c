@@ -2530,7 +2530,6 @@ iscsi_eh_host_reset(struct scsi_cmnd *sc)
 	struct iscsi_conn *conn = ctask->conn;
 	struct iscsi_session *session = conn->session;
 
-	spin_unlock_irq(session->host->host_lock);
 	spin_lock_bh(&session->lock);
 	if (session->state == ISCSI_STATE_TERMINATE) {
 		debug_scsi("failing host reset: session terminated "
@@ -2540,7 +2539,6 @@ iscsi_eh_host_reset(struct scsi_cmnd *sc)
 		return FAILED;
 	}
 	spin_unlock_bh(&session->lock);
-	spin_lock_irq(session->host->host_lock);
 
 	debug_scsi("failing connection CID %d due to SCSI host reset "
 		   "[itt 0x%x age %d]", conn->id, ctask->itt,
@@ -2577,8 +2575,6 @@ iscsi_eh_abort(struct scsi_cmnd *sc)
 	struct iscsi_cmd_task *ctask = (struct iscsi_cmd_task *)sc->SCp.ptr;
 	struct iscsi_conn *conn = ctask->conn;
 	struct iscsi_session *session = conn->session;
-
-	spin_unlock_irq(session->host->host_lock);
 
 	conn->eh_abort_cnt++;
 	debug_scsi("aborting [sc %lx itt 0x%x]\n", (long)sc, ctask->itt);
@@ -2751,7 +2747,6 @@ exit:
 		write_unlock_bh(&sk->sk_callback_lock);
 	}
 	up(&conn->xmitsema);
-	spin_lock_irq(session->host->host_lock);
 	return rc;
 }
 
