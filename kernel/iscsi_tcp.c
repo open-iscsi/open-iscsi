@@ -2535,7 +2535,6 @@ iscsi_eh_host_reset(struct scsi_cmnd *sc)
 		debug_scsi("failing host reset: session terminated "
 			   "[CID %d age %d]", conn->id, session->age);
 		spin_unlock_bh(&session->lock);
-		spin_lock_irq(session->host->host_lock);
 		return FAILED;
 	}
 	spin_unlock_bh(&session->lock);
