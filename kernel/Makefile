@@ -14,7 +14,7 @@ ifeq ($(shell cat $(KSRC)/Makefile | awk -F= '/^SUBLEVEL =/ {print $$2}' | \
 	@if cat scsi_transport_iscsi.c | \
 	    grep transport_container_register > /dev/null; then  \
 	    echo "kernel check... FAILED"; \
-	    echo "Please apply backward-compile-2.6.1{1,2}.patches first!"; exit 1; fi
+	    echo "Please apply backward-compile-2.6.11.patch first!"; exit 1; fi
 	@echo "kernel check... OK"
 else
 ifeq ($(shell cat $(KSRC)/Makefile | awk -F= '/^SUBLEVEL =/ {print $$2}' | \
