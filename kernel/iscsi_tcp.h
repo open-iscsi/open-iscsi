@@ -69,7 +69,6 @@
 #define ISCSI_MGMT_ITT_OFFSET		0xa00
 #define ISCSI_SG_TABLESIZE		SG_ALL
 #define ISCSI_CMD_PER_LUN		128
-#define ISCSI_TCP_MAX_LUN		256
 #define ISCSI_TCP_MAX_CMD_LEN		16
 
 #define ITT_MASK			(0xfff)

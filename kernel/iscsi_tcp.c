@@ -72,6 +72,9 @@ MODULE_LICENSE("GPL");
 #define BUG_ON(expr)
 #endif
 
+static unsigned int iscsi_max_lun = 512;
+module_param_named(max_lun, iscsi_max_lun, uint, S_IRUGO);
+
 /* global data */
 static kmem_cache_t *taskcache;
 
@@ -392,7 +395,7 @@ iscsi_solicit_data_init(struct iscsi_conn *conn, struct iscsi_cmd_task *ctask,
 	hdr->datasn = cpu_to_be32(r2t->solicit_datasn);
 	r2t->solicit_datasn++;
 	hdr->opcode = ISCSI_OP_SCSI_DATA_OUT;
-	hdr->lun[1] = ctask->hdr.lun[1];
+	memcpy(hdr->lun, ctask->hdr.lun, sizeof(hdr->lun));
 	hdr->itt = ctask->hdr.itt;
 	hdr->exp_statsn = r2t->exp_statsn;
 	hdr->offset = cpu_to_be32(r2t->data_offset);
@@ -1311,7 +1314,7 @@ iscsi_solicit_data_cont(struct iscsi_conn *conn, struct iscsi_cmd_task *ctask,
 	hdr->datasn = cpu_to_be32(r2t->solicit_datasn);
 	r2t->solicit_datasn++;
 	hdr->opcode = ISCSI_OP_SCSI_DATA_OUT;
-	hdr->lun[1] = ctask->hdr.lun[1];
+	memcpy(hdr->lun, ctask->hdr.lun, sizeof(hdr->lun));
 	hdr->itt = ctask->hdr.itt;
 	hdr->exp_statsn = r2t->exp_statsn;
 	new_offset = r2t->data_offset + r2t->sent;
@@ -1355,7 +1358,7 @@ iscsi_unsolicit_data_init(struct iscsi_conn *conn, struct iscsi_cmd_task *ctask)
 	hdr->datasn = cpu_to_be32(ctask->unsol_datasn);
 	ctask->unsol_datasn++;
 	hdr->opcode = ISCSI_OP_SCSI_DATA_OUT;
-	hdr->lun[1] = ctask->hdr.lun[1];
+	memcpy(hdr->lun, ctask->hdr.lun, sizeof(hdr->lun));
 	hdr->itt = ctask->hdr.itt;
 	hdr->exp_statsn = cpu_to_be32(conn->exp_statsn);
 	hdr->offset = cpu_to_be32(ctask->total_length -
@@ -1395,7 +1398,7 @@ iscsi_cmd_init(struct iscsi_conn *conn, struct iscsi_cmd_task *ctask,
 	ctask->conn = conn;
 	ctask->hdr.opcode = ISCSI_OP_SCSI_CMD;
 	ctask->hdr.flags = ISCSI_ATTR_SIMPLE;
-	ctask->hdr.lun[1] = sc->device->lun;
+	int_to_scsilun(sc->device->lun, (struct scsi_lun *)ctask->hdr.lun);
 	ctask->hdr.itt = ctask->itt | (conn->id << CID_SHIFT) |
 			 (session->age << AGE_SHIFT);
 	ctask->hdr.data_length = cpu_to_be32(sc->request_bufflen);
@@ -2629,7 +2632,7 @@ iscsi_eh_abort(struct scsi_cmnd *sc)
 		hdr->opcode = ISCSI_OP_SCSI_TMFUNC | ISCSI_OP_IMMEDIATE;
 		hdr->flags = ISCSI_TM_FUNC_ABORT_TASK;
 		hdr->flags |= ISCSI_FLAG_CMD_FINAL;
-		memcpy(hdr->lun, ctask->hdr.lun, 8);
+		memcpy(hdr->lun, ctask->hdr.lun, sizeof(hdr->lun));
 		hdr->rtt = ctask->hdr.itt;
 		hdr->refcmdsn = ctask->hdr.cmdsn;
 
@@ -3158,7 +3161,6 @@ static struct iscsi_transport iscsi_tcp_transport = {
 	.host_template		= &iscsi_sht,
 	.hostdata_size		= sizeof(struct iscsi_session),
 	.max_conn		= 1,
-	.max_lun		= ISCSI_TCP_MAX_LUN,
 	.max_cmd_len		= ISCSI_TCP_MAX_CMD_LEN,
 	.create_session		= iscsi_session_create,
 	.destroy_session	= iscsi_session_destroy,
@@ -3177,6 +3179,12 @@ static int __init
 iscsi_tcp_init(void)
 {
 	int error;
+
+	if (iscsi_max_lun < 1) {
+		printk(KERN_ERR "Invalid max_lun value of %u\n", iscsi_max_lun);
+		return -EINVAL;
+	}
+	iscsi_tcp_transport.max_lun = iscsi_max_lun;
 
 	taskcache = kmem_cache_create("iscsi_taskcache",
 			sizeof(struct iscsi_data_task), 0,
