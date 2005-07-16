@@ -18,8 +18,10 @@
  * See the file COPYING included with this distribution for more details.
  *
  * Credits:
- * Christoph Hellwig	: For reviewing the code, for comments and suggestions.
- * Mike Christie	: For reviewing the code, for comments and suggestions.
+ * Christoph Hellwig
+ * Mike Christie
+ * FUJITA Tomonori
+ * Arne Redlich
  */
 
 #include <linux/types.h>
@@ -749,6 +751,7 @@ iscsi_hdr_recv(struct iscsi_conn *conn)
  * @ctask: scsi command task
  * @buf: buffer to copy to
  * @buf_size: size of buffer
+ * @offset: offset within the buffer
  *
  * Notes:
  *	The function calls skb_copy_bits() and updates per-connection and
@@ -767,7 +770,7 @@ iscsi_hdr_recv(struct iscsi_conn *conn)
  **/
 static inline int
 iscsi_ctask_copy(struct iscsi_conn *conn, struct iscsi_cmd_task *ctask,
-		void *buf, int buf_size)
+		void *buf, int buf_size, int offset)
 {
 	int buf_left = buf_size - conn->data_copied;
 	int size = min(conn->in.copy, buf_left);
@@ -782,7 +785,7 @@ iscsi_ctask_copy(struct iscsi_conn *conn, struct iscsi_cmd_task *ctask,
 	BUG_ON(ctask->sent + size > ctask->total_length);
 
 	rc = skb_copy_bits(conn->in.skb, conn->in.offset,
-			   (char*)buf + conn->data_copied, size);
+			   (char*)buf + (offset + conn->data_copied), size);
 	/* must fit into skb->len */
 	BUG_ON(rc);
 
@@ -862,8 +865,12 @@ iscsi_data_recv(struct iscsi_conn *conn)
 		 * copying Data-In into the Scsi_Cmnd
 		 */
 		if (sc->use_sg) {
-			int i;
+			int i, offset = ctask->data_offset;
 			struct scatterlist *sg = sc->request_buffer;
+
+			if (ctask->data_offset)
+				for (i = 0; i < ctask->sg_count; i++)
+					offset -= sg[i].length;
 
 			for (i = ctask->sg_count; i < sc->use_sg; i++) {
 				char *dest;
@@ -871,7 +878,7 @@ iscsi_data_recv(struct iscsi_conn *conn)
 				dest = kmap_atomic(sg[i].page, KM_USER0);
 				rc = iscsi_ctask_copy(conn, ctask,
 						      dest + sg[i].offset,
-						      sg[i].length);
+						      sg[i].length, offset);
 				kunmap_atomic(dest, KM_USER0);
 				if (rc == -EAGAIN)
 					/* continue with the next SKB/PDU */
@@ -890,7 +897,7 @@ iscsi_data_recv(struct iscsi_conn *conn)
 			BUG_ON(ctask->data_count);
 		} else {
 			rc = iscsi_ctask_copy(conn, ctask, sc->request_buffer,
-					      sc->request_bufflen);
+				sc->request_bufflen, ctask->data_offset);
 			if (rc == -EAGAIN)
 				goto exit;
 			rc = 0;
