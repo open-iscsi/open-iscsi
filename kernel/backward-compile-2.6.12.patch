@@ -1,8 +1,17 @@
 Index: iscsi_tcp.c
 ===================================================================
---- iscsi_tcp.c	(revision 371)
+--- iscsi_tcp.c	(revision 375)
 +++ iscsi_tcp.c	(working copy)
-@@ -2530,14 +2530,17 @@
+@@ -1398,7 +1398,7 @@
+ 	ctask->conn = conn;
+ 	ctask->hdr.opcode = ISCSI_OP_SCSI_CMD;
+ 	ctask->hdr.flags = ISCSI_ATTR_SIMPLE;
+-	int_to_scsilun(sc->device->lun, (struct scsi_lun *)ctask->hdr.lun);
++	ctask->hdr.lun[1] = sc->device->lun;
+ 	ctask->hdr.itt = ctask->itt | (conn->id << CID_SHIFT) |
+ 			 (session->age << AGE_SHIFT);
+ 	ctask->hdr.data_length = cpu_to_be32(sc->request_bufflen);
+@@ -2540,14 +2540,17 @@
  	struct iscsi_conn *conn = ctask->conn;
  	struct iscsi_session *session = conn->session;
  
@@ -20,7 +29,7 @@ Index: iscsi_tcp.c
  
  	debug_scsi("failing connection CID %d due to SCSI host reset "
  		   "[itt 0x%x age %d]", conn->id, ctask->itt,
-@@ -2575,6 +2578,7 @@
+@@ -2585,6 +2588,7 @@
  	struct iscsi_conn *conn = ctask->conn;
  	struct iscsi_session *session = conn->session;
  
@@ -28,7 +37,7 @@ Index: iscsi_tcp.c
  	conn->eh_abort_cnt++;
  	debug_scsi("aborting [sc %lx itt 0x%x]\n", (long)sc, ctask->itt);
  
-@@ -2746,6 +2750,7 @@
+@@ -2756,6 +2760,7 @@
  		write_unlock_bh(&sk->sk_callback_lock);
  	}
  	up(&conn->xmitsema);
@@ -36,9 +45,95 @@ Index: iscsi_tcp.c
  	return rc;
  }
  
+Index: backward-compile-2.6.12.patch
+===================================================================
+--- backward-compile-2.6.12.patch	(revision 373)
++++ backward-compile-2.6.12.patch	(working copy)
+@@ -1,8 +1,17 @@
+ Index: iscsi_tcp.c
+ ===================================================================
+---- iscsi_tcp.c	(revision 371)
++--- iscsi_tcp.c	(revision 375)
+ +++ iscsi_tcp.c	(working copy)
+-@@ -2530,14 +2530,17 @@
++@@ -1398,7 +1398,7 @@
++ 	ctask->conn = conn;
++ 	ctask->hdr.opcode = ISCSI_OP_SCSI_CMD;
++ 	ctask->hdr.flags = ISCSI_ATTR_SIMPLE;
++-	int_to_scsilun(sc->device->lun, (struct scsi_lun *)ctask->hdr.lun);
+++	ctask->hdr.lun[1] = sc->device->lun;
++ 	ctask->hdr.itt = ctask->itt | (conn->id << CID_SHIFT) |
++ 			 (session->age << AGE_SHIFT);
++ 	ctask->hdr.data_length = cpu_to_be32(sc->request_bufflen);
++@@ -2540,14 +2540,17 @@
+  	struct iscsi_conn *conn = ctask->conn;
+  	struct iscsi_session *session = conn->session;
+  
+@@ -20,7 +29,7 @@
+  
+  	debug_scsi("failing connection CID %d due to SCSI host reset "
+  		   "[itt 0x%x age %d]", conn->id, ctask->itt,
+-@@ -2575,6 +2578,7 @@
++@@ -2585,6 +2588,7 @@
+  	struct iscsi_conn *conn = ctask->conn;
+  	struct iscsi_session *session = conn->session;
+  
+@@ -28,7 +37,7 @@
+  	conn->eh_abort_cnt++;
+  	debug_scsi("aborting [sc %lx itt 0x%x]\n", (long)sc, ctask->itt);
+  
+-@@ -2746,6 +2750,7 @@
++@@ -2756,6 +2760,7 @@
+  		write_unlock_bh(&sk->sk_callback_lock);
+  	}
+  	up(&conn->xmitsema);
+@@ -36,43 +45,3 @@
+  	return rc;
+  }
+  
+-Index: scsi_transport_iscsi.c
+-===================================================================
+---- scsi_transport_iscsi.c	(revision 371)
+-+++ scsi_transport_iscsi.c	(working copy)
+-@@ -354,7 +354,7 @@
+- 		return -ENOMEM;
+- 	}
+- 
+--	nlh = __nlmsg_put(skb, daemon_pid, 0, 0, (len - sizeof(*nlh)), 0);
+-+	nlh = __nlmsg_put(skb, daemon_pid, 0, 0, (len - sizeof(*nlh)));
+- 	ev = NLMSG_DATA(nlh);
+- 	memset(ev, 0, sizeof(*ev));
+- 	ev->transport_handle = iscsi_handle(conn->transport);
+-@@ -390,7 +390,7 @@
+- 		return;
+- 	}
+- 
+--	nlh = __nlmsg_put(skb, daemon_pid, 0, 0, (len - sizeof(*nlh)), 0);
+-+	nlh = __nlmsg_put(skb, daemon_pid, 0, 0, (len - sizeof(*nlh)));
+- 	ev = NLMSG_DATA(nlh);
+- 	ev->transport_handle = iscsi_handle(conn->transport);
+- 	ev->type = ISCSI_KEVENT_CONN_ERROR;
+-@@ -426,7 +426,7 @@
+- 	 */
+- 	BUG_ON(!skb);
+- 
+--	nlh = __nlmsg_put(skb, pid, seq, t, (len - sizeof(*nlh)), 0);
+-+	nlh = __nlmsg_put(skb, pid, seq, t, (len - sizeof(*nlh)));
+- 	nlh->nlmsg_flags = flags;
+- 	memcpy(NLMSG_DATA(nlh), payload, size);
+- 	return iscsi_unicast_skb(&z_reply, skb);
+-@@ -762,7 +762,7 @@
+- 		}
+- 
+- 		nlhstat = __nlmsg_put(skbstat, daemon_pid, 0, 0,
+--				      (len - sizeof(*nlhstat)), 0);
+-+				      (len - sizeof(*nlhstat)));
+- 		evstat = NLMSG_DATA(nlhstat);
+- 		memset(evstat, 0, sizeof(*evstat));
+- 		evstat->transport_handle = iscsi_handle(conn->transport);
 Index: scsi_transport_iscsi.c
 ===================================================================
---- scsi_transport_iscsi.c	(revision 371)
+--- scsi_transport_iscsi.c	(revision 373)
 +++ scsi_transport_iscsi.c	(working copy)
 @@ -354,7 +354,7 @@
  		return -ENOMEM;
