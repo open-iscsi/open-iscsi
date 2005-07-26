@@ -214,7 +214,7 @@ idbm_update_discovery(discovery_rec_t *rec, discovery_rec_t *newrec)
 
 	__update_rec_int(rec, newrec, startup);
 	__update_rec_int(rec, newrec, type);
-	__update_rec_str(rec, newrec, u.sendtargets.address, 16);
+	__update_rec_str(rec, newrec, u.sendtargets.address, NI_MAXHOST);
 	__update_rec_int(rec, newrec, u.sendtargets.port);
 	__update_rec_int(rec, newrec, u.sendtargets.continuous);
 	__update_rec_int(rec, newrec, u.sendtargets.send_async_text);
@@ -309,7 +309,7 @@ idbm_update_node(node_rec_t *rec, node_rec_t *newrec)
 
 	for (i=0; i < ISCSI_CONN_MAX; i++) {
 		/* update rec->conn[i] */
-		__update_rec_str(rec, newrec, conn[i].address, 16);
+		__update_rec_str(rec, newrec, conn[i].address, NI_MAXHOST);
 		__update_rec_int(rec, newrec, conn[i].port);
 		__update_rec_int(rec, newrec, conn[i].startup);
 		__update_rec_int(rec, newrec, conn[i].tcp.window_size);
@@ -1245,7 +1245,7 @@ idbm_new_discovery(idbm_t *db, char *ip, int port,
 	/* update discovery record */
 	drec->type = type;
 	if (drec->type == DISCOVERY_TYPE_SENDTARGETS) {
-		strncpy(drec->u.sendtargets.address, ip, 16);
+		strncpy(drec->u.sendtargets.address, ip, NI_MAXHOST);
 		drec->u.sendtargets.port = port;
 	} else if (drec->type == DISCOVERY_TYPE_SLP) {
 		log_error("not implemented discovery type");
@@ -1288,7 +1288,7 @@ idbm_new_discovery(idbm_t *db, char *ip, int port,
 			} else if (!strcmp(ptr, "TP")) {
 				nrec->conn[0].port = strtoul(dp, NULL, 10);
 			} else if (!strcmp(ptr, "TA")) {
-				strncpy(nrec->conn[0].address, dp, 16);
+				strncpy(nrec->conn[0].address, dp, NI_MAXHOST);
 				if (idbm_add_discovery(db, drec)) {
 					log_error("can not update discovery "
 						  "record.");

@@ -383,9 +383,10 @@ __setup_authentication(iscsi_session_t *session,
 static int
 __session_conn_create(iscsi_session_t *session, int cid)
 {
-	struct hostent *hostn = NULL;
 	iscsi_conn_t *conn = &session->conn[cid];
 	conn_rec_t *conn_rec = &session->nrec.conn[cid];
+	struct sockaddr_storage ss;
+	char port[NI_MAXSERV];
 
 	if (__recvpool_alloc(conn)) {
 		log_error("cannot allocate recvpool for conn cid %d", cid);
@@ -416,24 +417,19 @@ __session_conn_create(iscsi_session_t *session, int cid)
 	/* FIXME: type_of_service */
 
 	/* resolve the string address to an IP address */
-	while (!hostn) {
-		hostn = gethostbyname(conn_rec->address);
-		if (hostn) {
-			/* save the resolved address */
-			conn->ip_length = hostn->h_length;
-			conn->port = conn_rec->port;
-			memcpy(&conn->ip_address, hostn->h_addr,
-			       MIN(sizeof(conn_rec->address), hostn->h_length));
-			/* FIXME: IPv6 */
-			log_debug(4, "resolved %s to %u.%u.%u.%u",
-				 conn_rec->address, conn->ip_address[0],
-				 conn->ip_address[1], conn->ip_address[2],
-				 conn->ip_address[3]);
-		} else {
-			log_error("cannot resolve host name %s",
-				  conn_rec->address);
-			return 1;
-		}
+	sprintf(port, "%d", conn_rec->port);
+	if (resolve_address(conn_rec->address, port, &ss)) {
+		log_error("cannot resolve host name %s",
+			  conn_rec->address);
+		return 1;
+	} else {
+		char host[NI_MAXHOST];
+
+		conn->saddr = ss;
+		getnameinfo((struct sockaddr *) &ss, sizeof(ss),
+			    host, sizeof(host), NULL, 0, NI_NUMERICHOST);
+		log_debug(4, "resolved %s to %s",
+			  conn_rec->address, host);
 	}
 
 	conn->state = STATE_FREE;
@@ -1065,8 +1061,15 @@ __session_conn_reopen(iscsi_conn_t *conn, int do_stop)
 
 	rc = iscsi_io_tcp_connect(conn, 1);
 	if (rc < 0 && errno != EINPROGRESS) {
-		log_error("cannot make a connection to %s:%d (%d)",
-			 inet_ntoa(conn->addr.sin_addr), conn->port, errno);
+		char host[NI_MAXHOST], serv[NI_MAXSERV];
+
+		getnameinfo((struct sockaddr *) &conn->saddr,
+			    sizeof(conn->saddr),
+			    host, sizeof(host), serv, sizeof(serv),
+			    NI_NUMERICHOST|NI_NUMERICSERV);
+
+		log_error("cannot make a connection to %s:%s (%d)",
+			  host, serv, errno);
 		return MGMT_IPC_ERR_TCP_FAILURE;
 	}
 
@@ -1353,8 +1356,15 @@ session_login_task(node_rec_t *rec, queue_task_t *qtask)
 
 	rc = iscsi_io_tcp_connect(conn, 1);
 	if (rc < 0 && errno != EINPROGRESS) {
-		log_error("cannot make a connection to %s:%d (%d)",
-			 inet_ntoa(conn->addr.sin_addr), conn->port, errno);
+		char host[NI_MAXHOST], serv[NI_MAXSERV];
+
+		getnameinfo((struct sockaddr *) &conn->saddr,
+			    sizeof(conn->saddr),
+			    host, sizeof(host), serv, sizeof(serv),
+			    NI_NUMERICHOST|NI_NUMERICSERV);
+
+		log_error("cannot make a connection to %s:%s (%d)",
+			 host, serv, errno);
 		session_conn_destroy(session, 0);
 		__session_destroy(session);
 		return MGMT_IPC_ERR_TCP_FAILURE;

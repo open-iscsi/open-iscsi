@@ -186,9 +186,16 @@ str_to_type(char *str)
 static char*
 str_to_ipport(char *str, int *port)
 {
-	char *sport;
+	char *sport = str;
 
-	if ((sport = strchr(str, ':'))) {
+	if (*str == '[') {
+		if (!(sport = strchr(str, ']')))
+			return NULL;
+		*sport++ = '\0';
+		str++;
+	}
+
+	if ((sport = strchr(sport, ':'))) {
 		*sport = '\0';
 		sport++;
 		*port = strtoul(sport, NULL, 10);
@@ -630,7 +637,8 @@ main(int argc, char **argv)
 			}
 
 			idbm_sendtargets_defaults(db, &cfg);
-			strcpy(cfg.address, ip);
+			strncpy(cfg.address, ip, sizeof(cfg.address));
+
 			cfg.port = port;
 			if (!do_sendtargets(db, &cfg) && do_login) {
 				log_error("automatic login after discovery "

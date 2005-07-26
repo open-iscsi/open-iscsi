@@ -20,6 +20,7 @@
 #ifndef CONFIG_H
 #define CONFIG_H
 
+#include <netdb.h>
 #include "types.h"
 #include "auth.h"	/* for the username and password sizes */
 
@@ -134,7 +135,7 @@ struct iscsi_session_operational_config {
 #define CONFIG_DIGEST_PREFER_OFF 3
 
 struct iscsi_sendtargets_config {
-	char address[16];
+	char address[NI_MAXHOST];
 	int port;
 	int continuous;
 	int send_async_text;
@@ -143,7 +144,7 @@ struct iscsi_sendtargets_config {
 };
 
 struct iscsi_slp_config {
-	char address[16];		/* for unicast */
+	char address[NI_MAXHOST];	/* for unicast */
 	int port;		/* for unicast */
 	char *scopes;
 	char *interfaces;	/* for multicast, list of interfaces names,
@@ -165,7 +166,7 @@ typedef enum discovery_type {
 
 typedef struct conn_rec {
 	iscsi_startup_e				startup;
-	char					address[16];
+	char					address[NI_MAXHOST];
 	int					port;
 	struct iscsi_tcp_config			tcp;
 	struct iscsi_connection_timeout_config	timeo;

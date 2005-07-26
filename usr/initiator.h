@@ -157,10 +157,7 @@ typedef struct iscsi_conn {
 
 	/* tcp/socket settings */
 	int socket_fd;
-	struct sockaddr_in addr;
-	uint8_t ip_address[16];
-	int ip_length;
-	int port;
+	struct sockaddr_storage saddr;
 	int tcp_window_size;
 	int type_of_service;
 
@@ -304,6 +301,7 @@ extern int iscsi_login_begin(iscsi_session_t *session,
 			     iscsi_login_context_t *c);
 extern int iscsi_login_req(iscsi_session_t *session, iscsi_login_context_t *c);
 extern int iscsi_login_rsp(iscsi_session_t *session, iscsi_login_context_t *c);
+extern int resolve_address(char *host, char *port, struct sockaddr_storage *ss);
 
 /* Digest types */
 #define ISCSI_DIGEST_NONE  0

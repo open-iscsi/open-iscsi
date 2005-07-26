@@ -154,6 +154,29 @@ get_auth_key_type(struct iscsi_acl *auth_client, char **data, char *end)
 	return LOGIN_NEGOTIATION_FAILED;
 }
 
+int
+resolve_address(char *host, char *port, struct sockaddr_storage *ss)
+{
+	struct addrinfo hints, *res;
+	int rc;
+
+	memset(&hints, 0, sizeof(struct addrinfo));
+	hints.ai_family = AF_UNSPEC;
+	hints.ai_socktype = SOCK_STREAM;
+
+	if ((rc = getaddrinfo(host, port, &hints, &res))) {
+		log_error("Cannot resolve host %s. getaddrinfo error: "
+			  "[%s]\n", host, gai_strerror(rc));
+		return rc;
+	}
+
+	memcpy(ss, res->ai_addr, sizeof(*ss));
+
+	freeaddrinfo(res);
+
+	return rc;
+}
+
 /*
  * try to reset the session's IP address and port, based on the TargetAddress
  * provided
@@ -161,9 +184,10 @@ get_auth_key_type(struct iscsi_acl *auth_client, char **data, char *end)
 int
 iscsi_update_address(iscsi_conn_t *conn, char *address)
 {
-	char *port;
-	char *tag;
-	struct hostent *hostn = NULL;
+	char *port, *tag;
+	char default_port[NI_MAXSERV];
+
+	struct sockaddr_storage addr;
 
 	if ((tag = strrchr(address, ','))) {
 		*tag = '\0';
@@ -174,22 +198,17 @@ iscsi_update_address(iscsi_conn_t *conn, char *address)
 		port++;
 	}
 
-	hostn = gethostbyname(address);
-	if (hostn == NULL) {
+	if (!port) {
+		sprintf(default_port, "%d", ISCSI_LISTEN_PORT);
+		port = default_port;
+	}
+
+	if (resolve_address(address, port, &addr)) {
 		log_error("cannot resolve host name %s", address);
 		return 0;
 	}
 
-	memcpy(conn->ip_address, hostn->h_addr,
-	       MIN(sizeof (conn->ip_address), hostn->h_length));
-	conn->ip_length = hostn->h_length;
-
-	if (port) {
-		conn->port = atoi(port);
-	} else {
-		conn->port = ISCSI_LISTEN_PORT;
-	}
-
+	conn->saddr = addr;
 	return 1;
 }
 

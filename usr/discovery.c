@@ -161,51 +161,43 @@ iterate_targets(iscsi_session_t *session, uint32_t ttt)
 int
 add_portal(struct string_buffer *info, char *address, char *port, char *tag)
 {
-	struct hostent *hostn = NULL;
+	struct sockaddr_storage ss;
+	char host[NI_MAXHOST];
 
 	/* resolve the address, in case it was a DNS name */
-	hostn = gethostbyname(address);
-	if (!hostn) {
+	if (resolve_address(address, port, &ss)) {
 		log_error("cannot resolve %s", address);
 		return 0;
 	}
 
 	/* convert the resolved name to text */
-	if (hostn->h_length == 4) {
-		struct in_addr addr;
+	getnameinfo((struct sockaddr *) &ss, sizeof(ss),
+		    host, sizeof(host), NULL, 0, NI_NUMERICHOST);
 
-		memcpy(&addr, hostn->h_addr, sizeof (addr));
-
-		if (tag && *tag) {
-			if (!append_sprintf(info, "TT=%s\n", tag)) {
-				log_error("couldn't add portal tag %s",
-				       tag);
-				return 0;
-			}
+	if (tag && *tag) {
+		if (!append_sprintf(info, "TT=%s\n", tag)) {
+			log_error("couldn't add portal tag %s",
+				  tag);
+			return 0;
 		}
-
-		if (port && *port) {
-			if (!append_sprintf(info, "TP=%s\n", port)) {
-				log_error("couldn't add port %s", port);
-				return 0;
-			}
-		}
-
-		if (strcmp(inet_ntoa(addr), address)) {
-			/* if the resolved name doesn't match the original,
-			 * send an RA line as well as a TA line
-			 */
-			return append_sprintf(info, "RA=%s\nTA=%s\n",
-					      inet_ntoa(addr), address);
-		} else {
-			/* don't need the RA line */
-			return append_sprintf(info, "TA=%s\n", address);
-		}
-	} else {
-		/* FIXME: IPv6 */
-		log_error("can't handle network address %s", address);
-		return 0;
 	}
+
+	if (port && *port) {
+		if (!append_sprintf(info, "TP=%s\n", port)) {
+			log_error("couldn't add port %s", port);
+			return 0;
+		}
+	}
+
+	if (strcmp(host, address))
+		/* if the resolved name doesn't match the original,
+		 * send an RA line as well as a TA line
+		 */
+		return append_sprintf(info, "RA=%s\nTA=%s\n",
+				      host, address);
+	else
+		/* don't need the RA line */
+		return append_sprintf(info, "TA=%s\n", address);
 }
 
 int
@@ -307,13 +299,8 @@ add_target_record(struct string_buffer *info, char *name, char *end,
 			char *port = NULL;
 			char *tag = NULL;
 			char *address = text + 14;
+			char *temp;
 
-			/* FIXME: handle IPv6 */
-			if (address[0] == '[') {
-				/* This is an IPv6 numeric address; skip it */
-				text = next;
-				continue;
-			}
 			if ((tag = strrchr(text, ','))) {
 				*tag = '\0';
 				tag++;
@@ -321,6 +308,12 @@ add_target_record(struct string_buffer *info, char *name, char *end,
 			if ((port = strrchr(text, ':'))) {
 				*port = '\0';
 				port++;
+			}
+
+			if (*address == '[') {
+				address++;
+				if ((temp = strrchr(text, ']')))
+					*temp = '\0';
 			}
 
 			if (!add_portal(info, address, port, tag)) {
@@ -1061,7 +1054,6 @@ sendtargets_discovery(struct iscsi_sendtargets_config *config,
 		      struct string_buffer *info)
 {
 	iscsi_session_t *session;
-	struct hostent *hostn = NULL;
 	struct pollfd pfd;
 	struct iscsi_hdr pdu_buffer;
 	struct iscsi_hdr *pdu = &pdu_buffer;
@@ -1077,10 +1069,8 @@ sendtargets_discovery(struct iscsi_sendtargets_config *config,
 	uint8_t status_class = 0, status_detail = 0;
 	unsigned int login_failures = 0;
 	int login_delay = 0;
-	char ip_address[16];
-	char default_port[12];
-	int ip_length = 0;
-	int port = config->port;
+	struct sockaddr_storage ss;
+	char host[NI_MAXHOST], serv[NI_MAXSERV], default_port[NI_MAXSERV];
 
 	/* initial setup */
 	log_debug(1, "starting sendtargets discovery, address %s:%d, "
@@ -1099,27 +1089,12 @@ sendtargets_discovery(struct iscsi_sendtargets_config *config,
 		return 1;
 	}
 
-	/* resolve the DiscoveryAddress to an IP address */
-	while (!hostn) {
-		hostn = gethostbyname(config->address);
-		if (hostn) {
-			/* save the resolved address */
-			port = config->port;
-			ip_length = hostn->h_length;
-			memcpy(&ip_address, hostn->h_addr,
-			       MIN(sizeof (ip_address), hostn->h_length));
-			/* FIXME: IPv6 */
-			log_debug(4, "resolved %s to %u.%u.%u.%u",
-				 config->address, ip_address[0], ip_address[1],
-				 ip_address[2], ip_address[3]);
-		} else {
-			log_error("cannot resolve host name %s",
-				 config->address);
-			return 1;
-		}
-	}
-
 	sprintf(default_port, "%d", config->port);
+	/* resolve the DiscoveryAddress to an IP address */
+	if (resolve_address(config->address, default_port, &ss)) {
+		log_error("cannot resolve host name %s", config->address);
+		return 1;
+	}
 
 	log_debug(4, "discovery timeouts: login %d, auth %d, active %d, "
 		 "idle %d, ping %d",
@@ -1137,10 +1112,7 @@ set_address:
 	 * copy the saved address to the session,
 	 * undoing any temporary redirect
 	 */
-	session->conn[0].port = port;
-	session->conn[0].ip_length = ip_length;
-	memcpy(session->conn[0].ip_address, ip_address,
-	       MIN(sizeof (session->conn[0].ip_address), ip_length));
+	session->conn[0].saddr = ss;
 
 reconnect:
 
@@ -1178,12 +1150,9 @@ reconnect:
 	}
 
 	if (!iscsi_io_connect(&session->conn[0])) {
-		/* FIXME: IPv6 */
-		log_error("connection to discovery address %u.%u.%u.%u "
-		       "failed", session->conn[0].ip_address[0],
-		       session->conn[0].ip_address[1],
-		       session->conn[0].ip_address[2],
-		       session->conn[0].ip_address[3]);
+
+		log_error("connection to discovery address %s "
+			  "failed", host);
 
 		login_failures++;
 		/* If a temporary redirect sent us to something unreachable,
@@ -1193,9 +1162,7 @@ reconnect:
 		goto set_address;
 	}
 
-	log_debug(1, "connected to discovery address %u.%u.%u.%u",
-	       session->conn[0].ip_address[0], session->conn[0].ip_address[1],
-	       session->conn[0].ip_address[2], session->conn[0].ip_address[3]);
+	log_debug(1, "connected to discovery address %s", host);
 
 	log_debug(4, "discovery session to %s:%d starting iSCSI login on fd %d",
 		 config->address, config->port, session->conn[0].socket_fd);
@@ -1206,8 +1173,15 @@ reconnect:
 
 	status_class = 0;
 	status_detail = 0;
-	switch (iscsi_login(session, 0, buffer_data(&sendtargets),
-		 unused_length(&sendtargets), &status_class, &status_detail)) {
+	rc = iscsi_login(session, 0, buffer_data(&sendtargets),
+			 unused_length(&sendtargets),
+			 &status_class, &status_detail);
+
+	getnameinfo((struct sockaddr *) &session->conn[0].saddr,
+		    sizeof(session->conn[0].saddr), host,
+		    sizeof(host), serv, sizeof(serv),
+		    NI_NUMERICHOST|NI_NUMERICSERV);
+	switch (rc) {
 	case LOGIN_OK:
 		break;
 
@@ -1215,12 +1189,7 @@ reconnect:
 	case LOGIN_WRONG_PORTAL_GROUP:
 	case LOGIN_REDIRECTION_FAILED:
 		/* try again */
-		/* FIXME: IPv6 */
-		log_warning("retrying discovery login to %u.%u.%u.%u",
-		       session->conn[0].ip_address[0],
-		       session->conn[0].ip_address[1],
-		       session->conn[0].ip_address[2],
-		       session->conn[0].ip_address[3]);
+		log_warning("retrying discovery login to %s", host);
 		iscsi_io_disconnect(&session->conn[0]);
 		login_failures++;
 		goto set_address;
@@ -1231,13 +1200,7 @@ reconnect:
 	case LOGIN_AUTHENTICATION_FAILED:
 	case LOGIN_VERSION_MISMATCH:
 	case LOGIN_INVALID_PDU:
-		/* FIXME: IPv6 */
-		log_error(
-		       "discovery login to %u.%u.%u.%u failed, giving up",
-		       session->conn[0].ip_address[0],
-		       session->conn[0].ip_address[1],
-		       session->conn[0].ip_address[2],
-		       session->conn[0].ip_address[3]);
+		log_error("discovery login to %s failed, giving up", host);
 		iscsi_io_disconnect(&session->conn[0]);
 		return 1;
 	}
@@ -1245,12 +1208,7 @@ reconnect:
 	/* check the login status */
 	switch (status_class) {
 	case ISCSI_STATUS_CLS_SUCCESS:
-		/* FIXME: IPv6 */
-		log_debug(4, "discovery login success to %u.%u.%u.%u",
-			 session->conn[0].ip_address[0],
-			 session->conn[0].ip_address[1],
-			 session->conn[0].ip_address[2],
-			 session->conn[0].ip_address[3]);
+		log_debug(4, "discovery login success to %s", host);
 		login_failures = 0;
 		break;
 	case ISCSI_STATUS_CLS_REDIRECT:
@@ -1260,32 +1218,16 @@ reconnect:
 			 * config but the new address.
 			 */
 		case ISCSI_LOGIN_STATUS_TGT_MOVED_TEMP:
-			/* FIXME: IPv6 */
 			log_warning(
-			       "discovery login temporarily redirected to "
-			       "%u.%u.%u.%u port %d",
-			       session->conn[0].ip_address[0],
-			       session->conn[0].ip_address[1],
-			       session->conn[0].ip_address[2],
-			       session->conn[0].ip_address[3],
-			       session->conn[0].port);
+				"discovery login temporarily redirected to "
+				"%s port %s", host, serv);
 			goto reconnect;
 		case ISCSI_LOGIN_STATUS_TGT_MOVED_PERM:
-			/* FIXME: IPv6 */
 			log_warning(
-			       "discovery login permanently redirected to "
-			       "%u.%u.%u.%u port %d",
-			       session->conn[0].ip_address[0],
-			       session->conn[0].ip_address[1],
-			       session->conn[0].ip_address[2],
-			       session->conn[0].ip_address[3],
-			       session->conn[0].port);
+				"discovery login permanently redirected to "
+				"%s port %s", host, serv);
 			/* make the new address permanent */
-			ip_length = session->conn[0].ip_length;
-			memcpy(ip_address, session->conn[0].ip_address,
-			   MIN(sizeof (ip_address), session->conn[0].ip_length));
-			port = session->conn[0].port;
-
+			ss = session->conn[0].saddr;
 			goto reconnect;
 		default:
 			log_error(
@@ -1296,40 +1238,26 @@ reconnect:
 		}
 		break;
 	case ISCSI_STATUS_CLS_INITIATOR_ERR:
-		/* FIXME: IPv6 */
 		log_error(
-		       "discovery login to %u.%u.%u.%u rejected: "
-		       "initiator error (%02x/%02x), non-retryable, giving up",
-		       session->conn[0].ip_address[0],
-		       session->conn[0].ip_address[1],
-		       session->conn[0].ip_address[2],
-		       session->conn[0].ip_address[3],
-		       status_class, status_detail);
+			"discovery login to %s rejected: "
+			"initiator error (%02x/%02x), non-retryable, giving up",
+			host, status_class, status_detail);
 		iscsi_io_disconnect(&session->conn[0]);
 		return 1;
 	case ISCSI_STATUS_CLS_TARGET_ERR:
-		/* FIXME: IPv6 */
 		log_error(
-		       "discovery login to %u.%u.%u.%u rejected: "
-		       "target error (%02x/%02x)",
-		       session->conn[0].ip_address[0],
-		       session->conn[0].ip_address[1],
-		       session->conn[0].ip_address[2],
-		       session->conn[0].ip_address[3],
-		       status_class, status_detail);
+			"discovery login to %s rejected: "
+			"target error (%02x/%02x)",
+			host, status_class, status_detail);
 		iscsi_io_disconnect(&session->conn[0]);
 		login_failures++;
 		goto reconnect;
 	default:
-		/* FIXME: IPv6 */
 		log_error(
-		       "discovery login to %u.%u.%u.%u failed, response "
-		       "with unknown status class 0x%x, detail 0x%x",
-		       session->conn[0].ip_address[0],
-		       session->conn[0].ip_address[1],
-		       session->conn[0].ip_address[2],
-		       session->conn[0].ip_address[3],
-		       status_class, status_detail);
+			"discovery login to %s failed, response "
+			"with unknown status class 0x%x, detail 0x%x",
+			host,
+			status_class, status_detail);
 		iscsi_io_disconnect(&session->conn[0]);
 		login_failures++;
 		goto reconnect;
