@@ -72,6 +72,8 @@ MODULE_LICENSE("GPL");
 #define BUG_ON(expr)
 #endif
 
+#define INVALID_SN_DELTA	0xffff
+
 static unsigned int iscsi_max_lun = 512;
 module_param_named(max_lun, iscsi_max_lun, uint, S_IRUGO);
 
@@ -149,6 +151,25 @@ iscsi_conn_failure(struct iscsi_conn *conn, enum iscsi_err err)
 	set_bit(SUSPEND_BIT, &conn->suspend_tx);
 	set_bit(SUSPEND_BIT, &conn->suspend_rx);
 	iscsi_conn_error(iscsi_handle(conn), err);
+}
+
+static inline int
+iscsi_check_assign_cmdsn(struct iscsi_session *session, struct iscsi_nopin *hdr)
+{
+	uint32_t max_cmdsn = be32_to_cpu(hdr->max_cmdsn);
+	uint32_t exp_cmdsn = be32_to_cpu(hdr->exp_cmdsn);
+
+	if (max_cmdsn < exp_cmdsn -1 && max_cmdsn > exp_cmdsn -
+		INVALID_SN_DELTA)
+		return ISCSI_ERR_MAX_CMDSN;
+	if (max_cmdsn > session->max_cmdsn ||
+		max_cmdsn < session->max_cmdsn - INVALID_SN_DELTA)
+		session->max_cmdsn = max_cmdsn;
+	if (exp_cmdsn > session->exp_cmdsn ||
+		exp_cmdsn < session->exp_cmdsn - INVALID_SN_DELTA)
+		session->exp_cmdsn = exp_cmdsn;
+
+	return 0;
 }
 
 static inline int
@@ -249,20 +270,17 @@ iscsi_ctask_cleanup(struct iscsi_conn *conn, struct iscsi_cmd_task *ctask)
 static int
 iscsi_cmd_rsp(struct iscsi_conn *conn, struct iscsi_cmd_task *ctask)
 {
-	int rc = 0;
+	int rc;
 	struct iscsi_cmd_rsp *rhdr = (struct iscsi_cmd_rsp *)conn->in.hdr;
 	struct iscsi_session *session = conn->session;
 	struct scsi_cmnd *sc = ctask->sc;
-	int max_cmdsn = be32_to_cpu(rhdr->max_cmdsn);
-	int exp_cmdsn = be32_to_cpu(rhdr->exp_cmdsn);
 
-	if (max_cmdsn < exp_cmdsn - 1) {
-		rc = ISCSI_ERR_MAX_CMDSN;
+	rc = iscsi_check_assign_cmdsn(session, (struct iscsi_nopin*)rhdr);
+	if (rc) {
 		sc->result = (DID_ERROR << 16);
 		goto out;
 	}
-	session->max_cmdsn = max_cmdsn;
-	session->exp_cmdsn = exp_cmdsn;
+
 	conn->exp_statsn = be32_to_cpu(rhdr->statsn) + 1;
 
 	sc->result = (DID_OK << 16) | rhdr->cmd_status;
@@ -311,12 +329,14 @@ out:
 static int
 iscsi_data_rsp(struct iscsi_conn *conn, struct iscsi_cmd_task *ctask)
 {
+	int rc;
 	struct iscsi_data_rsp *rhdr = (struct iscsi_data_rsp *)conn->in.hdr;
 	struct iscsi_session *session = conn->session;
 	int datasn = be32_to_cpu(rhdr->datasn);
-	int max_cmdsn = be32_to_cpu(rhdr->max_cmdsn);
-	int exp_cmdsn = be32_to_cpu(rhdr->exp_cmdsn);
 
+	rc = iscsi_check_assign_cmdsn(session, (struct iscsi_nopin*)rhdr);
+	if (rc)
+		return rc;
 	/*
 	 * setup Data-In byte counter (gets decremented..)
 	 */
@@ -324,12 +344,6 @@ iscsi_data_rsp(struct iscsi_conn *conn, struct iscsi_cmd_task *ctask)
 
 	if (conn->in.datalen == 0)
 		return 0;
-
-	if (max_cmdsn < exp_cmdsn -1)
-		return ISCSI_ERR_MAX_CMDSN;
-
-	session->max_cmdsn = max_cmdsn;
-	session->exp_cmdsn = exp_cmdsn;
 
 	if (ctask->datasn != datasn)
 		return ISCSI_ERR_DATASN;
@@ -461,8 +475,6 @@ iscsi_r2t_rsp(struct iscsi_conn *conn, struct iscsi_cmd_task *ctask)
 	struct iscsi_r2t_info *r2t;
 	struct iscsi_session *session = conn->session;
 	struct iscsi_r2t_rsp *rhdr = (struct iscsi_r2t_rsp *)conn->in.hdr;
-	uint32_t max_cmdsn = be32_to_cpu(rhdr->max_cmdsn);
-	uint32_t exp_cmdsn = be32_to_cpu(rhdr->exp_cmdsn);
 	int r2tsn = be32_to_cpu(rhdr->r2tsn);
 	int rc;
 
@@ -475,11 +487,9 @@ iscsi_r2t_rsp(struct iscsi_conn *conn, struct iscsi_cmd_task *ctask)
 	if (ctask->exp_r2tsn && ctask->exp_r2tsn != r2tsn)
 		return ISCSI_ERR_R2TSN;
 
-	if (max_cmdsn < exp_cmdsn - 1)
-		return ISCSI_ERR_MAX_CMDSN;
-
-	session->max_cmdsn = max_cmdsn;
-	session->exp_cmdsn = exp_cmdsn;
+	rc = iscsi_check_assign_cmdsn(session, (struct iscsi_nopin*)rhdr);
+	if (rc)
+		return rc;
 
 	/* FIXME: use R2TSN to detect missing R2T */
 
@@ -667,6 +677,11 @@ iscsi_hdr_recv(struct iscsi_conn *conn)
 		case ISCSI_OP_LOGOUT_RSP:
 		case ISCSI_OP_ASYNC_EVENT:
 		case ISCSI_OP_REJECT:
+			rc = iscsi_check_assign_cmdsn(session,
+						 (struct iscsi_nopin*)hdr);
+			if (rc)
+				break;
+
 			/* update ExpStatSN */
 			conn->exp_statsn = be32_to_cpu(hdr->statsn) + 1;
 			if (!conn->in.datalen) {
@@ -703,6 +718,11 @@ iscsi_hdr_recv(struct iscsi_conn *conn)
 		switch(conn->in.opcode) {
 		case ISCSI_OP_LOGIN_RSP:
 		case ISCSI_OP_TEXT_RSP:
+			rc = iscsi_check_assign_cmdsn(session,
+						 (struct iscsi_nopin*)hdr);
+			if (rc)
+				break;
+
 			if (!conn->in.datalen) {
 				rc = iscsi_recv_pdu(iscsi_handle(conn), hdr,
 						    NULL, 0);
@@ -715,6 +735,11 @@ iscsi_hdr_recv(struct iscsi_conn *conn)
 			}
 			break;
 		case ISCSI_OP_SCSI_TMFUNC_RSP:
+			rc = iscsi_check_assign_cmdsn(session,
+						 (struct iscsi_nopin*)hdr);
+			if (rc)
+				break;
+
 			if (conn->in.datalen || conn->in.ahslen) {
 				rc = ISCSI_ERR_PROTO;
 				break;
@@ -738,8 +763,13 @@ iscsi_hdr_recv(struct iscsi_conn *conn)
 			break;
 		}
 	} else if (conn->in.itt == ISCSI_RESERVED_TAG) {
-		if (conn->in.opcode == ISCSI_OP_NOOP_IN && !conn->in.datalen)
-			rc = iscsi_recv_pdu(iscsi_handle(conn), hdr, NULL, 0);
+		if (conn->in.opcode == ISCSI_OP_NOOP_IN && !conn->in.datalen) {
+			rc = iscsi_check_assign_cmdsn(session,
+						 (struct iscsi_nopin*)hdr);
+			if (!rc)
+				rc = iscsi_recv_pdu(iscsi_handle(conn),
+						    hdr, NULL, 0);
+		}
 		else
 			rc = ISCSI_ERR_BAD_OPCODE;
 	} else
