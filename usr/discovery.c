@@ -1149,8 +1149,12 @@ reconnect:
 		sleep(login_delay);
 	}
 
-	if (!iscsi_io_connect(&session->conn[0])) {
+	getnameinfo((struct sockaddr *) &session->conn[0].saddr,
+		    sizeof(session->conn[0].saddr), host,
+		    sizeof(host), serv, sizeof(serv),
+		    NI_NUMERICHOST|NI_NUMERICSERV);
 
+	if (!iscsi_io_connect(&session->conn[0])) {
 		log_error("connection to discovery address %s "
 			  "failed", host);
 
@@ -1177,10 +1181,6 @@ reconnect:
 			 unused_length(&sendtargets),
 			 &status_class, &status_detail);
 
-	getnameinfo((struct sockaddr *) &session->conn[0].saddr,
-		    sizeof(session->conn[0].saddr), host,
-		    sizeof(host), serv, sizeof(serv),
-		    NI_NUMERICHOST|NI_NUMERICSERV);
 	switch (rc) {
 	case LOGIN_OK:
 		break;
