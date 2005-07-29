@@ -188,20 +188,23 @@ str_to_ipport(char *str, int *port)
 {
 	char *sport = str;
 
-	if (*str == '[') {
-		if (!(sport = strchr(str, ']')))
-			return NULL;
-		*sport++ = '\0';
-		str++;
+	if (!strchr(str, '.')) {
+		if (*str == '[') {
+			if (!(sport = strchr(str, ']')))
+				return NULL;
+			*sport++ = '\0';
+			str++;
+		} else
+			sport = NULL;
 	}
 
-	if ((sport = strchr(sport, ':'))) {
+	if (sport && (sport = strchr(sport, ':'))) {
 		*sport = '\0';
 		sport++;
 		*port = strtoul(sport, NULL, 10);
-	} else {
+	} else
 		*port = DEF_ISCSI_PORT;
-	}
+
 	return str;
 }
 
