@@ -39,6 +39,7 @@
 #define IN_PROGRESS_WAIT_HEADER		0x0
 #define IN_PROGRESS_HEADER_GATHER	0x1
 #define IN_PROGRESS_DATA_RECV		0x2
+#define IN_PROGRESS_DDIGEST_RECV	0x3
 
 /* Task Mgmt states */
 #define	TMABORT_INITIAL			0x0
@@ -58,6 +59,7 @@
 #define	XMSTATE_SOL_HDR			0x80
 #define	XMSTATE_SOL_DATA		0x100
 #define	XMSTATE_W_PAD			0x200
+#define XMSTATE_DATA_DIGEST		0x400
 
 #define ISCSI_CONN_MAX			1
 #define ISCSI_CONN_RCVBUF_MIN		262144
@@ -106,6 +108,7 @@ struct iscsi_tcp_recv {
 	int			ahslen;
 	int			datalen;
 	uint32_t		itt;
+	int			datadgst;
 };
 
 struct iscsi_conn {
@@ -125,6 +128,7 @@ struct iscsi_conn {
 	unsigned long		suspend_rx;	/* suspend Rx */
 
 	struct crypto_tfm	*rx_tfm;	/* CRC32C (Rx) */
+	struct crypto_tfm	*data_rx_tfm;	/* CRC32C (Rx) for data */
 
 	/* control data */
 	int			senselen;	/* scsi sense length */
@@ -146,6 +150,7 @@ struct iscsi_conn {
 
 	/* xmit */
 	struct crypto_tfm	*tx_tfm;	/* CRC32C (Tx) */
+	struct crypto_tfm	*data_tx_tfm;	/* CRC32C (Tx) for data */
 	struct kfifo		*writequeue;	/* write cmds for Data-Outs */
 	struct kfifo		*immqueue;	/* immediate xmit queue */
 	struct kfifo		*mgmtqueue;	/* mgmt (control) xmit queue */
@@ -241,6 +246,8 @@ struct iscsi_data_task {
 	struct iscsi_data	hdr;			/* PDU */
 	char			hdrext[sizeof(__u32)];	/* Header-Digest */
 	struct list_head	item;			/* data queue item */
+	struct iscsi_buf	digestbuf;		/* digest buffer */
+	uint32_t		digest;			/* data digest */
 };
 #define ISCSI_DTASK_DEFAULT_MAX	ISCSI_SG_TABLESIZE * PAGE_SIZE / 512
 
@@ -267,6 +274,7 @@ struct iscsi_r2t_info {
 	int			data_count;	/* DATA-Out payload progress */
 	struct scatterlist	*sg;		/* per-R2T SG list */
 	int			solicit_datasn;
+	struct iscsi_data_task   *dtask;        /* which data task */
 };
 
 struct iscsi_cmd_task {
@@ -302,6 +310,12 @@ struct iscsi_cmd_task {
 	struct iscsi_r2t_info	**r2ts;
 	struct list_head	dataqueue;		/* Data-Out dataqueue */
 	mempool_t		*datapool;
+	uint32_t		datadigest;		/* for recover digest */
+	int			digest_count;
+	uint32_t		immdigest;		/* for imm data */
+	struct iscsi_buf	immbuf;			/* for imm data digest */
+	struct iscsi_data_task   *dtask;		/* data task in progress*/
+	int			digest_offset;		/* for partial buff digest */
 };
 
 #endif /* ISCSI_H */
