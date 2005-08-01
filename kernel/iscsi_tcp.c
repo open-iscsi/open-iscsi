@@ -885,8 +885,9 @@ iscsi_tcp_copy(struct iscsi_conn *conn, void *buf, int buf_size)
 	return 0;
 }
 
-static inline void partial_sg_digest_update(struct iscsi_conn *conn,
-		struct scatterlist *sg, int offset, int length)
+static inline void
+partial_sg_digest_update(struct iscsi_conn *conn, struct scatterlist *sg,
+			 int offset, int length)
 {
 	struct scatterlist temp;
 
@@ -896,6 +897,95 @@ static inline void partial_sg_digest_update(struct iscsi_conn *conn,
 	crypto_digest_update(conn->data_rx_tfm, &temp, 1);
 }
 
+static int iscsi_scsi_data_in(struct iscsi_conn *conn)
+{
+	struct iscsi_cmd_task *ctask = conn->in.ctask;
+	struct scsi_cmnd *sc = ctask->sc;
+	struct scatterlist tmp, *sg;
+	int i, offset, rc = 0;
+
+	BUG_ON((void*)ctask != sc->SCp.ptr);
+
+	/*
+	 * copying Data-In into the Scsi_Cmnd
+	 */
+	if (!sc->use_sg) {
+		rc = iscsi_ctask_copy(conn, ctask, sc->request_buffer,
+				      sc->request_bufflen, ctask->data_offset);
+		if (rc == -EAGAIN)
+			return rc;
+		if (conn->datadgst_en) {
+			sg_init_one(&tmp, sc->request_buffer,
+				    ctask->data_count);
+			crypto_digest_update(conn->data_rx_tfm, &tmp, 1);
+		}
+
+		goto done;
+	}
+
+	offset = ctask->data_offset;
+	sg = sc->request_buffer;
+
+	if (ctask->data_offset)
+		for (i = 0; i < ctask->sg_count; i++)
+			offset -= sg[i].length;
+	/* we've passed through partial sg*/
+	if (offset < 0)
+		offset = 0;
+
+	for (i = ctask->sg_count; i < sc->use_sg; i++) {
+		char *dest;
+
+		dest = kmap_atomic(sg[i].page, KM_USER0);
+		rc = iscsi_ctask_copy(conn, ctask, dest + sg[i].offset,
+				      sg[i].length, offset);
+		kunmap_atomic(dest, KM_USER0);
+		if (rc == -EAGAIN)
+			/* continue with the next SKB/PDU */
+			return rc;
+		if (!rc) {
+			if (conn->datadgst_en) {
+				if (!offset)
+					crypto_digest_update(conn->data_rx_tfm,
+							     &sg[i], 1);
+				else
+					partial_sg_digest_update(conn, &sg[i],
+							sg[i].offset + offset,
+							sg[i].length - offset);
+			}
+			offset = 0;
+			ctask->sg_count++;
+		}
+
+		if (!ctask->data_count) {
+			if (rc && conn->datadgst_en)
+				/*
+				 * data-in is complete, but buffer not...
+				 */
+				partial_sg_digest_update(conn, &sg[i],
+						sg[i].offset, sg[i].length-rc);
+			rc = 0;
+			break;
+		}
+
+		if (!conn->in.copy)
+			return -EAGAIN;
+	}
+	BUG_ON(ctask->data_count);
+
+done:
+	/* check for non-exceptional status */
+	if (conn->in.flags & ISCSI_FLAG_DATA_STATUS) {
+		debug_scsi("done [sc %lx res %d itt 0x%x]\n",
+			   (long)sc, sc->result, ctask->itt);
+		conn->scsirsp_pdus_cnt++;
+		iscsi_ctask_cleanup(conn, ctask);
+		sc->scsi_done(sc);
+	}
+
+	return rc;
+}
+
 static int
 iscsi_data_recv(struct iscsi_conn *conn)
 {
@@ -903,98 +993,9 @@ iscsi_data_recv(struct iscsi_conn *conn)
 	int rc = 0;
 
 	switch(conn->in.opcode) {
-	case ISCSI_OP_SCSI_DATA_IN: {
-		struct iscsi_cmd_task *ctask = conn->in.ctask;
-		struct scsi_cmnd *sc = ctask->sc;
-		BUG_ON((void*)ctask != sc->SCp.ptr);
-
-		/*
-		 * copying Data-In into the Scsi_Cmnd
-		 */
-		if (sc->use_sg) {
-			int i, offset = ctask->data_offset;
-			struct scatterlist *sg = sc->request_buffer;
-
-			if (ctask->data_offset)
-				for (i = 0; i < ctask->sg_count; i++)
-					offset -= sg[i].length;
-			/* we've passed through partial sg*/
-			if (offset < 0)
-				offset = 0;
-
-			for (i = ctask->sg_count; i < sc->use_sg; i++) {
-				char *dest;
-
-				dest = kmap_atomic(sg[i].page, KM_USER0);
-				rc = iscsi_ctask_copy(conn, ctask,
-						      dest + sg[i].offset,
-					              sg[i].length, offset);
-				kunmap_atomic(dest, KM_USER0);
-				if (rc == -EAGAIN)
-					/* continue with the next SKB/PDU */
-					goto exit;
-				if (!rc) {
-				    if (conn->datadgst_en) {
-					if (!offset)
-						crypto_digest_update(
-							conn->data_rx_tfm,
-							&sg[i], 1);
-					else
-						partial_sg_digest_update(
-							conn, &sg[i],
-							sg[i].offset + offset,
-							sg[i].length - offset);
-				    }
-				    offset = 0;
-				    ctask->sg_count++;
-				}
-				if (!ctask->data_count) {
-					if (rc) {
-					/*
-					 * data-in is complete, but
-					 * buffer not...
-					 */
-					    if (conn->datadgst_en)
-						partial_sg_digest_update(conn,
-							&sg[i],
-							sg[i].offset,
-							sg[i].length-rc);
-					}
-					rc = 0;
-					break;
-				}
-				if (!conn->in.copy) {
-					rc = -EAGAIN;
-					goto exit;
-				}
-			}
-			BUG_ON(ctask->data_count);
-		} else {
-			int s = ctask->data_count;
-			struct scatterlist sg;
-
-			rc = iscsi_ctask_copy(conn, ctask, sc->request_buffer,
-				sc->request_bufflen, ctask->data_offset);
-			if (rc == -EAGAIN)
-				goto exit;
-			if (conn->datadgst_en) {
-				sg_init_one(&sg, sc->request_buffer, s);
-				crypto_digest_update(conn->data_rx_tfm,
-						     &sg, 1);
-			}
-			rc = 0;
-		}
-
-		/* check for non-exceptional status */
-		if (conn->in.flags & ISCSI_FLAG_DATA_STATUS) {
-			debug_scsi("done [sc %lx res %d itt 0x%x]\n",
-				   (long)sc, sc->result, ctask->itt);
-			conn->scsirsp_pdus_cnt++;
-			iscsi_ctask_cleanup(conn, ctask);
-			sc->scsi_done(sc);
-		}
-	}
-	break;
+	case ISCSI_OP_SCSI_DATA_IN:
+		rc = iscsi_scsi_data_in(conn);
+		break;
 	case ISCSI_OP_SCSI_CMD_RSP: {
 		/*
 		 * SCSI Sense Data:
