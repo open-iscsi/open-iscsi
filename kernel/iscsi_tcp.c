@@ -910,16 +910,16 @@ static int iscsi_scsi_data_in(struct iscsi_conn *conn)
 	 * copying Data-In into the Scsi_Cmnd
 	 */
 	if (!sc->use_sg) {
+		i = ctask->data_count;
 		rc = iscsi_ctask_copy(conn, ctask, sc->request_buffer,
 				      sc->request_bufflen, ctask->data_offset);
 		if (rc == -EAGAIN)
 			return rc;
 		if (conn->datadgst_en) {
-			sg_init_one(&tmp, sc->request_buffer,
-				    ctask->data_count);
+			sg_init_one(&tmp, sc->request_buffer, i);
 			crypto_digest_update(conn->data_rx_tfm, &tmp, 1);
 		}
-
+		rc = 0;
 		goto done;
 	}
 
@@ -2068,8 +2068,7 @@ iscsi_ctask_xmit(struct iscsi_conn *conn, struct iscsi_cmd_task *ctask)
 
 	if (ctask->xmstate & XMSTATE_R_HDR) {
 		rc = handle_xmstate_r_hdr(conn, ctask);
-		if (rc)
-			return rc;
+		return rc;
 	}
 
 	if (ctask->xmstate & XMSTATE_W_HDR) {
