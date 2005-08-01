@@ -2,6 +2,7 @@
  * iSCSI Initiator TCP Transport
  * Copyright (C) 2004 Dmitry Yusupov
  * Copyright (C) 2004 Alex Aizman
+ * Copyright (C) 2005 Mike Christie
  * maintained by open-iscsi@googlegroups.com
  *
  * This program is free software; you can redistribute it and/or modify
