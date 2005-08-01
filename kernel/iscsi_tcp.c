@@ -160,14 +160,14 @@ iscsi_check_assign_cmdsn(struct iscsi_session *session, struct iscsi_nopin *hdr)
 	uint32_t max_cmdsn = be32_to_cpu(hdr->max_cmdsn);
 	uint32_t exp_cmdsn = be32_to_cpu(hdr->exp_cmdsn);
 
-	if (max_cmdsn < exp_cmdsn -1 && max_cmdsn > exp_cmdsn -
-		INVALID_SN_DELTA)
+	if (max_cmdsn < exp_cmdsn -1 &&
+	    max_cmdsn > exp_cmdsn - INVALID_SN_DELTA)
 		return ISCSI_ERR_MAX_CMDSN;
 	if (max_cmdsn > session->max_cmdsn ||
-		max_cmdsn < session->max_cmdsn - INVALID_SN_DELTA)
+	    max_cmdsn < session->max_cmdsn - INVALID_SN_DELTA)
 		session->max_cmdsn = max_cmdsn;
 	if (exp_cmdsn > session->exp_cmdsn ||
-		exp_cmdsn < session->exp_cmdsn - INVALID_SN_DELTA)
+	    exp_cmdsn < session->exp_cmdsn - INVALID_SN_DELTA)
 		session->exp_cmdsn = exp_cmdsn;
 
 	return 0;
