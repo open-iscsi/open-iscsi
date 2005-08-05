@@ -936,10 +936,10 @@ static int iscsi_scsi_data_in(struct iscsi_conn *conn)
 	for (i = ctask->sg_count; i < sc->use_sg; i++) {
 		char *dest;
 
-		dest = kmap_atomic(sg[i].page, KM_USER0);
+		dest = kmap_atomic(sg[i].page, KM_SOFTIRQ0);
 		rc = iscsi_ctask_copy(conn, ctask, dest + sg[i].offset,
 				      sg[i].length, offset);
-		kunmap_atomic(dest, KM_USER0);
+		kunmap_atomic(dest, KM_SOFTIRQ0);
 		if (rc == -EAGAIN)
 			/* continue with the next SKB/PDU */
 			return rc;
