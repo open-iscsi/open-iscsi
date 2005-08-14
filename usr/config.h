@@ -43,7 +43,7 @@
 #define ISCSI_CONN_MAX		16
 
 /* database version control */
-#define IDBM_VERSION		0x03
+#define IDBM_VERSION		0x04
 
 /* the following structures store the options set in the config file.
  * a structure is defined for each logically-related group of options.
