@@ -1,0 +1,117 @@
+#!/bin/sh
+#
+# chkconfig: - 39 35
+# description: Starts and stops the iSCSI initiator
+#
+# pidfile: /var/run/iscsid.pid
+# config:  /etc/iscsid.conf
+
+# Source function library.
+if [ -f /etc/init.d/functions ] ; then
+  . /etc/init.d/functions
+elif [ -f /etc/rc.d/init.d/functions ] ; then
+  . /etc/rc.d/init.d/functions
+else
+  exit 0
+fi
+
+PATH=/sbin:/bin:/usr/sbin:/usr/bin:/usr/local/bin
+RETVAL=0
+
+if [ -f /etc/sysconfig/openiscsi ] ; then
+  . /etc/sysconfig/openiscsi
+fi
+
+if [ -z $ISCSID ] ; then
+  echo "No iscsid daemon found. Please edit /etc/sysconfig/openiscsi"
+  exit 1
+fi
+
+if [ -z $ISCSIADM ] ; then
+  echo "No iscsiadm daemon found. Please edit /etc/sysconfig/openiscsi"
+  exit 1
+fi
+
+start()
+{
+echo -n "Starting iSCSI initiator service: "
+if [ -z $TARGETS ]; then
+  RETVAL=1
+else 
+  modprobe -q iscsi_tcp
+  daemon $ISCSID
+  RETVAL=$?
+  for RECORD in $TARGETS
+  do
+    $ISCSIADM -m node -r $RECORD --login
+  done
+fi
+if [ $RETVAL == "0" ]; then
+         echo_success
+else
+         echo_failure
+fi
+echo
+return $RETVAL
+
+}
+
+stop()
+{
+echo -n "Stopping iSCSI initiator service: "
+sync
+for RECORD in $TARGETS
+do
+  $ISCSIADM -m node -r $RECORD --logout
+done
+pkill -KILL `basename $ISCSID`
+modprobe -r iscsi_tcp
+RETVAL=$?
+if [ $RETVAL == "0" ]; then
+         echo_success
+else
+         echo_failure
+fi
+echo
+return $RETVAL
+
+}
+
+restart()
+{
+        stop
+        start
+
+}
+
+status()
+{
+PID=`pidofproc $ISCSID`
+if [ ! $PID ]; then
+         echo "iSCSI initiator is stopped."
+         exit 1
+else
+         echo "iSCSI initiator is running."
+fi
+
+}
+
+case "$1" in
+  start)
+        start
+        ;;
+  stop)
+        stop
+        ;;
+  restart)
+        restart
+        ;;
+  status)
+        status
+        ;;
+  *)
+        echo $"Usage: $0 {start|stop|restart|status}"
+        exit 1
+esac
+
+exit 0
