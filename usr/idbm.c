@@ -114,7 +114,7 @@ static int
 idbm_uniq_id(char *name)
 {
 	unsigned long h = 0, g;
-	static int M = 0x100000;
+	static int M = 0xFFFFFF;
 
 	while (*name) {
 		h = ( h << 4 ) + *name++;
