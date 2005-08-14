@@ -11,7 +11,7 @@ all:
 	@echo "Built iSCSI Open Interface module:  kernel/scsi_transport_iscsi.ko"
 	@echo "Built iSCSI over TCP kernel module: kernel/iscsi_tcp.ko"
 	@echo "Built iSCSI daemon:                 usr/iscsid"
-	@echo "Built mangement application:        usr/iscsiadm"
+	@echo "Built management application:       usr/iscsiadm"
 	@echo
 	@echo Read README file for detailed information.
 
