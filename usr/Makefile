@@ -1,9 +1,20 @@
 # This Makefile will work only with GNU make.
 
 OSNAME=$(shell uname -s)
+KSRC=/lib/modules/`uname -r`/build
+KVER=$(shell cat $(KSRC)/Makefile | awk -F= '/^SUBLEVEL =/ {print $$2}' | \
+			sed 's/^[ \t]*//;s/[ \t]*$$//')
 
 ifeq ($(OSNAME),Linux)
-IPC_CFLAGS=-DNETLINK_ISCSI=12
+	ifeq ($(KVER),11)
+		IPC_CFLAGS=-DNETLINK_ISCSI=12
+	else
+	ifeq ($(KVER),12)
+		IPC_CFLAGS=-DNETLINK_ISCSI=12
+	else
+		IPC_CFLAGS=-DNETLINK_ISCSI=8
+	endif
+	endif
 IPC_OBJ=netlink.o
 DBM_LIB=-ldb
 else
