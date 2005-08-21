@@ -51,6 +51,7 @@ static struct pollfd poll_array[POLL_MAX];
 
 static struct option const long_options[] = {
 	{"config", required_argument, NULL, 'c'},
+	{"initiatorname", required_argument, NULL, 'i'},
 	{"foreground", no_argument, NULL, 'f'},
 	{"debug", required_argument, NULL, 'd'},
 	{"uid", required_argument, NULL, 'u'},
@@ -70,6 +71,7 @@ static void usage(int status)
 		printf("\
 Open-iSCSI initiator daemon.\n\
   -c, --config=[path]     Execute in the config file (" CONFIG_FILE ").\n\
+  -i, --initiatorname=[path]     read initiatorname from file (" INITIATOR_NAME_FILE ").\n\
   -f, --foreground        make the program run in the foreground\n\
   -d, --debug debuglevel  print debugging information\n\
   -u, --uid=uid           run as uid, default is current user\n\
@@ -169,6 +171,7 @@ int main(int argc, char *argv[])
 {
 	struct utsname host_info; /* will use to compound initiator alias */
 	char *config_file = CONFIG_FILE;
+	char *initiatorname_file = INITIATOR_NAME_FILE;
 	int ch, longindex;
 	uid_t uid = 0;
 	gid_t gid = 0;
@@ -183,11 +186,14 @@ int main(int argc, char *argv[])
 	sigaction(SIGPIPE, &sa_new, &sa_old );
 	sigaction(SIGTERM, &sa_new, &sa_old );
 
-	while ((ch = getopt_long(argc, argv, "c:fd:u:g:vh", long_options,
+	while ((ch = getopt_long(argc, argv, "c:i:fd:u:g:vh", long_options,
 				 &longindex)) >= 0) {
 		switch (ch) {
 		case 'c':
 			config_file = optarg;
+			break;
+		case 'i':
+			initiatorname_file = optarg;
 			break;
 		case 'f':
 			log_daemon = 0;
@@ -272,8 +278,8 @@ int main(int argc, char *argv[])
 
 	memset(&daemon_config, 0, sizeof (daemon_config));
 	daemon_config.pid_file = PID_FILE;
-	daemon_config.config_file = CONFIG_FILE;
-	daemon_config.initiator_name_file = INITIATOR_NAME_FILE;
+	daemon_config.config_file = config_file;
+	daemon_config.initiator_name_file = initiatorname_file;
 	daemon_config.initiator_name =
 	    get_iscsi_initiatorname(daemon_config.initiator_name_file);
 	if (daemon_config.initiator_name == NULL) {
@@ -282,9 +288,14 @@ int main(int argc, char *argv[])
 	}
 
 	/* optional InitiatorAlias */
-	memset(&host_info, 0, sizeof (host_info));
-	if (uname(&host_info) >= 0) {
-		daemon_config.initiator_alias = strdup(host_info.nodename);
+	daemon_config.initiator_alias =
+	    get_iscsi_initiatoralias(daemon_config.initiator_name_file);
+	if (!daemon_config.initiator_alias) {
+		memset(&host_info, 0, sizeof (host_info));
+		if (uname(&host_info) >= 0) {
+			daemon_config.initiator_alias = 
+				strdup(host_info.nodename);
+		}
 	}
 
 	log_debug(1, "InitiatorName=%s", daemon_config.initiator_name);

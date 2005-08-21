@@ -24,7 +24,7 @@
 #include "config.h"
 
 extern char initiator_name[];
-extern char *initiator_alias;
+extern char initiator_alias[];
 
 /* discovery.c */
 extern int sendtargets_discovery(struct iscsi_sendtargets_config *config,

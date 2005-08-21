@@ -179,6 +179,57 @@ get_iscsi_initiatorname(char *pathname)
 	}
 }
 
+char *
+get_iscsi_initiatoralias(char *pathname)
+{
+	FILE *f = NULL;
+	int c;
+	char *line, buffer[1024];
+	char *name = NULL;
+
+	if (!pathname) {
+		log_error("No pathname to load InitiatorAlias from");
+		return NULL;
+	}
+
+	/* get the InitiatorName */
+	if ((f = fopen(pathname, "r"))) {
+		while ((line = fgets(buffer, sizeof (buffer), f))) {
+
+			while (line && isspace(c = *line))
+				line++;
+
+			if (strncmp(line, "InitiatorAlias=", 15) == 0) {
+				char *end = line + 15;
+
+				/* the name is everything up to the first
+				 * bit of whitespace
+				 */
+				while (*end && (!isspace(c = *end)))
+					end++;
+
+				if (isspace(c = *end))
+					*end = '\0';
+
+				if (end > line + 15)
+					name = strdup(line + 15);
+			}
+		}
+		fclose(f);
+		if (!name) {
+			log_debug(5,"no InitiatorAlias found in %s", pathname);
+			return NULL;
+		} else {
+			log_debug(5, "InitiatorAlias=%s", name);
+		}
+		return name;
+	} else {
+		log_error("cannot open InitiatorAlias configuration file %s",
+			 pathname);
+		return NULL;
+	}
+}
+
 static int
 idbm_lock(DBM *dbm)
 {

@@ -43,7 +43,8 @@ static int ipc_fd = -1;
 static char program_name[] = "iscsiadm";
 
 char initiator_name[TARGET_NAME_MAXLEN];
-char *initiator_alias = "temp.init.alias";
+char initiator_alias[TARGET_NAME_MAXLEN];
+char config_file[TARGET_NAME_MAXLEN];
 
 enum iscsiadm_mode {
 	MODE_DISCOVERY,
@@ -329,6 +330,49 @@ session_logout(int rid, node_rec_t *rec)
 	return do_iscsid(&req, &rsp);
 }
 
+static int
+config_init(void)
+{
+	int rc;
+	iscsiadm_req_t req;
+	iscsiadm_rsp_t rsp;
+
+	memset(&req, 0, sizeof(req));
+	req.command = MGMT_IPC_CONFIG_INAME;
+
+	rc = do_iscsid(&req, &rsp);
+	if (rc)
+		return rc;
+
+	if (rsp.u.config.var[0] != '\0') {
+		strcpy(initiator_name, rsp.u.config.var);
+	}
+
+	memset(&req, 0, sizeof(req));
+	req.command = MGMT_IPC_CONFIG_IALIAS;
+
+	rc = do_iscsid(&req, &rsp);
+	if (rc)
+		return rc;
+
+	if (rsp.u.config.var[0] != '\0') {
+		strcpy(initiator_alias, rsp.u.config.var);
+	}
+
+	memset(&req, 0, sizeof(req));
+	req.command = MGMT_IPC_CONFIG_FILE;
+
+	rc = do_iscsid(&req, &rsp);
+	if (rc)
+		return rc;
+
+	if (rsp.u.config.var[0] != '\0') {
+		strcpy(config_file, rsp.u.config.var);
+	}
+
+	return 0;
+}
+
 static int compint(const void *i1, const void *i2) {
 	return *(int*)i1 >= *(int*)i2;
 }
@@ -534,7 +578,6 @@ main(int argc, char **argv)
 	int ch, longindex, mode=-1, port=-1, do_login=0;
 	int rc=0, rid=-1, sid=-1, op=-1, type=-1, do_logout=0, do_stats=0;
 	idbm_t *db;
-	char *iname;
 	struct sigaction sa_old;
 	struct sigaction sa_new;
 
@@ -548,12 +591,11 @@ main(int argc, char **argv)
 	log_daemon = 0;
 	log_init(program_name, 1024);
 
-	iname = get_iscsi_initiatorname(INITIATOR_NAME_FILE);
-	if (!iname) {
+	config_init();
+	if (initiator_name[0] == '\0') {
 		log_warning("exiting due to configuration error");
 		return -1;
 	}
-	strncpy(initiator_name, iname, TARGET_NAME_MAXLEN);
 
 	optopt = 0;
 	while ((ch = getopt_long(argc, argv, short_options,
@@ -616,7 +658,7 @@ main(int argc, char **argv)
 		mode = MODE_SESSION;
 	}
 
-	db = idbm_init(CONFIG_FILE);
+	db = idbm_init(config_file);
 	if (!db) {
 		log_warning("exiting due to idbm configuration error");
 		return -1;

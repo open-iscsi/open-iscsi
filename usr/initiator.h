@@ -34,8 +34,12 @@
 #define CONFIG_FILE		"/etc/iscsid.conf"
 #define PID_FILE		"/var/run/iscsid.pid"
 #define INITIATOR_NAME_FILE	"/etc/initiatorname.iscsi"
+#ifndef DISCOVERY_FILE
 #define DISCOVERY_FILE		"/var/db/iscsi/discovery"
+#endif
+#ifndef NODE_FILE
 #define NODE_FILE		"/var/db/iscsi/node"
+#endif
 
 #define DEF_ISCSI_PORT		3260
 

@@ -58,6 +58,7 @@ typedef struct idbm {
 } idbm_t;
 
 extern char* get_iscsi_initiatorname(char *pathname);
+extern char* get_iscsi_initiatoralias(char *pathname);
 extern idbm_t* idbm_init(char *configfile);
 extern void idbm_terminate(idbm_t *db);
 extern int idbm_print_node(idbm_t *db, int rec_id);

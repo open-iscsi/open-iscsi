@@ -177,6 +177,30 @@ mgmt_ipc_session_logout(queue_task_t *qtask, int rid)
 }
 
 static mgmt_ipc_err_e
+mgmt_ipc_cfg_initiatorname(queue_task_t *qtask, iscsiadm_rsp_t *rsp)
+{
+	strcpy(rsp->u.config.var, dconfig->initiator_name);
+
+	return MGMT_IPC_OK;
+}
+
+static mgmt_ipc_err_e
+mgmt_ipc_cfg_initiatoralias(queue_task_t *qtask, iscsiadm_rsp_t *rsp)
+{
+	strcpy(rsp->u.config.var, dconfig->initiator_alias);
+
+	return MGMT_IPC_OK;
+}
+
+static mgmt_ipc_err_e
+mgmt_ipc_cfg_filename(queue_task_t *qtask, iscsiadm_rsp_t *rsp)
+{
+	strcpy(rsp->u.config.var, dconfig->config_file);
+
+	return MGMT_IPC_OK;
+}
+
+static mgmt_ipc_err_e
 mgmt_ipc_conn_add(queue_task_t *qtask, int rid, int cid)
 {
 	return MGMT_IPC_ERR;
@@ -340,6 +364,18 @@ mgmt_ipc_handle(int accept_fd)
 	case MGMT_IPC_CONN_REMOVE:
 		rsp.err = mgmt_ipc_conn_remove(qtask, req.u.conn.rid,
 					       req.u.conn.cid);
+		break;
+	case MGMT_IPC_CONFIG_INAME:
+		rsp.err = mgmt_ipc_cfg_initiatorname(qtask, &rsp);
+		immrsp = 1;
+		break;
+	case MGMT_IPC_CONFIG_IALIAS:
+		rsp.err = mgmt_ipc_cfg_initiatoralias(qtask, &rsp);
+		immrsp = 1;
+		break;
+	case MGMT_IPC_CONFIG_FILE:
+		rsp.err = mgmt_ipc_cfg_filename(qtask, &rsp);
+		immrsp = 1;
 		break;
 	default:
 		log_error("unknown request: %s(%d) %u",

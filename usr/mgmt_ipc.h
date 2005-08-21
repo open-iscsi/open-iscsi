@@ -50,6 +50,9 @@ typedef enum iscsiadm_cmd {
 	MGMT_IPC_CONN_ADD		= 5,
 	MGMT_IPC_CONN_REMOVE		= 6,
 	MGMT_IPC_SESSION_STATS		= 7,
+	MGMT_IPC_CONFIG_INAME		= 8,
+	MGMT_IPC_CONFIG_IALIAS		= 9,
+	MGMT_IPC_CONFIG_FILE		= 10,
 } iscsiadm_cmd_e;
 
 /* IPC Request */
@@ -92,6 +95,9 @@ typedef struct iscsiadm_rsp {
 			char custom[sizeof(struct iscsi_stats_custom) *
 					ISCSI_STATS_CUSTOM_MAX];
 		} getstats;
+		struct msg_config {
+			char var[VALUE_MAXLEN];
+		} config;
 	} u;
 } iscsiadm_rsp_t;
 
