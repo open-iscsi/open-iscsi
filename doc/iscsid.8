@@ -1,0 +1,86 @@
+.TH ISCSID 8 "July 2005" "" "Linux Administrator's Manual"
+.SH NAME
+iscsid \- Open-iSCSI daemon
+.SH SYNOPSIS
+.BI iscsid
+[OPTION]
+.SH "DESCRIPTION"
+The
+.B iscsid
+implements the control path of iSCSI protocol, plus some management
+facilities. For example, the daemon could be configured to automatically 
+re-start discovery at startup, based on the contents of persistent 
+iSCSI database.
+.SH OPTIONS
+.TP
+.BI [-c|--config=]\fIconfig\-file\fP
+Read configuration from
+.I config\-file
+rather than the default
+.I /etc/iscsid.conf
+file.
+.TP
+.BI [-i|--initiatorname=]\fIiname\-file\fP
+Read initiator name from
+.I iname\-file
+rather than the default
+.I /etc/initiatorname.iscsi
+file.
+.TP
+.BI [-f|--foreground]
+run
+.B iscsid
+in the foreground.
+.TP
+.BI [-d|--debug]
+print debugging information.
+.TP
+.BI [-u|--uid=]\fIuid\fP
+run under user ID
+.I uid
+(default is the current user ID)
+.TP
+.BI [-g|--gid=]\fIgid\fP
+run under user group ID
+.I gid
+(default is the current user group ID).
+.TP
+.BI [-p|--pid=]\fIpid\-file\fP
+write process ID to
+.I pid\-file
+rather than the default
+.I /var/run/iscsid.pid
+.TP
+.BI [-h|--help]
+display this help and exit
+.TP
+.BI [-v|--version]
+display version and exit.
+
+.SH FILES
+.TP
+/etc/iscsid.conf
+The configuration file read by
+.B iscsid
+and
+.B iscsiadm
+on startup.
+.TP
+/etc/initiatorname.iscsi
+The file containing the iSCSI initiatorname
+and initiatoralias read by
+.B iscsid
+and
+.B iscsiadm
+on startup.
+.TP
+/var/db/iscsi/*.db
+Open-iSCSI persistent configuration database
+
+.SH "SEE ALSO"
+.BR iscsiadm (8)
+.BR iscsid.conf (5)
+
+.SH AUTHORS
+Alex Aizman <itn780@yahoo.com>
+Dmitry Yusupov <dmitry_yus@yahoo.com>

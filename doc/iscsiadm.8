@@ -1,0 +1,137 @@
+.TH ISCSID 8 "July 2005" "" "Linux Administrator's Manual"
+.SH NAME
+iscsiadm \- Open-iSCSI Configuration Utility
+.SH SYNOPSIS
+.BI iscsiadm
+[OPTIONS]
+.SH "DESCRIPTION"
+Open-iSCSI persistent configuration is implemented as a DBM database
+available on all Linux installations.
+.p
+The database contains two tables:
+.TP
+Discovery table (discovery.db);
+.TP
+Node table (node.db).
+.PD
+.PP
+The regular place for iSCSI database files is in
+.I /var/db/iscsi/*.db
+.PP
+The iscsiadm utility is a command-line tool to manage (update, delete,
+insert, query) the persistent database.
+.PP
+The utility presents set of operations that a user can perform 
+on iSCSI nodes, sessions, connections, and discovery records.
+.PP
+Note that some of the iSCSI Node and iSCSI Discovery operations 
+do not require iSCSI daemon (iscsid) loaded.
+
+.SH OPTIONS
+.TP
+.B \-m, \-\-mode \fIop
+specify operational mode.
+.I op
+is either
+.I discovery
+or
+.I node
+.TP
+.B \-m discovery
+display all discovery records from the internal persistent discovery
+database.
+.TP
+.B \-m discovery \-\-type=\fItype\fB \-\-portal=\fIip:port\fB \-\-login
+perform
+.I type
+discovery for target portal with ip-address 
+.I ip
+and port 
+.I port
+\. Initiate Login for each discovered target if --login is specific.
+.TP
+.B \-m discovery \-\-record=\fIid\fB \-\-login
+ perform discovery based on record 
+.I id
+in database.
+.TP
+.B \-m discovery \-\-record=\fIid\fB \-\-op=\fIop\fB \-\-name=\fIname\fB \-\-value=\fIvalue
+perform specific DB operation 
+.I op
+for specific discovery record with 
+.I id
+\. It could be one of:
+.I new
+, 
+.I delete
+, 
+.I update
+ or 
+.I show
+\. In case of
+.I update
+, you have to provide 
+.I name
+ and 
+.I value
+you wish to update
+.TP
+.B \-m node
+display all discovered nodes from internal persistent discovery
+database
+.TP
+.B \-m node \-\-record=\fIid\fB [ \-\-login | \-\-logout ]
+.TP
+.B \-m node \-\-record=\fIid\fB \-\-op=\fIop\fB [\-\-name=\fIname\fB \-\-value=\fIvalue\fB]
+perform specific DB operation 
+.I op
+for specific node with record 
+.I id
+\. It could be one of:
+.I new
+, 
+.I delete
+, 
+.I update
+ or 
+.I show
+\. In case of
+.I update
+, you have to provide 
+.I name
+and 
+.I value
+you wish to update
+.TP
+.B \-m session
+display all active sessions and connections
+.TP
+.B \-m session \-\-record=[\fIid\fB[\fI:cid\fB]] [\-\-logout]
+perform operation for specific session with record
+.I id
+or display statistics if no operation specified. Operation will affect
+one connection only if
+.I \:cid
+is specified
+.TP
+.B \-d, \-\-debug \fIdebuglevel
+print debugging information
+.TP
+.B -V, --version
+display version and exit
+.TP
+.B -h, --help
+display this help and exit
+
+.SH FILES
+.TP
+/var/db/iscsi/*.db
+Open-iSCSI persistent configuration database
+
+.SH "SEE ALSO"
+.BR iscsid (8)
+.BR iscsid.conf (5)
+
+.SH AUTHORS
+Alex Aizman <itn780@yahoo.com>
+Dmitry Yusupov <dmitry_yus@yahoo.com>
