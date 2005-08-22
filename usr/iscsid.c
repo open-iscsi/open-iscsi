@@ -56,6 +56,7 @@ static struct option const long_options[] = {
 	{"debug", required_argument, NULL, 'd'},
 	{"uid", required_argument, NULL, 'u'},
 	{"gid", required_argument, NULL, 'g'},
+	{"pid", required_argument, NULL, 'p'},
 	{"help", no_argument, NULL, 'h'},
 	{"version", no_argument, NULL, 'v'},
 	{NULL, 0, NULL, 0},
@@ -76,6 +77,7 @@ Open-iSCSI initiator daemon.\n\
   -d, --debug debuglevel  print debugging information\n\
   -u, --uid=uid           run as uid, default is current user\n\
   -g, --gid=gid           run as gid, default is current user group\n\
+  -p, --pid=pidfile       use pid file (default " PID_FILE ").\n\
   -h, --help              display this help and exit\n\
   -v, --version           display version and exit\n\
 ");
@@ -172,6 +174,7 @@ int main(int argc, char *argv[])
 	struct utsname host_info; /* will use to compound initiator alias */
 	char *config_file = CONFIG_FILE;
 	char *initiatorname_file = INITIATOR_NAME_FILE;
+	char *pid_file = PID_FILE;
 	int ch, longindex;
 	uid_t uid = 0;
 	gid_t gid = 0;
@@ -186,7 +189,7 @@ int main(int argc, char *argv[])
 	sigaction(SIGPIPE, &sa_new, &sa_old );
 	sigaction(SIGTERM, &sa_new, &sa_old );
 
-	while ((ch = getopt_long(argc, argv, "c:i:fd:u:g:vh", long_options,
+	while ((ch = getopt_long(argc, argv, "c:i:fd:u:g:p:vh", long_options,
 				 &longindex)) >= 0) {
 		switch (ch) {
 		case 'c':
@@ -206,6 +209,9 @@ int main(int argc, char *argv[])
 			break;
 		case 'g':
 			gid = strtoul(optarg, NULL, 10);
+			break;
+		case 'p':
+			pid_file = optarg;
 			break;
 		case 'v':
 			printf("%s version %s\n", program_name,
@@ -232,7 +238,7 @@ int main(int argc, char *argv[])
 		pid_t pid;
 		int fd;
 
-		fd = open(PID_FILE, O_WRONLY|O_CREAT, 0644);
+		fd = open(pid_file, O_WRONLY|O_CREAT, 0644);
 		if (fd < 0) {
 			log_error("unable to create pid file");
 			exit(1);
@@ -277,7 +283,7 @@ int main(int argc, char *argv[])
 		perror("setgid\n");
 
 	memset(&daemon_config, 0, sizeof (daemon_config));
-	daemon_config.pid_file = PID_FILE;
+	daemon_config.pid_file = pid_file;
 	daemon_config.config_file = config_file;
 	daemon_config.initiator_name_file = initiatorname_file;
 	daemon_config.initiator_name =
