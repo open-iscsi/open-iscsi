@@ -40,6 +40,7 @@
 #include "log.h"
 
 static void __session_mainloop(void *data);
+static void __conn_error_handle(iscsi_session_t*, iscsi_conn_t*);
 
 static char sysfs_file[PATH_MAX];
 
@@ -401,6 +402,10 @@ __session_conn_create(iscsi_session_t *session, int cid)
 	conn->idle_timeout = conn_rec->timeo.idle_timeout;
 	conn->ping_timeout = conn_rec->timeo.ping_timeout;
 
+	/* noop-out setting */
+	conn->noop_out_interval = conn_rec->timeo.noop_out_interval;
+	conn->noop_out_timeout = conn_rec->timeo.noop_out_timeout;
+
 	/* operational parameters */
 	conn->max_recv_dlength =
 			__padding(conn_rec->iscsi.MaxRecvDataSegmentLength);
@@ -599,6 +604,22 @@ __send_nopin_rsp(iscsi_conn_t *conn, struct iscsi_nopin *rhdr, char *data)
 	       ISCSI_DIGEST_NONE, data, ISCSI_DIGEST_NONE, 0);
 }
 
+static int
+__send_nopout(iscsi_conn_t *conn)
+{
+	struct iscsi_nopout hdr;
+
+	memset(&hdr, 0, sizeof(struct iscsi_nopout));
+	hdr.opcode = ISCSI_OP_NOOP_OUT;
+	hdr.flags = ISCSI_FLAG_CMD_FINAL;
+	hdr.itt = 0;  /* XXX: let kernel send_pdu set for us*/
+	hdr.ttt = ISCSI_RESERVED_TAG;
+	/* we have hdr.lun reserved, and no data */
+	return iscsi_io_send_pdu(conn, (struct iscsi_hdr*)&hdr,
+		ISCSI_DIGEST_NONE, NULL, ISCSI_DIGEST_NONE, 0);
+}
+
+
 static void
 __send_pdu_timedout(void *data)
 {
@@ -636,6 +657,31 @@ __send_pdu_timer_remove(struct iscsi_conn *conn)
 		conn->send_pdu_in_progress = 0;
 		log_debug(7, "send_pdu timer removed");
 	}
+}
+
+void 
+__conn_noop_out_timeout(void *data)
+{
+	iscsi_conn_t *conn = (iscsi_conn_t*)data;
+	iscsi_session_t *session = conn->session;
+
+	log_debug(3, "noop out rsp timeout, closing conn...\n");
+	actor_delete(&conn->noop_out_timer);
+	/* XXX: error handle */
+	__conn_error_handle(session, conn);
+}
+
+void
+__conn_noop_out(void *data)
+{
+	iscsi_conn_t *conn = (iscsi_conn_t*)data;
+	__send_nopout(conn);
+	if (conn->noop_out_timeout_timer.state != ACTOR_WAITING) 
+		actor_timer(&conn->noop_out_timeout_timer,
+				conn->noop_out_timeout*1000,
+				__conn_noop_out_timeout, conn);
+	actor_timer(&conn->noop_out_timer, conn->noop_out_interval*1000,
+			__conn_noop_out, data);
 }
 
 static void
@@ -827,6 +873,14 @@ __session_conn_recv_pdu(queue_item_t *item)
 				session->r_stage = R_STAGE_NO_CHANGE;
 			}
 		}
+		/* noop_out */
+		if (conn->noop_out_interval) {
+			actor_timer(&conn->noop_out_timer,
+					conn->noop_out_interval*1000,
+					__conn_noop_out, conn);
+			log_debug(3, "noop out timer %p start\n",
+				&conn->noop_out_timer);
+		}
 	} else if (conn->state == STATE_LOGGED_IN) {
 		struct iscsi_hdr hdr;
 
@@ -838,8 +892,13 @@ __session_conn_recv_pdu(queue_item_t *item)
 		}
 
 		if (hdr.opcode == ISCSI_OP_NOOP_IN) {
-			if (!__send_nopin_rsp(conn,
-				     (struct iscsi_nopin*)&hdr, conn->data)) {
+			if (hdr.ttt == ISCSI_RESERVED_TAG) {
+				/* noop out rsp */
+				actor_delete(&conn->noop_out_timeout_timer);
+			} else /*  noop in req */
+				if (!__send_nopin_rsp(conn, 
+						(struct iscsi_nopin*)&hdr, 
+					      conn->data)) {
 				log_error("can not send nopin response");
 			}
 		} else {
@@ -1137,15 +1196,8 @@ __session_conn_timer(queue_item_t *item)
 }
 
 static void
-__session_conn_error(queue_item_t *item)
+__conn_error_handle(iscsi_session_t *session, iscsi_conn_t *conn)
 {
-	enum iscsi_err error = *(enum iscsi_err *)queue_item_data(item);
-	iscsi_conn_t *conn = item->context;
-	iscsi_session_t *session = conn->session;
-
-	log_warning("detected iSCSI connection (handle %p) error (%d) "
-		"state (%d)", iscsi_ptr(conn->handle), error, conn->state);
-
 	if (conn->state == STATE_LOGGED_IN) {
 		int i;
 
@@ -1219,6 +1271,20 @@ __session_conn_error(queue_item_t *item)
 	}
 
 	__session_conn_cleanup(conn);
+}
+
+
+static void
+__session_conn_error(queue_item_t *item)
+{
+	enum iscsi_err error = *(enum iscsi_err *)queue_item_data(item);
+	iscsi_conn_t *conn = item->context;
+	iscsi_session_t *session = conn->session;
+
+	log_warning("detected iSCSI connection (handle %p) error (%d) "
+		"state (%d)", iscsi_ptr(conn->handle), error, conn->state);
+	__conn_error_handle(session, conn);
+
 }
 
 static void
@@ -1410,6 +1476,13 @@ session_logout_task(iscsi_session_t *session, queue_task_t *qtask)
 
 	iscsi_io_disconnect(conn);
 	__session_conn_queue_flush(conn);
+
+	if (conn->noop_out_interval) {
+		actor_delete(&conn->noop_out_timer);
+		actor_delete(&conn->noop_out_timeout_timer);
+		log_debug(3, "conn noop out timer %p stopped\n",
+				&conn->noop_out_timer);
+	}
 
 	if (ipc->destroy_conn(session->transport_handle, conn->handle,
                 conn->id)) {

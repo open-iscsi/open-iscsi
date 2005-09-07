@@ -140,6 +140,10 @@ typedef struct iscsi_conn {
 	iscsi_conn_state_e state;
 	actor_t connect_timer;
 	actor_t send_pdu_timer;
+
+	actor_t noop_out_timer;
+	actor_t noop_out_timeout_timer;
+
 	int send_pdu_in_progress;
 
 	int kernel_io;
@@ -171,6 +175,9 @@ typedef struct iscsi_conn {
 	int active_timeout;
 	int idle_timeout;
 	int ping_timeout;
+
+	int noop_out_interval;
+	int noop_out_timeout;
 
 	/* sequencing */
 	uint32_t exp_statsn;

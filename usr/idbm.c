@@ -370,6 +370,10 @@ idbm_update_node(node_rec_t *rec, node_rec_t *newrec)
 		__update_rec_int(rec, newrec, conn[i].timeo.active_timeout);
 		__update_rec_int(rec, newrec, conn[i].timeo.idle_timeout);
 		__update_rec_int(rec, newrec, conn[i].timeo.ping_timeout);
+
+		__update_rec_int(rec, newrec, conn[i].timeo.noop_out_interval);
+		__update_rec_int(rec, newrec, conn[i].timeo.noop_out_timeout);
+
 		__update_rec_int(rec, newrec,
 				 conn[i].iscsi.MaxRecvDataSegmentLength);
 		__update_rec_int(rec, newrec, conn[i].iscsi.HeaderDigest);
@@ -608,6 +612,14 @@ idbm_recinfo_node(node_rec_t *r, recinfo_t *ri)
 		sprintf(key, "node.conn[%d].timeo.ping_timeout", i);
 		__recinfo_int(key, ri, r, conn[i].timeo.ping_timeout,
 				IDBM_SHOW, num);
+
+		sprintf(key, "node.conn[%d].timeo.noop_out_interval", i);
+		__recinfo_int(key, ri, r, conn[i].timeo.noop_out_interval,
+				IDBM_SHOW, num);
+		sprintf(key, "node.conn[%d].timeo.noop_out_timeout", i);
+		__recinfo_int(key, ri, r, conn[i].timeo.noop_out_timeout,
+				IDBM_SHOW, num);
+
 		sprintf(key, "node.conn[%d].iscsi.MaxRecvDataSegmentLength", i);
 		__recinfo_int(key, ri, r,
 			conn[i].iscsi.MaxRecvDataSegmentLength, IDBM_SHOW, num);
@@ -1042,6 +1054,10 @@ idbm_node_setup_defaults(node_rec_t *rec)
 		rec->conn[i].timeo.active_timeout=5;
 		rec->conn[i].timeo.idle_timeout = 60;
 		rec->conn[i].timeo.ping_timeout = 5;
+
+		rec->conn[i].timeo.noop_out_interval = 0;
+		rec->conn[i].timeo.noop_out_timeout = 0;
+
 		rec->conn[i].iscsi.MaxRecvDataSegmentLength = 128 * 1024;
 		rec->conn[i].iscsi.HeaderDigest = CONFIG_DIGEST_PREFER_OFF;
 		rec->conn[i].iscsi.DataDigest = CONFIG_DIGEST_NEVER;

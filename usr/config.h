@@ -76,6 +76,8 @@ struct iscsi_connection_timeout_config {
 	int active_timeout;
 	int idle_timeout;
 	int ping_timeout;
+	int noop_out_interval;
+	int noop_out_timeout;
 };
 
 /* all per-connection timeouts go in this structure.
