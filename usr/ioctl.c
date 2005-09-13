@@ -404,6 +404,8 @@ ktrans_list(void)
 			strncpy(provider[i].name, ev.r.t_list.elements[i].name,
 				ISCSI_TRANSPORT_NAME_MAXLEN);
 			provider[i].caps = ev.r.t_list.elements[i].caps;
+			provider[i].af = ev.r.t_list.elements[i].af;			
+			provider[i].rdma = ev.r.t_list.elements[i].rdma;
 		}
 	}
 	return 0;

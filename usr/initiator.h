@@ -209,12 +209,30 @@ typedef struct queue_task {
 	} u;
 } queue_task_t;
 
+typedef enum iscsi_provider_status_e {
+	PROVIDER_STATUS_UNKNOWN		= 0,
+	PROVIDER_STATUS_OPERATIONAL	= 1,
+	PROVIDER_STATUS_FAILED		= 2,
+} iscsi_provider_status_e;
+
+/* represents data path provider */
+typedef struct iscsi_provider_t {
+	uint64_t handle;
+	uint32_t caps;
+	unsigned short af;	
+	unsigned short rdma;
+	iscsi_provider_status_e status;
+	char name[ISCSI_TRANSPORT_NAME_MAXLEN];
+	struct qelem sessions;
+} iscsi_provider_t;
+
 /* daemon's session structure */
 typedef struct iscsi_session {
 	struct qelem item; /* must stay at the top */
 	uint32_t id;
 	uint64_t transport_handle;
 	uint64_t handle;
+	iscsi_provider_t *provider;
 	node_rec_t nrec; /* copy of original Node record in database */
 	int vendor_specific_keys;
 	unsigned int irrelevant_keys_bitmap;
@@ -270,21 +288,6 @@ typedef struct iscsi_session {
 	actor_t mainloop;
 	queue_t *queue;
 } iscsi_session_t;
-
-typedef enum iscsi_provider_status_e {
-	PROVIDER_STATUS_UNKNOWN		= 0,
-	PROVIDER_STATUS_OPERATIONAL	= 1,
-	PROVIDER_STATUS_FAILED		= 2,
-} iscsi_provider_status_e;
-
-/* represents data path provider */
-typedef struct iscsi_provider_t {
-	uint64_t handle;
-	uint32_t caps;
-	iscsi_provider_status_e status;
-	char name[ISCSI_TRANSPORT_NAME_MAXLEN];
-	struct qelem sessions;
-} iscsi_provider_t;
 
 /* iscsid.c */
 extern iscsi_provider_t provider[ISCSI_TRANSPORT_MAX];

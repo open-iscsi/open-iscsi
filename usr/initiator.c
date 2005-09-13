@@ -437,6 +437,10 @@ __session_conn_create(iscsi_session_t *session, int cid)
 			  conn_rec->address, host);
 	}
 
+	/* Set the address family according to the value 
+	   that was received from a specific provider */
+	conn->saddr.ss_family = session->provider->af;
+
 	conn->state = STATE_FREE;
 	conn->session = session;
 
@@ -465,6 +469,7 @@ __session_create(node_rec_t *rec, iscsi_provider_t *provider)
 	/* opened at daemon load time (iscsid.c) */
 	session->ctrl_fd = control_fd;
 	session->transport_handle = provider->handle;
+	session->provider = provider;
 
 	/* save node record. we might need it for redirection */
 	memcpy(&session->nrec, rec, sizeof(node_rec_t));

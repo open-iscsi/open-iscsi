@@ -47,6 +47,8 @@ struct iscsi_transport {
 	struct module *owner;
 	char *name;
 	unsigned int caps;
+	unsigned short af;
+	unsigned short rdma;
 	struct scsi_host_template *host_template;
 	int hostdata_size;
 	int max_lun;
