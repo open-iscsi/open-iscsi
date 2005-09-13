@@ -543,7 +543,7 @@ __session_destroy(iscsi_session_t *session)
 	free(session);
 }
 
-static void
+static int
 __session_conn_cleanup(iscsi_conn_t *conn)
 {
 	iscsi_session_t *session = conn->session;
@@ -551,17 +551,18 @@ __session_conn_cleanup(iscsi_conn_t *conn)
 	if (ipc->destroy_conn(session->transport_handle, conn->handle,
 		conn->id)) {
 		log_error("can not safely destroy connection %d", conn->id);
-		return;
+		return MGMT_IPC_ERR_INTERNAL;
 	}
 	session_conn_destroy(session, conn->id);
 
 	if (ipc->destroy_session(session->transport_handle, session->handle,
 			session->id)) {
 		log_error("can not safely destroy session %d", session->id);
-		return;
+		return MGMT_IPC_ERR_INTERNAL;
 	}
 	if (conn->id == 0)
 		__session_destroy(session);
+	return 0;
 }
 
 static void
@@ -588,6 +589,63 @@ __session_mgmt_ipc_login_cleanup(queue_task_t *qtask, mgmt_ipc_err_e err,
 		close(qtask->u.login.mgmt_ipc_fd);
 		free(qtask);
 	}
+}
+
+static void
+__session_conn_queue_flush(iscsi_conn_t *conn)
+{
+	iscsi_session_t *session = conn->session;
+	int count = session->queue->count, i;
+	unsigned char item_buf[sizeof(queue_item_t) + EVENT_PAYLOAD_MAX];
+	queue_item_t *item = (queue_item_t *)(void *)item_buf;
+
+	log_debug(3, "flushing per-connection events");
+
+	for (i = 0; i < count; i++) {
+		if (queue_consume(session->queue, EVENT_PAYLOAD_MAX,
+					item) == QUEUE_IS_EMPTY) {
+			log_error("queue damage detected...");
+			break;
+		}
+		if (conn != item->context) {
+			queue_produce(session->queue, item->event_type,
+				 item->context, item->data_size,
+				 queue_item_data(item));
+		}
+		/* do nothing */
+		log_debug(7, "item %p(%d) flushed", item, item->event_type);
+	}
+}
+
+static int 
+__session_free(iscsi_session_t *session)
+{
+	iscsi_conn_t *conn = &session->conn[0];
+
+	/* stop if connection is logged in */
+	if (conn->state == STATE_LOGGED_IN) {
+		if (ipc->stop_conn(session->transport_handle, conn->handle,
+				      STOP_CONN_TERM)) {
+			log_error("can't stop connection 0x%p with "
+				  "id = %d (%d)", iscsi_ptr(conn->handle),
+				  conn->id, errno);
+			return MGMT_IPC_ERR_INTERNAL;
+		}
+		log_debug(3, "connection 0x%p is stopped for termination",
+			iscsi_ptr(conn->handle));
+	}
+
+	iscsi_io_disconnect(conn);
+	__session_conn_queue_flush(conn);
+
+	if (conn->noop_out_interval) {
+		actor_delete(&conn->noop_out_timer);
+		actor_delete(&conn->noop_out_timeout_timer);
+		log_debug(3, "conn noop out timer %p stopped\n",
+				&conn->noop_out_timer);
+	}
+
+	return __session_conn_cleanup(conn);
 }
 
 static int
@@ -689,6 +747,23 @@ __conn_noop_out(void *data)
 			__conn_noop_out, data);
 }
 
+static int
+iscsi_login_redirect(iscsi_conn_t *conn)
+{
+	iscsi_session_t *session = conn->session;
+	iscsi_login_context_t *c = &conn->login_context;
+	queue_task_t *qtask = c->qtask;
+	node_rec_t rec;
+
+	log_debug(3, "login redirect ...\n");
+
+	memcpy(&rec, &session->nrec, sizeof(node_rec_t));
+
+	if(__session_free(session))
+		return 1;
+	return session_login_task(&rec, qtask);
+}
+
 static void
 __session_conn_recv_pdu(queue_item_t *item)
 {
@@ -702,7 +777,9 @@ __session_conn_recv_pdu(queue_item_t *item)
 
 		if (iscsi_login_rsp(session, c)) {
 			log_debug(1, "login_rsp ret (%d)", c->ret);
-			__session_mgmt_ipc_login_cleanup(c->qtask,
+			if (c->ret != LOGIN_REDIRECT ||
+				iscsi_login_redirect(conn))				
+				__session_mgmt_ipc_login_cleanup(c->qtask,
 					MGMT_IPC_ERR_LOGIN_FAILURE, 1);
 			return;
 		}
@@ -1071,31 +1148,6 @@ __connect_timedout(void *data)
 	}
 }
 
-static void
-__session_conn_queue_flush(iscsi_conn_t *conn)
-{
-	iscsi_session_t *session = conn->session;
-	int count = session->queue->count, i;
-	unsigned char item_buf[sizeof(queue_item_t) + EVENT_PAYLOAD_MAX];
-	queue_item_t *item = (queue_item_t *)(void *)item_buf;
-
-	log_debug(3, "flushing per-connection events");
-
-	for (i = 0; i < count; i++) {
-		if (queue_consume(session->queue, EVENT_PAYLOAD_MAX,
-					item) == QUEUE_IS_EMPTY) {
-			log_error("queue damage detected...");
-			break;
-		}
-		if (conn != item->context) {
-			queue_produce(session->queue, item->event_type,
-				 item->context, item->data_size,
-				 queue_item_data(item));
-		}
-		/* do nothing */
-		log_debug(7, "item %p(%d) flushed", item, item->event_type);
-	}
-}
 
 static int
 __session_conn_reopen(iscsi_conn_t *conn, int do_stop)
@@ -1454,6 +1506,7 @@ int
 session_logout_task(iscsi_session_t *session, queue_task_t *qtask)
 {
 	iscsi_conn_t *conn;
+	int rc = MGMT_IPC_OK;
 
 	/* FIXME: logout all active connections */
 	conn = &session->conn[0];
@@ -1466,46 +1519,14 @@ session_logout_task(iscsi_session_t *session, queue_task_t *qtask)
 
 	__session_delete_luns(session);
 
-	/* stop if connection is logged in */
-	if (conn->state == STATE_LOGGED_IN) {
-		if (ipc->stop_conn(session->transport_handle, conn->handle,
-				      STOP_CONN_TERM)) {
-			log_error("can't stop connection 0x%p with "
-				  "id = %d (%d)", iscsi_ptr(conn->handle),
-				  conn->id, errno);
-			return MGMT_IPC_ERR_INTERNAL;
-		}
-		log_debug(3, "connection 0x%p is stopped for termination",
-			iscsi_ptr(conn->handle));
-	}
-
-	iscsi_io_disconnect(conn);
-	__session_conn_queue_flush(conn);
-
-	if (conn->noop_out_interval) {
-		actor_delete(&conn->noop_out_timer);
-		actor_delete(&conn->noop_out_timeout_timer);
-		log_debug(3, "conn noop out timer %p stopped\n",
-				&conn->noop_out_timer);
-	}
-
-	if (ipc->destroy_conn(session->transport_handle, conn->handle,
-                conn->id)) {
-		return MGMT_IPC_ERR_INTERNAL;
-	}
-	session_conn_destroy(session, conn->id);
-
-	if (ipc->destroy_session(session->transport_handle, session->handle,
-                        session->id)) {
-		return MGMT_IPC_ERR_INTERNAL;
-	}
-	__session_destroy(session);
+	if((rc=__session_free(session)))
+		goto done;
 
 	qtask->u.login.rsp.err = MGMT_IPC_OK;
 	write(qtask->u.login.mgmt_ipc_fd, &qtask->u.login.rsp,
 		sizeof(qtask->u.login.rsp));
 	close(qtask->u.login.mgmt_ipc_fd);
 	free(qtask);
-
-	return MGMT_IPC_OK;
+done:
+	return rc;
 }

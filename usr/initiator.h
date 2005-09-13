@@ -62,6 +62,7 @@ enum iscsi_login_status {
 	LOGIN_WRONG_PORTAL_GROUP	= 6,
 	LOGIN_REDIRECTION_FAILED	= 7,
 	LOGIN_INVALID_PDU		= 8,
+	LOGIN_REDIRECT			= 9,
 };
 
 typedef enum iscsi_conn_state_e {

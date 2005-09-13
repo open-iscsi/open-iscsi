@@ -1183,6 +1183,7 @@ reconnect:
 
 	switch (rc) {
 	case LOGIN_OK:
+	case LOGIN_REDIRECT:
 		break;
 
 	case LOGIN_IO_ERROR:

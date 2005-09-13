@@ -186,6 +186,7 @@ iscsi_update_address(iscsi_conn_t *conn, char *address)
 {
 	char *port, *tag;
 	char default_port[NI_MAXSERV];
+	iscsi_session_t *session = conn->session;
 
 	struct sockaddr_storage addr;
 
@@ -209,6 +210,9 @@ iscsi_update_address(iscsi_conn_t *conn, char *address)
 	}
 
 	conn->saddr = addr;
+	/* update session's rec */
+	memset(session->nrec.conn[0].address, 0, NI_MAXHOST);
+	memcpy(session->nrec.conn[0].address, address, strlen(address));
 	return 1;
 }
 
@@ -1276,8 +1280,9 @@ check_status_login_response(iscsi_session_t *session, int cid,
 		 */
 		iscsi_process_login_response(session, cid, login_rsp,
 					     data, max_data_length);
-		ret = LOGIN_OK;
+		ret = LOGIN_REDIRECT;
 		*final = 1;
+		break;
 	case ISCSI_STATUS_CLS_INITIATOR_ERR:
 		if (login_rsp->status_detail ==
 		    ISCSI_LOGIN_STATUS_AUTH_FAILED) {
@@ -1286,6 +1291,7 @@ check_status_login_response(iscsi_session_t *session, int cid,
 		}
 		ret = LOGIN_OK;
 		*final = 1;
+		break;
 	default:
 		/*
 		 * some sort of error, login terminated unsuccessfully,
