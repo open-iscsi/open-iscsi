@@ -213,6 +213,7 @@ iscsi_update_address(iscsi_conn_t *conn, char *address)
 	/* update session's rec */
 	memset(session->nrec.conn[0].address, 0, NI_MAXHOST);
 	memcpy(session->nrec.conn[0].address, address, strlen(address));
+	session->nrec.conn[0].port = atoi(port);
 	return 1;
 }
 
