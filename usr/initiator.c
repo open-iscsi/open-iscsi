@@ -501,6 +501,7 @@ __session_create(node_rec_t *rec, iscsi_provider_t *provider)
 	session->initiator_alias = dconfig->initiator_alias;
 	strncpy(session->target_name, rec->name, TARGET_NAME_MAXLEN);
 	session->vendor_specific_keys = 1;
+	session->rdma_ext = RDMA_EXT_NOT_NEGOTIATED;
 
 	/* session's misc parameters */
 	session->reopen_cnt = rec->session.reopen_max;
@@ -855,6 +856,10 @@ __session_conn_recv_pdu(queue_item_t *item)
 				}, {
 				.param = ISCSI_PARAM_OFMARKER_EN,
 				.value = &zero,/* FIXME: session->ofmarker_en */
+				.conn_only = 0,
+				}, {
+				.param = ISCSI_PARAM_RDMAEXTENSIONS,
+				.value = &session->rdma_ext,
 				.conn_only = 0,
 				}
 

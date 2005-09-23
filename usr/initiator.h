@@ -65,6 +65,12 @@ enum iscsi_login_status {
 	LOGIN_REDIRECT			= 9,
 };
 
+enum iscsi_rdma_ext {
+	RDMA_EXT_NO			= 0,
+	RDMA_EXT_YES			= 1,
+	RDMA_EXT_NOT_NEGOTIATED		= 2,
+};
+
 typedef enum iscsi_conn_state_e {
 	STATE_FREE			= 0,
 	STATE_XPT_WAIT			= 1,
@@ -288,6 +294,8 @@ typedef struct iscsi_session {
 	/* session's processing */
 	actor_t mainloop;
 	queue_t *queue;
+
+	enum iscsi_rdma_ext rdma_ext;
 } iscsi_session_t;
 
 /* iscsid.c */

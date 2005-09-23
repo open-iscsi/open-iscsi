@@ -535,6 +535,24 @@ get_op_params_text_keys(iscsi_session_t *session, int cid,
 			return LOGIN_NEGOTIATION_FAILED;
 		}
 		text = value_end;
+	} else if (iscsi_find_key_value("RDMAExtensions", text, end,
+					&value, &value_end)) {
+		if (session->provider->rdma) {
+			if (strcmp(value, "Yes") == 0)
+				session->rdma_ext = RDMA_EXT_YES;
+			else
+				session->rdma_ext = RDMA_EXT_NO;
+		} else if (strcmp(value, "Yes") == 0) {
+			log_error("Login negotiation failed, "
+				  "can't support RDMAExtensions");
+			return LOGIN_NEGOTIATION_FAILED;
+		}
+		text = value_end;
+	} else if (iscsi_find_key_value("TargetRecvDataSegmentLength", text,
+					end, &value, &value_end)) {
+		if (session->provider->rdma)
+			conn->max_xmit_dlength = strtoul(value, NULL, 0);
+		text = value_end;
 	} else if (iscsi_find_key_value ("X-com.cisco.protocol", text, end,
 					 &value, &value_end)) {
 		if (strcmp(value, "NotUnderstood") &&
@@ -778,7 +796,33 @@ add_params_normal_session(iscsi_session_t *session, struct iscsi_hdr *pdu,
 	if (!iscsi_add_text(pdu, data, max_data_length,
 			    "DataSequenceInOrder", "Yes"))
 		return 0;
+	return 1;
+}
 
+static int
+add_params_provider_specific(iscsi_session_t *session, int cid,
+			     struct iscsi_hdr *pdu, char *data,
+			     int max_data_length)
+{
+	char value[AUTH_STR_MAX_LEN];
+	iscsi_conn_t *conn = &session->conn[cid];
+
+	if (!session->provider->rdma) {
+		sprintf(value, "%d", conn->max_recv_dlength);
+		if (!iscsi_add_text(pdu, data, max_data_length,
+				    "MaxRecvDataSegmentLength", value))
+			return 0;
+		session->rdma_ext = RDMA_EXT_NO;
+	} else {
+		sprintf(value, "%d", conn->max_recv_dlength);
+		if (!iscsi_add_text(pdu, data, max_data_length,
+				   "InitiatorRecvDataSegmentLength",
+				    value))
+			return 0;
+		if (!iscsi_add_text(pdu, data, max_data_length,
+				   "RDMAExtensions", "Yes"))
+			return 0;
+	}
 	return 1;
 }
 
@@ -948,6 +992,11 @@ fill_op_params_text(iscsi_session_t *session, int cid, struct iscsi_hdr *pdu,
 	conn->current_stage = ISCSI_OP_PARMS_NEGOTIATION_STAGE;
 	conn->next_stage = ISCSI_FULL_FEATURE_PHASE;
 	*transit = 1;
+	/* For RDMA transport stage switched after RDMAExtensions negotiated */
+	if (session->provider->rdma &&
+	    session->type == ISCSI_SESSION_TYPE_NORMAL &&
+	    session->rdma_ext != RDMA_EXT_NOT_NEGOTIATED)
+		*transit = 0;
 
 	/*
 	 * If we haven't gotten a partial response, then either we shouldn't be
@@ -959,12 +1008,8 @@ fill_op_params_text(iscsi_session_t *session, int cid, struct iscsi_hdr *pdu,
 		 * request the desired settings the first time
 		 * we are in this stage
 		 */
-		if (!fill_crc_digest_text(conn, pdu, data, max_data_length))
-			return 0;
-
-		sprintf(value, "%d", conn->max_recv_dlength);
-		if (!iscsi_add_text(pdu, data, max_data_length,
-		    "MaxRecvDataSegmentLength", value))
+		if (!session->provider->rdma &&
+		    !fill_crc_digest_text(conn, pdu, data, max_data_length))
 			return 0;
 
 		sprintf(value, "%d", session->def_time2wait);
@@ -989,10 +1034,21 @@ fill_op_params_text(iscsi_session_t *session, int cid, struct iscsi_hdr *pdu,
 				    "ErrorRecoveryLevel", "0"))
 			return 0;
 
-		if (session->type == ISCSI_SESSION_TYPE_NORMAL)
+		if (session->type == ISCSI_SESSION_TYPE_NORMAL) {
 			if (!add_params_normal_session(session, pdu, data,
 						  max_data_length))
 				return 0;
+
+			if (!add_params_provider_specific(session, cid,
+							  pdu, data,
+ max_data_length))
+				return 0;
+		} else {
+			sprintf(value, "%d", conn->max_recv_dlength);
+			if (!iscsi_add_text(pdu, data, max_data_length,
+					    "MaxRecvDataSegmentLength", value))
+				return 0;
+		}
 
 		/*
 		 * Note: 12.22 forbids vendor-specific keys on discovery
@@ -1003,8 +1059,14 @@ fill_op_params_text(iscsi_session_t *session, int cid, struct iscsi_hdr *pdu,
 			if (!add_vendor_specific_text(session, cid, pdu, data,
 						      max_data_length))
 				return 0;
-	} else if (!check_irrelevant_keys(session, pdu, data, max_data_length))
-		return 0;
+	} else {
+		if (!check_irrelevant_keys(session, pdu, data, max_data_length))
+			return 0;
+
+		if (session->provider->rdma &&
+		    !fill_crc_digest_text(conn, pdu, data, max_data_length))
+			return 0;
+	}
 
 	return 1;
 }
