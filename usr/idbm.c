@@ -281,7 +281,7 @@ idbm_update_discovery(discovery_rec_t *rec, discovery_rec_t *newrec)
 	__update_rec_str(rec, newrec, u.sendtargets.auth.password_in,
 			 AUTH_STR_MAX_LEN);
 	__update_rec_int(rec, newrec,
-			 u.sendtargets.auth.password_length_in);
+			 u.sendtargets.auth.password_in_length);
 	__update_rec_int(rec, newrec,
 		 u.sendtargets.conn_timeo.login_timeout);
 	__update_rec_int(rec, newrec,
@@ -343,7 +343,7 @@ idbm_update_node(node_rec_t *rec, node_rec_t *newrec)
 			 AUTH_STR_MAX_LEN);
 	__update_rec_str(rec, newrec, session.auth.password_in,
 			 AUTH_STR_MAX_LEN);
-	__update_rec_int(rec, newrec, session.auth.password_length_in);
+	__update_rec_int(rec, newrec, session.auth.password_in_length);
 	__update_rec_int(rec, newrec, session.timeo.replacement_timeout);
 	__update_rec_int(rec, newrec, session.err_timeo.abort_timeout);
 	__update_rec_int(rec, newrec, session.err_timeo.reset_timeout);
@@ -501,8 +501,8 @@ idbm_recinfo_discovery(discovery_rec_t *r, recinfo_t *ri)
 			u.sendtargets.auth.username_in, IDBM_SHOW, num);
 		__recinfo_str("discovery.sendtargets.auth.password_in", ri, r,
 			u.sendtargets.auth.password_in, IDBM_MASKED, num);
-		__recinfo_int("discovery.sendtargets.auth.password_length_in",
-			ri, r, u.sendtargets.auth.password_length_in,
+		__recinfo_int("discovery.sendtargets.auth.password_in_length",
+			ri, r, u.sendtargets.auth.password_in_length,
 			IDBM_HIDE, num);
 		__recinfo_int("discovery.sendtargets.timeo.login_timeout",ri, r,
 			u.sendtargets.conn_timeo.login_timeout,
@@ -550,8 +550,8 @@ idbm_recinfo_node(node_rec_t *r, recinfo_t *ri)
 		      session.auth.username_in, IDBM_SHOW, num);
 	__recinfo_str("node.session.auth.password_in", ri, r,
 		      session.auth.password_in, IDBM_MASKED, num);
-	__recinfo_int("node.session.auth.password_length_in", ri, r,
-		      session.auth.password_length_in, IDBM_HIDE, num);
+	__recinfo_int("node.session.auth.password_in_length", ri, r,
+		      session.auth.password_in_length, IDBM_HIDE, num);
 	__recinfo_int("node.session.timeo.replacement_timeout", ri, r,
 		      session.timeo.replacement_timeout,
 		      IDBM_SHOW, num);
@@ -784,7 +784,7 @@ idbm_discovery_setup_defaults(discovery_rec_t *rec, discovery_type_e type)
 		rec->u.sendtargets.send_async_text = 0;
 		rec->u.sendtargets.auth.authmethod = 0;
 		rec->u.sendtargets.auth.password_length = 0;
-		rec->u.sendtargets.auth.password_length_in = 0;
+		rec->u.sendtargets.auth.password_in_length = 0;
 		rec->u.sendtargets.conn_timeo.login_timeout=15;
 		rec->u.sendtargets.conn_timeo.auth_timeout = 45;
 		rec->u.sendtargets.conn_timeo.active_timeout=5;
@@ -796,8 +796,8 @@ idbm_discovery_setup_defaults(discovery_rec_t *rec, discovery_type_e type)
 		rec->u.slp.poll_interval = 5 * 60;	/* 5 minutes */
 		rec->u.slp.auth.authmethod = 0;
 		rec->u.slp.auth.password_length = 0;
-		rec->u.slp.auth.password_length_in = 0;
-		rec->u.slp.auth.password_length_in = 0;
+		rec->u.slp.auth.password_in_length = 0;
+		rec->u.slp.auth.password_in_length = 0;
 	} else if (type == DISCOVERY_TYPE_ISNS) {
 		/* to be implemented */
 	}
@@ -981,19 +981,19 @@ idbm_sync_config(idbm_t *db)
 		db->drec_st.u.sendtargets.auth.password_length =
 			strlen((char*)db->drec_st.u.sendtargets.auth.password);
 	if (*db->drec_st.u.sendtargets.auth.password_in)
-		db->drec_st.u.sendtargets.auth.password_length_in =
+		db->drec_st.u.sendtargets.auth.password_in_length =
 		     strlen((char*)db->drec_st.u.sendtargets.auth.password_in);
 	if (*db->drec_slp.u.slp.auth.password)
 		db->drec_slp.u.slp.auth.password_length =
 			strlen((char*)db->drec_slp.u.slp.auth.password);
 	if (*db->drec_slp.u.slp.auth.password_in)
-		db->drec_slp.u.slp.auth.password_length_in =
+		db->drec_slp.u.slp.auth.password_in_length =
 			strlen((char*)db->drec_slp.u.slp.auth.password_in);
 	if (*db->nrec.session.auth.password)
 		db->nrec.session.auth.password_length =
 			strlen((char*)db->nrec.session.auth.password);
 	if (*db->nrec.session.auth.password_in)
-		db->nrec.session.auth.password_length_in =
+		db->nrec.session.auth.password_in_length =
 			strlen((char*)db->nrec.session.auth.password_in);
 
 	fclose(f);
@@ -1031,7 +1031,7 @@ idbm_node_setup_defaults(node_rec_t *rec)
 	rec->session.reopen_max = 32;
 	rec->session.auth.authmethod = 0;
 	rec->session.auth.password_length = 0;
-	rec->session.auth.password_length_in = 0;
+	rec->session.auth.password_in_length = 0;
 	rec->session.err_timeo.abort_timeout = 10;
 	rec->session.err_timeo.reset_timeout = 30;
 	rec->session.timeo.replacement_timeout = 0;

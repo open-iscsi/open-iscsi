@@ -116,7 +116,7 @@ acl_chap_auth_request(struct iscsi_acl *client, char *username, unsigned int id,
 		return AUTH_STATUS_FAIL;
 	}
 
-	if ((session->password_length_in < 1) ||
+	if ((session->password_in_length < 1) ||
 	    (session->password_in == NULL) ||
 	    (session->password_in[0] == '\0')) {
 		log_error("failing authentication, no incoming password "
@@ -142,7 +142,7 @@ acl_chap_auth_request(struct iscsi_acl *client, char *username, unsigned int id,
 
 	/* shared secret */
 	auth_md5_update(&context, (unsigned char *)session->password_in,
-			session->password_length_in);
+			session->password_in_length);
 
 	/* challenge value */
 	auth_md5_update(&context, (unsigned char *)challenge_data,

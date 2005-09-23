@@ -316,7 +316,7 @@ __setup_authentication(iscsi_session_t *session,
 	 * the target or not logging in at all
 	 */
 	if (auth_cfg->username_in[0]
-	    || auth_cfg->password_length_in) {
+	    || auth_cfg->password_in_length) {
 		/* sanity check the config */
 		if ((auth_cfg->username[0] == '\0')
 		    || (auth_cfg->password_length == 0)) {
@@ -343,12 +343,12 @@ __setup_authentication(iscsi_session_t *session,
 	strncpy(session->username_in, auth_cfg->username_in,
 		sizeof (session->username_in));
 	session->username_in[sizeof (session->username_in) - 1] = '\0';
-	if ((session->password_length_in =
-	     auth_cfg->password_length_in))
+	if ((session->password_in_length =
+	     auth_cfg->password_in_length))
 		memcpy(session->password_in, auth_cfg->password_in,
-		       session->password_length_in);
+		       session->password_in_length);
 
-	if (session->password_length || session->password_length_in) {
+	if (session->password_length || session->password_in_length) {
 		/* setup the auth buffers */
 		session->auth_buffers[0].address = &session->auth_client_block;
 		session->auth_buffers[0].length =

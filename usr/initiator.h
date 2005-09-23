@@ -275,7 +275,7 @@ typedef struct iscsi_session {
 	int password_length;
 	char username_in[AUTH_STR_MAX_LEN];
 	uint8_t password_in[AUTH_STR_MAX_LEN];
-	int password_length_in;
+	int password_in_length;
 	iscsi_conn_t conn[ISCSI_CONN_MAX];
 	int ctrl_fd;
 	uint32_t param_mask;

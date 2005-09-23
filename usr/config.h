@@ -63,7 +63,7 @@ struct iscsi_auth_config {
 	unsigned int password_length;
 	char username_in[AUTH_STR_MAX_LEN];
 	unsigned char password_in[AUTH_STR_MAX_LEN];
-	unsigned int password_length_in;
+	unsigned int password_in_length;
 };
 
 /* all per-connection timeouts go in this structure.
