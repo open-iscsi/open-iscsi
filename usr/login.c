@@ -987,15 +987,18 @@ fill_op_params_text(iscsi_session_t *session, int cid, struct iscsi_hdr *pdu,
 {
 	char value[AUTH_STR_MAX_LEN];
 	iscsi_conn_t *conn = &session->conn[cid];
+	int rdma;
 
 	/* we always try to go from op params to full feature stage */
 	conn->current_stage = ISCSI_OP_PARMS_NEGOTIATION_STAGE;
 	conn->next_stage = ISCSI_FULL_FEATURE_PHASE;
 	*transit = 1;
+
+	rdma = (session->type == ISCSI_SESSION_TYPE_NORMAL) &&
+			session->provider->rdma;
+			
 	/* For RDMA transport stage switched after RDMAExtensions negotiated */
-	if (session->provider->rdma &&
-	    session->type == ISCSI_SESSION_TYPE_NORMAL &&
-	    session->rdma_ext != RDMA_EXT_NOT_NEGOTIATED)
+	if (rdma && session->rdma_ext != RDMA_EXT_NOT_NEGOTIATED)
 		*transit = 0;
 
 	/*
@@ -1008,7 +1011,7 @@ fill_op_params_text(iscsi_session_t *session, int cid, struct iscsi_hdr *pdu,
 		 * request the desired settings the first time
 		 * we are in this stage
 		 */
-		if (!session->provider->rdma &&
+		if (!rdma &&
 		    !fill_crc_digest_text(conn, pdu, data, max_data_length))
 			return 0;
 
@@ -1063,7 +1066,7 @@ fill_op_params_text(iscsi_session_t *session, int cid, struct iscsi_hdr *pdu,
 		if (!check_irrelevant_keys(session, pdu, data, max_data_length))
 			return 0;
 
-		if (session->provider->rdma &&
+		if (rdma &&
 		    !fill_crc_digest_text(conn, pdu, data, max_data_length))
 			return 0;
 	}
