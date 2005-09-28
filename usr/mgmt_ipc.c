@@ -114,15 +114,18 @@ mgmt_ipc_session_activelist(queue_task_t *qtask, iscsiadm_rsp_t *rsp)
 {
 	iscsi_session_t *session;
 	struct qelem *item;
+	int i;
 
 	rsp->u.activelist.cnt = 0;
-	item = provider[0].sessions.q_forw;
-	while (item != &provider[0].sessions) {
-		session = (iscsi_session_t *)item;
-		rsp->u.activelist.rids[rsp->u.activelist.cnt]= session->nrec.id;
-		rsp->u.activelist.sids[rsp->u.activelist.cnt]= session->id;
-		rsp->u.activelist.cnt++;
-		item = item->q_forw;
+	for (i = 0; i < num_providers; i++) {
+		item = provider[i].sessions.q_forw;
+		while (item != &provider[i].sessions) {
+			session = (iscsi_session_t *)item;
+			rsp->u.activelist.rids[rsp->u.activelist.cnt]= session->nrec.id;
+			rsp->u.activelist.sids[rsp->u.activelist.cnt]= session->id;
+			rsp->u.activelist.cnt++;
+			item = item->q_forw;
+		}
 	}
 
 	return MGMT_IPC_OK;
@@ -134,24 +137,27 @@ mgmt_ipc_session_getstats(queue_task_t *qtask, int rid, int sid,
 {
 	iscsi_session_t *session;
 	struct qelem *item;
+	int i;
 
-	item = provider[0].sessions.q_forw;
-	while (item != &provider[0].sessions) {
-		session = (iscsi_session_t *)item;
-		if (session->id == sid) {
-			int rc;
+	for (i = 0; i < num_providers; i++) {
+		item = provider[i].sessions.q_forw;
+		while (item != &provider[i].sessions) {
+			session = (iscsi_session_t *)item;
+			if (session->id == sid) {
+				int rc;
 
-			rc = ipc->get_stats(session->transport_handle,
-				session->conn[0].handle, (void*)&rsp->u.getstats,
-				MGMT_IPC_GETSTATS_BUF_MAX);
-			if (rc) {
-				log_error("get_stats(): IPC error %d "
-					"session [%02d:%06x]", rc, sid, rid);
-				return MGMT_IPC_ERR_INTERNAL;
-			}	
-			return MGMT_IPC_OK;
+				rc = ipc->get_stats(session->transport_handle,
+					session->conn[0].handle, (void*)&rsp->u.getstats,
+					MGMT_IPC_GETSTATS_BUF_MAX);
+				if (rc) {
+					log_error("get_stats(): IPC error %d "
+						"session [%02d:%06x]", rc, sid, rid);
+					return MGMT_IPC_ERR_INTERNAL;
+				}
+				return MGMT_IPC_OK;
+			}
+			item = item->q_forw;
 		}
-		item = item->q_forw;
 	}
 
 	return MGMT_IPC_ERR_NOT_FOUND;

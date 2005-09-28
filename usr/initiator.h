@@ -299,7 +299,8 @@ typedef struct iscsi_session {
 } iscsi_session_t;
 
 /* iscsid.c */
-extern iscsi_provider_t provider[ISCSI_TRANSPORT_MAX];
+extern iscsi_provider_t *provider;
+extern int num_providers;
 
 /* login.c */
 

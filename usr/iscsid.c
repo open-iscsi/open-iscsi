@@ -43,7 +43,8 @@
 /* global config info */
 struct iscsi_daemon_config daemon_config;
 struct iscsi_daemon_config *dconfig = &daemon_config;
-iscsi_provider_t provider[ISCSI_TRANSPORT_MAX];
+iscsi_provider_t *provider = NULL;
+int num_providers = 0;
 
 static char program_name[] = "iscsid";
 int control_fd, mgmt_ipc_fd;
@@ -130,7 +131,7 @@ int trans_sync(void)
 	if (ipc->trans_list())
 		return -1;
 
-	for (i = 0; i < ISCSI_TRANSPORT_MAX; i++) {
+	for (i = 0; i < num_providers; i++) {
 		if (provider[i].handle) {
 			/* FIXME: implement session/connection sync up logic */
 			provider[i].sessions.q_forw = &provider[i].sessions;
@@ -167,6 +168,13 @@ static void oom_adjust(void)
 
 static void catch_signal(int signo) {
 	log_warning("caught signal -%d, ignoring...", signo);
+}
+
+static void iscsid_exit(void)
+{
+	if (num_providers > 0) {
+		free(provider);
+	}
 }
 
 int main(int argc, char *argv[])
@@ -228,6 +236,11 @@ int main(int argc, char *argv[])
 
 	/* initialize logger */
 	log_init(program_name, DEFAULT_AREA_SIZE);
+
+	if (atexit(iscsid_exit)) {
+		log_error("failed to set exit function\n");
+		exit(1);
+	}
 
 	if ((mgmt_ipc_fd = mgmt_ipc_listen()) < 0) {
 		exit(-1);

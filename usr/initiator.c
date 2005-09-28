@@ -1006,14 +1006,17 @@ static int
 __session_node_established(char *node_name)
 {
 	struct qelem *item;
+	int i;
 
-	item = provider[0].sessions.q_forw;
-	while (item != &provider[0].sessions) {
-		iscsi_session_t *session = (iscsi_session_t *)item;
-		if (session->conn[0].state == STATE_LOGGED_IN &&
-		    !strncmp(session->nrec.name, node_name, TARGET_NAME_MAXLEN))
-			return 1;
-		item = item->q_forw;
+	for (i = 0; i < num_providers; i++) {
+		item = provider[i].sessions.q_forw;
+		while (item != &provider[i].sessions) {
+			iscsi_session_t *session = (iscsi_session_t *)item;
+			if (session->conn[0].state == STATE_LOGGED_IN &&
+			    !strncmp(session->nrec.name, node_name, TARGET_NAME_MAXLEN))
+				return 1;
+			item = item->q_forw;
+		}
 	}
 	return 0;
 }
@@ -1374,18 +1377,20 @@ session_find_by_rec(node_rec_t *rec)
 {
 	iscsi_session_t *session;
 	struct qelem *item;
+	int i;
 
-	item = provider[0].sessions.q_forw;
-	while (item != &provider[0].sessions) {
-		session = (iscsi_session_t *)item;
-		log_debug(6, "looking for session with rec_id [%06x]...",
-			  session->nrec.id);
-		if (rec->id == session->nrec.id) {
-			return session;
+	for (i = 0; i < num_providers; i++) {
+		item = provider[i].sessions.q_forw;
+		while (item != &provider[i].sessions) {
+			session = (iscsi_session_t *)item;
+			log_debug(6, "looking for session with rec_id [%06x]...",
+				  session->nrec.id);
+			if (rec->id == session->nrec.id) {
+				return session;
+			}
+			item = item->q_forw;
 		}
-		item = item->q_forw;
 	}
-
 	return NULL;
 }
 
@@ -1399,7 +1404,7 @@ __get_transport_by_name(char *transport_name)
 		return NULL;
 	}
 
-	for (i = 0; i < ISCSI_TRANSPORT_MAX; i++) {
+	for (i = 0; i < num_providers; i++) {
 		if (provider[i].handle &&
 		   !strncmp(provider[i].name, transport_name,
 			     ISCSI_TRANSPORT_NAME_MAXLEN))

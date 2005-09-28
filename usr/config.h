@@ -185,7 +185,6 @@ typedef struct session_rec {
 } session_rec_t;
 
 #define ISCSI_TRANSPORT_NAME_MAXLEN 16
-#define ISCSI_TRANSPORT_MAX 1
 
 typedef struct node_rec {
 	int			id;

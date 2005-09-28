@@ -648,7 +648,22 @@ ktrans_list(void)
 		return n;
 	}
 
-	for (i = 0; i < ISCSI_TRANSPORT_MAX && i < n; i++) {
+	if (n > num_providers) {
+		iscsi_provider_t *provider_arr;
+
+		provider_arr = calloc(n,sizeof(iscsi_provider_t));
+		if (provider_arr == NULL) {
+			log_error("Failed to alloc %d poviders.", n);
+			return -ENOMEM;
+		}
+		if (num_providers > 0) {
+			free(provider);
+		}
+		provider = provider_arr;
+		num_providers = n;
+	}
+
+	for (i = 0; i < n; i++) {
 		strncpy(provider[i].name, namelist[i]->d_name,
 			ISCSI_TRANSPORT_NAME_MAXLEN);
 		free(namelist[i]);
@@ -673,7 +688,7 @@ ktrans_list(void)
 					  "%u");
 		if (err)
 			break;
-               
+
 		sprintf(filename, ISCSI_TRANSPORT_DIR"/%s/rdma",
 			provider[i].name);
 		err = read_transport_file(filename, &provider[i].rdma,
@@ -747,6 +762,7 @@ ctldev_handle(void)
 	char nlm_ev[NLMSG_SPACE(sizeof(struct iscsi_uevent))];
 	struct nlmsghdr *nlh;
 	int ev_size;
+	int k;
 
 	log_debug(7, "in %s", __FUNCTION__);
 
@@ -759,27 +775,29 @@ ctldev_handle(void)
 	ev = (struct iscsi_uevent *)NLMSG_DATA(nlm_ev);
 
 	/* verify connection */
-	item = provider[0].sessions.q_forw;
-	while (item != &provider[0].sessions) {
-		int i;
-		session = (iscsi_session_t *)item;
-		for (i=0; i<ISCSI_CONN_MAX; i++) {
-			if (ev->type == ISCSI_KEVENT_RECV_PDU &&
-			    ev->r.recv_req.conn_handle &&
-			    session->conn[i].handle ==
-					ev->r.recv_req.conn_handle) {
-				conn = &session->conn[i];
-				break;
+	for (k = 0; k < num_providers; k++) {
+		item = provider[k].sessions.q_forw;
+		while (item != &provider[k].sessions) {
+			int i;
+			session = (iscsi_session_t *)item;
+			for (i=0; i<ISCSI_CONN_MAX; i++) {
+				if (ev->type == ISCSI_KEVENT_RECV_PDU &&
+				    ev->r.recv_req.conn_handle &&
+				    session->conn[i].handle ==
+						ev->r.recv_req.conn_handle) {
+					conn = &session->conn[i];
+					break;
+				}
+				if (ev->type == ISCSI_KEVENT_CONN_ERROR &&
+				    ev->r.connerror.conn_handle &&
+				    session->conn[i].handle ==
+						ev->r.connerror.conn_handle) {
+					conn = &session->conn[i];
+					break;
+				}
 			}
-			if (ev->type == ISCSI_KEVENT_CONN_ERROR &&
-			    ev->r.connerror.conn_handle &&
-			    session->conn[i].handle ==
-					ev->r.connerror.conn_handle) {
-				conn = &session->conn[i];
-				break;
-			}
+			item = item->q_forw;
 		}
-		item = item->q_forw;
 	}
 	if (conn == NULL) {
 		log_error("could not verify connection 0x%p ", conn);
