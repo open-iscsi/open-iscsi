@@ -52,6 +52,7 @@
 	else \
 		strcpy((char*)_info[_n].value, "<empty>"); \
 	_info[_n].data = &_rec->_name; \
+	_info[_n].data_len = sizeof(_rec->_name); \
 	_info[_n].visible = _show; \
 	_n++; \
 } while(0)
@@ -61,6 +62,7 @@
 	strncpy(_info[_n].name, _key, NAME_MAXVAL); \
 	snprintf(_info[_n].value, VALUE_MAXVAL, "%d", _rec->_name); \
 	_info[_n].data = &_rec->_name; \
+	_info[_n].data_len = sizeof(_rec->_name); \
 	_info[_n].visible = _show; \
 	_n++; \
 } while(0)
@@ -71,6 +73,7 @@
 	if (_rec->_name == 0) strncpy(_info[_n].value, _op0, VALUE_MAXVAL); \
 	if (_rec->_name == 1) strncpy(_info[_n].value, _op1, VALUE_MAXVAL); \
 	_info[_n].data = &_rec->_name; \
+	_info[_n].data_len = sizeof(_rec->_name); \
 	_info[_n].visible = _show; \
 	_info[_n].opts[0] = _op0; \
 	_info[_n].opts[1] = _op1; \
@@ -824,7 +827,7 @@ setup_passwd_len:
 				goto updated;
 			} else if (info[i].type == TYPE_STR) {
 				strncpy((char*)info[i].data,
-					value, VALUE_MAXLEN);
+					value, info[i].data_len);
 				goto updated;
 			}
 			for (j=0; j<info[i].numopts; j++) {

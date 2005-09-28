@@ -38,6 +38,7 @@ typedef struct recinfo {
 	char		name[NAME_MAXVAL];
 	char		value[VALUE_MAXVAL];
 	void		*data;
+	int		data_len;
 	int		visible;
 	char*		opts[OPTS_MAXVAL];
 	int		numopts;
