@@ -234,6 +234,13 @@ int main(int argc, char *argv[])
 		}
 	}
 
+	/* make sure we have initiatorname config file first */
+	if (access(initiatorname_file, R_OK)) {
+		fprintf(stderr, "Error: initiatorname file doesn't exist!");
+		fprintf(stderr, " default [%s]\n", INITIATOR_NAME_FILE);
+		usage(0);
+	}
+
 	/* initialize logger */
 	log_init(program_name, DEFAULT_AREA_SIZE);
 
