@@ -1195,6 +1195,7 @@ idbm_add_discovery(idbm_t *db, discovery_rec_t *newrec)
 	}
 
 	newrec->id = idbm_uniq_id(hash);
+	newrec->dbversion = IDBM_VERSION;
 	if (idbm_write(dbm, newrec, sizeof(discovery_rec_t), hash)) {
 		idbm_unlock(dbm);
 		free(hash);
