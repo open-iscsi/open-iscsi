@@ -551,11 +551,12 @@ get_op_params_text_keys(iscsi_session_t *session, int cid,
 	} else if (iscsi_find_key_value("InitiatorRecvDataSegmentLength", text,
 					end, &value, &value_end)) {
 		if (session->provider->rdma) {
-			if (conn->max_recv_dlength != strtoul(value, NULL, 0))
+			if (conn->max_recv_dlength != strtoul(value, NULL, 0)) {
 				log_error("Login negotiation failed, "
 					  "InitiatorRecvDataSegmentLength wasn't "
 					  "accepted by the target");
-			return LOGIN_NEGOTIATION_FAILED;
+				return LOGIN_NEGOTIATION_FAILED;
+			}
 		}
 		text = value_end;
 	} else if (iscsi_find_key_value("TargetRecvDataSegmentLength", text,
