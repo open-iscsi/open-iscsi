@@ -181,7 +181,7 @@ Usage: iscsiadm [OPTION]
   -h, --help              display this help and exit
 
 
-    Usage Examples:
+    Usage examples:
 
     1) SendTargets iSCSI Discovery:
 
@@ -203,7 +203,6 @@ Usage: iscsiadm [OPTION]
     5) Adding custom iSCSI Node:
 
 	    ./iscsiadm -m node --op new --portal 192.168.0.1:3260
-	    new iSCSI node record added: [0a45f8]
 
     6) Removing iSCSI Node:
 
@@ -217,6 +216,21 @@ Usage: iscsiadm [OPTION]
 
 	    ./iscsiadm -m node --op show --record 0a45f8
 
+    8) Show all node records:
+
+            ./iscsiadm -m node
+
+    9) Show all records in discovery database:
+
+            ./iscsiadm -m discovery
+
+   10) Display discovery record setting:
+
+            ./iscsiadm -m discovery --record 0a45f8
+
+   11) Display session statistics:
+
+            ./iscsiadm -m session --record 00:0a45f8 --stats
 
 6. Configuration
 ================
