@@ -17,17 +17,32 @@ fi
 
 PATH=/sbin:/bin:/usr/sbin:/usr/bin:/usr/local/bin
 RETVAL=0
+CONFIG="/etc/sysconfig/openiscsi"
 
-if [ -f /etc/sysconfig/openiscsi ] ; then
-  . /etc/sysconfig/openiscsi
+if [ ! -f ${CONFIG} ] ; then
+  echo "#" > ${CONFIG}
+  echo "# open-iscsi config file" >> ${CONFIG}
+  echo "#" >> ${CONFIG}
+  echo "# Contains path to iscsiadm and iscsid" >> ${CONFIG}
+  echo "#" >> ${CONFIG}
+  echo "# Use TARGETS=\"<record id> <record id>\"" >> ${CONFIG}
+  echo "# to log in automatically when starting up service" >> ${CONFIG}
+  echo "#" >> ${CONFIG}
+  ISCSID=`which iscsid`
+  echo "ISCSID=\"${ISCSID}\"" >> ${CONFIG}
+  ISCSIADM=`which iscsiadm`
+  echo "ISCSIADM=\"${ISCSIADM}\"" >> ${CONFIG}
+  echo "TARGETS=\"\"" >> ${CONFIG}
 fi
 
-if [ -z $ISCSID ] ; then
+. ${CONFIG}
+
+if [ -z ${ISCSID} ] ; then
   echo "No iscsid daemon found. Please edit /etc/sysconfig/openiscsi"
   exit 1
 fi
 
-if [ -z $ISCSIADM ] ; then
+if [ -z ${ISCSIADM} ] ; then
   echo "No iscsiadm daemon found. Please edit /etc/sysconfig/openiscsi"
   exit 1
 fi
@@ -35,24 +50,20 @@ fi
 start()
 {
 echo -n "Starting iSCSI initiator service: "
-if [ -z $TARGETS ]; then
-  RETVAL=1
-else 
-  modprobe -q iscsi_tcp
-  daemon $ISCSID
-  RETVAL=$?
-  for RECORD in $TARGETS
-  do
-    $ISCSIADM -m node -r $RECORD --login
-  done
-fi
-if [ $RETVAL == "0" ]; then
+modprobe -q iscsi_tcp
+daemon ${ISCSID}
+RETVAL=$?
+for RECORD in ${TARGETS}
+do
+  ${ISCSIADM} -m node -r ${RECORD} --login
+done
+if [ ${RETVAL} == "0" ]; then
          echo_success
 else
          echo_failure
 fi
 echo
-return $RETVAL
+return ${RETVAL}
 
 }
 
@@ -60,11 +71,11 @@ stop()
 {
 echo -n "Stopping iSCSI initiator service: "
 sync
-for RECORD in $TARGETS
+for RECORD in ${TARGETS}
 do
-  $ISCSIADM -m node -r $RECORD --logout
+  ${ISCSIADM} -m node -r ${RECORD} --logout
 done
-pkill -KILL `basename $ISCSID`
+pkill -KILL `basename ${ISCSID}`
 modprobe -r iscsi_tcp
 RETVAL=$?
 if [ $RETVAL == "0" ]; then
@@ -73,7 +84,7 @@ else
          echo_failure
 fi
 echo
-return $RETVAL
+return ${RETVAL}
 
 }
 
@@ -86,8 +97,8 @@ restart()
 
 status()
 {
-PID=`pidofproc $ISCSID`
-if [ ! $PID ]; then
+PID=`pidofproc ${ISCSID}`
+if [ ! ${PID} ]; then
          echo "iSCSI initiator is stopped."
          exit 1
 else
