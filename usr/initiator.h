@@ -241,7 +241,6 @@ typedef struct iscsi_session {
 	uint64_t handle;
 	iscsi_provider_t *provider;
 	node_rec_t nrec; /* copy of original Node record in database */
-	int vendor_specific_keys;
 	unsigned int irrelevant_keys_bitmap;
 	int send_async_text;
 	uint32_t itt;

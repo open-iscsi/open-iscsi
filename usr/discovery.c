@@ -1122,12 +1122,6 @@ reconnect:
 	session->itt = 1;
 	session->portal_group_tag = PORTAL_GROUP_TAG_UNKNOWN;
 
-	/*
-	 * if we're violating the protocol anyway, there's no reason
-	 * to be picky about sending keys.
-	 */
-	session->vendor_specific_keys = long_lived;
-
 	/* slowly back off the frequency of login attempts */
 	if (login_failures == 0)
 		login_delay = 0;

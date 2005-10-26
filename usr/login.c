@@ -840,56 +840,6 @@ add_params_provider_specific(iscsi_session_t *session, int cid,
 }
 
 static int
-add_vendor_specific_text(iscsi_session_t *session, int cid, struct iscsi_hdr *pdu,
-                    char *data, int max_data_length)
-{
-	char value[AUTH_STR_MAX_LEN];
-	iscsi_conn_t *conn = &session->conn[cid];
-
-	/*
-	 * adjust the target's PingTimeout for normal sessions,
-	 * so that it matches the driver's ping timeout.  The
-	 * network probably has the same latency in both
-	 * directions, so the values ought to match.
-	 */
-	if (conn->ping_timeout >= 0) {
-		sprintf(value, "%d", conn->ping_timeout);
-		if (!iscsi_add_text(pdu, data, max_data_length,
-				    "X-com.cisco.PingTimeout", value))
-			return 0;
-	}
-
-	if (session->send_async_text >= 0)
-		if (!iscsi_add_text(pdu, data, max_data_length,
-				    "X-com.cisco.sendAsyncText",
-				    session->send_async_text ? "Yes" : "No"))
-			return 0;
-
-	/*
-	 * vendor-specific protocol specification. list of protocol level
-	 * strings in order of preference allowable values are: draft<n>
-	 * (e.g. draft8), rfc<n> (e.g. rfc666).
-	 * For example: "X-com.cisco.protocol=draft20,draft8" requests draft 20,
-	 * or 8 if 20 isn't supported. "X-com.cisco.protocol=draft8,draft20"
-	 * requests draft 8, or 20 if 8 isn't supported. Targets that
-	 * understand this key SHOULD return the protocol level they selected
-	 * as a response to this key, though the active_version may be
-	 * sufficient to distinguish which protocol was chosen.
-	 * Note: This probably won't work unless we start in op param stage,
-	 * since the security stage limits what keys we can send, and we'd need
-	 * to have sent this on the first PDU of the login.  Keep sending it for
-	 * informational use, and so that we can sanity check things later if
-	 * the RFC and draft20 are using the same active version number,
-	 * but have non-trivial differences.
-	 */
-	if (!iscsi_add_text(pdu, data, max_data_length,
-			     "X-com.cisco.protocol", "draft20"))
-		return 0;
-
-	return 1;
-}
-
-static int
 check_irrelevant_keys(iscsi_session_t *session, struct iscsi_hdr *pdu,
                     char *data, int max_data_length)
 {
@@ -1065,16 +1015,6 @@ fill_op_params_text(iscsi_session_t *session, int cid, struct iscsi_hdr *pdu,
 					    "MaxRecvDataSegmentLength", value))
 				return 0;
 		}
-
-		/*
-		 * Note: 12.22 forbids vendor-specific keys on discovery
-		 * sessions, so the caller is violating the spec if it asks for
-		 * these on a discovery session.
-		 */
-		if (session->vendor_specific_keys)
-			if (!add_vendor_specific_text(session, cid, pdu, data,
-						      max_data_length))
-				return 0;
 	} else {
 		if (!check_irrelevant_keys(session, pdu, data, max_data_length))
 			return 0;
@@ -1143,8 +1083,7 @@ fill_security_params_text(iscsi_session_t *session, int cid, struct iscsi_hdr *p
 			if ((conn->hdrdgst_en != ISCSI_DIGEST_NONE) ||
 			    (conn->datadgst_en != ISCSI_DIGEST_NONE) ||
 			    (conn->max_recv_dlength !=
-			    DEFAULT_MAX_RECV_DATA_SEGMENT_LENGTH) ||
-			    session->vendor_specific_keys)
+			    DEFAULT_MAX_RECV_DATA_SEGMENT_LENGTH))
 				conn->next_stage =
 					    ISCSI_OP_PARMS_NEGOTIATION_STAGE;
 			else
