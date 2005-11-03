@@ -84,7 +84,7 @@ mgmt_ipc_node_read(int rid, node_rec_t *rec)
 {
 	idbm_t *db;
 
-	db = idbm_init(CONFIG_FILE);
+	db = idbm_init(dconfig->config_file);
 	if (!db) {
 		return MGMT_IPC_ERR_IDBM_FAILURE;
 	}
