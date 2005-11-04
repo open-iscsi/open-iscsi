@@ -16,95 +16,104 @@ else
 fi
 
 PATH=/sbin:/bin:/usr/sbin:/usr/bin:/usr/local/bin
-RETVAL=0
-CONFIG="/etc/sysconfig/openiscsi"
 
-if [ ! -f ${CONFIG} ] ; then
-  echo "#" > ${CONFIG}
-  echo "# open-iscsi config file" >> ${CONFIG}
-  echo "#" >> ${CONFIG}
-  echo "# Contains path to iscsiadm and iscsid" >> ${CONFIG}
-  echo "#" >> ${CONFIG}
-  echo "# Use TARGETS=\"<record id> <record id>\"" >> ${CONFIG}
-  echo "# to log in automatically when starting up service" >> ${CONFIG}
-  echo "#" >> ${CONFIG}
-  ISCSID=`which iscsid`
-  echo "ISCSID=\"${ISCSID}\"" >> ${CONFIG}
-  ISCSIADM=`which iscsiadm`
-  echo "ISCSIADM=\"${ISCSIADM}\"" >> ${CONFIG}
-  echo "TARGETS=\"\"" >> ${CONFIG}
+ISCSID=`which iscsid`
+ISCSIADM=`which iscsiadm`
+
+if [ -z $ISCSID ] || [ -z $ISCSIADM ]
+then
+    echo "open-iscsi not installed."
+    exit 1
 fi
 
-. ${CONFIG}
+start_iscsid()
+{
+    RETVAL=0
+    modprobe -q iscsi_tcp
+    daemon $ISCSID
+    RETVAL=$?
+    TARGETS=`$ISCSIADM -m node | sed 's@\[\(.*\)\] .*@\1@g'`
+    for rec in $TARGETS
+    do
+	STARTUP=`$ISCSIADM -m node -r $rec | grep "node.conn\[0\].startup" | cut -d' ' -f3`
+	if [ $STARTUP = "automatic" ]
+	then
+        	$ISCSIADM -m node -r $rec -l
+	fi
+    done
+    return $RETVAL
+}
 
-if [ -z ${ISCSID} ] ; then
-  echo "No iscsid daemon found. Please edit /etc/sysconfig/openiscsi"
-  exit 1
-fi
-
-if [ -z ${ISCSIADM} ] ; then
-  echo "No iscsiadm daemon found. Please edit /etc/sysconfig/openiscsi"
-  exit 1
-fi
+stop_iscsid()
+{
+    RETVAL=0
+    sync
+    TARGETS=`$ISCSIADM | grep "\[*\]" | sed 's@\[\(.*\)\] .*@\1@g'`
+    for rec in $TARGETS
+    do
+        $ISCSIADM -m node -r $rec -u
+    done
+    pkill -KILL `basename $ISCSID`
+    modprobe -r iscsi_tcp
+    RETVAL=$?
+    return $RETVAL
+}
 
 start()
 {
-echo -n "Starting iSCSI initiator service: "
-modprobe -q iscsi_tcp
-daemon ${ISCSID}
-RETVAL=$?
-for RECORD in ${TARGETS}
-do
-  ${ISCSIADM} -m node -r ${RECORD} --login
-done
-if [ ${RETVAL} == "0" ]; then
-         echo_success
-else
-         echo_failure
-fi
-echo
-return ${RETVAL}
-
+    RETVAL=0
+    echo -n "Starting iSCSI initiator service: "
+    PID=`pidofproc $ISCSID`
+    if [ -z $PID ]
+    then
+        start_iscsid
+    fi
+    if [ $RETVAL == "0" ]
+    then
+        echo_success
+    else
+        echo_failure
+    fi
+    echo
+    return $RETVAL
 }
 
 stop()
 {
-echo -n "Stopping iSCSI initiator service: "
-sync
-for RECORD in ${TARGETS}
-do
-  ${ISCSIADM} -m node -r ${RECORD} --logout
-done
-pkill -KILL `basename ${ISCSID}`
-modprobe -r iscsi_tcp
-RETVAL=$?
-if [ $RETVAL == "0" ]; then
-         echo_success
-else
-         echo_failure
-fi
-echo
-return ${RETVAL}
-
+    RETVAL=0
+    echo -n "Stopping iSCSI initiator service: "
+    PID=`pidofproc $ISCSID`
+    if [ $PID ]
+    then
+        stop_iscsid
+    fi
+    if [ $RETVAL == "0" ]
+    then
+        echo_success
+    else
+        echo_failure
+    fi
+    echo
+    return $RETVAL
 }
+
 
 restart()
 {
-        stop
-        start
-
+    stop
+    start
 }
 
 status()
 {
-PID=`pidofproc ${ISCSID}`
-if [ ! ${PID} ]; then
-         echo "iSCSI initiator is stopped."
-         exit 1
-else
-         echo "iSCSI initiator is running."
-fi
-
+    PID=`pidofproc $ISCSID`
+    if [ ! $PID ]
+    then
+        echo "iSCSI initiator is stopped."
+        exit 1
+    else
+        echo "iSCSI initiator is running."
+    fi
 }
 
 case "$1" in
