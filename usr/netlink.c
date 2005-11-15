@@ -618,10 +618,13 @@ read_transport_file(char *filename, void *value, char *format)
 		if (line)
 			sscanf(buffer, format, value);
 		else {
-			log_error("Could not open %s.\n", filename);
+			log_error("Could not read %s.\n", filename);
 			err = -EIO;
 		}
 		fclose(file);
+	} else {
+		log_error("Could not open %s.\n", filename);
+		err = -EIO;
 	}
 	return err;
 }
