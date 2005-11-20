@@ -313,6 +313,10 @@ kcreate_session(uint64_t transport_handle, uint32_t initial_cmdsn,
 	ev.type = ISCSI_UEVENT_CREATE_SESSION;
 	ev.transport_handle = transport_handle;
 	ev.u.c_session.initial_cmdsn = initial_cmdsn;
+	/*
+ 	 * tmp hack
+	 */
+	strncpy(ev.u.c_session.host_id, "iscsi_tcp", 20);
 
 	if ((rc = __kipc_call(&ev, sizeof(ev))) < 0) {
 		return rc;
