@@ -391,8 +391,6 @@ session_activelist(idbm_t *db)
 	if (rc)
 		return rc;
 	/* display all active sessions */
-	qsort(rsp.u.activelist.sids, rsp.u.activelist.cnt,
-	      sizeof(int), compint);
 	for (i = 0; i < rsp.u.activelist.cnt; i++) {
 		node_rec_t rec;
 

@@ -1029,7 +1029,7 @@ idbm_node_setup_defaults(node_rec_t *rec)
 	strcpy(rec->transport_name, "tcp");
 	rec->dbversion = IDBM_VERSION;
 	rec->active_conn = 1; /* at least one connection must exist */
-	rec->tpgt = 1;
+	rec->tpgt = PORTAL_GROUP_TAG_UNKNOWN;
 	rec->session.initial_cmdsn = 0;
 	rec->session.reopen_max = 32;
 	rec->session.auth.authmethod = 0;
