@@ -2434,17 +2434,13 @@ iscsi_pool_free(struct iscsi_queue *q, void **items)
 	kfree(items);
 }
 
-static iscsi_connh_t
-iscsi_conn_create(iscsi_sessionh_t sessionh, uint32_t conn_idx)
+static int 
+iscsi_conn_create(struct Scsi_Host *shost, void *conndata, uint32_t conn_idx)
 {
-	struct iscsi_session *session = iscsi_ptr(sessionh);
-	struct iscsi_conn *conn = NULL;
+	struct iscsi_session *session = iscsi_hostdata(shost->hostdata);
+	struct iscsi_conn *conn = conndata;
 
-	conn = kmalloc(sizeof(struct iscsi_conn), GFP_KERNEL);
-	if (conn == NULL)
-		goto conn_alloc_fail;
 	memset(conn, 0, sizeof(struct iscsi_conn));
-
 	conn->c_stage = ISCSI_CONN_INITIAL_STAGE;
 	conn->in_progress = IN_PROGRESS_WAIT_HEADER;
 	conn->id = conn_idx;
@@ -2506,7 +2502,7 @@ iscsi_conn_create(iscsi_sessionh_t sessionh, uint32_t conn_idx)
 	init_MUTEX(&conn->xmitsema);
 	init_waitqueue_head(&conn->ehwait);
 
-	return iscsi_handle(conn);
+	return 0;
 
 max_recv_dlenght_alloc_fail:
 	spin_lock_bh(&session->lock);
@@ -2522,15 +2518,13 @@ immqueue_alloc_fail:
 writequeue_alloc_fail:
 	kfifo_free(conn->xmitqueue);
 xmitqueue_alloc_fail:
-	kfree(conn);
-conn_alloc_fail:
-	return iscsi_handle(NULL);
+	return -ENOMEM;
 }
 
 static void
-iscsi_conn_destroy(iscsi_connh_t connh)
+iscsi_conn_destroy(void *data)
 {
-	struct iscsi_conn *conn = iscsi_ptr(connh);
+	struct iscsi_conn *conn = data;
 	struct iscsi_session *session = conn->session;
 	unsigned long flags;
 
@@ -2625,7 +2619,6 @@ iscsi_conn_destroy(iscsi_connh_t connh)
 	kfifo_free(conn->writequeue);
 	kfifo_free(conn->immqueue);
 	kfifo_free(conn->mgmtqueue);
-	kfree(conn);
 }
 
 static int
@@ -3256,17 +3249,14 @@ static struct scsi_host_template iscsi_sht = {
 	.this_id		= -1,
 };
 
-static iscsi_sessionh_t
-iscsi_session_create(uint32_t initial_cmdsn, struct Scsi_Host *host)
+static int
+iscsi_session_create(struct Scsi_Host *shost, uint32_t initial_cmdsn)
 {
+	struct iscsi_session *session = iscsi_hostdata(shost->hostdata);
 	int cmd_i;
-	struct iscsi_session *session;
 
-	session = iscsi_hostdata(host->hostdata);
 	memset(session, 0, sizeof(struct iscsi_session));
-
-	session->host = host;
-	session->id = host->host_no;
+	session->host =  shost;
 	session->state = ISCSI_STATE_LOGGED_IN;
 	session->mgmtpool_max = ISCSI_MGMT_CMDS_MAX;
 	session->cmds_max = ISCSI_XMIT_CMDS_MAX;
@@ -3310,7 +3300,7 @@ iscsi_session_create(uint32_t initial_cmdsn, struct Scsi_Host *host)
 	if (iscsi_r2tpool_alloc(session))
 		goto r2tpool_alloc_fail;
 
-	return iscsi_handle(session);
+	return 0;
 
 r2tpool_alloc_fail:
 	for (cmd_i = 0; cmd_i < session->mgmtpool_max; cmd_i++)
@@ -3320,15 +3310,15 @@ immdata_alloc_fail:
 mgmtpool_alloc_fail:
 	iscsi_pool_free(&session->cmdpool, (void**)session->cmds);
 cmdpool_alloc_fail:
-	return iscsi_handle(NULL);
+	return -ENOMEM;
 }
 
 static void
-iscsi_session_destroy(iscsi_sessionh_t sessionh)
+iscsi_session_destroy(struct Scsi_Host *shost)
 {
+	struct iscsi_session *session = iscsi_hostdata(shost->hostdata);
 	int cmd_i;
 	struct iscsi_data_task *dtask, *n;
-	struct iscsi_session *session = iscsi_ptr(sessionh);
 
 	for (cmd_i = 0; cmd_i < session->cmds_max; cmd_i++) {
 		struct iscsi_cmd_task *ctask = session->cmds[cmd_i];
@@ -3492,25 +3482,12 @@ iscsi_conn_set_param(iscsi_connh_t connh, enum iscsi_param param,
 }
 
 static int
-iscsi_conn_get_param(iscsi_connh_t connh, enum iscsi_param param,
-		     uint32_t *value)
+iscsi_session_get_param(struct Scsi_Host *shost,
+			enum iscsi_param param, uint32_t *value)
 {
-	struct iscsi_conn *conn = iscsi_ptr(connh);
-	struct iscsi_session *session = conn->session;
+	struct iscsi_session *session = iscsi_hostdata(shost->hostdata);
 
 	switch(param) {
-	case ISCSI_PARAM_MAX_RECV_DLENGTH:
-		*value = conn->max_recv_dlength;
-		break;
-	case ISCSI_PARAM_MAX_XMIT_DLENGTH:
-		*value = conn->max_xmit_dlength;
-		break;
-	case ISCSI_PARAM_HDRDGST_EN:
-		*value = conn->hdrdgst_en;
-		break;
-	case ISCSI_PARAM_DATADGST_EN:
-		*value = conn->datadgst_en;
-		break;
 	case ISCSI_PARAM_INITIAL_R2T_EN:
 		*value = session->initial_r2t_en;
 		break;
@@ -3540,6 +3517,31 @@ iscsi_conn_get_param(iscsi_connh_t connh, enum iscsi_param param,
 		break;
 	case ISCSI_PARAM_OFMARKER_EN:
 		*value = session->ofmarker_en;
+		break;
+	default:
+		return ISCSI_ERR_PARAM_NOT_FOUND;
+	}
+
+	return 0;
+}
+
+static int
+iscsi_conn_get_param(void *data, enum iscsi_param param, uint32_t *value)
+{
+	struct iscsi_conn *conn = data;
+
+	switch(param) {
+	case ISCSI_PARAM_MAX_RECV_DLENGTH:
+		*value = conn->max_recv_dlength;
+		break;
+	case ISCSI_PARAM_MAX_XMIT_DLENGTH:
+		*value = conn->max_xmit_dlength;
+		break;
+	case ISCSI_PARAM_HDRDGST_EN:
+		*value = conn->hdrdgst_en;
+		break;
+	case ISCSI_PARAM_DATADGST_EN:
+		*value = conn->datadgst_en;
 		break;
 	default:
 		return ISCSI_ERR_PARAM_NOT_FOUND;
@@ -3594,6 +3596,7 @@ static struct iscsi_transport iscsi_tcp_transport = {
 	.rdma			= 0,
 	.host_template		= &iscsi_sht,
 	.hostdata_size		= sizeof(struct iscsi_session),
+	.conndata_size		= sizeof(struct iscsi_conn),
 	.max_conn		= 1,
 	.max_cmd_len		= ISCSI_TCP_MAX_CMD_LEN,
 	.create_session		= iscsi_session_create,
@@ -3602,7 +3605,8 @@ static struct iscsi_transport iscsi_tcp_transport = {
 	.bind_conn		= iscsi_conn_bind,
 	.destroy_conn		= iscsi_conn_destroy,
 	.set_param		= iscsi_conn_set_param,
-	.get_param		= iscsi_conn_get_param,
+	.get_conn_param		= iscsi_conn_get_param,
+	.get_session_param	= iscsi_session_get_param,
 	.start_conn		= iscsi_conn_start,
 	.stop_conn		= iscsi_conn_stop,
 	.send_pdu		= iscsi_conn_send_pdu,
@@ -3612,8 +3616,6 @@ static struct iscsi_transport iscsi_tcp_transport = {
 static int __init
 iscsi_tcp_init(void)
 {
-	int error;
-
 	if (iscsi_max_lun < 1) {
 		printk(KERN_ERR "Invalid max_lun value of %u\n", iscsi_max_lun);
 		return -EINVAL;
@@ -3626,11 +3628,10 @@ iscsi_tcp_init(void)
 	if (!taskcache)
 		return -ENOMEM;
 
-	error = iscsi_register_transport(&iscsi_tcp_transport);
-	if (error)
+	if (!iscsi_register_transport(&iscsi_tcp_transport))
 		kmem_cache_destroy(taskcache);
 
-	return error;
+	return 0;
 }
 
 static void __exit

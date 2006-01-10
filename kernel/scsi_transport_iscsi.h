@@ -23,7 +23,13 @@
 #ifndef SCSI_TRANSPORT_ISCSI_H
 #define SCSI_TRANSPORT_ISCSI_H
 
+#include <linux/mempool.h>
+#include <linux/device.h>
 #include <iscsi_if.h>
+
+struct scsi_transport_template;
+struct Scsi_Host;
+struct mempool_zone;
 
 /**
  * struct iscsi_transport - iSCSI Transport template
@@ -50,23 +56,31 @@ struct iscsi_transport {
 	unsigned short af;
 	unsigned short rdma;
 	struct scsi_host_template *host_template;
+	/* LLD session/scsi_host data size */
 	int hostdata_size;
+	/* LLD iscsi_host data size */
+	int ihostdata_size;
+	/* LLD connection data size */
+	int conndata_size;
 	int max_lun;
 	unsigned int max_conn;
 	unsigned int max_cmd_len;
-	iscsi_sessionh_t (*create_session) (uint32_t initial_cmdsn,
-					    struct Scsi_Host *shost);
-	void (*destroy_session) (iscsi_sessionh_t session);
-	iscsi_connh_t (*create_conn) (iscsi_sessionh_t session, uint32_t cid);
+	int (*create_session) (struct Scsi_Host *shost,
+			       uint32_t initial_cmdsn);
+	void (*destroy_session) (struct Scsi_Host *shost);
+	int (*create_conn) (struct Scsi_Host *shost, void *conndata,
+			    uint32_t cid);
 	int (*bind_conn) (iscsi_sessionh_t session, iscsi_connh_t conn,
 			  uint32_t transport_fd, int is_leading);
 	int (*start_conn) (iscsi_connh_t conn);
 	void (*stop_conn) (iscsi_connh_t conn, int flag);
-	void (*destroy_conn) (iscsi_connh_t conn);
+	void (*destroy_conn) (void *conndata);
 	int (*set_param) (iscsi_connh_t conn, enum iscsi_param param,
 			  uint32_t value);
-	int (*get_param) (iscsi_connh_t conn, enum iscsi_param param,
-			  uint32_t *value);
+	int (*get_conn_param) (void *conndata, enum iscsi_param param,
+			       uint32_t *value);
+	int (*get_session_param) (struct Scsi_Host *shost,
+				  enum iscsi_param param, uint32_t *value);
 	int (*send_pdu) (iscsi_connh_t conn, struct iscsi_hdr *hdr,
 			 char *data, uint32_t data_size);
 	void (*get_stats) (iscsi_connh_t conn, struct iscsi_stats *stats);
@@ -75,7 +89,7 @@ struct iscsi_transport {
 /*
  * transport registration upcalls
  */
-extern int iscsi_register_transport(struct iscsi_transport *tt);
+extern struct scsi_transport_template *iscsi_register_transport(struct iscsi_transport *tt);
 extern int iscsi_unregister_transport(struct iscsi_transport *tt);
 
 /*
@@ -84,5 +98,45 @@ extern int iscsi_unregister_transport(struct iscsi_transport *tt);
 extern void iscsi_conn_error(iscsi_connh_t conn, enum iscsi_err error);
 extern int iscsi_recv_pdu(iscsi_connh_t conn, struct iscsi_hdr *hdr,
 			  char *data, uint32_t data_size);
+
+struct iscsi_cls_conn {
+	struct list_head conn_list;	/* item in connlist */
+	void *dd_data;			/* LLD private data */
+	struct iscsi_transport *transport;
+	iscsi_connh_t connh;
+	int active;			/* must be accessed with the connlock */
+	struct device dev;		/* sysfs transport/container device */
+	struct mempool_zone *z_error;
+	struct mempool_zone *z_pdu;
+	struct list_head freequeue;
+};
+
+#define iscsi_dev_to_conn(_dev) \
+	container_of(_dev, struct iscsi_cls_conn, dev)
+
+struct iscsi_cls_session {
+	struct list_head list;	/* item in session_list */
+	struct iscsi_transport *transport;
+	struct device dev;	/* sysfs transport/container device */
+};
+
+#define iscsi_dev_to_session(_dev) \
+	container_of(_dev, struct iscsi_cls_session, dev)
+
+#define iscsi_session_to_shost(_session) \
+	dev_to_shost(_session->dev.parent)
+
+/*
+ * session and connection calls
+ */
+extern struct iscsi_cls_session *iscsi_create_session(struct Scsi_Host *shost,
+				struct iscsi_transport *t, uint32_t isid,
+				uint32_t initial_cmdsn);
+extern int iscsi_destroy_session(struct iscsi_cls_session *session);
+extern int iscsi_is_session_dev(const struct device *dev);
+extern struct iscsi_cls_conn *iscsi_create_conn(struct iscsi_cls_session *sess,
+					    uint32_t cid);
+extern int iscsi_destroy_conn(struct iscsi_cls_conn *conn);
+extern int iscsi_is_conn_dev(const struct device *dev);
 
 #endif
