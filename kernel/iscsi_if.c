@@ -109,8 +109,6 @@ show_transport_attr(caps, "0x%x");
 show_transport_attr(max_lun, "%d");
 show_transport_attr(max_conn, "%d");
 show_transport_attr(max_cmd_len, "%d");
-show_transport_attr(af, "%d");
-show_transport_attr(rdma, "%d");
 
 static struct attribute *iscsi_transport_attrs[] = {
 	&class_device_attr_handle.attr,
@@ -118,8 +116,6 @@ static struct attribute *iscsi_transport_attrs[] = {
 	&class_device_attr_max_lun.attr,
 	&class_device_attr_max_conn.attr,
 	&class_device_attr_max_cmd_len.attr,
-	&class_device_attr_af.attr,
-	&class_device_attr_rdma.attr,
 	NULL,
 };
 

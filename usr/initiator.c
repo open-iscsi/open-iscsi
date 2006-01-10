@@ -437,9 +437,7 @@ __session_conn_create(iscsi_session_t *session, int cid)
 			  conn_rec->address, host);
 	}
 
-	/* Set the address family according to the value 
-	   that was received from a specific provider */
-	conn->saddr.ss_family = session->provider->af;
+	conn->saddr.ss_family = AF_INET;
 
 	conn->state = STATE_FREE;
 	conn->session = session;
@@ -855,10 +853,6 @@ __session_conn_recv_pdu(queue_item_t *item)
 				}, {
 				.param = ISCSI_PARAM_OFMARKER_EN,
 				.value = &zero,/* FIXME: session->ofmarker_en */
-				.conn_only = 0,
-				}, {
-				.param = ISCSI_PARAM_RDMAEXTENSIONS,
-				.value = &session->rdma_ext,
 				.conn_only = 0,
 				}
 

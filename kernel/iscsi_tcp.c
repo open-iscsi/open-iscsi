@@ -3592,8 +3592,6 @@ static struct iscsi_transport iscsi_tcp_transport = {
 	.name			= "tcp",
 	.caps			= CAP_RECOVERY_L0 | CAP_MULTI_R2T | CAP_HDRDGST
 				  | CAP_DATADGST,
-	.af			= AF_INET,
-	.rdma			= 0,
 	.host_template		= &iscsi_sht,
 	.hostdata_size		= sizeof(struct iscsi_session),
 	.conndata_size		= sizeof(struct iscsi_conn),

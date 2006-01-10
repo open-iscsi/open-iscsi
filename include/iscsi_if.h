@@ -160,9 +160,8 @@ enum iscsi_param {
 	ISCSI_PARAM_ERL			= 11,
 	ISCSI_PARAM_IFMARKER_EN		= 12,
 	ISCSI_PARAM_OFMARKER_EN		= 13,
-	ISCSI_PARAM_RDMAEXTENSIONS      = 14,
 };
-#define ISCSI_PARAM_MAX			15
+#define ISCSI_PARAM_MAX			14
 
 typedef uint64_t iscsi_sessionh_t;	/* iSCSI Data-Path session handle */
 typedef uint64_t iscsi_connh_t;		/* iSCSI Data-Path connection handle */

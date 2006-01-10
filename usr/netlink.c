@@ -684,20 +684,6 @@ ktrans_list(void)
 					  "0x%x");
 		if (err)
 			break;
-
-		sprintf(filename, ISCSI_TRANSPORT_DIR"/%s/af",
-			provider[i].name);
-		err = read_transport_file(filename, &provider[i].af,
-					  "%u");
-		if (err)
-			break;
-
-		sprintf(filename, ISCSI_TRANSPORT_DIR"/%s/rdma",
-			provider[i].name);
-		err = read_transport_file(filename, &provider[i].rdma,
-					  "%u");
-		if (err)
-			break;
 	}
 
 	for (i++; i < n; i++)
