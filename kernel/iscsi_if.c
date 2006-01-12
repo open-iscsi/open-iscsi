@@ -442,6 +442,7 @@ iscsi_if_create_session(struct iscsi_internal *priv, struct iscsi_uevent *ev)
 	shost->max_lun = transport->max_lun;
 	shost->max_cmd_len = transport->max_cmd_len;
 	shost->transportt = &priv->t;
+	shost->transportt->create_work_queue = 1;
 
 	err = scsi_add_host(shost, NULL);
 	if (err)
