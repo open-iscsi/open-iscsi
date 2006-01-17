@@ -5,7 +5,6 @@
 EXTRA_CFLAGS += -I$(obj) -I$(obj)/../include 
 
 obj-m				+= scsi_transport_iscsi.o
-scsi_transport_iscsi-objs	:= libiscsi.o iscsi_if.o
 obj-m				+= iscsi_tcp.o 
 
 KSRC ?= /lib/modules/`uname -r`/build

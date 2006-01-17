@@ -23,13 +23,13 @@
 #ifndef SCSI_TRANSPORT_ISCSI_H
 #define SCSI_TRANSPORT_ISCSI_H
 
-#include <linux/mempool.h>
 #include <linux/device.h>
 #include <iscsi_if.h>
 
 struct scsi_transport_template;
 struct Scsi_Host;
 struct mempool_zone;
+struct iscsi_cls_conn;
 
 /**
  * struct iscsi_transport - iSCSI Transport template
@@ -63,16 +63,16 @@ struct iscsi_transport {
 	int max_lun;
 	unsigned int max_conn;
 	unsigned int max_cmd_len;
-	int (*create_session) (struct Scsi_Host *shost,
-			       uint32_t initial_cmdsn);
+	struct Scsi_Host *(*create_session) (struct scsi_transport_template *t,
+					     uint32_t initial_cmdsn);
 	void (*destroy_session) (struct Scsi_Host *shost);
-	int (*create_conn) (struct Scsi_Host *shost, void *conndata,
-			    uint32_t cid);
+	struct iscsi_cls_conn *(*create_conn) (struct Scsi_Host *shost,
+				uint32_t cid);
 	int (*bind_conn) (iscsi_sessionh_t session, iscsi_connh_t conn,
 			  uint32_t transport_fd, int is_leading);
 	int (*start_conn) (iscsi_connh_t conn);
 	void (*stop_conn) (iscsi_connh_t conn, int flag);
-	void (*destroy_conn) (void *conndata);
+	void (*destroy_conn) (struct iscsi_cls_conn *conn);
 	int (*set_param) (iscsi_connh_t conn, enum iscsi_param param,
 			  uint32_t value);
 	int (*get_conn_param) (void *conndata, enum iscsi_param param,
@@ -125,16 +125,21 @@ struct iscsi_cls_session {
 	dev_to_shost(_session->dev.parent)
 
 /*
- * session and connection calls
+ * session and connection functions that can be used by HW iSCSI LLDs
  */
 extern struct iscsi_cls_session *iscsi_create_session(struct Scsi_Host *shost,
-				struct iscsi_transport *t, uint32_t isid,
-				uint32_t initial_cmdsn);
+				struct iscsi_transport *t);
 extern int iscsi_destroy_session(struct iscsi_cls_session *session);
-extern int iscsi_is_session_dev(const struct device *dev);
 extern struct iscsi_cls_conn *iscsi_create_conn(struct iscsi_cls_session *sess,
 					    uint32_t cid);
 extern int iscsi_destroy_conn(struct iscsi_cls_conn *conn);
-extern int iscsi_is_conn_dev(const struct device *dev);
+
+/*
+ * session functions used by software iscsi
+ */
+extern struct Scsi_Host *
+iscsi_transport_create_session(struct scsi_transport_template *scsit,
+                               struct iscsi_transport *transport);
+extern int iscsi_transport_destroy_session(struct Scsi_Host *shost);
 
 #endif

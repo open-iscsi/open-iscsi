@@ -33,6 +33,7 @@
 #include <linux/delay.h>
 #include <linux/kfifo.h>
 #include <linux/scatterlist.h>
+#include <linux/mutex.h>
 #include <net/tcp.h>
 #include <scsi/scsi_cmnd.h>
 #include <scsi/scsi_device.h>
@@ -49,7 +50,7 @@ MODULE_AUTHOR("Dmitry Yusupov <dmitry_yus@yahoo.com>, "
 	      "Alex Aizman <itn780@yahoo.com>");
 MODULE_DESCRIPTION("iSCSI/TCP data-path");
 MODULE_LICENSE("GPL");
-MODULE_VERSION("0:5.456");
+MODULE_VERSION("0:4.445");
 /* #define DEBUG_TCP */
 /* #define DEBUG_SCSI */
 #define DEBUG_ASSERT
@@ -2272,10 +2273,10 @@ iscsi_xmitworker(void *data)
 	/*
 	 * serialize Xmit worker on a per-connection basis.
 	 */
-	down(&conn->xmitsema);
+	mutex_lock(&conn->xmitmutex);
 	if (iscsi_data_xmit(conn))
 		scsi_queue_work(conn->session->host, &conn->xmitwork);
-	up(&conn->xmitsema);
+	mutex_unlock(&conn->xmitmutex);
 }
 
 #define FAILURE_BAD_HOST		1
@@ -2426,11 +2427,18 @@ iscsi_pool_free(struct iscsi_queue *q, void **items)
 	kfree(items);
 }
 
-static int 
-iscsi_conn_create(struct Scsi_Host *shost, void *conndata, uint32_t conn_idx)
+static struct iscsi_cls_conn *
+iscsi_conn_create(struct Scsi_Host *shost, uint32_t conn_idx)
 {
 	struct iscsi_session *session = iscsi_hostdata(shost->hostdata);
-	struct iscsi_conn *conn = conndata;
+	struct iscsi_conn *conn;
+	struct iscsi_cls_conn *cls_conn;
+
+	cls_conn = iscsi_create_conn(hostdata_session(shost->hostdata),
+				     conn_idx);
+	if (!cls_conn)
+		return NULL;
+	conn = cls_conn->dd_data;
 
 	memset(conn, 0, sizeof(struct iscsi_conn));
 	conn->c_stage = ISCSI_CONN_INITIAL_STAGE;
@@ -2491,10 +2499,10 @@ iscsi_conn_create(struct Scsi_Host *shost, void *conndata, uint32_t conn_idx)
 		goto max_recv_dlenght_alloc_fail;
 
 	init_timer(&conn->tmabort_timer);
-	init_MUTEX(&conn->xmitsema);
+	mutex_init(&conn->xmitmutex);
 	init_waitqueue_head(&conn->ehwait);
 
-	return 0;
+	return cls_conn;
 
 max_recv_dlenght_alloc_fail:
 	spin_lock_bh(&session->lock);
@@ -2510,17 +2518,18 @@ immqueue_alloc_fail:
 writequeue_alloc_fail:
 	kfifo_free(conn->xmitqueue);
 xmitqueue_alloc_fail:
-	return -ENOMEM;
+	iscsi_destroy_conn(cls_conn);
+	return NULL;
 }
 
 static void
-iscsi_conn_destroy(void *data)
+iscsi_conn_destroy(struct iscsi_cls_conn *cls_conn)
 {
-	struct iscsi_conn *conn = data;
+	struct iscsi_conn *conn = cls_conn->dd_data;
 	struct iscsi_session *session = conn->session;
 	unsigned long flags;
 
-	down(&conn->xmitsema);
+	mutex_lock(&conn->xmitmutex);
 	set_bit(SUSPEND_BIT, &conn->suspend_tx);
 	if (conn->c_stage == ISCSI_CONN_INITIAL_STAGE && conn->sock) {
 		struct sock *sk = conn->sock->sk;
@@ -2551,7 +2560,7 @@ iscsi_conn_destroy(void *data)
 	}
 	spin_unlock_bh(&session->lock);
 
-	up(&conn->xmitsema);
+	mutex_unlock(&conn->xmitmutex);
 
 	/*
 	 * Block until all in-progress commands for this connection
@@ -2611,6 +2620,8 @@ iscsi_conn_destroy(void *data)
 	kfifo_free(conn->writequeue);
 	kfifo_free(conn->immqueue);
 	kfifo_free(conn->mgmtqueue);
+
+	iscsi_destroy_conn(cls_conn);
 }
 
 static int
@@ -2756,7 +2767,7 @@ iscsi_conn_stop(iscsi_connh_t connh, int flag)
 	set_bit(SUSPEND_BIT, &conn->suspend_rx);
 	write_unlock_bh(&sk->sk_callback_lock);
 
-	down(&conn->xmitsema);
+	mutex_lock(&conn->xmitmutex);
 
 	spin_lock_irqsave(session->host->host_lock, flags);
 	spin_lock(&session->lock);
@@ -2838,7 +2849,7 @@ iscsi_conn_stop(iscsi_connh_t connh, int flag)
 			conn->datadgst_en = 0;
 		}
 	}
-	up(&conn->xmitsema);
+	mutex_unlock(&conn->xmitmutex);
 }
 
 static int
@@ -2988,12 +2999,12 @@ iscsi_eh_abort(struct scsi_cmnd *sc)
 	 * 1) connection-level failure;
 	 * 2) recovery due protocol error;
 	 */
-	down(&conn->xmitsema);
+	mutex_lock(&conn->xmitmutex);
 	spin_lock_bh(&session->lock);
 	if (session->state != ISCSI_STATE_LOGGED_IN) {
 		if (session->state == ISCSI_STATE_TERMINATE) {
 			spin_unlock_bh(&session->lock);
-			up(&conn->xmitsema);
+			mutex_unlock(&conn->xmitmutex);
 			goto failed;
 		}
 		spin_unlock_bh(&session->lock);
@@ -3011,7 +3022,7 @@ iscsi_eh_abort(struct scsi_cmnd *sc)
 			 * 2) session was re-open during time out of ctask.
 			 */
 			spin_unlock_bh(&session->lock);
-			up(&conn->xmitsema);
+			mutex_unlock(&conn->xmitmutex);
 			goto success;
 		}
 		conn->tmabort_state = TMABORT_INITIAL;
@@ -3066,7 +3077,7 @@ iscsi_eh_abort(struct scsi_cmnd *sc)
 				    conn->tmabort_state == TMABORT_SUCCESS) {
 					conn->tmabort_state = TMABORT_INITIAL;
 					spin_unlock_bh(&session->lock);
-					up(&conn->xmitsema);
+					mutex_unlock(&conn->xmitmutex);
 					goto success;
 				}
 				conn->tmabort_state = TMABORT_INITIAL;
@@ -3075,7 +3086,7 @@ iscsi_eh_abort(struct scsi_cmnd *sc)
 			spin_unlock_bh(&session->lock);
 		}
 	}
-	up(&conn->xmitsema);
+	mutex_unlock(&conn->xmitmutex);
 
 
 	/*
@@ -3141,7 +3152,7 @@ failed:
 exit:
 	del_timer_sync(&conn->tmabort_timer);
 
-	down(&conn->xmitsema);
+	mutex_lock(&conn->xmitmutex);
 	if (conn->sock) {
 		struct sock *sk = conn->sock->sk;
 
@@ -3149,7 +3160,7 @@ exit:
 		iscsi_ctask_cleanup(conn, ctask);
 		write_unlock_bh(&sk->sk_callback_lock);
 	}
-	up(&conn->xmitsema);
+	mutex_unlock(&conn->xmitmutex);
 	return rc;
 }
 
@@ -3240,12 +3251,21 @@ static struct scsi_host_template iscsi_sht = {
 	.this_id		= -1,
 };
 
-static int
-iscsi_session_create(struct Scsi_Host *shost, uint32_t initial_cmdsn)
+static struct iscsi_transport iscsi_tcp_transport;
+
+static struct Scsi_Host *
+iscsi_session_create(struct scsi_transport_template *scsit,
+		     uint32_t initial_cmdsn)
 {
-	struct iscsi_session *session = iscsi_hostdata(shost->hostdata);
+	struct Scsi_Host *shost;
+	struct iscsi_session *session;
 	int cmd_i;
 
+	shost = iscsi_transport_create_session(scsit, &iscsi_tcp_transport);
+	if (!shost)
+		return NULL; 
+
+	session = iscsi_hostdata(shost->hostdata);
 	memset(session, 0, sizeof(struct iscsi_session));
 	session->host =  shost;
 	session->state = ISCSI_STATE_LOGGED_IN;
@@ -3291,7 +3311,7 @@ iscsi_session_create(struct Scsi_Host *shost, uint32_t initial_cmdsn)
 	if (iscsi_r2tpool_alloc(session))
 		goto r2tpool_alloc_fail;
 
-	return 0;
+	return shost;
 
 r2tpool_alloc_fail:
 	for (cmd_i = 0; cmd_i < session->mgmtpool_max; cmd_i++)
@@ -3301,7 +3321,7 @@ immdata_alloc_fail:
 mgmtpool_alloc_fail:
 	iscsi_pool_free(&session->cmdpool, (void**)session->cmds);
 cmdpool_alloc_fail:
-	return -ENOMEM;
+	return NULL;
 }
 
 static void
@@ -3325,6 +3345,8 @@ iscsi_session_destroy(struct Scsi_Host *shost)
 	iscsi_r2tpool_free(session);
 	iscsi_pool_free(&session->mgmtpool, (void**)session->mgmt_cmds);
 	iscsi_pool_free(&session->cmdpool, (void**)session->cmds);
+
+	iscsi_transport_destroy_session(shost);
 }
 
 static int
@@ -3347,7 +3369,7 @@ iscsi_conn_set_param(iscsi_connh_t connh, enum iscsi_param param,
 	switch(param) {
 	case ISCSI_PARAM_MAX_RECV_DLENGTH: {
 		char *saveptr = conn->data;
-		int flags = GFP_KERNEL;
+		gfp_t flags = GFP_KERNEL;
 
 		if (conn->data_size >= value) {
 			conn->max_recv_dlength = value;
@@ -3571,9 +3593,9 @@ iscsi_conn_send_pdu(iscsi_connh_t connh, struct iscsi_hdr *hdr, char *data,
 	struct iscsi_conn *conn = iscsi_ptr(connh);
 	int rc;
 
-	down(&conn->xmitsema);
+	mutex_lock(&conn->xmitmutex);
 	rc = iscsi_conn_send_generic(conn, hdr, data, data_size);
-	up(&conn->xmitsema);
+	mutex_unlock(&conn->xmitmutex);
 
 	return rc;
 }
