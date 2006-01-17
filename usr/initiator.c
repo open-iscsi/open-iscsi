@@ -437,8 +437,6 @@ __session_conn_create(iscsi_session_t *session, int cid)
 			  conn_rec->address, host);
 	}
 
-	conn->saddr.ss_family = AF_INET;
-
 	conn->state = STATE_FREE;
 	conn->session = session;
 
