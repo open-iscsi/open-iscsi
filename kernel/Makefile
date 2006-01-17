@@ -33,14 +33,14 @@ ifeq ($(KVER),12)
 	@if ! cat scsi_transport_iscsi.c | \
 	    grep iscsi_compat > /dev/null; then  \
 	    echo "kernel check... FAILED"; \
-	    echo "Apply the 2.6.12-and-2.6.13-compat.patch first!"; exit 1; fi
+	    echo "Apply the 2.6.12-compat.patch first!"; exit 1; fi
 	@echo "kernel check... OK"
 else
 ifeq ($(KVER),13)
 	@if ! cat scsi_transport_iscsi.c | \
 	    grep iscsi_compat > /dev/null; then  \
 	    echo "kernel check... FAILED"; \
-	    echo "Apply the 2.6.12-and-2.6.13-compat.patch first!"; exit 1; fi
+	    echo "Apply the 2.6.13-compat.patch first!"; exit 1; fi
 	@echo "kernel check... OK"
 else
 ifeq ($(KVER),14)

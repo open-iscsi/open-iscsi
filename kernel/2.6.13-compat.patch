@@ -1,0 +1,97 @@
+diff -Naurp open-iscsi.diffbase/kernel/iscsi_compat.h open-iscsi.test/kernel/iscsi_compat.h
+--- open-iscsi.diffbase/kernel/iscsi_compat.h	1969-12-31 18:00:00.000000000 -0600
++++ open-iscsi.test/kernel/iscsi_compat.h	2006-01-16 16:25:56.000000000 -0600
+@@ -0,0 +1,55 @@
++/*
++ * compat crap for older kernels.
++ * do not send to linux-scsi
++ */
++#include <linux/version.h>
++#include <linux/kernel.h>
++#include <scsi/scsi.h>
++
++#ifndef DEFINE_MUTEX
++
++/* mutex changes from 2.6.16-rc1 and up */
++#define DEFINE_MUTEX DECLARE_MUTEX
++#define mutex_lock down
++#define mutex_unlock up
++#define mutex semaphore
++#define mutex_init init_MUTEX
++#endif
++
++#if LINUX_VERSION_CODE <= KERNEL_VERSION(2,6,12)
++
++void int_to_scsilun(unsigned int lun, struct scsi_lun *scsilun)
++{
++	int i;
++
++	memset(scsilun->scsi_lun, 0, sizeof(scsilun->scsi_lun));
++
++	for (i = 0; i < sizeof(lun); i += 2) {
++		scsilun->scsi_lun[i] = (lun >> 8) & 0xFF;
++		scsilun->scsi_lun[i+1] = lun & 0xFF;
++		lun = lun >> 16;
++	}
++}
++
++#define __nlmsg_put(skb, daemon_pid, seq, type, len, flags) \
++	__nlmsg_put(skb, daemon_pid, 0, 0, len)
++
++#endif
++
++#if LINUX_VERSION_CODE <= KERNEL_VERSION(2,6,13)
++
++#define netlink_kernel_create(uint, groups, input, mod) \
++	netlink_kernel_create(uint, input)
++
++#define gfp_t unsigned
++
++void *kzalloc(size_t size, gfp_t flags)
++{
++	void *ret = kmalloc(size, flags);
++	if (ret)
++		memset(ret, 0, size);
++	return ret;
++}
++
++#endif
++
+diff -Naurp open-iscsi.diffbase/kernel/iscsi_tcp.c open-iscsi.test/kernel/iscsi_tcp.c
+--- open-iscsi.diffbase/kernel/iscsi_tcp.c	2006-01-16 15:38:52.000000000 -0600
++++ open-iscsi.test/kernel/iscsi_tcp.c	2006-01-16 16:10:42.000000000 -0600
+@@ -33,7 +33,6 @@
+ #include <linux/delay.h>
+ #include <linux/kfifo.h>
+ #include <linux/scatterlist.h>
+-#include <linux/mutex.h>
+ #include <net/tcp.h>
+ #include <scsi/scsi_cmnd.h>
+ #include <scsi/scsi_device.h>
+@@ -44,6 +43,7 @@
+ #include <scsi/scsi.h>
+ #include "scsi_transport_iscsi.h"
+ 
++#include "iscsi_compat.h"
+ #include "iscsi_tcp.h"
+ 
+ MODULE_AUTHOR("Dmitry Yusupov <dmitry_yus@yahoo.com>, "
+diff -Naurp open-iscsi.diffbase/kernel/scsi_transport_iscsi.c open-iscsi.test/kernel/scsi_transport_iscsi.c
+--- open-iscsi.diffbase/kernel/scsi_transport_iscsi.c	2006-01-16 15:38:52.000000000 -0600
++++ open-iscsi.test/kernel/scsi_transport_iscsi.c	2006-01-16 15:54:47.000000000 -0600
+@@ -22,7 +22,6 @@
+  */
+ #include <linux/module.h>
+ #include <linux/mempool.h>
+-#include <linux/mutex.h>
+ #include <net/tcp.h>
+ #include <scsi/scsi.h>
+ #include <scsi/scsi_host.h>
+@@ -30,6 +29,7 @@
+ #include <scsi/scsi_transport.h>
+ #include "scsi_transport_iscsi.h"
+ #include "iscsi_if.h"
++#include "iscsi_compat.h"
+ 
+ #define ISCSI_SESSION_ATTRS 8
+ #define ISCSI_CONN_ATTRS 6
