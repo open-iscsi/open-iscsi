@@ -20,22 +20,47 @@ EXTRA_CFLAGS += -DNETLINK_ISCSI=12
 endif
 endif
 
+#TODO: learn how to program Makefiles!
 all:
 ifeq ($(KVER),11)
-	@if cat scsi_transport_iscsi.c | \
-	    grep transport_container_register > /dev/null; then  \
+	@if ! cat scsi_transport_iscsi.c | \
+	    grep iscsi_compat > /dev/null; then  \
 	    echo "kernel check... FAILED"; \
-	    echo "Please apply backward-compile-2.6.11.patch first!"; exit 1; fi
+	    echo "Apply the 2.6.11-compat.patch first!"; exit 1; fi
 	@echo "kernel check... OK"
 else
 ifeq ($(KVER),12)
-	@if cat scsi_transport_iscsi.c | \
-	    grep "__nlmsg_put.*, 0);" > /dev/null; then  \
+	@if ! cat scsi_transport_iscsi.c | \
+	    grep iscsi_compat > /dev/null; then  \
 	    echo "kernel check... FAILED"; \
-	    echo "Please apply backward-compile-2.6.12.patch first!"; exit 1; fi
+	    echo "Apply the 2.6.12-and-2.6.13-compat.patch first!"; exit 1; fi
+	@echo "kernel check... OK"
+else
+ifeq ($(KVER),13)
+	@if ! cat scsi_transport_iscsi.c | \
+	    grep iscsi_compat > /dev/null; then  \
+	    echo "kernel check... FAILED"; \
+	    echo "Apply the 2.6.12-and-2.6.13-compat.patch first!"; exit 1; fi
+	@echo "kernel check... OK"
+else
+ifeq ($(KVER),14)
+	@if ! cat scsi_transport_iscsi.c | \
+	    grep iscsi_compat > /dev/null; then  \
+	    echo "kernel check... FAILED"; \
+	    echo "Apply the 2.6.14-and-2.6.15-compat.patch first!"; exit 1; fi
+	@echo "kernel check... OK"
+else
+ifeq ($(KVER),15)
+	@if ! cat scsi_transport_iscsi.c | \
+	    grep iscsi_compat > /dev/null; then  \
+	    echo "kernel check... FAILED"; \
+	    echo "Apply the 2.6.14-and-2.6.15-compat.patch first!"; exit 1; fi
 	@echo "kernel check... OK"
 else
 	@echo "kernel check... OK"
+endif
+endif
+endif
 endif
 endif
 	make -C $(KSRC) SUBDIRS=`pwd` $(KARCH)
