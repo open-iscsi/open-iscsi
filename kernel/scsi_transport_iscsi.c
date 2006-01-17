@@ -638,8 +638,7 @@ iscsi_if_send_reply(int pid, int seq, int type, int done, int multi,
 }
 
 static int
-iscsi_if_get_stats(struct iscsi_transport *transport, struct sk_buff *skb,
-		   struct nlmsghdr *nlh)
+iscsi_if_get_stats(struct iscsi_transport *transport, struct nlmsghdr *nlh)
 {
 	struct iscsi_uevent *ev = NLMSG_DATA(nlh);
 	struct iscsi_stats *stats;
@@ -690,7 +689,7 @@ iscsi_if_get_stats(struct iscsi_transport *transport, struct sk_buff *skb,
 					  stats->custom_length);
 		actual_size -= sizeof(*nlhstat);
 		actual_size = NLMSG_LENGTH(actual_size);
-		skb_trim(skb, NLMSG_ALIGN(actual_size));
+		skb_trim(skbstat, NLMSG_ALIGN(actual_size));
 		nlhstat->nlmsg_len = actual_size;
 
 		err = iscsi_unicast_skb(conn->z_pdu, skbstat);
@@ -848,7 +847,7 @@ iscsi_if_recv_msg(struct sk_buff *skb, struct nlmsghdr *nlh)
 			ev->u.send_pdu.data_size);
 		break;
 	case ISCSI_UEVENT_GET_STATS:
-		err = iscsi_if_get_stats(transport, skb, nlh);
+		err = iscsi_if_get_stats(transport, nlh);
 		break;
 	default:
 		err = -EINVAL;
