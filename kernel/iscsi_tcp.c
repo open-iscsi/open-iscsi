@@ -3325,6 +3325,7 @@ immdata_alloc_fail:
 mgmtpool_alloc_fail:
 	iscsi_pool_free(&session->cmdpool, (void**)session->cmds);
 cmdpool_alloc_fail:
+	iscsi_transport_destroy_session(shost);
 	return NULL;
 }
 
