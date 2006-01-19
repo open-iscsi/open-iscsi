@@ -717,7 +717,8 @@ iscsi_if_create_session(struct iscsi_internal *priv, struct iscsi_uevent *ev)
 }
 
 static int
-iscsi_if_create_conn(struct iscsi_transport *transport, struct iscsi_uevent *ev){
+iscsi_if_create_conn(struct iscsi_transport *transport, struct iscsi_uevent *ev)
+{
 	struct iscsi_cls_conn *conn;
 	unsigned long flags;
 
