@@ -805,6 +805,9 @@ iscsi_if_recv_msg(struct sk_buff *skb, struct nlmsghdr *nlh)
 		return -EINVAL;
 	transport = priv->iscsi_transport;
 
+	if (!try_module_get(transport->owner))
+		return -EINVAL;
+
 	daemon_pid = NETLINK_CREDS(skb)->pid;
 
 	switch (nlh->nlmsg_type) {
@@ -855,6 +858,7 @@ iscsi_if_recv_msg(struct sk_buff *skb, struct nlmsghdr *nlh)
 		break;
 	}
 
+	module_put(transport->owner);
 	return err;
 }
 
