@@ -674,7 +674,7 @@ ktrans_list(void)
 		sprintf(filename, ISCSI_TRANSPORT_DIR"/%s/handle",
 			provider[i].name);
 		err = read_transport_file(filename, &provider[i].handle,
-					  "%lu");
+					  "%llu");
 		if (err)
 			break;
 
