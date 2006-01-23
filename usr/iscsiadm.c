@@ -212,18 +212,24 @@ str_to_ipport(char *str, int *port)
 static int
 str_to_ridsid(char *str, int *sid)
 {
-	char *ptr;
+	char *ptr, *eptr;
+	int rid;
 
 	if ((ptr = strchr(str, ':'))) {
 		*ptr = '\0';
 		ptr++;
-		*sid = strtoul(str, NULL, 10);
+		*sid = strtoul(str, &eptr, 10);
+		if (eptr == str)
+			*sid = -1;
 	} else {
 		*sid = -1;
 		ptr = str;
 	}
 
-	return strtoul(ptr, NULL, 16);
+	rid = strtoul(ptr, &eptr, 16);
+	if (eptr == ptr)
+		rid = -1;
+	return rid;
 }
 
 static int
@@ -371,10 +377,6 @@ config_init(void)
 	}
 
 	return 0;
-}
-
-static int compint(const void *i1, const void *i2) {
-	return *(int*)i1 >= *(int*)i2;
 }
 
 static int
@@ -618,6 +620,11 @@ main(int argc, char **argv)
 			break;
 		case 'r':
 			rid = str_to_ridsid(optarg, &sid);
+			if (rid < 0) {
+				log_error("invalid record '%s'",
+					  optarg);
+				return -1;
+			}
 			break;
 		case 'l':
 			do_login = 1;
@@ -882,14 +889,13 @@ main(int argc, char **argv)
 				rc = -1;
 				goto out;
 			}
-			printf("Active sessions:\n");
 			if ((rc = session_activelist(db)) < 0) {
 				log_error("can not get list of active "
 					"sessions (%d)", rc);
 				rc = -1;
 				goto out;
 			} else if (!rc) {
-				printf("\tno active sessions\n");
+				printf("no active sessions\n");
 			}
 		}
 	} else {
