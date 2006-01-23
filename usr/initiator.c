@@ -1513,6 +1513,9 @@ session_login_task(node_rec_t *rec, queue_task_t *qtask)
 	actor_timer(&conn->connect_timer, conn->login_timeout*1000,
 		    __connect_timedout, qtask);
 
+	qtask->u.login.rsp.command = MGMT_IPC_SESSION_LOGIN;
+	qtask->u.login.rsp.err = MGMT_IPC_OK;
+
 	return MGMT_IPC_OK;
 }
 
@@ -1537,6 +1540,7 @@ session_logout_task(iscsi_session_t *session, queue_task_t *qtask)
 		goto done;
 
 	qtask->u.login.rsp.err = MGMT_IPC_OK;
+	qtask->u.login.rsp.command = MGMT_IPC_SESSION_LOGOUT;
 	write(qtask->u.login.mgmt_ipc_fd, &qtask->u.login.rsp,
 		sizeof(qtask->u.login.rsp));
 	close(qtask->u.login.mgmt_ipc_fd);
