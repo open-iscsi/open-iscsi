@@ -424,9 +424,9 @@ iscsi_transport_create_session(struct scsi_transport_template *scsit,
 		goto remove_host;
 
 	*(unsigned long*)shost->hostdata = (unsigned long)session;
-	spin_lock_irqsave(sesslock, flags);
+	spin_lock_irqsave(&sesslock, flags);
 	list_add(&session->sess_list, &sesslist);
-	spin_unlock_irqrestore(sesslock, flags);
+	spin_unlock_irqrestore(&sesslock, flags);
 	return shost;
 
 remove_host:
@@ -452,9 +452,9 @@ int iscsi_transport_destroy_session(struct Scsi_Host *shost)
 
 	scsi_remove_host(shost);
 	session = hostdata_session(shost->hostdata);
-	spin_lock_irqsave(sesslock, flags);
+	spin_lock_irqsave(&sesslock, flags);
 	list_del(&session->sess_list);
-	spin_unlock_irqrestore(sesslock, flags);
+	spin_unlock_irqrestore(&sesslock, flags);
 	iscsi_destroy_session(session);
 	/* ref from host alloc */
 	scsi_host_put(shost);
