@@ -164,8 +164,42 @@ static struct mempool_zone *z_reply;
 #define Z_MAX_ERROR	16
 #define Z_HIWAT_ERROR	12
 
+static LIST_HEAD(sesslist);
+static DEFINE_SPINLOCK(sesslock);
 static LIST_HEAD(connlist);
 static DEFINE_SPINLOCK(connlock);
+
+static struct iscsi_cls_session *iscsi_session_lookup(uint64_t handle)
+{
+	unsigned long flags;
+	struct iscsi_cls_session *sess;
+
+	spin_lock_irqsave(&sesslock, flags);
+	list_for_each_entry(sess, &sesslist, sess_list) {
+		if (sess == iscsi_ptr(handle)) {
+			spin_unlock_irqrestore(&sesslock, flags);
+			return sess;
+		}
+	}
+	spin_unlock_irqrestore(&sesslock, flags);
+	return NULL;
+}
+
+static struct iscsi_cls_conn *iscsi_conn_lookup(uint64_t handle)
+{
+	unsigned long flags;
+	struct iscsi_cls_conn *conn;
+
+	spin_lock_irqsave(&connlock, flags);
+	list_for_each_entry(conn, &connlist, conn_list) {
+		if (conn == iscsi_ptr(handle)) {
+			spin_unlock_irqrestore(&connlock, flags);
+			return conn;
+		}
+	}
+	spin_unlock_irqrestore(&connlock, flags);
+	return NULL;
+}
 
 /*
  * The following functions can be used by LLDs that allocate
@@ -365,6 +399,7 @@ iscsi_transport_create_session(struct scsi_transport_template *scsit,
 {
 	struct iscsi_cls_session *session;
 	struct Scsi_Host *shost;
+	unsigned long flags;
 
 	shost = scsi_host_alloc(transport->host_template,
 				hostdata_privsize(transport));
@@ -389,6 +424,9 @@ iscsi_transport_create_session(struct scsi_transport_template *scsit,
 		goto remove_host;
 
 	*(unsigned long*)shost->hostdata = (unsigned long)session;
+	spin_lock_irqsave(sesslock, flags);
+	list_add(&session->sess_list, &sesslist);
+	spin_unlock_irqrestore(sesslock, flags);
 	return shost;
 
 remove_host:
@@ -410,9 +448,13 @@ EXPORT_SYMBOL_GPL(iscsi_transport_create_session);
 int iscsi_transport_destroy_session(struct Scsi_Host *shost)
 {
 	struct iscsi_cls_session *session;
+	unsigned long flags;
 
 	scsi_remove_host(shost);
 	session = hostdata_session(shost->hostdata);
+	spin_lock_irqsave(sesslock, flags);
+	list_del(&session->sess_list);
+	spin_unlock_irqrestore(sesslock, flags);
 	iscsi_destroy_session(session);
 	/* ref from host alloc */
 	scsi_host_put(shost);
@@ -651,7 +693,7 @@ iscsi_if_get_stats(struct iscsi_transport *transport, struct nlmsghdr *nlh)
 			      ISCSI_STATS_CUSTOM_MAX);
 	int err = 0;
 
-	conn = iscsi_ptr(ev->u.get_stats.conn_handle);
+	conn = iscsi_conn_lookup(ev->u.get_stats.conn_handle);
 	if (!conn)
 		return -EEXIST;
 
@@ -719,10 +761,14 @@ static int
 iscsi_if_create_conn(struct iscsi_transport *transport, struct iscsi_uevent *ev)
 {
 	struct iscsi_cls_conn *conn;
+	struct iscsi_cls_session *session;
 	unsigned long flags;
 
-	conn = transport->create_conn(iscsi_ptr(ev->u.c_conn.session_handle),
-				      ev->u.c_conn.cid);
+	session = iscsi_session_lookup(ev->u.c_conn.session_handle);
+	if (!session)
+		return -EINVAL;
+
+	conn = transport->create_conn(session, ev->u.c_conn.cid);
 	if (!conn)
 		return -ENOMEM;
 
@@ -770,7 +816,9 @@ iscsi_if_destroy_conn(struct iscsi_transport *transport, struct iscsi_uevent *ev
 	struct iscsi_cls_conn *conn;
 	struct mempool_zone *z_error, *z_pdu;
 
-	conn = iscsi_ptr(ev->u.d_conn.conn_handle);
+	conn = iscsi_conn_lookup(ev->u.d_conn.conn_handle);
+	if (!conn)
+		return -EINVAL;
 	spin_lock_irqsave(&connlock, flags);
 	conn->active = 0;
 	list_del(&conn->conn_list);
@@ -795,6 +843,8 @@ iscsi_if_recv_msg(struct sk_buff *skb, struct nlmsghdr *nlh)
 	struct iscsi_uevent *ev = NLMSG_DATA(nlh);
 	struct iscsi_transport *transport = NULL;
 	struct iscsi_internal *priv;
+	struct iscsi_cls_session *session;
+	struct iscsi_cls_conn *conn;
 
 	priv = iscsi_if_transport_lookup(iscsi_ptr(ev->transport_handle));
 	if (!priv)
@@ -809,7 +859,11 @@ iscsi_if_recv_msg(struct sk_buff *skb, struct nlmsghdr *nlh)
 		err = iscsi_if_create_session(priv, ev);
 		break;
 	case ISCSI_UEVENT_DESTROY_SESSION:
-		transport->destroy_session(iscsi_ptr(ev->u.d_session.session_handle));
+		session = iscsi_session_lookup(ev->u.d_session.session_handle);
+		if (session)
+			transport->destroy_session(session);
+		else
+			err = -EINVAL;
 		break;
 	case ISCSI_UEVENT_CREATE_CONN:
 		err = iscsi_if_create_conn(transport, ev);
@@ -818,31 +872,48 @@ iscsi_if_recv_msg(struct sk_buff *skb, struct nlmsghdr *nlh)
 		err = iscsi_if_destroy_conn(transport, ev);
 		break;
 	case ISCSI_UEVENT_BIND_CONN:
-		ev->r.retcode = transport->bind_conn(
-			iscsi_ptr(ev->u.b_conn.session_handle),
-			iscsi_ptr(ev->u.b_conn.conn_handle),
-			ev->u.b_conn.transport_fd,
-			ev->u.b_conn.is_leading);
+		session = iscsi_session_lookup(ev->u.b_conn.session_handle);
+		conn = iscsi_conn_lookup(ev->u.b_conn.conn_handle);
+
+		if (session && conn)
+			ev->r.retcode =	transport->bind_conn(session, conn,
+					ev->u.b_conn.transport_fd,
+					ev->u.b_conn.is_leading);
+		else
+			err = -EINVAL;
 		break;
 	case ISCSI_UEVENT_SET_PARAM:
-		ev->r.retcode = transport->set_param(
-			iscsi_ptr(ev->u.set_param.conn_handle),
-			ev->u.set_param.param, ev->u.set_param.value);
+		conn = iscsi_conn_lookup(ev->u.set_param.conn_handle);
+		if (conn)
+			ev->r.retcode =	transport->set_param(conn,
+				ev->u.set_param.param, ev->u.set_param.value);
+		else
+			err = -EINVAL;
 		break;
 	case ISCSI_UEVENT_START_CONN:
-		ev->r.retcode = transport->start_conn(
-				iscsi_ptr(ev->u.start_conn.conn_handle));
+		conn = iscsi_conn_lookup(ev->u.start_conn.conn_handle);
+		if (conn)
+			ev->r.retcode = transport->start_conn(conn);
+		else
+			err = -EINVAL;
+
 		break;
 	case ISCSI_UEVENT_STOP_CONN:
-		transport->stop_conn(iscsi_ptr(ev->u.stop_conn.conn_handle),
-				     ev->u.stop_conn.flag);
+		conn = iscsi_conn_lookup(ev->u.stop_conn.conn_handle);
+		if (conn)
+			transport->stop_conn(conn, ev->u.stop_conn.flag);
+		else
+			err = -EINVAL;
 		break;
 	case ISCSI_UEVENT_SEND_PDU:
-		ev->r.retcode = transport->send_pdu(
-			iscsi_ptr(ev->u.send_pdu.conn_handle),
-		       (struct iscsi_hdr*)((char*)ev + sizeof(*ev)),
-		       (char*)ev + sizeof(*ev) + ev->u.send_pdu.hdr_size,
-			ev->u.send_pdu.data_size);
+		conn = iscsi_conn_lookup(ev->u.send_pdu.conn_handle);
+		if (conn)
+			ev->r.retcode =	transport->send_pdu(conn,
+				(struct iscsi_hdr*)((char*)ev + sizeof(*ev)),
+				(char*)ev + sizeof(*ev) + ev->u.send_pdu.hdr_size,
+				ev->u.send_pdu.data_size);
+		else
+			err = -EINVAL;
 		break;
 	case ISCSI_UEVENT_GET_STATS:
 		err = iscsi_if_get_stats(transport, nlh);

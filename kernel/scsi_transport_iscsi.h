@@ -115,7 +115,7 @@ struct iscsi_cls_conn {
 	container_of(_dev, struct iscsi_cls_conn, dev)
 
 struct iscsi_cls_session {
-	struct list_head list;	/* item in session_list */
+	struct list_head sess_list;		/* item in session_list */
 	struct iscsi_transport *transport;
 	struct device dev;	/* sysfs transport/container device */
 };
