@@ -17,76 +17,105 @@
 PID_FILE=/var/run/iscsi.pid
 CONFIG_FILE=/etc/iscsid.conf
 DAEMON=/sbin/iscsid
-ADMIN=/sbin/iscsiadm
+ISCSIADM=/sbin/iscsiadm
 ARGS="-c $CONFIG_FILE -p $PID_FILE"
 
 # Source LSB init functions
 . /etc/rc.status
 
-. /etc/sysconfig/iscsi
+. /etc/sysconfig/open-iscsi
 
 # Reset status of this service
 rc_reset
 
 iscsi_discovery()
 {
-    $ADMIN -m discovery --type=$ISCSI_DISCOVERY --portal=$ISCSI_PORTAL > /dev/null
+    $ISCSIADM -m discovery --type=$ISCSI_DISCOVERY --portal=$ISCSI_PORTAL > /dev/null
 }
 
 iscsi_login_all_nodes()
 {
-    TARGETS=$($ADMIN -m node | sed 's@\[\(.*\)\] .*@\1@g')
+    TARGETS=$($ISCSIADM -m node | sed 's@\[\(.*\)\] .*@\1@g')
     for rec in $TARGETS; do
-	$ADMIN -m node --record $rec --login
+	STARTUP=`$ISCSIADM -m node -r $rec | grep "node.conn\[0\].startup" | cut -d' ' -f3`
+	NODE=`$ISCSIADM -m node -r $rec | grep "node.name" | cut -d' ' -f3`
+	if [ $STARTUP = "automatic" ] ; then
+	    echo -n "Logging into $NODE: "
+	    $ISCSIADM -m node -r $rec -l
+	    rc_status -v
+	fi
     done
 }
 
 iscsi_logout_all_nodes()
 {
-    TARGETS=$($ADMIN -m node | sed 's@\[\(.*\)\] .*@\1@g')
+    TARGETS=$($ISCSIADM -m session | sed 's@\[[^:]*:\(.*\)\] .*@\1@g')
     for rec in $TARGETS; do
-	$ADMIN -m node --record $rec --logout
+	NODE=`$ISCSIADM -m node -r $rec | grep "node.name" | cut -d' ' -f3`
+	echo -n "Logging out from $NODE: "
+	if $ISCSIADM -m node --record $rec --logout ; then
+	    rc_status -v
+	else
+	    RETVAL=$?
+	    rc_failed $RETVAL
+	fi
     done
+    return ${RETVAL:-0}
+}
+
+iscsi_list_all_nodes()
+{
+    TARGETS=$($ISCSIADM -m session | sed 's@\[[^:]*:\(.*\)\] .*@\1@g')
+    if [ "$TARGETS" != "no active sessions" ] ; then
+	echo "Active connections:"
+	for rec in $TARGETS; do
+	    NODE=$($ISCSIADM -m node -r $rec | grep "node.name" | cut -d' ' -f3)
+	    echo -e "\t$NODE"
+	done
+    fi
 }
 
 case "$1" in
     start)
 	[ ! -d /var/lib/iscsi ] && mkdir -p /var/lib/iscsi
 	echo -n "Starting iSCSI initiator service: "
-	if [ -z "$ISCSI_PORTAL" ]; then
-	    rc_failed 6
-	else
-	    modprobe scsi_transport_iscsi
-	    modprobe iscsi_tcp
-	    startproc $DAEMON $ARGS
-	    RETVAL=$?
-	    if [ "$RETVAL" == "0" ]; then
-		iscsi_discovery
-		iscsi_login_all_nodes
-	    fi
-	fi
+	modprobe scsi_transport_iscsi
+	modprobe iscsi_tcp
+	startproc $DAEMON $ARGS
+	RETVAL=$?
 	rc_status -v
+	if [ "$RETVAL" == "0" ]; then
+	    iscsi_login_all_nodes
+	fi
 	;;
     stop)
+	if iscsi_logout_all_nodes ; then
+	    sleep 1
+	    killproc -KILL $DAEMON
+	    RETVAL=$?
+	else
+	    RETVAL=1
+	fi
 	echo -n "Stopping iSCSI initiator service: "
-	iscsi_logout_all_nodes
-	sleep 1
-	killproc -TERM $DAEMON
-	RETVAL=$?
 	if [ "$RETVAL" == "0" ]; then
+	    rm -f $PID_FILE
 	    rmmod iscsi_tcp
 	    rmmod scsi_transport_iscsi
 	    rc_failed 0
 	else
 	    rc_failed 1
 	fi
-	rm -f $PID_FILE
 	rc_status -v
 	;;
     status)
 	echo -n "Checking for iSCSI initiator service: "
-	checkproc $DAEMON
-	rc_status -v
+	if checkproc $DAEMON ; then
+	    rc_status -v
+	    iscsi_list_all_nodes
+	else
+	    rc_failed 3
+	    rc_status -v
+	fi
 	;;
     restart)
 	$0 stop
