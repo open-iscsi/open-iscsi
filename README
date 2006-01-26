@@ -4,7 +4,7 @@
 
 =================================================================
 
-                                                February 28, 2005
+                                                January 20, 2005
 
 Contents
 ========
@@ -81,8 +81,20 @@ kernel config. You also need to enable "CRC32c CRC algorithm" if
 you use header or data digests. They are the kernel options,
 CONFIG_CRYPTO and CONFIG_CRYPTO_CRC32C, respectively.
 
-Compilation of the kernel Open-iSCSI modules requires a path
-to kernel sources:
+For kernels 2.6.11-2.6.15 there are compatibility patches that must be
+applied before compiling. Standing in the root of the open-iscsi source
+directory the following command must be done in order to apply the patch
+for your kernel:
+
+patch -p1 < kernel/2.6.11-compat.patch
+patch -p1 < kernel/2.6.12-compat.patch
+patch -p1 < kernel/2.6.13-compat.patch
+patch -p1 < kernel/2.6.14-and-2.6.15-compat.patch
+
+By default the kernel source found at
+/lib/modules/`uname -a`/build
+will be used to compile the open-iscsi modules. To specify a different
+kernel to build against use:
 
 	make KSRC=<kernel-src>
 
@@ -93,6 +105,12 @@ or cross-compilation:
 If you choose to install the Debian packages instead of building from source,
 please read the file /usr/share/doc/linux-iscsi/README.debian for information
 on how to build kernel modules against your specific kernel.
+
+For RedHat/Fedora and Debian distributions open-iscsi can be installed by
+typing "make install". This will copy iscsid and iscsiadm to /usr/sbin, the
+init script to /etc/init.d, and the kernel modules: iscsi_tcp.ko and
+scsi_transport_iscsi to /lib/modules/`uname -r`/kernel/drivers/scsi/
+overwriting existing iscsi modules.
 
 4. Open-iSCSI daemon
 ====================
@@ -181,40 +199,40 @@ Usage: iscsiadm [OPTION]
   -h, --help              display this help and exit
 
 
-    Usage examples:
+    Usage examples (using the one-letter options):
 
     1) SendTargets iSCSI Discovery:
 
-	    ./iscsiadm -m discovery --type sendtargets --portal 192.168.1.1:3260
+	    ./iscsiadm -m discovery -t sendtargets -p 192.168.1.1:3260
 
     2) iSCSI Login:
 
-	    ./iscsiadm -m node --record 0f23e4 --login
+	    ./iscsiadm -m node -r 0f23e4 -l
 
     3) iSCSI Logout:
 
-	    ./iscsiadm -m node --record 0f23e4 --logout
+	    ./iscsiadm -m node -r 0f23e4 -u
 
     4) Changing iSCSI parameter:
 
-	    ./iscsiadm -m node --record 0f23e4 --op update \
+	    ./iscsiadm -m node -r 0f23e4 -o update \
 		    -n node.cnx[0].iscsi.MaxRecvDataSegmentLength -v 65536
 
     5) Adding custom iSCSI Node:
 
-	    ./iscsiadm -m node --op new --portal 192.168.0.1:3260
+	    ./iscsiadm -m node -o new -p 192.168.0.1:3260
 
     6) Removing iSCSI Node:
 
-	    ./iscsiadm -m node --op delete --record 0a45f8
+	    ./iscsiadm -m node -o delete -r 0a45f8
 
     7) Display iSCSI Node configuration:
 
-	    ./iscsiadm -m node --record 0a45f8
+	    ./iscsiadm -m node -r 0a45f8
 
 	or
 
-	    ./iscsiadm -m node --op show --record 0a45f8
+	    ./iscsiadm -m node -o show -r 0a45f8
 
     8) Show all node records:
 
@@ -226,11 +244,11 @@ Usage: iscsiadm [OPTION]
 
    10) Display discovery record setting:
 
-            ./iscsiadm -m discovery --record 0a45f8
+            ./iscsiadm -m discovery -r 0a45f8
 
    11) Display session statistics:
 
-            ./iscsiadm -m session --record 00:0a45f8 --stats
+            ./iscsiadm -m session -r 00:0a45f8 --stats
 
 6. Configuration
 ================
@@ -242,17 +260,28 @@ exist in which case compiled-in default configuration will take place
 for newer discovered Target nodes.
 
 See the man page and the example file for the current syntax.
-(no man page yet...)
-
+The manpages for iscsid, iscsiadm are in the doc subdirectory and can be
+installed in the appropriate man page directories and need to be manually
+copied into e.g. /usr/local/share/man8.
 
 7. Getting Started
 ==================
 
-Right now there is no installation script. Just load the module with
-command:
+To start open-iscsi for RedHat/Fedora you can do a
 
-	insmod iscsi_if.ko
-	insmod iscsi_tcp.ko
+	service open-iscsi start
+
+Otherwise, if there is a initd script for your distro in etc/initd that
+gets installed with "make install"
+
+	/etc/init.d/open-iscsi start
+
+will usually get you started.
+
+If there is no initd script, you must start the tools by hand. First load the
+iscsi modules with:
+
+	modprobe -q iscsi_tcp
 
 after that start iSCSI daemon process:
 
@@ -264,14 +293,15 @@ redirected to the current console:
 	./iscsid -d8 -f &
 
 and use configuration utility to add/remove/update Discovery records,
-iSCSI Node records or monitor active iSCSI sessions:
+iSCSI Node records or monitor active iSCSI sessions (see above or the
+iscsiadm man files).
 
 	./iscsiadm
 
 
 To login:
 
-	    ./iscsiadm -m node --record <node rec> --login
+	./iscsiadm -m node -r <node rec> -l
 
 where <node rec> is the record of a discovered or manually
 added iSCSI Target Node (for iscsiadm usage examples see
