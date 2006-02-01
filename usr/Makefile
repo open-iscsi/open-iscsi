@@ -1,15 +1,20 @@
 # This Makefile will work only with GNU make.
 
 OSNAME=$(shell uname -s)
-KSRC=/lib/modules/`uname -r`/build
-KVER=$(shell cat $(KSRC)/Makefile | awk -F= '/^SUBLEVEL =/ {print $$2}' | \
+
+# allow users to override these
+# eg to compile for a kernel that you aren't currently running
+KERNELRELEASE ?= $(shell uname -r)
+KSRC ?= /lib/modules/$(KERNELRELEASE)/build
+
+KSUBLEVEL=$(shell cat $(KSRC)/Makefile | awk -F= '/^SUBLEVEL =/ {print $$2}' | \
 			sed 's/^[ \t]*//;s/[ \t]*$$//')
 
 ifeq ($(OSNAME),Linux)
-	ifeq ($(KVER),11)
+	ifeq ($(KSUBLEVEL),11)
 		IPC_CFLAGS=-DNETLINK_ISCSI=12
 	else
-	ifeq ($(KVER),12)
+	ifeq ($(KSUBLEVEL),12)
 		IPC_CFLAGS=-DNETLINK_ISCSI=12
 	else
 		IPC_CFLAGS=-DNETLINK_ISCSI=8
@@ -25,8 +30,9 @@ DBM_LIB=
 endif
 endif
 
-CFLAGS += -O2 -fno-inline -Wall -Wstrict-prototypes -g -I../include \
-	  -D$(OSNAME) $(IPC_CFLAGS)
+OPTFLAGS ?= -O2 -fno-inline -g
+WARNFLAGS ?= -Wall -Wstrict-prototypes
+CFLAGS += $(OPTFLAGS) $(WARNFLAGS) -I../include -D$(OSNAME) $(IPC_CFLAGS)
 PROGRAMS = iscsid iscsiadm
 
 # sources shared between iscsid and iscsiadm
