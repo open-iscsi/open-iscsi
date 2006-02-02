@@ -3266,7 +3266,7 @@ iscsi_session_create(struct scsi_transport_template *scsit,
 
 	session = iscsi_hostdata(shost->hostdata);
 	memset(session, 0, sizeof(struct iscsi_session));
-	session->host =  shost;
+	session->host = shost;
 	session->state = ISCSI_STATE_FREE;
 	session->mgmtpool_max = ISCSI_MGMT_CMDS_MAX;
 	session->cmds_max = ISCSI_XMIT_CMDS_MAX;
