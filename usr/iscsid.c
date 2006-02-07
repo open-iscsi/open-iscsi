@@ -35,6 +35,7 @@
 #include "mgmt_ipc.h"
 #include "iscsi_ipc.h"
 #include "log.h"
+#include "util.h"
 
 #define POLL_CTRL		0
 #define POLL_IPC		1
@@ -285,11 +286,7 @@ int main(int argc, char *argv[])
 		sprintf(buf, "%d\n", getpid());
 		write(fd, buf, strlen(buf));
 
-		close(0);
-		open("/dev/null", O_RDWR);
-		dup2(0, 1);
-		dup2(0, 2);
-		setsid();
+		daemon_init();
 	} else {
 		if ((control_fd = ipc->ctldev_open()) < 0) {
 			exit(-1);

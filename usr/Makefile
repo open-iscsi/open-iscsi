@@ -36,7 +36,7 @@ CFLAGS += $(OPTFLAGS) $(WARNFLAGS) -I../include -D$(OSNAME) $(IPC_CFLAGS)
 PROGRAMS = iscsid iscsiadm
 
 # sources shared between iscsid and iscsiadm
-COMMON_SRCS = io.o auth.o login.o log.o md5.o sha1.o idbm.o
+COMMON_SRCS = util.o io.o auth.o login.o log.o md5.o sha1.o idbm.o
 
 all: $(PROGRAMS)
 

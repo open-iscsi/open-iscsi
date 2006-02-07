@@ -16,6 +16,7 @@
 #include <sys/ipc.h>
 #include <sys/types.h>
 
+#include "util.h"
 #include "log.h"
 
 #define SEMKEY	0xA7L
@@ -379,6 +380,8 @@ int log_init(char *program_name, int size)
 			       "iSCSI logger with pid=%d started!", pid);
 			return 0;
 		}
+
+		daemon_init();
 
 		/* flush on daemon's crash */
 		sa_new.sa_handler = (void*)log_flush;
