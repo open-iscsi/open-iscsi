@@ -131,6 +131,7 @@ static void
 __session_delete_luns(iscsi_session_t *session)
 {
 	int lu = 0;
+	int hostno = session->hostno;
 
 	do {
 		pid_t pid;
@@ -138,7 +139,7 @@ __session_delete_luns(iscsi_session_t *session)
 
 		sprintf(sysfs_file, "/sys/class/scsi_host/host%d/"
 			"device/target%d:0:0/%d:0:0:%d/delete",
-			session->id, session->id, session->id, lu);
+			hostno, hostno, hostno, lu);
 		fd = open(sysfs_file, O_WRONLY);
 		if (fd < 0)
 			continue;
@@ -171,15 +172,16 @@ __session_scan_host(iscsi_session_t *session)
 	pid_t pid;
 	int fd;
 
-	sprintf(sysfs_file, "/sys/class/scsi_host/host%d/scan", session->id);
+	sprintf(sysfs_file, "/sys/class/scsi_host/host%d/scan",
+		session->hostno);
 	fd = open(sysfs_file, O_WRONLY);
 	if (fd < 0) {
-		log_error("could not scan scsi host%d\n", session->id);
+		log_error("could not scan scsi host%d\n", session->hostno);
 		return;
 	}
 	if (!(pid = fork())) {
 		/* child */
-		log_debug(4, "scanning host%d using %s",session->id,
+		log_debug(4, "scanning host%d using %s",session->hostno,
 			  sysfs_file);
 		write(fd, "- - -", 5);
 		close(fd);
@@ -191,7 +193,7 @@ __session_scan_host(iscsi_session_t *session)
 			sleep(1);
 		if (!rc)
 			log_debug(4, "could not finish scan scsi host%d "
-				  "after delay\n", session->id);
+				  "after delay\n", session->hostno);
 	}
 	close(fd);
 }
@@ -557,15 +559,14 @@ __session_conn_cleanup(iscsi_conn_t *conn)
 
 	__conn_noop_out_delete(conn);
 
-	if (ipc->destroy_conn(session->transport_handle, conn->handle,
+	if (ipc->destroy_conn(session->transport_handle, session->id,
 		conn->id)) {
 		log_error("can not safely destroy connection %d", conn->id);
 		return MGMT_IPC_ERR_INTERNAL;
 	}
 	session_conn_destroy(session, conn->id);
 
-	if (ipc->destroy_session(session->transport_handle, session->handle,
-			session->id)) {
+	if (ipc->destroy_session(session->transport_handle, session->id)) {
 		log_error("can not safely destroy session %d", session->id);
 		return MGMT_IPC_ERR_INTERNAL;
 	}
@@ -633,15 +634,14 @@ __session_free(iscsi_session_t *session)
 
 	/* stop if connection is logged in */
 	if (conn->state == STATE_LOGGED_IN) {
-		if (ipc->stop_conn(session->transport_handle, conn->handle,
-				      STOP_CONN_TERM)) {
-			log_error("can't stop connection 0x%p with "
-				  "id = %d (%d)", iscsi_ptr(conn->handle),
-				  conn->id, errno);
+		if (ipc->stop_conn(session->transport_handle, session->id,
+				   conn->id, STOP_CONN_TERM)) {
+			log_error("can't stop connection %d:%d (%d)",
+				  session->id, conn->id, errno);
 			return MGMT_IPC_ERR_INTERNAL;
 		}
-		log_debug(3, "connection 0x%p is stopped for termination",
-			iscsi_ptr(conn->handle));
+		log_debug(3, "connection %d:%d is stopped for termination",
+			  session->id, conn->id);
 	}
 
 	iscsi_io_disconnect(conn);
@@ -900,13 +900,14 @@ __session_conn_recv_pdu(queue_item_t *item)
 					continue;
 				if (ipc->set_param(
 					session->transport_handle,
-					conn->handle, conntbl[i].param,
+					session->id, conn->id,
+					conntbl[i].param,
 					*conntbl[i].value, &rc) || rc) {
 					log_error("can't set operational "
-						"parameter %d for conn with "
-						"id = %d, retcode %d (%d)",
-						conntbl[i].param, conn->id,
-						rc, errno);
+						"parameter %d for connection "
+						"%d:%d, retcode %d (%d)",
+						conntbl[i].param, session->id,
+						conn->id, rc, errno);
 					__session_mgmt_ipc_login_cleanup(
 						c->qtask,
 						MGMT_IPC_ERR_LOGIN_FAILURE, 1);
@@ -918,13 +919,13 @@ __session_conn_recv_pdu(queue_item_t *item)
 			}
 
 			if (ipc->start_conn(session->transport_handle,
-				conn->handle, &rc) || rc) {
+				session->id, conn->id, &rc) || rc) {
 				__session_mgmt_ipc_login_cleanup(c->qtask,
 						MGMT_IPC_ERR_INTERNAL, 1);
-				log_error("can't start connection 0x%p with "
-					"id = %d, retcode %d (%d)",
-					iscsi_ptr(conn->handle), conn->id, rc,
-					errno);
+				log_error("can't start connection %d:%d "
+					  "retcode %d (%d)",
+					  session->id, conn->id, 
+					  rc, errno);
 				return;
 			}
 
@@ -1054,15 +1055,14 @@ __session_conn_poll(queue_item_t *item)
 				    ipc->create_session(
 					session->transport_handle,
 					session->nrec.session.initial_cmdsn,
-					&session->handle, &session->id)) {
+					&session->id, &session->hostno)) {
 					log_error("can't create session (%d)",
 						errno);
 					err = MGMT_IPC_ERR_INTERNAL;
 					goto cleanup;
 				}
-				log_debug(3, "created new iSCSI session, "
-					"handle 0x%p",
-					iscsi_ptr(session->handle));
+				log_debug(3, "created new iSCSI session %d",
+					  session->id);
 
 				/* unique identifier for OUI */
 				if (__session_node_established(
@@ -1074,28 +1074,29 @@ __session_conn_poll(queue_item_t *item)
 				}
 
 				if (ipc->create_conn(session->transport_handle,
-					session->handle, session->id, conn->id,
-					&conn->handle)) {
+					session->id, conn->id, &conn->id)) {
+					log_error("can't create connection (%d)",
+						  errno);
 					err = MGMT_IPC_ERR_INTERNAL;
 					goto s_cleanup;
 				}
-				log_debug(3, "created new iSCSI connection, "
-					"handle 0x%p", iscsi_ptr(conn->handle));
+				log_debug(3, "created new iSCSI connection "
+					  "%d:%d", session->id, conn->id);
 			}
 
 			if (ipc->bind_conn(session->transport_handle,
-				session->handle, conn->handle, conn->socket_fd,
+				session->id, conn->id, conn->socket_fd,
 				(conn->id == 0), &rc) || rc) {
-				log_error("can't bind a conn with id = %d, "
-					  "retcode %d (%d)", conn->id, rc,
-					  errno);
+				log_error("can't bind conn %d:%d to "
+					  "session %d, retcode %d (%d)",
+					  session->id, conn->id, 
+					  session->id, rc, errno);
 				err = MGMT_IPC_ERR_INTERNAL;
 				goto c_cleanup;
 			}
-			log_debug(3, "bound iSCSI connection (handle 0x%p) to "
-				  "session (handle 0x%p)",
-				  iscsi_ptr(conn->handle),
-				  iscsi_ptr(session->handle));
+			log_debug(3, "bound iSCSI connection %d:%d to "
+				  "session %d", 
+				  session->id, conn->id, session->id);
 
 			conn->kernel_io = 1;
 			conn->send_pdu_begin = ipc->send_pdu_begin;
@@ -1132,13 +1133,13 @@ __session_conn_poll(queue_item_t *item)
 	return;
 
 c_cleanup:
-	if (ipc->destroy_conn(session->transport_handle, conn->handle,
+	if (ipc->destroy_conn(session->transport_handle, session->id,
                 conn->id)) {
-		log_error("can not safely destroy connection %d", conn->id);
+		log_error("can not safely destroy connection %d:%d",
+			  session->id, conn->id);
 	}
 s_cleanup:
-	if (ipc->destroy_session(session->transport_handle, session->handle,
-                        session->id)) {
+	if (ipc->destroy_session(session->transport_handle, session->id)) {
 		log_error("can not safely destroy session %d", session->id);
 	}
 cleanup:
@@ -1174,15 +1175,14 @@ __session_conn_reopen(iscsi_conn_t *conn, int do_stop)
 
 	if (do_stop) {
 		/* state: STATE_CLEANUP_WAIT */
-		if (ipc->stop_conn(session->transport_handle, conn->handle,
-				      STOP_CONN_RECOVER)) {
-			log_error("can't stop connection 0x%p with "
-				  "id = %d (%d)", iscsi_ptr(conn->handle),
-				  conn->id, errno);
+		if (ipc->stop_conn(session->transport_handle, session->id,
+				   conn->id, STOP_CONN_RECOVER)) {
+			log_error("can't stop connection %d:%d (%d)",
+				  session->id, conn->id, errno);
 			return -1;
 		}
-		log_debug(3, "connection 0x%p is stopped for recovery",
-			iscsi_ptr(conn->handle));
+		log_debug(3, "connection %d:%d is stopped for recovery",
+			  session->id, conn->id);
 		iscsi_io_disconnect(conn);
 		__session_conn_queue_flush(conn);
 	}
@@ -1243,12 +1243,13 @@ __session_conn_timer(queue_item_t *item)
 			log_debug(6, "conn_timer popped at IN_LOGIN");
 			/* send pdu timeout. clean connection. write rsp */
 			if (ipc->destroy_conn(session->transport_handle,
-				conn->handle, conn->id)) {
+				session->id, conn->id)) {
 				log_error("can not safely destroy "
-					  "connection %d", conn->id);
+					  "connection %d:%d", 
+					  session->id, conn->id);
 			}
 			if (ipc->destroy_session(session->transport_handle,
-					session->handle, session->id)) {
+					session->id)) {
 				log_error("can not safely destroy session %d",
 					  session->id);
 			}
@@ -1326,15 +1327,14 @@ __conn_error_handle(iscsi_session_t *session, iscsi_conn_t *conn)
 			__session_conn_cleanup(conn);
 		return;
 	} else {
-		if (ipc->stop_conn(session->transport_handle, conn->handle,
-				      STOP_CONN_TERM)) {
-			log_error("can't stop connection 0x%p with "
-				  "id = %d (%d)", iscsi_ptr(conn->handle),
-				  conn->id, errno);
+		if (ipc->stop_conn(session->transport_handle, session->id,
+				   conn->id, STOP_CONN_TERM)) {
+			log_error("can't stop connection %d:%d (%d)",
+				  session->id, conn->id, errno);
 			return;
 		}
-		log_debug(3, "connection 0x%p is stopped for termination",
-			iscsi_ptr(conn->handle));
+		log_debug(3, "connection %d:%d is stopped for termination",
+			  session->id, conn->id);
 		iscsi_io_disconnect(conn);
 		__session_conn_queue_flush(conn);
 	}
@@ -1350,8 +1350,9 @@ __session_conn_error(queue_item_t *item)
 	iscsi_conn_t *conn = item->context;
 	iscsi_session_t *session = conn->session;
 
-	log_warning("detected iSCSI connection (handle %p) error (%d) "
-		"state (%d)", iscsi_ptr(conn->handle), error, conn->state);
+	log_warning("detected iSCSI connection %d:%d error (%d) "
+		    "state (%d)", session->id, conn->id, error, 
+		    conn->state);
 	__conn_error_handle(session, conn);
 
 }

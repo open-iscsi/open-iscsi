@@ -301,7 +301,7 @@ __kipc_call(void *iov_base, int iov_len)
 
 static int
 kcreate_session(uint64_t transport_handle, uint32_t initial_cmdsn,
-		uint64_t *out_handle, uint32_t *out_sid)
+		uint32_t *out_sid, uint32_t *out_hostno)
 {
 	int rc;
 	struct iscsi_uevent ev;
@@ -317,17 +317,15 @@ kcreate_session(uint64_t transport_handle, uint32_t initial_cmdsn,
 	if ((rc = __kipc_call(&ev, sizeof(ev))) < 0) {
 		return rc;
 	}
-	if (!ev.r.c_session_ret.session_handle || ev.r.c_session_ret.sid < 0)
-		return -EIO;
 
-	*out_handle = ev.r.c_session_ret.session_handle;
+	*out_hostno = ev.r.c_session_ret.host_no;
 	*out_sid = ev.r.c_session_ret.sid;
 
 	return 0;
 }
 
 static int
-kdestroy_session(uint64_t transport_handle, uint64_t sessionh, uint32_t sid)
+kdestroy_session(uint64_t transport_handle, uint32_t sid)
 {
 	int rc;
 	struct iscsi_uevent ev;
@@ -338,7 +336,6 @@ kdestroy_session(uint64_t transport_handle, uint64_t sessionh, uint32_t sid)
 
 	ev.type = ISCSI_UEVENT_DESTROY_SESSION;
 	ev.transport_handle = transport_handle;
-	ev.u.d_session.session_handle = sessionh;
 	ev.u.d_session.sid = sid;
 
 	if ((rc = __kipc_call(&ev, sizeof(ev))) < 0) {
@@ -349,8 +346,8 @@ kdestroy_session(uint64_t transport_handle, uint64_t sessionh, uint32_t sid)
 }
 
 static int
-kcreate_conn(uint64_t transport_handle, uint64_t sessionh, uint32_t sid,
-	    uint32_t cid, uint64_t *out_handle)
+kcreate_conn(uint64_t transport_handle, uint32_t sid,
+	    uint32_t cid, uint32_t *out_cid)
 {
 	int rc;
 	struct iscsi_uevent ev;
@@ -361,22 +358,23 @@ kcreate_conn(uint64_t transport_handle, uint64_t sessionh, uint32_t sid,
 
 	ev.type = ISCSI_UEVENT_CREATE_CONN;
 	ev.transport_handle = transport_handle;
-	ev.u.c_conn.session_handle = sessionh;
 	ev.u.c_conn.cid = cid;
 	ev.u.c_conn.sid = sid;
 
 	if ((rc = __kipc_call(&ev, sizeof(ev))) < 0) {
+		log_debug(7, "returned %d", rc);
 		return rc;
 	}
-	if (!ev.r.handle)
+
+	if ((int)ev.r.c_conn_ret.cid == -1)
 		return -EIO;
 
-	*out_handle = ev.r.handle;
+	*out_cid = ev.r.c_conn_ret.cid;
 	return 0;
 }
 
 static int
-kdestroy_conn(uint64_t transport_handle, uint64_t connh, int cid)
+kdestroy_conn(uint64_t transport_handle, uint32_t sid, uint32_t cid)
 {
 	int rc;
 	struct iscsi_uevent ev;
@@ -387,7 +385,7 @@ kdestroy_conn(uint64_t transport_handle, uint64_t connh, int cid)
 
 	ev.type = ISCSI_UEVENT_DESTROY_CONN;
 	ev.transport_handle = transport_handle;
-	ev.u.d_conn.conn_handle = connh;
+	ev.u.d_conn.sid = sid;
 	ev.u.d_conn.cid = cid;
 
 	if ((rc = __kipc_call(&ev, sizeof(ev))) < 0) {
@@ -398,7 +396,7 @@ kdestroy_conn(uint64_t transport_handle, uint64_t connh, int cid)
 }
 
 static int
-kbind_conn(uint64_t transport_handle, uint64_t sessionh, uint64_t connh,
+kbind_conn(uint64_t transport_handle, uint32_t sid, uint32_t cid,
 	  uint32_t transport_fd, int is_leading, int *retcode)
 {
 	int rc;
@@ -410,8 +408,8 @@ kbind_conn(uint64_t transport_handle, uint64_t sessionh, uint64_t connh,
 
 	ev.type = ISCSI_UEVENT_BIND_CONN;
 	ev.transport_handle = transport_handle;
-	ev.u.b_conn.session_handle = sessionh;
-	ev.u.b_conn.conn_handle = connh;
+	ev.u.b_conn.sid = sid;
+	ev.u.b_conn.cid = cid;
 	ev.u.b_conn.transport_fd = transport_fd;
 	ev.u.b_conn.is_leading = is_leading;
 
@@ -425,7 +423,7 @@ kbind_conn(uint64_t transport_handle, uint64_t sessionh, uint64_t connh,
 }
 
 static void
-ksend_pdu_begin(uint64_t transport_handle, uint64_t connh,
+ksend_pdu_begin(uint64_t transport_handle, uint32_t sid, uint32_t cid,
 			int hdr_size, int data_size)
 {
 	struct iscsi_uevent *ev;
@@ -444,7 +442,8 @@ ksend_pdu_begin(uint64_t transport_handle, uint64_t connh,
 	memset(ev, 0, sizeof(*ev));
 	ev->type = ISCSI_UEVENT_SEND_PDU;
 	ev->transport_handle = transport_handle;
-	ev->u.send_pdu.conn_handle = connh;
+	ev->u.send_pdu.sid = sid;
+	ev->u.send_pdu.cid = cid;
 	ev->u.send_pdu.hdr_size = hdr_size;
 	ev->u.send_pdu.data_size = data_size;
 
@@ -453,7 +452,8 @@ ksend_pdu_begin(uint64_t transport_handle, uint64_t connh,
 }
 
 static int
-ksend_pdu_end(uint64_t transport_handle, uint64_t connh, int *retcode)
+ksend_pdu_end(uint64_t transport_handle, uint32_t sid, uint32_t cid,
+	      int *retcode)
 {
 	int rc;
 	struct iscsi_uevent *ev;
@@ -466,7 +466,7 @@ ksend_pdu_end(uint64_t transport_handle, uint64_t connh, int *retcode)
 		exit(-EIO);
 	}
 	ev = xmitbuf;
-	if (ev->u.send_pdu.conn_handle != connh) {
+	if (ev->u.send_pdu.sid != sid || ev->u.send_pdu.cid != cid) {
 		log_error("send's end state machine corruption?");
 		exit(-EIO);
 	}
@@ -485,7 +485,8 @@ ksend_pdu_end(uint64_t transport_handle, uint64_t connh, int *retcode)
 		exit(-EIO);
 	}
 
-	log_debug(3, "send PDU finished for conn (handle %p)", iscsi_ptr(connh));
+	log_debug(3, "send PDU finished for conn %d:%d", 
+		  sid, cid);
 
 	xmitbuf = NULL;
 	return 0;
@@ -497,7 +498,7 @@ err:
 }
 
 static int
-kset_param(uint64_t transport_handle, uint64_t connh,
+kset_param(uint64_t transport_handle, uint32_t sid, uint32_t cid,
 	       enum iscsi_param param, uint32_t value, int *retcode)
 {
 	int rc;
@@ -509,7 +510,8 @@ kset_param(uint64_t transport_handle, uint64_t connh,
 
 	ev.type = ISCSI_UEVENT_SET_PARAM;
 	ev.transport_handle = transport_handle;
-	ev.u.set_param.conn_handle = connh;
+	ev.u.set_param.sid = sid;
+	ev.u.set_param.cid = cid;
 	ev.u.set_param.param = param;
 	ev.u.set_param.value = value;
 
@@ -523,7 +525,7 @@ kset_param(uint64_t transport_handle, uint64_t connh,
 }
 
 static int
-kstop_conn(uint64_t transport_handle, uint64_t connh, int flag)
+kstop_conn(uint64_t transport_handle, uint32_t sid, uint32_t cid, int flag)
 {
 	int rc;
 	struct iscsi_uevent ev;
@@ -534,7 +536,8 @@ kstop_conn(uint64_t transport_handle, uint64_t connh, int flag)
 
 	ev.type = ISCSI_UEVENT_STOP_CONN;
 	ev.transport_handle = transport_handle;
-	ev.u.stop_conn.conn_handle = connh;
+	ev.u.stop_conn.sid = sid;
+	ev.u.stop_conn.cid = cid;
 	ev.u.stop_conn.flag = flag;
 
 	if ((rc = __kipc_call(&ev, sizeof(ev))) < 0) {
@@ -545,7 +548,8 @@ kstop_conn(uint64_t transport_handle, uint64_t connh, int flag)
 }
 
 static int
-kstart_conn(uint64_t transport_handle, uint64_t connh, int *retcode)
+kstart_conn(uint64_t transport_handle, uint32_t sid, uint32_t cid,
+	    int *retcode)
 {
 	int rc;
 	struct iscsi_uevent ev;
@@ -556,7 +560,8 @@ kstart_conn(uint64_t transport_handle, uint64_t connh, int *retcode)
 
 	ev.type = ISCSI_UEVENT_START_CONN;
 	ev.transport_handle = transport_handle;
-	ev.u.start_conn.conn_handle = connh;
+	ev.u.start_conn.sid = sid;
+	ev.u.start_conn.cid = cid;
 
 	if ((rc = __kipc_call(&ev, sizeof(ev))) < 0) {
 		return rc;
@@ -567,8 +572,8 @@ kstart_conn(uint64_t transport_handle, uint64_t connh, int *retcode)
 }
 
 static int
-krecv_pdu_begin(uint64_t transport_handle, uint64_t connh,
-		uintptr_t recv_handle, uintptr_t *pdu_handle, int *pdu_size)
+krecv_pdu_begin(uint64_t transport_handle, uintptr_t recv_handle,
+		uintptr_t *pdu_handle, int *pdu_size)
 {
 	log_debug(7, "in %s", __FUNCTION__);
 
@@ -694,8 +699,8 @@ ktrans_list(void)
 }
 
 static int
-kget_stats(uint64_t transport_handle, uint64_t connh, char *statsbuf,
-	int statsbuf_max)
+kget_stats(uint64_t transport_handle, uint32_t sid, uint32_t cid,
+	   char *statsbuf, int statsbuf_max)
 {
 	int rc;
 	int ev_size;
@@ -709,7 +714,8 @@ kget_stats(uint64_t transport_handle, uint64_t connh, char *statsbuf,
 
 	ev.type = ISCSI_UEVENT_GET_STATS;
 	ev.transport_handle = transport_handle;
-	ev.u.get_stats.conn_handle = connh;
+	ev.u.get_stats.sid = sid;
+	ev.u.get_stats.cid = cid;
 
 	if ((rc = __kipc_call(&ev, sizeof(ev))) < 0) {
 		return rc;
@@ -771,16 +777,14 @@ ctldev_handle(void)
 			session = (iscsi_session_t *)item;
 			for (i=0; i<ISCSI_CONN_MAX; i++) {
 				if (ev->type == ISCSI_KEVENT_RECV_PDU &&
-				    ev->r.recv_req.conn_handle &&
-				    session->conn[i].handle ==
-						ev->r.recv_req.conn_handle) {
+				    session->id == ev->r.recv_req.sid &&
+				    session->conn[i].id == ev->r.recv_req.cid) {
 					conn = &session->conn[i];
 					break;
 				}
 				if (ev->type == ISCSI_KEVENT_CONN_ERROR &&
-				    ev->r.connerror.conn_handle &&
-				    session->conn[i].handle ==
-						ev->r.connerror.conn_handle) {
+				    session->id == ev->r.connerror.sid &&
+				    session->conn[i].id == ev->r.connerror.cid) {
 					conn = &session->conn[i];
 					break;
 				}
@@ -789,7 +793,8 @@ ctldev_handle(void)
 		}
 	}
 	if (conn == NULL) {
-		log_error("could not verify connection 0x%p ", conn);
+		log_error("could not verify connection %d:%d", 
+			  ev->r.recv_req.sid, ev->r.recv_req.cid);
 		return -ENXIO;
 	}
 

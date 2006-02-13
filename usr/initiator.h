@@ -123,13 +123,13 @@ typedef struct iscsi_login_context {
 struct iscsi_session;
 struct iscsi_conn;
 
-typedef void (*send_pdu_begin_f) (uint64_t transport_handle, uint64_t connh,
-                                int hdr_size, int data_size);
-typedef int (*send_pdu_end_f) (uint64_t transport_handle, uint64_t connh,
-                             int *retcode);
-typedef int (*recv_pdu_begin_f) (uint64_t transport_handle, uint64_t connh,
-                                uintptr_t recv_handle, uintptr_t *pdu_handle,
-                                int *pdu_size);
+typedef void (*send_pdu_begin_f) (uint64_t transport_handle, uint32_t sid,
+                                  uint32_t cid, int hdr_size, int data_size);
+typedef int (*send_pdu_end_f) (uint64_t transport_handle, uint32_t sid,
+			       uint32_t cid, int *retcode);
+typedef int (*recv_pdu_begin_f) (uint64_t transport_handle, 
+				 uintptr_t recv_handle, uintptr_t *pdu_handle,
+				 int *pdu_size);
 typedef int (*recv_pdu_end_f) (uint64_t transport_handle, uintptr_t conn_handle,
                              uintptr_t pdu_handle);
 typedef void (*send_pdu_timer_add_f)(struct iscsi_conn *conn, int timeout);
@@ -138,8 +138,7 @@ typedef void (*send_pdu_timer_remove_f)(struct iscsi_conn *conn);
 /* daemon's connection structure */
 typedef struct iscsi_conn {
 	struct qelem item; /* must stay at the top */
-	int id;
-	uint64_t handle;
+	uint32_t id;
 	uintptr_t recv_handle;
 	struct iscsi_session *session;
 	iscsi_login_context_t login_context;
@@ -237,8 +236,8 @@ typedef struct iscsi_provider_t {
 typedef struct iscsi_session {
 	struct qelem item; /* must stay at the top */
 	uint32_t id;
+	uint32_t hostno;
 	uint64_t transport_handle;
-	uint64_t handle;
 	iscsi_provider_t *provider;
 	node_rec_t nrec; /* copy of original Node record in database */
 	unsigned int irrelevant_keys_bitmap;

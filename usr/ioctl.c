@@ -75,7 +75,7 @@ __kipc_call(void *iov_base, int iov_len)
 
 static int
 kcreate_session(uint64_t transport_handle, uint32_t initial_cmdsn,
-		uint64_t *out_handle, uint32_t *out_sid)
+		uint32_t *out_sid, uint32_t *out_hostno)
 {
 	int rc;
 	struct iscsi_uevent ev;
