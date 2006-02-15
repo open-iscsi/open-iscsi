@@ -80,7 +80,14 @@ you wish to update
 display all discovered nodes from internal persistent discovery
 database
 .TP
-.B \-m node \-\-record=\fIid\fB [ \-\-login | \-\-logout ]
+.B \-m node \-\-record=\fIid\fB
+display all parameters for given \fIid\fB.
+.TP
+.B \-m node \-\-record=\fIid\fB [\-\-login|\-l]
+login to node given by \fIid\fB.
+.TP
+.B \-m node \-\-record=\fIid\fB [\-\-logout|\-u]
+logout to node given by \fIid\fB.
 .TP
 .B \-m node \-\-record=\fIid\fB \-\-op=\fIop\fB [\-\-name=\fIname\fB \-\-value=\fIvalue\fB]
 perform specific DB operation 
@@ -106,7 +113,7 @@ you wish to update
 .B \-m session
 display all active sessions and connections
 .TP
-.B \-m session \-\-record=[\fIid\fB[\fI:cid\fB]] [\-\-logout]
+.B \-m session \-\-record=[\fIid\fB[\fI:cid\fB]] [\-\-logout|\-u]
 perform operation for specific session with record
 .I id
 or display statistics if no operation specified. Operation will affect
@@ -125,13 +132,30 @@ display this help and exit
 
 .SH FILES
 .TP
+/etc/iscsid.conf
+The configuration file read by
+.B iscsid
+and
+.B iscsiadm
+on startup.
+.TP
+/etc/initiatorname.iscsi
+The file containing the iSCSI initiatorname
+and initiatoralias read by
+.B iscsid
+and
+.B iscsiadm
+on startup.
+.TP
 /var/db/iscsi/*.db
 Open-iSCSI persistent configuration database
 
 .SH "SEE ALSO"
 .BR iscsid (8)
-.BR iscsid.conf (5)
 
 .SH AUTHORS
+Open-iSCSI project <http://www.open-iscsi.org/>
+.br
 Alex Aizman <itn780@yahoo.com>
+.br
 Dmitry Yusupov <dmitry_yus@yahoo.com>
