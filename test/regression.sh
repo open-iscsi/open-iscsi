@@ -17,48 +17,46 @@
 # See the file COPYING included with this distribution for more details.
 #
 
-PATH=$PATH:.
+PATH=".:${PATH}"
+FSTYPE="${FSTYPE:-ext3}"
+DEFAULTMOUNTOPTS='-o _netdev'
+[ -z "${MOUNTOPTS}" ] && MOUNTOPTS="${DEFAULTMOUNTOPTS}"
+# to avoid mount looking for fstype
+MOUNTOPTIONS="${MOUNTOPTIONS} -t ${FSTYPE}"
+MKFSCMD="${MKFSCMD:-mkfs.${FSTYPE}} ${MKFSOPTS}"
+PARTITIONSUFFIX="1"
+BONNIEPARAMS="${BONNIEPARAMS:--r0 -n10:0:0 -s16 -uroot -f -q}"
 
 trap regress_signal INT QUIT TERM
 regress_signal() {
     printf "\nterminating, restore defaults: "
-./iscsiadm -m node -r $record -o update \
-	-n node.session.iscsi.ImmediateData -v Yes
-./iscsiadm -m node -r $record -o update \
-	-n node.session.iscsi.InitialR2T -v No
-./iscsiadm -m node -r $record -o update \
-	-n node.conn[0].iscsi.HeaderDigest -v None,CRC32C
-./iscsiadm -m node -r $record -o update \
-	-n node.session.iscsi.FirstBurstLength -v $((256*1024))
-./iscsiadm -m node -r $record -o update \
-	-n node.session.iscsi.MaxBurstLength -v $((16*1024*1024-1024))
-./iscsiadm -m node -r $record -o update \
-	-n node.conn[0].iscsi.MaxRecvDataSegmentLength -v $((128*1024))
+	# use the other function to clean up
+	imm_data_en="Yes"
+	initial_r2t_en="No"
+	hdrdgst_en="None,CRC32C"
+	c="iscsiadm -m node -r $record -o update"
+	first_burst="$((256*1024))"
+	max_burst="$((16*1024*1024-1024))"
+	max_recv_dlength="$((128*1024))"
+	update_cfg
     printf "done\n"
     exit 0
 }
 
 function update_cfg() {
-./iscsiadm -m node -r $record -u
-./iscsiadm -m node -r $record -o update \
-	-n node.session.iscsi.ImmediateData -v $imm_data_en
-./iscsiadm -m node -r $record -o update \
-	-n node.session.iscsi.InitialR2T -v $initial_r2t_en
-./iscsiadm -m node -r $record -o update \
-	-n node.conn[0].iscsi.HeaderDigest -v $hdrdgst_en
-./iscsiadm -m node -r $record -o update \
-	-n node.session.iscsi.FirstBurstLength -v $first_burst
-./iscsiadm -m node -r $record -o update \
-	-n node.session.iscsi.MaxBurstLength -v $max_burst
-./iscsiadm -m node -r $record -o update \
-	-n node.conn[0].iscsi.MaxRecvDataSegmentLength -v $max_recv_dlength
-./iscsiadm -m node -r $record -l
+	c="iscsiadm -m node -r $record -o update"
+	$c -n node.session.iscsi.ImmediateData -v $imm_data_en
+	$c -n node.session.iscsi.InitialR2T -v $initial_r2t_en
+	$c -n node.conn[0].iscsi.HeaderDigest -v $hdrdgst_en
+	$c -n node.session.iscsi.FirstBurstLength -v $first_burst
+	$c -n node.session.iscsi.MaxBurstLength -v $max_burst
+	$c -n node.conn[0].iscsi.MaxRecvDataSegmentLength -v $max_recv_dlength
 }
 
 function disktest_run() {
 	bsizes="512 1024 2048 4096 8192 16384 32768 65536 131072 1000000"
-	test x$bsize != x && bsizes=$bsize
-	test x$bsize = xbonnie && return 0;
+	test "x$bsize" != x && bsizes=$bsize
+	test "x$bsize" = xbonnie && return 0;
 	for bs in $bsizes; do
 		echo -n "disktest -T2 -K8 -B$bs -r -ID $device: "
 		if ! disktest -T2 -K8 -B$bs -r -ID $device >/dev/null; then
@@ -77,18 +75,15 @@ function disktest_run() {
 }
 
 function fdisk_run() {
-	echo -n "fdisk $device: "
-	if ! echo "
-p
-d
-n
-p
-1
-
-
-w
-q
-" | fdisk $device 2>/dev/null >/dev/null; then
+	echo -n "sfdisk -Lqf $device: "
+	sfdisk -Lqf $device >/dev/null 2>/dev/null <<-EOF
+	0,
+	;
+	;
+	;
+	EOF
+	rc=$?
+	if [ $rc -ne 0 ]; then
 		echo "FAILED"
 		return 1;
 	fi
@@ -97,8 +92,8 @@ q
 }
 
 function mkfs_run() {
-	echo -n "mke2fs $device: "
-	if ! mke2fs $device"1" 2>/dev/null >/dev/null; then
+	echo -n "${MKFSCMD} $device_partition: "
+	if ! ${MKFSCMD} $device_partition 2>/dev/null >/dev/null; then
 		echo "FAILED"
 		return 1;
 	fi
@@ -107,26 +102,27 @@ function mkfs_run() {
 }
 
 function bonnie_run() {
-	dir="/tmp/iscsi.bonnie.regression"
-	bonnie_dir=`pwd`
+	dir="/tmp/iscsi.bonnie.regression.$record.$RANDOM"
+	bonnie=`which bonnie++`
 	umount $dir 2>/dev/null >/dev/null
 	rm -rf $dir; mkdir $dir
 	echo -n "mount $dir: "
-	if ! mount -t ext2 $device"1" $dir; then
+	if ! mount ${MOUNTOPTIONS} $device_partition $dir; then
 		echo "FAILED"
 		return 1;
 	fi
 	echo "PASSED"
-	echo -n "bonnie++ -r0 -n10:0:0 -s16 -uroot -f -q: "
+	echo -n "bonnie++ ${BONNIEPARAMS}: "
 	pushd $dir >/dev/null
-	if ! $bonnie_dir/bonnie++ -r0 -n10:0:0 -s16 -uroot -f -q 2>/dev/null >/dev/null; then
-		popd >/dev/null
-		umount $dir 2>/dev/null >/dev/null
+	${bonnie} ${BONNIEPARAMS} 2>/dev/null >/dev/null
+	rc=$?
+	popd >/dev/null
+	umount $dir 2>/dev/null >/dev/null
+	rmdir ${dir}
+	if [ $rc -ne 0 ]; then
 		echo "FAILED"
 		return 1;
 	fi
-	popd >/dev/null
-	umount $dir 2>/dev/null >/dev/null
 	echo "PASSED"
 	return 0;
 }
@@ -146,35 +142,56 @@ test ! -e bonnie++ && fatal "can not find bonnie++"
 test x$1 = x && fatal "node record parameter error"
 test x$2 = x && fatal "SCSI device parameter error"
 
-device=$2
 if test x$1 = "x-f" -o x$1 = "x--format"; then
 	mkfs_run
 	exit
 fi
 
-record=$1
-test x$3 != x && begin=$3
-test x$4 != x && bsize=$4
+device=$2
+device_dir="$(dirname ${device})"
+device_partition=''
+case "${device_dir}" in
+	# /dev/sdaX
+	/dev) device_partition="${device}1" ;;
+	# /dev/disk/by-id/scsi-${ID_SERIAL}-part1
+	# where ID_SERIAL is SCSI disk SERIAL from scsi_id
+	/dev/disk/by-id|/dev/disk/by-path) device_partition="${device}-part1" ;;
+	# upcoming stuff
+	/dev/iscsi/*) device_partition="${device}-part1" ;;
+esac
 
-if test x$begin != x; then
-	end=`echo $begin | awk -F: '{print $2}'`
-	begin=`echo $begin | awk -F: '{print $1}'`
+if [ -z "${device_partition}" ]; then
+	echo 'Unable to find device name for first partition.' >&2
+	exit 1
 fi
 
-printf "
-BIG FAT WARNING!
+record="$1"
+test "x$3" != x && begin="$3"
+test "x$4" != x && bsize="$4"
 
-Open-iSCSI Regression Test Suite is about to start. It is going
-to use "$device" for its testing. iSCSI session could be re-opened
-during the tests several times and as the result device name could
-not match provided device name if some other SCSI activity happened
-during the test.
+if test "x$begin" != "x"; then
+	end="${begin/*:}"
+	begin="${begin/:*}"
+fi
 
-Are you sure you want to continue? [y/n]: "
-read line
-if test x$line = xn -o x$line = xN -o x$line = xno -o x$line = xNO; then
-	echo "aborting..."
-	exit
+# don't say we didn't warn you
+if [ -z "${SKIP_WARNING}" ]; then
+	cat <<-EOF
+	BIG FAT WARNING!
+	
+	Open-iSCSI Regression Test Suite is about to start. It is going
+	to use "$device" for its testing. iSCSI session could be re-opened
+	during the tests several times and as the result device name could
+	not match provided device name if some other SCSI activity happened
+	during the test.
+	
+	Are you sure you want to continue? [y/n]:
+	EOF
+	read line
+	if test x$line = xn -o x$line = xN -o x$line = xno -o x$line = xNO; then
+		echo "aborting..."
+		exit
+	fi
 fi
 
 i=0
@@ -200,6 +217,9 @@ cat regression.dat | while read line; do
 	max_burst=`echo $line | awk '{print $5}'`
 	max_recv_dlength=`echo $line | awk '{print $6}'`
 	max_r2t=`echo $line | awk '{print $7}'`
+	# ensure we are logged out
+	iscsiadm -m node -r $record --logout 2>/dev/null >/dev/null
+	# set parameters for next run
 	update_cfg
 	echo "================== TEST #$i BEGIN ===================="
 	echo "imm_data_en = $imm_data_en"
@@ -209,6 +229,9 @@ cat regression.dat | while read line; do
 	echo "max_burst = $max_burst"
 	echo "max_recv_dlength = $max_recv_dlength"
 	echo "max_r2t = $max_r2t"
+	# login for new test
+	# catch errors on this
+	if ! iscsiadm -m node -r $record --login; then break; fi
 	if ! disktest_run; then break; fi
 	if ! fdisk_run; then break; fi
 	if ! mkfs_run; then break; fi
