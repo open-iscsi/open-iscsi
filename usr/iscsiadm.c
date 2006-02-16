@@ -650,7 +650,6 @@ main(int argc, char **argv)
 			return 0;
 		case 'h':
 			usage(0);
-			break;
 		}
 	}
 
@@ -659,9 +658,8 @@ main(int argc, char **argv)
 		return -1;
 	}
 
-	if (mode < 0) {
-		mode = MODE_SESSION;
-	}
+	if (mode < 0) 
+		usage(0);
 
 	db = idbm_init(config_file);
 	if (!db) {
