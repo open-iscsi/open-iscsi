@@ -1364,7 +1364,7 @@ __session_mainloop(void *data)
 	unsigned char item_buf[sizeof(queue_item_t) + EVENT_PAYLOAD_MAX];
 	queue_item_t *item = (queue_item_t *)(void *)item_buf;
 
-	while (queue_consume(session->queue, EVENT_PAYLOAD_MAX,
+	if (queue_consume(session->queue, EVENT_PAYLOAD_MAX,
 				item) != QUEUE_IS_EMPTY) {
 		switch (item->event_type) {
 		case EV_CONN_RECV_PDU: __session_conn_recv_pdu(item); break;
