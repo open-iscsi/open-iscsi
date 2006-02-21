@@ -23,9 +23,9 @@ V ?= 0
 # eg to compile for a kernel that you aren't currently running
 KERNELRELEASE ?= $(shell uname -r)
 KSRC ?= /lib/modules/$(KERNELRELEASE)/build
-
+KBUILD_OUTPUT ?= 
 # this is the basic Kbuild invocation, just append your make target
-KBUILD_BASE = +$(MAKE) -C $(KSRC) M=`pwd` $(KARCH) V=$(V)
+KBUILD_BASE = +$(MAKE) -C $(KSRC) M=`pwd` KBUILD_OUTPUT=$(KBUILD_OUTPUT) $(KARCH) V=$(V)
 
 # fun stuff for maintaining multiple versions
 KSUBLEVEL = $(shell cat $(KSRC)/Makefile | awk -F= '/^SUBLEVEL =/ {print $$2}' | \
