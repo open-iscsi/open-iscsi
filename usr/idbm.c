@@ -288,6 +288,8 @@ idbm_update_discovery(discovery_rec_t *rec, discovery_rec_t *newrec)
 	__update_rec_int(rec, newrec,
 		 u.sendtargets.conn_timeo.login_timeout);
 	__update_rec_int(rec, newrec,
+		 u.sendtargets.reopen_max);
+	__update_rec_int(rec, newrec,
 		 u.sendtargets.conn_timeo.auth_timeout);
 	__update_rec_int(rec, newrec,
 		 u.sendtargets.conn_timeo.active_timeout);
@@ -509,6 +511,9 @@ idbm_recinfo_discovery(discovery_rec_t *r, recinfo_t *ri)
 			IDBM_HIDE, num);
 		__recinfo_int("discovery.sendtargets.timeo.login_timeout",ri, r,
 			u.sendtargets.conn_timeo.login_timeout,
+			IDBM_SHOW, num);
+		__recinfo_int("discovery.sendtargets.reopen_max",ri, r,
+			u.sendtargets.reopen_max,
 			IDBM_SHOW, num);
 		__recinfo_int("discovery.sendtargets.timeo.auth_timeout", ri, r,
 			u.sendtargets.conn_timeo.auth_timeout,
@@ -785,6 +790,7 @@ idbm_discovery_setup_defaults(discovery_rec_t *rec, discovery_type_e type)
 	if (type == DISCOVERY_TYPE_SENDTARGETS) {
 		rec->u.sendtargets.continuous = 0;
 		rec->u.sendtargets.send_async_text = 0;
+		rec->u.sendtargets.reopen_max = 5;
 		rec->u.sendtargets.auth.authmethod = 0;
 		rec->u.sendtargets.auth.password_length = 0;
 		rec->u.sendtargets.auth.password_in_length = 0;

@@ -670,6 +670,8 @@ init_new_session(struct iscsi_sendtargets_config *config)
 	session->conn[0].max_recv_dlength = DEFAULT_MAX_RECV_DATA_SEGMENT_LENGTH;
 	session->conn[0].max_xmit_dlength = DEFAULT_MAX_RECV_DATA_SEGMENT_LENGTH;
 
+	session->reopen_cnt = config->reopen_max;
+
 	/* OUI and uniqifying number */
 	session->isid[0] = DRIVER_ISID_0;
 	session->isid[1] = DRIVER_ISID_1;
@@ -1096,11 +1098,11 @@ sendtargets_discovery(struct iscsi_sendtargets_config *config,
 		return 1;
 	}
 
-	log_debug(4, "discovery timeouts: login %d, auth %d, active %d, "
-		 "idle %d, ping %d",
-		 session->conn[0].login_timeout, session->conn[0].auth_timeout,
-		 session->conn[0].active_timeout, session->conn[0].idle_timeout,
-		 session->conn[0].ping_timeout);
+	log_debug(4, "discovery timeouts: login %d, reopen_cnt %d, auth %d, "
+		 "active %d, idle %d, ping %d",
+		 session->conn[0].login_timeout, session->reopen_cnt,
+		 session->conn[0].auth_timeout, session->conn[0].active_timeout,
+		 session->conn[0].idle_timeout, session->conn[0].ping_timeout);
 
 	/* setup authentication variables for the session*/
 	rc = setup_authentication(session, config);
@@ -1115,6 +1117,14 @@ set_address:
 	session->conn[0].saddr = ss;
 
 reconnect:
+
+	if (--session->reopen_cnt < 0) {
+		log_error("connection login retries (reopen_max) %d exceeded",
+			  config->reopen_max);
+		return 1;
+	}
+
+redirect_reconnect:
 
 	iscsi_io_disconnect(&session->conn[0]);
 
@@ -1216,14 +1226,14 @@ reconnect:
 			log_warning(
 				"discovery login temporarily redirected to "
 				"%s port %s", host, serv);
-			goto reconnect;
+			goto redirect_reconnect;
 		case ISCSI_LOGIN_STATUS_TGT_MOVED_PERM:
 			log_warning(
 				"discovery login permanently redirected to "
 				"%s port %s", host, serv);
 			/* make the new address permanent */
 			ss = session->conn[0].saddr;
-			goto reconnect;
+			goto redirect_reconnect;
 		default:
 			log_error(
 			       "discovery login rejected: redirection type "

@@ -141,6 +141,7 @@ struct iscsi_sendtargets_config {
 	int port;
 	int continuous;
 	int send_async_text;
+	int reopen_max;
 	struct iscsi_auth_config auth;
 	struct iscsi_connection_timeout_config conn_timeo;
 };
