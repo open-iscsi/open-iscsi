@@ -138,8 +138,8 @@ __session_delete_luns(iscsi_session_t *session)
 		int fd;
 
 		sprintf(sysfs_file, "/sys/class/scsi_host/host%d/"
-			"device/target%d:0:0/%d:0:0:%d/delete",
-			hostno, hostno, hostno, lu);
+			"device/session%d/target%d:0:0/%d:0:0:%d/delete",
+			hostno, session->id, hostno, hostno, lu);
 		fd = open(sysfs_file, O_WRONLY);
 		if (fd < 0)
 			continue;
