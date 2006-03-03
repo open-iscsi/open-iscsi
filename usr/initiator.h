@@ -241,6 +241,10 @@ typedef struct iscsi_session {
 	struct qelem item; /* must stay at the top */
 	uint32_t id;
 	uint32_t hostno;
+
+	pid_t scanning_pid;
+	actor_t scan_cleanup_timer;
+
 	uint64_t transport_handle;
 	iscsi_provider_t *provider;
 	node_rec_t nrec; /* copy of original Node record in database */

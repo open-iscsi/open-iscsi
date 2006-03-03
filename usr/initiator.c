@@ -163,12 +163,49 @@ __session_delete_luns(iscsi_session_t *session)
 	} while (++lu < 256); /* FIXME: hardcoded */
 }
 
+static void
+write_mgmt_login_rsp(queue_task_t *qtask, mgmt_ipc_err_e err)
+{
+	qtask->u.login.rsp.err = err;
+	write(qtask->u.login.mgmt_ipc_fd, &qtask->u.login.rsp,
+	      sizeof(qtask->u.login.rsp));
+	close(qtask->u.login.mgmt_ipc_fd);
+	free(qtask);
+}
+
+/* reap the scanning thread */
+static void
+reap_scanning_process(void *data)
+{
+	int rc, status;
+	iscsi_session_t *session = data;
+	pid_t pid = session->scanning_pid;
+
+	if (!pid)
+		return;
+
+	rc = waitpid(pid, &status, WNOHANG);
+	if (!rc) {
+		/*
+		 * when called from __session_destroy by the time
+		 * we call this the host should be freed so this should
+		 * only fail if the login qtask write hangs
+		 */
+		log_debug(4, "scanning still in progress for host%d\n",
+			  session->hostno);
+		actor_timer(&session->scan_cleanup_timer, 5*1000,
+			    reap_scanning_process, session);
+	} else
+		session->scanning_pid = 0;
+}
+
 /*
  * Scan a session from usersapce using sysfs
  */
 static void
-__session_scan_host(iscsi_session_t *session)
+__session_scan_host(iscsi_session_t *session, queue_task_t *qtask)
 {
+	int hostno = session->hostno;
 	pid_t pid;
 	int fd;
 
@@ -176,25 +213,38 @@ __session_scan_host(iscsi_session_t *session)
 		session->hostno);
 	fd = open(sysfs_file, O_WRONLY);
 	if (fd < 0) {
-		log_error("could not scan scsi host%d\n", session->hostno);
+		log_error("could not scan scsi host%d\n", hostno);
 		return;
 	}
-	if (!(pid = fork())) {
+
+	pid = fork();
+	if (pid == 0) {
 		/* child */
-		log_debug(4, "scanning host%d using %s",session->hostno,
+		log_debug(4, "scanning host%d using %s",hostno,
 			  sysfs_file);
 		write(fd, "- - -", 5);
 		close(fd);
+
+		write_mgmt_login_rsp(qtask, MGMT_IPC_OK);
+		log_debug(4, "scanning host%d completed\n", hostno);
 		exit(0);
+	} else if (pid > 0) {
+		log_debug(4, "scanning host%d from pid %d", hostno, pid);
+		session->scanning_pid = pid;
+		free(qtask);
+		actor_timer(&session->scan_cleanup_timer, 5*1000,
+			    reap_scanning_process, session);
+	} else {
+		/*
+		 * Session is fine, so log the error and let the user
+		 * scan by hand
+		  */
+		log_error("Could not start scanning process for host %d "
+			  "err %d. Try scanning through sysfs\n", hostno,
+			  errno);
+		write_mgmt_login_rsp(qtask, MGMT_IPC_ERR_INTERNAL);
 	}
-	if (pid > 0) {
-		int attempts = 3, status, rc;
-		while (!(rc = waitpid(pid, &status, WNOHANG)) && attempts--)
-			sleep(1);
-		if (!rc)
-			log_debug(4, "could not finish scan scsi host%d "
-				  "after delay\n", session->hostno);
-	}
+
 	close(fd);
 }
 
@@ -545,9 +595,14 @@ __session_create(node_rec_t *rec, iscsi_provider_t *provider)
 	return session;
 }
 
+
 static void
 __session_destroy(iscsi_session_t *session)
 {
+	if (session->scanning_pid)
+		actor_delete(&session->scan_cleanup_timer);
+	reap_scanning_process(session);
+
 	remque(&session->item);
 	queue_flush(session->queue);
 	queue_destroy(session->queue);
@@ -606,13 +661,8 @@ __session_mgmt_ipc_login_cleanup(queue_task_t *qtask, mgmt_ipc_err_e err,
 			__session_destroy(session);
 	}
 
-	if (r_stage != R_STAGE_SESSION_REOPEN) {
-		qtask->u.login.rsp.err = err;
-		write(qtask->u.login.mgmt_ipc_fd, &qtask->u.login.rsp,
-			sizeof(qtask->u.login.rsp));
-		close(qtask->u.login.mgmt_ipc_fd);
-		free(qtask);
-	}
+	if (r_stage != R_STAGE_SESSION_REOPEN)
+		write_mgmt_login_rsp(qtask, err);
 }
 
 static void
@@ -1061,13 +1111,7 @@ setup_full_feature_phase(iscsi_conn_t *conn)
 		 * don't want to re-scan it on recovery.
 		 */
 		if (conn->id == 0)
-			__session_scan_host(session);
-
-		c->qtask->u.login.rsp.err = MGMT_IPC_OK;
-		write(c->qtask->u.login.mgmt_ipc_fd, &c->qtask->u.login.rsp,
-		      sizeof(c->qtask->u.login.rsp));
-		close(c->qtask->u.login.mgmt_ipc_fd);
-		free(c->qtask);
+			__session_scan_host(session, c->qtask);
 
 		log_warning("connection%d:%d is operational now",
 			    session->id, conn->id);
@@ -1440,10 +1484,18 @@ __session_mainloop(void *data)
 	if (queue_consume(session->queue, EVENT_PAYLOAD_MAX,
 				item) != QUEUE_IS_EMPTY) {
 		switch (item->event_type) {
-		case EV_CONN_RECV_PDU: __session_conn_recv_pdu(item); break;
-		case EV_CONN_POLL: __session_conn_poll(item); break;
-		case EV_CONN_TIMER: __session_conn_timer(item); break;
-		case EV_CONN_ERROR: __session_conn_error(item); break;
+		case EV_CONN_RECV_PDU:
+			__session_conn_recv_pdu(item);
+			break;
+		case EV_CONN_POLL:
+			__session_conn_poll(item);
+			break;
+		case EV_CONN_TIMER:
+			__session_conn_timer(item);
+			break;
+		case EV_CONN_ERROR:
+			__session_conn_error(item);
+			break;
 		default:
 			break;
 		}
