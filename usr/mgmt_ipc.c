@@ -435,8 +435,6 @@ void event_loop(struct iscsi_ipc *ipc, int control_fd, int mgmt_ipc_fd,
 	poll_array[POLL_IPC].fd = mgmt_ipc_fd;
 	poll_array[POLL_IPC].events = POLLIN;
 
-	actor_init();
-
 	while (1) {
 		res = poll(poll_array, POLL_MAX, ACTOR_RESOLUTION);
 		if (res > 0) {

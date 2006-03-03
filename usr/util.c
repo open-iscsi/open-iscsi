@@ -79,8 +79,8 @@ static int iscsid_request(int fd, iscsiadm_req_t *req)
 	int err;
 
 	if ((err = write(fd, req, sizeof(*req))) != sizeof(*req)) {
-		log_error("got write error (%d) on cmd %d, daemon died?",
-			err, req->command);
+		log_error("got write error (%d/%d) on cmd %d, daemon died?",
+			err, errno, req->command);
 		if (err >= 0)
 			err = -EIO;
 	}
@@ -92,7 +92,7 @@ static int iscsid_response(int fd, iscsiadm_rsp_t *rsp)
 	int err;
 
 	if ((err = read(fd, rsp, sizeof(*rsp))) != sizeof(*rsp)) {
-		log_error("got read error (%d), daemon died?", err);
+		log_error("got read error (%d/%d), daemon died?", err, errno);
 		if (err >= 0)
 			err = -EIO;
 	} else
@@ -196,4 +196,56 @@ void iscsid_handle_error(int err)
 		/* 15 */ "already exists",
 	};
 	log_error("initiator reported error (%d - %s)", err, err_msgs[err]);
+}
+
+int read_sysfs_int_attr(char *path, uint32_t *retval)
+{
+	int fd, err = 0;
+	char intbuf[20];
+
+	*retval = 0;
+
+	fd = open(path, O_RDONLY);
+	if (fd < 0) {
+		log_error("could not open '%s': %d", path, errno);
+		return errno;
+	}
+
+	if (read(fd, &intbuf, 20) < 0) {
+		log_error("could not read attribute %s: %d", path, errno);
+		err = errno;
+		goto done;
+	} else
+		*retval = strtol(intbuf, NULL, 10);
+
+done:
+	close(fd);
+	return err;
+}
+
+int read_sysfs_str_attr(char *path, char *retval, int buflen)
+{
+	int fd, err = 0, len;
+
+	*retval = 0;
+
+	fd = open(path, O_RDONLY);
+	if (fd < 0) {
+		log_error("could not open '%s': %d", path, errno);
+		return errno;
+	}
+
+	memset(retval, 0, buflen);
+	if (read(fd, retval, buflen) < 0) {
+		log_error("could not read attribute %s: %d", path, errno);
+		err = errno;
+	}
+
+	len = strlen(retval);
+	if (len > 2)
+		/* add null where the newline is */
+		retval[len - 1] = '\0';
+
+	close(fd);
+	return err;
 }

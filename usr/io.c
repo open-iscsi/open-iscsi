@@ -39,18 +39,16 @@
 
 #define LOG_CONN_CLOSED(conn) \
 do { \
-	char host[NI_MAXHOST]; \
 	getnameinfo((struct sockaddr *) &conn->saddr, sizeof(conn->saddr), \
-		    host, sizeof(host), NULL, 0, NI_NUMERICHOST); \
-	log_error("Connection to Discovery Address %s closed", host); \
+		    conn->host, sizeof(conn->host), NULL, 0, NI_NUMERICHOST); \
+	log_error("Connection to Discovery Address %s closed", conn->host); \
 } while (0)
 
 #define LOG_CONN_FAIL(conn) \
 do { \
-	char host[NI_MAXHOST]; \
 	getnameinfo((struct sockaddr *) &conn->saddr, sizeof(conn->saddr), \
-		    host, sizeof(host), NULL, 0, NI_NUMERICHOST); \
-	log_error("Connection to Discovery Address %s failed", host); \
+		    conn->host, sizeof(conn->host), NULL, 0, NI_NUMERICHOST); \
+	log_error("Connection to Discovery Address %s failed", conn->host); \
 } while (0)
 
 static int timedout;
@@ -81,7 +79,7 @@ iscsi_io_tcp_connect(iscsi_conn_t *conn, int non_blocking)
 {
 	int rc, onearg;
 	struct sockaddr_storage *ss = &conn->saddr;
-	char host[NI_MAXHOST], serv[NI_MAXSERV];
+	char serv[NI_MAXSERV];
 
 	/* create a socket */
 	conn->socket_fd = socket(ss->ss_family, SOCK_STREAM, IPPROTO_TCP);
@@ -139,10 +137,10 @@ iscsi_io_tcp_connect(iscsi_conn_t *conn, int non_blocking)
 	 * Build a TCP connection to the target
 	 */
 	getnameinfo((struct sockaddr *) ss, sizeof(*ss),
-		    host, sizeof(host), serv, sizeof(serv),
+		    conn->host, sizeof(conn->host), serv, sizeof(serv),
 		    NI_NUMERICHOST|NI_NUMERICSERV);
 
-	log_debug(1, "connecting to %s:%s", host, serv);
+	log_debug(1, "connecting to %s:%s", conn->host, serv);
 	if (non_blocking)
 		set_non_blocking(conn->socket_fd);
 	rc = connect(conn->socket_fd, (struct sockaddr *) ss, sizeof (*ss));
@@ -154,7 +152,7 @@ iscsi_io_tcp_poll(iscsi_conn_t *conn)
 {
 	int rc;
 	struct pollfd pdesc;
-	char host[NI_MAXHOST], serv[NI_MAXSERV];
+	char serv[NI_MAXSERV];
 
 	pdesc.fd = conn->socket_fd;
 	pdesc.events = POLLOUT;
@@ -162,11 +160,11 @@ iscsi_io_tcp_poll(iscsi_conn_t *conn)
 	if (rc < 0) {
 		getnameinfo((struct sockaddr *) &conn->saddr,
 			    sizeof(conn->saddr),
-			    host, sizeof(host), serv, sizeof(serv),
+			    conn->host, sizeof(conn->host), serv, sizeof(serv),
 			    NI_NUMERICHOST|NI_NUMERICSERV);
 
 		log_error("cannot make connection to %s:%s (%d)",
-			  host, serv, errno);
+			  conn->host, serv, errno);
 		close(conn->socket_fd);
 		conn->socket_fd = -1;
 	} else if (rc > 0 && log_level > 0) {
@@ -178,8 +176,8 @@ iscsi_io_tcp_poll(iscsi_conn_t *conn)
 				&salen) >= 0) {
 			getnameinfo((struct sockaddr *) &conn->saddr,
 				    sizeof(conn->saddr),
-				    host, sizeof(host), serv, sizeof(serv),
-				    NI_NUMERICHOST|NI_NUMERICSERV);
+				    conn->host, sizeof(conn->host), serv,
+				    sizeof(serv), NI_NUMERICHOST|NI_NUMERICSERV);
 
 			getnameinfo((struct sockaddr *) &ss,
 				    sizeof(ss),
@@ -187,7 +185,7 @@ iscsi_io_tcp_poll(iscsi_conn_t *conn)
 				    NI_NUMERICSERV);
 
 			log_debug(1, "connected local port %s to %s:%s",
-				  lserv, host, serv);
+				  lserv, conn->host, serv);
 		}
 	}
 	return rc;
@@ -199,7 +197,7 @@ iscsi_io_connect(iscsi_conn_t *conn)
 	int rc, ret;
 	struct sigaction action;
 	struct sigaction old;
-	char host[NI_MAXHOST], serv[NI_MAXSERV];
+	char serv[NI_MAXSERV];
 
 	/* set a timeout, since the socket calls may take a long time to
 	 * timeout on their own
@@ -224,10 +222,10 @@ iscsi_io_connect(iscsi_conn_t *conn)
 	} else if (rc < 0) {
 		getnameinfo((struct sockaddr *) &conn->saddr,
 			    sizeof(conn->saddr),
-			    host, sizeof(host), serv, sizeof(serv),
+			    conn->host, sizeof(conn->host), serv, sizeof(serv),
 			    NI_NUMERICHOST|NI_NUMERICSERV);
 		log_error("cannot make connection to %s:%s (%d)",
-			  host, serv, errno);
+			  conn->host, serv, errno);
 		close(conn->socket_fd);
 		ret = 0;
 		goto done;
@@ -240,8 +238,8 @@ iscsi_io_connect(iscsi_conn_t *conn)
 				&salen) >= 0) {
 			getnameinfo((struct sockaddr *) &conn->saddr,
 				    sizeof(conn->saddr),
-				    host, sizeof(host), serv, sizeof(serv),
-				    NI_NUMERICHOST|NI_NUMERICSERV);
+				    conn->host, sizeof(conn->host), serv,
+				    sizeof(serv), NI_NUMERICHOST|NI_NUMERICSERV);
 
 			getnameinfo((struct sockaddr *) &ss,
 				    sizeof(ss),
@@ -249,7 +247,7 @@ iscsi_io_connect(iscsi_conn_t *conn)
 				    NI_NUMERICSERV);
 
 			log_debug(1, "connected local port %s to %s:%s",
-				  lserv, host, serv);
+				  lserv, conn->host, serv);
 		}
 	}
 

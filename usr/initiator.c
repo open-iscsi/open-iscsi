@@ -25,6 +25,8 @@
 #include <netdb.h>
 #include <errno.h>
 #include <fcntl.h>
+#include <dirent.h>
+#include <sys/types.h>
 #include <sys/socket.h>
 #include <sys/param.h>
 #include <sys/wait.h>
@@ -38,11 +40,12 @@
 #include "iscsi_ipc.h"
 #include "idbm.h"
 #include "log.h"
+#include "util.h"
 
 static void __session_mainloop(void *data);
 static void __conn_error_handle(iscsi_session_t*, iscsi_conn_t*);
 
-static char sysfs_file[PATH_MAX];
+char sysfs_file[PATH_MAX];
 
 /*
  * calculate parameter's padding
@@ -466,23 +469,19 @@ __setup_authentication(iscsi_session_t *session,
 static int
 setup_portal(iscsi_conn_t *conn, conn_rec_t *conn_rec)
 {
-	struct sockaddr_storage ss;
 	char port[NI_MAXSERV];
-	char host[NI_MAXHOST];
 
 	sprintf(port, "%d", conn_rec->port);
-	if (resolve_address(conn_rec->address, port, &ss)) {
+	if (resolve_address(conn_rec->address, port, &conn->saddr)) {
 		log_error("cannot resolve host name %s",
 			  conn_rec->address);
 		return -EINVAL;
 	}
+	conn->failback_saddr = conn->saddr;
 
-	conn->saddr = ss;
-	conn->failback_saddr = ss;
-
-	getnameinfo((struct sockaddr *) &ss, sizeof(ss),
-		    host, sizeof(host), NULL, 0, NI_NUMERICHOST);
-	log_debug(4, "resolved %s to %s", conn_rec->address, host);
+	getnameinfo((struct sockaddr *)&conn->saddr, sizeof(conn->saddr),
+		    conn->host, sizeof(conn->host), NULL, 0, NI_NUMERICHOST);
+	log_debug(4, "resolved %s to %s", conn_rec->address, conn->host);
 	return 0;
 }
 
@@ -498,6 +497,7 @@ __session_conn_create(iscsi_session_t *session, int cid)
 		return -ENOMEM;
 	}
 
+	conn->socket_fd = -1;
 	/* connection's timeouts */
 	conn->id = cid;
 	conn->login_timeout = conn_rec->timeo.login_timeout;
@@ -536,12 +536,28 @@ __session_conn_create(iscsi_session_t *session, int cid)
 	return 0;
 }
 
-void
+static void
 session_conn_destroy(iscsi_session_t *session, int cid)
 {
 	iscsi_conn_t *conn = &session->conn[cid];
 
 	__recvpool_free(conn);
+}
+
+static void
+session_put(iscsi_session_t *session)
+{
+	session->refcount--;
+	if (session->refcount == 0) {
+		actor_delete(&session->mainloop);
+		free(session);
+	}
+}
+
+static void
+session_get(iscsi_session_t *session)
+{
+	session->refcount++;
 }
 
 static iscsi_session_t*
@@ -555,6 +571,7 @@ __session_create(node_rec_t *rec, iscsi_provider_t *provider)
 		return NULL;
 	}
 
+	session_get(session);
 	/* opened at daemon load time (iscsid.c) */
 	session->ctrl_fd = control_fd;
 	session->transport_handle = provider->handle;
@@ -567,6 +584,15 @@ __session_create(node_rec_t *rec, iscsi_provider_t *provider)
 	session->queue = queue_create(4, 4, NULL, session);
 	if (session->queue == NULL) {
 		log_error("can not create session's queue");
+		free(session);
+		return NULL;
+	}
+
+	/* initalize per-session tmp queue */
+	session->splice_queue = queue_create(4, 4, NULL, session);
+	if (session->splice_queue == NULL) {
+		log_error("can not create session's splice queue");
+		queue_destroy(session->queue);
 		free(session);
 		return NULL;
 	}
@@ -627,7 +653,6 @@ __session_create(node_rec_t *rec, iscsi_provider_t *provider)
 	return session;
 }
 
-
 static void
 __session_destroy(iscsi_session_t *session)
 {
@@ -638,8 +663,11 @@ __session_destroy(iscsi_session_t *session)
 	remque(&session->item);
 	queue_flush(session->queue);
 	queue_destroy(session->queue);
-	actor_delete(&session->mainloop);
-	free(session);
+
+	queue_flush(session->splice_queue);
+	queue_destroy(session->splice_queue);
+
+	session_put(session);
 }
 
 static void
@@ -685,8 +713,9 @@ __session_conn_cleanup(iscsi_conn_t *conn)
 	iscsi_session_t *session = conn->session;
 
 	iscsi_io_disconnect(conn);
-	__session_conn_queue_flush(conn);
 	__conn_noop_out_delete(conn);
+	actor_delete(&conn->connect_timer);
+	__session_conn_queue_flush(conn);
 
 	if (ipc->destroy_conn(session->transport_handle, session->id,
 		conn->id)) {
@@ -852,6 +881,7 @@ __connect_timedout(void *data)
 	iscsi_session_t *session = conn->session;
 
 	if (conn->state == STATE_XPT_WAIT) {
+		log_debug(3, "__connect_timedout queue EV_CONN_TIMER\n");
 		queue_produce(session->queue, EV_CONN_TIMER, qtask, 0, NULL);
 		actor_schedule(&session->mainloop);
 	}
@@ -889,20 +919,21 @@ __session_conn_reopen(iscsi_conn_t *conn, queue_task_t *qtask, int do_stop)
 
 	rc = iscsi_io_tcp_connect(conn, 1);
 	if (rc < 0 && errno != EINPROGRESS) {
-		char host[NI_MAXHOST], serv[NI_MAXSERV];
+		char serv[NI_MAXSERV];
 
 		getnameinfo((struct sockaddr *) &conn->saddr,
 			    sizeof(conn->saddr),
-			    host, sizeof(host), serv, sizeof(serv),
+			    conn->host, sizeof(conn->host), serv, sizeof(serv),
 			    NI_NUMERICHOST|NI_NUMERICSERV);
 
 		log_error("cannot make a connection to %s:%s (%d)",
-			  host, serv, errno);
+			  conn->host, serv, errno);
 		return MGMT_IPC_ERR_TCP_FAILURE;
 	}
 
 	queue_produce(session->queue, EV_CONN_POLL, qtask, 0, NULL);
 	actor_schedule(&session->mainloop);
+
 	actor_timer(&conn->connect_timer, conn->login_timeout*1000,
 		    __connect_timedout, qtask);
 
@@ -916,7 +947,6 @@ session_conn_reopen(iscsi_conn_t *conn, int do_stop)
 	int rc;
 
 	session->reopen_cnt++;
-
 	/*
 	 * If we were temporarily redirected, we need to fall back to
 	 * the original address to see where the target will send us
@@ -927,10 +957,10 @@ session_conn_reopen(iscsi_conn_t *conn, int do_stop)
 
 	rc = __session_conn_reopen(conn, &session->reopen_qtask, do_stop);
 	if (rc) {
-		log_debug(4, "Requeue reopen attempt\n");
-		queue_produce(session->queue, EV_CONN_TIMER,
-			      &session->reopen_qtask, 0, NULL);
-		actor_schedule(&session->mainloop);
+		log_debug(4, "Requeue reopen attempt in %d secs\n", 5);
+		actor_delete(&conn->connect_timer);
+		actor_timer(&conn->connect_timer, 5*1000,
+			    __connect_timedout, &session->reopen_qtask);
 	}
 
 	return rc;
@@ -1260,6 +1290,18 @@ __session_node_established(char *node_name)
 }
 
 static void
+setup_kernel_io_callouts(iscsi_conn_t *conn)
+{
+	conn->kernel_io = 1;
+	conn->send_pdu_begin = ipc->send_pdu_begin;
+	conn->send_pdu_end = ipc->send_pdu_end;
+	conn->recv_pdu_begin = ipc->recv_pdu_begin;
+	conn->recv_pdu_end = ipc->recv_pdu_end;
+	conn->send_pdu_timer_add = __send_pdu_timer_add;
+	conn->send_pdu_timer_remove = __send_pdu_timer_remove;
+}
+
+static void
 __session_conn_poll(queue_item_t *item)
 {
 	mgmt_ipc_err_e err = MGMT_IPC_OK;
@@ -1333,13 +1375,7 @@ __session_conn_poll(queue_item_t *item)
 				  "session %d", 
 				  session->id, conn->id, session->id);
 
-			conn->kernel_io = 1;
-			conn->send_pdu_begin = ipc->send_pdu_begin;
-			conn->send_pdu_end = ipc->send_pdu_end;
-			conn->recv_pdu_begin = ipc->recv_pdu_begin;
-			conn->recv_pdu_end = ipc->recv_pdu_end;
-			conn->send_pdu_timer_add = __send_pdu_timer_add;
-			conn->send_pdu_timer_remove = __send_pdu_timer_remove;
+			setup_kernel_io_callouts(conn);
 
 			c->qtask = qtask;
 			c->cid = conn->id;
@@ -1364,7 +1400,6 @@ __session_conn_poll(queue_item_t *item)
 		}
 	}
 
-	actor_schedule(&session->mainloop);
 	return;
 
 c_cleanup:
@@ -1437,6 +1472,7 @@ __session_conn_timer(queue_item_t *item)
 			break;
 		}
 
+		break;
 	default:
 		log_debug(8, "ignoring timeout in conn state %d\n",
 			  conn->state);
@@ -1539,8 +1575,21 @@ __session_mainloop(void *data)
 	unsigned char item_buf[sizeof(queue_item_t) + EVENT_PAYLOAD_MAX];
 	queue_item_t *item = (queue_item_t *)(void *)item_buf;
 
-	if (queue_consume(session->queue, EVENT_PAYLOAD_MAX,
-				item) != QUEUE_IS_EMPTY) {
+
+	/* splice the queue incase one of the events reueues */
+	while (queue_consume(session->queue, EVENT_PAYLOAD_MAX,
+			     item) != QUEUE_IS_EMPTY)
+		queue_produce(session->splice_queue, item->event_type,
+			      item->context, item->data_size,
+			      queue_item_data(item));
+
+	/*
+	 * grab a reference in case one of these events destroys
+	 * the session
+	 */
+	session_get(session);
+	while (queue_consume(session->splice_queue, EVENT_PAYLOAD_MAX,
+			     item) != QUEUE_IS_EMPTY) {
 		switch (item->event_type) {
 		case EV_CONN_RECV_PDU:
 			__session_conn_recv_pdu(item);
@@ -1558,6 +1607,7 @@ __session_mainloop(void *data)
 			break;
 		}
 	}
+	session_put(session);
 }
 
 iscsi_session_t*
@@ -1677,15 +1727,15 @@ session_login_task(node_rec_t *rec, queue_task_t *qtask)
 
 	rc = iscsi_io_tcp_connect(conn, 1);
 	if (rc < 0 && errno != EINPROGRESS) {
-		char host[NI_MAXHOST], serv[NI_MAXSERV];
+		char serv[NI_MAXSERV];
 
 		getnameinfo((struct sockaddr *) &conn->saddr,
 			    sizeof(conn->saddr),
-			    host, sizeof(host), serv, sizeof(serv),
+			    conn->host, sizeof(conn->host), serv, sizeof(serv),
 			    NI_NUMERICHOST|NI_NUMERICSERV);
 
 		log_error("cannot make a connection to %s:%s (%d)",
-			 host, serv, errno);
+			 conn->host, serv, errno);
 		session_conn_destroy(session, 0);
 		__session_destroy(session);
 		return MGMT_IPC_ERR_TCP_FAILURE;
@@ -1694,6 +1744,7 @@ session_login_task(node_rec_t *rec, queue_task_t *qtask)
 	conn->state = STATE_XPT_WAIT;
 	queue_produce(session->queue, EV_CONN_POLL, qtask, 0, NULL);
 	actor_schedule(&session->mainloop);
+
 	actor_timer(&conn->connect_timer, conn->login_timeout*1000,
 		    __connect_timedout, qtask);
 
@@ -1703,12 +1754,197 @@ session_login_task(node_rec_t *rec, queue_task_t *qtask)
 	return MGMT_IPC_OK;
 }
 
+static int
+session_find_hostno(uint32_t sid)
+{
+	DIR *dirfd;
+	struct dirent *dent;
+	int host_no = -1;
+
+	sprintf(sysfs_file, "/sys/class/iscsi_session/session%d/device", sid);
+	dirfd = opendir(sysfs_file);
+	if (!dirfd) {
+		log_error("Could not open %s err %d\n", sysfs_file, errno);
+		return -1;
+	}
+
+	while ((dent = readdir(dirfd))) {
+		if (strncmp(dent->d_name, "target", 6))
+			continue;
+		sscanf(dent->d_name, "target%d:0:0", &host_no);
+		log_debug(7," Found host_no %d\n", host_no);
+		break;
+	}
+	closedir(dirfd);
+
+	return host_no;
+}
+
+#define UPDATE_CONN_PARAM(filename, param)	\
+	if (!strcmp(dent->d_name, filename))	\
+		read_sysfs_int_attr(sysfs_file, &conn->param)
+
+static int 
+sync_conn_params(iscsi_conn_t *conn)
+{
+	DIR *dirfd;
+	struct dirent *dent;
+	char *ptr;
+
+	sprintf(sysfs_file, "/sys/class/iscsi_connection/connection%d:%d",
+	conn->session->id, conn->id);
+	dirfd = opendir(sysfs_file);
+	if (!dirfd) {
+		log_error("Could not open %s err %d\n", sysfs_file, errno);
+		return errno;
+	}
+
+	while ((dent = readdir(dirfd))) {
+		if (!strcmp(dent->d_name, ".") || !strcmp(dent->d_name, ".."))
+			continue;
+
+		strncat(sysfs_file, "/", PATH_MAX);
+		strncat(sysfs_file, dent->d_name, PATH_MAX);
+		UPDATE_CONN_PARAM("data_digest", datadgst_en);
+		UPDATE_CONN_PARAM("header_digest", hdrdgst_en);
+		UPDATE_CONN_PARAM("max_recv_dlength", max_recv_dlength);
+		UPDATE_CONN_PARAM("max_xmit_dlength", max_xmit_dlength);
+		ptr = strrchr(sysfs_file, '/');
+		*ptr = '\0';
+	}
+	closedir(dirfd);
+	return 0;
+}
+
+
+static int
+sync_conn(iscsi_session_t *session, uint32_t cid)
+{
+	iscsi_conn_t *conn;
+
+	if (__session_conn_create(session, cid))
+		return -ENOMEM;
+	conn = &session->conn[cid];
+
+	setup_kernel_io_callouts(conn);
+	/* TODO: must export via sysfs so we can pick this up */
+	conn->state = STATE_CLEANUP_WAIT;
+
+	if (sync_conn_params(conn))
+		goto destroy_conn;
+
+	return 0;
+
+destroy_conn:
+	session_conn_destroy(session, cid);
+	return -ENODEV;
+}
+
+#define UPDATE_SESSION_PARAM(filename, param)	\
+	if (!strcmp(dent->d_name, filename))	\
+		read_sysfs_int_attr(sysfs_file, (uint32_t *)&session->param)
+
+static int
+sync_session_params(iscsi_session_t *session)
+{
+	DIR *dirfd;
+	struct dirent *dent;
+	char *ptr;
+
+	sprintf(sysfs_file, "/sys/class/iscsi_session/session%d",
+		session->id);
+	dirfd = opendir(sysfs_file);
+	if (!dirfd) {
+		log_error("Could not open %s err %d\n", sysfs_file, errno);
+		return errno;
+	}
+
+	while ((dent = readdir(dirfd))) {
+		if (!strcmp(dent->d_name, ".") || !strcmp(dent->d_name, ".."))
+			continue;
+
+		strncat(sysfs_file, "/", PATH_MAX);
+		strncat(sysfs_file, dent->d_name, PATH_MAX);
+		UPDATE_SESSION_PARAM("data_pdu_in_order", pdu_inorder_en);
+		UPDATE_SESSION_PARAM("data_seq_in_order", dataseq_inorder_en);
+		UPDATE_SESSION_PARAM("erl", erl);
+		UPDATE_SESSION_PARAM("first_burst_len", first_burst);
+		UPDATE_SESSION_PARAM("immediate_data", imm_data_en);
+		UPDATE_SESSION_PARAM("initial_r2t", initial_r2t_en);
+		UPDATE_SESSION_PARAM("max_burst_len", max_burst);
+		ptr = strrchr(sysfs_file, '/');
+		*ptr = '\0';
+	}
+	closedir(dirfd);
+	return 0;
+}
+
+int
+iscsi_sync_session(node_rec_t *rec, uint32_t sid)
+{
+	iscsi_session_t *session;
+	iscsi_provider_t *provider;
+	int err;
+
+	provider = __get_transport_by_name(rec->transport_name);
+	if (!provider)
+		return -EINVAL;
+
+	session = __session_create(rec, provider);
+	if (!session)
+		return -ENOMEM;
+
+	session->id = sid;
+	session->hostno = session_find_hostno(sid);
+	if (session->hostno < 0) {
+		log_error("Could not get hostno for session %d\n", sid);
+		err = -ENODEV;
+		goto destroy_session;
+	}
+
+	session->r_stage = R_STAGE_SESSION_REOPEN;
+
+	err = sync_session_params(session);
+	if (err)
+		goto destroy_session;
+
+	err = sync_conn(session, 0);
+	if (err)
+		goto destroy_session;
+
+	/*
+	 * we must force a relogin to sync us up with the kernel,
+	 * just in case it is starting recovery now or is in recovery
+	 * already.
+	 *
+	 * TODO: export session state and only reopen when not logged in
+	 */
+	session_conn_reopen(&session->conn[0], STOP_CONN_RECOVER);
+	log_debug(3, "synced iSCSI session %d", session->id);
+	return 0;
+
+destroy_session:
+	__session_destroy(session);
+	log_error("Could not sync session%d err %d\n", sid, err);
+	return err;
+}
+
 int
 session_logout_task(iscsi_session_t *session, queue_task_t *qtask)
 {
 	iscsi_conn_t *conn;
 	int rc = MGMT_IPC_OK;
 	int stop = 0;
+
+	conn = &session->conn[0];
+	if (conn->state == STATE_XPT_WAIT &&
+	    (session->r_stage == R_STAGE_NO_CHANGE ||
+	     session->r_stage == R_STAGE_SESSION_REDIRECT)) {
+		log_error("session in invalid state for logout. "
+			   "Try again later\n");
+		rc = MGMT_IPC_ERR_INTERNAL;
+		goto done;
+	}
 
 	/* FIXME: logout all active connections */
 	conn = &session->conn[0];
@@ -1721,8 +1957,10 @@ session_logout_task(iscsi_session_t *session, queue_task_t *qtask)
 		stop = 1;
 
 	rc = session_conn_cleanup(conn, stop);
-	if (rc)
+	if (rc) {
+		log_error("session cleanup failed during logout\n");
 		goto done;
+	}
 
 	qtask->u.login.rsp.err = rc;
 	qtask->u.login.rsp.command = MGMT_IPC_SESSION_LOGOUT;

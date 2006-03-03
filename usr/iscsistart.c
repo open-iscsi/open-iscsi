@@ -399,6 +399,7 @@ int main(int argc, char *argv[])
 	/*
 	 * Start Main Event Loop
 	 */
+	actor_init();
 	event_loop(ipc, control_fd, mgmt_ipc_fd, &mgmt_ipc_db);
 	ipc->ctldev_close();
 	mgmt_ipc_close(mgmt_ipc_fd);

@@ -80,5 +80,7 @@ extern int idbm_node_read(idbm_t *db, int rec_id, node_rec_t *rec);
 extern int idbm_node_write(idbm_t *db, int rec_id, node_rec_t *rec);
 extern int idbm_node_set_param(idbm_t *db, node_rec_t *rec, char *name,
 			       char *value);
+extern int idbm_find_rid_by_session(idbm_t *db, char *targetname, int tgpt,
+				    char *address, int port);
 
 #endif /* IDBM_H */

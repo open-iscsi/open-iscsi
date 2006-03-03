@@ -22,6 +22,7 @@
 #include <search.h>
 #include "queue.h"
 #include "log.h"
+#include "actor.h"
 
 queue_t*
 queue_create(int pages_initial, int pages_max, queued_f queued,

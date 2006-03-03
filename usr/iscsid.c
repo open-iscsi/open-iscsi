@@ -25,6 +25,8 @@
 #include <unistd.h>
 #include <string.h>
 #include <signal.h>
+#include <dirent.h>
+#include <sys/types.h>
 #include <sys/mman.h>
 #include <sys/poll.h>
 #include <sys/utsname.h>
@@ -47,6 +49,8 @@ int num_providers = 0;
 static char program_name[] = "iscsid";
 int control_fd, mgmt_ipc_fd;
 int mgmt_shutdown_requsted = 0;
+
+extern char sysfs_file[];
 
 static struct mgmt_ipc_db mgmt_ipc_db = {
 	.init		= idbm_init,
@@ -91,7 +95,7 @@ Open-iSCSI initiator daemon.\n\
 }
 
 /*
- * synchronyze registered transports and opened sessions/connections
+ * synchronyze registered transports
  */
 int trans_sync(void)
 {
@@ -102,7 +106,6 @@ int trans_sync(void)
 
 	for (i = 0; i < num_providers; i++) {
 		if (provider[i].handle) {
-			/* FIXME: implement session/connection sync up logic */
 			provider[i].sessions.q_forw = &provider[i].sessions;
 			provider[i].sessions.q_back = &provider[i].sessions;
 
@@ -114,6 +117,119 @@ int trans_sync(void)
 		return -1;
 	}
 	log_debug(1, "synced %d transport(s)", found);
+
+	return 0;
+}
+
+static int sync_session(iscsi_provider_t *provider, char *configfile,
+			uint32_t sid, char *target_name, int tpgt,
+			char *address, int port)
+{
+	node_rec_t rec;
+	idbm_t *db;
+	int rec_id;
+
+	db = idbm_init(configfile);
+	if (!db) {
+		log_error("could not open node database");
+		return -1;
+	}
+
+	rec_id = idbm_find_rid_by_session(db, target_name, tpgt, address, port);
+	if (rec_id < 0) {
+		log_error("could not find record for session %d", sid);
+		return -1;
+	}
+
+	if (idbm_node_read(db, rec_id, &rec)) {
+		log_error("node record [%06x] not found!", rec_id);
+		return -1;
+	}
+	idbm_terminate(db);
+
+	return iscsi_sync_session(&rec, sid);
+}
+
+static void sync_sessions(iscsi_provider_t *prv)
+{
+	uint32_t sid, port, tpgt;
+	DIR *dirfd;
+	int err;
+	struct dirent *dent;
+	char target_name[TARGET_NAME_MAXLEN + 1];
+	char address[NI_MAXHOST + 1];
+
+	sprintf(sysfs_file, "/sys/class/iscsi_session");
+	dirfd = opendir(sysfs_file);
+	while ((dent = readdir(dirfd))) {
+		if (!strcmp(dent->d_name, ".") || !strcmp(dent->d_name, ".."))
+			continue;
+
+		if (sscanf(dent->d_name, "session%d", &sid) != 1) {
+			log_error("invalid session '%s'", dent->d_name);
+			continue;
+		}
+
+		memset(sysfs_file, 0, PATH_MAX);
+		sprintf(sysfs_file, "/sys/class/iscsi_session/%s/targetname",
+			dent->d_name);
+		err = read_sysfs_str_attr(sysfs_file, target_name,
+					  TARGET_NAME_MAXLEN);
+		if (err) {
+			log_error("could not read session targetname: %d",
+				  errno);
+			continue;
+		}
+
+		memset(sysfs_file, 0, PATH_MAX);
+		sprintf(sysfs_file, "/sys/class/iscsi_session/%s/tpgt",
+			dent->d_name);
+		err = read_sysfs_int_attr(sysfs_file, &tpgt);
+		if (err) {
+			log_error("Could not read tpgt %d\n", err);
+			continue;
+		}
+
+		memset(sysfs_file, 0, PATH_MAX);
+		sprintf(sysfs_file,
+			"/sys/class/iscsi_connection/connection%d:0/"
+			"persistent_address", sid);
+		err = read_sysfs_str_attr(sysfs_file, address, NI_MAXHOST);
+		if (err) {
+			log_error("could not read conn address: %d", err);
+			continue;
+		}
+
+		memset(sysfs_file, 0, PATH_MAX);
+		sprintf(sysfs_file,
+			"/sys/class/iscsi_connection/connection%d:0/"
+			"persistent_port", sid);
+		err = read_sysfs_int_attr(sysfs_file, &port);
+		if (err) {
+			log_error("Could not read conn port %d\n", err);
+			continue;
+		}
+
+		if (sync_session(prv, daemon_config.config_file, sid,
+				 target_name, tpgt, address, port))
+			log_error("Could not sync session %d\n", sid);
+		log_debug(7, "syncd session%d targetname %s, tpgt %d, "
+			  "address %s, port %d\n", sid, target_name, tpgt,
+			 address, port);
+	}
+	closedir(dirfd);
+}
+
+/*
+ * synchronize with existing sessions/connections
+ */
+static int sync_provider_sessions(void)
+{
+	int i;
+
+	for (i = 0; i < num_providers; i++)
+		if (provider[i].handle)
+			sync_sessions(&provider[i]);
 
 	return 0;
 }
@@ -295,6 +411,9 @@ int main(int argc, char *argv[])
 		log_error("failed to get transport list, exiting...");
 		exit(-1);
 	}
+
+	actor_init();
+	sync_provider_sessions();
 
 	/* we don't want our active sessions to be paged out... */
 	if (mlockall(MCL_CURRENT | MCL_FUTURE)) {

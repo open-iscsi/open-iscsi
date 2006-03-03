@@ -30,7 +30,7 @@ DBM_LIB=
 endif
 endif
 
-OPTFLAGS ?= -O2 -fno-inline -g
+OPTFLAGS ?= -O2 -g
 WARNFLAGS ?= -Wall -Wstrict-prototypes
 CFLAGS += $(OPTFLAGS) $(WARNFLAGS) -I../include -D$(OSNAME) $(IPC_CFLAGS)
 PROGRAMS = iscsid iscsiadm iscsistart

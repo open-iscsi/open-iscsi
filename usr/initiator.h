@@ -144,6 +144,7 @@ typedef struct iscsi_conn {
 	struct iscsi_session *session;
 	iscsi_login_context_t login_context;
 	char data[DEFAULT_MAX_RECV_DATA_SEGMENT_LENGTH];
+	char host[NI_MAXHOST];	/* scratch */
 	iscsi_conn_state_e state;
 	actor_t connect_timer;
 	actor_t send_pdu_timer;
@@ -241,6 +242,7 @@ typedef struct iscsi_session {
 	struct qelem item; /* must stay at the top */
 	uint32_t id;
 	uint32_t hostno;
+	int refcount;
 
 	pid_t scanning_pid;
 	actor_t scan_cleanup_timer;
@@ -301,6 +303,7 @@ typedef struct iscsi_session {
 	/* session's processing */
 	actor_t mainloop;
 	queue_t *queue;
+	queue_t *splice_queue;
 
 	enum iscsi_rdma_ext rdma_ext;
 } iscsi_session_t;
@@ -366,5 +369,8 @@ extern int session_logout_task(iscsi_session_t *session, queue_task_t *qtask);
 extern iscsi_session_t* session_find_by_rec(node_rec_t *rec);
 extern void* recvpool_get(iscsi_conn_t *conn, int ev_size);
 extern void recvpool_put(iscsi_conn_t *conn, void *handle);
+extern int iscsi_sync_session(node_rec_t *rec, uint32_t sid);
+
+extern char sysfs_file[];
 
 #endif /* INITIATOR_H */

@@ -246,9 +246,9 @@ actor_poll(void)
 			log_debug(1, "actor_list: thread state corrupted!");
 		remque(&thread->item);
 		thread->state = ACTOR_NOTSCHEDULED;
+		log_debug(7, "exec thread %08lx callback", (long)thread);
 		thread->callback(thread->data);
-		log_debug(7, "thread %08lx removed from actor_list",
-			(long)thread);
+		log_debug(7, "thread removed\n");
 	}
 	poll_in_progress = 0;
 

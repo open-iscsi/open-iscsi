@@ -1,3 +1,5 @@
+#include <stdint.h>
+
 struct iscsi_ipc;
 struct iscsiadm_req;
 struct iscsiadm_rsp;
@@ -6,6 +8,8 @@ struct node_rec;
 
 extern int oom_adjust(void);
 extern void daemon_init(void);
+extern int read_sysfs_int_attr(char *path, uint32_t *retval);
+extern int read_sysfs_str_attr(char *path, char *retval, int len);
 
 extern int do_iscsid(int *ipc_fd, struct iscsiadm_req *req,
 		     struct iscsiadm_rsp *rsp);

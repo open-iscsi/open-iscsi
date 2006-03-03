@@ -455,6 +455,40 @@ idbm_read_with_id(DBM *dbm, int rec_id)
 	return NULL;
 }
 
+int
+idbm_find_rid_by_session(idbm_t *db, char *targetname, int tpgt, char *address,
+			 int port)
+{
+	DBM *dbm = db->nodedb;
+	datum key, data;
+	node_rec_t *rec;
+	conn_rec_t *conn;
+	int rec_id = -1;
+
+	(void)idbm_lock(dbm);
+
+	log_debug(7, "looking for target_name %s, tpgt %d address %s port %d\n",
+		  targetname, tpgt, address, port);
+
+	for (key=dbm_firstkey(dbm); key.dptr != NULL; key=dbm_nextkey(dbm)) {
+		data = dbm_fetch(dbm, key);
+		rec = (node_rec_t*)data.dptr;
+		if (idbm_dbversion_check(rec->dbversion))
+			exit(-1);
+
+		conn = &rec->conn[0];
+		if (!strncmp(rec->name, targetname, strlen(rec->name)) &&
+		    !strncmp(conn->address, address, strlen(conn->address)) &&
+		    rec->tpgt == tpgt && conn->port == port) {
+			rec_id = idbm_uniq_id(key.dptr);
+			break;
+		}
+	}
+
+	idbm_unlock(dbm);
+	return rec_id;
+}
+
 static int
 idbm_write(DBM *dbm, void *rec, int size, char *hash)
 {

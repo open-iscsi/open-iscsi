@@ -45,6 +45,7 @@ static int recvlen = 0;
 static void *nlm_sendbuf;
 static void *nlm_recvbuf;
 static void *pdu_sendbuf;
+static void *setparam_buf;
 
 static int ctldev_handle(void);
 
@@ -55,6 +56,8 @@ static int ctldev_handle(void);
 #define PDU_SENDBUF_DEFAULT_MAX \
 	(DEFAULT_MAX_RECV_DATA_SEGMENT_LENGTH + sizeof(struct iscsi_hdr))
 
+#define NLM_SETPARAM_DEFAULT_MAX \
+	(NI_MAXHOST + 1 + sizeof(struct iscsi_uevent))
 
 #define ISCSI_TRANSPORT_DIR "/sys/class/iscsi_transport"
 
@@ -502,21 +505,20 @@ static int
 kset_param(uint64_t transport_handle, uint32_t sid, uint32_t cid,
 	   enum iscsi_param param, void *value, int len, int *retcode)
 {
-	char buf[NI_MAXHOST + 1 + sizeof(struct iscsi_uevent)];
 	struct iscsi_uevent *ev;
 	int rc;
 
 	log_debug(7, "in %s", __FUNCTION__);
 
-	memset(buf, 0, sizeof(buf));
-	ev = (struct iscsi_uevent *)buf;
+	memset(setparam_buf, 0, NLM_SETPARAM_DEFAULT_MAX);
+	ev = (struct iscsi_uevent *)setparam_buf;
 	ev->type = ISCSI_UEVENT_SET_PARAM;
 	ev->transport_handle = transport_handle;
 	ev->u.set_param.sid = sid;
 	ev->u.set_param.cid = cid;
 	ev->u.set_param.param = param;
 	ev->u.set_param.len = len;
-	memcpy(buf + sizeof(*ev), value, len);
+	memcpy(setparam_buf + sizeof(*ev), value, len);
 
 	if ((rc = __kipc_call(ev, sizeof(*ev) + len)) < 0) {
 		return rc;
@@ -851,23 +853,26 @@ ctldev_open(void)
 
 	nlm_recvbuf = calloc(1, NLM_BUF_DEFAULT_MAX);
 	if (!nlm_recvbuf) {
-		free(nlm_sendbuf);
 		log_error("can not allocate nlm_recvbuf");
-		return -1;
+		goto free_nlm_sendbuf;
 	}
 
 	pdu_sendbuf = calloc(1, PDU_SENDBUF_DEFAULT_MAX);
 	if (!pdu_sendbuf) {
-		free(nlm_recvbuf);
-		free(nlm_sendbuf);
 		log_error("can not allocate nlm_sendbuf");
-		return -1;
+		goto free_nlm_recvbuf;
+	}
+
+	setparam_buf = calloc(1, NLM_SETPARAM_DEFAULT_MAX);
+	if (!setparam_buf) {
+		log_error("can not allocate setparam_buf");
+		goto free_pdu_sendbuf;
 	}
 
 	ctrl_fd = socket(PF_NETLINK, SOCK_RAW, NETLINK_ISCSI);
 	if (!ctrl_fd) {
 		log_error("can not create NETLINK_ISCSI socket");
-		return -1;
+		goto free_setparam_buf;
 	}
 
 	memset(&src_addr, 0, sizeof(src_addr));
@@ -876,7 +881,7 @@ ctldev_open(void)
 	src_addr.nl_groups = 0; /* not in mcast groups */
 	if (bind(ctrl_fd, (struct sockaddr *)&src_addr, sizeof(src_addr))) {
 		log_error("can not bind NETLINK_ISCSI socket");
-		return -1;
+		goto close_socket;
 	}
 
 	memset(&dest_addr, 0, sizeof(dest_addr));
@@ -887,6 +892,18 @@ ctldev_open(void)
 	log_debug(7, "created NETLINK_ISCSI socket...");
 
 	return ctrl_fd;
+
+close_socket:
+	close(ctrl_fd);
+free_setparam_buf:
+	free(setparam_buf);
+free_pdu_sendbuf:
+	free(pdu_sendbuf);
+free_nlm_recvbuf:
+	free(nlm_recvbuf);
+free_nlm_sendbuf:
+	free(nlm_sendbuf);
+	return -1;
 }
 
 static void
@@ -894,6 +911,7 @@ ctldev_close(void)
 {
 	log_debug(7, "in %s", __FUNCTION__);
 
+	free(setparam_buf);
 	free(pdu_sendbuf);
 	free(nlm_recvbuf);
 	free(nlm_sendbuf);
