@@ -210,12 +210,8 @@ iscsi_update_address(iscsi_conn_t *conn, char *address)
 	}
 
 	conn->saddr = addr;
-	/* update session's rec */
-	memset(session->nrec.conn[0].address, 0, NI_MAXHOST);
-	memcpy(session->nrec.conn[0].address, address, strlen(address));
-	session->nrec.conn[0].port = atoi(port);
 	if (tag)
-		session->nrec.tpgt = atoi(tag);
+		session->portal_group_tag = atoi(tag);
 	return 1;
 }
 

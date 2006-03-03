@@ -236,8 +236,11 @@ __check_iscsi_status_class(iscsi_session_t *session, int cid,
 		case ISCSI_LOGIN_STATUS_TGT_MOVED_PERM:
 			/*
 			 * for a permanent redirect, we need to update the
-			 * portal address within a record,  and then try again.
+			 * failback address
 			 */
+			memset(&conn->failback_saddr, 0,
+				sizeof(struct sockaddr_storage));
+			conn->failback_saddr = conn->saddr;
                         return CONN_LOGIN_IMM_REDIRECT_RETRY;
 		default:
 			log_error("conn %d login rejected: redirection "
@@ -384,12 +387,34 @@ __setup_authentication(iscsi_session_t *session,
 }
 
 static int
+setup_portal(iscsi_conn_t *conn, conn_rec_t *conn_rec)
+{
+	struct sockaddr_storage ss;
+	char port[NI_MAXSERV];
+	char host[NI_MAXHOST];
+
+	sprintf(port, "%d", conn_rec->port);
+	if (resolve_address(conn_rec->address, port, &ss)) {
+		log_error("cannot resolve host name %s",
+			  conn_rec->address);
+		return -EINVAL;
+	}
+
+	conn->saddr = ss;
+	conn->failback_saddr = ss;
+
+	getnameinfo((struct sockaddr *) &ss, sizeof(ss),
+		    host, sizeof(host), NULL, 0, NI_NUMERICHOST);
+	log_debug(4, "resolved %s to %s", conn_rec->address, host);
+	return 0;
+}
+
+static int
 __session_conn_create(iscsi_session_t *session, int cid)
 {
 	iscsi_conn_t *conn = &session->conn[cid];
 	conn_rec_t *conn_rec = &session->nrec.conn[cid];
-	struct sockaddr_storage ss;
-	char port[NI_MAXSERV];
+	int err;
 
 	if (__recvpool_alloc(conn)) {
 		log_error("cannot allocate recvpool for conn cid %d", cid);
@@ -424,20 +449,9 @@ __session_conn_create(iscsi_session_t *session, int cid)
 	/* FIXME: type_of_service */
 
 	/* resolve the string address to an IP address */
-	sprintf(port, "%d", conn_rec->port);
-	if (resolve_address(conn_rec->address, port, &ss)) {
-		log_error("cannot resolve host name %s",
-			  conn_rec->address);
-		return 1;
-	} else {
-		char host[NI_MAXHOST];
-
-		conn->saddr = ss;
-		getnameinfo((struct sockaddr *) &ss, sizeof(ss),
-			    host, sizeof(host), NULL, 0, NI_NUMERICHOST);
-		log_debug(4, "resolved %s to %s",
-			  conn_rec->address, host);
-	}
+	err = setup_portal(conn, conn_rec);
+	if (err)
+		return err;
 
 	conn->state = STATE_FREE;
 	conn->session = session;
@@ -751,22 +765,117 @@ __conn_noop_out(void *data)
 			__conn_noop_out, data);
 }
 
+static void
+__connect_timedout(void *data)
+{
+	queue_task_t *qtask = data;
+	iscsi_conn_t *conn = qtask->conn;
+	iscsi_session_t *session = conn->session;
+
+	if (conn->state == STATE_XPT_WAIT) {
+		queue_produce(session->queue, EV_CONN_TIMER, qtask, 0, NULL);
+		actor_schedule(&session->mainloop);
+	}
+}
+
+static int
+__session_conn_reopen(iscsi_conn_t *conn, queue_task_t *qtask, int do_stop)
+{
+	int rc;
+	iscsi_session_t *session = conn->session;
+
+	log_debug(1, "re-opening session %d (reopen_cnt %d)", session->id,
+			session->reopen_cnt);
+
+	session->reopen_qtask.conn = conn;
+
+	__conn_noop_out_delete(conn);
+
+	if (do_stop) {
+		/* state: STATE_CLEANUP_WAIT */
+		if (ipc->stop_conn(session->transport_handle, session->id,
+				   conn->id, STOP_CONN_RECOVER)) {
+			log_error("can't stop connection %d:%d (%d)",
+				  session->id, conn->id, errno);
+			return -1;
+		}
+		log_debug(3, "connection %d:%d is stopped for recovery",
+			  session->id, conn->id);
+		iscsi_io_disconnect(conn);
+		__session_conn_queue_flush(conn);
+	}
+
+	rc = iscsi_io_tcp_connect(conn, 1);
+	if (rc < 0 && errno != EINPROGRESS) {
+		char host[NI_MAXHOST], serv[NI_MAXSERV];
+
+		getnameinfo((struct sockaddr *) &conn->saddr,
+			    sizeof(conn->saddr),
+			    host, sizeof(host), serv, sizeof(serv),
+			    NI_NUMERICHOST|NI_NUMERICSERV);
+
+		log_error("cannot make a connection to %s:%s (%d)",
+			  host, serv, errno);
+		return MGMT_IPC_ERR_TCP_FAILURE;
+	}
+
+	conn->send_pdu_in_progress = 0;
+	conn->state = STATE_XPT_WAIT;
+
+	queue_produce(session->queue, EV_CONN_POLL, qtask, 0, NULL);
+	actor_schedule(&session->mainloop);
+	actor_timer(&conn->connect_timer, conn->login_timeout*1000,
+		    __connect_timedout, qtask);
+
+	return MGMT_IPC_OK;
+}
+
+static int
+session_conn_reopen(iscsi_conn_t *conn, int do_stop)
+{
+	iscsi_session_t *session = conn->session;
+	int rc;
+
+	if (--session->reopen_cnt < 0) {
+		__session_conn_cleanup(conn);
+		return MGMT_IPC_ERR_LOGIN_FAILURE;
+	}
+
+	/*
+	 * If we were temporarily redirected, we need to fall back to
+	 * the original address to see where the target will send us
+	 * for the retry
+	 */
+	memset(&conn->saddr, 0, sizeof(struct sockaddr_storage));
+	conn->saddr = conn->failback_saddr;
+
+	rc = __session_conn_reopen(conn, &session->reopen_qtask, do_stop);
+	if (rc) {
+		log_error("reopen failed\n");
+		__session_conn_cleanup(conn);
+	}
+
+	return rc;
+}
 
 static int
 iscsi_login_redirect(iscsi_conn_t *conn)
 {
 	iscsi_session_t *session = conn->session;
 	iscsi_login_context_t *c = &conn->login_context;
-	queue_task_t *qtask = c->qtask;
-	node_rec_t rec;
 
 	log_debug(3, "login redirect ...\n");
 
-	memcpy(&rec, &session->nrec, sizeof(node_rec_t));
+	__session_conn_queue_flush(conn);
+	session->r_stage = R_STAGE_SESSION_REDIRECT;
 
-	if(__session_free(session))
+	if (__session_conn_reopen(conn, c->qtask, 1)) {
+		log_error("redirct __session_conn_reopen failed\n");
+		__session_free(session);
 		return 1;
-	return session_login_task(&rec, qtask);
+	}
+
+	return 0;
 }
 
 static void
@@ -887,7 +996,7 @@ setup_full_feature_phase(iscsi_conn_t *conn)
 		.param = ISCSI_PARAM_PERSISTENT_PORT,
 		.value = &session->nrec.conn[conn->id].port,
 		.len = sizeof(session->nrec.conn[conn->id].port),
-		.conn_only = 0,
+		.conn_only = 1,
 		}
 		/*
 		 * FIXME: set these timeouts via set_param() API
@@ -945,7 +1054,8 @@ setup_full_feature_phase(iscsi_conn_t *conn)
 	}
 
 	conn->state = STATE_LOGGED_IN;
-	if (session->r_stage == R_STAGE_NO_CHANGE) {
+	if (session->r_stage == R_STAGE_NO_CHANGE ||
+	    session->r_stage == R_STAGE_SESSION_REDIRECT) {
 		/*
 		 * scan host is one-time deal. We
 		 * don't want to re-scan it on recovery.
@@ -961,17 +1071,16 @@ setup_full_feature_phase(iscsi_conn_t *conn)
 
 		log_warning("connection%d:%d is operational now",
 			    session->id, conn->id);
-	} else {
+	} else
 		log_warning("connection%d:%d is operational after recovery "
 			    "(%d attempts)", session->id, conn->id,
 			     session->nrec.session.reopen_max - session->reopen_cnt);
 
-		/*
-		 * reset ERL=0 reopen counter
-		 */
-		session->reopen_cnt = session->nrec.session.reopen_max;
-		session->r_stage = R_STAGE_NO_CHANGE;
-	}
+	/*
+	 * reset ERL=0 reopen counter
+	 */
+	session->reopen_cnt = session->nrec.session.reopen_max;
+	session->r_stage = R_STAGE_NO_CHANGE;
 
 	/* noop_out */
 	if (conn->noop_out_interval) {
@@ -998,7 +1107,7 @@ __session_conn_recv_pdu(queue_item_t *item)
 		if (iscsi_login_rsp(session, c)) {
 			log_debug(1, "login_rsp ret (%d)", c->ret);
 			if (c->ret != LOGIN_REDIRECT ||
-				iscsi_login_redirect(conn))				
+			    iscsi_login_redirect(conn))				
 				__session_mgmt_ipc_login_cleanup(c->qtask,
 					MGMT_IPC_ERR_LOGIN_FAILURE, 1);
 			return;
@@ -1191,72 +1300,6 @@ cleanup:
 }
 
 static void
-__connect_timedout(void *data)
-{
-	queue_task_t *qtask = data;
-	iscsi_conn_t *conn = qtask->conn;
-	iscsi_session_t *session = conn->session;
-
-	if (conn->state == STATE_XPT_WAIT) {
-		queue_produce(session->queue, EV_CONN_TIMER, qtask, 0, NULL);
-		actor_schedule(&session->mainloop);
-	}
-}
-
-
-static int
-__session_conn_reopen(iscsi_conn_t *conn, int do_stop)
-{
-	int rc;
-	iscsi_session_t *session = conn->session;
-
-	log_debug(1, "re-opening session %d (reopen_cnt %d)", session->id,
-			session->reopen_cnt);
-
-	session->reopen_qtask.conn = conn;
-
-	__conn_noop_out_delete(conn);
-
-	if (do_stop) {
-		/* state: STATE_CLEANUP_WAIT */
-		if (ipc->stop_conn(session->transport_handle, session->id,
-				   conn->id, STOP_CONN_RECOVER)) {
-			log_error("can't stop connection %d:%d (%d)",
-				  session->id, conn->id, errno);
-			return -1;
-		}
-		log_debug(3, "connection %d:%d is stopped for recovery",
-			  session->id, conn->id);
-		iscsi_io_disconnect(conn);
-		__session_conn_queue_flush(conn);
-	}
-
-	rc = iscsi_io_tcp_connect(conn, 1);
-	if (rc < 0 && errno != EINPROGRESS) {
-		char host[NI_MAXHOST], serv[NI_MAXSERV];
-
-		getnameinfo((struct sockaddr *) &conn->saddr,
-			    sizeof(conn->saddr),
-			    host, sizeof(host), serv, sizeof(serv),
-			    NI_NUMERICHOST|NI_NUMERICSERV);
-
-		log_error("cannot make a connection to %s:%s (%d)",
-			  host, serv, errno);
-		return MGMT_IPC_ERR_TCP_FAILURE;
-	}
-
-	conn->send_pdu_in_progress = 0;
-	conn->state = STATE_XPT_WAIT;
-	queue_produce(session->queue, EV_CONN_POLL,
-		      &session->reopen_qtask, 0, NULL);
-	actor_schedule(&session->mainloop);
-	actor_timer(&conn->connect_timer, conn->login_timeout*1000,
-		    __connect_timedout, &session->reopen_qtask);
-
-	return MGMT_IPC_OK;
-}
-
-static void
 __session_conn_timer(queue_item_t *item)
 {
 	queue_task_t *qtask = item->context;
@@ -1274,16 +1317,12 @@ __session_conn_timer(queue_item_t *item)
 			log_debug(6, "conn_timer popped at XPT_WAIT: reopen");
 			/* timeout during reopen connect.
 			 * try again or cleanup connection. */
-			if (--session->reopen_cnt > 0) {
-				if (__session_conn_reopen(conn, 0))
-					__session_conn_cleanup(conn);
-			} else {
-				__session_conn_cleanup(conn);
-			}
+			session_conn_reopen(conn, 0);
 		}
 	} else if (conn->state == STATE_IN_LOGIN) {
 		iscsi_io_disconnect(conn);
-		if (session->r_stage == R_STAGE_NO_CHANGE) {
+		if (session->r_stage == R_STAGE_NO_CHANGE ||
+		    session->r_stage == R_STAGE_SESSION_REDIRECT) {
 			log_debug(6, "conn_timer popped at IN_LOGIN");
 			/* send pdu timeout. clean connection. write rsp */
 			if (ipc->destroy_conn(session->transport_handle,
@@ -1299,13 +1338,8 @@ __session_conn_timer(queue_item_t *item)
 			}
 			__session_mgmt_ipc_login_cleanup(qtask,
 					    MGMT_IPC_ERR_PDU_TIMEOUT, 0);
-		} else if (session->r_stage == R_STAGE_SESSION_REOPEN) {
-			if (--session->reopen_cnt > 0) {
-				if (__session_conn_reopen(conn, 1))
-					__session_conn_cleanup(conn);
-			} else
-				__session_conn_cleanup(conn);
-		}
+		} else if (session->r_stage == R_STAGE_SESSION_REOPEN)
+			session_conn_reopen(conn, 1);
 	}
 }
 
@@ -1337,7 +1371,7 @@ __conn_error_handle(iscsi_session_t *session, iscsi_conn_t *conn)
 						STATE_CLEANUP_WAIT;
 				}
 			}
-			if (--session->reopen_cnt > 0)
+			if (session->reopen_cnt - 1 > 0)
 				session->r_stage = R_STAGE_SESSION_REOPEN;
 			else
 				session->r_stage = R_STAGE_SESSION_CLEANUP;
@@ -1345,11 +1379,7 @@ __conn_error_handle(iscsi_session_t *session, iscsi_conn_t *conn)
 	} else if (conn->state == STATE_IN_LOGIN) {
 		if (session->r_stage == R_STAGE_SESSION_REOPEN) {
 			conn->send_pdu_timer_remove(conn);
-			if (--session->reopen_cnt > 0) {
-				if (__session_conn_reopen(conn, 1))
-					__session_conn_cleanup(conn);
-			} else
-				__session_conn_cleanup(conn);
+			session_conn_reopen(conn, 1);
 			return;
 		} else {
 			log_debug(1, "ignoring conn error in login. "
@@ -1367,8 +1397,7 @@ __conn_error_handle(iscsi_session_t *session, iscsi_conn_t *conn)
 	}
 
 	if (session->r_stage == R_STAGE_SESSION_REOPEN) {
-		if (__session_conn_reopen(conn, 1))
-			__session_conn_cleanup(conn);
+		session_conn_reopen(conn, 1);
 		return;
 	} else {
 		if (ipc->stop_conn(session->transport_handle, session->id,

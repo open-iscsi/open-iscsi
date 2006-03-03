@@ -85,6 +85,7 @@ typedef enum iscsi_session_r_stage_e {
 	R_STAGE_NO_CHANGE		= 0,
 	R_STAGE_SESSION_CLEANUP		= 1,
 	R_STAGE_SESSION_REOPEN		= 2,
+	R_STAGE_SESSION_REDIRECT	= 3,
 } iscsi_session_r_stage_e;
 
 typedef enum iscsi_event_e {
@@ -171,7 +172,10 @@ typedef struct iscsi_conn {
 
 	/* tcp/socket settings */
 	int socket_fd;
+	/* address being used for normal session connection */
 	struct sockaddr_storage saddr;
+	/* address recieved during login */
+	struct sockaddr_storage failback_saddr;
 	int tcp_window_size;
 	int type_of_service;
 
