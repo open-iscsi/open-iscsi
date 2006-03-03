@@ -137,9 +137,8 @@ __session_delete_devs(iscsi_session_t *session)
 		pid_t pid;
 		int fd;
 
-		sprintf(sysfs_file, "/sys/class/scsi_host/host%d/"
-			"device/session%d/target%d:0:0/%d:0:0:%d/delete",
-			hostno, session->id, hostno, hostno, lu);
+		sprintf(sysfs_file, "/sys/bus/scsi/devices/%d:0:0:%d/delete",
+			hostno, lu);
 		fd = open(sysfs_file, O_WRONLY);
 		if (fd < 0)
 			continue;
@@ -172,9 +171,8 @@ __session_online_devs(iscsi_session_t *session)
 	do {
 		int fd;
 
-		sprintf(sysfs_file, "/sys/class/scsi_host/host%d/"
-			"device/session%d/target%d:0:0/%d:0:0:%d/state",
-			hostno, session->id, hostno, hostno, lun);
+		sprintf(sysfs_file, "/sys/bus/scsi/devices/%d:0:0:%d/state",
+			hostno, lun);
 		fd = open(sysfs_file, O_WRONLY);
 		if (fd < 0)
 			continue;
