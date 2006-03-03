@@ -65,7 +65,7 @@ struct iscsi_ipc {
 
 	int (*set_param) (uint64_t transport_handle, uint32_t sid,
 			  uint32_t cid, enum iscsi_param param,
-			  uint32_t value, int *retcode);
+			  void *value, int len, int *retcode);
 
 	/* not implemented yet */
 	int (*get_param) (uint64_t transport_handle, uint32_t sid,

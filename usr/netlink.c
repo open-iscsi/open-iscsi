@@ -500,27 +500,29 @@ err:
 
 static int
 kset_param(uint64_t transport_handle, uint32_t sid, uint32_t cid,
-	       enum iscsi_param param, uint32_t value, int *retcode)
+	   enum iscsi_param param, void *value, int len, int *retcode)
 {
+	char buf[NI_MAXHOST + 1 + sizeof(struct iscsi_uevent)];
+	struct iscsi_uevent *ev;
 	int rc;
-	struct iscsi_uevent ev;
 
 	log_debug(7, "in %s", __FUNCTION__);
 
-	memset(&ev, 0, sizeof(struct iscsi_uevent));
+	memset(buf, 0, sizeof(buf));
+	ev = (struct iscsi_uevent *)buf;
+	ev->type = ISCSI_UEVENT_SET_PARAM;
+	ev->transport_handle = transport_handle;
+	ev->u.set_param.sid = sid;
+	ev->u.set_param.cid = cid;
+	ev->u.set_param.param = param;
+	ev->u.set_param.len = len;
+	memcpy(buf + sizeof(*ev), value, len);
 
-	ev.type = ISCSI_UEVENT_SET_PARAM;
-	ev.transport_handle = transport_handle;
-	ev.u.set_param.sid = sid;
-	ev.u.set_param.cid = cid;
-	ev.u.set_param.param = param;
-	ev.u.set_param.value = value;
-
-	if ((rc = __kipc_call(&ev, sizeof(ev))) < 0) {
+	if ((rc = __kipc_call(ev, sizeof(*ev) + len)) < 0) {
 		return rc;
 	}
 
-	*retcode = ev.r.retcode;
+	*retcode = ev->r.retcode;
 
 	return 0;
 }

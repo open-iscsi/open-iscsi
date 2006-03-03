@@ -770,6 +770,22 @@ iscsi_login_redirect(iscsi_conn_t *conn)
 }
 
 static void
+print_param_value(enum iscsi_param param, void *value)
+{
+	log_debug(3, "set operational parameter %d to:", param);
+
+	switch (param) {
+	case ISCSI_PARAM_TARGET_NAME:
+	case ISCSI_PARAM_PERSISTENT_ADDRESS:
+		log_debug(3, "%s", (char *)value);
+		break;
+	default:
+		log_debug(3, "%u", *(uint32_t *)value);
+		break;
+	}
+}
+
+static void
 __session_conn_recv_pdu(queue_item_t *item)
 {
 	iscsi_conn_t *conn = item->context;
@@ -802,67 +818,101 @@ __session_conn_recv_pdu(queue_item_t *item)
 			uint32_t one = 1, zero = 0;
 			struct connparam {
 				int param;
-				uint32_t *value;
-				int conn_only; } conntbl[ISCSI_PARAM_MAX] = {
+				int len;
+				void *value;
+				int conn_only; } conntbl[ISCSI_PARAM_PERSISTENT_PORT + 1] = {
 
 				{
 				.param = ISCSI_PARAM_MAX_RECV_DLENGTH,
 				.value = &conn->max_recv_dlength,
+				.len = sizeof(conn->max_recv_dlength),
 				.conn_only = 1,
 				}, {
 				.param = ISCSI_PARAM_MAX_XMIT_DLENGTH,
 				.value = &conn->max_xmit_dlength,
+				.len = sizeof(conn->max_xmit_dlength),
 				.conn_only = 1,
 				}, {
 				.param = ISCSI_PARAM_HDRDGST_EN,
 				.value = &conn->hdrdgst_en,
+				.len = sizeof(conn->hdrdgst_en),
 				.conn_only = 1,
 				}, {
 				.param = ISCSI_PARAM_DATADGST_EN,
 				.value = &conn->datadgst_en,
+				.len = sizeof(conn->datadgst_en),
 				.conn_only = 1,
 				}, {
 				.param = ISCSI_PARAM_INITIAL_R2T_EN,
 				.value = &session->initial_r2t_en,
+				.len = sizeof(session->initial_r2t_en),
 				.conn_only = 0,
 				}, {
 				.param = ISCSI_PARAM_MAX_R2T,
 				.value = &one, /* FIXME: session->max_r2t */
+				.len = sizeof(uint32_t),
 				.conn_only = 0,
 				}, {
 				.param = ISCSI_PARAM_IMM_DATA_EN,
 				.value = &session->imm_data_en,
+				.len = sizeof(session->imm_data_en),
 				.conn_only = 0,
 				}, {
 				.param = ISCSI_PARAM_FIRST_BURST,
 				.value = &session->first_burst,
+				.len = sizeof(session->first_burst),
 				.conn_only = 0,
 				}, {
 				.param = ISCSI_PARAM_MAX_BURST,
 				.value = &session->max_burst,
+				.len = sizeof(session->max_burst),
 				.conn_only = 0,
 				}, {
 				.param = ISCSI_PARAM_PDU_INORDER_EN,
 				.value = &session->pdu_inorder_en,
+				.len = sizeof(session->pdu_inorder_en),
 				.conn_only = 0,
 				}, {
 				.param =ISCSI_PARAM_DATASEQ_INORDER_EN,
 				.value = &session->dataseq_inorder_en,
+				.len = sizeof(session->dataseq_inorder_en),
 				.conn_only = 0,
 				}, {
 				.param = ISCSI_PARAM_ERL,
 				.value = &zero, /* FIXME: session->erl */
+				.len = sizeof(uint32_t),
 				.conn_only = 0,
 				}, {
 				.param = ISCSI_PARAM_IFMARKER_EN,
 				.value = &zero,/* FIXME: session->ifmarker_en */
+				.len = sizeof(uint32_t),
 				.conn_only = 0,
 				}, {
 				.param = ISCSI_PARAM_OFMARKER_EN,
 				.value = &zero,/* FIXME: session->ofmarker_en */
+				.len = sizeof(uint32_t),
+				.conn_only = 0,
+				}, {
+				.param = ISCSI_PARAM_TARGET_NAME,
+				.conn_only = 0,
+				.len = strlen(session->target_name) + 1,
+				.value = session->target_name,
+				}, {
+				.param = ISCSI_PARAM_TPGT,
+				.value = &session->portal_group_tag,
+				.len = sizeof(session->portal_group_tag),
+				.conn_only = 0,
+				}, {
+				.param = ISCSI_PARAM_PERSISTENT_ADDRESS,
+				.value = session->nrec.conn[conn->id].address,
+				.len = NI_MAXHOST,
+				.conn_only = 1,
+				}, {
+				.param = ISCSI_PARAM_PERSISTENT_PORT,
+				.value = &session->nrec.conn[conn->id].port,
+				.len = sizeof(session->nrec.conn[conn->id].port),
 				.conn_only = 0,
 				}
-
 				/*
 				 * FIXME: set these timeouts via set_param() API
 				 *
@@ -892,7 +942,7 @@ __session_conn_recv_pdu(queue_item_t *item)
 
 			/* Entered full-feature phase! */
 
-			for (i = 0; i < ISCSI_PARAM_MAX; i++) {
+			for (i = 0; i < ISCSI_PARAM_PERSISTENT_PORT + 1; i++) {
 				if (conn->id != 0 && !conntbl[i].conn_only)
 					continue;
 				if (!(session->param_mask &
@@ -901,8 +951,8 @@ __session_conn_recv_pdu(queue_item_t *item)
 				if (ipc->set_param(
 					session->transport_handle,
 					session->id, conn->id,
-					conntbl[i].param,
-					*conntbl[i].value, &rc) || rc) {
+					conntbl[i].param, conntbl[i].value,
+					conntbl[i].len, &rc) || rc) {
 					log_error("can't set operational "
 						"parameter %d for connection "
 						"%d:%d, retcode %d (%d)",
@@ -913,9 +963,8 @@ __session_conn_recv_pdu(queue_item_t *item)
 						MGMT_IPC_ERR_LOGIN_FAILURE, 1);
 					return;
 				}
-				log_debug(3, "set operational parameter %d "
-					"to %u", conntbl[i].param,
-					*conntbl[i].value);
+				print_param_value(conntbl[i].param,
+						  conntbl[i].value);
 			}
 
 			if (ipc->start_conn(session->transport_handle,
