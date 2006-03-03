@@ -1709,11 +1709,6 @@ session_logout_task(iscsi_session_t *session, queue_task_t *qtask)
 
 	/* FIXME: logout all active connections */
 	conn = &session->conn[0];
-	if (conn->state != STATE_LOGGED_IN &&
-	    conn->state != STATE_CLEANUP_WAIT) {
-		return MGMT_IPC_ERR_INTERNAL;
-	}
-
 	/* FIXME: implement Logout Request */
 
 	__session_delete_devs(session);
