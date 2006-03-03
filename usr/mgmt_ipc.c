@@ -27,6 +27,7 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <stdlib.h>
+#include <sys/poll.h>
 #include <sys/socket.h>
 #include <sys/types.h>
 #include <sys/un.h>
@@ -80,31 +81,34 @@ mgmt_ipc_close(int fd)
 }
 
 static mgmt_ipc_err_e
-mgmt_ipc_node_read(int rid, node_rec_t *rec)
+mgmt_ipc_node_read(struct mgmt_ipc_db *dbt, int rid, node_rec_t *rec)
 {
-	idbm_t *db;
+	idbm_t *db = NULL;
 
-	db = idbm_init(dconfig->config_file);
-	if (!db) {
-		return MGMT_IPC_ERR_IDBM_FAILURE;
+	if (dbt->init) {
+		db = dbt->init(dconfig->config_file);
+		if (!db) {
+			return MGMT_IPC_ERR_IDBM_FAILURE;
+		}
 	}
 
-	if (idbm_node_read(db, rid, rec)) {
+	if (dbt->node_read(db, rid, rec)) {
 		log_error("node record [%06x] not found!", rid);
 		return MGMT_IPC_ERR_NOT_FOUND;
 	}
 
-	idbm_terminate(db);
+	if (dbt->terminate)
+		dbt->terminate(db);
 	return 0;
 }
 
 static mgmt_ipc_err_e
-mgmt_ipc_session_login(queue_task_t *qtask, int rid)
+mgmt_ipc_session_login(struct mgmt_ipc_db *dbt, queue_task_t *qtask, int rid)
 {
 	mgmt_ipc_err_e rc;
 	node_rec_t rec;
 
-	if ((rc = mgmt_ipc_node_read(rid, &rec)))
+	if ((rc = mgmt_ipc_node_read(dbt, rid, &rec)))
 		return rc;
 	return session_login_task(&rec, qtask);
 }
@@ -165,13 +169,13 @@ mgmt_ipc_session_getstats(queue_task_t *qtask, int rid, int sid,
 }
 
 static mgmt_ipc_err_e
-mgmt_ipc_session_logout(queue_task_t *qtask, int rid)
+mgmt_ipc_session_logout(struct mgmt_ipc_db *dbt, queue_task_t *qtask, int rid)
 {
 	mgmt_ipc_err_e rc;
 	node_rec_t rec;
 	iscsi_session_t *session;
 
-	if ((rc = mgmt_ipc_node_read(rid, &rec)))
+	if ((rc = mgmt_ipc_node_read(dbt, rid, &rec)))
 		return rc;
 
 	if (!(session = session_find_by_rec(&rec))) {
@@ -303,11 +307,11 @@ mgmt_peeruser(int sock, char *user)
 #endif
 }
 
-int
-mgmt_ipc_handle(int accept_fd)
+static int
+mgmt_ipc_handle(struct mgmt_ipc_db *dbt, int accept_fd)
 {
 	struct sockaddr addr;
-	int fd, rc, immrsp = 0;
+	int fd, rc = 0, immrsp = 0;
 	iscsiadm_req_t req;
 	iscsiadm_rsp_t rsp;
 	queue_task_t *qtask = NULL;
@@ -327,13 +331,12 @@ mgmt_ipc_handle(int accept_fd)
 	if (!mgmt_peeruser(accept_fd, user) ||
 	    strncmp(user, "root", PEERUSER_MAX)) {
 		rsp.err = MGMT_IPC_ERR_ACCESS;
+		rc = EINVAL;
 		goto err;
 	}
 
-	rc = read(fd, &req, sizeof(req));
-	if (rc != sizeof(req)) {
-		if (rc >= 0)
-			rc = -EIO;
+	if (read(fd, &req, sizeof(req)) != sizeof(req)) {
+		rc = -EIO;
 		close(fd);
 		return rc;
 	}
@@ -350,10 +353,10 @@ mgmt_ipc_handle(int accept_fd)
 
 	switch(req.command) {
 	case MGMT_IPC_SESSION_LOGIN:
-		rsp.err = mgmt_ipc_session_login(qtask, req.u.session.rid);
+		rsp.err = mgmt_ipc_session_login(dbt, qtask, req.u.session.rid);
 		break;
 	case MGMT_IPC_SESSION_LOGOUT:
-		rsp.err = mgmt_ipc_session_logout(qtask, req.u.session.rid);
+		rsp.err = mgmt_ipc_session_logout(dbt, qtask, req.u.session.rid);
 		break;
 	case MGMT_IPC_SESSION_ACTIVELIST:
 		rsp.err = mgmt_ipc_session_activelist(qtask, &rsp);
@@ -384,6 +387,12 @@ mgmt_ipc_handle(int accept_fd)
 		rsp.err = mgmt_ipc_cfg_filename(qtask, &rsp);
 		immrsp = 1;
 		break;
+	case MGMT_IPC_IMMEDIATE_STOP:
+		rsp.err = MGMT_IPC_OK;
+		immrsp = 1;
+		rc = 1;
+		mgmt_shutdown_requsted = 1;
+		break;
 	default:
 		log_error("unknown request: %s(%d) %u",
 			  __FUNCTION__, __LINE__, req.command);
@@ -394,12 +403,50 @@ mgmt_ipc_handle(int accept_fd)
 		return 0;
 
 err:
-	rc = write(fd, &rsp, sizeof(rsp));
-	if (rc != sizeof(rsp))
-		if (rc >= 0)
-			rc = -EIO;
+	if (write(fd, &rsp, sizeof(rsp)) != sizeof(rsp))
+		rc = -EIO;
 	close(fd);
 	if (qtask)
 		free(qtask);
 	return rc;
+}
+
+#define POLL_CTRL	0
+#define POLL_IPC	1
+#define POLL_MAX	2
+
+/* TODO: this should go somewhere else */
+void event_loop(struct iscsi_ipc *ipc, int control_fd, int mgmt_ipc_fd,
+		struct mgmt_ipc_db *dbt)
+{
+	struct pollfd poll_array[POLL_MAX];
+	int res;
+
+	poll_array[POLL_CTRL].fd = control_fd;
+	poll_array[POLL_CTRL].events = POLLIN;
+	poll_array[POLL_IPC].fd = mgmt_ipc_fd;
+	poll_array[POLL_IPC].events = POLLIN;
+
+	actor_init();
+
+	while (1) {
+		res = poll(poll_array, POLL_MAX, ACTOR_RESOLUTION);
+		if (res > 0) {
+			log_debug(6, "poll result %d", res);
+			if (poll_array[POLL_CTRL].revents)
+				ipc->ctldev_handle();
+			if (poll_array[POLL_IPC].revents)
+				if (mgmt_ipc_handle(dbt, mgmt_ipc_fd) == 1)
+					break;
+		} else if (res < 0) {
+			if (errno == EINTR) {
+				log_debug(1, "event_loop interrupted");
+			} else {
+				log_error("got poll() error (%d), errno (%d), "
+					  "exiting", res, errno);
+				break;
+			}
+		} else
+			actor_poll();
+	}
 }

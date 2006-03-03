@@ -36,6 +36,7 @@
 
 #include "idbm.h"
 #include "log.h"
+#include "util.h"
 
 #define IDBM_LOCK_EX	2    /* Exclusive lock.  */
 #define IDBM_LOCK_UN	8    /* Unlock.  */
@@ -1023,57 +1024,6 @@ idbm_id2hash(DBM *dbm, int rec_id)
 	}
 	idbm_unlock(dbm);
 	return NULL;
-}
-
-void
-idbm_node_setup_defaults(node_rec_t *rec)
-{
-	int i;
-
-	memset(rec, 0, sizeof(node_rec_t));
-
-	strcpy(rec->transport_name, "tcp");
-	rec->dbversion = IDBM_VERSION;
-	rec->active_conn = 1; /* at least one connection must exist */
-	rec->tpgt = PORTAL_GROUP_TAG_UNKNOWN;
-	rec->session.initial_cmdsn = 0;
-	rec->session.reopen_max = 32;
-	rec->session.auth.authmethod = 0;
-	rec->session.auth.password_length = 0;
-	rec->session.auth.password_in_length = 0;
-	rec->session.err_timeo.abort_timeout = 10;
-	rec->session.err_timeo.reset_timeout = 30;
-	rec->session.timeo.replacement_timeout = 0;
-	rec->session.iscsi.InitialR2T = 0;
-	rec->session.iscsi.ImmediateData = 1;
-	rec->session.iscsi.FirstBurstLength = 256 * 1024;
-	rec->session.iscsi.MaxBurstLength = (16 * 1024 * 1024) - 1024;
-	rec->session.iscsi.DefaultTime2Wait = 0;
-	rec->session.iscsi.DefaultTime2Retain = 0;
-	rec->session.iscsi.MaxConnections = 1;
-	rec->session.iscsi.MaxOutstandingR2T = 1;
-	rec->session.iscsi.ERL = 0;
-
-	for (i=0; i<ISCSI_CONN_MAX; i++) {
-		rec->conn[i].startup = 0;
-		rec->conn[i].tcp.window_size = 512 * 1024;
-		rec->conn[i].tcp.type_of_service = 0;
-		rec->conn[i].timeo.login_timeout=15;
-		rec->conn[i].timeo.auth_timeout = 45;
-		rec->conn[i].timeo.active_timeout=5;
-		rec->conn[i].timeo.idle_timeout = 60;
-		rec->conn[i].timeo.ping_timeout = 5;
-
-		rec->conn[i].timeo.noop_out_interval = 0;
-		rec->conn[i].timeo.noop_out_timeout = 0;
-
-		rec->conn[i].iscsi.MaxRecvDataSegmentLength = 128 * 1024;
-		rec->conn[i].iscsi.HeaderDigest = CONFIG_DIGEST_PREFER_OFF;
-		rec->conn[i].iscsi.DataDigest = CONFIG_DIGEST_NEVER;
-		rec->conn[i].iscsi.IFMarker = 0;
-		rec->conn[i].iscsi.OFMarker = 0;
-	}
-
 }
 
 int

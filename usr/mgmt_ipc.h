@@ -20,8 +20,10 @@
 #define MGMT_IPC_H
 
 #include "types.h"
+#include "iscsi_if.h"
 
 #define ISCSIADM_NAMESPACE	"ISCSIADM_ABSTRACT_NAMESPACE"
+#define PEERUSER_MAX		64
 
 typedef enum mgmt_ipc_err {
 	MGMT_IPC_OK			= 0,
@@ -53,6 +55,7 @@ typedef enum iscsiadm_cmd {
 	MGMT_IPC_CONFIG_INAME		= 8,
 	MGMT_IPC_CONFIG_IALIAS		= 9,
 	MGMT_IPC_CONFIG_FILE		= 10,
+	MGMT_IPC_IMMEDIATE_STOP		= 11,
 } iscsiadm_cmd_e;
 
 /* IPC Request */
@@ -101,8 +104,22 @@ typedef struct iscsiadm_rsp {
 	} u;
 } iscsiadm_rsp_t;
 
-int mgmt_ipc_handle(int accept_fd);
+struct idbm;
+struct node_rec;
+
+struct mgmt_ipc_db {
+	struct idbm *(*init)(char *configfile);
+	int (* node_read)(struct idbm *db, int rec_id, struct node_rec *rec);
+	void (* terminate)(struct idbm *db);
+};
+
+struct iscsi_ipc *ipc;
+
+void event_loop(struct iscsi_ipc *ipc, int control_fd, int mgmt_ipc_fd,
+		struct mgmt_ipc_db *db);
 int mgmt_ipc_listen(void);
 void mgmt_ipc_close(int fd);
+
+extern int mgmt_shutdown_requsted;
 
 #endif /* MGMT_IPC_H */

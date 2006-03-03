@@ -37,6 +37,7 @@
 #include "log.h"
 #include "mgmt_ipc.h"
 #include "idbm.h"
+#include "util.h"
 
 struct iscsi_ipc *ipc = NULL; /* dummy */
 static int ipc_fd = -1;
@@ -233,84 +234,6 @@ str_to_ridsid(char *str, int *sid)
 }
 
 static int
-iscsid_connect(void)
-{
-	int fd, err;
-	struct sockaddr_un addr;
-
-	fd = socket(AF_LOCAL, SOCK_STREAM, 0);
-	if (fd < 0) {
-		log_error("can not create IPC socket!");
-		return fd;
-	}
-
-	memset(&addr, 0, sizeof(addr));
-	addr.sun_family = AF_LOCAL;
-	memcpy((char *) &addr.sun_path + 1, ISCSIADM_NAMESPACE,
-		strlen(ISCSIADM_NAMESPACE));
-
-	if ((err = connect(fd, (struct sockaddr *) &addr, sizeof(addr))) < 0) {
-		log_error("can not connect to iSCSI daemon!");
-		fd = err;
-	}
-
-	return fd;
-}
-
-static int
-iscsid_request(int fd, iscsiadm_req_t *req)
-{
-	int err;
-
-	if ((err = write(fd, req, sizeof(*req))) != sizeof(*req)) {
-		log_error("%s: got write error (%d) on cmd %d, daemon died?",
-			program_name, err, req->command);
-		if (err >= 0)
-			err = -EIO;
-	}
-	return err;
-}
-
-static int
-iscsid_response(int fd, iscsiadm_rsp_t *rsp)
-{
-	int err;
-
-	if ((err = read(fd, rsp, sizeof(*rsp))) != sizeof(*rsp)) {
-		log_error("got read error (%d), daemon died?", err);
-		if (err >= 0)
-			err = -EIO;
-	} else
-		err = rsp->err;
-
-	return err;
-}
-
-static int
-do_iscsid(iscsiadm_req_t *req, iscsiadm_rsp_t *rsp)
-{
-	int err;
-
-	if ((ipc_fd = iscsid_connect()) < 0) {
-		err = ipc_fd;
-		goto out;
-	}
-
-	if ((err = iscsid_request(ipc_fd, req)) < 0)
-		goto out;
-
-	err = iscsid_response(ipc_fd, rsp);
-	if (!err && req->command != rsp->command)
-		err = -EIO;
-out:
-	if (ipc_fd > 0)
-		close(ipc_fd);
-	ipc_fd = -1;
-
-	return err;
-}
-
-static int
 session_login(int rid, node_rec_t *rec)
 {
 	iscsiadm_req_t req;
@@ -320,7 +243,7 @@ session_login(int rid, node_rec_t *rec)
 	req.command = MGMT_IPC_SESSION_LOGIN;
 	req.u.session.rid = rid;
 
-	return do_iscsid(&req, &rsp);
+	return do_iscsid(&ipc_fd, &req, &rsp);
 }
 
 static int
@@ -333,7 +256,7 @@ session_logout(int rid, node_rec_t *rec)
 	req.command = MGMT_IPC_SESSION_LOGOUT;
 	req.u.session.rid = rid;
 
-	return do_iscsid(&req, &rsp);
+	return do_iscsid(&ipc_fd, &req, &rsp);
 }
 
 static int
@@ -346,7 +269,7 @@ config_init(void)
 	memset(&req, 0, sizeof(req));
 	req.command = MGMT_IPC_CONFIG_INAME;
 
-	rc = do_iscsid(&req, &rsp);
+	rc = do_iscsid(&ipc_fd, &req, &rsp);
 	if (rc)
 		return rc;
 
@@ -357,7 +280,7 @@ config_init(void)
 	memset(&req, 0, sizeof(req));
 	req.command = MGMT_IPC_CONFIG_IALIAS;
 
-	rc = do_iscsid(&req, &rsp);
+	rc = do_iscsid(&ipc_fd, &req, &rsp);
 	if (rc)
 		return rc;
 
@@ -368,7 +291,7 @@ config_init(void)
 	memset(&req, 0, sizeof(req));
 	req.command = MGMT_IPC_CONFIG_FILE;
 
-	rc = do_iscsid(&req, &rsp);
+	rc = do_iscsid(&ipc_fd, &req, &rsp);
 	if (rc)
 		return rc;
 
@@ -389,7 +312,7 @@ session_activelist(idbm_t *db)
 	memset(&req, 0, sizeof(req));
 	req.command = MGMT_IPC_SESSION_ACTIVELIST;
 
-	rc = do_iscsid(&req, &rsp);
+	rc = do_iscsid(&ipc_fd, &req, &rsp);
 	if (rc)
 		return rc;
 	/* display all active sessions */
@@ -427,7 +350,7 @@ session_stats(idbm_t *db, int rid, int sid)
 	req.u.session.rid = rid;
 	req.u.session.sid = sid;
 
-	rc = do_iscsid(&req, &rsp);
+	rc = do_iscsid(&ipc_fd, &req, &rsp);
 	if (rc)
 		return rc;
 
@@ -518,29 +441,6 @@ do_sendtargets(idbm_t *db, struct iscsi_sendtargets_config *cfg)
 	}
 	truncate_buffer(&info, 0);
 	return rc;
-}
-
-static void
-iscsid_handle_error(int err)
-{
-	static char *err_msgs[] = {
-		/* 0 */ "",
-		/* 1 */ "unknown error",
-		/* 2 */ "not found",
-		/* 3 */ "no available memory",
-		/* 4 */ "encountered connection failure",
-		/* 5 */ "encountered iSCSI login failure",
-		/* 6 */ "encountered iSCSI database failure",
-		/* 7 */ "invalid parameter",
-		/* 8 */ "connection timed out",
-		/* 9 */ "internal error",
-		/* 10 */ "encountered iSCSI logout failure",
-		/* 11 */ "iSCSI PDU timed out",
-		/* 12 */ "iSCSI transport not found",
-		/* 13 */ "daemon access denied",
-		/* 14 */ "iSCSI transport capability failure",
-	};
-	log_error("iscsid reported error (%d - %s)", err, err_msgs[err]);
 }
 
 static int

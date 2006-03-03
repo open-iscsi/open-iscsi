@@ -34,6 +34,7 @@
 #include "iscsid.h"
 #include "log.h"
 #include "iscsi_ipc.h"
+#include "initiator.h"
 
 static int ctrl_fd;
 static struct sockaddr_nl src_addr, dest_addr;

@@ -31,15 +31,12 @@
 #include <sys/signal.h>
 
 #include "iscsid.h"
-#include "actor.h"
 #include "mgmt_ipc.h"
 #include "iscsi_ipc.h"
 #include "log.h"
 #include "util.h"
-
-#define POLL_CTRL		0
-#define POLL_IPC		1
-#define POLL_MAX		2
+#include "initiator.h"
+#include "idbm.h"
 
 /* global config info */
 struct iscsi_daemon_config daemon_config;
@@ -49,7 +46,13 @@ int num_providers = 0;
 
 static char program_name[] = "iscsid";
 int control_fd, mgmt_ipc_fd;
-static struct pollfd poll_array[POLL_MAX];
+int mgmt_shutdown_requsted = 0;
+
+static struct mgmt_ipc_db mgmt_ipc_db = {
+	.init		= idbm_init,
+	.terminate	= idbm_terminate,
+	.node_read	= idbm_node_read,
+};
 
 static struct option const long_options[] = {
 	{"config", required_argument, NULL, 'c'},
@@ -87,41 +90,6 @@ Open-iSCSI initiator daemon.\n\
 	exit(status == 0 ? 0 : -1);
 }
 
-void event_loop(void)
-{
-	int res;
-
-	poll_array[POLL_CTRL].fd = control_fd;
-	poll_array[POLL_CTRL].events = POLLIN;
-	poll_array[POLL_IPC].fd = mgmt_ipc_fd;
-	poll_array[POLL_IPC].events = POLLIN;
-
-	while (1) {
-		res = poll(poll_array, POLL_MAX, ACTOR_RESOLUTION);
-		if (res <= 0) {
-			if (res == 0) {
-				actor_poll();
-				continue;
-			}
-			if (res < 0 && errno != EINTR) {
-				log_error("got poll() error (%d), errno (%d), "
-					  "exiting", res, errno);
-				exit(1);
-			}
-			log_debug(6, "poll result %d", res);
-			continue;
-		}
-
-		log_debug(6, "detected poll event %d", res);
-
-		if (poll_array[POLL_CTRL].revents)
-			ipc->ctldev_handle();
-
-		if (poll_array[POLL_IPC].revents)
-			mgmt_ipc_handle(mgmt_ipc_fd);
-	}
-}
-
 /*
  * synchronyze registered transports and opened sessions/connections
  */
@@ -148,23 +116,6 @@ int trans_sync(void)
 	log_debug(1, "synced %d transport(s)", found);
 
 	return 0;
-}
-
-static void oom_adjust(void)
-{
-	int fd;
-	char path[48];
-
-	nice(-10);
-	sprintf(path, "/proc/%d/oom_adj", getpid());
-	fd = open(path, O_WRONLY);
-	if (fd < 0) {
-		log_debug(1, "can not adjust oom-killer's pardon");
-		return;
-	}
-	write(fd, "-16\n", 3); /* for 2.6.11 */
-	write(fd, "-17\n", 3); /* for Andrea's patch */
-	close(fd);
 }
 
 static void catch_signal(int signo) {
@@ -334,7 +285,8 @@ int main(int argc, char *argv[])
 		ISCSI_VERSION_STR, ISCSI_DATE_STR);
 
 	/* oom-killer will not kill us at the night... */
-	oom_adjust();
+	if (oom_adjust())
+		log_debug(1, "can not adjust oom-killer's pardon");
 
 	/* in case of transports/sessions/connections been active
 	 * and we've been killed or crashed. update states.
@@ -353,8 +305,7 @@ int main(int argc, char *argv[])
 	/*
 	 * Start Main Event Loop
 	 */
-	actor_init();
-	event_loop();
+	event_loop(ipc, control_fd, mgmt_ipc_fd, &mgmt_ipc_db);
 
 	/* we're done */
 	log_debug(1, "daemon stopping");

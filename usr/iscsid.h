@@ -20,22 +20,6 @@
 #ifndef ISCSID_H
 #define ISCSID_H
 
-#include <sys/types.h>
-#include <sys/ioctl.h>
-
-#include "initiator.h"
-#include "idbm.h"
-
-#define BHS_SIZE	48
-
-typedef struct iscsi_pdu {
-	struct iscsi_hdr bhs;
-	void *ahs;
-	unsigned int ahssize;
-	void *data;
-	unsigned int datasize;
-} iscsi_pdu_t;
-
 /* IPC API */
 extern struct iscsi_ipc *ipc;
 

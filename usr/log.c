@@ -15,6 +15,8 @@
 #include <sys/shm.h>
 #include <sys/ipc.h>
 #include <sys/types.h>
+#include <sys/types.h>
+#include <sys/wait.h>
 
 #include "util.h"
 #include "log.h"
@@ -31,6 +33,8 @@
 char *log_name;
 int log_daemon = 1;
 int log_level = 0;
+
+static int log_stop_daemon = 0;
 
 static int logarea_init (int size)
 {
@@ -308,36 +312,6 @@ static void __dump_char(int level, unsigned char *buf, int *cp, int ch)
 #define dump_line() __dump_line(level, char_buf, &char_cnt)
 #define dump_char(ch) __dump_char(level, char_buf, &char_cnt, ch)
 
-void log_pdu(int level, iscsi_pdu_t *pdu)
-{
-	unsigned char char_buf[16];
-	int char_cnt = 0;
-	unsigned char *buf;
-	int i;
-	return;
-
-	if (log_level <= level)
-		return;
-
-	buf = (void *)&pdu->bhs;
-	log_debug(level, "BHS: (%p)", buf);
-	for (i = 0; i < BHS_SIZE; i++)
-		dump_char(*buf++);
-	dump_line();
-
-	buf = (void *)pdu->ahs;
-	log_debug(level, "AHS: (%p)", buf);
-	for (i = 0; i < pdu->ahssize; i++)
-		dump_char(*buf++);
-	dump_line();
-
-	buf = (void *)pdu->data;
-	log_debug(level, "Data: (%p)", buf);
-	for (i = 0; i < pdu->datasize; i++)
-		dump_char(*buf++);
-	dump_line();
-}
-
 static void log_flush(void)
 {
 	while (!la->empty) {
@@ -356,10 +330,32 @@ static void log_flush(void)
 	}
 }
 
+static void catch_signal(int signo)
+{
+	switch (signo) {
+	case SIGSEGV:
+		log_flush();
+		break;
+	case SIGTERM:
+		log_stop_daemon = 1;
+		break;
+	}
+
+	log_warning("pid %d caught signal -%d", getpid(), signo);
+}
+
+static void __log_close()
+{
+	log_flush();
+	closelog();
+	free_logarea();
+}
+
 int log_init(char *program_name, int size)
 {
 	logdbg(stderr,"enter log_init\n");
 	log_name = program_name;
+
 	if (log_daemon) {
 		struct sigaction sa_old;
 		struct sigaction sa_new;
@@ -369,7 +365,7 @@ int log_init(char *program_name, int size)
 		setlogmask (LOG_UPTO (LOG_DEBUG));
 
 		if (logarea_init(size))
-			return 1;
+			return -1;
 
 		pid = fork();
 		if (pid < 0) {
@@ -378,32 +374,42 @@ int log_init(char *program_name, int size)
 		} else if (pid) {
 			syslog(LOG_WARNING,
 			       "iSCSI logger with pid=%d started!", pid);
-			return 0;
+			return pid;
 		}
 
 		daemon_init();
 
 		/* flush on daemon's crash */
-		sa_new.sa_handler = (void*)log_flush;
+		sa_new.sa_handler = (void*)catch_signal;
 		sigemptyset(&sa_new.sa_mask);
 		sa_new.sa_flags = 0;
 		sigaction(SIGSEGV, &sa_new, &sa_old );
+		sigaction(SIGTERM, &sa_new, &sa_old );
 
 		while(1) {
 			log_flush();
 			sleep(1);
+
+			if (log_stop_daemon)
+				break;
 		}
+
+		__log_close();
 		exit(0);
 	}
 
 	return 0;
 }
 
-void log_close (void)
+void log_close(pid_t pid)
 {
-	if (log_daemon) {
-		closelog();
-		free_logarea();
+	int status;
+
+	if (!log_daemon || pid <= 0) {
+		__log_close();
+		return;
 	}
-	return;
+
+	kill(pid, SIGTERM);
+	waitpid(pid, &status, 0);
 }

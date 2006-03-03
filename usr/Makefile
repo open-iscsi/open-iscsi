@@ -33,19 +33,25 @@ endif
 OPTFLAGS ?= -O2 -fno-inline -g
 WARNFLAGS ?= -Wall -Wstrict-prototypes
 CFLAGS += $(OPTFLAGS) $(WARNFLAGS) -I../include -D$(OSNAME) $(IPC_CFLAGS)
-PROGRAMS = iscsid iscsiadm
+PROGRAMS = iscsid iscsiadm iscsistart
 
+# sources shared between iscsid, iscsiadm and iscsistart
+ISCSI_LIB_SRCS = util.o io.o auth.o login.o log.o md5.o sha1.o
 # sources shared between iscsid and iscsiadm
-COMMON_SRCS = util.o io.o auth.o login.o log.o md5.o sha1.o idbm.o
+COMMON_SRCS =  $(ISCSI_LIB_SRCS) idbm.o
+# core initiator files
+INITIATOR_SRCS = initiator.o queue.o actor.o mgmt_ipc.o
 
 all: $(PROGRAMS)
 
-iscsid: $(COMMON_SRCS) $(IPC_OBJ) iscsid.o mgmt_ipc.o initiator.o \
-				  actor.o queue.o
+iscsid: $(COMMON_SRCS) $(IPC_OBJ) $(INITIATOR_SRCS) iscsid.o
 	$(CC) $^ $(DBM_LIB) -o $@
 
 iscsiadm: $(COMMON_SRCS) strings.o discovery.o iscsiadm.o
 	$(CC) $^ $(DBM_LIB) -o $@
+
+iscsistart: $(IPC_OBJ) $(ISCSI_LIB_SRCS) $(INITIATOR_SRCS) iscsistart.o
+	$(CC) $^ -o $@
 
 clean:
 	rm -f *.o $(PROGRAMS)

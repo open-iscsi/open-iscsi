@@ -26,6 +26,8 @@
 #include <sys/_iovec.h>
 #endif
 
+#include "iscsi_if.h"
+
 /**
  * struct iscsi_ipc - Open-iSCSI Interface for Kernel IPC
  *
