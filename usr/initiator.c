@@ -786,6 +786,205 @@ print_param_value(enum iscsi_param param, void *value)
 }
 
 static void
+setup_full_feature_phase(iscsi_conn_t *conn)
+{
+	iscsi_session_t *session = conn->session;
+	iscsi_login_context_t *c = &conn->login_context;
+	int i, rc;
+	uint32_t one = 1, zero = 0;
+	struct connparam {
+		int param;
+		int len;
+		void *value;
+		int conn_only; } conntbl[ISCSI_PARAM_PERSISTENT_PORT + 1] = {
+
+		{
+		.param = ISCSI_PARAM_MAX_RECV_DLENGTH,
+		.value = &conn->max_recv_dlength,
+		.len = sizeof(conn->max_recv_dlength),
+		.conn_only = 1,
+		}, {
+		.param = ISCSI_PARAM_MAX_XMIT_DLENGTH,
+		.value = &conn->max_xmit_dlength,
+		.len = sizeof(conn->max_xmit_dlength),
+		.conn_only = 1,
+		}, {
+		.param = ISCSI_PARAM_HDRDGST_EN,
+		.value = &conn->hdrdgst_en,
+		.len = sizeof(conn->hdrdgst_en),
+		.conn_only = 1,
+		}, {
+		.param = ISCSI_PARAM_DATADGST_EN,
+		.value = &conn->datadgst_en,
+		.len = sizeof(conn->datadgst_en),
+		.conn_only = 1,
+		}, {
+		.param = ISCSI_PARAM_INITIAL_R2T_EN,
+		.value = &session->initial_r2t_en,
+		.len = sizeof(session->initial_r2t_en),
+		.conn_only = 0,
+		}, {
+		.param = ISCSI_PARAM_MAX_R2T,
+		.value = &one, /* FIXME: session->max_r2t */
+		.len = sizeof(uint32_t),
+		.conn_only = 0,
+		}, {
+		.param = ISCSI_PARAM_IMM_DATA_EN,
+		.value = &session->imm_data_en,
+		.len = sizeof(session->imm_data_en),
+		.conn_only = 0,
+		}, {
+		.param = ISCSI_PARAM_FIRST_BURST,
+		.value = &session->first_burst,
+		.len = sizeof(session->first_burst),
+		.conn_only = 0,
+		}, {
+		.param = ISCSI_PARAM_MAX_BURST,
+		.value = &session->max_burst,
+		.len = sizeof(session->max_burst),
+		.conn_only = 0,
+		}, {
+		.param = ISCSI_PARAM_PDU_INORDER_EN,
+		.value = &session->pdu_inorder_en,
+		.len = sizeof(session->pdu_inorder_en),
+		.conn_only = 0,
+		}, {
+		.param =ISCSI_PARAM_DATASEQ_INORDER_EN,
+		.value = &session->dataseq_inorder_en,
+		.len = sizeof(session->dataseq_inorder_en),
+		.conn_only = 0,
+		}, {
+		.param = ISCSI_PARAM_ERL,
+		.value = &zero, /* FIXME: session->erl */
+		.len = sizeof(uint32_t),
+		.conn_only = 0,
+		}, {
+		.param = ISCSI_PARAM_IFMARKER_EN,
+		.value = &zero,/* FIXME: session->ifmarker_en */
+		.len = sizeof(uint32_t),
+		.conn_only = 0,
+		}, {
+		.param = ISCSI_PARAM_OFMARKER_EN,
+		.value = &zero,/* FIXME: session->ofmarker_en */
+		.len = sizeof(uint32_t),
+		.conn_only = 0,
+		}, {
+		.param = ISCSI_PARAM_TARGET_NAME,
+		.conn_only = 0,
+		.len = strlen(session->target_name) + 1,
+		.value = session->target_name,
+		}, {
+		.param = ISCSI_PARAM_TPGT,
+		.value = &session->portal_group_tag,
+		.len = sizeof(session->portal_group_tag),
+		.conn_only = 0,
+		}, {
+		.param = ISCSI_PARAM_PERSISTENT_ADDRESS,
+		.value = session->nrec.conn[conn->id].address,
+		.len = NI_MAXHOST,
+		.conn_only = 1,
+		}, {
+		.param = ISCSI_PARAM_PERSISTENT_PORT,
+		.value = &session->nrec.conn[conn->id].port,
+		.len = sizeof(session->nrec.conn[conn->id].port),
+		.conn_only = 0,
+		}
+		/*
+		 * FIXME: set these timeouts via set_param() API
+		 *
+		 * rec->session.timeo
+		 * rec->session.err_timeo
+		 */
+	};
+
+	/* almost! entered full-feature phase */
+	if (__login_response_status(conn, c->ret) != CONN_LOGIN_SUCCESS) {
+		__session_mgmt_ipc_login_cleanup(c->qtask,
+						 MGMT_IPC_ERR_LOGIN_FAILURE, 1);
+		return;
+	}
+
+	/* check the login status */
+	if (__check_iscsi_status_class(session, conn->id, c->status_class,
+				      c->status_detail) != CONN_LOGIN_SUCCESS) {
+		__session_mgmt_ipc_login_cleanup(c->qtask,
+						 MGMT_IPC_ERR_LOGIN_FAILURE, 1);
+		return;
+	}
+
+	/* Entered full-feature phase! */
+	for (i = 0; i < ISCSI_PARAM_PERSISTENT_PORT + 1; i++) {
+		if (conn->id != 0 && !conntbl[i].conn_only)
+			continue;
+		if (!(session->param_mask & (1 << conntbl[i].param)))
+			continue;
+
+		if (ipc->set_param(session->transport_handle, session->id,
+				   conn->id, conntbl[i].param, conntbl[i].value,
+				   conntbl[i].len, &rc) || rc) {
+			log_error("can't set operational parameter %d for "
+				  "connection %d:%d, retcode %d (%d)",
+				  conntbl[i].param, session->id, conn->id,
+				  rc, errno);
+
+			__session_mgmt_ipc_login_cleanup(c->qtask,
+						MGMT_IPC_ERR_LOGIN_FAILURE, 1);
+			return;
+		}
+
+		print_param_value(conntbl[i].param, conntbl[i].value);
+	}
+
+	if (ipc->start_conn(session->transport_handle, session->id, conn->id,
+			    &rc) || rc) {
+		__session_mgmt_ipc_login_cleanup(c->qtask,
+						MGMT_IPC_ERR_INTERNAL, 1);
+		log_error("can't start connection %d:%d retcode %d (%d)",
+			  session->id, conn->id, rc, errno);
+		return;
+	}
+
+	conn->state = STATE_LOGGED_IN;
+	if (session->r_stage == R_STAGE_NO_CHANGE) {
+		/*
+		 * scan host is one-time deal. We
+		 * don't want to re-scan it on recovery.
+		 */
+		if (conn->id == 0)
+			__session_scan_host(session);
+
+		c->qtask->u.login.rsp.err = MGMT_IPC_OK;
+		write(c->qtask->u.login.mgmt_ipc_fd, &c->qtask->u.login.rsp,
+		      sizeof(c->qtask->u.login.rsp));
+		close(c->qtask->u.login.mgmt_ipc_fd);
+		free(c->qtask);
+
+		log_warning("connection%d:%d is operational now",
+			    session->id, conn->id);
+	} else {
+		log_warning("connection%d:%d is operational after recovery "
+			    "(%d attempts)", session->id, conn->id,
+			     session->nrec.session.reopen_max - session->reopen_cnt);
+
+		/*
+		 * reset ERL=0 reopen counter
+		 */
+		session->reopen_cnt = session->nrec.session.reopen_max;
+		session->r_stage = R_STAGE_NO_CHANGE;
+	}
+
+	/* noop_out */
+	if (conn->noop_out_interval) {
+		actor_timer(&conn->noop_out_timer, conn->noop_out_interval*1000,
+			   __conn_noop_out, conn);
+		actor_new(&conn->noop_out_timeout_timer,
+			  __conn_noop_out_timeout, conn);
+		log_debug(3, "noop out timer %p start\n",
+			  &conn->noop_out_timer);
+	}
+}
+
+static void
 __session_conn_recv_pdu(queue_item_t *item)
 {
 	iscsi_conn_t *conn = item->context;
@@ -813,213 +1012,9 @@ __session_conn_recv_pdu(queue_item_t *item)
 						MGMT_IPC_ERR_LOGIN_FAILURE, 1);
 				return;
 			}
-		} else {
-			int i, rc;
-			uint32_t one = 1, zero = 0;
-			struct connparam {
-				int param;
-				int len;
-				void *value;
-				int conn_only; } conntbl[ISCSI_PARAM_PERSISTENT_PORT + 1] = {
+		} else
+			setup_full_feature_phase(conn);
 
-				{
-				.param = ISCSI_PARAM_MAX_RECV_DLENGTH,
-				.value = &conn->max_recv_dlength,
-				.len = sizeof(conn->max_recv_dlength),
-				.conn_only = 1,
-				}, {
-				.param = ISCSI_PARAM_MAX_XMIT_DLENGTH,
-				.value = &conn->max_xmit_dlength,
-				.len = sizeof(conn->max_xmit_dlength),
-				.conn_only = 1,
-				}, {
-				.param = ISCSI_PARAM_HDRDGST_EN,
-				.value = &conn->hdrdgst_en,
-				.len = sizeof(conn->hdrdgst_en),
-				.conn_only = 1,
-				}, {
-				.param = ISCSI_PARAM_DATADGST_EN,
-				.value = &conn->datadgst_en,
-				.len = sizeof(conn->datadgst_en),
-				.conn_only = 1,
-				}, {
-				.param = ISCSI_PARAM_INITIAL_R2T_EN,
-				.value = &session->initial_r2t_en,
-				.len = sizeof(session->initial_r2t_en),
-				.conn_only = 0,
-				}, {
-				.param = ISCSI_PARAM_MAX_R2T,
-				.value = &one, /* FIXME: session->max_r2t */
-				.len = sizeof(uint32_t),
-				.conn_only = 0,
-				}, {
-				.param = ISCSI_PARAM_IMM_DATA_EN,
-				.value = &session->imm_data_en,
-				.len = sizeof(session->imm_data_en),
-				.conn_only = 0,
-				}, {
-				.param = ISCSI_PARAM_FIRST_BURST,
-				.value = &session->first_burst,
-				.len = sizeof(session->first_burst),
-				.conn_only = 0,
-				}, {
-				.param = ISCSI_PARAM_MAX_BURST,
-				.value = &session->max_burst,
-				.len = sizeof(session->max_burst),
-				.conn_only = 0,
-				}, {
-				.param = ISCSI_PARAM_PDU_INORDER_EN,
-				.value = &session->pdu_inorder_en,
-				.len = sizeof(session->pdu_inorder_en),
-				.conn_only = 0,
-				}, {
-				.param =ISCSI_PARAM_DATASEQ_INORDER_EN,
-				.value = &session->dataseq_inorder_en,
-				.len = sizeof(session->dataseq_inorder_en),
-				.conn_only = 0,
-				}, {
-				.param = ISCSI_PARAM_ERL,
-				.value = &zero, /* FIXME: session->erl */
-				.len = sizeof(uint32_t),
-				.conn_only = 0,
-				}, {
-				.param = ISCSI_PARAM_IFMARKER_EN,
-				.value = &zero,/* FIXME: session->ifmarker_en */
-				.len = sizeof(uint32_t),
-				.conn_only = 0,
-				}, {
-				.param = ISCSI_PARAM_OFMARKER_EN,
-				.value = &zero,/* FIXME: session->ofmarker_en */
-				.len = sizeof(uint32_t),
-				.conn_only = 0,
-				}, {
-				.param = ISCSI_PARAM_TARGET_NAME,
-				.conn_only = 0,
-				.len = strlen(session->target_name) + 1,
-				.value = session->target_name,
-				}, {
-				.param = ISCSI_PARAM_TPGT,
-				.value = &session->portal_group_tag,
-				.len = sizeof(session->portal_group_tag),
-				.conn_only = 0,
-				}, {
-				.param = ISCSI_PARAM_PERSISTENT_ADDRESS,
-				.value = session->nrec.conn[conn->id].address,
-				.len = NI_MAXHOST,
-				.conn_only = 1,
-				}, {
-				.param = ISCSI_PARAM_PERSISTENT_PORT,
-				.value = &session->nrec.conn[conn->id].port,
-				.len = sizeof(session->nrec.conn[conn->id].port),
-				.conn_only = 0,
-				}
-				/*
-				 * FIXME: set these timeouts via set_param() API
-				 *
-				 * rec->session.timeo
-				 * rec->session.timeo
-				 * rec->session.err_timeo
-				 */
-			};
-
-			/* almost! entered full-feature phase */
-
-			if (__login_response_status(conn, c->ret) !=
-						CONN_LOGIN_SUCCESS) {
-				__session_mgmt_ipc_login_cleanup(c->qtask,
-						MGMT_IPC_ERR_LOGIN_FAILURE, 1);
-				return;
-			}
-
-			/* check the login status */
-			if (__check_iscsi_status_class(session, conn->id,
-				c->status_class, c->status_detail) !=
-							CONN_LOGIN_SUCCESS) {
-				__session_mgmt_ipc_login_cleanup(c->qtask,
-						MGMT_IPC_ERR_LOGIN_FAILURE, 1);
-				return;
-			}
-
-			/* Entered full-feature phase! */
-
-			for (i = 0; i < ISCSI_PARAM_PERSISTENT_PORT + 1; i++) {
-				if (conn->id != 0 && !conntbl[i].conn_only)
-					continue;
-				if (!(session->param_mask &
-						(1 << conntbl[i].param)))
-					continue;
-				if (ipc->set_param(
-					session->transport_handle,
-					session->id, conn->id,
-					conntbl[i].param, conntbl[i].value,
-					conntbl[i].len, &rc) || rc) {
-					log_error("can't set operational "
-						"parameter %d for connection "
-						"%d:%d, retcode %d (%d)",
-						conntbl[i].param, session->id,
-						conn->id, rc, errno);
-					__session_mgmt_ipc_login_cleanup(
-						c->qtask,
-						MGMT_IPC_ERR_LOGIN_FAILURE, 1);
-					return;
-				}
-				print_param_value(conntbl[i].param,
-						  conntbl[i].value);
-			}
-
-			if (ipc->start_conn(session->transport_handle,
-				session->id, conn->id, &rc) || rc) {
-				__session_mgmt_ipc_login_cleanup(c->qtask,
-						MGMT_IPC_ERR_INTERNAL, 1);
-				log_error("can't start connection %d:%d "
-					  "retcode %d (%d)",
-					  session->id, conn->id, 
-					  rc, errno);
-				return;
-			}
-
-			conn->state = STATE_LOGGED_IN;
-			if (session->r_stage == R_STAGE_NO_CHANGE) {
-				/*
-				 * scan host is one-time deal. We
-				 * don't want to re-scan it on recovery.
-				 */
-				if (conn->id == 0)
-					__session_scan_host(session);
-				c->qtask->u.login.rsp.err = MGMT_IPC_OK;
-				write(c->qtask->u.login.mgmt_ipc_fd,
-					&c->qtask->u.login.rsp,
-					sizeof(c->qtask->u.login.rsp));
-				close(c->qtask->u.login.mgmt_ipc_fd);
-				free(c->qtask);
-				log_warning("connection%d:%d is operational "
-					"now", session->id, conn->id);
-			} else {
-				log_warning("connection%d:%d is operational "
-					"after recovery (%d attempts)",
-					session->id, conn->id,
-					session->nrec.session.reopen_max -
-							session->reopen_cnt);
-
-				/*
-				 * reset ERL=0 reopen counter
-				 */
-				session->reopen_cnt =
-					session->nrec.session.reopen_max;
-
-				session->r_stage = R_STAGE_NO_CHANGE;
-			}
-			/* noop_out */
-			if (conn->noop_out_interval) {
-				actor_timer(&conn->noop_out_timer,
-						conn->noop_out_interval*1000,
-						__conn_noop_out, conn);
-				actor_new(&conn->noop_out_timeout_timer,
-						__conn_noop_out_timeout, conn);
-				log_debug(3, "noop out timer %p start\n",
-					&conn->noop_out_timer);
-			}
-		}
 	} else if (conn->state == STATE_LOGGED_IN) {
 		struct iscsi_hdr hdr;
 
