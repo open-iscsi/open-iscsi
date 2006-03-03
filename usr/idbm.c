@@ -1394,6 +1394,25 @@ out:
 }
 
 int
+idbm_delete_discovery(idbm_t *db, discovery_rec_t *rec)
+{
+	int rc;
+	char *hash;
+	datum key;
+	DBM *dbm = db->discdb;
+
+	hash = idbm_id2hash(dbm, rec->id);
+
+	key.dptr = hash;
+	key.dsize = strlen(hash) + 1; /* null-terminated string */
+
+	rc = dbm_delete(dbm, key);
+
+	free(hash);
+	return rc;
+}
+
+int
 idbm_delete_node(idbm_t *db, node_rec_t *rec)
 {
 	int rc;

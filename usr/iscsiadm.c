@@ -568,7 +568,7 @@ main(int argc, char **argv)
 	}
 
 	if (mode == MODE_DISCOVERY) {
-		if ((rc = verify_mode_params(argc, argv, "dmtplr", 0))) {
+		if ((rc = verify_mode_params(argc, argv, "dmtplro", 0))) {
 			log_error("discovery mode: option '-%c' is not "
 				  "allowed/supported", rc);
 			rc = -1;
@@ -606,7 +606,7 @@ main(int argc, char **argv)
 			rc = -1;
 			goto out;
 		} else if (type < 0) {
-			if (rid >= 0 && do_login) {
+			if (rid >= 0) {
 				discovery_rec_t rec;
 
 				if (idbm_discovery_read(db, rid, &rec)) {
@@ -615,27 +615,50 @@ main(int argc, char **argv)
 					rc = -1;
 					goto out;
 				}
-				if (rec.type == DISCOVERY_TYPE_SENDTARGETS) {
+				if (do_login &&
+				    rec.type == DISCOVERY_TYPE_SENDTARGETS) {
 					do_sendtargets(db, &rec.u.sendtargets);
-				} else if (rec.type == DISCOVERY_TYPE_SLP) {
+				} else if (do_login &&
+					   rec.type == DISCOVERY_TYPE_SLP) {
 					log_error("SLP discovery is not fully "
 						  "implemented yet.");
 					rc = -1;
 					goto out;
-				} else if (rec.type == DISCOVERY_TYPE_ISNS) {
+				} else if (do_login &&
+					   rec.type == DISCOVERY_TYPE_ISNS) {
 					log_error("iSNS discovery is not fully "
 						  "implemented yet.");
 					rc = -1;
 					goto out;
+				} else if (op < 0 || op == OP_SHOW) {
+					if (!idbm_print_discovery(db, rid)) {
+						log_error("no records found!");
+						rc = -1;
+					}
+				} else if (op == OP_DELETE) {
+					if (idbm_delete_discovery(db, &rec)) {
+						log_error("unable to delete "
+							   "record!");
+						rc = -1;
+					}
+				} else {
+					log_error("operation is not supported.");
+					rc = -1;
+					goto out;
 				}
+
 			} else if (op < 0 || op == OP_SHOW) {
 				if (!idbm_print_discovery(db, rid)) {
 					log_error("no records found!");
 					rc = -1;
 				}
 				goto out;
+			} else if (op == OP_DELETE) {
+				log_error("--record required for delete operation");
+				rc = -1;
+				goto out;
 			} else {
-				log_error("Operations: insert, delete and "
+				log_error("Operations: new and "
 					  "update for node is not fully "
 					  "implemented yet.");
 				rc = -1;

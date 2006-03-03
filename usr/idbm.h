@@ -65,6 +65,7 @@ extern void idbm_terminate(idbm_t *db);
 extern int idbm_print_node(idbm_t *db, int rec_id);
 extern int idbm_print_nodes(idbm_t *db, discovery_rec_t *rec);
 extern int idbm_print_discovery(idbm_t *db, int rec_id);
+extern int idbm_delete_discovery(idbm_t *db, discovery_rec_t *rec);
 extern void idbm_node_setup_defaults(node_rec_t *rec);
 extern int idbm_delete_node(idbm_t *db, node_rec_t *rec);
 extern int idbm_new_node(idbm_t *db, node_rec_t *newrec);
