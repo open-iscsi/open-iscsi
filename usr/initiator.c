@@ -190,6 +190,9 @@ __session_online_devs(iscsi_session_t *session)
 static void
 write_mgmt_login_rsp(queue_task_t *qtask, mgmt_ipc_err_e err)
 {
+	if (qtask->u.login.mgmt_ipc_fd == 0)
+		return;
+
 	qtask->u.login.rsp.err = err;
 	write(qtask->u.login.mgmt_ipc_fd, &qtask->u.login.rsp,
 	      sizeof(qtask->u.login.rsp));
