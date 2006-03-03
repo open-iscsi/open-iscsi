@@ -296,6 +296,7 @@ typedef struct iscsi_session {
 	int reopen_cnt;
 	queue_task_t reopen_qtask;
 	iscsi_session_r_stage_e r_stage;
+	uint32_t replacement_timeout;
 
 	/* session's processing */
 	actor_t mainloop;

@@ -229,6 +229,7 @@ struct iscsi_session {
 						 * - mgmtpool,		   *
 						 * - r2tpool		   */
 	int			state;		/* session state           */
+	int			recovery_failed;
 	struct list_head	item;
 	void			*auth_client;
 	int			conn_cnt;

@@ -31,7 +31,7 @@
 #include "scsi_transport_iscsi.h"
 #include "iscsi_if.h"
 
-#define ISCSI_SESSION_ATTRS 10
+#define ISCSI_SESSION_ATTRS 11
 #define ISCSI_CONN_ATTRS 10
 #define ISCSI_HOST_ATTRS 0
 
@@ -265,6 +265,35 @@ static int iscsi_user_scan(struct Scsi_Host *shost, uint channel,
 	return 0;
 }
 
+static void session_recovery_timedout(void *data)
+{
+	struct iscsi_cls_session *session = data;
+
+	dev_printk(KERN_INFO, &session->dev, "session recovery timed out "
+		  "after %d secs\n", session->recovery_tmo);
+
+	if (session->transport->session_recovery_timedout)
+		session->transport->session_recovery_timedout(session);
+
+	scsi_target_unblock(&session->dev);
+}
+
+void iscsi_unblock_session(struct iscsi_cls_session *session)
+{
+	if (!cancel_delayed_work(&session->recovery_work))
+		flush_scheduled_work();
+	scsi_target_unblock(&session->dev);
+}
+EXPORT_SYMBOL_GPL(iscsi_unblock_session);
+
+void iscsi_block_session(struct iscsi_cls_session *session)
+{
+	scsi_target_block(&session->dev);
+	schedule_delayed_work(&session->recovery_work,
+			     session->recovery_tmo * HZ);
+}
+EXPORT_SYMBOL_GPL(iscsi_block_session);
+
 /**
  * iscsi_create_session - create iscsi class session
  * @shost: scsi host
@@ -289,6 +318,8 @@ iscsi_create_session(struct Scsi_Host *shost,
 	if (!session)
 		goto module_put;
 	session->transport = transport;
+	session->recovery_tmo = 120;
+	INIT_WORK(&session->recovery_work, session_recovery_timedout, session);
 
 	if (transport->sessiondata_size)
 		session->dd_data = &session[1];
@@ -343,6 +374,9 @@ int iscsi_destroy_session(struct iscsi_cls_session *session)
 	spin_lock_irqsave(shost->host_lock, flags);
 	list_del(&session->host_list);
 	spin_unlock_irqrestore(shost->host_lock, flags);
+
+	if (!cancel_delayed_work(&session->recovery_work))
+		flush_scheduled_work();
 
 	transport_unregister_device(&session->dev);
 	device_unregister(&session->dev);
@@ -946,6 +980,11 @@ iscsi_set_param(struct iscsi_transport *transport, struct iscsi_uevent *ev)
 		return -EINVAL;
 
 	switch (ev->u.set_param.param) {
+	case ISCSI_PARAM_SESS_RECOVERY_TMO:
+		iscsi_copy_param(ev, &value, data);
+		if (value != 0)
+			session->recovery_tmo = value;
+		break;
 	case ISCSI_PARAM_TARGET_NAME:
 		/* this should not change between logins */
 		if (session->targetname)
@@ -1255,6 +1294,7 @@ static ISCSI_CLASS_ATTR(priv_sess, field, S_IRUGO, show_priv_session_##field, \
 			NULL)
 iscsi_priv_session_attr(targetname, "%s");
 iscsi_priv_session_attr(tpgt, "%d");
+iscsi_priv_session_attr(recovery_tmo, "%d");
 
 #define iscsi_priv_conn_attr_show(field, format)			\
 static ssize_t								\
@@ -1445,6 +1485,7 @@ iscsi_register_transport(struct iscsi_transport *tt)
 	SETUP_SESSION_RD_ATTR(data_pdu_in_order, ISCSI_PDU_INORDER_EN);
 	SETUP_SESSION_RD_ATTR(data_seq_in_order, ISCSI_DATASEQ_INORDER_EN);
 	SETUP_SESSION_RD_ATTR(erl, ISCSI_ERL);
+	SETUP_PRIV_SESSION_RD_ATTR(recovery_tmo);
 
 	if (tt->param_mask & ISCSI_TARGET_NAME)
 		SETUP_SESSION_RD_ATTR(targetname, ISCSI_TARGET_NAME);

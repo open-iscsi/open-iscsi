@@ -82,6 +82,9 @@ module_param_named(max_lun, iscsi_max_lun, uint, S_IRUGO);
 /* global data */
 static kmem_cache_t *taskcache;
 
+#define session_to_cls(_sess) \
+	hostdata_session(_sess->host->hostdata)
+
 static inline void
 iscsi_buf_init_virt(struct iscsi_buf *ibuf, char *vbuf, int size)
 {
@@ -1692,7 +1695,7 @@ iscsi_mtask_xmit(struct iscsi_conn *conn, struct iscsi_mgmt_task *mtask)
 		if (mtask->data_count)
 			mtask->xmstate |= XMSTATE_IMM_DATA;
 		if (conn->c_stage != ISCSI_CONN_INITIAL_STAGE &&
-	    	    conn->stop_stage != STOP_CONN_RECOVER &&
+		    conn->stop_stage != STOP_CONN_RECOVER &&
 		    conn->hdrdgst_en)
 			iscsi_hdr_digest(conn, &mtask->headbuf,
 					(u8*)mtask->hdrext);
@@ -2290,11 +2293,14 @@ iscsi_xmitworker(void *data)
 	mutex_unlock(&conn->xmitmutex);
 }
 
-#define FAILURE_BAD_HOST		1
-#define FAILURE_SESSION_FAILED		2
-#define FAILURE_SESSION_FREED		3
-#define FAILURE_WINDOW_CLOSED		4
-#define FAILURE_SESSION_TERMINATE	5
+enum {
+	FAILURE_BAD_HOST = 1,
+	FAILURE_SESSION_FAILED,
+	FAILURE_SESSION_FREED,
+	FAILURE_WINDOW_CLOSED,
+	FAILURE_SESSION_TERMINATE,
+	FAILURE_SESSION_RECOVERY_TIMEOUT,
+};
 
 static int
 iscsi_queuecommand(struct scsi_cmnd *sc, void (*done)(struct scsi_cmnd *))
@@ -2314,7 +2320,10 @@ iscsi_queuecommand(struct scsi_cmnd *sc, void (*done)(struct scsi_cmnd *))
 	spin_lock(&session->lock);
 
 	if (session->state != ISCSI_STATE_LOGGED_IN) {
-		if (session->state == ISCSI_STATE_FAILED) {
+		if (session->recovery_failed) {
+			reason = FAILURE_SESSION_RECOVERY_TIMEOUT;
+			goto fault;
+		} else if (session->state == ISCSI_STATE_FAILED) {
 			reason = FAILURE_SESSION_FAILED;
 			goto reject;
 		} else if (session->state == ISCSI_STATE_TERMINATE) {
@@ -2709,6 +2718,22 @@ iscsi_conn_bind(struct iscsi_cls_session *cls_session,
 	return 0;
 }
 
+static void
+iscsi_session_recovery_timedout(struct iscsi_cls_session *csession)
+{
+	struct Scsi_Host *shost = iscsi_session_to_shost(csession);
+	struct iscsi_session *session = iscsi_hostdata(shost->hostdata);
+	struct iscsi_conn *conn = session->leadconn;
+
+	spin_lock_bh(&session->lock);
+	if (session->state != ISCSI_STATE_LOGGED_IN) {
+		session->recovery_failed = 1;
+		if (conn)
+			wake_up(&conn->ehwait);
+	}
+	spin_unlock_bh(&session->lock);
+}
+
 static int
 iscsi_conn_start(struct iscsi_cls_conn *cls_conn)
 {
@@ -2724,7 +2749,6 @@ iscsi_conn_start(struct iscsi_cls_conn *cls_conn)
 	}
 
 	sk = conn->sock->sk;
-
 	write_lock_bh(&sk->sk_callback_lock);
 	spin_lock_bh(&session->lock);
 	conn->c_stage = ISCSI_CONN_STARTED;
@@ -2740,8 +2764,13 @@ iscsi_conn_start(struct iscsi_cls_conn *cls_conn)
 		conn->stop_stage = 0;
 		conn->tmabort_state = TMABORT_INITIAL;
 		session->age++;
+		session->recovery_failed = 0;
+		spin_unlock_bh(&session->lock);
+		write_unlock_bh(&sk->sk_callback_lock);
+
+		iscsi_unblock_session(session_to_cls(session));
 		wake_up(&conn->ehwait);
-		break;
+		return 0;
 	case STOP_CONN_TERM:
 		session->conn_cnt++;
 		conn->stop_stage = 0;
@@ -2844,74 +2873,110 @@ flush_control_queues(struct iscsi_session *session, struct iscsi_conn *conn)
 	conn->mtask = NULL;
 }
 
-
 static void
-iscsi_conn_stop(struct iscsi_cls_conn *cls_conn, int flag)
+iscsi_suspend_conn_rx(struct iscsi_conn *conn)
 {
-	struct iscsi_conn *conn = cls_conn->dd_data;
-	struct iscsi_session *session = conn->session;
 	struct sock *sk;
-	unsigned long flags;
 
 	BUG_ON(!conn->sock);
 	sk = conn->sock->sk;
 	write_lock_bh(&sk->sk_callback_lock);
 	set_bit(SUSPEND_BIT, &conn->suspend_rx);
 	write_unlock_bh(&sk->sk_callback_lock);
+}
+
+static void
+iscsi_start_session_recovery(struct iscsi_session *session,
+			     struct iscsi_conn *conn, int flag)
+{
+	spin_lock_bh(&session->lock);
+	if (conn->stop_stage == STOP_CONN_RECOVER ||
+	    conn->stop_stage == STOP_CONN_TERM) {
+		spin_unlock_bh(&session->lock);
+		return;
+	}
+	conn->stop_stage = flag;
+	spin_unlock_bh(&session->lock);
+
+	iscsi_suspend_conn_rx(conn);
 
 	mutex_lock(&conn->xmitmutex);
-
-	spin_lock_irqsave(session->host->host_lock, flags);
-	spin_lock(&session->lock);
-	conn->stop_stage = flag;
+	spin_lock_bh(&session->lock);
 	conn->c_stage = ISCSI_CONN_STOPPED;
 	set_bit(SUSPEND_BIT, &conn->suspend_tx);
 
-	if (flag != STOP_CONN_SUSPEND)
-		session->conn_cnt--;
-
+	session->conn_cnt--;
 	if (session->conn_cnt == 0 || session->leadconn == conn)
 		session->state = ISCSI_STATE_FAILED;
 
-	spin_unlock(&session->lock);
-	spin_unlock_irqrestore(session->host->host_lock, flags);
+	spin_unlock_bh(&session->lock);
 
-	if (flag == STOP_CONN_TERM || flag == STOP_CONN_RECOVER) {
-		/*
-		 * Socket must go now.
-		 */
-		sock_hold(conn->sock->sk);
-		iscsi_conn_restore_callbacks(conn);
-		sock_put(conn->sock->sk);
+	/*
+	 * Socket must go now.
+	 */
+	sock_hold(conn->sock->sk);
+	iscsi_conn_restore_callbacks(conn);
+	sock_put(conn->sock->sk);
 
-		/*
-		 * flush queues.
-		 */
-		spin_lock_bh(&session->lock);
-		fail_all_commands(session, conn);
-		flush_control_queues(session, conn);
-		spin_unlock_bh(&session->lock);
+	/*
+	 * flush queues.
+	 */
+	spin_lock_bh(&session->lock);
+	fail_all_commands(session, conn);
+	flush_control_queues(session, conn);
+	spin_unlock_bh(&session->lock);
 
-		/*
-		 * release socket only after we stopped data_xmit()
-		 * activity and flushed all outstandings
-		 */
-		sock_release(conn->sock);
-		conn->sock = NULL;
+	/*
+	 * release socket only after we stopped data_xmit()
+	 * activity and flushed all outstandings
+	 */
+	sock_release(conn->sock);
+	conn->sock = NULL;
 
-		/*
-		 * for connection level recovery we should not calculate
-		 * header digest. conn->hdr_size used for optimization
-		 * in hdr_extract() and will be re-negotiated at
-		 * set_param() time.
-		 */
-		if (flag == STOP_CONN_RECOVER) {
-			conn->hdr_size = sizeof(struct iscsi_hdr);
-			conn->hdrdgst_en = 0;
-			conn->datadgst_en = 0;
-		}
+	/*
+	 * for connection level recovery we should not calculate
+	 * header digest. conn->hdr_size used for optimization
+	 * in hdr_extract() and will be re-negotiated at
+	 * set_param() time.
+	 */
+	if (flag == STOP_CONN_RECOVER) {
+		conn->hdr_size = sizeof(struct iscsi_hdr);
+		conn->hdrdgst_en = 0;
+		conn->datadgst_en = 0;
+
+		if (session->state == ISCSI_STATE_FAILED)
+			iscsi_block_session(session_to_cls(session));
 	}
 	mutex_unlock(&conn->xmitmutex);
+}
+
+static void
+iscsi_conn_stop(struct iscsi_cls_conn *cls_conn, int flag)
+{
+	struct iscsi_conn *conn = cls_conn->dd_data;
+	struct iscsi_session *session = conn->session;
+
+	switch (flag) {
+	case STOP_CONN_RECOVER:
+	case STOP_CONN_TERM:
+		iscsi_start_session_recovery(session, conn, flag);
+		return;
+	case STOP_CONN_SUSPEND:
+		iscsi_suspend_conn_rx(conn);
+
+		mutex_lock(&conn->xmitmutex);
+		spin_lock_bh(&session->lock);
+
+		conn->stop_stage = flag;
+		conn->c_stage = ISCSI_CONN_STOPPED;
+		set_bit(SUSPEND_BIT, &conn->suspend_tx);
+
+		spin_unlock_bh(&session->lock);
+		mutex_unlock(&conn->xmitmutex);
+		break;
+	default:
+		printk(KERN_ERR "invalid stop flag %d\n", flag);
+	}
 }
 
 static int
@@ -3006,6 +3071,7 @@ iscsi_eh_host_reset(struct scsi_cmnd *sc)
 	struct Scsi_Host *host = sc->device->host;
 	struct iscsi_session *session = iscsi_hostdata(host->hostdata);
 	struct iscsi_conn *conn = session->leadconn;
+	int fail_session = 0;
 
 	spin_lock_bh(&session->lock);
 	if (session->state == ISCSI_STATE_TERMINATE) {
@@ -3016,18 +3082,31 @@ failed:
 		return FAILED;
 	}
 
-	if (sc->SCp.phase == session->age &&
-	    session->state != ISCSI_STATE_FAILED) {
+	if (sc->SCp.phase == session->age) {
 		debug_scsi("failing connection CID %d due to SCSI host reset",
 			   conn->id);
-		iscsi_conn_failure(conn, ISCSI_ERR_CONN_FAILED);
+		fail_session = 1;
 	}
 	spin_unlock_bh(&session->lock);
+
+	/*
+	 * we drop the lock here but the leadconn cannot be destoyed while
+	 * we are in the scsi eh
+	 */
+	if (fail_session) {
+		iscsi_conn_failure(conn, ISCSI_ERR_CONN_FAILED);
+		/*
+		 * if userspace cannot respond then we must kick this off
+		 * here for it
+		 */
+		iscsi_start_session_recovery(session, conn, STOP_CONN_RECOVER);
+	}
 
 	debug_scsi("iscsi_eh_host_reset wait for relogin\n");
 	wait_event_interruptible(conn->ehwait,
 				 session->state == ISCSI_STATE_TERMINATE ||
-				 session->state == ISCSI_STATE_LOGGED_IN);
+				 session->state == ISCSI_STATE_LOGGED_IN ||
+				 session->recovery_failed);
 	if (signal_pending(current))
 		flush_signals(current);
 
@@ -3110,12 +3189,14 @@ iscsi_exec_abort_task(struct scsi_cmnd *sc, struct iscsi_cmd_task *ctask)
 	 *
 	 * 1) abort response
 	 * 2) abort timeout
-	 * 3) session is terminated or restarted
+	 * 3) session is terminated or restarted or userspace has
+	 * given up on recovery
 	 */
 	wait_event_interruptible(conn->ehwait,
 				 sc->SCp.phase != session->age ||
 				 session->state != ISCSI_STATE_LOGGED_IN ||
-				 conn->tmabort_state != TMABORT_INITIAL);
+				 conn->tmabort_state != TMABORT_INITIAL ||
+				 session->recovery_failed);
 	if (signal_pending(current))
 		flush_signals(current);
 	del_timer_sync(&conn->tmabort_timer);
@@ -3411,16 +3492,6 @@ iscsi_conn_set_param(struct iscsi_cls_conn *cls_conn, enum iscsi_param param,
 {
 	struct iscsi_conn *conn = cls_conn->dd_data;
 	struct iscsi_session *session = conn->session;
-
-	spin_lock_bh(&session->lock);
-	if (conn->c_stage != ISCSI_CONN_INITIAL_STAGE &&
-	    conn->stop_stage != STOP_CONN_RECOVER) {
-		printk(KERN_ERR "iscsi_tcp: can not change parameter [%d]\n",
-		       param);
-		spin_unlock_bh(&session->lock);
-		return 0;
-	}
-	spin_unlock_bh(&session->lock);
 
 	switch(param) {
 	case ISCSI_PARAM_MAX_RECV_DLENGTH: {
@@ -3744,6 +3815,7 @@ static struct iscsi_transport iscsi_tcp_transport = {
 	.stop_conn		= iscsi_conn_stop,
 	.send_pdu		= iscsi_conn_send_pdu,
 	.get_stats		= iscsi_conn_get_stats,
+	.session_recovery_timedout = iscsi_session_recovery_timedout,
 };
 
 static int __init

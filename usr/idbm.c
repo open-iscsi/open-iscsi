@@ -338,7 +338,6 @@ idbm_update_node(node_rec_t *rec, node_rec_t *newrec)
 
 	/* update rec->session */
 	__update_rec_int(rec, newrec, session.initial_cmdsn);
-	__update_rec_int(rec, newrec, session.reopen_max);
 	__update_rec_int(rec, newrec, session.auth.authmethod);
 	__update_rec_str(rec, newrec, session.auth.username,
 			 AUTH_STR_MAX_LEN);
@@ -545,8 +544,6 @@ idbm_recinfo_node(node_rec_t *r, recinfo_t *ri)
 			IDBM_SHOW, "manual", "automatic", num);
 	__recinfo_int("node.session.initial_cmdsn", ri, r,
 		      session.initial_cmdsn, IDBM_SHOW, num);
-	__recinfo_int("node.session.reopen_max", ri, r,
-		      session.reopen_max, IDBM_SHOW, num);
 	__recinfo_int_o2("node.session.auth.authmethod", ri, r,
 		session.auth.authmethod, IDBM_SHOW, "None", "CHAP", num);
 	__recinfo_str("node.session.auth.username", ri, r,

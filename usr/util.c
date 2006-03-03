@@ -141,7 +141,7 @@ void idbm_node_setup_defaults(node_rec_t *rec)
 	rec->session.auth.password_in_length = 0;
 	rec->session.err_timeo.abort_timeout = 10;
 	rec->session.err_timeo.reset_timeout = 30;
-	rec->session.timeo.replacement_timeout = 0;
+	rec->session.timeo.replacement_timeout = 120;
 	rec->session.iscsi.InitialR2T = 0;
 	rec->session.iscsi.ImmediateData = 1;
 	rec->session.iscsi.FirstBurstLength = 256 * 1024;

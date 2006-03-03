@@ -90,6 +90,7 @@ struct iscsi_transport {
 			 char *data, uint32_t data_size);
 	void (*get_stats) (struct iscsi_cls_conn *conn,
 			   struct iscsi_stats *stats);
+	void (*session_recovery_timedout) (struct iscsi_cls_session *session);
 };
 
 /*
@@ -137,6 +138,10 @@ struct iscsi_cls_session {
 	char *targetname;
 	int tpgt;
 
+	/* recovery fields */
+	int recovery_tmo;
+	struct work_struct recovery_work;
+
 	int target_id;
 	int channel;
 
@@ -165,6 +170,8 @@ extern int iscsi_destroy_session(struct iscsi_cls_session *session);
 extern struct iscsi_cls_conn *iscsi_create_conn(struct iscsi_cls_session *sess,
 					    uint32_t cid);
 extern int iscsi_destroy_conn(struct iscsi_cls_conn *conn);
+extern void iscsi_unblock_session(struct iscsi_cls_session *session);
+extern void iscsi_block_session(struct iscsi_cls_session *session);
 
 /*
  * session functions used by software iscsi
