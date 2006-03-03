@@ -110,6 +110,14 @@ mgmt_ipc_session_login(struct mgmt_ipc_db *dbt, queue_task_t *qtask, int rid)
 
 	if ((rc = mgmt_ipc_node_read(dbt, rid, &rec)))
 		return rc;
+
+	if (session_find_by_rec(&rec)) {
+		log_error("session with corresponding record [%06x] "
+			  "found!", rid);
+		return MGMT_IPC_ERR_EXISTS;
+	}
+
+
 	return session_login_task(&rec, qtask);
 }
 

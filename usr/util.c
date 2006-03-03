@@ -193,6 +193,7 @@ void iscsid_handle_error(int err)
 		/* 12 */ "iSCSI transport not found",
 		/* 13 */ "daemon access denied",
 		/* 14 */ "iSCSI transport capability failure",
+		/* 15 */ "already exists",
 	};
 	log_error("initiator reported error (%d - %s)", err, err_msgs[err]);
 }

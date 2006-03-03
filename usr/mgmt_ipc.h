@@ -41,6 +41,7 @@ typedef enum mgmt_ipc_err {
 	MGMT_IPC_ERR_TRANS_NOT_FOUND	= 12,
 	MGMT_IPC_ERR_ACCESS		= 13,
 	MGMT_IPC_ERR_TRANS_CAPS		= 14,
+	MGMT_IPC_ERR_EXISTS		= 15,
 } mgmt_ipc_err_e;
 
 typedef enum iscsiadm_cmd {
