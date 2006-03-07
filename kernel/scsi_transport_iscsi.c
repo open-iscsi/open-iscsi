@@ -962,7 +962,8 @@ iscsi_copy_param(struct iscsi_uevent *ev, uint32_t *value, char *data)
 {
 	if (ev->u.set_param.len != sizeof(uint32_t))
 		BUG();
-	memcpy(value, data, min(sizeof(uint32_t), ev->u.set_param.len));
+	memcpy(value, data, min_t(uint32_t, sizeof(uint32_t),
+		ev->u.set_param.len));
 }
 
 static int
