@@ -257,7 +257,7 @@ __iscsi_ctask_cleanup(struct iscsi_conn *conn, struct iscsi_cmd_task *ctask)
 	ctask->xmstate = XMSTATE_IDLE;
 	ctask->r2t = NULL;
 	ctask->sc = NULL;
-	list_del_init(&ctask->running);
+	list_del(&ctask->running);
 
 	__kfifo_put(session->cmdpool.queue, (void*)&ctask, sizeof(void*));
 
@@ -412,6 +412,7 @@ iscsi_solicit_data_init(struct iscsi_conn *conn, struct iscsi_cmd_task *ctask,
 
 	dtask = mempool_alloc(ctask->datapool, GFP_ATOMIC);
 	BUG_ON(!dtask);
+	INIT_LIST_HEAD(&dtask->item);
 	hdr = &dtask->hdr;
 	memset(hdr, 0, sizeof(struct iscsi_data));
 	hdr->ttt = r2t->ttt;
@@ -1474,6 +1475,7 @@ iscsi_solicit_data_cont(struct iscsi_conn *conn, struct iscsi_cmd_task *ctask,
 
 	dtask = mempool_alloc(ctask->datapool, GFP_ATOMIC);
 	BUG_ON(!dtask);
+	INIT_LIST_HEAD(&dtask->item);
 	hdr = &dtask->hdr;
 	memset(hdr, 0, sizeof(struct iscsi_data));
 	hdr->ttt = r2t->ttt;
@@ -1520,6 +1522,7 @@ iscsi_unsolicit_data_init(struct iscsi_conn *conn, struct iscsi_cmd_task *ctask)
 
 	dtask = mempool_alloc(ctask->datapool, GFP_ATOMIC);
 	BUG_ON(!dtask);
+	INIT_LIST_HEAD(&dtask->item);
 	hdr = &dtask->hdr;
 	memset(hdr, 0, sizeof(struct iscsi_data));
 	hdr->ttt = cpu_to_be32(ISCSI_RESERVED_TAG);

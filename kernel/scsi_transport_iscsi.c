@@ -320,6 +320,8 @@ iscsi_create_session(struct Scsi_Host *shost,
 	session->transport = transport;
 	session->recovery_tmo = 120;
 	INIT_WORK(&session->recovery_work, session_recovery_timedout, session);
+	INIT_LIST_HEAD(&session->host_list);
+	INIT_LIST_HEAD(&session->sess_list);
 
 	if (transport->sessiondata_size)
 		session->dd_data = &session[1];
@@ -687,6 +689,7 @@ iscsi_unicast_skb(struct mempool_zone *zone, struct sk_buff *skb)
 	}
 
 	spin_lock_irqsave(&zone->freelock, flags);
+	INIT_LIST_HEAD(skb_to_lh(skb));
 	list_add(skb_to_lh(skb), &zone->freequeue);
 	spin_unlock_irqrestore(&zone->freelock, flags);
 
