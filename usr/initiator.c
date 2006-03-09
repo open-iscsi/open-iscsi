@@ -537,10 +537,52 @@ __session_conn_create(iscsi_session_t *session, int cid)
 }
 
 static void
+__send_pdu_timedout(void *data)
+{
+	queue_task_t *qtask = data;
+	iscsi_conn_t *conn = qtask->conn;
+	iscsi_session_t *session = conn->session;
+
+	if (conn->send_pdu_in_progress) {
+		/*
+		 * redirect timeout processing to __session_conn_timer()
+		 */
+		queue_produce(session->queue, EV_CONN_TIMER, qtask, 0, NULL);
+		actor_schedule(&session->mainloop);
+		log_debug(7, "send_pdu timer timedout!");
+	}
+}
+
+static void
+__send_pdu_timer_add(struct iscsi_conn *conn, int timeout)
+{
+	if (conn->state == STATE_IN_LOGIN) {
+		iscsi_login_context_t *c = &conn->login_context;
+		conn->send_pdu_in_progress = 1;
+		actor_timer(&conn->send_pdu_timer, timeout*1000,
+			    __send_pdu_timedout, c->qtask);
+		log_debug(7, "send_pdu timer added %d secs", timeout);
+	}
+}
+
+static void
+__send_pdu_timer_remove(struct iscsi_conn *conn)
+{
+	if (conn->send_pdu_in_progress) {
+		actor_delete(&conn->send_pdu_timer);
+		conn->send_pdu_in_progress = 0;
+		log_debug(7, "send_pdu timer removed");
+	}
+}
+
+
+static void
 session_conn_destroy(iscsi_session_t *session, int cid)
 {
 	iscsi_conn_t *conn = &session->conn[cid];
 
+	__send_pdu_timer_remove(conn);
+	actor_delete(&conn->connect_timer);
 	__recvpool_free(conn);
 }
 
@@ -804,46 +846,6 @@ __send_nopout(iscsi_conn_t *conn)
 		ISCSI_DIGEST_NONE, NULL, ISCSI_DIGEST_NONE, 0);
 }
 
-
-static void
-__send_pdu_timedout(void *data)
-{
-	queue_task_t *qtask = data;
-	iscsi_conn_t *conn = qtask->conn;
-	iscsi_session_t *session = conn->session;
-
-	if (conn->send_pdu_in_progress) {
-		/*
-		 * redirect timeout processing to __session_conn_timer()
-		 */
-		queue_produce(session->queue, EV_CONN_TIMER, qtask, 0, NULL);
-		actor_schedule(&session->mainloop);
-		log_debug(7, "send_pdu timer timedout!");
-	}
-}
-
-static void
-__send_pdu_timer_add(struct iscsi_conn *conn, int timeout)
-{
-	if (conn->state == STATE_IN_LOGIN) {
-		iscsi_login_context_t *c = &conn->login_context;
-		conn->send_pdu_in_progress = 1;
-		actor_timer(&conn->send_pdu_timer, timeout*1000,
-			    __send_pdu_timedout, c->qtask);
-		log_debug(7, "send_pdu timer added %d secs", timeout);
-	}
-}
-
-static void
-__send_pdu_timer_remove(struct iscsi_conn *conn)
-{
-	if (conn->send_pdu_in_progress) {
-		actor_delete(&conn->send_pdu_timer);
-		conn->send_pdu_in_progress = 0;
-		log_debug(7, "send_pdu timer removed");
-	}
-}
-
 void 
 __conn_noop_out_timeout(void *data)
 {
@@ -899,7 +901,7 @@ __session_conn_reopen(iscsi_conn_t *conn, queue_task_t *qtask, int do_stop)
 	actor_delete(&conn->connect_timer);
 	__conn_noop_out_delete(conn);
 
-	conn->send_pdu_in_progress = 0;
+	__send_pdu_timer_remove(conn);
 	conn->state = STATE_XPT_WAIT;
 
 	if (do_stop) {

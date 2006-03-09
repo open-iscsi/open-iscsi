@@ -444,7 +444,8 @@ iscsi_io_send_pdu(iscsi_conn_t *conn, struct iscsi_hdr *hdr,
 
 	if (conn->kernel_io) {
 		if (conn->send_pdu_end(session->transport_handle, session->id,
-			conn->id, &rc)) {
+				       conn->id, &rc)) {
+			conn->send_pdu_timer_remove(conn);
 			ret = 0;
 			goto done;
 		}

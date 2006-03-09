@@ -441,6 +441,7 @@ void event_loop(struct iscsi_ipc *ipc, int control_fd, int mgmt_ipc_fd,
 			log_debug(6, "poll result %d", res);
 			if (poll_array[POLL_CTRL].revents)
 				ipc->ctldev_handle();
+
 			if (poll_array[POLL_IPC].revents)
 				if (mgmt_ipc_handle(dbt, mgmt_ipc_fd) == 1)
 					break;
