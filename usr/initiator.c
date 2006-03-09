@@ -550,6 +550,8 @@ session_put(iscsi_session_t *session)
 	session->refcount--;
 	if (session->refcount == 0) {
 		actor_delete(&session->mainloop);
+		queue_destroy(session->queue);
+		queue_destroy(session->splice_queue);
 		free(session);
 	}
 }
@@ -662,11 +664,7 @@ __session_destroy(iscsi_session_t *session)
 
 	remque(&session->item);
 	queue_flush(session->queue);
-	queue_destroy(session->queue);
-
 	queue_flush(session->splice_queue);
-	queue_destroy(session->splice_queue);
-
 	session_put(session);
 }
 
