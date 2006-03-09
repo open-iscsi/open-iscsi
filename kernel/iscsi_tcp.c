@@ -2863,11 +2863,14 @@ flush_control_queues(struct iscsi_session *session, struct iscsi_conn *conn)
 
 	/* TODO: handle running pdus */
 	while (__kfifo_get(conn->immqueue, (void*)&mtask, sizeof(void*)) ||
-	       __kfifo_get(conn->mgmtqueue, (void*)&mtask, sizeof(void*)))
+	       __kfifo_get(conn->mgmtqueue, (void*)&mtask, sizeof(void*))) {
+		if (mtask == conn->login_mtask)
+			continue;
 		__kfifo_put(session->mgmtpool.queue, (void*)&mtask,
 			    sizeof(void*));
+	}
 
-	if (conn->mtask)
+	if (conn->mtask && conn->mtask != conn->login_mtask)
 		__kfifo_put(session->mgmtpool.queue, (void*)&conn->mtask,
 			    sizeof(void*));
 	conn->mtask = NULL;
