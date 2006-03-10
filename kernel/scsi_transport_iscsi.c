@@ -122,6 +122,7 @@ static int iscsi_setup_host(struct transport_container *tc, struct device *dev,
 
 	memset(ihost, 0, sizeof(*ihost));
 	INIT_LIST_HEAD(&ihost->sessions);
+	mutex_init(&ihost->mutex);
 	return 0;
 }
 
@@ -247,20 +248,16 @@ static int iscsi_user_scan(struct Scsi_Host *shost, uint channel,
 {
 	struct iscsi_host *ihost = shost->shost_data;
 	struct iscsi_cls_session *session;
-	unsigned long flags;
-	LIST_HEAD(scan_list);
 
-	spin_lock_irqsave(shost->host_lock, flags);
-	list_splice_init(&ihost->sessions, &scan_list);
-	spin_unlock_irqrestore(shost->host_lock, flags);
-	
-	list_for_each_entry(session, &scan_list, host_list) {
+	mutex_lock(&ihost->mutex);
+	list_for_each_entry(session, &ihost->sessions, host_list) {
 		if ((channel == SCAN_WILD_CARD ||
 		     channel == session->channel) &&
 		    (id == SCAN_WILD_CARD || id == session->target_id))
 			scsi_scan_target(&session->dev, session->channel,
 					 session->target_id, lun, 1);
 	}
+	mutex_unlock(&ihost->mutex);
 
 	return 0;
 }
@@ -307,7 +304,6 @@ iscsi_create_session(struct Scsi_Host *shost,
 {
 	struct iscsi_host *ihost;
 	struct iscsi_cls_session *session;
-	unsigned long flags;
 	int err;
 
 	if (!try_module_get(transport->owner))
@@ -346,9 +342,9 @@ iscsi_create_session(struct Scsi_Host *shost,
 	}
 	transport_register_device(&session->dev);
 
-	spin_lock_irqsave(shost->host_lock, flags);
+	mutex_lock(&ihost->mutex);
 	list_add(&session->host_list, &ihost->sessions);
-	spin_unlock_irqrestore(shost->host_lock, flags);
+	mutex_unlock(&ihost->mutex);
 
 	return session;
 
@@ -371,14 +367,14 @@ EXPORT_SYMBOL_GPL(iscsi_create_session);
 int iscsi_destroy_session(struct iscsi_cls_session *session)
 {
 	struct Scsi_Host *shost = iscsi_session_to_shost(session);
-	unsigned long flags;
-
-	spin_lock_irqsave(shost->host_lock, flags);
-	list_del(&session->host_list);
-	spin_unlock_irqrestore(shost->host_lock, flags);
+	struct iscsi_host *ihost = shost->shost_data;
 
 	if (!cancel_delayed_work(&session->recovery_work))
 		flush_scheduled_work();
+
+	mutex_lock(&ihost->mutex);
+	list_del(&session->host_list);
+	mutex_unlock(&ihost->mutex);
 
 	transport_unregister_device(&session->dev);
 	device_unregister(&session->dev);
@@ -561,12 +557,13 @@ int iscsi_transport_destroy_session(struct Scsi_Host *shost)
 	struct iscsi_cls_session *session;
 	unsigned long flags;
 
-	scsi_remove_host(shost);
 	session = hostdata_session(shost->hostdata);
 	spin_lock_irqsave(&sesslock, flags);
 	list_del(&session->sess_list);
 	spin_unlock_irqrestore(&sesslock, flags);
 	iscsi_destroy_session(session);
+
+	scsi_remove_host(shost);
 	/* ref from host alloc */
 	scsi_host_put(shost);
 	return 0;

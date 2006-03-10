@@ -159,6 +159,7 @@ struct iscsi_cls_session {
 struct iscsi_host {
 	int next_target_id;
 	struct list_head sessions;
+	struct mutex mutex;
 };
 
 /*
