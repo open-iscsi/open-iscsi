@@ -239,6 +239,7 @@ int main(int argc, char *argv[])
 	struct sigaction sa_old;
 	struct sigaction sa_new;
 	pid_t pid;
+	char *end;
 
 	idbm_node_setup_defaults(&config_rec);
 	config_rec.name[0] = '\0';
@@ -298,7 +299,13 @@ int main(int argc, char *argv[])
 			strncpy(auth->username_in, optarg, AUTH_STR_MAX_LEN);
 			break;	
 		case 'r':
-			config_rec.id = atoi(optarg);
+			config_rec.id = strtoul(optarg, &end, 0);
+			if (*end != '\0') {
+				fprintf(stderr,
+					"%s: invalid record number %s.\n",
+					program_name, optarg);
+				usage(1);
+			}
 			break;
 		case 'd':
 			log_level = atoi(optarg);
@@ -374,7 +381,7 @@ int main(int argc, char *argv[])
 	log_debug(1, "TargetName=%s", config_rec.name);
 	log_debug(1, "TPGT=%d", config_rec.tpgt);
 	log_debug(1, "IP Address=%s", config_rec.conn[0].address);
-	log_debug(1, "recid=%d", config_rec.id);
+	log_debug(1, "recid=%x", config_rec.id);
 
 	/* log the version, so that we can tell if the daemon and kernel module
 	 * match based on what shows up in the syslog.  Tarballs releases
