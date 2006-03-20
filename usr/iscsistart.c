@@ -285,7 +285,7 @@ int main(int argc, char *argv[])
 			strncpy((char *)auth->password_in, optarg,
 				AUTH_STR_MAX_LEN);
 			auth->password_in_length =
-				strlen((char *)auth->password_in_length);
+				strlen((char *)auth->password_in);
 			break;
 		case 'u':
 			check_str_param_len(optarg, AUTH_STR_MAX_LEN,
