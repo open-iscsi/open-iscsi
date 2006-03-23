@@ -3835,7 +3835,7 @@ iscsi_tcp_init(void)
 
 	taskcache = kmem_cache_create("iscsi_taskcache",
 			sizeof(struct iscsi_data_task), 0,
-			SLAB_HWCACHE_ALIGN | SLAB_NO_REAP, NULL, NULL);
+			SLAB_HWCACHE_ALIGN, NULL, NULL);
 	if (!taskcache)
 		return -ENOMEM;
 
