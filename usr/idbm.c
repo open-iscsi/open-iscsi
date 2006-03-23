@@ -612,9 +612,9 @@ idbm_recinfo_node(node_rec_t *r, recinfo_t *ri)
 	__recinfo_int("node.session.iscsi.MaxBurstLength", ri, r,
 		      session.iscsi.MaxBurstLength, IDBM_SHOW, num);
 	__recinfo_int("node.session.iscsi.DefaultTime2Retain", ri, r,
-		      session.iscsi.DefaultTime2Wait, IDBM_SHOW, num);
-	__recinfo_int("node.session.iscsi.DefaultTime2Wait", ri, r,
 		      session.iscsi.DefaultTime2Retain, IDBM_SHOW, num);
+	__recinfo_int("node.session.iscsi.DefaultTime2Wait", ri, r,
+		      session.iscsi.DefaultTime2Wait, IDBM_SHOW, num);
 	__recinfo_int("node.session.iscsi.MaxConnections", ri, r,
 		      session.iscsi.MaxConnections, IDBM_SHOW, num);
 	__recinfo_int("node.session.iscsi.MaxOutstandingR2T", ri, r,
