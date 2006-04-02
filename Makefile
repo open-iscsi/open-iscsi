@@ -30,6 +30,7 @@ all:
 	@echo "Compilation complete                Output file"
 	@echo "----------------------------------- ----------------"
 	@echo "Built iSCSI Open Interface module:  kernel/scsi_transport_iscsi.ko"
+	@echo "Built iSCSI library module:         kernel/libiscsi.ko"
 	@echo "Built iSCSI over TCP kernel module: kernel/iscsi_tcp.ko"
 	@echo "Built iSCSI daemon:                 usr/iscsid"
 	@echo "Built management application:       usr/iscsiadm"

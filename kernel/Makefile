@@ -11,7 +11,8 @@
 EXTRA_CFLAGS += -I$(obj) -I$(obj)/../include 
 
 obj-m				+= scsi_transport_iscsi.o
-obj-m				+= iscsi_tcp.o 
+obj-m				+= libiscsi.o
+obj-m				+= iscsi_tcp.o
 
 # Everything beyond this point is used to call KBuild or handle support
 # for multiple kernel versions.
