@@ -48,7 +48,6 @@ int num_providers = 0;
 
 static char program_name[] = "iscsid";
 int control_fd, mgmt_ipc_fd;
-int mgmt_shutdown_requsted = 0;
 
 extern char sysfs_file[];
 

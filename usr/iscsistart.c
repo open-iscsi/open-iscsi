@@ -183,18 +183,6 @@ static void catch_signal(int signo)
 	log_warning("pid %d caught signal -%d", getpid(), signo);
 }
 
-static void event_process_exit(void)
-{
-	if (num_providers > 0)
-		free(provider);
-
-	/* if this was not a clean shutdown then kill parent and get out */
-	if (!mgmt_shutdown_requsted) {
-		log_error("Fatal initiator error. %s exiting\n", program_name);
-		kill(getppid(), SIGTERM);
-	}
-}
-
 static int check_params(char *initiatorname)
 {
 	if (!initiatorname) {
@@ -329,11 +317,6 @@ int main(int argc, char *argv[])
 
 	if (check_params(initiatorname))
 		exit(1);
-
-	if (atexit(event_process_exit)) {
-		log_error("failed to set exit function\n");
-		exit(1);
-	}
 
 	pid = fork();
 	if (pid < 0) {

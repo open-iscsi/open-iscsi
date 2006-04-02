@@ -121,6 +121,4 @@ void event_loop(struct iscsi_ipc *ipc, int control_fd, int mgmt_ipc_fd,
 int mgmt_ipc_listen(void);
 void mgmt_ipc_close(int fd);
 
-extern int mgmt_shutdown_requsted;
-
 #endif /* MGMT_IPC_H */

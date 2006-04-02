@@ -399,7 +399,6 @@ mgmt_ipc_handle(struct mgmt_ipc_db *dbt, int accept_fd)
 		rsp.err = MGMT_IPC_OK;
 		immrsp = 1;
 		rc = 1;
-		mgmt_shutdown_requsted = 1;
 		break;
 	default:
 		log_error("unknown request: %s(%d) %u",
