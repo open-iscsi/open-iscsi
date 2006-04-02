@@ -57,8 +57,8 @@ Open-iSCSI is partitioned into user and kernel parts.
 
 The kernel portion of Open-iSCSI is a from-scratch code
 licensed under GPL. The kernel part implements iSCSI data path
-(that is, iSCSI Read and iSCSI Write), and consists of two
-loadable modules: iscsi_if.ko and iscsi_tcp.ko.
+(that is, iSCSI Read and iSCSI Write), and consists of thee
+loadable modules: scsi_transport_iscsi.ko, libiscsi.ko and iscsi_tcp.ko.
 
 User space contains the entire control plane: configuration
 manager, iSCSI Discovery, Login and Logout processing,
@@ -108,8 +108,8 @@ on how to build kernel modules against your specific kernel.
 
 For RedHat/Fedora and Debian distributions open-iscsi can be installed by
 typing "make install". This will copy iscsid and iscsiadm to /usr/sbin, the
-init script to /etc/init.d, and the kernel modules: iscsi_tcp.ko and
-scsi_transport_iscsi to /lib/modules/`uname -r`/kernel/drivers/scsi/
+init script to /etc/init.d, and the kernel modules: iscsi_tcp.ko, libiscsi.ko
+and scsi_transport_iscsi to /lib/modules/`uname -r`/kernel/drivers/scsi/
 overwriting existing iscsi modules.
 
 4. Open-iSCSI daemon

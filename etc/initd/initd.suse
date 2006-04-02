@@ -80,6 +80,7 @@ case "$1" in
 	[ ! -d /var/lib/iscsi ] && mkdir -p /var/lib/iscsi
 	echo -n "Starting iSCSI initiator service: "
 	modprobe scsi_transport_iscsi
+	modprobe libiscsi
 	modprobe iscsi_tcp
 	startproc $DAEMON $ARGS
 	RETVAL=$?
@@ -100,6 +101,7 @@ case "$1" in
 	if [ "$RETVAL" == "0" ]; then
 	    rm -f $PID_FILE
 	    rmmod iscsi_tcp
+	    rmmod libiscsi
 	    rmmod scsi_transport_iscsi
 	    rc_failed 0
 	else

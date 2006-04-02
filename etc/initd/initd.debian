@@ -16,6 +16,7 @@ iscsid_start()
 {
 	echo -n "Starting iSCSI initiator service: "
 	modprobe scsi_transport_iscsi
+	modprobe libiscsi
 	modprobe iscsi_tcp
 	start-stop-daemon --start --exec $DAEMON --quiet
 	RETVAL=$?
@@ -41,6 +42,7 @@ iscsid_stop()
 
 	echo -n "Removing iSCSI enterprise target modules: "
 	modprobe -r iscsi_tcp
+	modprobe -r libiscsi
 	modprobe -r scsi_transport_iscsi
 	RETVAL=$?
 	if [ $RETVAL == "0" ]; then
