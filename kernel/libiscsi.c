@@ -35,7 +35,6 @@
 #include <scsi/iscsi_proto.h>
 #include <scsi/scsi_transport.h>
 #include "scsi_transport_iscsi.h"
-
 #include "libiscsi.h"
 
 struct iscsi_session *
