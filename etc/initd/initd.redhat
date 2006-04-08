@@ -19,6 +19,8 @@ PATH=/sbin:/bin:/usr/sbin:/usr/bin:/usr/local/bin
 
 ISCSID=`which iscsid`
 ISCSIADM=`which iscsiadm`
+prog=`basename $ISCSID`
+lockdir=/var/lock/subsys
 
 if [ -z $ISCSID ] || [ -z $ISCSIADM ]
 then
@@ -72,9 +74,10 @@ start()
 
 	if [ $RETVAL == "0" ]
 	then
-		echo_success
+		touch $lockdir/$prog
+		success
 	else
-		echo_failure
+		failure
 	fi
 	echo
 	return $RETVAL
@@ -91,9 +94,10 @@ stop()
 	fi
 	if [ $RETVAL == "0" ]
 	then
-		echo_success
+		rm -f $lockdir/$prog
+		success
 	else
-		echo_failure
+		failure
 	fi
 	echo
 	return $RETVAL
