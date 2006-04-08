@@ -57,7 +57,7 @@ Open-iSCSI is partitioned into user and kernel parts.
 
 The kernel portion of Open-iSCSI is a from-scratch code
 licensed under GPL. The kernel part implements iSCSI data path
-(that is, iSCSI Read and iSCSI Write), and consists of thee
+(that is, iSCSI Read and iSCSI Write), and consists of three
 loadable modules: scsi_transport_iscsi.ko, libiscsi.ko and iscsi_tcp.ko.
 
 User space contains the entire control plane: configuration
@@ -355,7 +355,7 @@ node discovered in the discovery above:
 Or to set the "node.conn[0].statup" attribute to "startup" as default for
 all sessions add the following to the /etc/iscsid.conf:
 
-	node.conn[0].statup = automatic
+	node.conn[0].startup = automatic
 
 To login to all the automated nodes, simply restart the iscsi service
 e.g /etc/init.d/open-iscsi restart
