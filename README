@@ -106,7 +106,7 @@ If you choose to install the Debian packages instead of building from source,
 please read the file /usr/share/doc/linux-iscsi/README.debian for information
 on how to build kernel modules against your specific kernel.
 
-For RedHat/Fedora and Debian distributions open-iscsi can be installed by
+For Red Hat/Fedora and Debian distributions open-iscsi can be installed by
 typing "make install". This will copy iscsid and iscsiadm to /usr/sbin, the
 init script to /etc/init.d, and the kernel modules: iscsi_tcp.ko, libiscsi.ko
 and scsi_transport_iscsi to /lib/modules/`uname -r`/kernel/drivers/scsi/
@@ -266,11 +266,33 @@ copied into e.g. /usr/local/share/man8.
 
 7. Getting Started
 ==================
+There are three steps needed to set up a system to use iscsi storage:
+1. automate iscsi startup using the init script.
+2. discover targets.
+3. automate target logins for future system reboots.
 
-To start open-iscsi for RedHat/Fedora you can do a
+1. automate iscsi startup using the init script
+-----------------------------------------------
+
+Red Hat or Fedora:
+-----------------
+To start open-iscsi in Red Hat/Fedora you can do:
 
 	service open-iscsi start
 
+To get open-iscsi to automatically start at run time you may have to
+run:
+	chkconfig --level <levels> open-iscsi on
+Where <levels> are the run levels.
+
+And, to automatically mount a file system during startup
+you must have the partition entry in /etc/fstab marked with the "_netdev"
+option. For example this would mount a iscsi disk sdb:
+
+	/dev/sdb /mnt/iscsi ext3 _netdev 0 0
+
+SUSE or Debian:
+---------------
 Otherwise, if there is a initd script for your distro in etc/initd that
 gets installed with "make install"
 
@@ -278,6 +300,8 @@ gets installed with "make install"
 
 will usually get you started.
 
+Other:
+------
 If there is no initd script, you must start the tools by hand. First load the
 iscsi modules with:
 
@@ -306,6 +330,35 @@ To login:
 where <node rec> is the record of a discovered or manually
 added iSCSI Target Node (for iscsiadm usage examples see
 previous sections).
+
+2. discover targets
+-------------------
+Once iscsi is up, you can perform discovery to targets using:
+iscsiadm -m discovery -t sendtargets -p 192.168.1.1:3260
+
+While discovery targets are kept in the discovery.db, they are
+usefull only for re-discovery. The discovered targets (a.k.a. nodes)
+are stored as records in the xxx.db.
+
+The discovered targets are not logged into yet. Rather than logging
+into the discovered nodes (making LUs from those nodes available as
+storage), it is better to automate the login to the nodes we need.
+
+3. automate target logins for future system reboots
+---------------------------------------------------
+Note: this may only work for Red Hat, Fedora and SUSE configurations
+
+To automate login to a node, use the following with the record ID of the
+node discovered in the discovery above:
+	iscsiadm -m node --record <record ID> --op update -n node.conn[0].startup -v automatic
+
+Or to set the "node.conn[0].statup" attribute to "startup" as default for
+all sessions add the following to the /etc/iscsid.conf:
+
+	node.conn[0].statup
+
+To login to all the automated nodes, simply restart the iscsi service
+e.g /etc/init.d/open-iscsi restart
 
 
 8. TBD
