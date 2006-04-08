@@ -355,7 +355,7 @@ node discovered in the discovery above:
 Or to set the "node.conn[0].statup" attribute to "startup" as default for
 all sessions add the following to the /etc/iscsid.conf:
 
-	node.conn[0].statup
+	node.conn[0].statup = automatic
 
 To login to all the automated nodes, simply restart the iscsi service
 e.g /etc/init.d/open-iscsi restart
