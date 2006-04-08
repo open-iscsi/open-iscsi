@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-# chkconfig: - 39 35
+# chkconfig: - 13 89
 # description: Starts and stops the iSCSI initiator
 #
 # pidfile: /var/run/iscsid.pid
