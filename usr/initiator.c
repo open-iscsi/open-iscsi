@@ -34,6 +34,7 @@
 #include <arpa/inet.h>
 
 #include "initiator.h"
+#include "transport.h"
 #include "iscsid.h"
 #include "iscsi_if.h"
 #include "mgmt_ipc.h"
@@ -289,10 +290,10 @@ __login_response_status(iscsi_conn_t *conn,
 	case LOGIN_IO_ERROR:
 	case LOGIN_WRONG_PORTAL_GROUP:
 	case LOGIN_REDIRECTION_FAILED:
-		iscsi_io_disconnect(conn);
+		conn->session->provider->utransport->ep_disconnect(conn);
 		return CONN_LOGIN_RETRY;
 	default:
-		iscsi_io_disconnect(conn);
+		conn->session->provider->utransport->ep_disconnect(conn);
 		log_error("conn %d giving up on login attempts", conn->id);
 		break;
 	}
@@ -326,11 +327,11 @@ __check_iscsi_status_class(iscsi_session_t *session, int cid,
 			log_error("conn %d login rejected: redirection "
 			        "type 0x%x not supported",
 				conn->id, status_detail);
-			iscsi_io_disconnect(conn);
+			conn->session->provider->utransport->ep_disconnect(conn);
 			return CONN_LOGIN_RETRY;
 		}
 	case ISCSI_STATUS_CLS_INITIATOR_ERR:
-		iscsi_io_disconnect(conn);
+		conn->session->provider->utransport->ep_disconnect(conn);
 
 		switch (status_detail) {
 		case ISCSI_LOGIN_STATUS_AUTH_FAILED:
@@ -376,7 +377,7 @@ __check_iscsi_status_class(iscsi_session_t *session, int cid,
 	case ISCSI_STATUS_CLS_TARGET_ERR:
 		log_error("conn %d login rejected: target error "
 		       "(%02x/%02x)\n", conn->id, status_class, status_detail);
-		iscsi_io_disconnect(conn);
+		conn->session->provider->utransport->ep_disconnect(conn);
 		/*
 		 * We have no idea what the problem is. But spec says initiator
 		 * may retry later.
@@ -386,7 +387,7 @@ __check_iscsi_status_class(iscsi_session_t *session, int cid,
 		log_error("conn %d login response with unknown status "
 		       "class 0x%x, detail 0x%x\n", conn->id, status_class,
 		       status_detail);
-		iscsi_io_disconnect(conn);
+		conn->session->provider->utransport->ep_disconnect(conn);
 		break;
 	}
 
@@ -914,7 +915,7 @@ __session_conn_reopen(iscsi_conn_t *conn, queue_task_t *qtask, int do_stop)
 		}
 		log_debug(3, "connection %d:%d is stopped for recovery",
 			  session->id, conn->id);
-		iscsi_io_disconnect(conn);
+		conn->session->provider->utransport->ep_disconnect(conn);
 	}
 
 	rc = iscsi_io_tcp_connect(conn, 1);
@@ -1312,7 +1313,7 @@ __session_conn_poll(queue_item_t *item)
 	int rc;
 
 	if (conn->state == STATE_XPT_WAIT) {
-		rc = iscsi_io_tcp_poll(conn);
+		rc = conn->session->provider->utransport->ep_poll(conn, 1);
 		if (rc == 0) {
 			/* timedout: poll again */
 			queue_produce(session->queue, EV_CONN_POLL,
@@ -1362,7 +1363,7 @@ __session_conn_poll(queue_item_t *item)
 			}
 
 			if (ipc->bind_conn(session->transport_handle,
-				session->id, conn->id, conn->socket_fd,
+				session->id, conn->id, conn->transport_ep_handle,
 				(conn->id == 0), &rc) || rc) {
 				log_error("can't bind conn %d:%d to "
 					  "session %d, retcode %d (%d)",
@@ -1448,7 +1449,7 @@ __session_conn_timer(queue_item_t *item)
 
 		break;
 	case STATE_IN_LOGIN:
-		iscsi_io_disconnect(conn);
+		conn->session->provider->utransport->ep_disconnect(conn);
 
 		switch (session->r_stage) {
 		case R_STAGE_NO_CHANGE:
@@ -1547,7 +1548,7 @@ __conn_error_handle(iscsi_session_t *session, iscsi_conn_t *conn)
 		}
 		log_debug(3, "connection %d:%d is stopped for termination",
 			  session->id, conn->id);
-		iscsi_io_disconnect(conn);
+		conn->session->provider->utransport->ep_disconnect(conn);
 		__session_conn_queue_flush(conn);
 	}
 
@@ -1725,7 +1726,7 @@ session_login_task(node_rec_t *rec, queue_task_t *qtask)
 	conn = &session->conn[0];
 	qtask->conn = conn;
 
-	rc = iscsi_io_tcp_connect(conn, 1);
+	rc = session->provider->utransport->ep_connect(conn, 1);
 	if (rc < 0 && errno != EINPROGRESS) {
 		char serv[NI_MAXSERV];
 

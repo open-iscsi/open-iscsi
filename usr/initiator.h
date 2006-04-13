@@ -180,6 +180,11 @@ typedef struct iscsi_conn {
 	int tcp_window_size;
 	int type_of_service;
 
+	/* used for the IPC of bind and for connect/poll/disconnect by
+         * transports (eg iser) which does these ops from the kernel.
+         * In the case of TCP, it is just the transport_fd casted to u64. */
+	uint64_t transport_ep_handle;
+
 	/* timeouts */
 	int login_timeout;
 	int auth_timeout;
@@ -226,6 +231,8 @@ typedef enum iscsi_provider_status_e {
 	PROVIDER_STATUS_FAILED		= 2,
 } iscsi_provider_status_e;
 
+struct iscsi_uspace_transport;
+
 /* represents data path provider */
 typedef struct iscsi_provider_t {
 	uint64_t handle;
@@ -235,6 +242,7 @@ typedef struct iscsi_provider_t {
 	iscsi_provider_status_e status;
 	char name[ISCSI_TRANSPORT_NAME_MAXLEN];
 	struct qelem sessions;
+	struct iscsi_uspace_transport *utransport;
 } iscsi_provider_t;
 
 /* daemon's session structure */
@@ -352,9 +360,25 @@ extern int resolve_address(char *host, char *port, struct sockaddr_storage *ss);
 #define IRRELEVANT_DATAPDUINORDER	0x40
 #define IRRELEVANT_DATASEQUENCEINORDER	0x80
 
+
+/*
+ * These user/kernel IPC calls are used by transports (eg iSER) that have their
+ * native connection managed from the kernel. The IPC for having the user space
+ * code being able to do it, is implemented as an enhancement of the open iscsi
+ * netlink IPC scheme, currently with the ability to connect/poll-for-establish
+ * ment/disconnect an opaque transport dependent 64 bit ep (endpoint) handle.
+ * The exact IPC ABI for that matter is defined in iscsi_if.h
+ */
+/* netlink.c */
+extern int ktransport_ep_connect(iscsi_conn_t *conn, int non_blocking);
+extern int ktransport_ep_poll(iscsi_conn_t *conn, int timeout_ms);
+extern void ktransport_ep_disconnect(iscsi_conn_t *conn);
+
 /* io.c */
-extern int iscsi_io_tcp_poll(iscsi_conn_t *conn);
+extern int iscsi_io_tcp_poll(iscsi_conn_t *conn, int timeout_ms);
 extern int iscsi_io_tcp_connect(iscsi_conn_t *conn, int non_blocking);
+extern void iscsi_io_tcp_disconnect(iscsi_conn_t *conn);
+
 extern int iscsi_io_connect(iscsi_conn_t *conn);
 extern void iscsi_io_disconnect(iscsi_conn_t *conn);
 extern int iscsi_io_send_pdu(iscsi_conn_t *conn, struct iscsi_hdr *hdr,

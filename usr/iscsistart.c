@@ -35,6 +35,7 @@
 
 #include "initiator.h"
 #include "iscsi_ipc.h"
+#include "transport.h"
 #include "log.h"
 #include "util.h"
 #include "idbm.h"
@@ -102,34 +103,6 @@ Open-iSCSI initiator.\n\
 ");
 	}
 	exit(status == 0 ? 0 : -1);
-}
-
-/*
- * synchronyze registered transports and opened sessions/connections
- */
-static int trans_sync(void)
-{
-	int i, found = 0;
-
-	if (ipc->trans_list())
-		return -1;
-
-	for (i = 0; i < num_providers; i++) {
-		if (provider[i].handle) {
-			/* FIXME: implement session/connection sync up logic */
-			provider[i].sessions.q_forw = &provider[i].sessions;
-			provider[i].sessions.q_back = &provider[i].sessions;
-
-			found++;
-		}
-	}
-	if (!found) {
-		log_error("no registered transports found!");
-		return -1;
-	}
-	log_debug(1, "synced %d transport(s)", found);
-
-	return 0;
 }
 
 static int db_node_read(idbm_t *db, int rec_id, node_rec_t *rec)
@@ -381,7 +354,7 @@ int main(int argc, char *argv[])
 	/* in case of transports/sessions/connections been active
 	 * and we've been killed or crashed. update states.
 	 */
-	if (trans_sync()) {
+	if (sync_transports()) {
 		log_error("failed to get transport list, exiting...");
 		exit(-1);
 	}

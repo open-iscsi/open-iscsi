@@ -83,6 +83,10 @@ iscsi_io_tcp_connect(iscsi_conn_t *conn, int non_blocking)
 
 	/* create a socket */
 	conn->socket_fd = socket(ss->ss_family, SOCK_STREAM, IPPROTO_TCP);
+
+	/* the trasport ep handle is used to bind with */
+	conn->transport_ep_handle = conn->socket_fd;
+
 	if (conn->socket_fd < 0) {
 		log_error("cannot create TCP socket");
 		return -1;
@@ -148,7 +152,7 @@ iscsi_io_tcp_connect(iscsi_conn_t *conn, int non_blocking)
 }
 
 int
-iscsi_io_tcp_poll(iscsi_conn_t *conn)
+iscsi_io_tcp_poll(iscsi_conn_t *conn, int timeout_ms)
 {
 	int rc;
 	struct pollfd pdesc;
@@ -156,7 +160,7 @@ iscsi_io_tcp_poll(iscsi_conn_t *conn)
 
 	pdesc.fd = conn->socket_fd;
 	pdesc.events = POLLOUT;
-	rc = poll(&pdesc, 1, 1);
+	rc = poll(&pdesc, 1, timeout_ms);
 	if (rc < 0) {
 		getnameinfo((struct sockaddr *) &conn->saddr,
 			    sizeof(conn->saddr),
@@ -189,6 +193,17 @@ iscsi_io_tcp_poll(iscsi_conn_t *conn)
 		}
 	}
 	return rc;
+}
+
+void
+iscsi_io_tcp_disconnect(iscsi_conn_t *conn)
+{
+	if (conn->socket_fd >= 0) {
+		log_debug(1, "disconnecting conn %p, fd %d", conn,
+			 conn->socket_fd);
+		close(conn->socket_fd);
+		conn->socket_fd = -1;
+	}
 }
 
 int
@@ -262,12 +277,7 @@ done:
 void
 iscsi_io_disconnect(iscsi_conn_t *conn)
 {
-	if (conn->socket_fd >= 0) {
-		log_debug(1, "disconnecting conn %p, fd %d", conn,
-			 conn->socket_fd);
-		close(conn->socket_fd);
-		conn->socket_fd = -1;
-	}
+	iscsi_io_tcp_disconnect(conn);
 }
 
 static void

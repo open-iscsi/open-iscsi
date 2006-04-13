@@ -401,7 +401,7 @@ kdestroy_conn(uint64_t transport_handle, uint32_t sid, uint32_t cid)
 
 static int
 kbind_conn(uint64_t transport_handle, uint32_t sid, uint32_t cid,
-	  uint32_t transport_fd, int is_leading, int *retcode)
+	  uint64_t transport_eph, int is_leading, int *retcode)
 {
 	int rc;
 	struct iscsi_uevent ev;
@@ -414,7 +414,7 @@ kbind_conn(uint64_t transport_handle, uint32_t sid, uint32_t cid,
 	ev.transport_handle = transport_handle;
 	ev.u.b_conn.sid = sid;
 	ev.u.b_conn.cid = cid;
-	ev.u.b_conn.transport_fd = transport_fd;
+	ev.u.b_conn.transport_eph = transport_eph;
 	ev.u.b_conn.is_leading = is_leading;
 
 	if ((rc = __kipc_call(&ev, sizeof(ev))) < 0) {
@@ -613,6 +613,86 @@ krecv_pdu_end(uint64_t transport_handle, uintptr_t conn_handle,
 	recvpool_put((void*)conn_handle, (void*)pdu_handle);
 	recvbuf = NULL;
 	return 0;
+}
+
+int
+ktransport_ep_connect(iscsi_conn_t *conn, int non_blocking)
+{
+	int rc, addrlen;
+	struct iscsi_uevent *ev;
+	struct sockaddr *dst_addr = (struct sockaddr *)&conn->saddr;
+
+	log_debug(7, "in %s", __FUNCTION__);
+
+	memset(setparam_buf, 0, NLM_SETPARAM_DEFAULT_MAX);
+	ev = (struct iscsi_uevent *)setparam_buf;
+	ev->type = ISCSI_UEVENT_TRANSPORT_EP_CONNECT;
+	ev->transport_handle = conn->session->transport_handle;
+
+	if (dst_addr->sa_family == PF_INET)
+		addrlen = sizeof(struct sockaddr_in);
+	else if (dst_addr->sa_family == PF_INET6)
+		addrlen = sizeof(struct sockaddr_in6);
+	else {
+		log_error("%s unknown addr family %d\n",
+			 __FUNCTION__, dst_addr->sa_family);
+		return -EINVAL;
+	}
+	memcpy(setparam_buf + sizeof(*ev), dst_addr, addrlen);
+	ev->u.ep_connect.non_blocking = non_blocking;
+
+	if ((rc = __kipc_call(ev, sizeof(*ev) + addrlen)) < 0)
+		return rc;
+
+	if (!ev->r.ep_connect_ret.handle)
+		return -EIO;
+
+	conn->transport_ep_handle = ev->r.ep_connect_ret.handle;
+
+	log_debug(6, "%s got handle %llx",
+		__FUNCTION__, (unsigned long long)conn->transport_ep_handle);
+	return 0;
+}
+
+int
+ktransport_ep_poll(iscsi_conn_t *conn, int timeout_ms)
+{
+	int rc;
+	struct iscsi_uevent ev;
+
+	log_debug(7, "in %s", __FUNCTION__);
+
+	memset(&ev, 0, sizeof(struct iscsi_uevent));
+
+	ev.type = ISCSI_UEVENT_TRANSPORT_EP_POLL;
+	ev.transport_handle = conn->session->transport_handle;
+	ev.u.ep_poll.ep_handle  = conn->transport_ep_handle;
+	ev.u.ep_poll.timeout_ms = timeout_ms;
+
+	if ((rc = __kipc_call(&ev, sizeof(ev))) < 0)
+		return rc;
+
+	return ev.r.retcode;
+}
+
+void
+ktransport_ep_disconnect(iscsi_conn_t *conn)
+{
+	int rc;
+	struct iscsi_uevent ev;
+
+	log_debug(7, "in %s", __FUNCTION__);
+
+	memset(&ev, 0, sizeof(struct iscsi_uevent));
+
+	ev.type = ISCSI_UEVENT_TRANSPORT_EP_DISCONNECT;
+	ev.transport_handle = conn->session->transport_handle;
+	ev.u.ep_disconnect.ep_handle = conn->transport_ep_handle;
+
+	if ((rc = __kipc_call(&ev, sizeof(ev))) < 0) {
+		log_error("conn %p session %p transport disconnect failed %d\n",
+			  conn, conn->session, rc);
+	}
 }
 
 static int

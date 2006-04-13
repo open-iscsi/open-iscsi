@@ -60,7 +60,7 @@ struct iscsi_ipc {
 			     uint32_t cid);
 
 	int (*bind_conn) (uint64_t transport_handle, uint32_t sid,
-			  uint32_t cid, uint32_t transport_fd,
+			  uint32_t cid, uint64_t transport_eph,
 			  int is_leading, int *retcode);
 
 	int (*set_param) (uint64_t transport_handle, uint32_t sid,
