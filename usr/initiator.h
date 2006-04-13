@@ -237,8 +237,6 @@ struct iscsi_uspace_transport;
 typedef struct iscsi_provider_t {
 	uint64_t handle;
 	uint32_t caps;
-	unsigned short af;	
-	unsigned short rdma;
 	iscsi_provider_status_e status;
 	char name[ISCSI_TRANSPORT_NAME_MAXLEN];
 	struct qelem sessions;

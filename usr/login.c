@@ -30,6 +30,7 @@
 #include <sys/param.h>
 
 #include "initiator.h"
+#include "transport.h"
 #include "log.h"
 
 /* caller is assumed to be well-behaved and passing NUL terminated strings */
@@ -535,7 +536,7 @@ get_op_params_text_keys(iscsi_session_t *session, int cid,
 		text = value_end;
 	} else if (iscsi_find_key_value("RDMAExtensions", text, end,
 					&value, &value_end)) {
-		if (session->provider->rdma) {
+		if (session->provider->utransport->rdma) {
 			if (strcmp(value, "Yes") == 0)
 				session->rdma_ext = RDMA_EXT_YES;
 			else
@@ -548,7 +549,7 @@ get_op_params_text_keys(iscsi_session_t *session, int cid,
 		text = value_end;
 	} else if (iscsi_find_key_value("InitiatorRecvDataSegmentLength", text,
 					end, &value, &value_end)) {
-		if (session->provider->rdma) {
+		if (session->provider->utransport->rdma) {
 			if (conn->max_recv_dlength != strtoul(value, NULL, 0)) {
 				log_error("Login negotiation failed, "
 					  "InitiatorRecvDataSegmentLength wasn't "
@@ -559,7 +560,7 @@ get_op_params_text_keys(iscsi_session_t *session, int cid,
 		text = value_end;
 	} else if (iscsi_find_key_value("TargetRecvDataSegmentLength", text,
 					end, &value, &value_end)) {
-		if (session->provider->rdma)
+		if (session->provider->utransport->rdma)
 			conn->max_xmit_dlength = strtoul(value, NULL, 0);
 		text = value_end;
 	} else if (iscsi_find_key_value ("X-com.cisco.protocol", text, end,
@@ -816,7 +817,8 @@ add_params_provider_specific(iscsi_session_t *session, int cid,
 	char value[AUTH_STR_MAX_LEN];
 	iscsi_conn_t *conn = &session->conn[cid];
 
-	if (!session->provider->rdma) {
+	if (session->type == ISCSI_SESSION_TYPE_DISCOVERY ||
+	    !session->provider->utransport->rdma) {
 		sprintf(value, "%d", conn->max_recv_dlength);
 		if (!iscsi_add_text(pdu, data, max_data_length,
 				    "MaxRecvDataSegmentLength", value))
@@ -954,7 +956,7 @@ fill_op_params_text(iscsi_session_t *session, int cid, struct iscsi_hdr *pdu,
 	*transit = 1;
 
 	rdma = (session->type == ISCSI_SESSION_TYPE_NORMAL) &&
-			session->provider->rdma;
+			session->provider->utransport->rdma;
 			
 	/* For RDMA transport stage switched after RDMAExtensions negotiated */
 	if (rdma && session->rdma_ext != RDMA_EXT_NOT_NEGOTIATED)
