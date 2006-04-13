@@ -660,7 +660,7 @@ __session_create(node_rec_t *rec, iscsi_provider_t *provider)
 	session->initiator_name = dconfig->initiator_name;
 	session->initiator_alias = dconfig->initiator_alias;
 	strncpy(session->target_name, rec->name, TARGET_NAME_MAXLEN);
-	session->rdma_ext = RDMA_EXT_NOT_NEGOTIATED;
+
 
 	/* session's eh parameters */
 	session->replacement_timeout = rec->session.timeo.replacement_timeout;

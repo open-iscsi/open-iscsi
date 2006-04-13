@@ -379,7 +379,9 @@ get_op_params_text_keys(iscsi_session_t *session, int cid,
 		text = value_end;
 	} else if (iscsi_find_key_value("MaxRecvDataSegmentLength", text, end,
 				     &value, &value_end)) {
-		conn->max_xmit_dlength = strtoul(value, NULL, 0);
+		if (session->type == ISCSI_SESSION_TYPE_DISCOVERY ||
+		    !session->provider->utransport->rdma)
+			conn->max_xmit_dlength = strtoul(value, NULL, 0);
 		text = value_end;
 	} else if (iscsi_find_key_value("FirstBurstLength", text, end, &value,
 					 &value_end)) {
@@ -536,32 +538,26 @@ get_op_params_text_keys(iscsi_session_t *session, int cid,
 		text = value_end;
 	} else if (iscsi_find_key_value("RDMAExtensions", text, end,
 					&value, &value_end)) {
-		if (session->provider->utransport->rdma) {
-			if (strcmp(value, "Yes") == 0)
-				session->rdma_ext = RDMA_EXT_YES;
-			else
-				session->rdma_ext = RDMA_EXT_NO;
-		} else if (strcmp(value, "Yes") == 0) {
+		if (session->provider->utransport->rdma &&
+		    strcmp(value, "Yes") != 0) {
 			log_error("Login negotiation failed, "
-				  "can't support RDMAExtensions");
+				  "Target must support RDMAExtensions");
 			return LOGIN_NEGOTIATION_FAILED;
 		}
 		text = value_end;
 	} else if (iscsi_find_key_value("InitiatorRecvDataSegmentLength", text,
 					end, &value, &value_end)) {
 		if (session->provider->utransport->rdma) {
-			if (conn->max_recv_dlength != strtoul(value, NULL, 0)) {
-				log_error("Login negotiation failed, "
-					  "InitiatorRecvDataSegmentLength wasn't "
-					  "accepted by the target");
-				return LOGIN_NEGOTIATION_FAILED;
-			}
+			conn->max_recv_dlength = MIN(conn->max_recv_dlength,
+						     strtoul(value, NULL, 0));
 		}
 		text = value_end;
 	} else if (iscsi_find_key_value("TargetRecvDataSegmentLength", text,
 					end, &value, &value_end)) {
-		if (session->provider->utransport->rdma)
-			conn->max_xmit_dlength = strtoul(value, NULL, 0);
+		if (session->provider->utransport->rdma) {
+			conn->max_xmit_dlength = MIN(conn->max_xmit_dlength,
+						     strtoul(value, NULL, 0));
+		}
 		text = value_end;
 	} else if (iscsi_find_key_value ("X-com.cisco.protocol", text, end,
 					 &value, &value_end)) {
@@ -818,18 +814,24 @@ add_params_provider_specific(iscsi_session_t *session, int cid,
 	iscsi_conn_t *conn = &session->conn[cid];
 
 	if (session->type == ISCSI_SESSION_TYPE_DISCOVERY ||
-	    !session->provider->utransport->rdma) {
+   	    !session->provider->utransport->rdma) {
 		sprintf(value, "%d", conn->max_recv_dlength);
 		if (!iscsi_add_text(pdu, data, max_data_length,
 				    "MaxRecvDataSegmentLength", value))
 			return 0;
-		session->rdma_ext = RDMA_EXT_NO;
 	} else {
 		sprintf(value, "%d", conn->max_recv_dlength);
 		if (!iscsi_add_text(pdu, data, max_data_length,
 				   "InitiatorRecvDataSegmentLength",
 				    value))
 			return 0;
+
+		sprintf(value, "%d", conn->max_xmit_dlength);
+		if (!iscsi_add_text(pdu, data, max_data_length,
+				   "TargetRecvDataSegmentLength",
+				    value))
+			return 0;
+
 		if (!iscsi_add_text(pdu, data, max_data_length,
 				   "RDMAExtensions", "Yes"))
 			return 0;
@@ -957,10 +959,6 @@ fill_op_params_text(iscsi_session_t *session, int cid, struct iscsi_hdr *pdu,
 
 	rdma = (session->type == ISCSI_SESSION_TYPE_NORMAL) &&
 			session->provider->utransport->rdma;
-			
-	/* For RDMA transport stage switched after RDMAExtensions negotiated */
-	if (rdma && session->rdma_ext != RDMA_EXT_NOT_NEGOTIATED)
-		*transit = 0;
 
 	/*
 	 * If we haven't gotten a partial response, then either we shouldn't be
