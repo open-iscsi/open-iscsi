@@ -1538,9 +1538,10 @@ flush_control_queues(struct iscsi_session *session, struct iscsi_conn *conn)
 	/* handle running */
 	list_for_each_entry_safe(mtask, tmp, &conn->mgmt_run_list, running) {
 		debug_scsi("flushing running mgmt task itt 0x%x\n", mtask->itt);
+		list_del(&mtask->running);
+
 		if (mtask == conn->login_mtask)
 			continue;
-		list_del(&mtask->running);
 		__kfifo_put(session->mgmtpool.queue, (void*)&conn->mtask,
 			   sizeof(void*));
 	}
