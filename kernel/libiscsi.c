@@ -1542,7 +1542,7 @@ flush_control_queues(struct iscsi_session *session, struct iscsi_conn *conn)
 
 		if (mtask == conn->login_mtask)
 			continue;
-		__kfifo_put(session->mgmtpool.queue, (void*)&conn->mtask,
+		__kfifo_put(session->mgmtpool.queue, (void*)&mtask,
 			   sizeof(void*));
 	}
 
