@@ -723,7 +723,7 @@ __session_conn_cleanup(iscsi_conn_t *conn)
 {
 	iscsi_session_t *session = conn->session;
 
-	iscsi_io_disconnect(conn);
+	conn->session->provider->utransport->ep_disconnect(conn);
 	__conn_noop_out_delete(conn);
 	actor_delete(&conn->connect_timer);
 	__session_conn_queue_flush(conn);
@@ -888,7 +888,7 @@ __session_conn_reopen(iscsi_conn_t *conn, queue_task_t *qtask, int do_stop)
 		conn->session->provider->utransport->ep_disconnect(conn);
 	}
 
-	rc = iscsi_io_tcp_connect(conn, 1);
+	rc = conn->session->provider->utransport->ep_connect(conn, 1);
 	if (rc < 0 && errno != EINPROGRESS) {
 		char serv[NI_MAXSERV];
 
