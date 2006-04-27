@@ -1059,6 +1059,11 @@ setup_full_feature_phase(iscsi_conn_t *conn)
 		.len = sizeof(uint32_t),
 		.conn_only = 0,
 		}, {
+		.param = ISCSI_PARAM_EXP_STATSN,
+		.value = &conn->exp_statsn,
+		.len = sizeof(uint32_t),
+		.conn_only = 1,
+		}, {
 		.param = ISCSI_PARAM_TARGET_NAME,
 		.conn_only = 0,
 		.len = strlen(session->target_name) + 1,
@@ -1273,6 +1278,27 @@ setup_kernel_io_callouts(iscsi_conn_t *conn)
 	conn->send_pdu_timer_remove = __send_pdu_timer_remove;
 }
 
+/*
+ * For connection reinstatement we need to send the exp_statsn from
+ * the previous connection
+ *
+ * This is only called when the connection is halted so exp_statsn is safe
+ * to read without racing.
+ */
+static int 
+update_exp_statsn(iscsi_conn_t *conn)
+{
+	sprintf(sysfs_file,
+		"/sys/class/iscsi_connection/connection%d:%d/exp_statsn",
+		conn->session->id, conn->id);
+	if (read_sysfs_int_attr(sysfs_file, &conn->exp_statsn)) {
+		log_error("Could not read %s. Using zero fpr exp_statsn\n",
+			  sysfs_file);
+		conn->exp_statsn = 0;
+	}
+	return 0;
+}
+
 static void
 __session_conn_poll(queue_item_t *item)
 {
@@ -1353,6 +1379,8 @@ __session_conn_poll(queue_item_t *item)
 			c->cid = conn->id;
 			c->buffer = conn->data;
 			c->bufsize = sizeof(conn->data);
+
+			update_exp_statsn(conn);
 
 			if (iscsi_login_begin(session, c)) {
 				err = MGMT_IPC_ERR_LOGIN_FAILURE;
@@ -1754,6 +1782,7 @@ session_find_hostno(uint32_t sid)
 
 	return host_no;
 }
+
 
 #define UPDATE_CONN_PARAM(filename, param)	\
 	if (!strcmp(dent->d_name, filename))	\

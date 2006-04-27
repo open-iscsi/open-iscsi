@@ -1132,8 +1132,6 @@ iscsi_make_login_pdu(iscsi_session_t *session, int cid, struct iscsi_hdr *hdr,
 	/* don't increment on immediate */
 	login_hdr->min_version = ISCSI_DRAFT20_VERSION;
 	login_hdr->max_version = ISCSI_DRAFT20_VERSION;
-
-	/* we have to send 0 until full-feature stage */
 	login_hdr->exp_statsn = htonl(conn->exp_statsn);
 
 	/*
@@ -1338,7 +1336,6 @@ iscsi_login_begin(iscsi_session_t *session, iscsi_login_context_t *c)
 		session->max_cmdsn = 1;
 	}
 
-	conn->exp_statsn = 0;
 	conn->current_stage = ISCSI_INITIAL_LOGIN_STAGE;
 	conn->partial_response = 0;
 
@@ -1504,6 +1501,11 @@ iscsi_login(iscsi_session_t *session, int cid, char *buffer, size_t bufsize,
 	iscsi_login_context_t *c = &conn->login_context;
 
 	conn->kernel_io = 0;
+	/*
+	 * assume iscsi_login is only called from discovery, so it is
+	 * safe to always set to zero
+	 */
+	conn->exp_statsn = 0;
 
 	c->cid = cid;
 	c->buffer = buffer;

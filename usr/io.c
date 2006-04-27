@@ -326,55 +326,43 @@ iscsi_io_send_pdu(iscsi_conn_t *conn, struct iscsi_hdr *hdr,
 	memset(&pad, 0, sizeof (pad));
 	memset(&vec, 0, sizeof (vec));
 
-	if (log_level > 0) {
-		switch (hdr->opcode & ISCSI_OPCODE_MASK) {
-		case ISCSI_OP_LOGIN:{
-				struct iscsi_login *login_hdr =
-				    (struct iscsi_login *) hdr;
+	switch (hdr->opcode & ISCSI_OPCODE_MASK) {
+	case ISCSI_OP_LOGIN:{
+		struct iscsi_login *login_hdr = (struct iscsi_login *) hdr;
 
-				log_debug(4,
-					 "sending login PDU with current stage "
-					 "%d, next stage %d, transit 0x%x, isid"
-					 " 0x%02x%02x%02x%02x%02x%02x",
-					 ISCSI_LOGIN_CURRENT_STAGE(login_hdr->
-								   flags),
-					 ISCSI_LOGIN_NEXT_STAGE(login_hdr->
-								flags),
-					 login_hdr->
-					 flags & ISCSI_FLAG_LOGIN_TRANSIT,
-					 login_hdr->isid[0], login_hdr->isid[1],
-					 login_hdr->isid[2], login_hdr->isid[3],
-					 login_hdr->isid[4],
-					 login_hdr->isid[5]);
-				iscsi_log_text(hdr, data);
-				break;
-			}
-		case ISCSI_OP_TEXT:{
-				struct iscsi_text *text_hdr =
-				    (struct iscsi_text *) hdr;
+		log_debug(4, "sending login PDU with current stage "
+			 "%d, next stage %d, transit 0x%x, isid"
+			 " 0x%02x%02x%02x%02x%02x%02x exp_statsn %u",
+			 ISCSI_LOGIN_CURRENT_STAGE(login_hdr->flags),
+			 ISCSI_LOGIN_NEXT_STAGE(login_hdr->flags),
+			 login_hdr->flags & ISCSI_FLAG_LOGIN_TRANSIT,
+			 login_hdr->isid[0], login_hdr->isid[1],
+			 login_hdr->isid[2], login_hdr->isid[3],
+			 login_hdr->isid[4], login_hdr->isid[5],
+			 ntohl(login_hdr->exp_statsn));
 
-				log_debug(4,
-					 "sending text pdu with CmdSN %x:",
-					 ntohl(text_hdr->cmdsn));
-				iscsi_log_text(hdr, data);
-				break;
-			}
-		case ISCSI_OP_NOOP_OUT:{
-				struct iscsi_nopout *nopout_hdr =
-				    (struct iscsi_nopout *) hdr;
+			iscsi_log_text(hdr, data);
+		break;
+	}
+	case ISCSI_OP_TEXT:{
+		struct iscsi_text *text_hdr = (struct iscsi_text *) hdr;
 
-				log_debug(4,
-					 "sending Nop-out pdu with "
-					 "ttt %x, CmdSN %x:",
-					 ntohl(nopout_hdr->ttt),
-					 ntohl(nopout_hdr->cmdsn));
-				iscsi_log_text(hdr, data);
-				break;
-			}
-		default:
-			log_debug(4, "sending pdu opcode 0x%x:", hdr->opcode);
-			break;
-		}
+		log_debug(4, "sending text pdu with CmdSN %x, exp_statsn %u",
+			 ntohl(text_hdr->cmdsn), ntohl(text_hdr->cmdsn));
+		iscsi_log_text(hdr, data);
+		break;
+	}
+	case ISCSI_OP_NOOP_OUT:{
+		struct iscsi_nopout *nopout_hdr = (struct iscsi_nopout *) hdr;
+
+		log_debug(4, "sending Nop-out pdu with ttt %x, CmdSN %x:",
+			 ntohl(nopout_hdr->ttt), ntohl(nopout_hdr->cmdsn));
+		iscsi_log_text(hdr, data);
+		break;
+	}
+	default:
+		log_debug(4, "sending pdu opcode 0x%x:", hdr->opcode);
+		break;
 	}
 
 	/* send the PDU header */
@@ -625,41 +613,33 @@ iscsi_io_recv_pdu(iscsi_conn_t *conn, struct iscsi_hdr *hdr,
 		}
 	}
 
-	if (log_level > 0) {
-		switch (hdr->opcode) {
-		case ISCSI_OP_TEXT_RSP:
-			log_debug(4,
-				 "finished reading text PDU, %u hdr, %u "
-				 "ah, %u data, %u pad",
-				 h_bytes, ahs_bytes, d_bytes, pad);
-			iscsi_log_text(hdr, data);
-			break;
-		case ISCSI_OP_LOGIN_RSP:{
-				struct iscsi_login_rsp *login_rsp =
-				    (struct iscsi_login_rsp *) hdr;
+	switch (hdr->opcode) {
+	case ISCSI_OP_TEXT_RSP:
+		log_debug(4, "finished reading text PDU, %u hdr, %u "
+			 "ah, %u data, %u pad",
+			 h_bytes, ahs_bytes, d_bytes, pad);
+		iscsi_log_text(hdr, data);
+		break;
+	case ISCSI_OP_LOGIN_RSP:{
+		struct iscsi_login_rsp *login_rsp =
+			    (struct iscsi_login_rsp *) hdr;
 
-				log_debug(4,
-					 "finished reading login PDU, %u hdr, "
-					 "%u ah, %u data, %u pad",
-					 h_bytes, ahs_bytes, d_bytes, pad);
-				log_debug(4,
-					 "login current stage %d, next stage "
-					 "%d, transit 0x%x",
-					 ISCSI_LOGIN_CURRENT_STAGE(login_rsp->
-								   flags),
-					 ISCSI_LOGIN_NEXT_STAGE(login_rsp->
-								flags),
-					 login_rsp->
-					 flags & ISCSI_FLAG_LOGIN_TRANSIT);
-				iscsi_log_text(hdr, data);
-				break;
-			}
-		case ISCSI_OP_ASYNC_EVENT:
-			/* FIXME: log the event info */
-			break;
-		default:
-			break;
-		}
+		log_debug(4, "finished reading login PDU, %u hdr, "
+			 "%u ah, %u data, %u pad",
+			  h_bytes, ahs_bytes, d_bytes, pad);
+		log_debug(4, "login current stage %d, next stage "
+			 "%d, transit 0x%x",
+			 ISCSI_LOGIN_CURRENT_STAGE(login_rsp->flags),
+			 ISCSI_LOGIN_NEXT_STAGE(login_rsp->flags),
+			 login_rsp->flags & ISCSI_FLAG_LOGIN_TRANSIT);
+		iscsi_log_text(hdr, data);
+		break;
+	}
+	case ISCSI_OP_ASYNC_EVENT:
+		/* FIXME: log the event info */
+		break;
+	default:
+		break;
 	}
 
 done:
