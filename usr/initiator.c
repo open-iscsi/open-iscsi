@@ -204,32 +204,6 @@ write_mgmt_login_rsp(queue_task_t *qtask, mgmt_ipc_err_e err)
 	free(qtask);
 }
 
-/* reap the scanning thread */
-static void
-reap_scanning_process(void *data)
-{
-	int rc, status;
-	iscsi_session_t *session = data;
-	pid_t pid = session->scanning_pid;
-
-	if (!pid)
-		return;
-
-	rc = waitpid(pid, &status, WNOHANG);
-	if (!rc) {
-		/*
-		 * when called from __session_destroy by the time
-		 * we call this the host should be freed so this should
-		 * only fail if the login qtask write hangs
-		 */
-		log_debug(4, "scanning still in progress for host%d\n",
-			  session->hostno);
-		actor_timer(&session->scan_cleanup_timer, 5*1000,
-			    reap_scanning_process, session);
-	} else
-		session->scanning_pid = 0;
-}
-
 /*
  * Scan a session from usersapce using sysfs
  */
@@ -261,10 +235,8 @@ __session_scan_host(iscsi_session_t *session, queue_task_t *qtask)
 		exit(0);
 	} else if (pid > 0) {
 		log_debug(4, "scanning host%d from pid %d", hostno, pid);
-		session->scanning_pid = pid;
+		need_reap();
 		free(qtask);
-		actor_timer(&session->scan_cleanup_timer, 5*1000,
-			    reap_scanning_process, session);
 	} else {
 		/*
 		 * Session is fine, so log the error and let the user
@@ -701,10 +673,6 @@ __session_create(node_rec_t *rec, iscsi_provider_t *provider)
 static void
 __session_destroy(iscsi_session_t *session)
 {
-	if (session->scanning_pid)
-		actor_delete(&session->scan_cleanup_timer);
-	reap_scanning_process(session);
-
 	remque(&session->item);
 	queue_flush(session->queue);
 	queue_flush(session->splice_queue);

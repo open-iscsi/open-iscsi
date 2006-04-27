@@ -116,6 +116,7 @@ struct mgmt_ipc_db {
 
 struct iscsi_ipc *ipc;
 
+void need_reap(void);
 void event_loop(struct iscsi_ipc *ipc, int control_fd, int mgmt_ipc_fd,
 		struct mgmt_ipc_db *db);
 int mgmt_ipc_listen(void);

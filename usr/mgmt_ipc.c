@@ -31,6 +31,7 @@
 #include <sys/socket.h>
 #include <sys/types.h>
 #include <sys/un.h>
+#include <sys/wait.h>
 #include <pwd.h>
 
 #include "iscsid.h"
@@ -418,6 +419,33 @@ err:
 	return rc;
 }
 
+static int reap_count;
+
+void
+need_reap(void)
+{
+	reap_count++;
+}
+
+static void
+reaper(void)
+{
+	int rc;
+
+	/*
+	 * We don't really need reap_count, but calling wait() all the
+	 * time seems execessive.
+	 */
+	if (reap_count) {
+		rc = waitpid(0, NULL, WNOHANG);
+		if (rc > 0) {
+			reap_count--;
+			log_debug(6, "reaped pid %d, reap_count now %d",
+				  rc, reap_count);
+		}
+	}
+}
+
 #define POLL_CTRL	0
 #define POLL_IPC	1
 #define POLL_MAX	2
@@ -454,5 +482,6 @@ void event_loop(struct iscsi_ipc *ipc, int control_fd, int mgmt_ipc_fd,
 			}
 		} else
 			actor_poll();
+		reaper();
 	}
 }
