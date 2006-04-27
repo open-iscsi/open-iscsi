@@ -1365,6 +1365,7 @@ __session_conn_poll(queue_item_t *item)
 				goto c_cleanup;
 			}
 		} else {
+			conn->session->provider->utransport->ep_disconnect(conn);
 			actor_delete(&conn->connect_timer);
 			/* error during connect */
 			err = MGMT_IPC_ERR_TRANS_FAILURE;

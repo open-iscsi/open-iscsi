@@ -169,8 +169,6 @@ iscsi_io_tcp_poll(iscsi_conn_t *conn, int timeout_ms)
 
 		log_error("cannot make connection to %s:%s (%d)",
 			  conn->host, serv, errno);
-		close(conn->socket_fd);
-		conn->socket_fd = -1;
 	} else if (rc > 0 && log_level > 0) {
 		struct sockaddr_storage ss;
 		socklen_t salen = sizeof(ss);
