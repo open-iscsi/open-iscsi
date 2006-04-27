@@ -98,9 +98,11 @@ static int sync_session(iscsi_provider_t *provider, char *configfile,
 			uint32_t sid, char *target_name, int tpgt,
 			char *address, int port)
 {
-	node_rec_t rec;
 	idbm_t *db;
 	int rec_id;
+	iscsiadm_req_t req;
+	iscsiadm_rsp_t rsp;
+	int fd;
 
 	db = idbm_init(configfile);
 	if (!db) {
@@ -113,14 +115,13 @@ static int sync_session(iscsi_provider_t *provider, char *configfile,
 		log_error("could not find record for session %d", sid);
 		return -1;
 	}
-
-	if (idbm_node_read(db, rec_id, &rec)) {
-		log_error("node record [%06x] not found!", rec_id);
-		return -1;
-	}
 	idbm_terminate(db);
 
-	return iscsi_sync_session(&rec, sid);
+	memset(&req, 0, sizeof(req));
+	req.command = MGMT_IPC_SESSION_SYNC;
+	req.u.session.rid = rec_id;
+	req.u.session.sid = sid;
+	return do_iscsid(&fd, &req, &rsp);
 }
 
 static void sync_sessions(iscsi_provider_t *prv)
@@ -183,12 +184,12 @@ static void sync_sessions(iscsi_provider_t *prv)
 			continue;
 		}
 
+		log_debug(7, "sync session%d targetname %s, tpgt %d, "
+			  "address %s, port %d", sid, target_name, tpgt,
+			  address, port);
 		if (sync_session(prv, daemon_config.config_file, sid,
 				 target_name, tpgt, address, port))
 			log_error("Could not sync session %d\n", sid);
-		log_debug(7, "syncd session%d targetname %s, tpgt %d, "
-			  "address %s, port %d\n", sid, target_name, tpgt,
-			 address, port);
 	}
 	closedir(dirfd);
 }
@@ -229,6 +230,7 @@ int main(int argc, char *argv[])
 	gid_t gid = 0;
 	struct sigaction sa_old;
 	struct sigaction sa_new;
+	pid_t pid;
 
 	/* do not allow ctrl-c for now... */
 	sa_new.sa_handler = catch_signal;
@@ -296,7 +298,6 @@ int main(int argc, char *argv[])
 
 	if (log_daemon) {
 		char buf[64];
-		pid_t pid;
 		int fd;
 
 		fd = open(pid_file, O_WRONLY|O_CREAT, 0644);
@@ -385,22 +386,28 @@ int main(int argc, char *argv[])
 		exit(-1);
 	}
 
-	actor_init();
-	sync_provider_sessions();
-
 	/* we don't want our active sessions to be paged out... */
 	if (mlockall(MCL_CURRENT | MCL_FUTURE)) {
 		log_error("failed to mlockall, exiting...");
 		exit(1);
 	}
 
-	/*
-	 * Start Main Event Loop
-	 */
+	pid = fork();
+	if (pid == 0) {
+		/* child */
+		sync_provider_sessions();
+		exit(0);
+	} else if (pid < 0) {
+		log_error("fork failed error %d: existing sessions"
+			  " will not be synced", errno);
+	} else {
+		/* parent continues */
+		log_warning("iSCSI sync pid=%d started", pid);
+		need_reap();
+	}
+
+	actor_init();
 	event_loop(ipc, control_fd, mgmt_ipc_fd, &mgmt_ipc_db);
-
-	/* we're done */
 	log_debug(1, "daemon stopping");
-
 	return 0;
 }
