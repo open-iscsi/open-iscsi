@@ -865,7 +865,7 @@ __session_conn_reopen(iscsi_conn_t *conn, queue_task_t *qtask, int do_stop)
 	log_debug(1, "re-opening session %d (reopen_cnt %d)", session->id,
 			session->reopen_cnt);
 
-	session->reopen_qtask.conn = conn;
+	qtask->conn = conn;
 
 	actor_delete(&conn->connect_timer);
 	__conn_noop_out_delete(conn);
@@ -910,7 +910,7 @@ __session_conn_reopen(iscsi_conn_t *conn, queue_task_t *qtask, int do_stop)
 }
 
 static int
-session_conn_reopen(iscsi_conn_t *conn, int do_stop)
+session_conn_reopen(iscsi_conn_t *conn, queue_task_t *qtask, int do_stop)
 {
 	iscsi_session_t *session = conn->session;
 	int rc;
@@ -924,12 +924,12 @@ session_conn_reopen(iscsi_conn_t *conn, int do_stop)
 	memset(&conn->saddr, 0, sizeof(struct sockaddr_storage));
 	conn->saddr = conn->failback_saddr;
 
-	rc = __session_conn_reopen(conn, &session->reopen_qtask, do_stop);
+	rc = __session_conn_reopen(conn, qtask, do_stop);
 	if (rc) {
 		log_debug(4, "Requeue reopen attempt in %d secs\n", 5);
 		actor_delete(&conn->connect_timer);
-		actor_timer(&conn->connect_timer, 5*1000,
-			    __connect_timedout, &session->reopen_qtask);
+		actor_timer(&conn->connect_timer, 5*1000, __connect_timedout,
+			    qtask);
 	}
 
 	return rc;
@@ -1406,7 +1406,7 @@ __session_conn_timer(queue_item_t *item)
 		case R_STAGE_SESSION_REOPEN:
 			log_debug(6, "conn_timer popped at XPT_WAIT: reopen");
 			/* timeout during reopen connect. try again */
-			session_conn_reopen(conn, 0);
+			session_conn_reopen(conn, qtask, 0);
 			break;
 		case R_STAGE_SESSION_CLEANUP:
 			session_conn_cleanup(conn, 0);
@@ -1432,7 +1432,7 @@ __session_conn_timer(queue_item_t *item)
 			break;
 		case R_STAGE_SESSION_REOPEN:
 			log_debug(6, "conn_timer popped at IN_LOGIN: reopen");
-			session_conn_reopen(conn, STOP_CONN_RECOVER);
+			session_conn_reopen(conn, qtask, STOP_CONN_RECOVER);
 			break;
 		case R_STAGE_SESSION_CLEANUP:
 			session_conn_cleanup(conn, 1);
@@ -1484,7 +1484,8 @@ __conn_error_handle(iscsi_session_t *session, iscsi_conn_t *conn)
 	case STATE_IN_LOGIN:
 		if (session->r_stage == R_STAGE_SESSION_REOPEN) {
 			conn->send_pdu_timer_remove(conn);
-			session_conn_reopen(conn, STOP_CONN_RECOVER);
+			session_conn_reopen(conn, &session->reopen_qtask,
+					    STOP_CONN_RECOVER);
 			return;
 		}
 
@@ -1505,7 +1506,8 @@ __conn_error_handle(iscsi_session_t *session, iscsi_conn_t *conn)
 	}
 
 	if (session->r_stage == R_STAGE_SESSION_REOPEN) {
-		session_conn_reopen(conn, STOP_CONN_RECOVER);
+		session_conn_reopen(conn, &session->reopen_qtask,
+				    STOP_CONN_RECOVER);
 		return;
 	} else {
 		if (ipc->stop_conn(session->transport_handle, session->id,
@@ -1888,7 +1890,8 @@ iscsi_sync_session(node_rec_t *rec, uint32_t sid)
 	 *
 	 * TODO: export session state and only reopen when not logged in
 	 */
-	session_conn_reopen(&session->conn[0], STOP_CONN_RECOVER);
+	session_conn_reopen(&session->conn[0], &session->reopen_qtask,
+			    STOP_CONN_RECOVER);
 	log_debug(3, "synced iSCSI session %d", session->id);
 	return 0;
 
