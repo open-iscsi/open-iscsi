@@ -197,6 +197,18 @@ mgmt_ipc_session_logout(struct mgmt_ipc_db *dbt, queue_task_t *qtask, int rid)
 }
 
 static mgmt_ipc_err_e
+mgmt_ipc_session_sync(struct mgmt_ipc_db *dbt, queue_task_t *qtask, int rid,
+		      int sid)
+{
+	mgmt_ipc_err_e rc;
+	node_rec_t rec;
+
+	if ((rc = mgmt_ipc_node_read(dbt, rid, &rec)))
+		return rc;
+	return iscsi_sync_session(&rec, qtask, sid);
+}
+
+static mgmt_ipc_err_e
 mgmt_ipc_cfg_initiatorname(queue_task_t *qtask, iscsiadm_rsp_t *rsp)
 {
 	strcpy(rsp->u.config.var, dconfig->initiator_name);
@@ -366,6 +378,10 @@ mgmt_ipc_handle(struct mgmt_ipc_db *dbt, int accept_fd)
 		break;
 	case MGMT_IPC_SESSION_LOGOUT:
 		rsp.err = mgmt_ipc_session_logout(dbt, qtask, req.u.session.rid);
+		break;
+	case MGMT_IPC_SESSION_SYNC:
+		rsp.err = mgmt_ipc_session_sync(dbt, qtask, req.u.session.rid,
+						req.u.session.sid);
 		break;
 	case MGMT_IPC_SESSION_ACTIVELIST:
 		rsp.err = mgmt_ipc_session_activelist(qtask, &rsp);

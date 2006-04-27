@@ -57,6 +57,7 @@ typedef enum iscsiadm_cmd {
 	MGMT_IPC_CONFIG_IALIAS		= 9,
 	MGMT_IPC_CONFIG_FILE		= 10,
 	MGMT_IPC_IMMEDIATE_STOP		= 11,
+	MGMT_IPC_SESSION_SYNC		= 12,
 } iscsiadm_cmd_e;
 
 /* IPC Request */

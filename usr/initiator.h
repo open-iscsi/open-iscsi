@@ -380,7 +380,8 @@ extern int session_logout_task(iscsi_session_t *session, queue_task_t *qtask);
 extern iscsi_session_t* session_find_by_rec(node_rec_t *rec);
 extern void* recvpool_get(iscsi_conn_t *conn, int ev_size);
 extern void recvpool_put(iscsi_conn_t *conn, void *handle);
-extern int iscsi_sync_session(node_rec_t *rec, uint32_t sid);
+extern mgmt_ipc_err_e iscsi_sync_session(node_rec_t *rec, queue_task_t
+					 *tsk, uint32_t sid);
 
 extern char sysfs_file[];
 

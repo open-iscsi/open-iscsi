@@ -192,8 +192,10 @@ __session_online_devs(iscsi_session_t *session)
 }
 
 static void
-write_mgmt_login_rsp(queue_task_t *qtask, mgmt_ipc_err_e err)
+write_mgmt_rsp(queue_task_t *qtask, mgmt_ipc_err_e err)
 {
+	log_debug(4, "%s: rsp to fd %d", __FUNCTION__,
+		  qtask->u.login.mgmt_ipc_fd);
 	if (qtask->u.login.mgmt_ipc_fd == 0)
 		return;
 
@@ -230,7 +232,7 @@ __session_scan_host(iscsi_session_t *session, queue_task_t *qtask)
 		write(fd, "- - -", 5);
 		close(fd);
 
-		write_mgmt_login_rsp(qtask, MGMT_IPC_OK);
+		write_mgmt_rsp(qtask, MGMT_IPC_OK);
 		log_debug(4, "scanning host%d completed\n", hostno);
 		exit(0);
 	} else if (pid > 0) {
@@ -245,7 +247,7 @@ __session_scan_host(iscsi_session_t *session, queue_task_t *qtask)
 		log_error("Could not start scanning process for host %d "
 			  "err %d. Try scanning through sysfs\n", hostno,
 			  errno);
-		write_mgmt_login_rsp(qtask, MGMT_IPC_ERR_INTERNAL);
+		write_mgmt_rsp(qtask, MGMT_IPC_ERR_INTERNAL);
 	}
 
 	close(fd);
@@ -777,7 +779,7 @@ __session_mgmt_ipc_login_cleanup(queue_task_t *qtask, mgmt_ipc_err_e err,
 	}
 
 	if (r_stage != R_STAGE_SESSION_REOPEN)
-		write_mgmt_login_rsp(qtask, err);
+		write_mgmt_rsp(qtask, err);
 }
 
 
@@ -1152,6 +1154,7 @@ setup_full_feature_phase(iscsi_conn_t *conn)
 			    session->id, conn->id);
 	} else {
 		__session_online_devs(session);
+		write_mgmt_rsp(c->qtask, MGMT_IPC_OK);
 		log_warning("connection%d:%d is operational after recovery "
 			    "(%d attempts)", session->id, conn->id,
 			     session->reopen_cnt);
@@ -1427,7 +1430,7 @@ __session_conn_timer(queue_item_t *item)
 			 * send pdu timeout. during initial connect clean
 			 * connection. write rsp
 			 */
-			write_mgmt_login_rsp(qtask, MGMT_IPC_ERR_PDU_TIMEOUT);
+			write_mgmt_rsp(qtask, MGMT_IPC_ERR_PDU_TIMEOUT);
 			__session_conn_cleanup(conn);
 			break;
 		case R_STAGE_SESSION_REOPEN:
@@ -1850,8 +1853,8 @@ sync_session_params(iscsi_session_t *session)
 	return 0;
 }
 
-int
-iscsi_sync_session(node_rec_t *rec, uint32_t sid)
+mgmt_ipc_err_e
+iscsi_sync_session(node_rec_t *rec, queue_task_t *qtask, uint32_t sid)
 {
 	iscsi_session_t *session;
 	iscsi_provider_t *provider;
@@ -1859,40 +1862,43 @@ iscsi_sync_session(node_rec_t *rec, uint32_t sid)
 
 	provider = __get_transport_by_name(rec->transport_name);
 	if (!provider)
-		return -EINVAL;
+		return MGMT_IPC_ERR_TRANS_NOT_FOUND;
 
 	session = __session_create(rec, provider);
 	if (!session)
-		return -ENOMEM;
+		return MGMT_IPC_ERR_NOMEM;
 
 	session->id = sid;
 	session->hostno = session_find_hostno(sid);
 	if (session->hostno < 0) {
 		log_error("Could not get hostno for session %d\n", sid);
-		err = -ENODEV;
+		err = MGMT_IPC_ERR_NOT_FOUND;
 		goto destroy_session;
 	}
 
 	session->r_stage = R_STAGE_SESSION_REOPEN;
 
 	err = sync_session_params(session);
-	if (err)
+	if (err) {
+		err = MGMT_IPC_ERR_INTERNAL;
 		goto destroy_session;
+	}
 
 	err = sync_conn(session, 0);
-	if (err)
+	if (err) {
+		if (err == -ENOMEM)
+			err = MGMT_IPC_ERR_NOMEM;
+		else if (err == -ENODEV)
+			err = MGMT_IPC_ERR_NOT_FOUND;
+		else
+			err = MGMT_IPC_ERR_INVAL;
 		goto destroy_session;
+	}
 
-	/*
-	 * we must force a relogin to sync us up with the kernel,
-	 * just in case it is starting recovery now or is in recovery
-	 * already.
-	 *
-	 * TODO: export session state and only reopen when not logged in
-	 */
-	session_conn_reopen(&session->conn[0], &session->reopen_qtask,
-			    STOP_CONN_RECOVER);
-	log_debug(3, "synced iSCSI session %d", session->id);
+	qtask->u.login.rsp.command = MGMT_IPC_SESSION_SYNC;
+
+	session_conn_reopen(&session->conn[0], qtask, STOP_CONN_RECOVER);
+	log_debug(3, "Started sync iSCSI session %d", session->id);
 	return 0;
 
 destroy_session:
