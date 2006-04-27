@@ -35,7 +35,7 @@ iscsi_discovery()
 
 iscsi_login_all_nodes()
 {
-    TARGETS=$($ISCSIADM -m node | sed 's@\[\(.*\)\] .*@\1@g')
+    TARGETS=$($ISCSIADM -m node 2> /dev/null | sed 's@\[\(.*\)\] .*@\1@g')
     for rec in $TARGETS; do
 	STARTUP=`$ISCSIADM -m node -r $rec | grep "node.conn\[0\].startup" | cut -d' ' -f3`
 	NODE=`$ISCSIADM -m node -r $rec | grep "node.name" | cut -d' ' -f3`
