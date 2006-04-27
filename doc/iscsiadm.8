@@ -15,8 +15,7 @@ Discovery table (discovery.db);
 Node table (node.db).
 .PD
 .PP
-The regular place for iSCSI database files is in
-.I /var/db/iscsi/*.db
+The regular place for iSCSI database files is in \fI/var/db/iscsi/*.db\fR
 .PP
 The iscsiadm utility is a command-line tool to manage (update, delete,
 insert, query) the persistent database.
@@ -30,51 +29,26 @@ do not require iSCSI daemon (iscsid) loaded.
 .SH OPTIONS
 .TP
 .B \-m, \-\-mode \fIop
-specify operational mode.
-.I op
-is either
-.I discovery
-or
-.I node
+specify operational mode. \fIop\fR
+is either \fIdiscovery\fR or \fInode\fR
 .TP
 .B \-m discovery
 display all discovery records from the internal persistent discovery
 database.
 .TP
 .B \-m discovery \-\-type=\fItype\fB \-\-portal=\fIip:port\fB \-\-login
-perform
-.I type
-discovery for target portal with ip-address 
-.I ip
-and port 
-.I port
-\. Initiate Login for each discovered target if --login is specific.
+perform \fItype\fR discovery for target portal with ip-address \fIip\fR
+and port \fIport\fR. Initiate Login for each discovered target if --login
+is specific.
 .TP
 .B \-m discovery \-\-record=\fIid\fB \-\-login
- perform discovery based on record 
-.I id
-in database.
+perform discovery based on record \fIid\fR in database.
 .TP
 .B \-m discovery \-\-record=\fIid\fB \-\-op=\fIop\fB \-\-name=\fIname\fB \-\-value=\fIvalue
-perform specific DB operation 
-.I op
-for specific discovery record with 
-.I id
-\. It could be one of:
-.I new
-, 
-.I delete
-, 
-.I update
- or 
-.I show
-\. In case of
-.I update
-, you have to provide 
-.I name
- and 
-.I value
-you wish to update
+perform specific DB operation \fIop\fR for specific discovery record with
+\fIid\fR.  It could be one of: \fInew\fR, \fIdelete\fR, \fIupdate\fR or
+\fIshow\fR. In case of \fIupdate\fR, you have to provide \fIname\fR and
+\fIvalue\fR you wish to update
 .TP
 .B \-m node
 display all discovered nodes from internal persistent discovery
@@ -90,36 +64,18 @@ login to node given by \fIid\fB.
 logout to node given by \fIid\fB.
 .TP
 .B \-m node \-\-record=\fIid\fB \-\-op=\fIop\fB [\-\-name=\fIname\fB \-\-value=\fIvalue\fB]
-perform specific DB operation 
-.I op
-for specific node with record 
-.I id
-\. It could be one of:
-.I new
-, 
-.I delete
-, 
-.I update
- or 
-.I show
-\. In case of
-.I update
-, you have to provide 
-.I name
-and 
-.I value
-you wish to update
+perform specific DB operation \fIop\fR for specific node with record
+\fIid\fR. It could be one of: \fInew\fR, \fIdelete\fR, \fIupdate\fR or
+\fIshow\fR. In case of \fIupdate\fR, you have to provide \fIname\fR and
+\fIvalue\fR you wish to update
 .TP
 .B \-m session
 display all active sessions and connections
 .TP
 .B \-m session \-\-record=[\fIid\fB[\fI:cid\fB]] [\-\-logout|\-u]
-perform operation for specific session with record
-.I id
+perform operation for specific session with record \fIid\fR
 or display statistics if no operation specified. Operation will affect
-one connection only if
-.I \:cid
-is specified
+one connection only if \fI\:cid\fR is specified
 .TP
 .B \-d, \-\-debug \fIdebuglevel
 print debugging information
