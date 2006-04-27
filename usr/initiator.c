@@ -899,7 +899,7 @@ __session_conn_reopen(iscsi_conn_t *conn, queue_task_t *qtask, int do_stop)
 
 		log_error("cannot make a connection to %s:%s (%d)",
 			  conn->host, serv, errno);
-		return MGMT_IPC_ERR_TCP_FAILURE;
+		return MGMT_IPC_ERR_TRANS_FAILURE;
 	}
 
 	queue_produce(session->queue, EV_CONN_POLL, qtask, 0, NULL);
@@ -1367,7 +1367,7 @@ __session_conn_poll(queue_item_t *item)
 		} else {
 			actor_delete(&conn->connect_timer);
 			/* error during connect */
-			err = MGMT_IPC_ERR_TCP_FAILURE;
+			err = MGMT_IPC_ERR_TRANS_FAILURE;
 			goto cleanup;
 		}
 	}
@@ -1404,7 +1404,7 @@ __session_conn_timer(queue_item_t *item)
 			/* timeout during initial connect.
 			 * clean connection. write ipc rsp */
 			__session_mgmt_ipc_login_cleanup(qtask,
-					    MGMT_IPC_ERR_TCP_TIMEOUT, 0);
+					    MGMT_IPC_ERR_TRANS_TIMEOUT, 0);
 			break;
 		case R_STAGE_SESSION_REOPEN:
 			log_debug(6, "conn_timer popped at XPT_WAIT: reopen");
@@ -1712,7 +1712,7 @@ session_login_task(node_rec_t *rec, queue_task_t *qtask)
 			 conn->host, serv, errno);
 		session_conn_destroy(session, 0);
 		__session_destroy(session);
-		return MGMT_IPC_ERR_TCP_FAILURE;
+		return MGMT_IPC_ERR_TRANS_FAILURE;
 	}
 
 	conn->state = STATE_XPT_WAIT;
