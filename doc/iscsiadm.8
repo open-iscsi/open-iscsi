@@ -130,6 +130,40 @@ display version and exit
 .B -h, --help
 display this help and exit
 
+.SH DISCOVERY TYPES
+iSCSI defines 3 discovery types: SendTargets, SLP, and iSNS.
+
+.TP
+.B
+SendTargets 
+A native iSCSI protocol which allows each iSCSI
+target to send a list of available targets to the initiator.
+
+.TP
+.B
+SLP
+Optionally an iSCSI target can use the Service Location Protocol (SLP)
+to announce the available targets. The initiator can either implement
+SLP queries directly or can use a separate tool to acquire the
+information about available targets.
+
+.TP
+.B
+iSNS
+iSNS (Internet Storage Name Service) is a proposed standard to record
+information about storage volumes within a larger network. In theory
+it can be implemented for iSCSI and Fibre Channel. However, no
+implementation of the central nameserver mandated by this standard is
+currently available.
+.P
+Currently open-iscsi supports only the
+.B
+SendTargets
+or
+.B
+st
+discovery type. An SLP implementation is under development.
+
 .SH FILES
 .TP
 /etc/iscsid.conf
