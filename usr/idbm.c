@@ -234,31 +234,6 @@ get_iscsi_initiatoralias(char *pathname)
 	}
 }
 
-static int
-idbm_lock(DBM *dbm)
-{
-#ifndef DB_DBM_HSEARCH
-	if (flock(dbm->dbm_dirf, IDBM_LOCK_EX) == -1 ||
-	    flock(dbm->dbm_pagf, IDBM_LOCK_EX) == -1)
-		return 1;
-#else
-	if (flock(dbm_dirfno(dbm), IDBM_LOCK_EX) == -1)
-		return 1;
-#endif
-	return 0;
-}
-
-static void
-idbm_unlock(DBM *dbm)
-{
-#ifndef DB_DBM_HSEARCH
-	flock(dbm->dbm_dirf, IDBM_LOCK_UN);
-	flock(dbm->dbm_pagf, IDBM_LOCK_UN);
-#else
-	flock(dbm_dirfno(dbm), IDBM_LOCK_UN);
-#endif
-}
-
 static void
 idbm_update_discovery(discovery_rec_t *rec, discovery_rec_t *newrec)
 {
@@ -442,39 +417,134 @@ idbm_read_with_id(DBM *dbm, int rec_id)
 {
 	datum key, data;
 
-	(void)idbm_lock(dbm);
 	for (key=dbm_firstkey(dbm); key.dptr != NULL; key=dbm_nextkey(dbm)) {
 		data = dbm_fetch(dbm, key);
 		log_debug(7, "searching for key '%s'", key.dptr);
 		if (idbm_uniq_id(key.dptr) == rec_id) {
-			idbm_unlock(dbm);
 			return data.dptr;
 		}
 	}
-	idbm_unlock(dbm);
+
 	return NULL;
+}
+
+static DBM*
+idbm_open(char *filename, int flags)
+{
+	DBM *dbm;
+
+	if (flags & O_CREAT) {
+		char *dirname, *ptr;
+
+		dirname = strdup(filename);
+		if (dirname && (ptr = strrchr(dirname, '/'))) {
+			*ptr = '\0';
+		} else if (!dirname)
+			return NULL;
+
+		if (access(dirname, F_OK) != 0) {
+			if (mkdir(dirname, 0755) != 0) {
+				free(dirname);
+				log_error("can't create file '%s'", filename);
+				return NULL;
+			}
+		}
+		free(dirname);
+	}
+
+	/* Now open the database */
+	dbm = dbm_open(filename, flags, 0666);
+	if (!dbm) {
+		log_error("discovery DB '%s' open failed", filename);
+		return NULL;
+	}
+
+	return dbm;
+}
+
+static void
+idbm_close(DBM *dbm)
+{
+	dbm_close(dbm);
+}
+
+static int idbm_open_dbs(idbm_t *db)
+{	
+	int fd, i, ret;
+
+	if (db->refs > 0) {
+		db->refs++;
+		return 0;
+	}
+	
+	fd = open(LOCK_FILE, O_RDWR | O_CREAT, 0666);
+	if (fd >= 0)
+		close(fd);
+
+	for (i=0; i < 3000; i++) {
+		ret = link(LOCK_FILE, LOCK_WRITE_FILE);
+		if (ret == 0)
+			break;
+		
+		usleep(10000);
+	}
+
+	if ((db->discdb = idbm_open(DISCOVERY_FILE,
+				    access(DISCOVERY_FILE, F_OK) != 0 ?
+				    O_CREAT|O_RDWR : O_RDWR)) == NULL) {
+		return -1;
+	}
+	
+	if ((db->nodedb = idbm_open(NODE_FILE, access(NODE_FILE, F_OK) != 0 ?
+				    O_CREAT|O_RDWR : O_RDWR)) == NULL) {
+		idbm_close(db->discdb);
+		return -1;
+	}
+
+	db->refs = 1;
+	
+	return 0;
+}
+
+static void idbm_close_dbs(idbm_t *db)
+{
+	if (db->refs > 1) {
+		db->refs--;
+		return;
+	}
+	
+	idbm_close(db->discdb);
+	idbm_close(db->nodedb);
+	db->refs = 0;
+	unlink(LOCK_WRITE_FILE);
 }
 
 int
 idbm_find_rid_by_session(idbm_t *db, char *targetname, int tpgt, char *address,
 			 int port)
 {
-	DBM *dbm = db->nodedb;
+	DBM *dbm;
 	datum key, data;
 	node_rec_t *rec;
 	conn_rec_t *conn;
-	int rec_id = -1;
-
-	(void)idbm_lock(dbm);
+	int rec_id = -1, ret;
 
 	log_debug(7, "looking for target_name %s, tpgt %d address %s port %d\n",
 		  targetname, tpgt, address, port);
 
+	ret = idbm_open_dbs(db);
+	if (ret)
+		return -1;
+
+	dbm = db->nodedb;
+
 	for (key=dbm_firstkey(dbm); key.dptr != NULL; key=dbm_nextkey(dbm)) {
 		data = dbm_fetch(dbm, key);
 		rec = (node_rec_t*)data.dptr;
-		if (idbm_dbversion_check(rec->dbversion))
+		if (idbm_dbversion_check(rec->dbversion)) {
+			idbm_close_dbs(db);
 			exit(-1);
+		}
 
 		conn = &rec->conn[0];
 		if (!strncmp(rec->name, targetname, strlen(rec->name)) &&
@@ -485,7 +555,8 @@ idbm_find_rid_by_session(idbm_t *db, char *targetname, int tpgt, char *address,
 		}
 	}
 
-	idbm_unlock(dbm);
+	idbm_close_dbs(db);
+
 	return rec_id;
 }
 
@@ -692,46 +763,6 @@ idbm_recinfo_alloc(int max_keys)
 	return info;
 }
 
-static DBM*
-idbm_open(char *filename, int flags)
-{
-	DBM *dbm;
-
-	if (flags & O_CREAT) {
-		char *dirname, *ptr;
-
-		dirname = strdup(filename);
-		if (dirname && (ptr = strrchr(dirname, '/'))) {
-			*ptr = '\0';
-		} else if (!dirname)
-			return NULL;
-
-		if (access(dirname, F_OK) != 0) {
-			if (mkdir(dirname, 0755) != 0) {
-				free(dirname);
-				log_error("can't create file '%s'", filename);
-				return NULL;
-			}
-		}
-		free(dirname);
-	}
-
-	/* Now open the database */
-	dbm = dbm_open(filename, flags, 0666);
-	if (!dbm) {
-		log_error("discovery DB '%s' open failed", filename);
-		return NULL;
-	}
-
-	return dbm;
-}
-
-static void
-idbm_close(DBM *dbm)
-{
-	dbm_close(dbm);
-}
-
 #define PRINT_TYPE_DISCOVERY	0
 #define PRINT_TYPE_NODE		1
 static void
@@ -769,11 +800,15 @@ idbm_print(int type, void *rec)
 static int
 idbm_print_type(idbm_t *db, int type, int rec_id)
 {
-	int found = 0;
+	int found = 0, ret;
 	datum key, data;
-	DBM *dbm = type == PRINT_TYPE_DISCOVERY ? db->discdb : db->nodedb;
+	DBM *dbm = NULL;
 
-	(void)idbm_lock(dbm);
+	ret = idbm_open_dbs(db);
+	if (ret)
+		return -1;
+
+	dbm = type == PRINT_TYPE_DISCOVERY ? db->discdb : db->nodedb;
 
 	for (key=dbm_firstkey(dbm); key.dptr != NULL; key=dbm_nextkey(dbm)) {
 		data = dbm_fetch(dbm, key);
@@ -807,7 +842,8 @@ idbm_print_type(idbm_t *db, int type, int rec_id)
 		}
 	}
 
-	idbm_unlock(dbm);
+	idbm_close_dbs(db);
+
 	return found;
 }
 
@@ -1045,15 +1081,13 @@ idbm_id2hash(DBM *dbm, int rec_id)
 {
 	datum key, data;
 
-	(void)idbm_lock(dbm);
 	for (key=dbm_firstkey(dbm); key.dptr != NULL; key=dbm_nextkey(dbm)) {
 		data = dbm_fetch(dbm, key);
 		if (idbm_uniq_id(key.dptr) == rec_id) {
-			idbm_unlock(dbm);
 			return strdup(key.dptr);
 		}
 	}
-	idbm_unlock(dbm);
+
 	return NULL;
 }
 
@@ -1072,15 +1106,19 @@ idbm_print_node(idbm_t *db, int rec_id)
 int
 idbm_print_nodes(idbm_t *db, discovery_rec_t *drec)
 {
-	int found = 0;
+	int found = 0, ret;
 	char *hash;
 	datum key, data;
-	DBM *dbm = db->nodedb;
+	DBM *dbm;
 
 	if (!(hash = idbm_hash_discovery(drec)))
 		return found;
 
-	(void)idbm_lock(dbm);
+	ret = idbm_open_dbs(db);
+	if (ret)
+		return -1;
+
+	dbm = db->nodedb;
 
 	for (key=dbm_firstkey(dbm); key.dptr != NULL; key=dbm_nextkey(dbm)) {
 		data = dbm_fetch(dbm, key);
@@ -1098,8 +1136,10 @@ idbm_print_nodes(idbm_t *db, discovery_rec_t *drec)
 		}
 	}
 
-	idbm_unlock(dbm);
 	free(hash);
+
+	idbm_close_dbs(db);
+
 	return found;
 }
 
@@ -1107,13 +1147,25 @@ int
 idbm_discovery_read(idbm_t *db, int rec_id, discovery_rec_t *out_rec)
 {
 	discovery_rec_t *rec;
+	int ret;
 
-	if ((rec = (discovery_rec_t*)idbm_read_with_id(db->discdb, rec_id))) {
-		if (idbm_dbversion_check(rec->dbversion))
+	ret = idbm_open_dbs(db);
+	if (ret)
+		return 1;
+
+	rec = (discovery_rec_t*)idbm_read_with_id(db->discdb, rec_id);
+	if (rec != NULL) {
+		if (idbm_dbversion_check(rec->dbversion)) {
+			idbm_close_dbs(db);
 			exit(-1);
+		}
+
 		memcpy(out_rec, rec, sizeof(discovery_rec_t));
+		idbm_close_dbs(db);
 		return 0;
 	}
+
+	idbm_close_dbs(db);
 	return 1;
 }
 
@@ -1121,13 +1173,24 @@ int
 idbm_node_read(idbm_t *db, int rec_id, node_rec_t *out_rec)
 {
 	node_rec_t *rec;
+	int ret;
 
-	if ((rec = (node_rec_t*)idbm_read_with_id(db->nodedb, rec_id))) {
-		if (idbm_dbversion_check(rec->dbversion))
+	ret = idbm_open_dbs(db);
+	if (ret)
+		return 1;
+
+	rec = (node_rec_t*)idbm_read_with_id(db->nodedb, rec_id);
+	if (rec != NULL) {
+		if (idbm_dbversion_check(rec->dbversion)) {
+			idbm_close_dbs(db);
 			exit(-1);
+		}
+
 		memcpy(out_rec, rec, sizeof(node_rec_t));
+		idbm_close_dbs(db);
 		return 0;
 	}
+	idbm_close_dbs(db);
 	return 1;
 }
 
@@ -1135,26 +1198,29 @@ int
 idbm_node_write(idbm_t *db, int rec_id, node_rec_t *rec)
 {
 	char *hash;
-	DBM *dbm = db->nodedb;
+	DBM *dbm;
+	int ret;
 
-	hash = idbm_id2hash(dbm, rec_id);
-	if (!hash)
+	ret = idbm_open_dbs(db);
+	if (ret)
 		return 1;
 
-	if (idbm_lock(dbm)) {
-		free(hash);
+	dbm = db->nodedb;
+
+	hash = idbm_id2hash(dbm, rec_id);
+	if (!hash) {
+		idbm_close_dbs(db);
 		return 1;
 	}
 
 	if (idbm_write(dbm, rec, sizeof(node_rec_t), hash)) {
-		idbm_unlock(dbm);
 		free(hash);
+		idbm_close_dbs(db);
 		return 1;
 	}
 
-	idbm_unlock(dbm);
-
 	free(hash);
+	idbm_close_dbs(db);
 	return 0;
 }
 
@@ -1163,14 +1229,17 @@ idbm_add_discovery(idbm_t *db, discovery_rec_t *newrec)
 {
 	char *hash;
 	discovery_rec_t *rec;
-	DBM *dbm = db->discdb;
+	DBM *dbm;
+	int ret;
+
+	ret = idbm_open_dbs(db);
+	if (ret)
+		return 1;
+
+	dbm = db->discdb;
 
 	if (!(hash = idbm_hash_discovery(newrec))) {
-		return 1;
-	}
-
-	if (idbm_lock(dbm)) {
-		free(hash);
+		idbm_close_dbs(db);
 		return 1;
 	}
 
@@ -1184,13 +1253,13 @@ idbm_add_discovery(idbm_t *db, discovery_rec_t *newrec)
 	newrec->id = idbm_uniq_id(hash);
 	newrec->dbversion = IDBM_VERSION;
 	if (idbm_write(dbm, newrec, sizeof(discovery_rec_t), hash)) {
-		idbm_unlock(dbm);
 		free(hash);
+		idbm_close_dbs(db);
 		return 1;
 	}
 
-	idbm_unlock(dbm);
 	free(hash);
+	idbm_close_dbs(db);
 	return 0;
 }
 
@@ -1199,14 +1268,17 @@ idbm_add_node(idbm_t *db, discovery_rec_t *drec, node_rec_t *newrec)
 {
 	char *hash;
 	node_rec_t *rec;
-	DBM *dbm = db->nodedb;
+	DBM *dbm;
+	int ret;
+
+	ret = idbm_open_dbs(db);
+	if (ret)
+		return 1;
+
+	dbm = db->nodedb;
 
 	if (!(hash = idbm_hash_node(drec, newrec))) {
-		return 1;
-	}
-
-	if (idbm_lock(dbm)) {
-		free(hash);
+		idbm_close_dbs(db);
 		return 1;
 	}
 
@@ -1219,13 +1291,13 @@ idbm_add_node(idbm_t *db, discovery_rec_t *drec, node_rec_t *newrec)
 
 	newrec->id = idbm_uniq_id(hash);
 	if (idbm_write(dbm, newrec, sizeof(node_rec_t), hash)) {
-		idbm_unlock(dbm);
 		free(hash);
+		idbm_close_dbs(db);
 		return 1;
 	}
 
-	idbm_unlock(dbm);
 	free(hash);
+	idbm_close_dbs(db);
 	return 0;
 }
 
@@ -1234,21 +1306,24 @@ idbm_new_node(idbm_t *db, node_rec_t *newrec)
 {
 	char *hash;
 	node_rec_t *rec;
-	DBM *dbm = db->nodedb;
+	DBM *dbm;
+	int ret;
+
+	ret = idbm_open_dbs(db);
+	if (ret)
+		return 1;
+
+	dbm = db->nodedb;
 
 	if (!(hash = idbm_hash_node(NULL, newrec))) {
-		return 1;
-	}
-
-	if (idbm_lock(dbm)) {
-		free(hash);
+		idbm_close_dbs(db);
 		return 1;
 	}
 
 	if ((rec = idbm_read(dbm, hash))) {
 		log_error("record [%06x] exists", rec->id);
-		idbm_unlock(dbm);
 		free(hash);
+		idbm_close_dbs(db);
 		return 1;
 	} else {
 		log_debug(7, "adding new DB record");
@@ -1256,13 +1331,13 @@ idbm_new_node(idbm_t *db, node_rec_t *newrec)
 
 	newrec->id = idbm_uniq_id(hash);
 	if (idbm_write(dbm, newrec, sizeof(node_rec_t), hash)) {
-		idbm_unlock(dbm);
 		free(hash);
+		idbm_close_dbs(db);
 		return 1;
 	}
 
-	idbm_unlock(dbm);
 	free(hash);
+	idbm_close_dbs(db);
 	return 0;
 }
 
@@ -1399,7 +1474,14 @@ idbm_delete_discovery(idbm_t *db, discovery_rec_t *rec)
 	int rc;
 	char *hash;
 	datum key;
-	DBM *dbm = db->discdb;
+	DBM *dbm;
+	int ret;
+
+	ret = idbm_open_dbs(db);
+	if (ret)
+		return 1;
+
+	dbm = db->discdb;
 
 	hash = idbm_id2hash(dbm, rec->id);
 
@@ -1409,6 +1491,7 @@ idbm_delete_discovery(idbm_t *db, discovery_rec_t *rec)
 	rc = dbm_delete(dbm, key);
 
 	free(hash);
+	idbm_close_dbs(db);
 	return rc;
 }
 
@@ -1418,8 +1501,14 @@ idbm_delete_node(idbm_t *db, node_rec_t *rec)
 	int rc;
 	char *hash;
 	datum key;
-	DBM *dbm = db->nodedb;
+	DBM *dbm;
+	int ret;
 
+	ret = idbm_open_dbs(db);
+	if (ret)
+		return 1;
+
+	dbm = db->nodedb;
 	hash = idbm_id2hash(dbm, rec->id);
 
 	key.dptr = hash;
@@ -1428,6 +1517,7 @@ idbm_delete_node(idbm_t *db, node_rec_t *rec)
 	rc = dbm_delete(dbm, key);
 
 	free(hash);
+	idbm_close_dbs(db);
 	return rc;
 }
 
@@ -1449,24 +1539,34 @@ int
 idbm_node_set_param(idbm_t *db, node_rec_t *rec, char *name, char *value)
 {
 	recinfo_t *info;
+	int ret;
+
+	ret = idbm_open_dbs(db);
+	if (ret)
+		return 1;
 
 	info = idbm_recinfo_alloc(MAX_KEYS);
-	if (!info)
+	if (!info) {
+		idbm_close_dbs(db);
 		return 1;
+	}
 
 	idbm_recinfo_node(rec, info);
 
 	if (idbm_node_update_param(info, name, value, 0)) {
 		free(info);
+		idbm_close_dbs(db);
 		return 1;
 	}
 
 	if (idbm_node_write(db, rec->id, rec)) {
 		free(info);
+		idbm_close_dbs(db);
 		return 1;
 	}
 
 	free(info);
+	idbm_close_dbs(db);
 	return 0;
 }
 
@@ -1483,23 +1583,7 @@ idbm_init(char *configfile)
 	memset(db, 0, sizeof(idbm_t));
 
 	db->configfile = strdup(configfile);
-	idbm_sync_config(db);
-
-	if ((db->discdb = idbm_open(DISCOVERY_FILE,
-				access(DISCOVERY_FILE, F_OK) != 0 ?
-					O_CREAT|O_RDWR : O_RDWR)) == NULL) {
-		free(db->configfile);
-		free(db);
-		return NULL;
-	}
-
-	if ((db->nodedb = idbm_open(NODE_FILE, access(NODE_FILE, F_OK) != 0 ?
-				O_CREAT|O_RDWR : O_RDWR)) == NULL) {
-		idbm_close(db->discdb);
-		free(db->configfile);
-		free(db);
-		return NULL;
-	}
+	idbm_sync_config(db);	
 
 	return db;
 }
@@ -1507,8 +1591,6 @@ idbm_init(char *configfile)
 void
 idbm_terminate(idbm_t *db)
 {
-	idbm_close(db->discdb);
-	idbm_close(db->nodedb);
 	free(db->configfile);
 	free(db);
 }

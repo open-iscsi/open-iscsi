@@ -40,6 +40,12 @@
 #ifndef NODE_FILE
 #define NODE_FILE		"/var/db/iscsi/node"
 #endif
+#ifndef LOCK_FILE
+#define LOCK_FILE		"/var/db/iscsi/lock"
+#endif
+#ifndef LOCK_WRITE_FILE
+#define LOCK_WRITE_FILE		"/var/db/iscsi/lock.write"
+#endif
 
 #define DEF_ISCSI_PORT		3260
 

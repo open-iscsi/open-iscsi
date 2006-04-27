@@ -48,6 +48,7 @@ typedef struct idbm {
 	void		*discdb;
 	void		*nodedb;
 	char		*configfile;
+	int             refs;
 	node_rec_t	nrec;
 	recinfo_t	ninfo[MAX_KEYS];
 	discovery_rec_t	drec_st;
