@@ -49,6 +49,11 @@ iscsi_login_all_nodes()
 
 iscsi_logout_all_nodes()
 {
+    # Check for active sessions
+    if $ISCSIADM -m session > /dev/null; then
+	return 0
+    fi
+    # Logout from all active sessions
     TARGETS=$($ISCSIADM -m session | sed 's@\[[^:]*:\(.*\)\] .*@\1@g')
     for rec in $TARGETS; do
 	NODE=`$ISCSIADM -m node -r $rec | grep "node.name" | cut -d' ' -f3`
@@ -60,6 +65,8 @@ iscsi_logout_all_nodes()
 	    rc_failed $RETVAL
 	fi
     done
+    # Not sure whether this is still needed
+    sleep 1
     return ${RETVAL:-0}
 }
 
@@ -91,7 +98,6 @@ case "$1" in
 	;;
     stop)
 	if iscsi_logout_all_nodes ; then
-	    sleep 1
 	    killproc -KILL $DAEMON
 	    RETVAL=$?
 	else
