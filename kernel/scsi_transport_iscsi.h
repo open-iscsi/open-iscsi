@@ -117,7 +117,7 @@ struct iscsi_transport {
 	void (*cleanup_cmd_task) (struct iscsi_conn *conn,
 				  struct iscsi_cmd_task *ctask);
 	int (*xmit_mgmt_task) (struct iscsi_conn *conn,
-			       struct iscsi_mgmt_task *mtask); 
+			       struct iscsi_mgmt_task *mtask);
 	void (*session_recovery_timedout) (struct iscsi_cls_session *session);
 	int (*ep_connect) (struct sockaddr *dst_addr, int non_blocking,
 			   uint64_t *ep_handle);
