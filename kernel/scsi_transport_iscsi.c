@@ -266,8 +266,8 @@ static void session_recovery_timedout(void *data)
 {
 	struct iscsi_cls_session *session = data;
 
-	dev_printk(KERN_INFO, &session->dev, "iscsi: session recovery timed out "
-		  "after %d secs\n", session->recovery_tmo);
+	dev_printk(KERN_INFO, &session->dev, "iscsi: session recovery timed "
+		  "out after %d secs\n", session->recovery_tmo);
 
 	if (session->transport->session_recovery_timedout)
 		session->transport->session_recovery_timedout(session);
@@ -497,7 +497,7 @@ static inline struct list_head *skb_to_lh(struct sk_buff *skb)
 }
 
 static void*
-mempool_zone_alloc_skb(unsigned int gfp_mask, void *pool_data)
+mempool_zone_alloc_skb(gfp_t gfp_mask, void *pool_data)
 {
 	struct mempool_zone *zone = pool_data;
 
@@ -1230,7 +1230,7 @@ iscsi_session_str_attr(targetname, ISCSI_PARAM_TARGET_NAME);
  * be present in the iscsi_transport/LLD driver becuase userspace handles
  * login (and failback for login redirect) so for these type of drivers
  * the class manages the attrs and values for the iscsi_transport/LLD
- */ 
+ */
 #define iscsi_priv_session_attr_show(field, format)			\
 static ssize_t								\
 show_priv_session_##field(struct class_device *cdev, char *buf)	\

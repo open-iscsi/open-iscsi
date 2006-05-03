@@ -235,8 +235,8 @@ static int iscsi_scsi_cmd_rsp(struct iscsi_conn *conn, struct iscsi_hdr *hdr,
 
 		if (datalen < 2) {
 invalid_datalen:
-			printk(KERN_ERR "iscsi: Got CHECK_CONDITION but invalid "
-			       "data buffer size of %d\n", datalen);
+			printk(KERN_ERR "iscsi: Got CHECK_CONDITION but "
+			       "invalid data buffer size of %d\n", datalen);
 			sc->result = DID_BAD_TARGET << 16;
 			goto out;
 		}
@@ -1042,8 +1042,8 @@ int iscsi_eh_abort(struct scsi_cmnd *sc)
 
 	/* what should we do here ? */
 	if (conn->ctask == ctask) {
-		printk(KERN_INFO "iscsi: sc %p itt 0x%x partially sent. Failing "
-		       "abort\n", sc, ctask->itt);
+		printk(KERN_INFO "iscsi: sc %p itt 0x%x partially sent. "
+		       "Failing abort\n", sc, ctask->itt);
 		goto failed;
 	}
 
@@ -1054,7 +1054,7 @@ int iscsi_eh_abort(struct scsi_cmnd *sc)
 		if (list_empty(&pending_ctask->running)) {
 			debug_scsi("found pending task\n");
 			goto success;
-		} else 
+		} else
 			__kfifo_put(conn->xmitqueue, (void*)&pending_ctask,
 				    sizeof(void*));
 	}
@@ -1098,7 +1098,7 @@ success:
 	write_unlock_bh(conn->recv_lock);
 
 	mutex_unlock(&conn->xmitmutex);
-	return SUCCESS;	
+	return SUCCESS;
 
 failed:
 	spin_unlock_bh(&session->lock);
@@ -1441,8 +1441,9 @@ void iscsi_conn_teardown(struct iscsi_cls_conn *cls_conn)
 		}
 		spin_unlock_irqrestore(session->host->host_lock, flags);
 		msleep_interruptible(500);
-		printk(KERN_INFO "iscsi: scsi conn_destroy(): host_busy %d host_failed %d\n",
-			session->host->host_busy, session->host->host_failed);
+		printk(KERN_INFO "iscsi: scsi conn_destroy(): host_busy %d "
+		       "host_failed %d\n", session->host->host_busy,
+		       session->host->host_failed);
 		/*
 		 * force eh_abort() to unblock
 		 */
@@ -1554,7 +1555,7 @@ static void fail_all_commands(struct iscsi_conn *conn)
 {
 	struct iscsi_cmd_task *ctask, *tmp;
 
-	/* flush pending */	
+	/* flush pending */
 	while (__kfifo_get(conn->xmitqueue, (void*)&ctask, sizeof(void*))) {
 		debug_scsi("failing pending sc %p itt 0x%x\n", ctask->sc,
 			   ctask->itt);

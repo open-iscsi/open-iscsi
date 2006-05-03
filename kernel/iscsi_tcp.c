@@ -2072,7 +2072,7 @@ iscsi_tcp_terminate_conn(struct iscsi_conn *conn)
 }
 
 /* called with host lock */
-static void 
+static void
 iscsi_tcp_mgmt_init(struct iscsi_conn *conn, struct iscsi_mgmt_task *mtask,
 		    char *data, uint32_t data_size)
 {
@@ -2384,7 +2384,7 @@ iscsi_conn_get_param(struct iscsi_cls_conn *cls_conn,
 		}
 
 		inet = inet_sk(tcp_conn->sock->sk);
-		*value = be16_to_cpu(inet->dport); 
+		*value = be16_to_cpu(inet->dport);
 		mutex_unlock(&conn->xmitmutex);
 	case ISCSI_PARAM_EXP_STATSN:
 		*value = conn->exp_statsn;
@@ -2594,7 +2594,8 @@ static int __init
 iscsi_tcp_init(void)
 {
 	if (iscsi_max_lun < 1) {
-		printk(KERN_ERR "iscsi_tcp: Invalid max_lun value of %u\n", iscsi_max_lun);
+		printk(KERN_ERR "iscsi_tcp: Invalid max_lun value of %u\n",
+		       iscsi_max_lun);
 		return -EINVAL;
 	}
 	iscsi_tcp_transport.max_lun = iscsi_max_lun;
