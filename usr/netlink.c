@@ -869,18 +869,20 @@ ctldev_handle(void)
 				    session->id == ev->r.recv_req.sid &&
 				    session->conn[i].id == ev->r.recv_req.cid) {
 					conn = &session->conn[i];
-					break;
+					goto verify_conn;
 				}
 				if (ev->type == ISCSI_KEVENT_CONN_ERROR &&
 				    session->id == ev->r.connerror.sid &&
 				    session->conn[i].id == ev->r.connerror.cid) {
 					conn = &session->conn[i];
-					break;
+					goto verify_conn;
 				}
 			}
 			item = item->q_forw;
 		}
 	}
+
+verify_conn:
 	if (conn == NULL) {
 		log_error("could not verify connection %d:%d", 
 			  ev->r.recv_req.sid, ev->r.recv_req.cid);
