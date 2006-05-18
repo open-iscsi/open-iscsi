@@ -10,6 +10,14 @@
 # actually uses itself.
 EXTRA_CFLAGS += -I$(obj) -I$(obj)/../include 
 
+ifeq ($(DEBUG_SCSI), 1)
+EXTRA_CFLAGS += -DDEBUG_SCSI=1
+endif
+
+ifeq ($(DEBUG_TCP), 1)
+EXTRA_CFLAGS += -DDEBUG_TCP=1
+endif
+
 obj-m				+= scsi_transport_iscsi.o
 obj-m				+= libiscsi.o
 obj-m				+= iscsi_tcp.o
