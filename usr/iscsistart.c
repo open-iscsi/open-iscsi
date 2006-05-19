@@ -39,8 +39,7 @@
 #include "log.h"
 #include "util.h"
 #include "idbm.h"
-
-#define ISCSISTART_VERSION_STR   "0.3"
+#include "version.h"
 
 /* global config info */
 /* initiator needs initiator name/alias */
@@ -273,7 +272,7 @@ int main(int argc, char *argv[])
 			break;
 		case 'v':
 			printf("%s version %s\n", program_name,
-				ISCSISTART_VERSION_STR);
+				ISCSI_VERSION_STR);
 			exit(0);
 		case 'h':
 			usage(0);
@@ -345,7 +344,7 @@ int main(int argc, char *argv[])
 	 * in a different RPM from the daemon and utils, and users may try to
 	 * mix and match in ways that don't work.
 	 */
-	log_error("version %s", ISCSISTART_VERSION_STR);
+	log_error("version %s", ISCSI_VERSION_STR);
 
 	/* oom-killer will not kill us at the night... */
 	if (oom_adjust())

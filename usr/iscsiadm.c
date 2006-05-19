@@ -38,6 +38,7 @@
 #include "mgmt_ipc.h"
 #include "idbm.h"
 #include "util.h"
+#include "version.h"
 
 struct iscsi_ipc *ipc = NULL; /* dummy */
 static int ipc_fd = -1;

@@ -40,6 +40,7 @@
 #include "initiator.h"
 #include "transport.h"
 #include "idbm.h"
+#include "version.h"
 
 /* global config info */
 struct iscsi_daemon_config daemon_config;
@@ -371,8 +372,7 @@ int main(int argc, char *argv[])
 	 * in a different RPM from the daemon and utils, and users may try to
 	 * mix and match in ways that don't work.
 	 */
-	log_warning("version %s variant (%s)",
-		ISCSI_VERSION_STR, ISCSI_DATE_STR);
+	log_warning("version %s", ISCSI_VERSION_STR);
 
 	/* oom-killer will not kill us at the night... */
 	if (oom_adjust())
