@@ -253,7 +253,6 @@ enum iscsi_param {
  * These flags describes reason of stop_conn() call
  */
 #define STOP_CONN_TERM		0x1
-#define STOP_CONN_SUSPEND	0x2
 #define STOP_CONN_RECOVER	0x3
 
 #define ISCSI_STATS_CUSTOM_MAX		32
