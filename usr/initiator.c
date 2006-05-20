@@ -675,6 +675,7 @@ __session_create(node_rec_t *rec, iscsi_provider_t *provider)
 static void
 __session_destroy(iscsi_session_t *session)
 {
+	log_debug(1, "destroying session\n");
 	remque(&session->item);
 	queue_flush(session->queue);
 	queue_flush(session->splice_queue);
@@ -856,6 +857,16 @@ __connect_timedout(void *data)
 	}
 }
 
+static void
+queue_delayed_reopen(queue_task_t *qtask)
+{
+	iscsi_conn_t *conn = qtask->conn;
+
+	log_debug(4, "Requeue reopen attempt in %d secs\n", 5);
+	actor_delete(&conn->connect_timer);
+	actor_timer(&conn->connect_timer, 5*1000, __connect_timedout, qtask);
+}
+
 static int
 __session_conn_reopen(iscsi_conn_t *conn, queue_task_t *qtask, int do_stop)
 {
@@ -883,8 +894,8 @@ __session_conn_reopen(iscsi_conn_t *conn, queue_task_t *qtask, int do_stop)
 		}
 		log_debug(3, "connection %d:%d is stopped for recovery",
 			  session->id, conn->id);
-		conn->session->provider->utransport->ep_disconnect(conn);
 	}
+	conn->session->provider->utransport->ep_disconnect(conn);
 
 	rc = conn->session->provider->utransport->ep_connect(conn, 1);
 	if (rc < 0 && errno != EINPROGRESS) {
@@ -925,12 +936,8 @@ session_conn_reopen(iscsi_conn_t *conn, queue_task_t *qtask, int do_stop)
 	conn->saddr = conn->failback_saddr;
 
 	rc = __session_conn_reopen(conn, qtask, do_stop);
-	if (rc) {
-		log_debug(4, "Requeue reopen attempt in %d secs\n", 5);
-		actor_delete(&conn->connect_timer);
-		actor_timer(&conn->connect_timer, 5*1000, __connect_timedout,
-			    qtask);
-	}
+	if (rc)
+		queue_delayed_reopen(qtask);
 
 	return rc;
 }
@@ -1307,98 +1314,96 @@ __session_conn_poll(queue_item_t *item)
 	iscsi_session_t *session = conn->session;
 	int rc;
 
-	if (conn->state == STATE_XPT_WAIT) {
-		rc = conn->session->provider->utransport->ep_poll(conn, 1);
-		if (rc == 0) {
-			/* timedout: poll again */
-			queue_produce(session->queue, EV_CONN_POLL,
-					qtask, 0, NULL);
-			actor_schedule(&session->mainloop);
-		} else if (rc > 0) {
+	if (conn->state != STATE_XPT_WAIT)
+		return;
 
-			/* connected! */
+	rc = session->provider->utransport->ep_poll(conn, 1);
+	if (rc == 0) {
+		/* timedout: Poll again. */
+		queue_produce(session->queue, EV_CONN_POLL, qtask, 0, NULL);
+		actor_schedule(&session->mainloop);
+	} else if (rc > 0) {
+		/* connected! */
+		memset(c, 0, sizeof(iscsi_login_context_t));
 
-			memset(c, 0, sizeof(iscsi_login_context_t));
+		actor_delete(&conn->connect_timer);
 
-			actor_delete(&conn->connect_timer);
-
-			/* do not allocate new connection in case of reopen */
-			if (session->r_stage == R_STAGE_NO_CHANGE) {
-				if (conn->id == 0 &&
-				    ipc->create_session(
-					session->transport_handle,
+		/* do not allocate new connection in case of reopen */
+		if (session->r_stage == R_STAGE_NO_CHANGE) {
+			if (conn->id == 0 &&
+			    ipc->create_session(session->transport_handle,
 					session->nrec.session.initial_cmdsn,
 					&session->id, &session->hostno)) {
-					log_error("can't create session (%d)",
-						errno);
-					err = MGMT_IPC_ERR_INTERNAL;
-					goto cleanup;
-				}
-				log_debug(3, "created new iSCSI session %d",
-					  session->id);
+				log_error("can't create session (%d)", errno);
+				err = MGMT_IPC_ERR_INTERNAL;
+				goto cleanup;
+			}
+			log_debug(3, "created new iSCSI session %d",
+				  session->id);
 
-				/* unique identifier for OUI */
-				if (__session_node_established(
-					       session->nrec.name)) {
-					log_warning("picking unique OUI for "
+			/* unique identifier for OUI */
+			if (__session_node_established(session->nrec.name)) {
+				log_warning("picking unique OUI for "
 					    "the same target node name %s",
 					    session->nrec.name);
-					session->isid[3] = session->id;
-				}
+				session->isid[3] = session->id;
+			}
 
-				if (ipc->create_conn(session->transport_handle,
+			if (ipc->create_conn(session->transport_handle,
 					session->id, conn->id, &conn->id)) {
-					log_error("can't create connection (%d)",
-						  errno);
-					err = MGMT_IPC_ERR_INTERNAL;
-					goto s_cleanup;
-				}
-				log_debug(3, "created new iSCSI connection "
-					  "%d:%d", session->id, conn->id);
-			}
-
-			if (ipc->bind_conn(session->transport_handle,
-				session->id, conn->id, conn->transport_ep_handle,
-				(conn->id == 0), &rc) || rc) {
-				log_error("can't bind conn %d:%d to "
-					  "session %d, retcode %d (%d)",
-					  session->id, conn->id, 
-					  session->id, rc, errno);
+				log_error("can't create connection (%d)",
+					   errno);
 				err = MGMT_IPC_ERR_INTERNAL;
-				goto c_cleanup;
+				goto s_cleanup;
 			}
-			log_debug(3, "bound iSCSI connection %d:%d to "
-				  "session %d", 
-				  session->id, conn->id, session->id);
-
-			setup_kernel_io_callouts(conn);
-
-			c->qtask = qtask;
-			c->cid = conn->id;
-			c->buffer = conn->data;
-			c->bufsize = sizeof(conn->data);
-
-			update_exp_statsn(conn);
-
-			if (iscsi_login_begin(session, c)) {
-				err = MGMT_IPC_ERR_LOGIN_FAILURE;
-				goto c_cleanup;
-			}
-
-			conn->state = STATE_IN_LOGIN;
-			if (iscsi_login_req(session, c)) {
-				err = MGMT_IPC_ERR_LOGIN_FAILURE;
-				goto c_cleanup;
-			}
-		} else {
-			conn->session->provider->utransport->ep_disconnect(conn);
-			actor_delete(&conn->connect_timer);
-			/* error during connect */
-			err = MGMT_IPC_ERR_TRANS_FAILURE;
-			goto cleanup;
+			log_debug(3, "created new iSCSI connection "
+				  "%d:%d", session->id, conn->id);
 		}
-	}
 
+		if (ipc->bind_conn(session->transport_handle, session->id,
+				   conn->id, conn->transport_ep_handle,
+				   (conn->id == 0), &rc) || rc) {
+			log_error("can't bind conn %d:%d to session %d, "
+				  "retcode %d (%d)", session->id, conn->id, 
+				   session->id, rc, errno);
+			err = MGMT_IPC_ERR_INTERNAL;
+			goto c_cleanup;
+		}
+		log_debug(3, "bound iSCSI connection %d:%d to session %d", 
+			  session->id, conn->id, session->id);
+
+		setup_kernel_io_callouts(conn);
+
+		c->qtask = qtask;
+		c->cid = conn->id;
+		c->buffer = conn->data;
+		c->bufsize = sizeof(conn->data);
+
+		update_exp_statsn(conn);
+
+		if (iscsi_login_begin(session, c)) {
+			err = MGMT_IPC_ERR_LOGIN_FAILURE;
+			goto c_cleanup;
+		}
+
+		conn->state = STATE_IN_LOGIN;
+		if (iscsi_login_req(session, c)) {
+			err = MGMT_IPC_ERR_LOGIN_FAILURE;
+			goto c_cleanup;
+		}
+	} else if (session->r_stage == R_STAGE_NO_CHANGE) {
+		/*
+		 * poll failed during the initial connect. Give up
+		 */
+		session->provider->utransport->ep_disconnect(conn);
+		/* error during connect */
+		err = MGMT_IPC_ERR_TRANS_FAILURE;
+		goto cleanup;
+	} else
+		/*
+		 * poll failed on reopen
+		 */
+		queue_delayed_reopen(qtask);
 	return;
 
 c_cleanup:
