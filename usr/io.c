@@ -156,11 +156,16 @@ iscsi_io_tcp_poll(iscsi_conn_t *conn, int timeout_ms)
 {
 	int rc;
 	struct pollfd pdesc;
-	char serv[NI_MAXSERV];
+	char serv[NI_MAXSERV], lserv[NI_MAXSERV];
+	struct sockaddr_storage ss;
+	socklen_t len = sizeof(ss);
 
 	pdesc.fd = conn->socket_fd;
 	pdesc.events = POLLOUT;
 	rc = poll(&pdesc, 1, timeout_ms);
+	if (rc == 0)
+		return 0;
+
 	if (rc < 0) {
 		getnameinfo((struct sockaddr *) &conn->saddr,
 			    sizeof(conn->saddr),
@@ -169,28 +174,35 @@ iscsi_io_tcp_poll(iscsi_conn_t *conn, int timeout_ms)
 
 		log_error("cannot make connection to %s:%s (%d)",
 			  conn->host, serv, errno);
-	} else if (rc > 0 && log_level > 0) {
-		struct sockaddr_storage ss;
-		socklen_t salen = sizeof(ss);
-		char lserv[NI_MAXSERV];
-
-		if (getsockname(conn->socket_fd, (struct sockaddr *) &ss,
-				&salen) >= 0) {
-			getnameinfo((struct sockaddr *) &conn->saddr,
-				    sizeof(conn->saddr),
-				    conn->host, sizeof(conn->host), serv,
-				    sizeof(serv), NI_NUMERICHOST|NI_NUMERICSERV);
-
-			getnameinfo((struct sockaddr *) &ss,
-				    sizeof(ss),
-				    NULL, 0, lserv, sizeof(lserv),
-				    NI_NUMERICSERV);
-
-			log_debug(1, "connected local port %s to %s:%s",
-				  lserv, conn->host, serv);
-		}
+		return rc;
 	}
-	return rc;
+
+	len = sizeof(int);
+	if (getsockopt(conn->socket_fd, SOL_SOCKET, SO_ERROR,
+			(char *) &rc, &len) < 0) {
+		log_error("getsockopt for connect poll failed\n");
+		return -1;
+	}
+	if (rc) {
+		log_error("connect failed (%d)\n", rc);
+		return -rc;
+	}
+
+	len = sizeof(ss);
+	if (log_level > 0 &&
+	    getsockname(conn->socket_fd, (struct sockaddr *) &ss, &len) >= 0) {
+		getnameinfo((struct sockaddr *) &conn->saddr,
+			    sizeof(conn->saddr), conn->host,
+			    sizeof(conn->host), serv, sizeof(serv),
+			    NI_NUMERICHOST|NI_NUMERICSERV);
+
+		getnameinfo((struct sockaddr *) &ss, sizeof(ss),
+			     NULL, 0, lserv, sizeof(lserv), NI_NUMERICSERV);
+
+		log_debug(1, "connected local port %s to %s:%s",
+			  lserv, conn->host, serv);
+	}
+	return 1;
 }
 
 void
