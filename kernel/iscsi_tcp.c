@@ -1102,12 +1102,11 @@ iscsi_sendhdr(struct iscsi_conn *conn, struct iscsi_buf *buf, int datalen)
 		if (size != res)
 			return -EAGAIN;
 		return 0;
-	} else if (res == -EAGAIN) {
+	} else {
 		tcp_conn = conn->dd_data;
 		tcp_conn->sendpage_failures_cnt++;
-		set_bit(ISCSI_SUSPEND_BIT, &conn->suspend_tx);
-	} else if (res == -EPIPE)
 		iscsi_conn_failure(conn, ISCSI_ERR_CONN_FAILED);
+	}
 
 	return res;
 }
@@ -1148,12 +1147,11 @@ iscsi_sendpage(struct iscsi_conn *conn, struct iscsi_buf *buf,
 		if (size != res)
 			return -EAGAIN;
 		return 0;
-	} else if (res == -EAGAIN) {
+	} else {
 		tcp_conn = conn->dd_data;
 		tcp_conn->sendpage_failures_cnt++;
-		set_bit(ISCSI_SUSPEND_BIT, &conn->suspend_tx);
-	} else if (res == -EPIPE)
 		iscsi_conn_failure(conn, ISCSI_ERR_CONN_FAILED);
+	}
 
 	return res;
 }
