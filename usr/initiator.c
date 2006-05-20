@@ -746,17 +746,15 @@ __session_conn_cleanup(iscsi_conn_t *conn)
 }
 
 static int
-session_conn_cleanup(iscsi_conn_t *conn, int do_stop)
+session_conn_cleanup(iscsi_conn_t *conn)
 {
 	iscsi_session_t *session = conn->session;
 
-	if (do_stop) {
-		if (ipc->stop_conn(session->transport_handle, session->id,
-				   conn->id, STOP_CONN_TERM)) {
-			log_error("can't stop connection %d:%d (%d)",
-				  session->id, conn->id, errno);
-			return MGMT_IPC_ERR_INTERNAL;
-		}
+	if (ipc->stop_conn(session->transport_handle, session->id,
+			   conn->id, STOP_CONN_TERM)) {
+		log_error("can't stop connection %d:%d (%d)",
+			  session->id, conn->id, errno);
+		return MGMT_IPC_ERR_INTERNAL;
 	}
 
 	return __session_conn_cleanup(conn);
@@ -1441,7 +1439,7 @@ __session_conn_timer(queue_item_t *item)
 			session_conn_reopen(conn, qtask, 0);
 			break;
 		case R_STAGE_SESSION_CLEANUP:
-			session_conn_cleanup(conn, 0);
+			__session_conn_cleanup(conn);
 			break;
 		default:
 			break;
@@ -1467,7 +1465,7 @@ __session_conn_timer(queue_item_t *item)
 			session_conn_reopen(conn, qtask, STOP_CONN_RECOVER);
 			break;
 		case R_STAGE_SESSION_CLEANUP:
-			session_conn_cleanup(conn, 1);
+			session_conn_cleanup(conn);
 			break;
 		default:
 			break;
@@ -1515,7 +1513,6 @@ __conn_error_handle(iscsi_session_t *session, iscsi_conn_t *conn)
 		break;
 	case STATE_IN_LOGIN:
 		if (session->r_stage == R_STAGE_SESSION_REOPEN) {
-			conn->send_pdu_timer_remove(conn);
 			session_conn_reopen(conn, &session->reopen_qtask,
 					    STOP_CONN_RECOVER);
 			return;
@@ -1541,20 +1538,9 @@ __conn_error_handle(iscsi_session_t *session, iscsi_conn_t *conn)
 		session_conn_reopen(conn, &session->reopen_qtask,
 				    STOP_CONN_RECOVER);
 		return;
-	} else {
-		if (ipc->stop_conn(session->transport_handle, session->id,
-				   conn->id, STOP_CONN_TERM)) {
-			log_error("can't stop connection %d:%d (%d)",
-				  session->id, conn->id, errno);
-			return;
-		}
-		log_debug(3, "connection %d:%d is stopped for termination",
-			  session->id, conn->id);
-		conn->session->provider->utransport->ep_disconnect(conn);
-		__session_conn_queue_flush(conn);
 	}
 
-	__session_conn_cleanup(conn);
+	session_conn_cleanup(conn);
 }
 
 static void
@@ -1942,7 +1928,6 @@ session_logout_task(iscsi_session_t *session, queue_task_t *qtask)
 {
 	iscsi_conn_t *conn;
 	int rc = MGMT_IPC_OK;
-	int stop = 0;
 
 	conn = &session->conn[0];
 	if (conn->state == STATE_XPT_WAIT &&
@@ -1962,9 +1947,9 @@ session_logout_task(iscsi_session_t *session, queue_task_t *qtask)
 
 	if (conn->state == STATE_LOGGED_IN ||
 	    conn->state == STATE_IN_LOGIN)
-		stop = 1;
-
-	rc = session_conn_cleanup(conn, stop);
+		rc = session_conn_cleanup(conn);
+	else
+		rc = __session_conn_cleanup(conn);
 	if (rc) {
 		log_error("session cleanup failed during logout\n");
 		goto done;
