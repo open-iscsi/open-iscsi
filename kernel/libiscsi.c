@@ -652,7 +652,7 @@ int iscsi_queuecommand(struct scsi_cmnd *sc, void (*done)(struct scsi_cmnd *))
 		 */
 		if (session->state == ISCSI_STATE_IN_RECOVERY) {
 			reason = FAILURE_SESSION_IN_RECOVERY;
-			goto fault;
+			goto reject;
 		}
 
 		if (session->state == ISCSI_STATE_RECOVERY_FAILED)
