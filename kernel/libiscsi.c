@@ -564,19 +564,22 @@ static int iscsi_data_xmit(struct iscsi_conn *conn)
 	}
 
 	/* process command queue */
+	spin_lock_bh(&conn->session->lock);
 	while (__kfifo_get(conn->xmitqueue, (void*)&conn->ctask,
 			   sizeof(void*))) {
 		/*
 		 * iscsi tcp may readd the task to the xmitqueue to send
 		 * write data
 		 */
-		spin_lock_bh(&conn->session->lock);
 		if (list_empty(&conn->ctask->running))
 			list_add_tail(&conn->ctask->running, &conn->run_list);
 		spin_unlock_bh(&conn->session->lock);
 		if (tt->xmit_cmd_task(conn, conn->ctask))
 			goto again;
+		spin_lock_bh(&conn->session->lock);
 	}
+	spin_unlock_bh(&conn->session->lock);
+
 	/* done with this ctask */
 	conn->ctask = NULL;
 
