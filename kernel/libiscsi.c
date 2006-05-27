@@ -992,8 +992,9 @@ iscsi_remove_##tasktype(struct kfifo *fifo, uint32_t itt)		\
 		}							\
 									\
 		__kfifo_put(fifo, (void*)&task, sizeof(void*));		\
+		task = NULL;						\
 	}								\
-	return NULL;							\
+	return task;							\
 }
 
 iscsi_remove_task(mgmt_task);
