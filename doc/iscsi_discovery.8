@@ -1,0 +1,39 @@
+.de Vb \" Begin verbatim text
+.ft CW
+.nf
+.ne \\$1
+..
+
+.TH "iscsi_discovery" 8
+.SH NAME
+iscsi_discovery \- discover iscsi devices
+.SH SYNOPSIS
+.B iscsi_discovery <IP> [port]
+
+.SH DESCRIPTION
+Perform send-targets discovery to the specified IP. If a discovery record
+is generated, try to login to the portal using iSER and TCP transports.
+If login using a certain transport succeeds, mark the portal for automatic
+login, and disconnect.
+
+For iscsi discovery to work, open-iscsi services must be running. e.g. iscsid 
+should be up, and the iscsi modules loaded. This is best accomplished by the
+init.d startup script.
+
+.\" .SH OPTIONS
+.\" .TP
+.\" .B \-<a command line switch>
+.\" <description of what that switch does>
+.\" .TP
+.\" .B \-<a command line switch>
+.\" <description of what that switch does>
+.\" .TP
+.\" .B <etc . . .>
+.\" .SH "SEE ALSO"
+.\" <a list of related man pages>
+.SH AUTHOR
+Written by Dan Bar Dov
+.SH "REPORTING BUGS"
+Report bugs to <danb@voltaire.com>.
+.SH COPYRIGHT
+Copyright \(co Voltaire Ltd. 2006.

@@ -15,7 +15,7 @@ etcdir = /etc
 initddir = $(etcdir)/init.d
 
 MANPAGES = doc/iscsid.8 doc/iscsiadm.8
-PROGRAMS = usr/iscsid usr/iscsiadm
+PROGRAMS = usr/iscsid usr/iscsiadm utils/iscsi_discovery
 INSTALL = install
 ETCFILES = etc/iscsid.conf
 
