@@ -74,11 +74,12 @@ static struct option const long_options[] =
 	{"logout", no_argument, NULL, 'u'},
 	{"stats", no_argument, NULL, 's'},
 	{"debug", required_argument, NULL, 'g'},
+	{"show", no_argument, NULL, 'S'},
 	{"version", no_argument, NULL, 'V'},
 	{"help", no_argument, NULL, 'h'},
 	{NULL, 0, NULL, 0},
 };
-static char *short_options = "lVhm:p:d:r:n:v:o:t:u";
+static char *short_options = "lVhm:p:d:r:n:v:o:St:u";
 
 static void usage(int status)
 {
@@ -89,7 +90,7 @@ static void usage(int status)
 		printf("\
 iscsiadm  -m discovery [ -dhV ] [ -t type -p ip [ -l ] ] | [ -r recid ] \
 [ -o operation ] [ -n name ] [ -v value ]\n\
-iscsiadm -m node [ -dhV ] [ -r recid [ -l | -u ] ] [ [ -o  operation  ] \
+iscsiadm -m node [ -dhV ] [ -S ] [ -r recid [ -l | -u ] ] [ [ -o  operation  ] \
 [ -n name ] [ -v value ] [ -p ip ] ]\n\
 iscsiadm -m session [ -dhV ] [ -r [sid:]recid [ -u | -s ] ]\n");
 	}
@@ -442,6 +443,7 @@ main(int argc, char **argv)
 	char *ip = NULL, *name = NULL, *value = NULL;
 	int ch, longindex, mode=-1, port=-1, do_login=0;
 	int rc=0, rid=-1, sid=-1, op=-1, type=-1, do_logout=0, do_stats=0;
+	int do_show=0;
 	idbm_t *db;
 	struct sigaction sa_old;
 	struct sigaction sa_new;
@@ -499,6 +501,9 @@ main(int argc, char **argv)
 			break;
 		case 's':
 			do_stats = 1;
+			break;
+		case 'S':
+			do_show = 1;
 			break;
 		case 'd':
 			log_level = atoi(optarg);
@@ -631,7 +636,7 @@ main(int argc, char **argv)
 			}
 		}
 	} else if (mode == MODE_NODE) {
-		if ((rc = verify_mode_params(argc, argv, "dmlronvup", 0))) {
+		if ((rc = verify_mode_params(argc, argv, "dmlSronvup", 0))) {
 			log_error("node mode: option '-%c' is not "
 				  "allowed/supported", rc);
 			rc = -1;
@@ -658,7 +663,7 @@ main(int argc, char **argv)
 				goto out;
 			}
 			if (!do_login && !do_logout && op < 0) {
-				if (!idbm_print_node(db, rid)) {
+				if (!idbm_print_node(db, rid, do_show)) {
 					log_error("no records found!");
 					rc = -1;
 				}
@@ -702,7 +707,7 @@ main(int argc, char **argv)
 				goto out;
 			}
 		} else if (op < 0 || op == OP_SHOW) {
-			if (!idbm_print_node(db, rid)) {
+			if (!idbm_print_node(db, rid, do_show)) {
 				log_error("no records found!");
 				rc = -1;
 				goto out;

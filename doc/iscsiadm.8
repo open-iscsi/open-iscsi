@@ -5,7 +5,7 @@ iscsiadm \- open-iscsi administration utility
 \fBiscsiadm\fR -m discovery [ -dhV ] [ -t type -p ip [ -l ] ] | [ -r recid ]
 [ -o operation ] [ -n name ] [ -v value ]
 
-\fBiscsiadm\fR -m node [ -dhV ] [ -r recid [ -l | -u ] ]
+\fBiscsiadm\fR -m node [ -dhV ] [ -S ] [ -r recid [ -l | -u ] ]
 [ [ -o operation ]  [ -n name ] [ -v value ] [ -p ip ] ]
 
 \fBiscsiadm\fR -m session [ -dhV ] [ -r [sid:]recid [ -u | -s ] ]
@@ -86,6 +86,13 @@ is only required for session mode.
 Display session statistics.
 .IP
 This option is only valid for session mode.
+
+.TP
+\fB\-S\fR, \fB\-\-show\fR
+When displaying records, do not hide masked values, such as the CHAP
+secret (password).
+.IP
+This option is only valid for node mode.
 
 .TP
 \fB\-t\fR, \fB\-\-type=\fItype\fR

@@ -766,7 +766,7 @@ idbm_recinfo_alloc(int max_keys)
 #define PRINT_TYPE_DISCOVERY	0
 #define PRINT_TYPE_NODE		1
 static void
-idbm_print(int type, void *rec)
+idbm_print(int type, void *rec, int show)
 {
 	int i;
 	recinfo_t *info;
@@ -784,7 +784,7 @@ idbm_print(int type, void *rec)
 	for (i=0; i<MAX_KEYS; i++) {
 		if (!info[i].visible)
 			continue;
-		if (info[i].visible == IDBM_MASKED) {
+		if (!show && info[i].visible == IDBM_MASKED) {
 			if (*(char*)info[i].data)
 				printf("%s = ********\n", info[i].name);
 			else
@@ -798,7 +798,7 @@ idbm_print(int type, void *rec)
 }
 
 static int
-idbm_print_type(idbm_t *db, int type, int rec_id)
+idbm_print_type(idbm_t *db, int type, int rec_id, int show)
 {
 	int found = 0, ret;
 	datum key, data;
@@ -837,7 +837,7 @@ idbm_print_type(idbm_t *db, int type, int rec_id)
 			}
 			found++;
 		} else if (rec_id == idbm_uniq_id(key.dptr)) {
-			idbm_print(type, data.dptr);
+			idbm_print(type, data.dptr, show);
 			found++;
 		}
 	}
@@ -1094,13 +1094,13 @@ idbm_id2hash(DBM *dbm, int rec_id)
 int
 idbm_print_discovery(idbm_t *db, int rec_id)
 {
-	return idbm_print_type(db, PRINT_TYPE_DISCOVERY, rec_id);
+	return idbm_print_type(db, PRINT_TYPE_DISCOVERY, rec_id, 0);
 }
 
 int
-idbm_print_node(idbm_t *db, int rec_id)
+idbm_print_node(idbm_t *db, int rec_id, int show)
 {
-	return idbm_print_type(db, PRINT_TYPE_NODE, rec_id);
+	return idbm_print_type(db, PRINT_TYPE_NODE, rec_id, show);
 }
 
 int
