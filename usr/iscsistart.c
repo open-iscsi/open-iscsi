@@ -49,7 +49,6 @@ struct iscsi_daemon_config *dconfig = &daemon_config;
 iscsi_provider_t *provider = NULL;
 int num_providers = 0;
 
-int mgmt_shutdown_requsted = 0;
 static node_rec_t config_rec;
 
 static char program_name[] = "iscsistart";
