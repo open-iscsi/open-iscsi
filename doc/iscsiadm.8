@@ -1,90 +1,110 @@
-.TH ISCSID 8 "July 2005" "" "Linux Administrator's Manual"
+.TH ISCSIADM 8 "July 2005" "" "Linux Administrator's Manual"
 .SH NAME
-iscsiadm \- Open-iSCSI Configuration Utility
+iscsiadm \- open-iscsi administration utility
 .SH SYNOPSIS
 .BI iscsiadm
 [OPTIONS]
 .SH "DESCRIPTION"
-Open-iSCSI persistent configuration is implemented as a DBM database
-available on all Linux installations.
-.p
-The database contains two tables:
-.TP
-Discovery table (discovery.db);
-.TP
-Node table (node.db).
-.PD
+The iscsiadm utility is a command-line tool allowing discovery and login
+to iSCSI targets, as well as access and management of the open-iscsi
+database.
 .PP
-The regular place for iSCSI database files is in \fI/var/db/iscsi/*.db\fR
-.PP
-The iscsiadm utility is a command-line tool to manage (update, delete,
-insert, query) the persistent database.
-.PP
-The utility presents set of operations that a user can perform 
-on iSCSI nodes, sessions, connections, and discovery records.
-.PP
-Note that some of the iSCSI Node and iSCSI Discovery operations 
-do not require iSCSI daemon (iscsid) loaded.
+Note that many of the node and discovery operations require that the iSCSI
+daemon (iscsid) be running.
 
 .SH OPTIONS
+
 .TP
-.B \-m, \-\-mode \fIop
-specify operational mode. \fIop\fR
-is either \fIdiscovery\fR or \fInode\fR
-.TP
-.B \-m discovery
-display all discovery records from the internal persistent discovery
-database.
-.TP
-.B \-m discovery \-\-type=\fItype\fB \-\-portal=\fIip:port\fB \-\-login
-perform \fItype\fR discovery for target portal with ip-address \fIip\fR
-and port \fIport\fR. Initiate Login for each discovered target if --login
-is specific.
-.TP
-.B \-m discovery \-\-record=\fIid\fB \-\-login
-perform discovery based on record \fIid\fR in database.
-.TP
-.B \-m discovery \-\-record=\fIid\fB \-\-op=\fIop\fB \-\-name=\fIname\fB \-\-value=\fIvalue
-perform specific DB operation \fIop\fR for specific discovery record with
-\fIid\fR.  It could be one of: \fInew\fR, \fIdelete\fR, \fIupdate\fR or
-\fIshow\fR. In case of \fIupdate\fR, you have to provide \fIname\fR and
-\fIvalue\fR you wish to update
-.TP
-.B \-m node
-display all discovered nodes from internal persistent discovery
-database
-.TP
-.B \-m node \-\-record=\fIid\fB
-display all parameters for given \fIid\fB.
-.TP
-.B \-m node \-\-record=\fIid\fB [\-\-login|\-l]
-login to node given by \fIid\fB.
-.TP
-.B \-m node \-\-record=\fIid\fB [\-\-logout|\-u]
-logout to node given by \fIid\fB.
-.TP
-.B \-m node \-\-record=\fIid\fB \-\-op=\fIop\fB [\-\-name=\fIname\fB \-\-value=\fIvalue\fB]
-perform specific DB operation \fIop\fR for specific node with record
-\fIid\fR. It could be one of: \fInew\fR, \fIdelete\fR, \fIupdate\fR or
-\fIshow\fR. In case of \fIupdate\fR, you have to provide \fIname\fR and
-\fIvalue\fR you wish to update
-.TP
-.B \-m session
-display all active sessions and connections
-.TP
-.B \-m session \-\-record=[\fIid\fB[\fI:cid\fB]] [\-\-logout|\-u]
-perform operation for specific session with record \fIid\fR
-or display statistics if no operation specified. Operation will affect
-one connection only if \fI\:cid\fR is specified
-.TP
-.B \-d, \-\-debug \fIdebuglevel
+\fB\-d\fR, \fB\-\-debug\fR
 print debugging information
+
 .TP
-.B -V, --version
+\fB\-h\fR, \fB\-\-help\fR
+display help text and exit
+
+.TP
+\fB\-l\fR, \fB\-\-login\fR
+For node mode, login to a specified record. For discovery mode, login to
+all discovered targets.
+.IP
+This option is only valid for discovery and node modes.
+
+.TP
+\fB\-m, \-\-mode \fIop\fR
+specify the mode. \fIop\fR
+must be one of \fIdiscovery\fR, \fInode\fR, or \fIsession\fR.
+.IP
+If no other options are specified: for \fIdiscovery\fR and \fInode\fR, all
+of their respective records are displayed; for \fIsession\fR, all active
+sessions and connections are displayed.
+
+.TP
+\fB\-n\fR, \fB\-\-name=\fIname\fR
+Specify a field \fIname\fR in a record. For use with the \fIupdate\fR
+operator.
+.IP
+
+.TP
+\fB\-o\fR, \fB\-\-op=\fIop\fR
+Specifies a database operator \fIop\fR. \fIop\fR must be one of
+\fInew\fR, \fIdelete\fR, \fIupdate\fR or \fIshow\fR.
+.IP
+This option is only valid for discovery and node modes.
+.IP
+\fInew\fR is currently valid only for node mode, it creates a new database
+record for a given \fIportal\fR (IP address and port number).
+.IP
+\fIdelete\fR deletes a specified \fIrecid\fR.
+.IP
+\fIupdate\fR is currently valid only for node mode, it updates a specified
+\fIrecid\fR with \fIname\fR to the specified \fIvalue\fR.
+.IP
+\fIshow\fR is the default behaviour for node and discovery modes,
+\fIname\fR and \fIvalue\fR are currently ignored when used with \fIshow\fR.
+
+.TP
+\fB\-p\fR, \fB\-\-portal=\fIip[:port]\fR
+Use target portal with ip-address \fIip\fR and \fIport\fR, the default
+\fIport\fR value is 3260.
+.IP
+This option is only valid for discovery, or for node operations with
+the \fInew\fR operator.
+
+.TP
+\fB\-r\fR, \fB\-\-record=\fI[sid:]recid\fR
+Use database record \fIrecid\fR and session id \fIsid\fR. \fIsid\fR
+is only required for session mode.
+
+.TP
+\fB\-s\fR, \fB\-\-stats\fR
+Display session statistics.
+.IP
+This option is only valid for session mode.
+
+.TP
+\fB\-t\fR, \fB\-\-type=\fItype\fR
+\fItype\fR must be \fIsendtargets\fR (or abbreviated as \fIst\fR),
+\fIslp\fR, or \fIisns\fR. Currently only sendtargets is supported, see the
+DISCOVERY TYPES section.
+.IP
+This option is only valid for discovery mode.
+
+.TP
+\fB\-u\fR, \fB\-\-logout\fR
+logout for a specified record.
+.IP
+This option is only valid for node mode (it is valid but not functional
+for session mode).
+
+.TP
+\fB\-v\fR, \fB\-\-value=\fIvalue\fR
+Specify a \fIvalue\fR for use with the \fIupdate\fR operator.
+.IP
+This option is only valid for node mode.
+
+.TP
+\fB\-V\fR, \fB\-\-version\fR
 display version and exit
-.TP
-.B -h, --help
-display this help and exit
 
 .SH DISCOVERY TYPES
 iSCSI defines 3 discovery types: SendTargets, SLP, and iSNS.
@@ -123,22 +143,17 @@ discovery type. An SLP implementation is under development.
 .SH FILES
 .TP
 /etc/iscsid.conf
-The configuration file read by
-.B iscsid
-and
-.B iscsiadm
-on startup.
+The configuration file read by \fBiscsid\fR and \fBiscsiadm\fR on startup.
 .TP
 /etc/initiatorname.iscsi
-The file containing the iSCSI initiatorname
-and initiatoralias read by
-.B iscsid
-and
-.B iscsiadm
-on startup.
+The file containing the iSCSI initiatorname and initiatoralias read by
+\fBiscsid\fR and \fBiscsiadm\fR on startup.
 .TP
-/var/db/iscsi/*.db
-Open-iSCSI persistent configuration database
+/var/db/iscsi/discover.db
+The discovery database table.
+.TP
+/var/db/iscsi/node.db
+The node database table.
 
 .SH "SEE ALSO"
 .BR iscsid (8)
