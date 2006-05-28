@@ -140,6 +140,39 @@ or
 st
 discovery type. An SLP implementation is under development.
 
+.SH EXAMPLES
+
+.nf
+Discover targets at a given IP address:
+
+.ft R
+	iscsiadm --mode discovery --type sendtargets --portal 192.168.1.10
+.nf
+
+Login, must use a node record id found by the discovery:
+
+.ft R
+	iscsiadm --mode node --record 0x12345 --login
+.nf
+
+Logout:
+
+.ft R
+	iscsiadm --mode node --record 0x12345 --logout
+.nf
+
+List node records:
+
+.ft R
+	iscsiadm --mode node
+
+.nf
+
+Display all data for a given node record:
+
+.ft R
+	iscsiadm --mode node --record 0x12345
+
 .SH FILES
 .TP
 /etc/iscsid.conf
