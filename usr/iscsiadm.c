@@ -86,49 +86,13 @@ static void usage(int status)
 		fprintf(stderr, "Try `%s --help' for more information.\n",
 			program_name);
 	else {
-		printf("Usage: %s [OPTION]\n", program_name);
 		printf("\
-iSCSI Administration Utility.\n\
-\n\
-  -m, --mode <op>         specify operational mode op = <discovery|node>\n\
-  -m discovery --type=[type] --portal=[ip[:port]] --login\n\
-                          perform [type] discovery for target portal with\n\
-                          ip-address [ip] and port [port]. Initiate Login for\n\
-                          each discovered target if --login is specified\n\
-  -m discovery            display all discovery records from internal\n\
-                          persistent discovery database\n\
-  -m discovery --record=[id] --login\n\
-                          perform discovery based on record [id] in database\n\
-  -m discovery --record=[id] --op=[op] [--name=[name] --value=[value]]\n\
-                          perform specific DB operation [op] for specific\n\
-                          discovery record with [id]. It could be one of:\n\
-                          [new], [delete], [update] or [show]. In case of\n\
-                          [update], you have to provide [name] and [value]\n\
-                          you wish to update\n\
-  -m node                 display all discovered nodes from internal\n\
-                          persistent discovery database\n\
-  -m node --record=[id] [--login|--logout]\n\
-  -m node --record=[id] --op=[op] [--name=[name] --value=[value]] [--portal]\n\
-                          perform specific DB operation [op] for specific\n\
-                          node with record [id]. It could be one of:\n\
-                          [new], [delete], [update] or [show]. In case of\n\
-                          [update], you have to provide [name] and [value]\n\
-                          you wish to update. For new record portal must be\n\
-		          specified\n\
-  -m session              display all active sessions and connections\n\
-  -m session --record=[id[:cid]] [--logout|--stats]\n\
-                          perform operation for specific session with\n\
-			  record [id] or display negotiated parameters if\n\
-                          no operation specified. Operation will affect \n\
-                          one connection only if [:cid] is specified\n\
-  -d, --debug debuglevel  print debugging information\n\
-  -V, --version           display version and exit\n\
-  -h, --help              display this help and exit\n\
-\n\
-Enjoy!\n\
-Open-iSCSI Team.\n");
+iscsiadm  -m discovery [ -dhV ] [ -t type -p ip [ -l ] ] | [ -r recid ] \
+[ -o operation ] [ -n name ] [ -v value ]\n\
+iscsiadm -m node [ -dhV ] [ -r recid [ -l | -u ] ] [ [ -o  operation  ] \
+[ -n name ] [ -v value ] [ -p ip ] ]\n\
+iscsiadm -m session [ -dhV ] [ -r [sid:]recid [ -u | -s ] ]\n");
 	}
-
 	exit(status == 0 ? 0 : -1);
 }
 

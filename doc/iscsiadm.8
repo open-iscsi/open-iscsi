@@ -2,8 +2,14 @@
 .SH NAME
 iscsiadm \- open-iscsi administration utility
 .SH SYNOPSIS
-.BI iscsiadm
-[OPTIONS]
+\fBiscsiadm\fR -m discovery [ -dhV ] [ -t type -p ip [ -l ] ] | [ -r recid ]
+[ -o operation ] [ -n name ] [ -v value ]
+
+\fBiscsiadm\fR -m node [ -dhV ] [ -r recid [ -l | -u ] ]
+[ [ -o operation ]  [ -n name ] [ -v value ] [ -p ip ] ]
+
+\fBiscsiadm\fR -m session [ -dhV ] [ -r [sid:]recid [ -u | -s ] ]
+
 .SH "DESCRIPTION"
 The iscsiadm utility is a command-line tool allowing discovery and login
 to iSCSI targets, as well as access and management of the open-iscsi
