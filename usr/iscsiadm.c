@@ -74,12 +74,13 @@ static struct option const long_options[] =
 	{"logout", no_argument, NULL, 'u'},
 	{"stats", no_argument, NULL, 's'},
 	{"debug", required_argument, NULL, 'g'},
+	{"map", required_argument, NULL, 'M'},
 	{"show", no_argument, NULL, 'S'},
 	{"version", no_argument, NULL, 'V'},
 	{"help", no_argument, NULL, 'h'},
 	{NULL, 0, NULL, 0},
 };
-static char *short_options = "lVhm:p:d:r:n:v:o:St:u";
+static char *short_options = "lVhm:M:p:d:r:n:v:o:St:u";
 
 static void usage(int status)
 {
@@ -90,8 +91,8 @@ static void usage(int status)
 		printf("\
 iscsiadm  -m discovery [ -dhV ] [ -t type -p ip [ -l ] ] | [ -r recid ] \
 [ -o operation ] [ -n name ] [ -v value ]\n\
-iscsiadm -m node [ -dhV ] [ -S ] [ -r recid [ -l | -u ] ] [ [ -o  operation  ] \
-[ -n name ] [ -v value ] [ -p ip ] ]\n\
+iscsiadm -m node [ -dhV ] [ -S ] [ [ -r recid | -M sysdir ] [ -l | -u ] ] \
+[ [ -o  operation  ] [ -n name ] [ -v value ] [ -p ip ] ]\n\
 iscsiadm -m session [ -dhV ] [ -r [sid:]recid [ -u | -s ] ]\n");
 	}
 	exit(status == 0 ? 0 : -1);
@@ -197,6 +198,59 @@ str_to_ridsid(char *str, int *sid)
 	if (eptr == ptr)
 		rid = -1;
 	return rid;
+}
+
+static int
+sys_to_rid(idbm_t *db, char *sysfs_device)
+{
+	int sid, rec_id;
+	int rc;
+	int len;
+	struct stat statb;
+	char sys_session[64], *start, *last;
+
+	/*
+	 * Given sysfs_device is a directory name of the form:
+	 *
+	 * /sys/devices/platform/hostH/sessionS/targetH:B:I/H:B:I:L
+	 * /sys/devices/platform/hostH/sessionS/targetH:B:I
+	 * /sys/devices/platform/hostH/sessionS
+	 *
+	 * We want to set sys_session to sessionS
+	 */
+	if (stat(sysfs_device, &statb)) {
+		log_error("stat %s failed with %d", sysfs_device, errno);
+		exit(1);
+	}
+	if (!S_ISDIR(statb.st_mode)) {
+		log_error("%s is not a directory", sysfs_device);
+		exit(1);
+	}
+
+	last = NULL;
+	start = strstr(sysfs_device, "session");
+	if (start && strncmp(start, "session", 7) == 0) {
+		len = strlen(start);
+		last = index(start, '/');
+		/*
+		 * If '/' not found last is NULL.
+		 */
+		if (last)
+			len = last - start;
+		strncpy(sys_session, start, len);
+	} else {
+		log_error("Unable to find session in %s", sysfs_device);
+		exit(1);
+	}
+
+	log_debug(2, "%s: session %s", __FUNCTION__, sys_session);
+	rc = idbm_find_ids_by_session(db, &sid, &rec_id, sys_session);
+	if (rc < 0) {
+		log_error("Unable to find a record for iscsi %s (sys %s)",
+			  sys_session, sysfs_device);
+		return rc;
+	}
+	return rec_id;
 }
 
 static int
@@ -440,7 +494,7 @@ static void catch_sigint( int signo ) {
 int
 main(int argc, char **argv)
 {
-	char *ip = NULL, *name = NULL, *value = NULL;
+	char *ip = NULL, *name = NULL, *value = NULL, *sysfs_device = NULL;
 	int ch, longindex, mode=-1, port=-1, do_login=0;
 	int rc=0, rid=-1, sid=-1, op=-1, type=-1, do_logout=0, do_stats=0;
 	int do_show=0;
@@ -510,6 +564,9 @@ main(int argc, char **argv)
 			break;
 		case 'm':
 			mode = str_to_mode(optarg);
+			break;
+		case 'M':
+			sysfs_device = optarg;
 			break;
 		case 'p':
 			ip = str_to_ipport(optarg, &port);
@@ -636,15 +693,30 @@ main(int argc, char **argv)
 			}
 		}
 	} else if (mode == MODE_NODE) {
-		if ((rc = verify_mode_params(argc, argv, "dmlSronvup", 0))) {
+		if ((rc = verify_mode_params(argc, argv, "dmMlSronvup", 0))) {
 			log_error("node mode: option '-%c' is not "
 				  "allowed/supported", rc);
 			rc = -1;
 			goto out;
 		}
+		if (sysfs_device) {
+			if (rid >= 0) {
+				log_error("only one of map and recid may be"
+					  " specified");
+				rc = -1;
+				goto out;
+			}
+			rid = sys_to_rid(db, sysfs_device);
+			if (rid < 0) {
+				rc = -1;
+				goto out;
+			}
+			/* fall through */
+		}
 		if (rid >= 0) {
 			node_rec_t rec;
 
+			log_debug(2, "%s: record 0x%x", __FUNCTION__, rid);
 			if (idbm_node_read(db, rid, &rec)) {
 				log_error("node record [%06x] not found!", rid);
 				rc = -1;

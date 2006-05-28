@@ -5,7 +5,7 @@ iscsiadm \- open-iscsi administration utility
 \fBiscsiadm\fR -m discovery [ -dhV ] [ -t type -p ip [ -l ] ] | [ -r recid ]
 [ -o operation ] [ -n name ] [ -v value ]
 
-\fBiscsiadm\fR -m node [ -dhV ] [ -S ] [ -r recid [ -l | -u ] ]
+\fBiscsiadm\fR -m node [ -dhV ] [ -S ] [ [ -r recid | -M sysdir ] [ -l | -u ] ]
 [ [ -o operation ]  [ -n name ] [ -v value ] [ -p ip ] ]
 
 \fBiscsiadm\fR -m session [ -dhV ] [ -r [sid:]recid [ -u | -s ] ]
@@ -43,6 +43,17 @@ must be one of \fIdiscovery\fR, \fInode\fR, or \fIsession\fR.
 If no other options are specified: for \fIdiscovery\fR and \fInode\fR, all
 of their respective records are displayed; for \fIsession\fR, all active
 sessions and connections are displayed.
+
+.TP
+\fB\-M, \-\-map \fIdir\fR
+Use the record id associated with the sysfs open-iscsi directory
+\fIdir\fR, where \fIdir\fR is the directory of the corresponding
+scsi device, for example:
+
+.ft R
+	/sys/devices/platform/host0/session0/target0:0:0/0:0:0:0
+.IP
+Valid only in node mode, and cannot be used with the \fB\-r\fR option.
 
 .TP
 \fB\-n\fR, \fB\-\-name=\fIname\fR

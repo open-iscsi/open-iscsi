@@ -520,17 +520,56 @@ static void idbm_close_dbs(idbm_t *db)
 }
 
 int
-idbm_find_rid_by_session(idbm_t *db, char *targetname, int tpgt, char *address,
-			 int port)
+idbm_find_ids_by_session(idbm_t *db, int *sid, int *rec_id, char *session)
 {
 	DBM *dbm;
 	datum key, data;
 	node_rec_t *rec;
 	conn_rec_t *conn;
-	int rec_id = -1, ret;
+	int ret;
+	uint32_t port, tpgt;
+	char target_name[TARGET_NAME_MAXLEN + 1];
+	char address[NI_MAXHOST + 1];
+	char sysfs_file[PATH_MAX];
 
-	log_debug(7, "looking for target_name %s, tpgt %d address %s port %d\n",
-		  targetname, tpgt, address, port);
+	if (sscanf(session, "session%d", sid) != 1) {
+		log_error("invalid session '%s'", session);
+		return -1;
+	}
+
+	memset(sysfs_file, 0, PATH_MAX);
+	sprintf(sysfs_file, "/sys/class/iscsi_session/%s/targetname", session);
+	ret = read_sysfs_str_attr(sysfs_file, target_name, TARGET_NAME_MAXLEN);
+	if (ret) {
+		log_error("could not read session targetname: %d", ret);
+		return -1;
+	}
+
+	memset(sysfs_file, 0, PATH_MAX);
+	sprintf(sysfs_file, "/sys/class/iscsi_session/%s/tpgt", session);
+	ret = read_sysfs_int_attr(sysfs_file, &tpgt);
+	if (ret) {
+		log_error("Could not read tpgt %d\n", ret);
+		return -1;
+	}
+
+	memset(sysfs_file, 0, PATH_MAX);
+	sprintf(sysfs_file, "/sys/class/iscsi_connection/connection%d:0/"
+		"persistent_address", *sid);
+	ret = read_sysfs_str_attr(sysfs_file, address, NI_MAXHOST);
+	if (ret) {
+		log_error("could not read conn address: %d", ret);
+		return -1;
+	}
+
+	memset(sysfs_file, 0, PATH_MAX);
+	sprintf(sysfs_file, "/sys/class/iscsi_connection/connection%d:0/"
+		"persistent_port", *sid);
+	ret = read_sysfs_int_attr(sysfs_file, &port);
+	if (ret) {
+		log_error("Could not read conn port %d\n", ret);
+		return -1;
+	}
 
 	ret = idbm_open_dbs(db);
 	if (ret)
@@ -538,6 +577,9 @@ idbm_find_rid_by_session(idbm_t *db, char *targetname, int tpgt, char *address,
 
 	dbm = db->nodedb;
 
+	log_debug(7, "search for target_name %s, tpgt %d address %s port %d\n",
+		  target_name, tpgt, address, port);
+	*rec_id = -1;
 	for (key=dbm_firstkey(dbm); key.dptr != NULL; key=dbm_nextkey(dbm)) {
 		data = dbm_fetch(dbm, key);
 		rec = (node_rec_t*)data.dptr;
@@ -547,17 +589,17 @@ idbm_find_rid_by_session(idbm_t *db, char *targetname, int tpgt, char *address,
 		}
 
 		conn = &rec->conn[0];
-		if (!strncmp(rec->name, targetname, strlen(rec->name)) &&
+		if (!strncmp(rec->name, target_name, strlen(rec->name)) &&
 		    !strncmp(conn->address, address, strlen(conn->address)) &&
 		    rec->tpgt == tpgt && conn->port == port) {
-			rec_id = idbm_uniq_id(key.dptr);
+			*rec_id = idbm_uniq_id(key.dptr);
 			break;
 		}
 	}
 
 	idbm_close_dbs(db);
 
-	return rec_id;
+	return *rec_id;
 }
 
 static int

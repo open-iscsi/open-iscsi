@@ -95,25 +95,26 @@ Open-iSCSI initiator daemon.\n\
 	exit(status == 0 ? 0 : -1);
 }
 
-static int sync_session(iscsi_provider_t *provider, char *configfile,
-			uint32_t sid, char *target_name, int tpgt,
-			char *address, int port)
+static int sync_session(iscsi_provider_t *provider, char *sys_session)
 {
 	idbm_t *db;
-	int rec_id;
+	int rc;
+	int sid, rec_id;
 	iscsiadm_req_t req;
 	iscsiadm_rsp_t rsp;
 	int fd;
 
-	db = idbm_init(configfile);
+	log_debug(7, "sync session %s", sys_session);
+
+	db = idbm_init(daemon_config.config_file);
 	if (!db) {
 		log_error("could not open node database");
 		return -1;
 	}
 
-	rec_id = idbm_find_rid_by_session(db, target_name, tpgt, address, port);
-	if (rec_id < 0) {
-		log_error("could not find record for session %d", sid);
+	rc = idbm_find_ids_by_session(db, &sid, &rec_id, sys_session);
+	if (rc < 0) {
+		log_error("could not find record for %s", sys_session);
 		return -1;
 	}
 	idbm_terminate(db);
@@ -127,70 +128,16 @@ static int sync_session(iscsi_provider_t *provider, char *configfile,
 
 static void sync_sessions(iscsi_provider_t *prv)
 {
-	uint32_t sid, port, tpgt;
 	DIR *dirfd;
-	int err;
 	struct dirent *dent;
-	char target_name[TARGET_NAME_MAXLEN + 1];
-	char address[NI_MAXHOST + 1];
 
 	sprintf(sysfs_file, "/sys/class/iscsi_session");
 	dirfd = opendir(sysfs_file);
 	while ((dent = readdir(dirfd))) {
 		if (!strcmp(dent->d_name, ".") || !strcmp(dent->d_name, ".."))
 			continue;
-
-		if (sscanf(dent->d_name, "session%d", &sid) != 1) {
-			log_error("invalid session '%s'", dent->d_name);
-			continue;
-		}
-
-		memset(sysfs_file, 0, PATH_MAX);
-		sprintf(sysfs_file, "/sys/class/iscsi_session/%s/targetname",
-			dent->d_name);
-		err = read_sysfs_str_attr(sysfs_file, target_name,
-					  TARGET_NAME_MAXLEN);
-		if (err) {
-			log_error("could not read session targetname: %d",
-				  errno);
-			continue;
-		}
-
-		memset(sysfs_file, 0, PATH_MAX);
-		sprintf(sysfs_file, "/sys/class/iscsi_session/%s/tpgt",
-			dent->d_name);
-		err = read_sysfs_int_attr(sysfs_file, &tpgt);
-		if (err) {
-			log_error("Could not read tpgt %d\n", err);
-			continue;
-		}
-
-		memset(sysfs_file, 0, PATH_MAX);
-		sprintf(sysfs_file,
-			"/sys/class/iscsi_connection/connection%d:0/"
-			"persistent_address", sid);
-		err = read_sysfs_str_attr(sysfs_file, address, NI_MAXHOST);
-		if (err) {
-			log_error("could not read conn address: %d", err);
-			continue;
-		}
-
-		memset(sysfs_file, 0, PATH_MAX);
-		sprintf(sysfs_file,
-			"/sys/class/iscsi_connection/connection%d:0/"
-			"persistent_port", sid);
-		err = read_sysfs_int_attr(sysfs_file, &port);
-		if (err) {
-			log_error("Could not read conn port %d\n", err);
-			continue;
-		}
-
-		log_debug(7, "sync session%d targetname %s, tpgt %d, "
-			  "address %s, port %d", sid, target_name, tpgt,
-			  address, port);
-		if (sync_session(prv, daemon_config.config_file, sid,
-				 target_name, tpgt, address, port))
-			log_error("Could not sync session %d\n", sid);
+		if (sync_session(prv, dent->d_name))
+			log_error("Could not sync %s\n", dent->d_name);
 	}
 	closedir(dirfd);
 }
