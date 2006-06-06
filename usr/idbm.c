@@ -687,8 +687,8 @@ idbm_recinfo_node(node_rec_t *r, recinfo_t *ri)
 		      IDBM_SHOW, num);
 	__recinfo_int("node.tpgt", ri, r, tpgt, IDBM_SHOW, num);
 	__recinfo_int("node.active_conn", ri, r, active_conn, IDBM_SHOW, num);
-	__recinfo_int_o2("node.startup", ri, r, startup,
-			IDBM_SHOW, "manual", "automatic", num);
+	__recinfo_int_o3("node.startup", ri, r, startup,
+			IDBM_SHOW, "manual", "automatic", "onboot", num);
 	__recinfo_int("node.session.initial_cmdsn", ri, r,
 		      session.initial_cmdsn, IDBM_SHOW, num);
 	__recinfo_int_o2("node.session.auth.authmethod", ri, r,
@@ -742,8 +742,8 @@ idbm_recinfo_node(node_rec_t *r, recinfo_t *ri)
 		sprintf(key, "node.conn[%d].port", i);
 		__recinfo_int(key, ri, r, conn[i].port, IDBM_SHOW, num);
 		sprintf(key, "node.conn[%d].startup", i);
-		__recinfo_int_o2(key, ri, r, conn[i].startup, IDBM_SHOW,
-				 "manual", "automatic", num);
+		__recinfo_int_o3(key, ri, r, conn[i].startup, IDBM_SHOW,
+				 "manual", "automatic", "onboot", num);
 		sprintf(key, "node.conn[%d].tcp.window_size", i);
 		__recinfo_int(key, ri, r, conn[i].tcp.window_size,
 			      IDBM_SHOW, num);

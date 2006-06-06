@@ -56,13 +56,16 @@ iscsi_logout_all_nodes()
     # Logout from all active sessions
     TARGETS=$($ISCSIADM -m session | sed 's@\[[^:]*:\(.*\)\] .*@\1@g')
     for rec in $TARGETS; do
+	STARTUP=`$ISCSIADM -m node -r $rec | grep "node.conn\[0\].startup" | cut -d' ' -f3`
 	NODE=`$ISCSIADM -m node -r $rec | grep "node.name" | cut -d' ' -f3`
-	echo -n "Logging out from $NODE: "
-	if $ISCSIADM -m node --record $rec --logout ; then
-	    rc_status -v
-	else
-	    RETVAL=$?
-	    rc_failed $RETVAL
+	if [ $STARTUP != "onboot" ] ; then
+	    echo -n "Logging out from $NODE: "
+	    if $ISCSIADM -m node --record $rec --logout ; then
+		rc_status -v
+	    else
+		RETVAL=$?
+		rc_failed $RETVAL
+	    fi
 	fi
     done
     # Not sure whether this is still needed
@@ -85,13 +88,17 @@ iscsi_list_all_nodes()
 case "$1" in
     start)
 	[ ! -d /var/lib/iscsi ] && mkdir -p /var/lib/iscsi
-	echo -n "Starting iSCSI initiator service: "
-	modprobe scsi_transport_iscsi
-	modprobe libiscsi
-	modprobe iscsi_tcp
-	startproc $DAEMON $ARGS
-	RETVAL=$?
-	rc_status -v
+	if checkproc $DAEMON ; then
+	    RETVAL=0
+	else
+	    echo -n "Starting iSCSI initiator service: "
+	    modprobe scsi_transport_iscsi
+	    modprobe libiscsi
+	    modprobe iscsi_tcp
+	    startproc $DAEMON $ARGS
+	    RETVAL=$?
+	    rc_status -v
+	fi
 	if [ "$RETVAL" == "0" ]; then
 	    iscsi_login_all_nodes
 	fi
