@@ -1630,7 +1630,6 @@ static void iscsi_start_session_recovery(struct iscsi_session *session,
 		}
 	}
 
-	session->tt->terminate_conn(conn);
 	/*
 	 * flush queues.
 	 */
@@ -1638,6 +1637,8 @@ static void iscsi_start_session_recovery(struct iscsi_session *session,
 	fail_all_commands(conn);
 	flush_control_queues(session, conn);
 	spin_unlock_bh(&session->lock);
+
+	session->tt->terminate_conn(conn);
 
 	mutex_unlock(&conn->xmitmutex);
 }
