@@ -344,7 +344,7 @@ static void catch_signal(int signo)
 	log_warning("pid %d caught signal -%d", getpid(), signo);
 }
 
-static void __log_close()
+static void __log_close(void)
 {
 	log_flush();
 	closelog();
