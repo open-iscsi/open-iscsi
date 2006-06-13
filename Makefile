@@ -7,7 +7,7 @@
 DESTDIR ?= 
 
 prefix = /usr
-exec_prefix = $(prefix)
+exec_prefix = /
 sbindir = $(exec_prefix)/sbin
 bindir = $(exec_prefix)/bin
 mandir = $(prefix)/share/man
