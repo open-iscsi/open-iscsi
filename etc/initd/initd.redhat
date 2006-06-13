@@ -50,11 +50,6 @@ start_iscsid()
 stop_iscsid()
 {
 	RETVAL=0
-	# Check for active sessions
-	if $ISCSIADM -m session > /dev/null
-	then
-		return $RETVAL
-	fi
 	sync
 	TARGETS=`$ISCSIADM -m session | grep "\[*\]" | sed 's@\[\(.*\)\] .*@\1@g'`
 	for rec in $TARGETS
