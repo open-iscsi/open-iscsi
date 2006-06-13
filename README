@@ -73,21 +73,13 @@ iscsid, and a management utility iscsiadm.
 ===============
 
 As of today, the Open-iSCSI Initiator requires a host running the
-Linux operating system with kernel version 2.6.11, or later. See
+Linux operating system with kernel version 2.6.16, or later. See
 http://www.open-iscsi.org/cgi-bin/wiki.pl/Supported_Kernels
 for a more information about which kernels Open-iSCSI supports.
 You need to enable "Cryptographic API" under "Cryptographic options" in the
 kernel config. You also need to enable "CRC32c CRC algorithm" if
 you use header or data digests. They are the kernel options,
 CONFIG_CRYPTO and CONFIG_CRYPTO_CRC32C, respectively.
-
-For kernels 2.6.13-2.6.15 there are compatibility patches that must be
-applied before compiling. Standing in the root of the open-iscsi source
-directory the following command must be done in order to apply the patch
-for your kernel:
-
-patch -p1 < kernel/2.6.13-compat.patch
-patch -p1 < kernel/2.6.14-and-2.6.15-compat.patch
 
 By default the kernel source found at
 /lib/modules/`uname -a`/build

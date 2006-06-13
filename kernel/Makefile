@@ -74,25 +74,14 @@ check_iscsi_compat = $(call generic_check_command, $(check_iscsi_compat_command)
 # since Make doesn't support a switch construct
 .NOTPARALLEL: kernel_check
 kernel_check:
-ifeq ($(KSUBLEVEL),11)
-	@$(call check_iscsi_compat, 2.6.11-compat.patch)
+ifeq ($(KSUBLEVEL),16)
+	echo "kernel check... OK"
 else
-ifeq ($(KSUBLEVEL),12)
-	@$(call check_iscsi_compat, 2.6.12-compat.patch)
+ifeq ($(KSUBLEVEL),17)
+	echo "kernel check... OK"
 else
-ifeq ($(KSUBLEVEL),13)
-	@$(call check_iscsi_compat, 2.6.13-compat.patch)
-else
-ifeq ($(KSUBLEVEL),14)
-	@$(call check_iscsi_compat, 2.6.14-and-2.6.15-compat.patch)
-else
-ifeq ($(KSUBLEVEL),15)
-	@$(call check_iscsi_compat, 2.6.14-and-2.6.15-compat.patch)
-else
-	@echo "kernel check... OTHER KERNEL DETECTED"
-endif
-endif
-endif
+	@echo "kernel check... UNSUPPORTED KERNEL DETECTED"
+	exit 1;
 endif
 endif
 
