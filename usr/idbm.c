@@ -23,6 +23,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <fcntl.h>
+#include <errno.h>
 #include <sys/stat.h>
 #include <sys/file.h>
 
@@ -107,8 +108,10 @@ idbm_dbversion_check(int dbversion)
 			  (0xf0 & dbversion)>>4, 0xf & dbversion,
 			  (0xf0 & IDBM_VERSION)>>4, 0xf & IDBM_VERSION,
 			  (0xf0 & IDBM_VERSION)>>4, 0xf & IDBM_VERSION);
-		log_warning("Sorry! We are currently do not support an "
-			    "upgrade option.");
+		log_warning("Sorry! We currently do not support an "
+			    "upgrade option. Please run 'iscsiadm -m db -R' "
+			    "to remove the existing database. Then rediscover "
+			    "and modify session parameters again.");
 		return -1;
 	}
 	return 0;
@@ -462,6 +465,50 @@ idbm_open(char *filename, int flags)
 	return dbm;
 }
 
+static int
+idbm_get_lock(void)
+{
+	int fd, ret, i;
+
+	fd = open(LOCK_FILE, O_RDWR | O_CREAT, 0666);
+	if (fd >= 0)
+		close(fd);
+
+	for (i=0; i < 3000; i++) {
+		ret = link(LOCK_FILE, LOCK_WRITE_FILE);
+		if (ret == 0)
+			return 0;
+		
+		usleep(10000);
+	}
+
+	return -1;
+}
+
+int
+idbm_remove_all(void)
+{
+	if (idbm_get_lock()) {
+		log_error("Could not get DB lock. Make sure all iscsiadm "
+			  "instances have completed and try again\n");
+		return -EAGAIN;
+	}
+
+	if (remove(DISCOVERY_DB_FILE)) {
+		log_error("Could not remove %s err %d\n", DISCOVERY_FILE,
+			  errno);
+		return errno;
+	}
+
+	if (remove(NODE_DB_FILE)) {
+		log_error("Could not remove %s err %d\n", NODE_FILE, errno);
+		return errno;
+	}
+
+	unlink(LOCK_WRITE_FILE);
+	return 0;
+}
+
 static void
 idbm_close(DBM *dbm)
 {
@@ -470,23 +517,9 @@ idbm_close(DBM *dbm)
 
 static int idbm_open_dbs(idbm_t *db)
 {	
-	int fd, i, ret;
-
 	if (db->refs > 0) {
 		db->refs++;
 		return 0;
-	}
-	
-	fd = open(LOCK_FILE, O_RDWR | O_CREAT, 0666);
-	if (fd >= 0)
-		close(fd);
-
-	for (i=0; i < 3000; i++) {
-		ret = link(LOCK_FILE, LOCK_WRITE_FILE);
-		if (ret == 0)
-			break;
-		
-		usleep(10000);
 	}
 
 	if ((db->discdb = idbm_open(DISCOVERY_FILE,

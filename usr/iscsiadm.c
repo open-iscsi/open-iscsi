@@ -52,6 +52,7 @@ enum iscsiadm_mode {
 	MODE_DISCOVERY,
 	MODE_NODE,
 	MODE_SESSION,
+	MODE_DB,
 };
 
 enum iscsiadm_op {
@@ -76,11 +77,12 @@ static struct option const long_options[] =
 	{"debug", required_argument, NULL, 'g'},
 	{"map", required_argument, NULL, 'M'},
 	{"show", no_argument, NULL, 'S'},
+	{"remove", no_argument, NULL, 'R'},
 	{"version", no_argument, NULL, 'V'},
 	{"help", no_argument, NULL, 'h'},
 	{NULL, 0, NULL, 0},
 };
-static char *short_options = "lVhm:M:p:d:r:n:v:o:St:u";
+static char *short_options = "lVhm:M:p:d:r:n:v:o:St:u:R";
 
 static void usage(int status)
 {
@@ -89,7 +91,7 @@ static void usage(int status)
 			program_name);
 	else {
 		printf("\
-iscsiadm  -m discovery [ -dhV ] [ -t type -p ip [ -l ] ] | [ -r recid ] \
+iscsiadm -m discovery [ -dhV ] [ -t type -p ip [ -l ] ] | [ -r recid ] \
 [ -o operation ] [ -n name ] [ -v value ]\n\
 iscsiadm -m node [ -dhV ] [ -S ] [ [ -r recid | -M sysdir ] [ -l | -u ] ] \
 [ [ -o  operation  ] [ -n name ] [ -v value ] [ -p ip ] ]\n\
@@ -128,6 +130,8 @@ str_to_mode(char *str)
 		mode = MODE_NODE;
 	else if (!strcmp("session", str))
 		mode = MODE_SESSION;
+	else if (!strcmp("db", str))
+		mode = MODE_DB;
 	else
 		mode = -1;
 
@@ -497,7 +501,7 @@ main(int argc, char **argv)
 	char *ip = NULL, *name = NULL, *value = NULL, *sysfs_device = NULL;
 	int ch, longindex, mode=-1, port=-1, do_login=0;
 	int rc=0, rid=-1, sid=-1, op=-1, type=-1, do_logout=0, do_stats=0;
-	int do_show=0;
+	int do_show=0, do_remove=0;
 	idbm_t *db;
 	struct sigaction sa_old;
 	struct sigaction sa_new;
@@ -568,6 +572,9 @@ main(int argc, char **argv)
 		case 'M':
 			sysfs_device = optarg;
 			break;
+		case 'R':
+			do_remove = 1;
+			break;
 		case 'p':
 			ip = str_to_ipport(optarg, &port);
 			break;
@@ -587,6 +594,16 @@ main(int argc, char **argv)
 
 	if (mode < 0) 
 		usage(0);
+
+	if (mode == MODE_DB) {
+		if (!do_remove) {
+			log_error("Try iscsiadm -m db --remove\n");
+			exit(-1);
+		}
+
+		idbm_remove_all();
+		exit(0);
+	}
 
 	db = idbm_init(config_file);
 	if (!db) {

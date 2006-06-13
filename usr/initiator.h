@@ -36,9 +36,11 @@
 #define INITIATOR_NAME_FILE	"/etc/initiatorname.iscsi"
 #ifndef DISCOVERY_FILE
 #define DISCOVERY_FILE		"/var/db/iscsi/discovery"
+#define DISCOVERY_DB_FILE	"/var/db/iscsi/discovery.db"
 #endif
 #ifndef NODE_FILE
 #define NODE_FILE		"/var/db/iscsi/node"
+#define	NODE_DB_FILE		"/var/db/iscsi/node.db"
 #endif
 #ifndef LOCK_FILE
 #define LOCK_FILE		"/var/db/iscsi/lock"
