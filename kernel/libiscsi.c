@@ -1264,6 +1264,7 @@ iscsi_session_setup(struct iscsi_transport *iscsit,
 		if (cmd_task_size)
 			ctask->dd_data = &ctask[1];
 		ctask->itt = cmd_i;
+		INIT_LIST_HEAD(&ctask->running);
 	}
 
 	spin_lock_init(&session->lock);
@@ -1283,6 +1284,7 @@ iscsi_session_setup(struct iscsi_transport *iscsit,
 		if (mgmt_task_size)
 			mtask->dd_data = &mtask[1];
 		mtask->itt = ISCSI_MGMT_ITT_OFFSET + cmd_i;
+		INIT_LIST_HEAD(&mtask->running);
 	}
 
 	if (scsi_add_host(shost, NULL))

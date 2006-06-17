@@ -745,8 +745,9 @@ static int iscsi_scsi_data_in(struct iscsi_conn *conn)
 done:
 	/* check for non-exceptional status */
 	if (tcp_conn->in.hdr->flags & ISCSI_FLAG_DATA_STATUS) {
-		debug_scsi("done [sc %lx res %d itt 0x%x]\n",
-			   (long)sc, sc->result, ctask->itt);
+		debug_scsi("done [sc %lx res %d itt 0x%x flags 0x%x]\n",
+			   (long)sc, sc->result, ctask->itt,
+			   tcp_conn->in.hdr->flags);
 		spin_lock(&conn->session->lock);
 		__iscsi_ctask_cleanup(conn, ctask);
 		__iscsi_complete_pdu(conn, tcp_conn->in.hdr, NULL, 0);
@@ -1308,7 +1309,7 @@ iscsi_tcp_cmd_init(struct iscsi_cmd_task *ctask)
 				    ctask->imm_count -
 				    ctask->unsol_count;
 
-		debug_scsi("cmd [itt %x total %d imm %d imm_data %d "
+		debug_scsi("cmd [itt 0x%x total %d imm %d imm_data %d "
 			   "r2t_data %d]\n",
 			   ctask->itt, ctask->total_length, ctask->imm_count,
 			   ctask->unsol_count, tcp_ctask->r2t_data_count);
@@ -1636,7 +1637,7 @@ handle_xmstate_sol_data(struct iscsi_conn *conn, struct iscsi_cmd_task *ctask)
 	}
 solicit_again:
 	/*
-	 * send Data-Out whitnin this R2T sequence.
+	 * send Data-Out within this R2T sequence.
 	 */
 	if (!r2t->data_count)
 		goto data_out_done;
