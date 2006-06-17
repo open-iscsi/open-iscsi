@@ -82,7 +82,7 @@ static struct option const long_options[] =
 	{"help", no_argument, NULL, 'h'},
 	{NULL, 0, NULL, 0},
 };
-static char *short_options = "lVhm:M:p:d:r:n:v:o:St:u:R";
+static char *short_options = "lVhm:M:p:d:r:n:v:o:St:uR";
 
 static void usage(int status)
 {
