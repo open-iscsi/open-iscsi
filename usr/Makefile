@@ -45,14 +45,14 @@ INITIATOR_SRCS = initiator.o queue.o actor.o mgmt_ipc.o transport.o
 all: $(PROGRAMS)
 
 iscsid: $(COMMON_SRCS) $(IPC_OBJ) $(INITIATOR_SRCS) iscsid.o
-	$(CC) $^ $(DBM_LIB) -o $@
+	$(CC) $(CFLAGS) $^ $(DBM_LIB) -o $@
 
 iscsiadm: $(COMMON_SRCS) strings.o discovery.o iscsiadm.o
-	$(CC) $^ $(DBM_LIB) -o $@
+	$(CC) $(CFLAGS) $^ $(DBM_LIB) -o $@
 
 iscsistart: $(IPC_OBJ) $(ISCSI_LIB_SRCS) $(INITIATOR_SRCS) iscsistart.o \
 		statics.o
-	$(CC) -static $^ -o $@
+	$(CC) $(CFLAGS) -static $^ -o $@
 
 clean:
 	rm -f *.o $(PROGRAMS)
