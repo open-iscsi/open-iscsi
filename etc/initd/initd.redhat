@@ -1,125 +1,66 @@
 #!/bin/sh
 #
-# chkconfig: - 13 89
+# chkconfig: 345 13 89
 # description: Starts and stops the iSCSI initiator
 #
+# processname: iscsid
 # pidfile: /var/run/iscsid.pid
 # config:  /etc/iscsid.conf
 
 # Source function library.
-if [ -f /etc/init.d/functions ] ; then
-	. /etc/init.d/functions
-elif [ -f /etc/rc.d/init.d/functions ] ; then
-	. /etc/rc.d/init.d/functions
-else
-	exit 0
-fi
+. /etc/init.d/functions
 
-PATH=/sbin:/bin:/usr/sbin:/usr/bin:/usr/local/bin
+PATH=/sbin:/bin:/usr/sbin:/usr/bin
 
-ISCSID=`which iscsid`
-ISCSIADM=`which iscsiadm`
-prog=`basename $ISCSID`
-lockdir=/var/lock/subsys
-
-if [ -z $ISCSID ] || [ -z $ISCSIADM ]
-then
-	echo "open-iscsi not installed."
-	exit 1
-fi
-
-start_iscsid()
-{
-	RETVAL=0
-	modprobe -q iscsi_tcp
-	daemon $ISCSID
-	RETVAL=$?
-	TARGETS=`$ISCSIADM -m node 2> /dev/null | sed 's@\[\(.*\)\] .*@\1@g'`
-	for rec in $TARGETS
-	do
-		STARTUP=`$ISCSIADM -m node -r $rec | grep "node.conn\[0\].startup" | cut -d' ' -f3`
-		if [ $STARTUP = "automatic" ]
-		then
-			$ISCSIADM -m node -r $rec -l
-		fi
-	done
-
-	return $RETVAL
-}
-
-stop_iscsid()
-{
-	RETVAL=0
-	sync
-	TARGETS=`$ISCSIADM -m session | grep "\[*\]" | sed 's@\[\(.*\)\] .*@\1@g'`
-	for rec in $TARGETS
-	do
-		$ISCSIADM -m node -r $rec -u
-	done
-	pkill -KILL `basename $ISCSID`
-	modprobe -r iscsi_tcp
-	RETVAL=$?
-	return $RETVAL
-}
+RETVAL=0
 
 start()
 {
-	RETVAL=0
-	echo -n "Starting iSCSI initiator service: "
-	PID=`pidofproc $ISCSID`
-	if [ -z $PID ]
-	then
-		start_iscsid
-	fi
-
-	if [ $RETVAL == "0" ]
-	then
-		touch $lockdir/$prog
-		success
-	else
-		failure
-	fi
+	echo -n $"Starting iSCSI initiator service: "
+	modprobe -q iscsi_tcp
+	daemon iscsid
+	RETVAL=$?
 	echo
-	return $RETVAL
+	[ $RETVAL -eq 0 ] || return
+
+	touch /var/lock/subsys/iscsi
+
+	echo -n $"Setting up iSCSI targets: "
+	TARGETS=`iscsiadm -m node 2> /dev/null | sed 's@\[\(.*\)\] .*@\1@g'`
+	for rec in $TARGETS; do
+		STARTUP=`iscsiadm -m node -r $rec | grep "node.startup" | cut -d' ' -f3`
+		if [ $STARTUP = "automatic" ]; then
+			iscsiadm -m node -r $rec -l
+		fi
+	done
+	success
+	echo
+
 }
 
 stop()
 {
-	RETVAL=0
-	echo -n "Stopping iSCSI initiator service: "
-	PID=`pidofproc $ISCSID`
-	if [ $PID ]
-	then
-		stop_iscsid
-	fi
-	if [ $RETVAL == "0" ]
-	then
-		rm -f $lockdir/$prog
-		success
-	else
-		failure
-	fi
-	echo
-	return $RETVAL
-}
+	echo -n $"Stopping iSCSI initiator service: "
+	sync
+	TARGETS=`iscsiadm -m session | grep "\[*\]" | sed 's@\[\(.*\)\] .*@\1@g'`
+	for rec in $TARGETS; do
+	    STARTUP=`iscsiadm -m node -r $rec | grep "node.startup" | cut -d' ' -f3`
+	    if [ $STARTUP != "onboot" ] ; then
+	    	iscsiadm -m node -r $rec -u
+	    fi
+	done
 
+	killproc iscsid
+	echo
+	[ $RETVAL -eq 0 ] && rm -f /var/lock/subsys/iscsi
+
+	modprobe -r iscsi_tcp 2>/dev/null
+}
 
 restart()
 {
 	stop
 	start
-}
-
-status()
-{
-	PID=`pidofproc $ISCSID`
-	if [ ! $PID ]
-	then
-		echo "iSCSI initiator is stopped."
-		exit 1
-	else
-		echo "iSCSI initiator is running."
-	fi
 }
 
 case "$1" in
@@ -130,14 +71,19 @@ case "$1" in
 		stop
 		;;
 	restart)
-		restart
+	        stop
+		start
 		;;
 	status)
-		status
+		status iscsid
+		RETVAL=$?
+		;;
+        condrestart)
+	        [ -f /var/lock/subsys/iscsi ] && restart
 		;;
 	*)
-		echo $"Usage: $0 {start|stop|restart|status}"
+		echo $"Usage: $0 {start|stop|restart|status|condrestart}"
 		exit 1
 esac
 
-exit 0
+exit $RETVAL
