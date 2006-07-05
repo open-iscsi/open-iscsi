@@ -1478,6 +1478,15 @@ idbm_new_discovery(idbm_t *db, char *ip, int port,
 	 */
 	ptr = newinfo = strdup(info);
 	log_debug(6, "parsing discovery info:\n---\n%s\n---", ptr);
+
+	/* Maybe there are no targets */
+	if (!strcmp(ptr, "!\n")) {
+		log_debug(3, "No targets were found\n");
+		free(drec);
+		drec = NULL;
+		goto out;
+	}
+
 	while (*ptr) {
 		char *dp;
 
