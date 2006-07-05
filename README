@@ -92,6 +92,13 @@ or cross-compilation:
 
 	make KSRC=<kernel-src> KARCH="ARCH=um"
 
+To compile on SUSE Linux you'll have to use
+
+	make KSRC=/usr/src/linux \
+	     KBUILD_OUTPUT=/usr/src/linux-obj/<arch>/<config>
+
+where <config> is the kernel configuration to use (eg. 'smp').
+
 If you choose to install the Debian packages instead of building from source,
 please read the file /usr/share/doc/linux-iscsi/README.debian for information
 on how to build kernel modules against your specific kernel.
