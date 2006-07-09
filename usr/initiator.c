@@ -1431,12 +1431,19 @@ __session_conn_timer(queue_item_t *item)
 	case STATE_XPT_WAIT:
 		switch (session->r_stage) {
 		case R_STAGE_NO_CHANGE:
-		case R_STAGE_SESSION_REDIRECT:
 			log_debug(6, "conn_timer popped at XPT_WAIT: login");
 			/* timeout during initial connect.
 			 * clean connection. write ipc rsp */
 			__session_mgmt_ipc_login_cleanup(qtask,
 					    MGMT_IPC_ERR_TRANS_TIMEOUT, 0);
+			break;
+		case R_STAGE_SESSION_REDIRECT:
+			log_debug(6, "conn_timer popped at XPT_WAIT: "
+				  "login redirect");
+			/* timeout during initial redirect connect
+			 * clean connection. write ipc rsp */
+			__session_mgmt_ipc_login_cleanup(qtask,
+					    MGMT_IPC_ERR_TRANS_TIMEOUT, 1);
 			break;
 		case R_STAGE_SESSION_REOPEN:
 			log_debug(6, "conn_timer popped at XPT_WAIT: reopen");
