@@ -50,7 +50,8 @@ stop()
 	    fi
 	done
 
-	killproc iscsid
+	pkill -KILL iscsid
+	#killproc iscsid
 	echo
 	[ $RETVAL -eq 0 ] && rm -f /var/lock/subsys/iscsi
 
