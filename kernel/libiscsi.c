@@ -1095,10 +1095,10 @@ int iscsi_eh_abort(struct scsi_cmnd *sc)
 	rc = iscsi_exec_abort_task(sc, ctask);
 	spin_lock_bh(&session->lock);
 
-	iscsi_ctask_mtask_cleanup(ctask);
 	if (rc || sc->SCp.phase != session->age ||
 	    session->state != ISCSI_STATE_LOGGED_IN)
 		goto failed;
+	iscsi_ctask_mtask_cleanup(ctask);
 
 	switch (conn->tmabort_state) {
 	case TMABORT_SUCCESS:
