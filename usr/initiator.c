@@ -1470,7 +1470,7 @@ __session_conn_timer(queue_item_t *item)
 			 * connection. write rsp
 			 */
 			write_mgmt_rsp(qtask, MGMT_IPC_ERR_PDU_TIMEOUT);
-			__session_conn_cleanup(conn);
+			session_conn_cleanup(conn);
 			break;
 		case R_STAGE_SESSION_REOPEN:
 			log_debug(6, "conn_timer popped at IN_LOGIN: reopen");
