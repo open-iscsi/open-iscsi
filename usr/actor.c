@@ -83,6 +83,7 @@ actor_delete(actor_t *thread)
 	switch(thread->state) {
 	case ACTOR_SCHEDULED:
 	case ACTOR_WAITING:
+	case ACTOR_POLL_WAITING:
 		log_debug(1, "deleting a scheduled/waiting thread!");
 		remque(&thread->item);
 		break;
