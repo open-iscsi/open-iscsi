@@ -975,7 +975,7 @@ ctldev_open(void)
 	memset(&src_addr, 0, sizeof(src_addr));
 	src_addr.nl_family = AF_NETLINK;
 	src_addr.nl_pid = getpid();
-	src_addr.nl_groups = 0; /* not in mcast groups */
+	src_addr.nl_groups = 1;
 	if (bind(ctrl_fd, (struct sockaddr *)&src_addr, sizeof(src_addr))) {
 		log_error("can not bind NETLINK_ISCSI socket");
 		goto close_socket;
