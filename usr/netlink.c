@@ -503,10 +503,11 @@ err:
 
 static int
 kset_param(uint64_t transport_handle, uint32_t sid, uint32_t cid,
-	   enum iscsi_param param, void *value, int len, int *retcode)
+	   enum iscsi_param param, void *value, int type)
 {
 	struct iscsi_uevent *ev;
-	int rc;
+	char *param_str;
+	int rc, len;
 
 	log_debug(7, "in %s", __FUNCTION__);
 
@@ -517,14 +518,24 @@ kset_param(uint64_t transport_handle, uint32_t sid, uint32_t cid,
 	ev->u.set_param.sid = sid;
 	ev->u.set_param.cid = cid;
 	ev->u.set_param.param = param;
-	ev->u.set_param.len = len;
-	memcpy(setparam_buf + sizeof(*ev), value, len);
+
+	param_str = setparam_buf + sizeof(*ev);
+	switch (type) {
+	case ISCSI_INT:
+		sprintf(param_str, "%d", *((int *)value));
+		break;
+	case ISCSI_STRING:
+		sprintf(param_str, "%s", (char *)value);
+		break;
+	default:
+		log_error("invalid type %d\n", type);
+		return -EINVAL;
+	}
+	ev->u.set_param.len = len = strlen(param_str) + 1;
 
 	if ((rc = __kipc_call(ev, sizeof(*ev) + len)) < 0) {
 		return rc;
 	}
-
-	*retcode = ev->r.retcode;
 
 	return 0;
 }

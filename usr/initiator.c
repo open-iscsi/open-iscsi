@@ -989,109 +989,109 @@ setup_full_feature_phase(iscsi_conn_t *conn)
 	uint32_t one = 1, zero = 0;
 	struct connparam {
 		int param;
-		int len;
+		int type;
 		void *value;
 		int conn_only; } conntbl[ISCSI_PARAM_SESS_RECOVERY_TMO + 1] = {
 
 		{
 		.param = ISCSI_PARAM_MAX_RECV_DLENGTH,
 		.value = &conn->max_recv_dlength,
-		.len = sizeof(conn->max_recv_dlength),
-		.conn_only = 1,
+		.type = 0,
+		.conn_only = ISCSI_INT,
 		}, {
 		.param = ISCSI_PARAM_MAX_XMIT_DLENGTH,
 		.value = &conn->max_xmit_dlength,
-		.len = sizeof(conn->max_xmit_dlength),
-		.conn_only = 1,
+		.type = 0,
+		.conn_only = ISCSI_INT,
 		}, {
 		.param = ISCSI_PARAM_HDRDGST_EN,
 		.value = &conn->hdrdgst_en,
-		.len = sizeof(conn->hdrdgst_en),
-		.conn_only = 1,
+		.type = 0,
+		.conn_only = ISCSI_INT,
 		}, {
 		.param = ISCSI_PARAM_DATADGST_EN,
 		.value = &conn->datadgst_en,
-		.len = sizeof(conn->datadgst_en),
+		.type = ISCSI_INT,
 		.conn_only = 1,
 		}, {
 		.param = ISCSI_PARAM_INITIAL_R2T_EN,
 		.value = &session->initial_r2t_en,
-		.len = sizeof(session->initial_r2t_en),
+		.type = ISCSI_INT,
 		.conn_only = 0,
 		}, {
 		.param = ISCSI_PARAM_MAX_R2T,
 		.value = &one, /* FIXME: session->max_r2t */
-		.len = sizeof(uint32_t),
+		.type = ISCSI_INT,
 		.conn_only = 0,
 		}, {
 		.param = ISCSI_PARAM_IMM_DATA_EN,
 		.value = &session->imm_data_en,
-		.len = sizeof(session->imm_data_en),
+		.type = ISCSI_INT,
 		.conn_only = 0,
 		}, {
 		.param = ISCSI_PARAM_FIRST_BURST,
 		.value = &session->first_burst,
-		.len = sizeof(session->first_burst),
+		.type = ISCSI_INT,
 		.conn_only = 0,
 		}, {
 		.param = ISCSI_PARAM_MAX_BURST,
 		.value = &session->max_burst,
-		.len = sizeof(session->max_burst),
+		.type = ISCSI_INT,
 		.conn_only = 0,
 		}, {
 		.param = ISCSI_PARAM_PDU_INORDER_EN,
 		.value = &session->pdu_inorder_en,
-		.len = sizeof(session->pdu_inorder_en),
+		.type = ISCSI_INT,
 		.conn_only = 0,
 		}, {
 		.param =ISCSI_PARAM_DATASEQ_INORDER_EN,
 		.value = &session->dataseq_inorder_en,
-		.len = sizeof(session->dataseq_inorder_en),
+		.type = ISCSI_INT,
 		.conn_only = 0,
 		}, {
 		.param = ISCSI_PARAM_ERL,
 		.value = &zero, /* FIXME: session->erl */
-		.len = sizeof(uint32_t),
+		.type = ISCSI_INT,
 		.conn_only = 0,
 		}, {
 		.param = ISCSI_PARAM_IFMARKER_EN,
 		.value = &zero,/* FIXME: session->ifmarker_en */
-		.len = sizeof(uint32_t),
+		.type = ISCSI_INT,
 		.conn_only = 0,
 		}, {
 		.param = ISCSI_PARAM_OFMARKER_EN,
 		.value = &zero,/* FIXME: session->ofmarker_en */
-		.len = sizeof(uint32_t),
+		.type = ISCSI_INT,
 		.conn_only = 0,
 		}, {
 		.param = ISCSI_PARAM_EXP_STATSN,
 		.value = &conn->exp_statsn,
-		.len = sizeof(uint32_t),
+		.type = ISCSI_INT,
 		.conn_only = 1,
 		}, {
 		.param = ISCSI_PARAM_TARGET_NAME,
 		.conn_only = 0,
-		.len = strlen(session->target_name) + 1,
+		.type = ISCSI_STRING,
 		.value = session->target_name,
 		}, {
 		.param = ISCSI_PARAM_TPGT,
 		.value = &session->portal_group_tag,
-		.len = sizeof(session->portal_group_tag),
+		.type = ISCSI_INT,
 		.conn_only = 0,
 		}, {
 		.param = ISCSI_PARAM_PERSISTENT_ADDRESS,
 		.value = session->nrec.conn[conn->id].address,
-		.len = NI_MAXHOST,
+		.type = ISCSI_STRING,
 		.conn_only = 1,
 		}, {
 		.param = ISCSI_PARAM_PERSISTENT_PORT,
 		.value = &session->nrec.conn[conn->id].port,
-		.len = sizeof(session->nrec.conn[conn->id].port),
+		.type = ISCSI_INT,
 		.conn_only = 1,
 		}, {
 		.param = ISCSI_PARAM_SESS_RECOVERY_TMO,
 		.value = &session->replacement_timeout,
-		.len = sizeof(uint32_t),
+		.type = ISCSI_INT,
 		.conn_only = 0,
 		}
 
@@ -1125,9 +1125,10 @@ setup_full_feature_phase(iscsi_conn_t *conn)
 		if (!(session->param_mask & (1 << conntbl[i].param)))
 			continue;
 
-		if (ipc->set_param(session->transport_handle, session->id,
+		rc = ipc->set_param(session->transport_handle, session->id,
 				   conn->id, conntbl[i].param, conntbl[i].value,
-				   conntbl[i].len, &rc) || rc) {
+				   conntbl[i].type);
+		if (rc && rc != -ENOSYS) {
 			log_error("can't set operational parameter %d for "
 				  "connection %d:%d, retcode %d (%d)",
 				  conntbl[i].param, session->id, conn->id,

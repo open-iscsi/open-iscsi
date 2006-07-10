@@ -28,6 +28,11 @@
 
 #include "iscsi_if.h"
 
+enum {
+	ISCSI_INT,
+	ISCSI_STRING,
+};
+
 /**
  * struct iscsi_ipc - Open-iSCSI Interface for Kernel IPC
  *
@@ -65,7 +70,7 @@ struct iscsi_ipc {
 
 	int (*set_param) (uint64_t transport_handle, uint32_t sid,
 			  uint32_t cid, enum iscsi_param param,
-			  void *value, int len, int *retcode);
+			  void *value, int type);
 
 	/* not implemented yet */
 	int (*get_param) (uint64_t transport_handle, uint32_t sid,
