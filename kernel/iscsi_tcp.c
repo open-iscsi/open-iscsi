@@ -1958,8 +1958,8 @@ iscsi_tcp_conn_destroy(struct iscsi_cls_conn *cls_conn)
 	if (conn->hdrdgst_en || conn->datadgst_en)
 		digest = 1;
 
-	iscsi_conn_teardown(cls_conn);
 	iscsi_tcp_release_conn(conn);
+	iscsi_conn_teardown(cls_conn);
 
 	/* now free tcp_conn */
 	if (digest) {
@@ -2136,11 +2136,6 @@ iscsi_conn_set_param(struct iscsi_cls_conn *cls_conn, enum iscsi_param param,
 		gfp_t flags = GFP_KERNEL;
 
 		sscanf(buf, "%d", &value);
-		if (tcp_conn->data_size >= value) {
-			iscsi_set_param(cls_conn, param, buf, buflen);
-			break;
-		}
-
 		spin_lock_bh(&session->lock);
 		if (conn->stop_stage == STOP_CONN_RECOVER)
 			flags = GFP_ATOMIC;
