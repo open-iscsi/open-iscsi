@@ -80,8 +80,12 @@ else
 ifeq ($(KSUBLEVEL),17)
 	echo "kernel check... OK"
 else
+ifeq ($(KSUBLEVEL),18)
+	echo "kernel check... OK"
+else
 	@echo "kernel check... UNSUPPORTED KERNEL DETECTED"
 	exit 1;
+endif
 endif
 endif
 
