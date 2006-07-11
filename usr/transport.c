@@ -64,7 +64,7 @@ int sync_transports(void)
 		if (provider[i].handle) {
 			provider[i].sessions.q_forw = &provider[i].sessions;
 			provider[i].sessions.q_back = &provider[i].sessions;
-			set_uspace_transport(provider);
+			set_uspace_transport(&provider[i]);
 
 			found++;
 		}
