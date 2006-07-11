@@ -43,7 +43,7 @@
 
 #include "iscsi_tcp.h"
 
-#define ISCSI_TCP_VERSION "1.1-634"
+#define ISCSI_TCP_VERSION "1.1-635"
 
 MODULE_AUTHOR("Dmitry Yusupov <dmitry_yus@yahoo.com>, "
 	      "Alex Aizman <itn780@yahoo.com>");
