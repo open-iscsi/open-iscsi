@@ -568,7 +568,6 @@ session_put(iscsi_session_t *session)
 	if (session->refcount == 0) {
 		actor_delete(&session->mainloop);
 		queue_destroy(session->queue);
-		queue_destroy(session->splice_queue);
 		free(session);
 	}
 }
@@ -603,15 +602,6 @@ __session_create(node_rec_t *rec, iscsi_provider_t *provider)
 	session->queue = queue_create(4, 4, NULL, session);
 	if (session->queue == NULL) {
 		log_error("can not create session's queue");
-		free(session);
-		return NULL;
-	}
-
-	/* initalize per-session tmp queue */
-	session->splice_queue = queue_create(4, 4, NULL, session);
-	if (session->splice_queue == NULL) {
-		log_error("can not create session's splice queue");
-		queue_destroy(session->queue);
 		free(session);
 		return NULL;
 	}
@@ -678,7 +668,6 @@ __session_destroy(iscsi_session_t *session)
 	log_debug(1, "destroying session\n");
 	remque(&session->item);
 	queue_flush(session->queue);
-	queue_flush(session->splice_queue);
 	session_put(session);
 }
 
@@ -705,10 +694,11 @@ __session_conn_queue_flush(iscsi_conn_t *conn)
 
 	for (i = 0; i < count; i++) {
 		if (queue_consume(session->queue, EVENT_PAYLOAD_MAX,
-					item) == QUEUE_IS_EMPTY) {
+				  item) == QUEUE_IS_EMPTY) {
 			log_error("queue damage detected...");
 			break;
 		}
+
 		if (conn != item->context) {
 			queue_produce(session->queue, item->event_type,
 				 item->context, item->data_size,
@@ -851,6 +841,8 @@ __connect_timedout(void *data)
 	iscsi_session_t *session = conn->session;
 
 	if (conn->state == STATE_XPT_WAIT) {
+		/* flush any polls or other events queued */
+		__session_conn_queue_flush(conn);
 		log_debug(3, "__connect_timedout queue EV_CONN_TIMER\n");
 		queue_produce(session->queue, EV_CONN_TIMER, qtask, 0, NULL);
 		actor_schedule(&session->mainloop);
@@ -878,6 +870,8 @@ __session_conn_reopen(iscsi_conn_t *conn, queue_task_t *qtask, int do_stop)
 
 	qtask->conn = conn;
 
+	/* flush stale polls or errors queued */
+	__session_conn_queue_flush(conn);
 	actor_delete(&conn->connect_timer);
 	__conn_noop_out_delete(conn);
 
@@ -1576,22 +1570,21 @@ __session_mainloop(void *data)
 	iscsi_session_t *session = data;
 	unsigned char item_buf[sizeof(queue_item_t) + EVENT_PAYLOAD_MAX];
 	queue_item_t *item = (queue_item_t *)(void *)item_buf;
-
-
-	/* splice the queue incase one of the events reueues */
-	while (queue_consume(session->queue, EVENT_PAYLOAD_MAX,
-			     item) != QUEUE_IS_EMPTY)
-		queue_produce(session->splice_queue, item->event_type,
-			      item->context, item->data_size,
-			      queue_item_data(item));
+	int count = session->queue->count, i;
 
 	/*
 	 * grab a reference in case one of these events destroys
 	 * the session
 	 */
 	session_get(session);
-	while (queue_consume(session->splice_queue, EVENT_PAYLOAD_MAX,
-			     item) != QUEUE_IS_EMPTY) {
+	for (i = 0; i < count; i++) {
+		if (queue_consume(session->queue, EVENT_PAYLOAD_MAX,
+				  item) == QUEUE_IS_EMPTY) {
+			log_debug(4, "%d items flushed while mainloop "
+				  "was processing", count - i);
+			break;
+		}
+
 		switch (item->event_type) {
 		case EV_CONN_RECV_PDU:
 			__session_conn_recv_pdu(item);
