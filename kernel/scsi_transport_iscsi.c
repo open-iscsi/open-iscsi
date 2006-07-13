@@ -909,7 +909,7 @@ int iscsi_if_destroy_session_done(struct iscsi_cls_conn *conn)
 	list_del(&conn->conn_list);
 	spin_unlock_irqrestore(&connlock, flags);
 
-	return rc;	
+	return rc;
 }
 EXPORT_SYMBOL_GPL(iscsi_if_destroy_session_done);
 
@@ -971,7 +971,7 @@ int iscsi_if_create_session_done(struct iscsi_cls_conn *conn)
 	list_add(&conn->conn_list, &connlist);
 	conn->active = 1;
 	spin_unlock_irqrestore(&connlock, flags);
-	return rc;	
+	return rc;
 }
 EXPORT_SYMBOL_GPL(iscsi_if_create_session_done);
 
