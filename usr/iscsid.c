@@ -234,6 +234,7 @@ int main(int argc, char *argv[])
 
 	/* initialize logger */
 	log_init(program_name, DEFAULT_AREA_SIZE);
+	check_class_version();
 
 	if (atexit(iscsid_exit)) {
 		log_error("failed to set exit function\n");
@@ -312,14 +313,6 @@ int main(int argc, char *argv[])
 
 	log_debug(1, "InitiatorName=%s", daemon_config.initiator_name);
 	log_debug(1, "InitiatorAlias=%s", daemon_config.initiator_alias);
-
-	/* log the version, so that we can tell if the daemon and kernel module
-	 * match based on what shows up in the syslog.  Tarballs releases
-	 * always install both, but Linux distributors may put the kernel module
-	 * in a different RPM from the daemon and utils, and users may try to
-	 * mix and match in ways that don't work.
-	 */
-	log_warning("version %s", ISCSI_VERSION_STR);
 
 	/* oom-killer will not kill us at the night... */
 	if (oom_adjust())

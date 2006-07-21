@@ -6,6 +6,7 @@ struct iscsiadm_rsp;
 struct mgmt_ipc_db;
 struct node_rec;
 
+void check_class_version(void);
 extern int oom_adjust(void);
 extern void daemon_init(void);
 extern int read_sysfs_int_attr(char *path, uint32_t *retval);

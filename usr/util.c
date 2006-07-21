@@ -16,6 +16,7 @@
 #include "mgmt_ipc.h"
 #include "config.h"
 #include "initiator.h"
+#include "version.h"
 
 void daemon_init(void)
 {
@@ -249,3 +250,37 @@ int read_sysfs_str_attr(char *path, char *retval, int buflen)
 	close(fd);
 	return err;
 }
+
+void check_class_version(void)
+{
+	char version[20];
+	int i;
+
+	if (read_sysfs_str_attr(ISCSI_VERSION_FILE, version, 20))
+		goto fail;
+
+	log_warning("transport class version %s. iscsid version %s\n",
+		    version, ISCSI_VERSION_STR);
+
+	for (i = 0; i < strlen(version); i++) {
+		if (version[i] == '-')
+			break;
+	}
+
+	if (i == strlen(version))
+		goto fail;
+
+	/*
+	 * We want to make sure the release and interface are the same.
+	 * It is ok for the svn versions to be different.
+	 */
+	if (!strncmp(version, ISCSI_VERSION_STR, i))
+		return;
+
+fail:
+		log_error("Invalid version from %s. Make sure a up to date "
+			  "scsi_transport_iscsi module is loaded and a up to"
+			  "date version of iscsid is running. Exiting...\n",
+			  ISCSI_VERSION_FILE);
+		exit(1);
+	}
