@@ -51,6 +51,7 @@ stop()
 	done
 
 	pkill -KILL iscsid
+	rm -f /var/run/iscsid.pid
 	#killproc iscsid
 	echo
 	[ $RETVAL -eq 0 ] && rm -f /var/lock/subsys/iscsi
