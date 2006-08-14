@@ -31,6 +31,7 @@ void daemon_init(void)
 	dup2(fd, 1);
 	dup2(fd, 2);
 	setsid();
+	chdir("/");
 }
 
 int oom_adjust(void)
