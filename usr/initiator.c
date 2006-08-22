@@ -237,6 +237,7 @@ __session_scan_host(iscsi_session_t *session, queue_task_t *qtask)
 		exit(0);
 	} else if (pid > 0) {
 		log_debug(4, "scanning host%d from pid %d", hostno, pid);
+		close(qtask->u.login.mgmt_ipc_fd);
 		need_reap();
 		free(qtask);
 	} else {
