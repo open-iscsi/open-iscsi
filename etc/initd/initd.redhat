@@ -44,9 +44,10 @@ stop()
 	sync
 	TARGETS=`iscsiadm -m session | grep "\[*\]" | sed 's@\[\(.*\)\] .*@\1@g'`
 	for rec in $TARGETS; do
-	    STARTUP=`iscsiadm -m node -r $rec | grep "node.conn\[0\]/.startup" | cut -d' ' -f3` if [ $STARTUP != "onboot" ] ; then
-	    	iscsiadm -m node -r $rec -u
-	    fi
+		STARTUP=`iscsiadm -m node -r $rec | grep "node.conn\[0\]/.startup" | cut -d' ' -f3`
+		if [ $STARTUP != "onboot" ] ; then
+			iscsiadm -m node -r $rec -u
+		fi
 	done
 
 	pkill -KILL iscsid
