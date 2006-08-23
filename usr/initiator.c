@@ -1617,11 +1617,18 @@ session_find_by_rec(node_rec_t *rec)
 		item = provider[i].sessions.q_forw;
 		while (item != &provider[i].sessions) {
 			session = (iscsi_session_t *)item;
-			log_debug(6, "looking for session with rec_id [%06x]...",
-				  session->nrec.id);
-			if (rec->id == session->nrec.id) {
+			log_debug(6, "looking for session [%s,%s,%d]",
+				  rec->name, rec->conn[0].address,
+				  rec->conn[0].port);
+
+			if (!strncmp(rec->name, session->nrec.name,
+				    strlen(rec->name)) &&
+			    !strncmp(rec->conn[0].address,
+				    session->nrec.conn[0].address,
+				    strlen(rec->conn[0].address)) &&
+			    rec->conn[0].port == session->nrec.conn[0].port)
 				return session;
-			}
+
 			item = item->q_forw;
 		}
 	}

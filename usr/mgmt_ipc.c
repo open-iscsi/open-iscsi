@@ -82,44 +82,15 @@ mgmt_ipc_close(int fd)
 }
 
 static mgmt_ipc_err_e
-mgmt_ipc_node_read(struct mgmt_ipc_db *dbt, int rid, node_rec_t *rec)
+mgmt_ipc_session_login(queue_task_t *qtask, node_rec_t *rec)
 {
-	idbm_t *db = NULL;
-
-	if (dbt->init) {
-		db = dbt->init(dconfig->config_file);
-		if (!db) {
-			return MGMT_IPC_ERR_IDBM_FAILURE;
-		}
-	}
-
-	if (dbt->node_read(db, rid, rec)) {
-		log_error("node record [%06x] not found!", rid);
-		return MGMT_IPC_ERR_NOT_FOUND;
-	}
-
-	if (dbt->terminate)
-		dbt->terminate(db);
-	return 0;
-}
-
-static mgmt_ipc_err_e
-mgmt_ipc_session_login(struct mgmt_ipc_db *dbt, queue_task_t *qtask, int rid)
-{
-	mgmt_ipc_err_e rc;
-	node_rec_t rec;
-
-	if ((rc = mgmt_ipc_node_read(dbt, rid, &rec)))
-		return rc;
-
-	if (session_find_by_rec(&rec)) {
-		log_error("session with corresponding record [%06x] "
-			  "found!", rid);
+	if (session_find_by_rec(rec)) {
+		log_error("session [%s,%s,%d] not found!", rec->name,
+			  rec->conn[0].address, rec->conn[0].port);
 		return MGMT_IPC_ERR_EXISTS;
 	}
 
-
-	return session_login_task(&rec, qtask);
+	return session_login_task(rec, qtask);
 }
 
 static mgmt_ipc_err_e
@@ -134,7 +105,6 @@ mgmt_ipc_session_activelist(queue_task_t *qtask, iscsiadm_rsp_t *rsp)
 		item = provider[i].sessions.q_forw;
 		while (item != &provider[i].sessions) {
 			session = (iscsi_session_t *)item;
-			rsp->u.activelist.rids[rsp->u.activelist.cnt]= session->nrec.id;
 			rsp->u.activelist.sids[rsp->u.activelist.cnt]= session->id;
 			rsp->u.activelist.cnt++;
 			item = item->q_forw;
@@ -145,8 +115,8 @@ mgmt_ipc_session_activelist(queue_task_t *qtask, iscsiadm_rsp_t *rsp)
 }
 
 static mgmt_ipc_err_e
-mgmt_ipc_session_getstats(queue_task_t *qtask, int rid, int sid,
-		iscsiadm_rsp_t *rsp)
+mgmt_ipc_session_getstats(queue_task_t *qtask, int sid,
+			  iscsiadm_rsp_t *rsp)
 {
 	iscsi_session_t *session;
 	struct qelem *item;
@@ -165,7 +135,7 @@ mgmt_ipc_session_getstats(queue_task_t *qtask, int rid, int sid,
 					MGMT_IPC_GETSTATS_BUF_MAX);
 				if (rc) {
 					log_error("get_stats(): IPC error %d "
-						"session [%02d:%06x]", rc, sid, rid);
+						"session [%02d]", rc, sid);
 					return MGMT_IPC_ERR_INTERNAL;
 				}
 				return MGMT_IPC_OK;
@@ -178,18 +148,13 @@ mgmt_ipc_session_getstats(queue_task_t *qtask, int rid, int sid,
 }
 
 static mgmt_ipc_err_e
-mgmt_ipc_session_logout(struct mgmt_ipc_db *dbt, queue_task_t *qtask, int rid)
+mgmt_ipc_session_logout(queue_task_t *qtask, node_rec_t *rec)
 {
-	mgmt_ipc_err_e rc;
-	node_rec_t rec;
 	iscsi_session_t *session;
 
-	if ((rc = mgmt_ipc_node_read(dbt, rid, &rec)))
-		return rc;
-
-	if (!(session = session_find_by_rec(&rec))) {
-		log_error("session with corresponding record [%06x] "
-			  "not found!", rid);
+	if (!(session = session_find_by_rec(rec))) {
+		log_error("session [%s,%s,%d] not found!", rec->name,
+			  rec->conn[0].address, rec->conn[0].port);
 		return MGMT_IPC_ERR_NOT_FOUND;
 	}
 
@@ -197,15 +162,9 @@ mgmt_ipc_session_logout(struct mgmt_ipc_db *dbt, queue_task_t *qtask, int rid)
 }
 
 static mgmt_ipc_err_e
-mgmt_ipc_session_sync(struct mgmt_ipc_db *dbt, queue_task_t *qtask, int rid,
-		      int sid)
+mgmt_ipc_session_sync(queue_task_t *qtask, node_rec_t *rec, int sid)
 {
-	mgmt_ipc_err_e rc;
-	node_rec_t rec;
-
-	if ((rc = mgmt_ipc_node_read(dbt, rid, &rec)))
-		return rc;
-	return iscsi_sync_session(&rec, qtask, sid);
+	return iscsi_sync_session(rec, qtask, sid);
 }
 
 static mgmt_ipc_err_e
@@ -233,13 +192,13 @@ mgmt_ipc_cfg_filename(queue_task_t *qtask, iscsiadm_rsp_t *rsp)
 }
 
 static mgmt_ipc_err_e
-mgmt_ipc_conn_add(queue_task_t *qtask, int rid, int cid)
+mgmt_ipc_conn_add(queue_task_t *qtask, int cid)
 {
 	return MGMT_IPC_ERR;
 }
 
 static mgmt_ipc_err_e
-mgmt_ipc_conn_remove(queue_task_t *qtask, int rid, int cid)
+mgmt_ipc_conn_remove(queue_task_t *qtask, int cid)
 {
 	return MGMT_IPC_ERR;
 }
@@ -329,7 +288,7 @@ mgmt_peeruser(int sock, char *user)
 }
 
 static int
-mgmt_ipc_handle(struct mgmt_ipc_db *dbt, int accept_fd)
+mgmt_ipc_handle(int accept_fd)
 {
 	struct sockaddr addr;
 	int fd, rc = 0, immrsp = 0;
@@ -374,13 +333,13 @@ mgmt_ipc_handle(struct mgmt_ipc_db *dbt, int accept_fd)
 
 	switch(req.command) {
 	case MGMT_IPC_SESSION_LOGIN:
-		rsp.err = mgmt_ipc_session_login(dbt, qtask, req.u.session.rid);
+		rsp.err = mgmt_ipc_session_login(qtask, &req.u.session.rec);
 		break;
 	case MGMT_IPC_SESSION_LOGOUT:
-		rsp.err = mgmt_ipc_session_logout(dbt, qtask, req.u.session.rid);
+		rsp.err = mgmt_ipc_session_logout(qtask, &req.u.session.rec);
 		break;
 	case MGMT_IPC_SESSION_SYNC:
-		rsp.err = mgmt_ipc_session_sync(dbt, qtask, req.u.session.rid,
+		rsp.err = mgmt_ipc_session_sync(qtask, &req.u.session.rec,
 						req.u.session.sid);
 		break;
 	case MGMT_IPC_SESSION_ACTIVELIST:
@@ -388,17 +347,15 @@ mgmt_ipc_handle(struct mgmt_ipc_db *dbt, int accept_fd)
 		immrsp = 1;
 		break;
 	case MGMT_IPC_SESSION_STATS:
-		rsp.err = mgmt_ipc_session_getstats(qtask, req.u.session.rid,
-				req.u.session.sid, &rsp);
+		rsp.err = mgmt_ipc_session_getstats(qtask, req.u.session.sid,
+						    &rsp);
 		immrsp = 1;
 		break;
 	case MGMT_IPC_CONN_ADD:
-		rsp.err = mgmt_ipc_conn_add(qtask, req.u.conn.rid,
-					    req.u.conn.cid);
+		rsp.err = mgmt_ipc_conn_add(qtask, req.u.conn.cid);
 		break;
 	case MGMT_IPC_CONN_REMOVE:
-		rsp.err = mgmt_ipc_conn_remove(qtask, req.u.conn.rid,
-					       req.u.conn.cid);
+		rsp.err = mgmt_ipc_conn_remove(qtask, req.u.conn.cid);
 		break;
 	case MGMT_IPC_CONFIG_INAME:
 		rsp.err = mgmt_ipc_cfg_initiatorname(qtask, &rsp);
@@ -467,8 +424,7 @@ reaper(void)
 #define POLL_MAX	2
 
 /* TODO: this should go somewhere else */
-void event_loop(struct iscsi_ipc *ipc, int control_fd, int mgmt_ipc_fd,
-		struct mgmt_ipc_db *dbt)
+void event_loop(struct iscsi_ipc *ipc, int control_fd, int mgmt_ipc_fd)
 {
 	struct pollfd poll_array[POLL_MAX];
 	int res;
@@ -486,7 +442,7 @@ void event_loop(struct iscsi_ipc *ipc, int control_fd, int mgmt_ipc_fd,
 				ipc->ctldev_handle();
 
 			if (poll_array[POLL_IPC].revents)
-				if (mgmt_ipc_handle(dbt, mgmt_ipc_fd) == 1)
+				if (mgmt_ipc_handle(mgmt_ipc_fd) == 1)
 					break;
 		} else if (res < 0) {
 			if (errno == EINTR) {

@@ -69,7 +69,6 @@ static struct option const long_options[] = {
 	{"password", required_argument, NULL, 'w'},
 	{"username_in", required_argument, NULL, 'U'},
 	{"password_in", required_argument, NULL, 'W'},
-	{"rec", required_argument, NULL, 'r'},
 	{"debug", required_argument, NULL, 'd'},
 	{"help", no_argument, NULL, 'h'},
 	{"version", no_argument, NULL, 'v'},
@@ -94,7 +93,6 @@ Open-iSCSI initiator.\n\
   -w, --password=N         set password to N (optional\n\
   -U, --username_in=N      set incoming username to N (optional)\n\
   -W, --password_in=N      set incoming password to N (optional\n\
-  -r, --rec=N              set record id (iscsid DB recid) to N (Required)\n\
   -d, --debug debuglevel   print debugging information \n\
   -h, --help               display this help and exit\n\
   -v, --version            display version and exit\n\
@@ -102,19 +100,6 @@ Open-iSCSI initiator.\n\
 	}
 	exit(status == 0 ? 0 : -1);
 }
-
-static int db_node_read(idbm_t *db, int rec_id, node_rec_t *rec)
-{
-	memcpy(rec, &config_rec, sizeof(struct node_rec));
-	return 0;
-}
-
-/*
- * we do not need the DB so we just return the single record
- */
-static struct mgmt_ipc_db mgmt_ipc_db = {
-	.node_read	= db_node_read,
-};
 
 static int stop_event_loop(void)
 {
@@ -141,7 +126,7 @@ static int setup_session(void)
 
 	memset(&req, 0, sizeof(req));
 	req.command = MGMT_IPC_SESSION_LOGIN;
-	req.u.session.rid = config_rec.id;
+	memcpy(&req.u.session.rec, &config_rec, sizeof(node_rec_t));
 	rc = do_iscsid(&ipc_fd, &req, &rsp);
 	if (rc > 0)
 		iscsid_handle_error(rc);
@@ -198,7 +183,6 @@ int main(int argc, char *argv[])
 	struct sigaction sa_old;
 	struct sigaction sa_new;
 	pid_t pid;
-	char *end;
 
 	idbm_node_setup_defaults(&config_rec);
 	config_rec.name[0] = '\0';
@@ -211,7 +195,7 @@ int main(int argc, char *argv[])
 	sa_new.sa_flags = 0;
 	sigaction(SIGINT, &sa_new, &sa_old );
 
-	while ((ch = getopt_long(argc, argv, "i:t:g:a:p:r:d:u:w:U:W:vh",
+	while ((ch = getopt_long(argc, argv, "i:t:g:a:p:d:u:w:U:W:vh",
 				 long_options, &longindex)) >= 0) {
 		switch (ch) {
 		case 'i':
@@ -257,15 +241,6 @@ int main(int argc, char *argv[])
 					    "username_in");
 			strncpy(auth->username_in, optarg, AUTH_STR_MAX_LEN);
 			break;	
-		case 'r':
-			config_rec.id = strtoul(optarg, &end, 0);
-			if (*end != '\0') {
-				fprintf(stderr,
-					"%s: invalid record number %s.\n",
-					program_name, optarg);
-				usage(1);
-			}
-			break;
 		case 'd':
 			log_level = atoi(optarg);
 			break;
@@ -336,7 +311,6 @@ int main(int argc, char *argv[])
 	log_debug(1, "TargetName=%s", config_rec.name);
 	log_debug(1, "TPGT=%d", config_rec.tpgt);
 	log_debug(1, "IP Address=%s", config_rec.conn[0].address);
-	log_debug(1, "recid=%x", config_rec.id);
 
 	/* log the version, so that we can tell if the daemon and kernel module
 	 * match based on what shows up in the syslog.  Tarballs releases
@@ -362,7 +336,7 @@ int main(int argc, char *argv[])
 	 * Start Main Event Loop
 	 */
 	actor_init();
-	event_loop(ipc, control_fd, mgmt_ipc_fd, &mgmt_ipc_db);
+	event_loop(ipc, control_fd, mgmt_ipc_fd);
 	ipc->ctldev_close();
 	mgmt_ipc_close(mgmt_ipc_fd);
 

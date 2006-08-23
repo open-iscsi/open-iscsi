@@ -53,12 +53,6 @@ int control_fd, mgmt_ipc_fd;
 
 extern char sysfs_file[];
 
-static struct mgmt_ipc_db mgmt_ipc_db = {
-	.init		= idbm_init,
-	.terminate	= idbm_terminate,
-	.node_read	= idbm_node_read,
-};
-
 static struct option const long_options[] = {
 	{"config", required_argument, NULL, 'c'},
 	{"initiatorname", required_argument, NULL, 'i'},
@@ -97,33 +91,63 @@ Open-iSCSI initiator daemon.\n\
 
 static int sync_session(iscsi_provider_t *provider, char *sys_session)
 {
+	char *targetname;
+	char *address;
 	idbm_t *db;
-	int rc;
-	int sid, rec_id;
+	node_rec_t rec;
+	int rc, sid, fd, port;
 	iscsiadm_req_t req;
 	iscsiadm_rsp_t rsp;
-	int fd;
 
 	log_debug(7, "sync session %s", sys_session);
+
+	targetname = malloc(TARGET_NAME_MAXLEN + 1);
+	if (!targetname)
+		return -ENOMEM;
+
+	address = malloc(NI_MAXHOST + 1);
+	if (!address) {
+		rc = -ENOMEM;
+		goto free_target;
+	}
 
 	db = idbm_init(daemon_config.config_file);
 	if (!db) {
 		log_error("could not open node database");
-		return -1;
+		rc = -EIO;
+		goto free_address;
 	}
 
-	rc = idbm_find_ids_by_session(db, &sid, &rec_id, sys_session);
+	rc = find_ids_by_session(&sid, targetname, address, &port,
+				 sys_session);
 	if (rc < 0) {
 		log_error("could not find record for %s", sys_session);
-		return -1;
+		goto term_idbm;
 	}
+
+	if (idbm_node_read(db, &rec, targetname, address, port)) {
+		log_error("could not read data for [%s,%s.%d] session %s\n",
+			  targetname, address, port, sys_session);
+		rc = -EIO;
+		goto term_idbm;
+	}
+
 	idbm_terminate(db);
 
 	memset(&req, 0, sizeof(req));
 	req.command = MGMT_IPC_SESSION_SYNC;
-	req.u.session.rid = rec_id;
 	req.u.session.sid = sid;
+	memcpy(&req.u.session.rec, &rec, sizeof(node_rec_t));
+
 	return do_iscsid(&fd, &req, &rsp);
+
+term_idbm:
+	idbm_terminate(db);
+free_address:
+	free(address);
+free_target:
+	free(targetname);
+	return rc;
 }
 
 static void sync_sessions(iscsi_provider_t *prv)
@@ -133,6 +157,9 @@ static void sync_sessions(iscsi_provider_t *prv)
 
 	sprintf(sysfs_file, "/sys/class/iscsi_session");
 	dirfd = opendir(sysfs_file);
+	if (!dirfd)
+		return;
+
 	while ((dent = readdir(dirfd))) {
 		if (!strcmp(dent->d_name, ".") || !strcmp(dent->d_name, ".."))
 			continue;
@@ -347,7 +374,7 @@ int main(int argc, char *argv[])
 	}
 
 	actor_init();
-	event_loop(ipc, control_fd, mgmt_ipc_fd, &mgmt_ipc_db);
+	event_loop(ipc, control_fd, mgmt_ipc_fd);
 	log_debug(1, "daemon stopping");
 	return 0;
 }

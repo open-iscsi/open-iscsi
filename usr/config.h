@@ -40,7 +40,7 @@
 #define TCP_WINDOW_SIZE (256 * 1024)
 
 /* number of possible connections per session */
-#define ISCSI_CONN_MAX		16
+#define ISCSI_CONN_MAX		1
 
 /* database version control */
 #define IDBM_VERSION		0x05
@@ -188,7 +188,6 @@ typedef struct session_rec {
 #define ISCSI_TRANSPORT_NAME_MAXLEN 16
 
 typedef struct node_rec {
-	int			id;
 	int			dbversion;
 	char			name[TARGET_NAME_MAXLEN];
 	char			transport_name[ISCSI_TRANSPORT_NAME_MAXLEN];

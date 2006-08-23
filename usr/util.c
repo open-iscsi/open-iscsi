@@ -52,6 +52,31 @@ int oom_adjust(void)
 	return 0;
 }
 
+char*
+str_to_ipport(char *str, int *port, int delim)
+{
+	char *sport = str;
+
+	if (!strchr(str, '.')) {
+		if (*str == '[') {
+			if (!(sport = strchr(str, ']')))
+				return NULL;
+			*sport++ = '\0';
+			str++;
+		} else
+			sport = NULL;
+	}
+
+	if (sport && (sport = strchr(sport, delim))) {
+		*sport = '\0';
+		sport++;
+		*port = strtoul(sport, NULL, 10);
+	} else
+		*port = DEF_ISCSI_PORT;
+
+	return str;
+}
+
 static int iscsid_connect(void)
 {
 	int fd, err;
@@ -200,6 +225,10 @@ void iscsid_handle_error(int err)
 	log_error("initiator reported error (%d - %s)", err, err_msgs[err]);
 }
 
+
+/*
+ * SYSFS helpers
+ */
 int read_sysfs_int_attr(char *path, uint32_t *retval)
 {
 	int fd, err = 0;
@@ -250,6 +279,57 @@ int read_sysfs_str_attr(char *path, char *retval, int buflen)
 
 	close(fd);
 	return err;
+}
+
+int find_ids_by_session(int *sid, char *targetname, char *addr,
+			int *port, char *session)
+{
+	int ret;
+	char *sysfs_file;
+
+	sysfs_file = malloc(PATH_MAX);
+	if (!sysfs_file)
+		return -ENOMEM;
+
+	if (sscanf(session, "session%d", sid) != 1) {
+		log_error("invalid session '%s'", session);
+		ret = errno;
+		goto free_file;
+	}
+
+	memset(sysfs_file, 0, PATH_MAX);
+	sprintf(sysfs_file, "/sys/class/iscsi_session/%s/targetname", session);
+	ret = read_sysfs_str_attr(sysfs_file, targetname, TARGET_NAME_MAXLEN);
+	if (ret) {
+		log_error("could not read session targetname: %d", ret);
+		goto free_file;
+	}
+
+	memset(sysfs_file, 0, PATH_MAX);
+	sprintf(sysfs_file, "/sys/class/iscsi_connection/connection%d:0/"
+		"persistent_address", *sid);
+	ret = read_sysfs_str_attr(sysfs_file, addr, NI_MAXHOST);
+	if (ret) {
+		log_error("could not read conn addr: %d", ret);
+		goto free_file;
+	}
+
+	memset(sysfs_file, 0, PATH_MAX);
+	sprintf(sysfs_file, "/sys/class/iscsi_connection/connection%d:0/"
+		"persistent_port", *sid);
+	ret = read_sysfs_int_attr(sysfs_file, (uint32_t *)port);
+	if (ret) {
+		log_error("Could not read conn port %d\n", ret);
+		goto free_file;
+	}
+
+	log_debug(7, "found targetname %s address %s port %d\n",
+		  targetname, addr, *port);
+	return 0;
+
+free_file:
+	free(sysfs_file);
+	return ret;
 }
 
 void check_class_version(void)

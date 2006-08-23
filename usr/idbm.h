@@ -63,27 +63,24 @@ extern char* get_iscsi_initiatorname(char *pathname);
 extern char* get_iscsi_initiatoralias(char *pathname);
 extern idbm_t* idbm_init(char *configfile);
 extern void idbm_terminate(idbm_t *db);
-extern int idbm_print_node(idbm_t *db, int rec_id, int show);
-extern int idbm_print_nodes(idbm_t *db, discovery_rec_t *rec);
-extern int idbm_print_discovery(idbm_t *db, int rec_id);
+extern int idbm_print_node(idbm_t *db, node_rec_t *rec, int show);
+extern int idbm_print_nodes(idbm_t *db);
+extern int idbm_print_discovery(idbm_t *db, discovery_rec_t *rec, int show);
+extern int idbm_print_all_discovery(idbm_t *db);
 extern int idbm_delete_discovery(idbm_t *db, discovery_rec_t *rec);
 extern void idbm_node_setup_defaults(node_rec_t *rec);
 extern int idbm_delete_node(idbm_t *db, node_rec_t *rec);
 extern int idbm_new_node(idbm_t *db, node_rec_t *newrec);
-extern int idbm_add_node(idbm_t *db, discovery_rec_t *drec, node_rec_t *newrec);
 extern int idbm_add_discovery(idbm_t *db, discovery_rec_t *newrec);
 extern discovery_rec_t* idbm_new_discovery(idbm_t *db, char *ip, int port,
 			    discovery_type_e type, char *info);
 extern void idbm_sendtargets_defaults(idbm_t *db,
 		      struct iscsi_sendtargets_config *cfg);
 extern void idbm_slp_defaults(idbm_t *db, struct iscsi_slp_config *cfg);
-extern int idbm_discovery_read(idbm_t *db, int rec_id, discovery_rec_t *rec);
-extern int idbm_node_read(idbm_t *db, int rec_id, node_rec_t *rec);
-extern int idbm_node_write(idbm_t *db, int rec_id, node_rec_t *rec);
+extern int idbm_discovery_read(idbm_t *db, discovery_rec_t *rec, char *addr,
+				int port);
+extern int idbm_node_read(idbm_t *db, node_rec_t *out_rec, char *target_name,
+			 char *addr, int port);
 extern int idbm_node_set_param(idbm_t *db, node_rec_t *rec, char *name,
 			       char *value);
-extern int idbm_find_ids_by_session(idbm_t *db, int *sid, int *rec_id,
-				    char *sys_session);
-extern int idbm_remove_all(void);
-
 #endif /* IDBM_H */

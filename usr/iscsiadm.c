@@ -52,7 +52,6 @@ enum iscsiadm_mode {
 	MODE_DISCOVERY,
 	MODE_NODE,
 	MODE_SESSION,
-	MODE_DB,
 };
 
 enum iscsiadm_op {
@@ -66,23 +65,23 @@ static struct option const long_options[] =
 {
 	{"mode", required_argument, NULL, 'm'},
 	{"portal", required_argument, NULL, 'p'},
+	{"targetname", required_argument, NULL, 'T'},
 	{"op", required_argument, NULL, 'o'},
 	{"type", required_argument, NULL, 't'},
 	{"name", required_argument, NULL, 'n'},
 	{"value", required_argument, NULL, 'v'},
-	{"record", required_argument, NULL, 'r'},
+	{"sid", required_argument, NULL, 'r'},
 	{"login", no_argument, NULL, 'l'},
 	{"logout", no_argument, NULL, 'u'},
 	{"stats", no_argument, NULL, 's'},
 	{"debug", required_argument, NULL, 'g'},
 	{"map", required_argument, NULL, 'M'},
 	{"show", no_argument, NULL, 'S'},
-	{"remove", no_argument, NULL, 'R'},
 	{"version", no_argument, NULL, 'V'},
 	{"help", no_argument, NULL, 'h'},
 	{NULL, 0, NULL, 0},
 };
-static char *short_options = "lVhm:M:p:d:r:n:v:o:sSt:uR";
+static char *short_options = "lVhm:M:p:T:d:r:n:v:o:sSt:u";
 
 static void usage(int status)
 {
@@ -93,7 +92,7 @@ static void usage(int status)
 		printf("\
 iscsiadm -m discovery [ -dhV ] [ -t type -p ip [ -l ] ] | [ -r recid ] \
 [ -o operation ] [ -n name ] [ -v value ]\n\
-iscsiadm -m node [ -dhV ] [ -S ] [ [ -r recid | -M sysdir ] [ -l | -u ] ] \
+iscsiadm -m node [ -dhV ] [ -S ] [ [ -T targetname -p ip | -M sysdir ] [ -l | -u ] ] \
 [ [ -o  operation  ] [ -n name ] [ -v value ] [ -p ip ] ]\n\
 iscsiadm -m session [ -dhV ] [ -r [sid:]recid [ -u | -s ] ]\n");
 	}
@@ -130,8 +129,6 @@ str_to_mode(char *str)
 		mode = MODE_NODE;
 	else if (!strcmp("session", str))
 		mode = MODE_SESSION;
-	else if (!strcmp("db", str))
-		mode = MODE_DB;
 	else
 		mode = -1;
 
@@ -156,60 +153,12 @@ str_to_type(char *str)
 	return type;
 }
 
-static char*
-str_to_ipport(char *str, int *port)
-{
-	char *sport = str;
-
-	if (!strchr(str, '.')) {
-		if (*str == '[') {
-			if (!(sport = strchr(str, ']')))
-				return NULL;
-			*sport++ = '\0';
-			str++;
-		} else
-			sport = NULL;
-	}
-
-	if (sport && (sport = strchr(sport, ':'))) {
-		*sport = '\0';
-		sport++;
-		*port = strtoul(sport, NULL, 10);
-	} else
-		*port = DEF_ISCSI_PORT;
-
-	return str;
-}
-
 static int
-str_to_ridsid(char *str, int *sid)
+sys_to_rec(idbm_t *db, node_rec_t *rec, char *sysfs_device)
 {
-	char *ptr, *eptr;
-	int rid;
-
-	if ((ptr = strchr(str, ':'))) {
-		*ptr = '\0';
-		ptr++;
-		*sid = strtoul(str, &eptr, 10);
-		if (eptr == str)
-			*sid = -1;
-	} else {
-		*sid = -1;
-		ptr = str;
-	}
-
-	rid = strtoul(ptr, &eptr, 16);
-	if (eptr == ptr)
-		rid = -1;
-	return rid;
-}
-
-static int
-sys_to_rid(idbm_t *db, char *sysfs_device)
-{
-	int sid, rec_id;
-	int rc;
-	int len;
+	char *targetname;
+	char *address;
+	int sid, rc, port, len;
 	struct stat statb;
 	char sys_session[64], *start, *last;
 
@@ -247,38 +196,61 @@ sys_to_rid(idbm_t *db, char *sysfs_device)
 		exit(1);
 	}
 
+	targetname = malloc(TARGET_NAME_MAXLEN + 1);
+	if (!targetname)
+		return -ENOMEM;
+
+	address = malloc(NI_MAXHOST + 1);
+	if (!address) {
+		rc = -ENOMEM;
+		goto free_target;
+	}
+
 	log_debug(2, "%s: session %s", __FUNCTION__, sys_session);
-	rc = idbm_find_ids_by_session(db, &sid, &rec_id, sys_session);
+	rc = find_ids_by_session(&sid, targetname, address, &port,
+				 sys_session);
 	if (rc < 0) {
 		log_error("Unable to find a record for iscsi %s (sys %s)",
 			  sys_session, sysfs_device);
-		return rc;
+		goto free_address;
 	}
-	return rec_id;
+
+	rc = idbm_node_read(db, rec, targetname, address, port);
+	if (rc) {
+		log_error("node [%s, %s, %d] not found!",
+			  targetname, address, port);
+		goto free_address;
+	}
+
+free_address:
+	free(address);
+free_target:
+	free(targetname);
+	return rc;
 }
 
 static int
-session_login(int rid, node_rec_t *rec)
+session_login(node_rec_t *rec)
 {
 	iscsiadm_req_t req;
 	iscsiadm_rsp_t rsp;
 
-	memset(&req, 0, sizeof(req));
+	memset(&req, 0, sizeof(iscsiadm_req_t));
 	req.command = MGMT_IPC_SESSION_LOGIN;
-	req.u.session.rid = rid;
+	memcpy(&req.u.session.rec, rec, sizeof(node_rec_t));
 
 	return do_iscsid(&ipc_fd, &req, &rsp);
 }
 
 static int
-session_logout(int rid, node_rec_t *rec)
+session_logout(node_rec_t *rec)
 {
 	iscsiadm_req_t req;
 	iscsiadm_rsp_t rsp;
 
 	memset(&req, 0, sizeof(req));
 	req.command = MGMT_IPC_SESSION_LOGOUT;
-	req.u.session.rid = rid;
+	memcpy(&req.u.session.rec, rec, sizeof(node_rec_t));
 
 	return do_iscsid(&ipc_fd, &req, &rsp);
 }
@@ -332,6 +304,8 @@ session_activelist(idbm_t *db)
 	int rc, i;
 	iscsiadm_req_t req;
 	iscsiadm_rsp_t rsp;
+	char *targetname, *address, *sysfs_file;
+	uint32_t port, tpgt, sid;
 
 	memset(&req, 0, sizeof(req));
 	req.command = MGMT_IPC_SESSION_ACTIVELIST;
@@ -339,48 +313,85 @@ session_activelist(idbm_t *db)
 	rc = do_iscsid(&ipc_fd, &req, &rsp);
 	if (rc)
 		return rc;
-	/* display all active sessions */
-	for (i = 0; i < rsp.u.activelist.cnt; i++) {
-		node_rec_t rec;
 
-		if (idbm_node_read(db, rsp.u.activelist.rids[i], &rec)) {
-			log_error("no record [%06x] found!",
-				  rsp.u.activelist.rids[i]);
-			return -1;
-		}
-		printf("[%02d:%06x] %s:%d,%d %s\n",
-			rsp.u.activelist.sids[i], rec.id, rec.conn[0].address,
-			rec.conn[0].port, rec.tpgt, rec.name);
+	targetname = malloc(TARGET_NAME_MAXLEN + 1);
+	if (!targetname)
+		return -ENOMEM;
+
+	address = malloc(NI_MAXHOST + 1);
+	if (!address) {
+		rc = -ENOMEM;
+		goto free_target;
 	}
 
-	return i;
+	sysfs_file = malloc(PATH_MAX);
+	if (!sysfs_file) {
+		rc = -ENOMEM;
+		goto free_address;
+	}
+
+	/* display all active sessions */
+	for (i = 0; i < rsp.u.activelist.cnt; i++) {
+		sid = rsp.u.activelist.sids[i];
+		memset(sysfs_file, 0, PATH_MAX);
+		sprintf(sysfs_file,
+			"/sys/class/iscsi_session/session%u/targetname", sid);
+		rc = read_sysfs_str_attr(sysfs_file, targetname,
+					  TARGET_NAME_MAXLEN);
+		if (rc)
+			log_error("could not read session targetname: %d", rc);
+
+		memset(sysfs_file, 0, PATH_MAX);
+		sprintf(sysfs_file, "/sys/class/iscsi_session/session%u/tpgt",
+			sid);
+		rc = read_sysfs_int_attr(sysfs_file, &tpgt);
+		if (rc)
+	                log_error("Could not read tpgt %d\n", rc);
+
+		memset(sysfs_file, 0, PATH_MAX);
+		sprintf(sysfs_file,
+			"/sys/class/iscsi_connection/connection%d:0/address",
+			sid);
+		rc = read_sysfs_str_attr(sysfs_file, address, NI_MAXHOST);
+		if (rc)
+			log_error("could not read conn address: %d", rc);
+
+		memset(sysfs_file, 0, PATH_MAX);
+		sprintf(sysfs_file,
+			"/sys/class/iscsi_connection/connection%d:0/port", sid);
+		rc = read_sysfs_int_attr(sysfs_file, &port);
+		if (rc)
+			log_error("Could not read conn port %d\n", rc);
+
+		printf("[%02d] %s:%d,%d %s\n",
+			sid, address, port, tpgt, targetname);
+	}
+	rc = i;
+
+	free(sysfs_file);
+free_address:
+	free(address);
+free_target:
+	free(targetname);
+	return rc;
 }
 
 static int
-session_stats(idbm_t *db, int rid, int sid)
+session_stats(idbm_t *db, int sid)
 {
 	int rc, i;
 	iscsiadm_req_t req;
 	iscsiadm_rsp_t rsp;
-	node_rec_t rec;
-
-	if (idbm_node_read(db, rid, &rec)) {
-		log_error("no record [%06x] found!", rid);
-		return -1;
-	}
 
 	memset(&req, 0, sizeof(req));
 	req.command = MGMT_IPC_SESSION_STATS;
-	req.u.session.rid = rid;
 	req.u.session.sid = sid;
 
 	rc = do_iscsid(&ipc_fd, &req, &rsp);
 	if (rc)
 		return rc;
 
-	printf("[%02d:%06x] %s:%d,%d %s\n",
-		sid, rid, rec.conn[0].address, rec.conn[0].port,
-		rec.tpgt, rec.name);
+	printf("[%02d]\n", sid);
 	printf( "iSCSI SNMP:\n"
 
 		"\ttxdata_octets: %lld\n"
@@ -459,7 +470,7 @@ do_sendtargets(idbm_t *db, struct iscsi_sendtargets_config *cfg)
 		discovery_rec_t *drec;
 		if ((drec = idbm_new_discovery(db, cfg->address, cfg->port,
 		    DISCOVERY_TYPE_SENDTARGETS, info.buffer))) {
-			idbm_print_nodes(db, drec);
+			idbm_print_nodes(db);
 			free(drec);
 		}
 	}
@@ -499,9 +510,9 @@ int
 main(int argc, char **argv)
 {
 	char *ip = NULL, *name = NULL, *value = NULL, *sysfs_device = NULL;
+	char *targetname = NULL;
 	int ch, longindex, mode=-1, port=-1, do_login=0;
-	int rc=0, rid=-1, sid=-1, op=-1, type=-1, do_logout=0, do_stats=0;
-	int do_show=0, do_remove=0;
+	int rc=0, sid=-1, op=-1, type=-1, do_logout=0, do_stats=0, do_show=0;
 	idbm_t *db;
 	struct sigaction sa_old;
 	struct sigaction sa_new;
@@ -544,9 +555,9 @@ main(int argc, char **argv)
 			value = optarg;
 			break;
 		case 'r':
-			rid = str_to_ridsid(optarg, &sid);
-			if (rid < 0) {
-				log_error("invalid record '%s'",
+			sid = atoi(optarg);
+			if (sid < 0) {
+				log_error("invalid sid '%s'",
 					  optarg);
 				return -1;
 			}
@@ -572,11 +583,11 @@ main(int argc, char **argv)
 		case 'M':
 			sysfs_device = optarg;
 			break;
-		case 'R':
-			do_remove = 1;
+		case 'T':
+			targetname = optarg;
 			break;
 		case 'p':
-			ip = str_to_ipport(optarg, &port);
+			ip = str_to_ipport(optarg, &port, ':');
 			break;
 		case 'V':
 			printf("%s version %s\n", program_name,
@@ -595,16 +606,6 @@ main(int argc, char **argv)
 	if (mode < 0) 
 		usage(0);
 
-	if (mode == MODE_DB) {
-		if (!do_remove) {
-			log_error("Try iscsiadm -m db --remove\n");
-			exit(-1);
-		}
-
-		idbm_remove_all();
-		exit(0);
-	}
-
 	db = idbm_init(config_file);
 	if (!db) {
 		log_warning("exiting due to idbm configuration error");
@@ -612,7 +613,7 @@ main(int argc, char **argv)
 	}
 
 	if (mode == MODE_DISCOVERY) {
-		if ((rc = verify_mode_params(argc, argv, "dmtplro", 0))) {
+		if ((rc = verify_mode_params(argc, argv, "dmtplo", 0))) {
 			log_error("discovery mode: option '-%c' is not "
 				  "allowed/supported", rc);
 			rc = -1;
@@ -650,12 +651,12 @@ main(int argc, char **argv)
 			rc = -1;
 			goto out;
 		} else if (type < 0) {
-			if (rid >= 0) {
+			if (ip) {
 				discovery_rec_t rec;
 
-				if (idbm_discovery_read(db, rid, &rec)) {
-					log_error("discovery record [%06x] "
-						  "not found!", rid);
+				if (idbm_discovery_read(db, &rec, ip, port)) {
+					log_error("discovery record [%s,%d] "
+						  "not found!", ip, port);
 					rc = -1;
 					goto out;
 				}
@@ -675,7 +676,8 @@ main(int argc, char **argv)
 					rc = -1;
 					goto out;
 				} else if (op < 0 || op == OP_SHOW) {
-					if (!idbm_print_discovery(db, rid)) {
+					if (!idbm_print_discovery(db, &rec,
+								  do_show)) {
 						log_error("no records found!");
 						rc = -1;
 					}
@@ -692,7 +694,7 @@ main(int argc, char **argv)
 				}
 
 			} else if (op < 0 || op == OP_SHOW) {
-				if (!idbm_print_discovery(db, rid)) {
+				if (!idbm_print_all_discovery(db)) {
 					log_error("no records found!");
 					rc = -1;
 				}
@@ -710,35 +712,41 @@ main(int argc, char **argv)
 			}
 		}
 	} else if (mode == MODE_NODE) {
-		if ((rc = verify_mode_params(argc, argv, "dmMlSronvup", 0))) {
+		node_rec_t rec;
+
+		memset(&rec, 0, sizeof(node_rec_t));
+		if ((rc = verify_mode_params(argc, argv, "dmMlSonvupT", 0))) {
 			log_error("node mode: option '-%c' is not "
 				  "allowed/supported", rc);
 			rc = -1;
 			goto out;
 		}
 		if (sysfs_device) {
-			if (rid >= 0) {
-				log_error("only one of map and recid may be"
-					  " specified");
+			if (targetname && ip) {
+				log_error("only one of map and "
+					  "targetname,portal may be specified");
 				rc = -1;
 				goto out;
 			}
-			rid = sys_to_rid(db, sysfs_device);
-			if (rid < 0) {
+			if (sys_to_rec(db, &rec, sysfs_device)) {
 				rc = -1;
 				goto out;
 			}
-			/* fall through */
+			/* bleh */
+			goto found_node_rec;
 		}
-		if (rid >= 0) {
-			node_rec_t rec;
 
-			log_debug(2, "%s: record 0x%x", __FUNCTION__, rid);
-			if (idbm_node_read(db, rid, &rec)) {
-				log_error("node record [%06x] not found!", rid);
+		if (targetname && ip && op != OP_NEW) {
+			log_debug(2, "%s: node [%s,%s,%d]", __FUNCTION__,
+				  targetname, ip, port);
+			if (idbm_node_read(db, &rec, targetname, ip, port)) {
+				log_error("node [%s, %s, %d] not found!",
+					  targetname, ip, port);
 				rc = -1;
 				goto out;
 			}
+
+found_node_rec:
 			if (do_login && do_logout) {
 				log_error("either login or "
 					  "logout at the time allowed!");
@@ -752,21 +760,21 @@ main(int argc, char **argv)
 				goto out;
 			}
 			if (!do_login && !do_logout && op < 0) {
-				if (!idbm_print_node(db, rid, do_show)) {
+				if (!idbm_print_node(db, &rec, do_show)) {
 					log_error("no records found!");
 					rc = -1;
 				}
 				goto out;
 			}
 			if (do_login) {
-				if ((rc = session_login(rid, &rec)) > 0) {
+				if ((rc = session_login(&rec)) > 0) {
 					iscsid_handle_error(rc);
 					rc = -1;
 				}
 				goto out;
 			}
 			if (do_logout) {
-				if ((rc = session_logout(rid, &rec)) > 0) {
+				if ((rc = session_logout(&rec)) > 0) {
 					iscsid_handle_error(rc);
 					rc = -1;
 				}
@@ -796,31 +804,28 @@ main(int argc, char **argv)
 				goto out;
 			}
 		} else if (op < 0 || op == OP_SHOW) {
-			if (!idbm_print_node(db, rid, do_show)) {
+			if (!idbm_print_nodes(db)) {
 				log_error("no records found!");
 				rc = -1;
 				goto out;
 			}
 		} else if (op == OP_NEW) {
-			node_rec_t nrec;
-			if (!ip) {
-				log_error("--portal required for new "
+			if (!ip || !targetname) {
+				log_error("portal and target required for new "
 					  "node record");
 				rc = -1;
 				goto out;
 			}
-			idbm_node_setup_defaults(&nrec);
-			strncpy(nrec.name, "<not specified>",
-				TARGET_NAME_MAXLEN);
-			nrec.conn[0].port = port;
-			strncpy(nrec.conn[0].address, ip, 16);
-			if (idbm_new_node(db, &nrec)) {
+			idbm_node_setup_defaults(&rec);
+			strncpy(rec.name, targetname, TARGET_NAME_MAXLEN);
+			rec.conn[0].port = port;
+			strncpy(rec.conn[0].address, ip, NI_MAXHOST);
+			if (idbm_new_node(db, &rec)) {
 				log_error("can not add new record.");
 				rc = -1;
 				goto out;
 			}
-			printf("new iSCSI node record added: [%06x]\n",
-				nrec.id);
+			printf("new iSCSI node record added\n");
 		} else if (op == OP_DELETE) {
 			log_error("--record required for delete operation");
 			rc = -1;
@@ -831,13 +836,13 @@ main(int argc, char **argv)
 			goto out;
 		}
 	} else if (mode == MODE_SESSION) {
-		if ((rc = verify_mode_params(argc, argv, "dmrus", 1))) {
+		if ((rc = verify_mode_params(argc, argv, "drmus", 1))) {
 			log_error("session mode: option '-%c' is not "
 				  "allowed or supported", rc);
 			rc = -1;
 			goto out;
 		}
-		if (rid >= 0) {
+		if (sid >= 0) {
 			if (do_logout && do_stats) {
 				log_error("--logout or --stats? what exactly?");
 				rc = -1;
@@ -849,7 +854,7 @@ main(int argc, char **argv)
 				goto out;
 			}
 			if (do_stats) {
-				if ((rc = session_stats(db, rid, sid)) > 0) {
+				if ((rc = session_stats(db, sid)) > 0) {
 					iscsid_handle_error(rc);
 					log_error("can not get statistics for "
 						"session with SID %d (%d)",
@@ -860,12 +865,12 @@ main(int argc, char **argv)
 			}
 		} else {
 			if (do_logout) {
-				log_error("--logout requires record id");
+				log_error("--logout requires target id");
 				rc = -1;
 				goto out;
 			}
 			if (do_stats) {
-				log_error("--stats requires record id");
+				log_error("--stats requires target id");
 				rc = -1;
 				goto out;
 			}

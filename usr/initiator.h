@@ -31,23 +31,13 @@
 #include "actor.h"
 #include "queue.h"
 
-#define CONFIG_FILE		"/etc/iscsid.conf"
-#define PID_FILE		"/var/run/iscsid.pid"
-#define INITIATOR_NAME_FILE	"/etc/initiatorname.iscsi"
-#ifndef DISCOVERY_FILE
-#define DISCOVERY_FILE		"/var/db/iscsi/discovery"
-#define DISCOVERY_DB_FILE	"/var/db/iscsi/discovery.db"
-#endif
-#ifndef NODE_FILE
-#define NODE_FILE		"/var/db/iscsi/node"
-#define	NODE_DB_FILE		"/var/db/iscsi/node.db"
-#endif
-#ifndef LOCK_FILE
-#define LOCK_FILE		"/var/db/iscsi/lock"
-#endif
-#ifndef LOCK_WRITE_FILE
-#define LOCK_WRITE_FILE		"/var/db/iscsi/lock.write"
-#endif
+#define ST_CONFIG_DIR		"/etc/iscsi/send_targets"
+#define NODE_CONFIG_DIR		"/etc/iscsi/nodes"
+#define CONFIG_FILE		"/etc/iscsi/iscsid.conf"
+#define PID_FILE		"/etc/iscsi/iscsid.pid"
+#define INITIATOR_NAME_FILE	"/etc/iscsi/initiatorname.iscsi"
+#define LOCK_FILE		"/etc/iscsi/lock"
+#define LOCK_WRITE_FILE		"/etc/iscsi/lock.write"
 
 #define DEF_ISCSI_PORT		3260
 

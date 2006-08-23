@@ -21,6 +21,7 @@
 
 #include "types.h"
 #include "iscsi_if.h"
+#include "config.h"
 
 #define ISCSIADM_NAMESPACE	"ISCSIADM_ABSTRACT_NAMESPACE"
 #define PEERUSER_MAX		64
@@ -67,11 +68,10 @@ typedef struct iscsiadm_req {
 	union {
 		/* messages */
 		struct msg_session {
-			int rid;
 			int sid;
+			node_rec_t rec;
 		} session;
 		struct msg_conn {
-			int rid;
 			int sid;
 			int cid;
 		} conn;
@@ -87,7 +87,6 @@ typedef struct iscsiadm_rsp {
 		struct msg_activelist {
 #define MGMT_IPC_ACTIVELIST_MAX		64
 			int sids[MGMT_IPC_ACTIVELIST_MAX];
-			int rids[MGMT_IPC_ACTIVELIST_MAX];
 			int cnt;
 		} activelist;
 #define MGMT_IPC_GETSTATS_BUF_MAX	(sizeof(struct iscsi_uevent) + \
@@ -106,20 +105,10 @@ typedef struct iscsiadm_rsp {
 	} u;
 } iscsiadm_rsp_t;
 
-struct idbm;
-struct node_rec;
-
-struct mgmt_ipc_db {
-	struct idbm *(*init)(char *configfile);
-	int (* node_read)(struct idbm *db, int rec_id, struct node_rec *rec);
-	void (* terminate)(struct idbm *db);
-};
-
 struct iscsi_ipc *ipc;
 
 void need_reap(void);
-void event_loop(struct iscsi_ipc *ipc, int control_fd, int mgmt_ipc_fd,
-		struct mgmt_ipc_db *db);
+void event_loop(struct iscsi_ipc *ipc, int control_fd, int mgmt_ipc_fd);
 int mgmt_ipc_listen(void);
 void mgmt_ipc_close(int fd);
 
