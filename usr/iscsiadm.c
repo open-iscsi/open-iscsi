@@ -90,11 +90,11 @@ static void usage(int status)
 			program_name);
 	else {
 		printf("\
-iscsiadm -m discovery [ -dhV ] [ -t type -p ip [ -l ] ] | [ -r recid ] \
+iscsiadm -m discovery [ -dhV ] [ -t type -p ip:port [ -l ] ] | [ -p ip:port ] \
 [ -o operation ] [ -n name ] [ -v value ]\n\
-iscsiadm -m node [ -dhV ] [ -S ] [ [ -T targetname -p ip | -M sysdir ] [ -l | -u ] ] \
-[ [ -o  operation  ] [ -n name ] [ -v value ] [ -p ip ] ]\n\
-iscsiadm -m session [ -dhV ] [ -r [sid:]recid [ -u | -s ] ]\n");
+iscsiadm -m node [ -dhV ] [ -S ] [ [ -T targetname -p ip:port | -M sysdir ] [ -l | -u ] ] \
+[ [ -o  operation  ] [ -n name ] [ -v value ] [ -p ip:port ] ]\n\
+iscsiadm -m session [ -dhV ] [ -r sessionid [ -u | -s ] ]\n");
 	}
 	exit(status == 0 ? 0 : -1);
 }
