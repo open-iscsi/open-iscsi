@@ -860,6 +860,34 @@ queue_delayed_reopen(queue_task_t *qtask)
 	actor_timer(&conn->connect_timer, 5*1000, __connect_timedout, qtask);
 }
 
+static void
+reset_iscsi_params(iscsi_conn_t *conn)
+{
+	iscsi_session_t *session = conn->session;
+	conn_rec_t *conn_rec = &session->nrec.conn[conn->id];
+	node_rec_t *rec = &session->nrec;
+
+	/* operational parameters */
+	conn->max_recv_dlength =
+			__padding(conn_rec->iscsi.MaxRecvDataSegmentLength);
+	/*
+	 * iSCSI default, unless declared otherwise by the
+	 * target during login
+	 */
+	conn->max_xmit_dlength = DEFAULT_MAX_RECV_DATA_SEGMENT_LENGTH;
+	conn->hdrdgst_en = conn_rec->iscsi.HeaderDigest;
+	conn->datadgst_en = conn_rec->iscsi.DataDigest;
+
+	/* session's operational parameters */
+	session->initial_r2t_en = rec->session.iscsi.InitialR2T;
+	session->imm_data_en = rec->session.iscsi.ImmediateData;
+	session->first_burst = __padding(rec->session.iscsi.FirstBurstLength);
+	session->max_burst = __padding(rec->session.iscsi.MaxBurstLength);
+	session->def_time2wait = rec->session.iscsi.DefaultTime2Wait;
+	session->def_time2retain = rec->session.iscsi.DefaultTime2Retain;
+	session->erl = rec->session.iscsi.ERL;
+}
+
 static int
 __session_conn_reopen(iscsi_conn_t *conn, queue_task_t *qtask, int do_stop)
 {
@@ -869,6 +897,7 @@ __session_conn_reopen(iscsi_conn_t *conn, queue_task_t *qtask, int do_stop)
 	log_debug(1, "re-opening session %d (reopen_cnt %d)", session->id,
 			session->reopen_cnt);
 
+	reset_iscsi_params(conn);
 	qtask->conn = conn;
 
 	/* flush stale polls or errors queued */
