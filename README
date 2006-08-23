@@ -168,29 +168,29 @@ Usage: iscsiadm [OPTION]
                           each discovered target if --login is specified
   -m discovery            display all discovery records from internal
                           persistent discovery database
-  -m discovery --record=[id] --login
-                          perform discovery based on record [id] in database
-  -m discovery --record=[id] --op=[op] [--name=[name] --value=[value]]
+  -m discovery --portal=[ip:port] --login
+                          perform discovery based on portal in database
+  -m discovery --portal=[ip:port] --op=[op] [--name=[name] --value=[value]]
                           perform specific DB operation [op] for specific
-                          discovery record with [id]. It could be one of:
+                          discovery portal. It could be one of:
                           [new], [delete], [update] or [show]. In case of
                           [update], you have to provide [name] and [value]
                           you wish to update
   -m node                 display all discovered nodes from internal
                           persistent discovery database
-  -m node --record=[id] [--login|--logout]
-  -m node --record=[id] --op=[op] [--name=[name] --value=[value]]
+  -m node --targetname=[name] --portal=[ip:port] [--login|--logout]
+  -m node --targetname=[name] --portal=[ip:port] --op=[op] [--name=[name] \
+							--value=[value]]
                           perform specific DB operation [op] for specific
-                          node with record [id]. It could be one of:
+                          portal on target. It could be one of:
                           [new], [delete], [update] or [show]. In case of
                           [update], you have to provide [name] and [value]
                           you wish to update
   -m session              display all active sessions and connections
-  -m session --record=[id[:cid]] [--logout]
+  -m session --sid=[sid] [--logout]
                           perform operation for specific session with
-                          record [id] or display statistics if no operation
-                          specified. Operation will affect one connection
-                          only if [:cid] is specified
+                          session id sid or display statistics if no operation
+                          specified.
   -d, --debug debuglevel  print debugging information
   -V, --version           display version and exit
   -h, --help              display this help and exit
@@ -204,16 +204,16 @@ Usage: iscsiadm [OPTION]
 
     2) iSCSI Login:
 
-	    ./iscsiadm -m node -r 0f23e4 -l
+	    ./iscsiadm -m node -T iqn.2005-03.com.max -p 192.168.0.4:3260 -l
 
     3) iSCSI Logout:
 
-	    ./iscsiadm -m node -r 0f23e4 -u
+	    ./iscsiadm -m node -T iqn.2005-03.com.max -p 192.168.0.4:3260  -u
 
     4) Changing iSCSI parameter:
 
-	    ./iscsiadm -m node -r 0f23e4 -o update \
-		    -n node.cnx[0].iscsi.MaxRecvDataSegmentLength -v 65536
+	    ./iscsiadm -m node -T iqn.2005-03.com.max -p 192.168.0.4:3260 \
+	       -o update -n node.cnx[0].iscsi.MaxRecvDataSegmentLength -v 65536
 
     5) Adding custom iSCSI Node:
 
@@ -221,15 +221,15 @@ Usage: iscsiadm [OPTION]
 
     6) Removing iSCSI Node:
 
-	    ./iscsiadm -m node -o delete -r 0a45f8
+	    ./iscsiadm -m node -o delete -T iqn.2005-03.com.max -p 192.168.0.4:3260
 
     7) Display iSCSI Node configuration:
 
-	    ./iscsiadm -m node -r 0a45f8
+	    ./iscsiadm -m node -T iqn.2005-03.com.max -p 192.168.0.4:3260
 
 	or
 
-	    ./iscsiadm -m node -o show -r 0a45f8
+	    ./iscsiadm -m node -o show -T iqn.2005-03.com.max -p 192.168.0.4:3260
 
     8) Show all node records:
 
@@ -241,11 +241,11 @@ Usage: iscsiadm [OPTION]
 
    10) Display discovery record setting:
 
-            ./iscsiadm -m discovery -r 0a45f8
+            ./iscsiadm -m discovery -p 192.168.0.4:3260
 
    11) Display session statistics:
 
-            ./iscsiadm -m session -r 00:0a45f8 --stats
+            ./iscsiadm -m session -r 1 --stats
 
 6. Configuration
 ================
@@ -322,11 +322,11 @@ iscsiadm man files).
 
 To login:
 
-	./iscsiadm -m node -r <node rec> -l
+	./iscsiadm -m node -T targetname -p ip:port -l
 
-where <node rec> is the record of a discovered or manually
-added iSCSI Target Node (for iscsiadm usage examples see
-previous sections).
+where targetname is the name of the target amd ip_address:port is the address
+and port of the portal of a discovered or manually added iSCSI Target Node
+(for iscsiadm usage examples see previous sections).
 
 2. discover targets
 -------------------
@@ -347,7 +347,7 @@ Note: this may only work for Red Hat, Fedora and SUSE configurations
 
 To automate login to a node, use the following with the record ID of the
 node discovered in the discovery above:
-	iscsiadm -m node --record <record ID> --op update -n node.conn[0].startup -v automatic
+	iscsiadm -m node -T targetname -p ip:port --op update -n node.conn[0].startup -v automatic
 
 Or to set the "node.conn[0].statup" attribute to "startup" as default for
 all sessions add the following to the /etc/iscsid.conf:
