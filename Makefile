@@ -17,7 +17,7 @@ initddir = $(etcdir)/init.d
 MANPAGES = doc/iscsid.8 doc/iscsiadm.8
 PROGRAMS = usr/iscsid usr/iscsiadm utils/iscsi_discovery
 INSTALL = install
-ETCFILES = etc/iscsid.conf
+ETCFILES = etc/iscsi/iscsid.conf
 
 # Random comments:
 # using '$(MAKE)' instead of just 'make' allows make to run in parallel
