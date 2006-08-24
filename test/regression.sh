@@ -34,17 +34,18 @@ regress_signal() {
 	imm_data_en="Yes"
 	initial_r2t_en="No"
 	hdrdgst_en="None,CRC32C"
-	c="iscsiadm -m node -r $record -o update"
+	c="${iscsiadm} -m node -T $target -p $ipnr -o update"
 	first_burst="$((256*1024))"
 	max_burst="$((16*1024*1024-1024))"
 	max_recv_dlength="$((128*1024))"
 	update_cfg
+	${iscsiadm} -m node -T $target -p $ipnr --logout 2>/dev/null >/dev/null
     printf "done\n"
     exit 0
 }
 
 function update_cfg() {
-	c="iscsiadm -m node -r $record -o update"
+	c="${iscsiadm} -m node -T $target -p $ipnr -o update"
 	$c -n node.session.iscsi.ImmediateData -v $imm_data_en
 	$c -n node.session.iscsi.InitialR2T -v $initial_r2t_en
 	$c -n node.conn[0].iscsi.HeaderDigest -v $hdrdgst_en
@@ -59,13 +60,13 @@ function disktest_run() {
 	test "x$bsize" = xbonnie && return 0;
 	for bs in $bsizes; do
 		echo -n "disktest -T2 -K8 -B$bs -r -ID $device: "
-		if ! disktest -T2 -K8 -B$bs -r -ID $device >/dev/null; then
+		if ! ${disktest} -T2 -K8 -B$bs -r -ID $device >/dev/null; then
 			echo "FAILED"
 			return 1;
 		fi
 		echo "PASSED"
 		echo -n "disktest -T2 -K8 -B$bs -E16 -w -ID $device: "
-		if ! disktest -T2 -K8 -B$bs -E16 -w -ID $device >/dev/null;then
+		if ! ${disktest} -T2 -K8 -B$bs -E16 -w -ID $device >/dev/null;then
 			echo "FAILED"
 			return 1;
 		fi
@@ -103,7 +104,6 @@ function mkfs_run() {
 
 function bonnie_run() {
 	dir="/tmp/iscsi.bonnie.regression.$record.$RANDOM"
-	bonnie=`which bonnie++`
 	umount $dir 2>/dev/null >/dev/null
 	rm -rf $dir; mkdir $dir
 	echo -n "mount $dir: "
@@ -129,25 +129,33 @@ function bonnie_run() {
 
 function fatal() {
 	echo "regression.sh: $1"
-	echo "Usage: regression.sh <rec#|-f> <device> [test#[:#]] [bsize]"
+	echo "Usage: regression.sh <targetname|-f> <ipnumber#> <device> [test#[:#]] [bsize]"
 	exit 1
 }
 
 ############################ main ###################################
 
-test ! -e regression.dat && fatal "can not find regression.dat"
-test ! -e disktest && fatal "can not find disktest"
-test ! -e iscsiadm && fatal "can not find iscsiadm"
-test ! -e bonnie++ && fatal "can not find bonnie++"
-test x$1 = x && fatal "node record parameter error"
-test x$2 = x && fatal "SCSI device parameter error"
+disktest=`which disktest`
+iscsiadm=`which iscsiadm`
+bonnie=`which bonnie++`
+datfile=`dirname $0`"/regression.dat"
+test ! -e ${datfile} && fatal "can not find regression.dat"
+test ! -e ${disktest} && fatal "can not find disktest"
+test ! -e ${iscsiadm} && fatal "can not find iscsiadm"
+test ! -e ${bonnie} && fatal "can not find bonnie++"
+test x$1 = x && fatal "target name parameter error"
+test x$2 = x && fatal "ipnumber parameter error"
+test x$3 = x && fatal "SCSI device parameter error"
 
 if test x$1 = "x-f" -o x$1 = "x--format"; then
 	mkfs_run
 	exit
 fi
 
-device=$2
+target="$1"
+ipnr="$2"
+device=$3
+
 device_dir="$(dirname ${device})"
 device_partition=''
 case "${device_dir}" in
@@ -165,9 +173,8 @@ if [ -z "${device_partition}" ]; then
 	exit 1
 fi
 
-record="$1"
-test "x$3" != x && begin="$3"
-test "x$4" != x && bsize="$4"
+test "x$4" != x && begin="$4"
+test "x$5" != x && bsize="$5"
 
 if test "x$begin" != "x"; then
 	end="${begin/*:}"
@@ -195,7 +202,7 @@ if [ -z "${SKIP_WARNING}" ]; then
 fi
 
 i=0
-cat regression.dat | while read line; do
+cat ${datfile} | while read line; do
 	if echo $line | grep "^#" >/dev/null; then continue; fi
 	if echo $line | grep "^$" >/dev/null; then continue; fi
 	if test x$begin != x; then
@@ -218,7 +225,7 @@ cat regression.dat | while read line; do
 	max_recv_dlength=`echo $line | awk '{print $6}'`
 	max_r2t=`echo $line | awk '{print $7}'`
 	# ensure we are logged out
-	iscsiadm -m node -r $record --logout 2>/dev/null >/dev/null
+	${iscsiadm} -m node -T $target -p $ipnr --logout 2>/dev/null >/dev/null
 	# set parameters for next run
 	update_cfg
 	echo "================== TEST #$i BEGIN ===================="
@@ -231,7 +238,8 @@ cat regression.dat | while read line; do
 	echo "max_r2t = $max_r2t"
 	# login for new test
 	# catch errors on this
-	if ! iscsiadm -m node -r $record --login; then break; fi
+	if ! ${iscsiadm} -m node -T $target -p $ipnr --login; then break; fi
+	while [ ! -e $device ] ; do sleep 1 ; done
 	if ! disktest_run; then break; fi
 	if ! fdisk_run; then break; fi
 	if ! mkfs_run; then break; fi
