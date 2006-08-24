@@ -4,8 +4,8 @@
 # description: Starts and stops the iSCSI initiator
 #
 # processname: iscsid
-# pidfile: /var/run/iscsid.pid
-# config:  /etc/iscsid.conf
+# pidfile: /etc/iscsi/iscsid.pid
+# config:  /etc/iscsi/iscsid.conf
 
 # Source function library.
 . /etc/init.d/functions
@@ -20,18 +20,21 @@ start()
 	modprobe -q iscsi_tcp
 	daemon iscsid
 	RETVAL=$?
+	success
 	echo
 	[ $RETVAL -eq 0 ] || return
 
 	touch /var/lock/subsys/iscsi
 
 	echo -n $"Setting up iSCSI targets: "
-	TARGETS=`iscsiadm -m node 2> /dev/null | sed 's@\[\(.*\)\] .*@\1@g'`
-	for rec in $TARGETS; do
-		STARTUP=`iscsiadm -m node -r $rec | grep "node.conn\[0\].startup" | cut -d' ' -f3`
-		if [ $STARTUP = "automatic" ]; then
-			iscsiadm -m node -r $rec -l
-		fi
+	TARGETS=`iscsiadm -m node 2>/dev/null | sed 's/ /@/g'`
+	for node in $TARGETS; do
+		target=`echo $node | cut -d@ -f2`
+		port=`echo $node | cut -d@ -f1`
+		STARTUP=`iscsiadm -m node -T $target -p $port | grep "node.conn\[0\].startup" | cut -d' ' -f3`
+			if [ "$STARTUP" = "automatic" ]; then
+				iscsiadm -m node -T $target -p $port -l
+			fi
 	done
 	success
 	echo
@@ -42,50 +45,55 @@ stop()
 {
 	echo -n $"Stopping iSCSI initiator service: "
 	sync
-	TARGETS=`iscsiadm -m session | grep "\[*\]" | sed 's@\[\(.*\)\] .*@\1@g'`
-	for rec in $TARGETS; do
-		STARTUP=`iscsiadm -m node -r $rec | grep "node.conn\[0\]/.startup" | cut -d' ' -f3`
-		if [ $STARTUP != "onboot" ] ; then
-			iscsiadm -m node -r $rec -u
-		fi
-	done
-
+	TARGETS=`iscsiadm -m session 2>/dev/null| sed 's/ /@/g'`
+	if [ "$TARGETS" != "no@active@sessions" ] ; then
+		for sess in $TARGETS; do
+			target=`echo $sess | cut -d@ -f3`
+			port=`echo $sess | cut -d@ -f2`
+			STARTUP=`iscsiadm -m node -T $target -p $port | grep "node.conn\[0\].startup" | cut -d' ' -f3`
+			if [ "$STARTUP" != "onboot" ] ; then
+				 iscsiadm -m node -T $target -p $port -u
+			fi
+	   	done
+	fi
 	pkill -KILL iscsid
-	rm -f /var/run/iscsid.pid
+	rm -f /etc/iscsi/iscsid.pid
 	#killproc iscsid
-	echo
 	[ $RETVAL -eq 0 ] && rm -f /var/lock/subsys/iscsi
-
 	modprobe -r iscsi_tcp 2>/dev/null
+	success
+	echo
+
 }
 
 restart()
 {
 	stop
 	start
+
 }
 
 case "$1" in
 	start)
-		start
-		;;
+			start
+			;;
 	stop)
-		stop
-		;;
+			stop
+			;;
 	restart)
-	        stop
-		start
-		;;
+			stop
+			start
+			;;
 	status)
-		status iscsid
-		RETVAL=$?
-		;;
-        condrestart)
-	        [ -f /var/lock/subsys/iscsi ] && restart
-		;;
+			status iscsid
+			RETVAL=$?
+			;;
+	condrestart)
+			[ -f /var/lock/subsys/iscsi ] && restart
+			;;
 	*)
-		echo $"Usage: $0 {start|stop|restart|status|condrestart}"
-		exit 1
+			echo $"Usage: $0 {start|stop|restart|status|condrestart}"
+			exit 1
 esac
 
 exit $RETVAL
