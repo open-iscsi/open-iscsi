@@ -683,33 +683,6 @@ __conn_noop_out_delete(iscsi_conn_t *conn)
 	}
 }
 
-static void
-__session_conn_queue_flush(iscsi_conn_t *conn)
-{
-	iscsi_session_t *session = conn->session;
-	int count = session->queue->count, i;
-	unsigned char item_buf[sizeof(queue_item_t) + EVENT_PAYLOAD_MAX];
-	queue_item_t *item = (queue_item_t *)(void *)item_buf;
-
-	log_debug(3, "flushing per-connection events");
-
-	for (i = 0; i < count; i++) {
-		if (queue_consume(session->queue, EVENT_PAYLOAD_MAX,
-				  item) == QUEUE_IS_EMPTY) {
-			log_error("queue damage detected...");
-			break;
-		}
-
-		if (conn != item->context) {
-			queue_produce(session->queue, item->event_type,
-				 item->context, item->data_size,
-				 queue_item_data(item));
-		}
-		/* do nothing */
-		log_debug(7, "item %p(%d) flushed", item, item->event_type);
-	}
-}
-
 static int
 __session_conn_cleanup(iscsi_conn_t *conn)
 {
@@ -718,7 +691,7 @@ __session_conn_cleanup(iscsi_conn_t *conn)
 	conn->session->provider->utransport->ep_disconnect(conn);
 	__conn_noop_out_delete(conn);
 	actor_delete(&conn->connect_timer);
-	__session_conn_queue_flush(conn);
+	queue_flush(session->queue);
 
 	if (ipc->destroy_conn(session->transport_handle, session->id,
 		conn->id)) {
@@ -843,7 +816,7 @@ __connect_timedout(void *data)
 
 	if (conn->state == STATE_XPT_WAIT) {
 		/* flush any polls or other events queued */
-		__session_conn_queue_flush(conn);
+		queue_flush(session->queue);
 		log_debug(3, "__connect_timedout queue EV_CONN_TIMER\n");
 		queue_produce(session->queue, EV_CONN_TIMER, qtask, 0, NULL);
 		actor_schedule(&session->mainloop);
@@ -901,7 +874,7 @@ __session_conn_reopen(iscsi_conn_t *conn, queue_task_t *qtask, int do_stop)
 	qtask->conn = conn;
 
 	/* flush stale polls or errors queued */
-	__session_conn_queue_flush(conn);
+	queue_flush(session->queue);
 	actor_delete(&conn->connect_timer);
 	__conn_noop_out_delete(conn);
 
@@ -974,7 +947,7 @@ iscsi_login_redirect(iscsi_conn_t *conn)
 
 	log_debug(3, "login redirect ...\n");
 
-	__session_conn_queue_flush(conn);
+	queue_flush(session->queue);
 
 	if (session->r_stage == R_STAGE_NO_CHANGE)
 		session->r_stage = R_STAGE_SESSION_REDIRECT;
