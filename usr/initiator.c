@@ -1226,7 +1226,7 @@ __session_conn_recv_pdu(queue_item_t *item)
 			return;
 		}
 
-		if (hdr.opcode == ISCSI_OP_NOOP_IN) {
+		if ((hdr.opcode & ISCSI_OPCODE_MASK) == ISCSI_OP_NOOP_IN) {
 			if (hdr.ttt == ISCSI_RESERVED_TAG) {
 				/* noop out rsp */
 				actor_delete(&conn->noop_out_timeout_timer);
