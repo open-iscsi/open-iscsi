@@ -24,7 +24,7 @@ start()
 	echo
 	[ $RETVAL -eq 0 ] || return
 
-	touch /var/lock/subsys/iscsi
+	touch /var/lock/subsys/open-iscsi
 
 	echo -n $"Setting up iSCSI targets: "
 	TARGETS=`iscsiadm -m node 2>/dev/null | sed 's/ /@/g'`
@@ -59,7 +59,7 @@ stop()
 	pkill -KILL iscsid
 	rm -f /etc/iscsi/iscsid.pid
 	#killproc iscsid
-	[ $RETVAL -eq 0 ] && rm -f /var/lock/subsys/iscsi
+	[ $RETVAL -eq 0 ] && rm -f /var/lock/subsys/open-iscsi
 	modprobe -r iscsi_tcp 2>/dev/null
 	success
 	echo
