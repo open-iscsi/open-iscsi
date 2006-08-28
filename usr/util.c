@@ -118,7 +118,7 @@ static int iscsid_response(int fd, iscsiadm_rsp_t *rsp)
 {
 	int err;
 
-	if ((err = read(fd, rsp, sizeof(*rsp))) != sizeof(*rsp)) {
+	if ((err = recv(fd, rsp, sizeof(*rsp), MSG_WAITALL)) != sizeof(*rsp)) {
 		log_error("got read error (%d/%d), daemon died?", err, errno);
 		if (err >= 0)
 			err = -EIO;
