@@ -523,6 +523,8 @@ main(int argc, char **argv)
 	sa_new.sa_flags = 0;
 	sigaction(SIGINT, &sa_new, &sa_old );
 
+	umask(0177);
+
 	/* enable stdout logging */
 	log_daemon = 0;
 	log_init(program_name, 1024);

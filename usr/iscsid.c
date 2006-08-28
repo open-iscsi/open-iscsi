@@ -27,6 +27,7 @@
 #include <signal.h>
 #include <dirent.h>
 #include <sys/types.h>
+#include <sys/stat.h>
 #include <sys/mman.h>
 #include <sys/poll.h>
 #include <sys/utsname.h>
@@ -267,6 +268,8 @@ int main(int argc, char *argv[])
 		log_error("failed to set exit function\n");
 		exit(1);
 	}
+
+	umask(0177);
 
 	if ((mgmt_ipc_fd = mgmt_ipc_listen()) < 0) {
 		exit(-1);

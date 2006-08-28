@@ -871,7 +871,7 @@ idbm_node_write(idbm_t *db, node_rec_t *rec)
 
 	snprintf(portal, PATH_MAX, "%s", NODE_CONFIG_DIR);
 	if (access(portal, F_OK) != 0) {
-		if (mkdir(portal, 0755) != 0) {
+		if (mkdir(portal, 0660) != 0) {
 			log_error("Could not make %s\n", portal);
 			rc = errno;
 			goto free_portal;
@@ -880,7 +880,7 @@ idbm_node_write(idbm_t *db, node_rec_t *rec)
 
 	snprintf(portal, PATH_MAX, "%s/%s", NODE_CONFIG_DIR, rec->name);
 	if (access(portal, F_OK) != 0) {
-		if (mkdir(portal, 0755) != 0) {
+		if (mkdir(portal, 0660) != 0) {
 			log_error("Could not make %s\n", portal);
 			rc = errno;
 			goto free_portal;
@@ -923,7 +923,7 @@ idbm_discovery_write(idbm_t *db, discovery_rec_t *rec)
 	idbm_lock(db);
 	snprintf(portal, PATH_MAX, "%s", ST_CONFIG_DIR);
 	if (access(portal, F_OK) != 0) {
-		if (mkdir(portal, 0755) != 0) {
+		if (mkdir(portal, 0660) != 0) {
 			log_error("Could not make %s\n", portal);
 			rc = errno;
 			goto free_portal;
