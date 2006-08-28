@@ -96,7 +96,7 @@ static int sync_session(iscsi_provider_t *provider, char *sys_session)
 	char *address;
 	idbm_t *db;
 	node_rec_t rec;
-	int rc, sid, fd, port;
+	int rc, sid, fd, port, tpgt;
 	iscsiadm_req_t req;
 	iscsiadm_rsp_t rsp;
 
@@ -119,8 +119,8 @@ static int sync_session(iscsi_provider_t *provider, char *sys_session)
 		goto free_address;
 	}
 
-	rc = find_ids_by_session(&sid, targetname, address, &port,
-				 sys_session);
+	rc = find_sessioninfo_by_sid(&sid, targetname, address, &port, &tpgt,
+				    sys_session);
 	if (rc < 0) {
 		log_error("could not find record for %s", sys_session);
 		goto term_idbm;

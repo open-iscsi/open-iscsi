@@ -26,11 +26,14 @@
 #include <unistd.h>
 #include <string.h>
 #include <signal.h>
+#include <dirent.h>
 #include <sys/ioctl.h>
 #include <sys/socket.h>
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <sys/un.h>
+#include <linux/types.h>
+#include <linux/unistd.h>
 
 #include "initiator.h"
 #include "iscsiadm.h"
@@ -158,7 +161,7 @@ sys_to_rec(idbm_t *db, node_rec_t *rec, char *sysfs_device)
 {
 	char *targetname;
 	char *address;
-	int sid, rc, port, len;
+	int sid, rc, port, tpgt, len;
 	struct stat statb;
 	char sys_session[64], *start, *last;
 
@@ -207,8 +210,8 @@ sys_to_rec(idbm_t *db, node_rec_t *rec, char *sysfs_device)
 	}
 
 	log_debug(2, "%s: session %s", __FUNCTION__, sys_session);
-	rc = find_ids_by_session(&sid, targetname, address, &port,
-				 sys_session);
+	rc = find_sessioninfo_by_sid(&sid, targetname, address, &port, &tpgt,
+				     sys_session);
 	if (rc < 0) {
 		log_error("Unable to find a record for iscsi %s (sys %s)",
 			  sys_session, sysfs_device);
@@ -301,18 +304,10 @@ config_init(void)
 static int
 session_activelist(idbm_t *db)
 {
-	int rc, i;
-	iscsiadm_req_t req;
-	iscsiadm_rsp_t rsp;
+	DIR *dirfd;
+	struct dirent *dent;
+	int rc, i = 0, sid, port, tpgt;
 	char *targetname, *address, *sysfs_file;
-	uint32_t port, tpgt, sid;
-
-	memset(&req, 0, sizeof(req));
-	req.command = MGMT_IPC_SESSION_ACTIVELIST;
-
-	rc = do_iscsid(&ipc_fd, &req, &rsp);
-	if (rc)
-		return rc;
 
 	targetname = malloc(TARGET_NAME_MAXLEN + 1);
 	if (!targetname)
@@ -330,41 +325,27 @@ session_activelist(idbm_t *db)
 		goto free_address;
 	}
 
+	sprintf(sysfs_file, "/sys/class/iscsi_session");
+	dirfd = opendir(sysfs_file);
+	if (!dirfd)
+		return -EINVAL;
+
 	/* display all active sessions */
-	for (i = 0; i < rsp.u.activelist.cnt; i++) {
-		sid = rsp.u.activelist.sids[i];
-		memset(sysfs_file, 0, PATH_MAX);
-		sprintf(sysfs_file,
-			"/sys/class/iscsi_session/session%u/targetname", sid);
-		rc = read_sysfs_str_attr(sysfs_file, targetname,
-					  TARGET_NAME_MAXLEN);
-		if (rc)
-			log_error("could not read session targetname: %d", rc);
+	while ((dent = readdir(dirfd))) {
+		if (!strcmp(dent->d_name, ".") || !strcmp(dent->d_name, ".."))
+			continue;
 
-		memset(sysfs_file, 0, PATH_MAX);
-		sprintf(sysfs_file, "/sys/class/iscsi_session/session%u/tpgt",
-			sid);
-		rc = read_sysfs_int_attr(sysfs_file, &tpgt);
-		if (rc)
-	                log_error("Could not read tpgt %d\n", rc);
-
-		memset(sysfs_file, 0, PATH_MAX);
-		sprintf(sysfs_file,
-			"/sys/class/iscsi_connection/connection%d:0/address",
-			sid);
-		rc = read_sysfs_str_attr(sysfs_file, address, NI_MAXHOST);
-		if (rc)
-			log_error("could not read conn address: %d", rc);
-
-		memset(sysfs_file, 0, PATH_MAX);
-		sprintf(sysfs_file,
-			"/sys/class/iscsi_connection/connection%d:0/port", sid);
-		rc = read_sysfs_int_attr(sysfs_file, &port);
-		if (rc)
-			log_error("Could not read conn port %d\n", rc);
+		rc = find_sessioninfo_by_sid(&sid, targetname, address, &port,
+					     &tpgt, dent->d_name);
+		if (rc < 0) {
+			log_error("could not find session info for %s",
+				   dent->d_name);
+			continue;
+		}
 
 		printf("[%02d] %s:%d,%d %s\n",
-			sid, address, port, tpgt, targetname);
+		      sid, address, port, tpgt, targetname);
+		i++;
 	}
 	rc = i;
 

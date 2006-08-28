@@ -281,8 +281,8 @@ int read_sysfs_str_attr(char *path, char *retval, int buflen)
 	return err;
 }
 
-int find_ids_by_session(int *sid, char *targetname, char *addr,
-			int *port, char *session)
+int find_sessioninfo_by_sid(int *sid, char *targetname, char *addr,
+			    int *port, int *tpgt, char *session)
 {
 	int ret;
 	char *sysfs_file;
@@ -302,6 +302,14 @@ int find_ids_by_session(int *sid, char *targetname, char *addr,
 	ret = read_sysfs_str_attr(sysfs_file, targetname, TARGET_NAME_MAXLEN);
 	if (ret) {
 		log_error("could not read session targetname: %d", ret);
+		goto free_file;
+	}
+
+	memset(sysfs_file, 0, PATH_MAX);
+	sprintf(sysfs_file, "/sys/class/iscsi_session/%s/tpgt", session);
+	ret = read_sysfs_int_attr(sysfs_file, (uint32_t *)tpgt);
+	if (ret) {
+		log_error("could not read session tpgt: %d", ret);
 		goto free_file;
 	}
 

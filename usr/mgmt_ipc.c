@@ -94,27 +94,6 @@ mgmt_ipc_session_login(queue_task_t *qtask, node_rec_t *rec)
 }
 
 static mgmt_ipc_err_e
-mgmt_ipc_session_activelist(queue_task_t *qtask, iscsiadm_rsp_t *rsp)
-{
-	iscsi_session_t *session;
-	struct qelem *item;
-	int i;
-
-	rsp->u.activelist.cnt = 0;
-	for (i = 0; i < num_providers; i++) {
-		item = provider[i].sessions.q_forw;
-		while (item != &provider[i].sessions) {
-			session = (iscsi_session_t *)item;
-			rsp->u.activelist.sids[rsp->u.activelist.cnt]= session->id;
-			rsp->u.activelist.cnt++;
-			item = item->q_forw;
-		}
-	}
-
-	return MGMT_IPC_OK;
-}
-
-static mgmt_ipc_err_e
 mgmt_ipc_session_getstats(queue_task_t *qtask, int sid,
 			  iscsiadm_rsp_t *rsp)
 {
@@ -341,10 +320,6 @@ mgmt_ipc_handle(int accept_fd)
 	case MGMT_IPC_SESSION_SYNC:
 		rsp.err = mgmt_ipc_session_sync(qtask, &req.u.session.rec,
 						req.u.session.sid);
-		break;
-	case MGMT_IPC_SESSION_ACTIVELIST:
-		rsp.err = mgmt_ipc_session_activelist(qtask, &rsp);
-		immrsp = 1;
 		break;
 	case MGMT_IPC_SESSION_STATS:
 		rsp.err = mgmt_ipc_session_getstats(qtask, req.u.session.sid,

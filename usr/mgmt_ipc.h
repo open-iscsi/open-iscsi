@@ -49,7 +49,6 @@ typedef enum iscsiadm_cmd {
 	MGMT_IPC_UNKNOWN		= 0,
 	MGMT_IPC_SESSION_LOGIN		= 1,
 	MGMT_IPC_SESSION_LOGOUT		= 2,
-	MGMT_IPC_SESSION_ACTIVELIST	= 3,
 	MGMT_IPC_SESSION_ACTIVESTAT	= 4,
 	MGMT_IPC_CONN_ADD		= 5,
 	MGMT_IPC_CONN_REMOVE		= 6,
@@ -84,11 +83,6 @@ typedef struct iscsiadm_rsp {
 	mgmt_ipc_err_e err;
 
 	union {
-		struct msg_activelist {
-#define MGMT_IPC_ACTIVELIST_MAX		64
-			int sids[MGMT_IPC_ACTIVELIST_MAX];
-			int cnt;
-		} activelist;
 #define MGMT_IPC_GETSTATS_BUF_MAX	(sizeof(struct iscsi_uevent) + \
 					sizeof(struct iscsi_stats) + \
 					sizeof(struct iscsi_stats_custom) * \

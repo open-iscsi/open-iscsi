@@ -10,8 +10,9 @@ void check_class_version(void);
 extern int oom_adjust(void);
 extern void daemon_init(void);
 
-extern int find_ids_by_session(int *sid, char *targetname,
-				char *addr, int *port, char *sys_session);
+extern int find_sessioninfo_by_sid(int *sid, char *targetname,
+				  char *addr, int *port, int *tpgt,
+				  char *sys_session);
 extern int read_sysfs_int_attr(char *path, uint32_t *retval);
 extern int read_sysfs_str_attr(char *path, char *retval, int len);
 
