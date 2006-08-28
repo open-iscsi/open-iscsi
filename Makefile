@@ -17,7 +17,7 @@ initddir = $(etcdir)/init.d
 MANPAGES = doc/iscsid.8 doc/iscsiadm.8
 PROGRAMS = usr/iscsid usr/iscsiadm utils/iscsi_discovery
 INSTALL = install
-ETCFILES = etc/iscsi/iscsid.conf
+ETCFILES = etc/iscsid.conf
 
 # Random comments:
 # using '$(MAKE)' instead of just 'make' allows make to run in parallel
@@ -83,8 +83,8 @@ install_initd_debian:
 		$(DESTDIR)$(initddir)/open-iscsi
 
 install_etc: $(ETCFILES)
-	$(INSTALL) -d $(DESTDIR)$(etcdir)
-	$(INSTALL) $^ $(DESTDIR)$(etcdir)
+	$(INSTALL) -d $(DESTDIR)$(etcdir)/iscsi
+	$(INSTALL) -m 644 $^ $(DESTDIR)$(etcdir)/iscsi
 
 install_doc: $(MANPAGES)
 	$(INSTALL) -d $(DESTDIR)$(mandir)/man8
