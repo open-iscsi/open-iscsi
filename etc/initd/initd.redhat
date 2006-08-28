@@ -32,9 +32,9 @@ start()
 		target=`echo $node | cut -d@ -f2`
 		port=`echo $node | cut -d@ -f1`
 		STARTUP=`iscsiadm -m node -T $target -p $port | grep "node.conn\[0\].startup" | cut -d' ' -f3`
-			if [ "$STARTUP" = "automatic" ]; then
-				iscsiadm -m node -T $target -p $port -l
-			fi
+		if [ "$STARTUP" = "automatic" ]; then
+			iscsiadm -m node -T $target -p $port -l
+		fi
 	done
 	success
 	echo
