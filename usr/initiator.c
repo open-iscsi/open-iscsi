@@ -1608,6 +1608,24 @@ __session_mainloop(void *data)
 	session_put(session);
 }
 
+static int match_session(void *data, char *targetname, int tpgt, char *address,
+			 int port, int sid)
+{
+	node_rec_t *rec = data;
+
+	log_debug(6, "looking for session [%s,%s,%d]",
+		  rec->name, rec->conn[0].address, rec->conn[0].port);
+
+	if (!strncmp(rec->name, targetname, strlen(rec->name)) &&
+	    !strncmp(rec->conn[0].address, address,
+		     strlen(rec->conn[0].address)) &&
+	    rec->conn[0].port == port)
+		return 1;
+
+	/* keep on looking */
+	return 0;
+}
+
 iscsi_session_t*
 session_find_by_rec(node_rec_t *rec)
 {
@@ -1619,22 +1637,34 @@ session_find_by_rec(node_rec_t *rec)
 		item = provider[i].sessions.q_forw;
 		while (item != &provider[i].sessions) {
 			session = (iscsi_session_t *)item;
-			log_debug(6, "looking for session [%s,%s,%d]",
-				  rec->name, rec->conn[0].address,
-				  rec->conn[0].port);
 
-			if (!strncmp(rec->name, session->nrec.name,
-				    strlen(rec->name)) &&
-			    !strncmp(rec->conn[0].address,
-				    session->nrec.conn[0].address,
-				    strlen(rec->conn[0].address)) &&
-			    rec->conn[0].port == session->nrec.conn[0].port)
+			if (match_session(rec, session->nrec.name,
+					  -1, session->nrec.conn[0].address,
+					  session->nrec.conn[0].port, -1))
 				return session;
 
 			item = item->q_forw;
 		}
 	}
+
 	return NULL;
+}
+
+/*
+ * a session could be running in the kernel but not in iscsid
+ * due to a resync or becuase some other app started the session
+ */
+int session_is_running(node_rec_t *rec)
+{
+	int nr_found = 0;
+
+	if (session_find_by_rec(rec))
+		return 1;
+
+	if (sysfs_for_each_session(rec, &nr_found, match_session))
+		return 1;
+
+	return 0;
 }
 
 static iscsi_provider_t*

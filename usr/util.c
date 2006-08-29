@@ -5,10 +5,13 @@
 #include <ctype.h>
 #include <string.h>
 #include <errno.h>
+#include <dirent.h>
 #include <pwd.h>
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <sys/un.h>
+#include <linux/types.h>
+#include <linux/unistd.h>
 
 #include "log.h"
 #include "actor.h"
@@ -281,8 +284,8 @@ int read_sysfs_str_attr(char *path, char *retval, int buflen)
 	return err;
 }
 
-int find_sessioninfo_by_sid(int *sid, char *targetname, char *addr,
-			    int *port, int *tpgt, char *session)
+int get_sessioninfo_by_sysfs_id(int *sid, char *targetname, char *addr,
+				int *port, int *tpgt, char *session)
 {
 	int ret;
 	char *sysfs_file;
@@ -338,6 +341,61 @@ int find_sessioninfo_by_sid(int *sid, char *targetname, char *addr,
 free_file:
 	free(sysfs_file);
 	return ret;
+}
+
+int sysfs_for_each_session(void *data, int *nr_found,
+			   int (* fn)(void *, char *, int, char *, int, int))
+{
+	DIR *dirfd;
+	struct dirent *dent;
+	int rc = 0, sid, port, tpgt;
+	char *targetname, *address, *sysfs_file;
+
+	targetname = malloc(TARGET_NAME_MAXLEN + 1);
+	if (!targetname)
+		return -ENOMEM;
+
+	address = malloc(NI_MAXHOST + 1);
+	if (!address) {
+		rc = -ENOMEM;
+		goto free_target;
+	}
+
+	sysfs_file = malloc(PATH_MAX);
+	if (!sysfs_file) {
+		rc = -ENOMEM;
+		goto free_address;
+	}
+
+	sprintf(sysfs_file, "/sys/class/iscsi_session");
+	dirfd = opendir(sysfs_file);
+	if (!dirfd)
+		return -EINVAL;
+
+	while ((dent = readdir(dirfd))) {
+		if (!strcmp(dent->d_name, ".") || !strcmp(dent->d_name, ".."))
+			continue;
+
+		rc = get_sessioninfo_by_sysfs_id(&sid, targetname, address,
+						 &port, &tpgt, dent->d_name);
+		if (rc < 0) {
+			log_error("could not find session info for %s",
+				   dent->d_name);
+			continue;
+		}
+
+		rc = fn(data, targetname, tpgt, address, port, sid);
+		if (rc != 0)
+			break;
+		(*nr_found)++;
+	}
+
+	free(sysfs_file);
+free_address:
+	free(address);
+free_target:
+	free(targetname);
+	return rc;
 }
 
 void check_class_version(void)

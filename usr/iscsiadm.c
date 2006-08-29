@@ -26,14 +26,11 @@
 #include <unistd.h>
 #include <string.h>
 #include <signal.h>
-#include <dirent.h>
 #include <sys/ioctl.h>
 #include <sys/socket.h>
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <sys/un.h>
-#include <linux/types.h>
-#include <linux/unistd.h>
 
 #include "initiator.h"
 #include "iscsiadm.h"
@@ -210,8 +207,8 @@ sys_to_rec(idbm_t *db, node_rec_t *rec, char *sysfs_device)
 	}
 
 	log_debug(2, "%s: session %s", __FUNCTION__, sys_session);
-	rc = find_sessioninfo_by_sid(&sid, targetname, address, &port, &tpgt,
-				     sys_session);
+	rc = get_sessioninfo_by_sysfs_id(&sid, targetname, address, &port,
+					&tpgt, sys_session);
 	if (rc < 0) {
 		log_error("Unable to find a record for iscsi %s (sys %s)",
 			  sys_session, sysfs_device);
@@ -301,60 +298,19 @@ config_init(void)
 	return 0;
 }
 
-static int
-session_activelist(idbm_t *db)
+static int print_session(void *data, char *targetname, int tpgt, char *address,
+			 int port, int sid)
 {
-	DIR *dirfd;
-	struct dirent *dent;
-	int rc, i = 0, sid, port, tpgt;
-	char *targetname, *address, *sysfs_file;
+	printf("[%02d] %s:%d,%d %s\n", sid, address, port, tpgt, targetname);
+	return 0;
+}
 
-	targetname = malloc(TARGET_NAME_MAXLEN + 1);
-	if (!targetname)
-		return -ENOMEM;
+static int session_activelist(void)
+{
+	int num_found = 0;
 
-	address = malloc(NI_MAXHOST + 1);
-	if (!address) {
-		rc = -ENOMEM;
-		goto free_target;
-	}
-
-	sysfs_file = malloc(PATH_MAX);
-	if (!sysfs_file) {
-		rc = -ENOMEM;
-		goto free_address;
-	}
-
-	sprintf(sysfs_file, "/sys/class/iscsi_session");
-	dirfd = opendir(sysfs_file);
-	if (!dirfd)
-		return -EINVAL;
-
-	/* display all active sessions */
-	while ((dent = readdir(dirfd))) {
-		if (!strcmp(dent->d_name, ".") || !strcmp(dent->d_name, ".."))
-			continue;
-
-		rc = find_sessioninfo_by_sid(&sid, targetname, address, &port,
-					     &tpgt, dent->d_name);
-		if (rc < 0) {
-			log_error("could not find session info for %s",
-				   dent->d_name);
-			continue;
-		}
-
-		printf("[%02d] %s:%d,%d %s\n",
-		      sid, address, port, tpgt, targetname);
-		i++;
-	}
-	rc = i;
-
-	free(sysfs_file);
-free_address:
-	free(address);
-free_target:
-	free(targetname);
-	return rc;
+	sysfs_for_each_session(NULL, &num_found, print_session);
+	return num_found;
 }
 
 static int
@@ -857,7 +813,7 @@ found_node_rec:
 				rc = -1;
 				goto out;
 			}
-			if ((rc = session_activelist(db)) < 0) {
+			if ((rc = session_activelist()) < 0) {
 				log_error("can not get list of active "
 					"sessions (%d)", rc);
 				rc = -1;

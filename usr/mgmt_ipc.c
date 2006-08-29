@@ -84,7 +84,7 @@ mgmt_ipc_close(int fd)
 static mgmt_ipc_err_e
 mgmt_ipc_session_login(queue_task_t *qtask, node_rec_t *rec)
 {
-	if (session_find_by_rec(rec)) {
+	if (session_is_running(rec)) {
 		log_error("session [%s,%s,%d] already running.", rec->name,
 			  rec->conn[0].address, rec->conn[0].port);
 		return MGMT_IPC_ERR_EXISTS;

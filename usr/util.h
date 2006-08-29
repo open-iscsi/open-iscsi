@@ -10,11 +10,13 @@ void check_class_version(void);
 extern int oom_adjust(void);
 extern void daemon_init(void);
 
-extern int find_sessioninfo_by_sid(int *sid, char *targetname,
-				  char *addr, int *port, int *tpgt,
-				  char *sys_session);
+extern int get_sessioninfo_by_sysfs_id(int *sid, char *targetname,
+				      char *addr, int *port, int *tpgt,
+				      char *sys_session);
 extern int read_sysfs_int_attr(char *path, uint32_t *retval);
 extern int read_sysfs_str_attr(char *path, char *retval, int len);
+extern int sysfs_for_each_session(void *data, int *nr_found,
+			int (* fn)(void *, char *, int, char *, int, int));
 
 extern int do_iscsid(int *ipc_fd, struct iscsiadm_req *req,
 		     struct iscsiadm_rsp *rsp);

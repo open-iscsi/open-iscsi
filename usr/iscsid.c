@@ -90,84 +90,42 @@ Open-iSCSI initiator daemon.\n\
 	exit(status == 0 ? 0 : -1);
 }
 
-static int sync_session(iscsi_provider_t *provider, char *sys_session)
+static int sync_session(void *data, char *targetname, int tpgt, char *address,
+			int port, int sid)
 {
-	char *targetname;
-	char *address;
-	idbm_t *db;
+	idbm_t *db = data;
 	node_rec_t rec;
-	int rc, sid, fd, port, tpgt;
+	int fd = -1;
 	iscsiadm_req_t req;
 	iscsiadm_rsp_t rsp;
 
-	log_debug(7, "sync session %s", sys_session);
-
-	targetname = malloc(TARGET_NAME_MAXLEN + 1);
-	if (!targetname)
-		return -ENOMEM;
-
-	address = malloc(NI_MAXHOST + 1);
-	if (!address) {
-		rc = -ENOMEM;
-		goto free_target;
-	}
-
-	db = idbm_init(daemon_config.config_file);
-	if (!db) {
-		log_error("could not open node database");
-		rc = -EIO;
-		goto free_address;
-	}
-
-	rc = find_sessioninfo_by_sid(&sid, targetname, address, &port, &tpgt,
-				    sys_session);
-	if (rc < 0) {
-		log_error("could not find record for %s", sys_session);
-		goto term_idbm;
-	}
+	log_debug(7, "sync session [%s,%s.%d]\n", targetname, address, port);
 
 	if (idbm_node_read(db, &rec, targetname, address, port)) {
-		log_error("could not read data for [%s,%s.%d] session %s\n",
-			  targetname, address, port, sys_session);
-		rc = -EIO;
-		goto term_idbm;
+		log_error("could not read data for [%s,%s.%d]\n",
+			  targetname, address, port);
+		return 0;
 	}
-
-	idbm_terminate(db);
 
 	memset(&req, 0, sizeof(req));
 	req.command = MGMT_IPC_SESSION_SYNC;
 	req.u.session.sid = sid;
 	memcpy(&req.u.session.rec, &rec, sizeof(node_rec_t));
 
-	return do_iscsid(&fd, &req, &rsp);
-
-term_idbm:
-	idbm_terminate(db);
-free_address:
-	free(address);
-free_target:
-	free(targetname);
-	return rc;
+	do_iscsid(&fd, &req, &rsp);
+	return 0;
 }
 
 static void sync_sessions(iscsi_provider_t *prv)
 {
-	DIR *dirfd;
-	struct dirent *dent;
+	idbm_t *db;
+	int nr_found = 0;
 
-	sprintf(sysfs_file, "/sys/class/iscsi_session");
-	dirfd = opendir(sysfs_file);
-	if (!dirfd)
+	db = idbm_init(daemon_config.config_file);
+	if (!db)
 		return;
-
-	while ((dent = readdir(dirfd))) {
-		if (!strcmp(dent->d_name, ".") || !strcmp(dent->d_name, ".."))
-			continue;
-		if (sync_session(prv, dent->d_name))
-			log_error("Could not sync %s\n", dent->d_name);
-	}
-	closedir(dirfd);
+	sysfs_for_each_session(db, &nr_found, sync_session);
+	idbm_terminate(db);
 }
 
 /*
