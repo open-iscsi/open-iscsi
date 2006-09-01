@@ -369,8 +369,10 @@ int sysfs_for_each_session(void *data, int *nr_found,
 
 	sprintf(sysfs_file, "/sys/class/iscsi_session");
 	dirfd = opendir(sysfs_file);
-	if (!dirfd)
-		return -EINVAL;
+	if (!dirfd) {
+		rc = -EINVAL;
+		goto free_file;
+	}
 
 	while ((dent = readdir(dirfd))) {
 		if (!strcmp(dent->d_name, ".") || !strcmp(dent->d_name, ".."))
@@ -390,6 +392,8 @@ int sysfs_for_each_session(void *data, int *nr_found,
 		(*nr_found)++;
 	}
 
+	closedir(dirfd);
+free_file:
 	free(sysfs_file);
 free_address:
 	free(address);

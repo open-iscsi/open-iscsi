@@ -812,6 +812,7 @@ idbm_discovery_read(idbm_t *db, discovery_rec_t *out_rec, char *addr, int port)
 
 	idbm_recinfo_config(db->dinfo_st, f);
 	memcpy(out_rec, &db->drec_st, sizeof(discovery_rec_t));
+	fclose(f);
 
 free_portal:
 	idbm_unlock(db);
@@ -847,6 +848,7 @@ idbm_node_read(idbm_t *db, node_rec_t *out_rec, char *target_name,
 
 	idbm_recinfo_config(db->ninfo, f);
 	memcpy(out_rec, &db->nrec, sizeof(node_rec_t));
+	fclose(f);
 
 free_portal:
 	idbm_unlock(db);
