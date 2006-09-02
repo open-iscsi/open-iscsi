@@ -1,14 +1,14 @@
-.TH ISCSIADM 8 "July 2005" "" "Linux Administrator's Manual"
+.TH ISCSIADM 8 "Sep 2006" "" "Linux Administrator's Manual"
 .SH NAME
 iscsiadm \- open-iscsi administration utility
 .SH SYNOPSIS
-\fBiscsiadm\fR -m discovery [ -dhV ] [ -t type -p ip [ -l ] ] | [ -r recid ]
+\fBiscsiadm\fR -m discovery [ -dhV ] [ -t type -p ip:port [ -l ] ] | 
 [ -o operation ] [ -n name ] [ -v value ]
 
-\fBiscsiadm\fR -m node [ -dhV ] [ -S ] [ [ -r recid | -M sysdir ] [ -l | -u ] ]
-[ [ -o operation ]  [ -n name ] [ -v value ] [ -p ip ] ]
+\fBiscsiadm\fR -m node [ -dhV ] [ -S ] [ [ -T targetname -p ip:port | -M sysdir ] [ -l | -u ] ]
+[ [ -o operation ]  [ -n name ] [ -v value ] [ -p ip:port ] ]
 
-\fBiscsiadm\fR -m session [ -dhV ] [ -r [sid:]recid [ -u | -s ] ]
+\fBiscsiadm\fR -m session [ -dhV ] [ -r sessionid [ -u | -s ] ]
 
 .SH "DESCRIPTION"
 The iscsiadm utility is a command-line tool allowing discovery and login
@@ -88,9 +88,14 @@ This option is only valid for discovery, or for node operations with
 the \fInew\fR operator.
 
 .TP
-\fB\-r\fR, \fB\-\-record=\fI[sid:]recid\fR
-Use database record \fIrecid\fR and session id \fIsid\fR. \fIsid\fR
-is only required for session mode.
+\fB\-T\fR, \fB\-\-targetname=\fItargetname\fR
+Use target \fItargetname\fR.
+
+.TP
+\fB\-r\fR,  \fB\-\-sid=\fIsid\fR
+Use session ID \fIsid\fR.
+.IP
+\fIsid\fR is only required for session mode.
 
 .TP
 \fB\-s\fR, \fB\-\-stats\fR
@@ -176,13 +181,13 @@ Discover targets at a given IP address:
 Login, must use a node record id found by the discovery:
 
 .ft R
-	iscsiadm --mode node --record 0x12345 --login
+	iscsiadm --mode node --targetname iqn.2001-05.com.doe:test --portal 192.168.1.1:3260 --login
 .nf
 
 Logout:
 
 .ft R
-	iscsiadm --mode node --record 0x12345 --logout
+	iscsiadm --mode node --targetname iqn.2001-05.com.doe:test --portal 192.168.1.1:3260 --logout
 .nf
 
 List node records:
@@ -195,22 +200,22 @@ List node records:
 Display all data for a given node record:
 
 .ft R
-	iscsiadm --mode node --record 0x12345
+	iscsiadm --mode node --targetname iqn.2001-05.com.doe:test --portal 192.168.1.1:3260
 
 .SH FILES
 .TP
-/etc/iscsid.conf
+/etc/iscsi/iscsid.conf
 The configuration file read by \fBiscsid\fR and \fBiscsiadm\fR on startup.
 .TP
-/etc/initiatorname.iscsi
-The file containing the iSCSI initiatorname and initiatoralias read by
+/etc/iscsi/initiatorname.iscsi
+The file containing the iSCSI InitiatorName and InitiatorAlias read by
 \fBiscsid\fR and \fBiscsiadm\fR on startup.
 .TP
-/var/db/iscsi/discover.db
-The discovery database table.
+/etc/iscsi/nodes/
+This directory contains the nodes with their targets.
 .TP
-/var/db/iscsi/node.db
-The node database table.
+/etc/iscsi/send_targets
+This directory contains the portals.
 
 .SH "SEE ALSO"
 .BR iscsid (8)
