@@ -34,10 +34,12 @@ regress_signal() {
 	imm_data_en="Yes"
 	initial_r2t_en="No"
 	hdrdgst_en="None,CRC32C"
+	datdgst_en="None,CRC32C"
 	c="${iscsiadm} -m node -T $target -p $ipnr -o update"
 	first_burst="$((256*1024))"
 	max_burst="$((16*1024*1024-1024))"
 	max_recv_dlength="$((128*1024))"
+	max_r2t="1"
 	update_cfg
 	${iscsiadm} -m node -T $target -p $ipnr --logout 2>/dev/null >/dev/null
     printf "done\n"
@@ -49,9 +51,11 @@ function update_cfg() {
 	$c -n node.session.iscsi.ImmediateData -v $imm_data_en
 	$c -n node.session.iscsi.InitialR2T -v $initial_r2t_en
 	$c -n node.conn[0].iscsi.HeaderDigest -v $hdrdgst_en
+	$c -n node.conn[0].iscsi.DataDigest -v $datdgst_en
 	$c -n node.session.iscsi.FirstBurstLength -v $first_burst
 	$c -n node.session.iscsi.MaxBurstLength -v $max_burst
 	$c -n node.conn[0].iscsi.MaxRecvDataSegmentLength -v $max_recv_dlength
+	$c -n node.session.iscsi.MaxOutstandingR2T -v $max_r2t
 }
 
 function disktest_run() {
@@ -220,22 +224,24 @@ cat ${datfile} | while read line; do
 	if test x$imm_data_en = x; then continue; fi
 	initial_r2t_en=`echo $line | awk '{print $2}'`
 	hdrdgst_en=`echo $line | awk '{print $3}'`
-	first_burst=`echo $line | awk '{print $4}'`
-	max_burst=`echo $line | awk '{print $5}'`
-	max_recv_dlength=`echo $line | awk '{print $6}'`
-	max_r2t=`echo $line | awk '{print $7}'`
+	datdgst_en=`echo $line | awk '{print $4}'`
+	first_burst=`echo $line | awk '{print $5}'`
+	max_burst=`echo $line | awk '{print $6}'`
+	max_recv_dlength=`echo $line | awk '{print $7}'`
+	max_r2t=`echo $line | awk '{print $8}'`
 	# ensure we are logged out
 	${iscsiadm} -m node -T $target -p $ipnr --logout 2>/dev/null >/dev/null
 	# set parameters for next run
 	update_cfg
 	echo "================== TEST #$i BEGIN ===================="
-	echo "imm_data_en = $imm_data_en"
-	echo "initial_r2t_en = $initial_r2t_en"
-	echo "hdrdgst_en = $hdrdgst_en"
-	echo "first_burst = $first_burst"
-	echo "max_burst = $max_burst"
-	echo "max_recv_dlength = $max_recv_dlength"
-	echo "max_r2t = $max_r2t"
+	echo "ImmediateData = $imm_data_en"
+	echo "InitialR2T = $initial_r2t_en"
+	echo "HeaderDigest = $hdrdgst_en"
+	echo "DataDigest = $datdgst_en"
+	echo "FirstBurstLength = $first_burst"
+	echo "MaxBurstLength = $max_burst"
+	echo "MaxRecvDataSegmentLength = $max_recv_dlength"
+	echo "MaxOutstandingR2T = $max_r2t"
 	# login for new test
 	# catch errors on this
 	if ! ${iscsiadm} -m node -T $target -p $ipnr --login; then break; fi
