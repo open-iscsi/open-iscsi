@@ -42,12 +42,11 @@
 #include "transport.h"
 #include "idbm.h"
 #include "version.h"
+#include "iscsi_sysfs.h"
 
 /* global config info */
 struct iscsi_daemon_config daemon_config;
 struct iscsi_daemon_config *dconfig = &daemon_config;
-iscsi_provider_t *provider = NULL;
-int num_providers = 0;
 
 static char program_name[] = "iscsid";
 int control_fd, mgmt_ipc_fd;
@@ -99,7 +98,12 @@ static int sync_session(void *data, char *targetname, int tpgt, char *address,
 	iscsiadm_req_t req;
 	iscsiadm_rsp_t rsp;
 
-	log_debug(7, "sync session [%s,%s.%d]\n", targetname, address, port);
+	log_debug(7, "sync session [%d][%s,%s.%d]\n", sid, targetname, address,
+		  port);
+
+	/* for now skip qlogic and other HW and offload drivers */
+	if (!get_transport_by_sid(sid))
+		return 0;
 
 	if (idbm_node_read(db, &rec, targetname, address, port)) {
 		log_error("could not read data for [%s,%s.%d]\n",
@@ -116,7 +120,7 @@ static int sync_session(void *data, char *targetname, int tpgt, char *address,
 	return 0;
 }
 
-static void sync_sessions(iscsi_provider_t *prv)
+static void sync_sessions(void)
 {
 	idbm_t *db;
 	int nr_found = 0;
@@ -128,29 +132,8 @@ static void sync_sessions(iscsi_provider_t *prv)
 	idbm_terminate(db);
 }
 
-/*
- * synchronize with existing sessions/connections
- */
-static int sync_provider_sessions(void)
-{
-	int i;
-
-	for (i = 0; i < num_providers; i++)
-		if (provider[i].handle)
-			sync_sessions(&provider[i]);
-
-	return 0;
-}
-
 static void catch_signal(int signo) {
 	log_warning("caught signal -%d, ignoring...", signo);
-}
-
-static void iscsid_exit(void)
-{
-	if (num_providers > 0) {
-		free(provider);
-	}
 }
 
 int main(int argc, char *argv[])
@@ -221,11 +204,6 @@ int main(int argc, char *argv[])
 	/* initialize logger */
 	log_init(program_name, DEFAULT_AREA_SIZE);
 	check_class_version();
-
-	if (atexit(iscsid_exit)) {
-		log_error("failed to set exit function\n");
-		exit(1);
-	}
 
 	umask(0177);
 
@@ -302,17 +280,11 @@ int main(int argc, char *argv[])
 	log_debug(1, "InitiatorName=%s", daemon_config.initiator_name);
 	log_debug(1, "InitiatorAlias=%s", daemon_config.initiator_alias);
 
+	init_providers();
+
 	/* oom-killer will not kill us at the night... */
 	if (oom_adjust())
 		log_debug(1, "can not adjust oom-killer's pardon");
-
-	/* in case of transports/sessions/connections been active
-	 * and we've been killed or crashed. update states.
-	 */
-	if (sync_transports()) {
-		log_error("failed to get transport list, exiting...");
-		exit(-1);
-	}
 
 	/* we don't want our active sessions to be paged out... */
 	if (mlockall(MCL_CURRENT | MCL_FUTURE)) {
@@ -323,7 +295,7 @@ int main(int argc, char *argv[])
 	pid = fork();
 	if (pid == 0) {
 		/* child */
-		sync_provider_sessions();
+		sync_sessions();
 		exit(0);
 	} else if (pid < 0) {
 		log_error("fork failed error %d: existing sessions"

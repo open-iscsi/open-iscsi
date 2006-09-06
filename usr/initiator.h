@@ -227,6 +227,7 @@ struct iscsi_uspace_transport;
 
 /* represents data path provider */
 typedef struct iscsi_provider_t {
+	struct qelem list;
 	uint64_t handle;
 	uint32_t caps;
 	iscsi_provider_status_e status;
@@ -300,10 +301,6 @@ typedef struct iscsi_session {
 	queue_t *splice_queue;
 
 } iscsi_session_t;
-
-/* iscsid.c */
-extern iscsi_provider_t *provider;
-extern int num_providers;
 
 /* login.c */
 
@@ -381,7 +378,5 @@ extern void* recvpool_get(iscsi_conn_t *conn, int ev_size);
 extern void recvpool_put(iscsi_conn_t *conn, void *handle);
 extern mgmt_ipc_err_e iscsi_sync_session(node_rec_t *rec, queue_task_t
 					 *tsk, uint32_t sid);
-
-extern char sysfs_file[];
 
 #endif /* INITIATOR_H */

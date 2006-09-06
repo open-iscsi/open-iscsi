@@ -39,6 +39,8 @@
 #include "mgmt_ipc.h"
 #include "iscsi_ipc.h"
 #include "log.h"
+#include "transport.h"
+#include "iscsi_sysfs.h"
 
 #define PEERUSER_MAX	64
 
@@ -97,14 +99,17 @@ static mgmt_ipc_err_e
 mgmt_ipc_session_getstats(queue_task_t *qtask, int sid,
 			  iscsiadm_rsp_t *rsp)
 {
+	iscsi_provider_t *p;
 	iscsi_session_t *session;
-	struct qelem *item;
-	int i;
+	struct qelem *sitem, *pitem;
 
-	for (i = 0; i < num_providers; i++) {
-		item = provider[i].sessions.q_forw;
-		while (item != &provider[i].sessions) {
-			session = (iscsi_session_t *)item;
+	pitem = providers.q_forw;
+	while (pitem != &providers) {
+		p = (iscsi_provider_t *)pitem;
+
+		sitem = p->sessions.q_forw;
+		while (sitem != &p->sessions) {
+			session = (iscsi_session_t *)sitem;
 			if (session->id == sid) {
 				int rc;
 
@@ -119,8 +124,9 @@ mgmt_ipc_session_getstats(queue_task_t *qtask, int sid,
 				}
 				return MGMT_IPC_OK;
 			}
-			item = item->q_forw;
+			sitem = sitem->q_forw;
 		}
+		pitem = pitem->q_forw;
 	}
 
 	return MGMT_IPC_ERR_NOT_FOUND;

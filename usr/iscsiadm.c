@@ -38,7 +38,9 @@
 #include "mgmt_ipc.h"
 #include "idbm.h"
 #include "util.h"
+#include "transport.h"
 #include "version.h"
+#include "iscsi_sysfs.h"
 
 struct iscsi_ipc *ipc = NULL; /* dummy */
 static int ipc_fd = -1;
@@ -301,7 +303,12 @@ config_init(void)
 static int print_session(void *data, char *targetname, int tpgt, char *address,
 			 int port, int sid)
 {
-	printf("[%02d] %s:%d,%d %s\n", sid, address, port, tpgt, targetname);
+	iscsi_provider_t *provider;
+
+	provider = get_transport_by_sid(sid);
+
+	printf("%s: [%d] %s:%d,%d %s\n", provider ? provider->name : "NA",
+		sid, address, port, tpgt, targetname);
 	return 0;
 }
 

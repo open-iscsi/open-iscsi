@@ -35,6 +35,7 @@
 #include "log.h"
 #include "iscsi_ipc.h"
 #include "initiator.h"
+#include "iscsi_sysfs.h"
 
 static int ctrl_fd;
 static struct sockaddr_nl src_addr, dest_addr;
@@ -58,8 +59,6 @@ static int ctldev_handle(void);
 
 #define NLM_SETPARAM_DEFAULT_MAX \
 	(NI_MAXHOST + 1 + sizeof(struct iscsi_uevent))
-
-#define ISCSI_TRANSPORT_DIR "/sys/class/iscsi_transport"
 
 static int
 kread(char *data, int count)
@@ -711,94 +710,6 @@ ktransport_ep_disconnect(iscsi_conn_t *conn)
 }
 
 static int
-read_transport_file(char *filename, void *value, char *format)
-{
-	FILE *file;
-	char buffer[32], *line;
-	int err = 0;
-
-	file = fopen(filename, "r");
-	if (file) {
-		line = fgets(buffer, sizeof(buffer), file);
-		if (line)
-			sscanf(buffer, format, value);
-		else {
-			log_error("Could not read %s.\n", filename);
-			err = -EIO;
-		}
-		fclose(file);
-	} else {
-		log_error("Could not open %s.\n", filename);
-		err = -EIO;
-	}
-	return err;
-}
-
-static int
-trans_filter(const struct dirent *dir)
-{
-	return strcmp(dir->d_name, ".") && strcmp(dir->d_name, "..");
-}
-
-static int
-ktrans_list(void)
-{
-	struct dirent **namelist;
-	char filename[64];
-	int i, n, err = 0;
-
-	log_debug(7, "in %s", __FUNCTION__);
-
-	n = scandir(ISCSI_TRANSPORT_DIR, &namelist, trans_filter,
-		    alphasort);
-	if (n < 0) {
-		log_error("Could not scan %s.", ISCSI_TRANSPORT_DIR);
-		return n;
-	}
-
-	if (n > num_providers) {
-		iscsi_provider_t *provider_arr;
-
-		provider_arr = calloc(n,sizeof(iscsi_provider_t));
-		if (provider_arr == NULL) {
-			log_error("Failed to alloc %d poviders.", n);
-			return -ENOMEM;
-		}
-		if (num_providers > 0) {
-			free(provider);
-		}
-		provider = provider_arr;
-		num_providers = n;
-	}
-
-	for (i = 0; i < n; i++) {
-		strncpy(provider[i].name, namelist[i]->d_name,
-			ISCSI_TRANSPORT_NAME_MAXLEN);
-		free(namelist[i]);
-
-		sprintf(filename, ISCSI_TRANSPORT_DIR"/%s/handle",
-			provider[i].name);
-		err = read_transport_file(filename, &provider[i].handle,
-					  "%llu");
-		if (err)
-			break;
-
-		sprintf(filename, ISCSI_TRANSPORT_DIR"/%s/caps",
-			provider[i].name);
-		err = read_transport_file(filename, &provider[i].caps,
-					  "0x%x");
-		if (err)
-			break;
-	}
-
-	for (i++; i < n; i++)
-		free(namelist[i]);
-	free(namelist);
-
-	return err;
-}
-
-static int
 kget_stats(uint64_t transport_handle, uint32_t sid, uint32_t cid,
 	   char *statsbuf, int statsbuf_max)
 {
@@ -850,14 +761,14 @@ ctldev_handle(void)
 {
 	int rc;
 	struct iscsi_uevent *ev;
-	struct qelem *item;
+	struct qelem *item, *pitem;
+	iscsi_provider_t *p;
 	iscsi_session_t *session = NULL;
 	iscsi_conn_t *conn = NULL;
 	uintptr_t recv_handle;
 	char nlm_ev[NLMSG_SPACE(sizeof(struct iscsi_uevent))];
 	struct nlmsghdr *nlh;
 	int ev_size;
-	int k;
 
 	log_debug(7, "in %s", __FUNCTION__);
 
@@ -870,9 +781,12 @@ ctldev_handle(void)
 	ev = (struct iscsi_uevent *)NLMSG_DATA(nlm_ev);
 
 	/* verify connection */
-	for (k = 0; k < num_providers; k++) {
-		item = provider[k].sessions.q_forw;
-		while (item != &provider[k].sessions) {
+	pitem = providers.q_forw;
+	while (pitem != &providers) {
+		p = (iscsi_provider_t *)pitem;
+
+		item = p->sessions.q_forw;
+		while (item != &p->sessions) {
 			int i;
 			session = (iscsi_session_t *)item;
 			for (i=0; i<ISCSI_CONN_MAX; i++) {
@@ -891,6 +805,7 @@ ctldev_handle(void)
 			}
 			item = item->q_forw;
 		}
+		pitem = pitem->q_forw;
 	}
 
 verify_conn:
@@ -1021,7 +936,6 @@ struct iscsi_ipc nl_ipc = {
 	.ctldev_open		= ctldev_open,
 	.ctldev_close		= ctldev_close,
 	.ctldev_handle		= ctldev_handle,
-	.trans_list		= ktrans_list,
 	.create_session         = kcreate_session,
 	.destroy_session        = kdestroy_session,
 	.create_conn            = kcreate_conn,

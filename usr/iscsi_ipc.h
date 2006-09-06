@@ -50,8 +50,6 @@ struct iscsi_ipc {
 
 	int (*ctldev_handle) (void);
 
-	int (*trans_list) (void);
-
 	int (*create_session) (uint64_t transport_handle,
 			       uint32_t initial_cmdsn,
 			       uint32_t *out_sid, uint32_t *out_hostno);

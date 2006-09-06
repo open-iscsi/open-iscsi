@@ -1,3 +1,9 @@
+#ifndef ISCSI_TRANSPORT_H
+#define ISCSI_TRANSPORT_H
+
+#include "types.h"
+
+struct iscsi_provider_t;
 struct iscsi_conn;
 
 struct iscsi_uspace_transport {
@@ -8,4 +14,6 @@ struct iscsi_uspace_transport {
 	void (*ep_disconnect) (iscsi_conn_t *conn);
 };
 
-extern int sync_transports(void);
+extern int set_uspace_transport(struct iscsi_provider_t *p);
+
+#endif

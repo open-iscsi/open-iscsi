@@ -48,8 +48,8 @@ stop()
 	TARGETS=`iscsiadm -m session 2>/dev/null| sed 's/ /@/g'`
 	if [ "$TARGETS" != "no@active@sessions" ] ; then
 		for sess in $TARGETS; do
-			target=`echo $sess | cut -d@ -f3`
-			port=`echo $sess | cut -d@ -f2`
+			target=`echo $sess | cut -d@ -f4`
+			port=`echo $sess | cut -d@ -f3`
 			STARTUP=`iscsiadm -m node -T $target -p $port | grep "node.conn\[0\].startup" | cut -d' ' -f3`
 			if [ "$STARTUP" != "onboot" ] ; then
 				 iscsiadm -m node -T $target -p $port -u

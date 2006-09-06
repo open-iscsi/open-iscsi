@@ -42,11 +42,10 @@
 #include "idbm.h"
 #include "log.h"
 #include "util.h"
+#include "iscsi_sysfs.h"
 
 static void __session_mainloop(void *data);
 static void __conn_error_handle(iscsi_session_t*, iscsi_conn_t*);
-
-char sysfs_file[PATH_MAX];
 
 /*
  * calculate parameter's padding
@@ -1253,18 +1252,23 @@ __session_conn_recv_pdu(queue_item_t *item)
 static int
 __session_node_established(char *node_name)
 {
-	struct qelem *item;
-	int i;
+	iscsi_provider_t *p;
+	struct qelem *sitem, *pitem;
 
-	for (i = 0; i < num_providers; i++) {
-		item = provider[i].sessions.q_forw;
-		while (item != &provider[i].sessions) {
-			iscsi_session_t *session = (iscsi_session_t *)item;
+	pitem = providers.q_forw;
+	while (pitem != &providers) {
+		p = (iscsi_provider_t *)pitem;
+
+		sitem = p->sessions.q_forw;
+		while (sitem != &p->sessions) {
+			iscsi_session_t *session = (iscsi_session_t *)sitem;
 			if (session->conn[0].state == STATE_LOGGED_IN &&
 			    !strncmp(session->nrec.name, node_name, TARGET_NAME_MAXLEN))
 				return 1;
-			item = item->q_forw;
+			sitem = sitem->q_forw;
 		}
+
+		pitem = pitem->q_forw;
 	}
 	return 0;
 }
@@ -1294,7 +1298,7 @@ update_exp_statsn(iscsi_conn_t *conn)
 	sprintf(sysfs_file,
 		"/sys/class/iscsi_connection/connection%d:%d/exp_statsn",
 		conn->session->id, conn->id);
-	if (read_sysfs_int_attr(sysfs_file, &conn->exp_statsn)) {
+	if (read_sysfs_file(sysfs_file, &conn->exp_statsn, "%u\n")) {
 		log_error("Could not read %s. Using zero fpr exp_statsn\n",
 			  sysfs_file);
 		conn->exp_statsn = 0;
@@ -1629,22 +1633,26 @@ static int match_session(void *data, char *targetname, int tpgt, char *address,
 iscsi_session_t*
 session_find_by_rec(node_rec_t *rec)
 {
+	iscsi_provider_t *p;
 	iscsi_session_t *session;
-	struct qelem *item;
-	int i;
+	struct qelem *pitem, *sitem;
 
-	for (i = 0; i < num_providers; i++) {
-		item = provider[i].sessions.q_forw;
-		while (item != &provider[i].sessions) {
-			session = (iscsi_session_t *)item;
+	pitem = providers.q_forw;
+	while (pitem != &providers) {
+		p = (iscsi_provider_t *)pitem;
+
+		sitem = p->sessions.q_forw;
+		while (sitem != &p->sessions) {
+			session = (iscsi_session_t *)sitem;
 
 			if (match_session(rec, session->nrec.name,
 					  -1, session->nrec.conn[0].address,
 					  session->nrec.conn[0].port, -1))
 				return session;
 
-			item = item->q_forw;
+			sitem = sitem->q_forw;
 		}
+		pitem = pitem->q_forw;
 	}
 
 	return NULL;
@@ -1667,25 +1675,6 @@ int session_is_running(node_rec_t *rec)
 	return 0;
 }
 
-static iscsi_provider_t*
-__get_transport_by_name(char *transport_name)
-{
-	int i;
-
-	if (ipc->trans_list()) {
-		log_error("can't retreive transport list (%d)", errno);
-		return NULL;
-	}
-
-	for (i = 0; i < num_providers; i++) {
-		if (provider[i].handle &&
-		   !strncmp(provider[i].name, transport_name,
-			     ISCSI_TRANSPORT_NAME_MAXLEN))
-			return &provider[i];
-	}
-	return NULL;
-}
-
 int
 session_login_task(node_rec_t *rec, queue_task_t *qtask)
 {
@@ -1697,8 +1686,10 @@ session_login_task(node_rec_t *rec, queue_task_t *qtask)
 	if (!rec->active_conn)
 		return MGMT_IPC_ERR_INVAL;
 
-	provider = __get_transport_by_name(rec->transport_name);
+	provider = get_transport_by_name(rec->transport_name);
 	if (!provider)
+		return MGMT_IPC_ERR_TRANS_NOT_FOUND;
+	if (set_uspace_transport(provider))
 		return MGMT_IPC_ERR_TRANS_NOT_FOUND;
 
 	if ((!(provider->caps & CAP_RECOVERY_L0) &&
@@ -1790,70 +1781,6 @@ session_login_task(node_rec_t *rec, queue_task_t *qtask)
 }
 
 static int
-session_find_hostno(uint32_t sid)
-{
-	DIR *dirfd;
-	struct dirent *dent;
-	int host_no = -1;
-
-	sprintf(sysfs_file, "/sys/class/iscsi_session/session%d/device", sid);
-	dirfd = opendir(sysfs_file);
-	if (!dirfd) {
-		log_error("Could not open %s err %d\n", sysfs_file, errno);
-		return -1;
-	}
-
-	while ((dent = readdir(dirfd))) {
-		if (strncmp(dent->d_name, "target", 6))
-			continue;
-		sscanf(dent->d_name, "target%d:0:0", &host_no);
-		log_debug(7," Found host_no %d\n", host_no);
-		break;
-	}
-	closedir(dirfd);
-
-	return host_no;
-}
-
-
-#define UPDATE_CONN_PARAM(filename, param)	\
-	if (!strcmp(dent->d_name, filename))	\
-		read_sysfs_int_attr(sysfs_file, &conn->param)
-
-static int 
-sync_conn_params(iscsi_conn_t *conn)
-{
-	DIR *dirfd;
-	struct dirent *dent;
-	char *ptr;
-
-	sprintf(sysfs_file, "/sys/class/iscsi_connection/connection%d:%d",
-	conn->session->id, conn->id);
-	dirfd = opendir(sysfs_file);
-	if (!dirfd) {
-		log_error("Could not open %s err %d\n", sysfs_file, errno);
-		return errno;
-	}
-
-	while ((dent = readdir(dirfd))) {
-		if (!strcmp(dent->d_name, ".") || !strcmp(dent->d_name, ".."))
-			continue;
-
-		strncat(sysfs_file, "/", PATH_MAX);
-		strncat(sysfs_file, dent->d_name, PATH_MAX);
-		UPDATE_CONN_PARAM("data_digest", datadgst_en);
-		UPDATE_CONN_PARAM("header_digest", hdrdgst_en);
-		UPDATE_CONN_PARAM("max_recv_dlength", max_recv_dlength);
-		UPDATE_CONN_PARAM("max_xmit_dlength", max_xmit_dlength);
-		ptr = strrchr(sysfs_file, '/');
-		*ptr = '\0';
-	}
-	closedir(dirfd);
-	return 0;
-}
-
-
-static int
 sync_conn(iscsi_session_t *session, uint32_t cid)
 {
 	iscsi_conn_t *conn;
@@ -1865,53 +1792,6 @@ sync_conn(iscsi_session_t *session, uint32_t cid)
 	setup_kernel_io_callouts(conn);
 	/* TODO: must export via sysfs so we can pick this up */
 	conn->state = STATE_CLEANUP_WAIT;
-
-	if (sync_conn_params(conn))
-		goto destroy_conn;
-
-	return 0;
-
-destroy_conn:
-	session_conn_destroy(session, cid);
-	return -ENODEV;
-}
-
-#define UPDATE_SESSION_PARAM(filename, param)	\
-	if (!strcmp(dent->d_name, filename))	\
-		read_sysfs_int_attr(sysfs_file, (uint32_t *)&session->param)
-
-static int
-sync_session_params(iscsi_session_t *session)
-{
-	DIR *dirfd;
-	struct dirent *dent;
-	char *ptr;
-
-	sprintf(sysfs_file, "/sys/class/iscsi_session/session%d",
-		session->id);
-	dirfd = opendir(sysfs_file);
-	if (!dirfd) {
-		log_error("Could not open %s err %d\n", sysfs_file, errno);
-		return errno;
-	}
-
-	while ((dent = readdir(dirfd))) {
-		if (!strcmp(dent->d_name, ".") || !strcmp(dent->d_name, ".."))
-			continue;
-
-		strncat(sysfs_file, "/", PATH_MAX);
-		strncat(sysfs_file, dent->d_name, PATH_MAX);
-		UPDATE_SESSION_PARAM("data_pdu_in_order", pdu_inorder_en);
-		UPDATE_SESSION_PARAM("data_seq_in_order", dataseq_inorder_en);
-		UPDATE_SESSION_PARAM("erl", erl);
-		UPDATE_SESSION_PARAM("first_burst_len", first_burst);
-		UPDATE_SESSION_PARAM("immediate_data", imm_data_en);
-		UPDATE_SESSION_PARAM("initial_r2t", initial_r2t_en);
-		UPDATE_SESSION_PARAM("max_burst_len", max_burst);
-		ptr = strrchr(sysfs_file, '/');
-		*ptr = '\0';
-	}
-	closedir(dirfd);
 	return 0;
 }
 
@@ -1922,8 +1802,10 @@ iscsi_sync_session(node_rec_t *rec, queue_task_t *qtask, uint32_t sid)
 	iscsi_provider_t *provider;
 	int err;
 
-	provider = __get_transport_by_name(rec->transport_name);
+	provider = get_transport_by_name(rec->transport_name);
 	if (!provider)
+		return MGMT_IPC_ERR_TRANS_NOT_FOUND;
+	if (set_uspace_transport(provider))
 		return MGMT_IPC_ERR_TRANS_NOT_FOUND;
 
 	session = __session_create(rec, provider);
@@ -1931,20 +1813,14 @@ iscsi_sync_session(node_rec_t *rec, queue_task_t *qtask, uint32_t sid)
 		return MGMT_IPC_ERR_NOMEM;
 
 	session->id = sid;
-	session->hostno = session_find_hostno(sid);
-	if (session->hostno < 0) {
+	session->hostno = get_host_no_from_sid(sid, &err);
+	if (err) {
 		log_error("Could not get hostno for session %d\n", sid);
 		err = MGMT_IPC_ERR_NOT_FOUND;
 		goto destroy_session;
 	}
 
 	session->r_stage = R_STAGE_SESSION_REOPEN;
-
-	err = sync_session_params(session);
-	if (err) {
-		err = MGMT_IPC_ERR_INTERNAL;
-		goto destroy_session;
-	}
 
 	err = sync_conn(session, 0);
 	if (err) {

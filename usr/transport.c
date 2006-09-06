@@ -1,10 +1,15 @@
 #include <stdlib.h>
 #include <string.h>
+#include <stdio.h>
+#include <unistd.h>
+#include <errno.h>
+#include <dirent.h>
 
 #include "initiator.h"
 #include "transport.h"
-#include "iscsi_ipc.h"
 #include "log.h"
+#include "util.h"
+#include "iscsi_sysfs.h"
 
 struct iscsi_uspace_transport iscsi_tcp = {
 	.name		= "tcp",
@@ -28,53 +33,21 @@ struct iscsi_uspace_transport *iscsi_utransports[] = {
 	NULL
 };
 
-static void set_uspace_transport(iscsi_provider_t *provider)
+int set_uspace_transport(iscsi_provider_t *p)
 {
-	int i;
 	struct iscsi_uspace_transport *utransport;
+	int j;
 
-	provider->utransport = NULL;
-	for (i = 0; iscsi_utransports[i] != NULL; i++) {
-		utransport = iscsi_utransports[i];
-		if (!strcmp(utransport->name,provider->name)) {
-			provider->utransport = utransport;
-			break;
+	for (j = 0; iscsi_utransports[j] != NULL; j++) {
+		utransport = iscsi_utransports[j];
+
+		if (!strcmp(utransport->name, p->name)) {
+			p->utransport = utransport;
+			log_debug(3, "Matched transport %s\n", p->name);
+			return 0;
 		}
 	}
 
-	if (provider->utransport)
-		log_debug(7, "set utransport %p for transport %s\n",
-			  provider->utransport, provider->name);
-	else
-		log_error("could not find utransport for transport %s\n",
-			  provider->name);
-}
-
-/*
- * synchronyze registered transports
- */
-int sync_transports(void)
-{
-	int i, found = 0;
-
-	if (ipc->trans_list())
-		return -1;
-
-	for (i = 0; i < num_providers; i++) {
-		if (provider[i].handle) {
-			provider[i].sessions.q_forw = &provider[i].sessions;
-			provider[i].sessions.q_back = &provider[i].sessions;
-			set_uspace_transport(&provider[i]);
-
-			found++;
-		}
-	}
-
-	if (!found) {
-		log_error("no registered transports found!");
-		return -1;
-	}
-	log_debug(1, "synced %d transport(s)", found);
-
-	return 0;
+	log_error("Could not fund uspace transport for %s\n", p->name);
+	return -ENOSYS;
 }

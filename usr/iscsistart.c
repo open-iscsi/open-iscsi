@@ -40,14 +40,12 @@
 #include "util.h"
 #include "idbm.h"
 #include "version.h"
+#include "iscsi_sysfs.h"
 
 /* global config info */
 /* initiator needs initiator name/alias */
 struct iscsi_daemon_config daemon_config;
 struct iscsi_daemon_config *dconfig = &daemon_config;
-/* iniitiaor and netlink need syncing transport purposes */
-iscsi_provider_t *provider = NULL;
-int num_providers = 0;
 
 static node_rec_t config_rec;
 
@@ -265,6 +263,8 @@ int main(int argc, char *argv[])
 	if (check_params(initiatorname))
 		exit(1);
 
+	init_providers();
+
 	pid = fork();
 	if (pid < 0) {
 		log_error("iscsiboot fork failed");
@@ -323,14 +323,6 @@ int main(int argc, char *argv[])
 	/* oom-killer will not kill us at the night... */
 	if (oom_adjust())
 		log_debug(1, "can not adjust oom-killer's pardon");
-
-	/* in case of transports/sessions/connections been active
-	 * and we've been killed or crashed. update states.
-	 */
-	if (sync_transports()) {
-		log_error("failed to get transport list, exiting...");
-		exit(-1);
-	}
 
 	/*
 	 * Start Main Event Loop
