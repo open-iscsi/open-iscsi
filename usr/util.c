@@ -21,8 +21,6 @@
 #include "initiator.h"
 #include "version.h"
 
-char sysfs_file[PATH_MAX];
-
 void daemon_init(void)
 {
 	int fd;

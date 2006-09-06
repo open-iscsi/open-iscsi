@@ -134,34 +134,9 @@ static void
 __session_delete_devs(iscsi_session_t *session)
 {
 	int lu = 0;
-	int hostno = session->hostno;
 
 	do {
-		pid_t pid;
-		int fd;
-
-		sprintf(sysfs_file, "/sys/bus/scsi/devices/%d:0:0:%d/delete",
-			hostno, lu);
-		fd = open(sysfs_file, O_WRONLY);
-		if (fd < 0)
-			continue;
-		if (!(pid = fork())) {
-			/* child */
-			log_debug(4, "deleting device using %s", sysfs_file);
-			write(fd, "1", 1);
-			close(fd);
-			exit(0);
-		}
-		if (pid > 0) {
-			int attempts = 3, status, rc;
-			while (!(rc = waitpid(pid, &status, WNOHANG)) &&
-			       attempts--)
-				sleep(1);
-			if (!rc)
-				log_debug(4, "could not delete device %s "
-					  "after delay\n", sysfs_file);
-		}
-		close(fd);
+		delete_device(session->hostno, lu);
 	} while (++lu < 256); /* FIXME: hardcoded */
 }
 
@@ -169,24 +144,9 @@ static void
 __session_online_devs(iscsi_session_t *session)
 {
 	int lun = 0;
-	int hostno = session->hostno;
 
 	do {
-		int fd;
-
-		sprintf(sysfs_file, "/sys/bus/scsi/devices/%d:0:0:%d/state",
-			hostno, lun);
-		fd = open(sysfs_file, O_WRONLY);
-		if (fd < 0)
-			continue;
-		log_debug(4, "online device using %s", sysfs_file);
-		if (write(fd, "running\n", 8) == -1 && errno != EINVAL) {
-			/* we should read the state */
-			log_error("Could not online LUN %d err %d\n",
-				  lun, errno);
-		}
-		close(fd);
-
+		set_device_online(session->hostno, lun);
 	} while (++lun < 256); /* FIXME: hardcoded */
 }
 
@@ -203,54 +163,6 @@ write_mgmt_rsp(queue_task_t *qtask, mgmt_ipc_err_e err)
 	      sizeof(qtask->u.login.rsp));
 	close(qtask->u.login.mgmt_ipc_fd);
 	free(qtask);
-}
-
-/*
- * Scan a session from usersapce using sysfs
- */
-static void
-__session_scan_host(iscsi_session_t *session, queue_task_t *qtask)
-{
-	int hostno = session->hostno;
-	pid_t pid;
-	int fd;
-
-	sprintf(sysfs_file, "/sys/class/scsi_host/host%d/scan",
-		session->hostno);
-	fd = open(sysfs_file, O_WRONLY);
-	if (fd < 0) {
-		log_error("could not scan scsi host%d\n", hostno);
-		return;
-	}
-
-	pid = fork();
-	if (pid == 0) {
-		/* child */
-		log_debug(4, "scanning host%d using %s",hostno,
-			  sysfs_file);
-		write(fd, "- - -", 5);
-		close(fd);
-
-		write_mgmt_rsp(qtask, MGMT_IPC_OK);
-		log_debug(4, "scanning host%d completed\n", hostno);
-		exit(0);
-	} else if (pid > 0) {
-		log_debug(4, "scanning host%d from pid %d", hostno, pid);
-		close(qtask->u.login.mgmt_ipc_fd);
-		need_reap();
-		free(qtask);
-	} else {
-		/*
-		 * Session is fine, so log the error and let the user
-		 * scan by hand
-		  */
-		log_error("Could not start scanning process for host %d "
-			  "err %d. Try scanning through sysfs\n", hostno,
-			  errno);
-		write_mgmt_rsp(qtask, MGMT_IPC_ERR_INTERNAL);
-	}
-
-	close(fd);
 }
 
 static conn_login_status_e
@@ -977,6 +889,23 @@ print_param_value(enum iscsi_param param, void *value)
 }
 
 static void
+__session_scan_host(iscsi_session_t *session, queue_task_t *qtask)
+{
+	pid_t pid;
+
+	pid = scan_host(session);
+	if (pid == 0) {
+		write_mgmt_rsp(qtask, MGMT_IPC_OK);
+		exit(0);
+	} else if (pid > 0) {
+		close(qtask->u.login.mgmt_ipc_fd);
+		need_reap();
+		free(qtask);
+	} else
+		write_mgmt_rsp(qtask, MGMT_IPC_ERR_INTERNAL);
+}
+
+static void
 setup_full_feature_phase(iscsi_conn_t *conn)
 {
 	iscsi_session_t *session = conn->session;
@@ -1285,27 +1214,6 @@ setup_kernel_io_callouts(iscsi_conn_t *conn)
 	conn->send_pdu_timer_remove = __send_pdu_timer_remove;
 }
 
-/*
- * For connection reinstatement we need to send the exp_statsn from
- * the previous connection
- *
- * This is only called when the connection is halted so exp_statsn is safe
- * to read without racing.
- */
-static int 
-update_exp_statsn(iscsi_conn_t *conn)
-{
-	sprintf(sysfs_file,
-		"/sys/class/iscsi_connection/connection%d:%d/exp_statsn",
-		conn->session->id, conn->id);
-	if (read_sysfs_file(sysfs_file, &conn->exp_statsn, "%u\n")) {
-		log_error("Could not read %s. Using zero fpr exp_statsn\n",
-			  sysfs_file);
-		conn->exp_statsn = 0;
-	}
-	return 0;
-}
-
 static void
 __session_conn_poll(queue_item_t *item)
 {
@@ -1381,7 +1289,7 @@ __session_conn_poll(queue_item_t *item)
 		c->buffer = conn->data;
 		c->bufsize = sizeof(conn->data);
 
-		update_exp_statsn(conn);
+		set_exp_statsn(conn);
 
 		if (iscsi_login_begin(session, c)) {
 			err = MGMT_IPC_ERR_LOGIN_FAILURE;

@@ -9,6 +9,7 @@
 #include <dirent.h>
 #include <pwd.h>
 #include <sys/types.h>
+#include <sys/wait.h>
 #include <sys/stat.h>
 #include <sys/un.h>
 #include <linux/types.h>
@@ -22,7 +23,8 @@
 #define ISCSI_TRANSPORT_DIR "/sys/class/iscsi_transport"
 #define ISCSI_MAX_SYSFS_BUFFER NI_MAXHOST
 
-char sysfs_file[PATH_MAX];
+/* tmp buffer used by sysfs functions */
+static char sysfs_file[PATH_MAX];
 int num_providers = 0;
 struct qelem providers;
 
@@ -321,6 +323,115 @@ iscsi_provider_t *get_transport_by_sid(uint32_t sid)
 	if (err)
 		return NULL;
 	return get_transport_by_hba(host_no);
+}
+
+/*
+ * For connection reinstatement we need to send the exp_statsn from
+ * the previous connection
+ *
+ * This is only called when the connection is halted so exp_statsn is safe
+ * to read without racing.
+ */
+int set_exp_statsn(iscsi_conn_t *conn)
+{
+	sprintf(sysfs_file,
+		"/sys/class/iscsi_connection/connection%d:%d/exp_statsn",
+		conn->session->id, conn->id);
+	if (read_sysfs_file(sysfs_file, &conn->exp_statsn, "%u\n")) {
+		log_error("Could not read %s. Using zero fpr exp_statsn\n",
+			  sysfs_file);
+		conn->exp_statsn = 0;
+	}
+	return 0;
+}
+
+int set_device_online(int hostno, int lun)
+{
+	int fd, rc = 0;
+
+	sprintf(sysfs_file, "/sys/bus/scsi/devices/%d:0:0:%d/state",
+		hostno, lun);
+	fd = open(sysfs_file, O_WRONLY);
+	if (fd < 0)
+		return errno;
+	log_debug(4, "online device using %s", sysfs_file);
+	if (write(fd, "running\n", 8) == -1 && errno != EINVAL) {
+		/* we should read the state */
+		log_error("Could not online LUN %d err %d\n",
+			  lun, errno);
+		rc = errno;
+	}
+	close(fd);
+	return rc;
+}
+
+/* TODO: remove this when we add logout support and fix shutdown */
+int delete_device(int hostno, int lun)
+{
+	pid_t pid;
+	int fd;
+
+	sprintf(sysfs_file, "/sys/bus/scsi/devices/%d:0:0:%d/delete",
+		hostno, lun);
+	fd = open(sysfs_file, O_WRONLY);
+	if (fd < 0)
+		return errno;
+	if (!(pid = fork())) {
+		/* child */
+		log_debug(4, "deleting device using %s", sysfs_file);
+		write(fd, "1", 1);
+		close(fd);
+		exit(0);
+	}
+	if (pid > 0) {
+		int attempts = 3, status, rc;
+		while (!(rc = waitpid(pid, &status, WNOHANG)) && attempts--)
+			sleep(1);
+		if (!rc)
+			log_debug(4, "could not delete device %s "
+				  "after delay\n", sysfs_file);
+	}
+	close(fd);
+	return 0;
+}
+
+/*
+ * Scan a session from usersapce using sysfs
+ */
+pid_t scan_host(iscsi_session_t *session)
+{
+	int hostno = session->hostno;
+	pid_t pid;
+	int fd;
+
+	sprintf(sysfs_file, "/sys/class/scsi_host/host%d/scan",
+		session->hostno);
+	fd = open(sysfs_file, O_WRONLY);
+	if (fd < 0) {
+		log_error("could not scan scsi host%d\n", hostno);
+		return -1;
+	}
+
+	pid = fork();
+	if (pid == 0) {
+		/* child */
+		log_debug(4, "scanning host%d using %s",hostno,
+			  sysfs_file);
+		write(fd, "- - -", 5);
+		log_debug(4, "scanning host%d completed\n", hostno);
+	} else if (pid > 0) {
+		log_debug(4, "scanning host%d from pid %d", hostno, pid);
+	} else
+		/*
+		 * Session is fine, so log the error and let the user
+		 * scan by hand
+		  */
+		log_error("Could not start scanning process for host %d "
+			  "err %d. Try scanning through sysfs\n", hostno,
+			  errno);
+
+	close(fd);
+	return pid;
 }
 
 iscsi_provider_t *get_transport_by_session(char *sys_session)
