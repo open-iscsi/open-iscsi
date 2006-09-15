@@ -90,28 +90,27 @@
 	_n++; \
 } while(0)
 
-char *
-get_iscsi_initiatorname(char *pathname)
+static char *get_global_string_param(char *pathname, const char *key)
 {
 	FILE *f = NULL;
-	int c;
+	int c, len;
 	char *line, buffer[1024];
 	char *name = NULL;
 
 	if (!pathname) {
-		log_error("No pathname to load InitiatorName from");
+		log_error("No pathname to load %s from", key);
 		return NULL;
 	}
 
-	/* get the InitiatorName */
+	len = strlen(key);
 	if ((f = fopen(pathname, "r"))) {
 		while ((line = fgets(buffer, sizeof (buffer), f))) {
 
 			while (line && isspace(c = *line))
 				line++;
 
-			if (strncmp(line, "InitiatorName=", 14) == 0) {
-				char *end = line + 14;
+			if (strncmp(line, key, len) == 0) {
+				char *end = line + len;
 
 				/* the name is everything up to the first
 				 * bit of whitespace
@@ -122,76 +121,30 @@ get_iscsi_initiatorname(char *pathname)
 				if (isspace(c = *end))
 					*end = '\0';
 
-				if (end > line + 14)
-					name = strdup(line + 14);
+				if (end > line + len)
+					name = strdup(line + len);
 			}
 		}
 		fclose(f);
-		if (!name) {
-			log_error(
-			       "an InitiatorName is required, but "
-			       "was not found in %s", pathname);
-			return NULL;
-		} else {
-			log_debug(5, "InitiatorName=%s", name);
-		}
-		return name;
-	} else {
-		log_error("cannot open InitiatorName configuration file %s",
-			 pathname);
-		return NULL;
-	}
+		if (!name)
+			log_error("an %s is required, but was not found in %s",
+				  key, pathname);
+		else
+			log_debug(5, "%s=%s", key, name);
+	} else
+		log_error("can't open %s configuration file %s", key, pathname);
+
+	return name;
 }
 
-char *
-get_iscsi_initiatoralias(char *pathname)
+char *get_iscsi_initiatorname(char *pathname)
 {
-	FILE *f = NULL;
-	int c;
-	char *line, buffer[1024];
-	char *name = NULL;
+	return get_global_string_param(pathname, "InitiatorName=");
+}
 
-	if (!pathname) {
-		log_error("No pathname to load InitiatorAlias from");
-		return NULL;
-	}
-
-	/* get the InitiatorName */
-	if ((f = fopen(pathname, "r"))) {
-		while ((line = fgets(buffer, sizeof (buffer), f))) {
-
-			while (line && isspace(c = *line))
-				line++;
-
-			if (strncmp(line, "InitiatorAlias=", 15) == 0) {
-				char *end = line + 15;
-
-				/* the name is everything up to the first
-				 * bit of whitespace
-				 */
-				while (*end && (!isspace(c = *end)))
-					end++;
-
-				if (isspace(c = *end))
-					*end = '\0';
-
-				if (end > line + 15)
-					name = strdup(line + 15);
-			}
-		}
-		fclose(f);
-		if (!name) {
-			log_debug(5,"no InitiatorAlias found in %s", pathname);
-			return NULL;
-		} else {
-			log_debug(5, "InitiatorAlias=%s", name);
-		}
-		return name;
-	} else {
-		log_error("cannot open InitiatorAlias configuration file %s",
-			 pathname);
-		return NULL;
-	}
+char *get_iscsi_initiatoralias(char *pathname)
+{
+	return get_global_string_param(pathname, "InitiatorAlias=");
 }
 
 static void
@@ -878,7 +831,7 @@ idbm_node_write(idbm_t *db, node_rec_t *rec)
 			rc = errno;
 			goto free_portal;
 		}
-	}	
+	}
 
 	snprintf(portal, PATH_MAX, "%s/%s", NODE_CONFIG_DIR, rec->name);
 	if (access(portal, F_OK) != 0) {
@@ -887,7 +840,7 @@ idbm_node_write(idbm_t *db, node_rec_t *rec)
 			rc = errno;
 			goto free_portal;
 		}
-	}	
+	}
 
 	snprintf(portal, PATH_MAX, "%s/%s/%s,%d", NODE_CONFIG_DIR,
 		 rec->name, rec->conn[0].address, rec->conn[0].port);
@@ -930,7 +883,7 @@ idbm_discovery_write(idbm_t *db, discovery_rec_t *rec)
 			rc = errno;
 			goto free_portal;
 		}
-	}	
+	}
 
 	snprintf(portal, PATH_MAX, "%s/%s,%d", ST_CONFIG_DIR,
 		 rec->u.sendtargets.address, rec->u.sendtargets.port);
@@ -968,7 +921,7 @@ idbm_add_discovery(idbm_t *db, discovery_rec_t *newrec)
 	idbm_unlock(db);
 	return rc;
 }
-	
+
 static int
 idbm_add_node(idbm_t *db, discovery_rec_t *drec, node_rec_t *newrec)
 {
@@ -1227,7 +1180,7 @@ idbm_init(char *configfile)
 	memset(db, 0, sizeof(idbm_t));
 
 	db->configfile = strdup(configfile);
-	idbm_sync_config(db, 0);	
+	idbm_sync_config(db, 0);
 
 	return db;
 }
