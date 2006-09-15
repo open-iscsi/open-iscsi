@@ -503,7 +503,6 @@ iscsi_broadcast_skb(struct sk_buff *skb, gfp_t gfp)
 
 	rc = netlink_broadcast(nls, skb, 0, 1, gfp);
 	if (rc < 0) {
-		kfree_skb(skb);
 		printk(KERN_ERR "iscsi: can not broadcast skb (%d)\n", rc);
 		return rc;
 	}
@@ -518,7 +517,6 @@ iscsi_unicast_skb(struct sk_buff *skb, int pid)
 
 	rc = netlink_unicast(nls, skb, pid, MSG_DONTWAIT);
 	if (rc < 0) {
-		kfree_skb(skb);
 		printk(KERN_ERR "iscsi: can not unicast skb (%d)\n", rc);
 		return rc;
 	}
