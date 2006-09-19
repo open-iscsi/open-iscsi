@@ -65,7 +65,7 @@ enum iscsi_tgt_dscvr {
 struct iscsi_uevent {
 	uint32_t type; /* k/u events type */
 	uint32_t iferror; /* carries interface or resource errors */
-	uint64_t transport_handle;
+	aligned_u64 transport_handle;
 
 	union {
 		/* messages u -> k */
@@ -82,7 +82,7 @@ struct iscsi_uevent {
 		struct msg_bind_conn {
 			uint32_t	sid;
 			uint32_t	cid;
-			uint64_t	transport_eph;
+			aligned_u64	transport_eph;
 			uint32_t	is_leading;
 		} b_conn;
 		struct msg_destroy_conn {
@@ -108,7 +108,7 @@ struct iscsi_uevent {
 		struct msg_stop_conn {
 			uint32_t	sid;
 			uint32_t	cid;
-			uint64_t	conn_handle;
+			aligned_u64	conn_handle;
 			uint32_t	flag;
 		} stop_conn;
 		struct msg_get_stats {
@@ -119,11 +119,11 @@ struct iscsi_uevent {
 			uint32_t	non_blocking;
 		} ep_connect;
 		struct msg_transport_poll {
-			uint64_t	ep_handle;
+			aligned_u64	ep_handle;
 			uint32_t	timeout_ms;
 		} ep_poll;
 		struct msg_transport_disconnect {
-			uint64_t	ep_handle;
+			aligned_u64	ep_handle;
 		} ep_disconnect;
 		struct msg_tgt_dscvr {
 			enum iscsi_tgt_dscvr	type;
@@ -151,7 +151,7 @@ struct iscsi_uevent {
 		struct msg_recv_req {
 			uint32_t	sid;
 			uint32_t	cid;
-			uint64_t	recv_handle;
+			aligned_u64	recv_handle;
 		} recv_req;
 		struct msg_conn_error {
 			uint32_t	sid;
@@ -163,7 +163,7 @@ struct iscsi_uevent {
 			uint32_t	sid;
 		} d_session;
 		struct msg_transport_connect_ret {
-			uint64_t	handle;
+			aligned_u64	handle;
 		} ep_connect_ret;
 	} r;
 } __attribute__ ((aligned (sizeof(uint64_t))));

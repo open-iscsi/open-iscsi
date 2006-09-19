@@ -26,4 +26,7 @@ struct qelem {
 typedef uint16_t __be16;
 typedef uint32_t __be32;
 
+/* this is a special 64bit data type that is 8-byte aligned */
+#define aligned_u64 unsigned long long __attribute__((aligned(8)))
+
 #endif	/* TYPES_H */
