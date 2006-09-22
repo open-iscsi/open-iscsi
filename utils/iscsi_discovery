@@ -69,14 +69,9 @@ discover()
 
 	dbg "starting discovery to $ip"
 	iscsiadm -m discovery --type sendtargets --portal ${ip}:${port} > ${df}
-	while read dis
+	while read portal target
 	do
-		dis=${dis/[/} # the [] caused problems with the set, so do it first
-		dis=${dis/]/}
-		set ${dis}
-		record=$1
-		portal=$2
-		target=$3
+		portal=${portal%,*}
 		select_transport  > /dev/tty
 	done < ${df}
 
@@ -92,43 +87,35 @@ discover()
 
 set_auto_if_login()
 {
-	record=$1
-	iscsiadm -m node --record ${record} --login >/dev/null 2>&1
+	iscsiadm -m node --targetname ${target} --portal ${portal} --login >/dev/null 2>&1
 	ret=$?
 	if [ ${ret} = 0 ]; then
-        	iscsiadm -m node --record ${record} --logout
-		iscsiadm -m node --record ${record} --op update -n node.conn[0].startup -v automatic
-		echo "Set record ${record} to automatic login over ${transport} to ${target} portal ${portal}"
+        	iscsiadm -m node --targetname ${target} --portal ${portal} --logout
+		iscsiadm -m node --targetname ${target} --portal ${portal} --op update -n node.conn[0].startup -v automatic
+		echo "Set target ${target} to automatic login over ${transport} to portal ${portal}"
 		((connected++))
 	fi
 	return ${ret}
 }
 
-set_transport_iser()
+set_transport()
 {
-	record=$1
-	transport=iser
-	iscsiadm -m node --record ${record} --op update -n node.conn[0].iscsi.HeaderDigest -v None
-	iscsiadm -m node --record ${record} --op update -n node.transport_name -v ${transport}
-}
-
-set_transport_tcp()
-{
-	record=$1
-	transport=tcp
-	iscsiadm -m node --record ${record} --op update -n node.conn[0].iscsi.HeaderDigest -v None
-	iscsiadm -m node --record ${record} --op update -n node.transport_name -v ${transport}
+	transport=$1
+	iscsiadm -m node --targetname ${target} --portal ${portal} \
+			 --op update -n node.conn[0].iscsi.HeaderDigest -v None
+	iscsiadm -m node --targetname ${target} --portal ${portal} \
+			 --op update -n node.transport_name -v ${transport}
 }
 
 select_transport()
 {
-	set_transport_iser ${record}
+	set_transport iser
 	dbg "Testing iser-login to target ${target} portal ${portal}"
-	set_auto_if_login ${record}
+	set_auto_if_login
 	if [ $? != 0 ]; then
-		set_transport_tcp ${record}
+		set_transport tcp
 		dbg "starting to test tcp-login to target ${target} portal ${portal}"
-		set_auto_if_login ${record}
+		set_auto_if_login
 	fi
 }
 
