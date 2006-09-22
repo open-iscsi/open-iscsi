@@ -102,6 +102,7 @@ case "$1" in
 	    modprobe scsi_transport_iscsi
 	    modprobe libiscsi
 	    modprobe iscsi_tcp
+	    modprobe ib_iser
 	    startproc $DAEMON $ARGS
 	    RETVAL=$?
 	    rc_status -v
@@ -121,6 +122,7 @@ case "$1" in
 	if [ "$RETVAL" == "0" ]; then
 	    rm -f $PID_FILE
 	    rmmod iscsi_tcp
+	    rmmod ib_iser
 	    rmmod libiscsi
 	    rmmod scsi_transport_iscsi
 	    rc_failed 0
