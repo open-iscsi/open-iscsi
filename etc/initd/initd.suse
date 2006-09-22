@@ -35,13 +35,15 @@ iscsi_discovery()
 
 iscsi_login_all_nodes()
 {
-    TARGETS=$($ISCSIADM -m node 2> /dev/null | sed 's@\[\(.*\)\] .*@\1@g')
-    for rec in $TARGETS; do
-	STARTUP=`$ISCSIADM -m node -r $rec | grep "node.conn\[0\].startup" | cut -d' ' -f3`
-	NODE=`$ISCSIADM -m node -r $rec | grep "node.name" | cut -d' ' -f3`
+    $ISCSIADM -m node 2> /dev/null | while read line; do
+	set ${line}
+	TARGET=$(echo $line | cut -d" " -f2)
+	PORTAL=$(echo $line | cut -d"," -f1)
+	STARTUP=`$ISCSIADM -m node --targetname $TARGET -p $PORTAL | grep "node.conn\[0\].startup" | cut -d' ' -f3`
+	NODE=`$ISCSIADM -m node --targetname $TARGET -p $PORTAL | grep "node.name" | cut -d' ' -f3`
 	if [ $STARTUP = "automatic" ] ; then
 	    echo -n "Logging into $NODE: "
-	    $ISCSIADM -m node -r $rec -l
+	    $ISCSIADM -m node --targetname $TARGET -p $PORTAL -l
 	    rc_status -v
 	fi
     done
@@ -54,13 +56,15 @@ iscsi_logout_all_nodes()
 	return 0
     fi
     # Logout from all active sessions
-    TARGETS=$($ISCSIADM -m session | sed 's@\[[^:]*:\(.*\)\] .*@\1@g')
-    for rec in $TARGETS; do
-	STARTUP=`$ISCSIADM -m node -r $rec | grep "node.conn\[0\].startup" | cut -d' ' -f3`
-	NODE=`$ISCSIADM -m node -r $rec | grep "node.name" | cut -d' ' -f3`
+    $ISCSIADM -m session | while read line; do
+	set ${line}
+	TARGET=$(echo $line | cut -d" " -f4)
+	PORTAL=$(echo $line | cut -d" " -f3 | sed 's/,.//')
+	STARTUP=`$ISCSIADM -m node --targetname $TARGET -p $PORTAL | grep "node.conn\[0\].startup" | cut -d' ' -f3`
+	NODE=`$ISCSIADM -m node --targetname $TARGET -p $PORTAL | grep "node.name" | cut -d' ' -f3`
 	if [ $STARTUP != "onboot" ] ; then
 	    echo -n "Logging out from $NODE: "
-	    if $ISCSIADM -m node --record $rec --logout ; then
+	    if $ISCSIADM -m node --targetname $TARGET -p $PORTAL --logout ; then
 		rc_status -v
 	    else
 		RETVAL=$?
@@ -78,8 +82,11 @@ iscsi_list_all_nodes()
     TARGETS=$($ISCSIADM -m session | sed 's@\[[^:]*:\(.*\)\] .*@\1@g')
     if [ "$TARGETS" != "no active sessions" ] ; then
 	echo "Active connections:"
-	for rec in $TARGETS; do
-	    NODE=$($ISCSIADM -m node -r $rec | grep "node.name" | cut -d' ' -f3)
+	$ISCSIADM -m session | while read line; do
+	    set ${line}
+	    TARGET=$(echo $line | cut -d" " -f4)
+	    PORTAL=$(echo $line | cut -d" " -f3 | sed 's/,.//')
+	    NODE=`$ISCSIADM -m node --targetname $TARGET -p $PORTAL | grep "node.name" | cut -d' ' -f3`
 	    echo -e "\t$NODE"
 	done
     fi
