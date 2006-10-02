@@ -4,7 +4,7 @@
 # description: Starts and stops the iSCSI initiator
 #
 # processname: iscsid
-# pidfile: /etc/iscsi/iscsid.pid
+# pidfile: /var/run/iscsid.pid
 # config:  /etc/iscsi/iscsid.conf
 
 # Source function library.
@@ -57,7 +57,7 @@ stop()
 	   	done
 	fi
 	pkill -KILL iscsid
-	rm -f /etc/iscsi/iscsid.pid
+	rm -f /var/run/iscsid.pid
 	#killproc iscsid
 	[ $RETVAL -eq 0 ] && rm -f /var/lock/subsys/open-iscsi
 	modprobe -r iscsi_tcp 2>/dev/null
