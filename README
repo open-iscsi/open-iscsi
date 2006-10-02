@@ -77,8 +77,8 @@ Linux operating system with kernel version 2.6.16, or later. See
 http://www.open-iscsi.org/cgi-bin/wiki.pl/Supported_Kernels
 for a more information about which kernels Open-iSCSI supports.
 You need to enable "Cryptographic API" under "Cryptographic options" in the
-kernel config. You also need to enable "CRC32c CRC algorithm" if
-you use header or data digests. They are the kernel options,
+kernel config. And you must enable "CRC32c CRC algorithm" even if
+you do not use header or data digests. They are the kernel options,
 CONFIG_CRYPTO and CONFIG_CRYPTO_CRC32C, respectively.
 
 By default the kernel source found at
