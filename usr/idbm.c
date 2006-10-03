@@ -710,6 +710,13 @@ static int idbm_lock(idbm_t *db)
 		return 0;
 	}
 
+	if (access(LOCK_DIR, F_OK) != 0) {
+		if (mkdir(LOCK_DIR, 0660) != 0) {
+			log_error("Could not open %s. Exiting\n", LOCK_DIR);
+			exit(-1);
+		}
+	}
+
 	fd = open(LOCK_FILE, O_RDWR | O_CREAT, 0666);
 	if (fd >= 0)
 		close(fd);

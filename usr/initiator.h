@@ -36,8 +36,9 @@
 #define CONFIG_FILE		"/etc/iscsi/iscsid.conf"
 #define PID_FILE		"/var/run/iscsid.pid"
 #define INITIATOR_NAME_FILE	"/etc/iscsi/initiatorname.iscsi"
-#define LOCK_FILE		"/etc/iscsi/lock"
-#define LOCK_WRITE_FILE		"/etc/iscsi/lock.write"
+#define LOCK_DIR		"/var/lock/iscsi"
+#define LOCK_FILE		"/var/lock/iscsi/lock"
+#define LOCK_WRITE_FILE		"/var/lock/iscsi/lock.write"
 
 #define DEF_ISCSI_PORT		3260
 
