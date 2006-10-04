@@ -99,8 +99,6 @@ case "$1" in
 	    RETVAL=0
 	else
 	    echo -n "Starting iSCSI initiator service: "
-	    modprobe scsi_transport_iscsi
-	    modprobe libiscsi
 	    modprobe iscsi_tcp
 	    modprobe ib_iser
 	    startproc $DAEMON $ARGS
@@ -121,10 +119,8 @@ case "$1" in
 	echo -n "Stopping iSCSI initiator service: "
 	if [ "$RETVAL" == "0" ]; then
 	    rm -f $PID_FILE
-	    rmmod iscsi_tcp
-	    rmmod ib_iser
-	    rmmod libiscsi
-	    rmmod scsi_transport_iscsi
+	    modprobe -r iscsi_tcp
+	    modprobe -r ib_iser
 	    rc_failed 0
 	else
 	    rc_failed 1
