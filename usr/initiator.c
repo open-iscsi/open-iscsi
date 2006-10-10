@@ -1528,6 +1528,10 @@ static int match_session(void *data, char *targetname, int tpgt, char *address,
 	log_debug(6, "looking for session [%s,%s,%d]",
 		  rec->name, rec->conn[0].address, rec->conn[0].port);
 
+	if (strlen(rec->name) != strlen(targetname) ||
+	    strlen(rec->conn[0].address) != strlen(address))
+		return 0;
+
 	if (!strncmp(rec->name, targetname, strlen(rec->name)) &&
 	    !strncmp(rec->conn[0].address, address,
 		     strlen(rec->conn[0].address)) &&
