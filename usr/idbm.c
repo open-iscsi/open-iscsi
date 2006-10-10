@@ -961,15 +961,14 @@ idbm_new_discovery(idbm_t *db, char *ip, int port,
 	discovery_rec_t *drec;
 	node_rec_t *nrec;
 
-	/* sync default configuration */
-	idbm_sync_config(db, 1);
-
 	/* allocate new discovery record and initialize with defaults */
 	drec = malloc(sizeof(discovery_rec_t));
 	if (!drec) {
 		log_error("out of memory on discovery record allocation");
 		return NULL;
 	}
+	drec->type = type;
+
 	if (drec->type == DISCOVERY_TYPE_SENDTARGETS) {
 		memcpy(drec, &db->drec_st, sizeof(discovery_rec_t));
 	} else if (drec->type == DISCOVERY_TYPE_SLP) {
@@ -988,7 +987,6 @@ idbm_new_discovery(idbm_t *db, char *ip, int port,
 	memcpy(nrec, &db->nrec, sizeof(node_rec_t));
 
 	/* update discovery record */
-	drec->type = type;
 	if (drec->type == DISCOVERY_TYPE_SENDTARGETS) {
 		strncpy(drec->u.sendtargets.address, ip, NI_MAXHOST);
 		drec->u.sendtargets.port = port;
@@ -1138,6 +1136,9 @@ idbm_delete_node(idbm_t *db, node_rec_t *rec)
 void
 idbm_sendtargets_defaults(idbm_t *db, struct iscsi_sendtargets_config *cfg)
 {
+	/* sync default configuration */
+	idbm_sync_config(db, 1);
+
 	memcpy(cfg, &db->drec_st.u.sendtargets,
 	       sizeof(struct iscsi_sendtargets_config));
 }
