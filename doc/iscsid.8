@@ -15,11 +15,11 @@ iSCSI database.
 .TP
 .BI [-c|--config=]\fIconfig\-file\fP
 Read configuration from \fIconfig\-file\fR rather than the default
-\fI/etc/iscsid.conf\fR file.
+\fI/etc/iscsi/iscsid.conf\fR file.
 .TP
 .BI [-i|--initiatorname=]\fIiname\-file\fP
 Read initiator name from \fIiname\-file\fR rather than the default
-\fI/etc/initiatorname.iscsi\fR file.
+\fI/etc/iscsi/initiatorname.iscsi\fR file.
 .TP
 .BI [-f|--foreground]
 run
@@ -47,14 +47,14 @@ display version and exit.
 
 .SH FILES
 .TP
-/etc/iscsid.conf
+/etc/iscsi/iscsid.conf
 The configuration file read by
 .B iscsid
 and
 .B iscsiadm
 on startup.
 .TP
-/etc/initiatorname.iscsi
+/etc/iscsi/initiatorname.iscsi
 The file containing the iSCSI initiatorname
 and initiatoralias read by
 .B iscsid
@@ -62,7 +62,7 @@ and
 .B iscsiadm
 on startup.
 .TP
-/var/db/iscsi/*.db
+/etc/iscsi/nodes
 Open-iSCSI persistent configuration database
 
 .SH "SEE ALSO"

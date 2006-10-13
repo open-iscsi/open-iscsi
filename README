@@ -123,7 +123,7 @@ For help, run:
 
 Usage: iscsid [OPTION]
 
-  -c, --config=[path]     Execute in the config file (/etc/iscsid.conf).
+  -c, --config=[path]     Execute in the config file (/etc/iscsi/iscsid.conf).
   -f, --foreground        run iscsid in the foreground
   -d, --debug debuglevel  print debugging information
   -u, --uid=uid           run as uid, default is current user
@@ -141,10 +141,10 @@ available on all Linux installations.
 
 The database contains two tables:
 
-- Discovery table (discovery.db);
-- Node table (node.db).
+- Discovery table (/etc/iscsi/send_targets);
+- Node table (/etc/iscsi/nodes).
 
-The regular place for iSCSI database files: /var/db/iscsi/*.db
+The regular place for iSCSI database files: /etc/iscsi/nodes
 
 The iscsiadm utility is a command-line tool to manage (update, delete,
 insert, query) the persistent database.
@@ -250,7 +250,7 @@ Usage: iscsiadm [OPTION]
 6. Configuration
 ================
 
-The default configuration file is /etc/iscsid.conf. This file contains
+The default configuration file is /etc/iscsi/iscsid.conf. This file contains
 only configuration that could be overwritten by iSCSI Discovery,
 or manualy updated via iscsiadm utility. Its OK if this file does not
 exist in which case compiled-in default configuration will take place
@@ -333,9 +333,9 @@ and port of the portal of a discovered or manually added iSCSI Target Node
 Once iscsi is up, you can perform discovery to targets using:
 iscsiadm -m discovery -t sendtargets -p 192.168.1.1:3260
 
-While discovery targets are kept in the discovery.db, they are
+While discovery targets are kept in the discovery db, they are
 usefull only for re-discovery. The discovered targets (a.k.a. nodes)
-are stored as records in the xxx.db.
+are stored as records in the node db.
 
 The discovered targets are not logged into yet. Rather than logging
 into the discovered nodes (making LUs from those nodes available as
@@ -350,7 +350,7 @@ node discovered in the discovery above:
 	iscsiadm -m node -T targetname -p ip:port --op update -n node.conn[0].startup -v automatic
 
 Or to set the "node.conn[0].statup" attribute to "startup" as default for
-all sessions add the following to the /etc/iscsid.conf:
+all sessions add the following to the /etc/iscsi/iscsid.conf:
 
 	node.conn[0].startup = automatic
 
