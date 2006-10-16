@@ -15,7 +15,7 @@
 ### END INIT INFO
 
 PID_FILE=/var/run/iscsi.pid
-CONFIG_FILE=/etc/iscsid.conf
+CONFIG_FILE=/etc/iscsi/iscsid.conf
 DAEMON=/sbin/iscsid
 ISCSIADM=/sbin/iscsiadm
 ARGS="-c $CONFIG_FILE -p $PID_FILE"

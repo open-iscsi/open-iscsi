@@ -6,7 +6,7 @@
 
 PID_FILE=/var/run/iscsid.pid
 CONFIG_FILE=/etc/iscsid.conf
-DAEMON=/usr/sbin/iscsid
+DAEMON=/sbin/iscsid
 
 PATH=/sbin:/bin:/usr/sbin:/usr/bin
 
