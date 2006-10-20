@@ -59,7 +59,7 @@ iscsi_logout_all_nodes()
     $ISCSIADM -m session | while read line; do
 	set ${line}
 	TARGET=$(echo $line | cut -d" " -f4)
-	PORTAL=$(echo $line | cut -d" " -f3 | sed 's/,.//')
+	PORTAL=$(echo $line | cut -d" " -f3 | sed 's/,.*//')
 	STARTUP=`$ISCSIADM -m node --targetname $TARGET -p $PORTAL | grep "node.conn\[0\].startup" | cut -d' ' -f3`
 	NODE=`$ISCSIADM -m node --targetname $TARGET -p $PORTAL | grep "node.name" | cut -d' ' -f3`
 	if [ $STARTUP != "onboot" ] ; then
@@ -85,7 +85,7 @@ iscsi_list_all_nodes()
 	$ISCSIADM -m session | while read line; do
 	    set ${line}
 	    TARGET=$(echo $line | cut -d" " -f4)
-	    PORTAL=$(echo $line | cut -d" " -f3 | sed 's/,.//')
+	    PORTAL=$(echo $line | cut -d" " -f3 | sed 's/,.*//')
 	    NODE=`$ISCSIADM -m node --targetname $TARGET -p $PORTAL | grep "node.name" | cut -d' ' -f3`
 	    echo -e "\t$NODE"
 	done
