@@ -323,7 +323,8 @@ static int chap_initiator_auth_create_challenge(struct connection *conn)
 	char *value, *p;
 	char text[CHAP_CHALLENGE_MAX * 2 + 8];
 	static int chap_id;
-	int i;
+	int i, tmpsize;
+	int fd;
 
 	value = text_key_find(conn, "CHAP_A");
 	if (!value)
@@ -353,7 +354,14 @@ static int chap_initiator_auth_create_challenge(struct connection *conn)
 	 * wise, or should we rather always use the max. allowed length of
 	 * 1024 for the (unencoded) challenge?
 	 */
-	conn->auth.chap.challenge_size = (rand() % (CHAP_CHALLENGE_MAX / 2)) + CHAP_CHALLENGE_MAX / 2;
+	fd = open("/dev/urandom", O_RDONLY);
+	if (fd)
+		read(fd, &tmpsize, sizeof(int));
+	else
+		tmpsize = rand();
+
+	conn->auth.chap.challenge_size = (tmpsize % CHAP_CHALLENGE_MAX / 2) +
+		CHAP_CHALLENGE_MAX / 2;
 
 	conn->auth.chap.challenge = xmalloc(conn->auth.chap.challenge_size);
 	if (!conn->auth.chap.challenge)
@@ -362,11 +370,20 @@ static int chap_initiator_auth_create_challenge(struct connection *conn)
 	p = text;
 	strcpy(p, "0x");
 	p += 2;
+
+	if (fd) {
+		read(fd, conn->auth.chap.challenge, 
+		     sizeof(int) * conn->auth.chap.challenge_size);
+	}
+
 	for (i = 0; i < conn->auth.chap.challenge_size; i++) {
-		conn->auth.chap.challenge[i] = rand();
+		if (!fd) {
+			conn->auth.chap.challenge[i] = rand();
+		}
 		sprintf(p, "%.2hhx", conn->auth.chap.challenge[i]);
 		p += 2;
 	}
+	if (fd) close(fd);
 	text_key_add(conn, "CHAP_C",  text);
 
 	return 0;
