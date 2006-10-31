@@ -345,54 +345,59 @@ int set_exp_statsn(iscsi_conn_t *conn)
 	return 0;
 }
 
-int set_device_online(int hostno, int lun)
+int sysfs_for_each_device(int host_no, uint32_t sid,
+			  void (* fn)(int host_no, int lun))
 {
-	int fd, rc = 0;
+	DIR *dirfd;
+	struct dirent *dent;
+	int h, b, t, l;
+
+	sprintf(sysfs_file, "/sys/class/iscsi_session/session%d/device/target%d:0:0", sid, host_no);
+	dirfd = opendir(sysfs_file);
+	if (!dirfd)
+		return errno;
+
+	while ((dent = readdir(dirfd))) {
+		if (!strcmp(dent->d_name, ".") || !strcmp(dent->d_name, ".."))
+			continue;
+
+		if (sscanf(dent->d_name, "%d:%d:%d:%d\n", &h, &b, &t, &l) != 4)
+			continue;
+		fn(h, l);
+	}
+	return 0;
+}
+
+void set_device_online(int hostno, int lun)
+{
+	int fd;
 
 	sprintf(sysfs_file, "/sys/bus/scsi/devices/%d:0:0:%d/state",
 		hostno, lun);
 	fd = open(sysfs_file, O_WRONLY);
 	if (fd < 0)
-		return errno;
+		return;
 	log_debug(4, "online device using %s", sysfs_file);
-	if (write(fd, "running\n", 8) == -1 && errno != EINVAL) {
+	if (write(fd, "running\n", 8) == -1 && errno != EINVAL) 
 		/* we should read the state */
 		log_error("Could not online LUN %d err %d\n",
 			  lun, errno);
-		rc = errno;
-	}
 	close(fd);
-	return rc;
 }
 
-/* TODO: remove this when we add logout support and fix shutdown */
-int delete_device(int hostno, int lun)
+/* TODO: remove this when we fix shutdown */
+void delete_device(int hostno, int lun)
 {
-	pid_t pid;
 	int fd;
 
 	sprintf(sysfs_file, "/sys/bus/scsi/devices/%d:0:0:%d/delete",
 		hostno, lun);
 	fd = open(sysfs_file, O_WRONLY);
 	if (fd < 0)
-		return errno;
-	if (!(pid = fork())) {
-		/* child */
-		log_debug(4, "deleting device using %s", sysfs_file);
-		write(fd, "1", 1);
-		close(fd);
-		exit(0);
-	}
-	if (pid > 0) {
-		int attempts = 3, status, rc;
-		while (!(rc = waitpid(pid, &status, WNOHANG)) && attempts--)
-			sleep(1);
-		if (!rc)
-			log_debug(4, "could not delete device %s "
-				  "after delay\n", sysfs_file);
-	}
+		return;
+	log_debug(4, "deleting device using %s", sysfs_file);
+	write(fd, "1", 1);
 	close(fd);
-	return 0;
 }
 
 /*

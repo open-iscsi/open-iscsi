@@ -72,6 +72,7 @@ struct iscsi_auth_config {
  */
 struct iscsi_connection_timeout_config {
 	int login_timeout;
+	int logout_timeout;
 	int auth_timeout;
 	int active_timeout;
 	int idle_timeout;

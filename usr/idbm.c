@@ -276,6 +276,9 @@ idbm_recinfo_node(node_rec_t *r, recinfo_t *ri)
 		sprintf(key, "node.conn[%d].tcp.type_of_service", i);
 		__recinfo_int(key, ri, r, conn[i].tcp.type_of_service,
 				IDBM_SHOW, num);
+		sprintf(key, "node.conn[%d].timeo.logout_timeout", i);
+		__recinfo_int(key, ri, r, conn[i].timeo.logout_timeout,
+				IDBM_SHOW, num);
 		sprintf(key, "node.conn[%d].timeo.login_timeout", i);
 		__recinfo_int(key, ri, r, conn[i].timeo.login_timeout,
 				IDBM_SHOW, num);

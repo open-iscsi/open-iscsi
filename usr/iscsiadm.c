@@ -245,15 +245,45 @@ session_login(node_rec_t *rec)
 }
 
 static int
+__delete_target(void *data, char *targetname, int tpgt, char *address,
+	      int port, int sid)
+{
+	node_rec_t *rec = data;
+	uint32_t host_no;
+	int err;
+
+	log_debug(6, "looking for session [%s,%s,%d]",
+		  rec->name, rec->conn[0].address, rec->conn[0].port);
+
+	if (!strcmp(rec->name, targetname) &&
+	    !strcmp(rec->conn[0].address, address) &&
+	    rec->conn[0].port == port) {
+		host_no = get_host_no_from_sid(sid, &err);
+		if (err) {
+			log_error("Could not properly delete target\n");
+			return 1;
+		}
+
+		sysfs_for_each_device(host_no, sid, delete_device);
+		return 1;
+	}
+
+	/* keep on looking */
+	return 0;
+}
+
+static int
 session_logout(node_rec_t *rec)
 {
 	iscsiadm_req_t req;
 	iscsiadm_rsp_t rsp;
+	int num_found = 0;
 
 	memset(&req, 0, sizeof(req));
 	req.command = MGMT_IPC_SESSION_LOGOUT;
 	memcpy(&req.u.session.rec, rec, sizeof(node_rec_t));
 
+	sysfs_for_each_session(rec, &num_found, __delete_target);
 	return do_iscsid(&ipc_fd, &req, &rsp);
 }
 

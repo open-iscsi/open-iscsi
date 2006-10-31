@@ -188,6 +188,7 @@ void idbm_node_setup_defaults(node_rec_t *rec)
 		rec->conn[i].tcp.window_size = 512 * 1024;
 		rec->conn[i].tcp.type_of_service = 0;
 		rec->conn[i].timeo.login_timeout=15;
+		rec->conn[i].timeo.logout_timeout=15;
 		rec->conn[i].timeo.auth_timeout = 45;
 		rec->conn[i].timeo.active_timeout=5;
 		rec->conn[i].timeo.idle_timeout = 60;
