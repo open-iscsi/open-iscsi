@@ -47,6 +47,8 @@
 static void __session_mainloop(void *data);
 static void __conn_error_handle(iscsi_session_t*, iscsi_conn_t*);
 
+#define DEFAULT_TIME2WAIT 2
+
 /*
  * calculate parameter's padding
  */
@@ -570,8 +572,20 @@ __conn_noop_out_delete(iscsi_conn_t *conn)
 	}
 }
 
+static void
+session_conn_cleanup(queue_task_t *qtask, mgmt_ipc_err_e err)
+{
+	iscsi_conn_t *conn = qtask->conn;
+	iscsi_session_t *session = conn->session;
+
+	write_mgmt_rsp(qtask, err);
+	session_conn_destroy(session, conn->id);
+	if (conn->id == 0)
+		__session_destroy(session);
+}
+
 static mgmt_ipc_err_e 
-__session_conn_cleanup(iscsi_conn_t *conn, queue_task_t *qtask,
+__session_conn_shutdown(iscsi_conn_t *conn, queue_task_t *qtask,
 			mgmt_ipc_err_e err)
 {
 	iscsi_session_t *session = conn->session;
@@ -586,24 +600,19 @@ __session_conn_cleanup(iscsi_conn_t *conn, queue_task_t *qtask,
 		return MGMT_IPC_ERR_INTERNAL;
 	}
 	conn->session->provider->utransport->ep_disconnect(conn);
-	session_conn_destroy(session, conn->id);
 
 	if (ipc->destroy_session(session->transport_handle, session->id)) {
 		log_error("can not safely destroy session %d", session->id);
 		return MGMT_IPC_ERR_INTERNAL;
 	}
 
-	if (conn->id == 0)
-		__session_destroy(session);
-
-	if (qtask)
-		write_mgmt_rsp(qtask, MGMT_IPC_OK);
+	session_conn_cleanup(qtask, err);
 	return MGMT_IPC_OK;
 }
 
 static mgmt_ipc_err_e 
-session_conn_cleanup(iscsi_conn_t *conn, queue_task_t *qtask,
-		     mgmt_ipc_err_e err)
+session_conn_shutdown(iscsi_conn_t *conn, queue_task_t *qtask,
+		      mgmt_ipc_err_e err)
 {
 	iscsi_session_t *session = conn->session;
 
@@ -614,20 +623,7 @@ session_conn_cleanup(iscsi_conn_t *conn, queue_task_t *qtask,
 		return MGMT_IPC_ERR_INTERNAL;
 	}
 
-	return __session_conn_cleanup(conn, qtask, err);
-}
-
-static void
-__session_mgmt_ipc_login_cleanup(queue_task_t *qtask, mgmt_ipc_err_e err)
-{
-	iscsi_conn_t *conn = qtask->conn;
-	iscsi_session_t *session = conn->session;
-
-	session_conn_destroy(session, conn->id);
-	if (conn->id == 0)
-		__session_destroy(session);
-
-	write_mgmt_rsp(qtask, err);
+	return __session_conn_shutdown(conn, qtask, err);
 }
 
 static int
@@ -708,13 +704,14 @@ __connect_timedout(void *data)
 }
 
 static void
-queue_delayed_reopen(queue_task_t *qtask)
+queue_delayed_reopen(queue_task_t *qtask, int delay)
 {
 	iscsi_conn_t *conn = qtask->conn;
 
-	log_debug(4, "Requeue reopen attempt in %d secs\n", 5);
+	log_debug(4, "Requeue reopen attempt in %d secs\n", delay);
 	actor_delete(&conn->connect_timer);
-	actor_timer(&conn->connect_timer, 5*1000, __connect_timedout, qtask);
+	actor_timer(&conn->connect_timer, delay * 1000,
+		    __connect_timedout, qtask);
 }
 
 static void
@@ -748,7 +745,7 @@ reset_iscsi_params(iscsi_conn_t *conn)
 static int
 __session_conn_reopen(iscsi_conn_t *conn, queue_task_t *qtask, int do_stop)
 {
-	int rc;
+	int rc, delay;
 	iscsi_session_t *session = conn->session;
 
 	log_debug(1, "re-opening session %d (reopen_cnt %d)", session->id,
@@ -771,12 +768,15 @@ __session_conn_reopen(iscsi_conn_t *conn, queue_task_t *qtask, int do_stop)
 				   conn->id, do_stop)) {
 			log_error("can't stop connection %d:%d (%d)",
 				  session->id, conn->id, errno);
-			return -1;
+			goto queue_reopen;
 		}
 		log_debug(3, "connection %d:%d is stopped for recovery",
 			  session->id, conn->id);
 	}
 	conn->session->provider->utransport->ep_disconnect(conn);
+
+	if (session->time2wait)
+		goto queue_reopen;
 
 	rc = conn->session->provider->utransport->ep_connect(conn, 1);
 	if (rc < 0 && errno != EINPROGRESS) {
@@ -789,7 +789,7 @@ __session_conn_reopen(iscsi_conn_t *conn, queue_task_t *qtask, int do_stop)
 
 		log_error("cannot make a connection to %s:%s (%d)",
 			  conn->host, serv, errno);
-		return MGMT_IPC_ERR_TRANS_FAILURE;
+		goto queue_reopen;
 	}
 
 	queue_produce(session->queue, EV_CONN_POLL, qtask, 0, NULL);
@@ -798,14 +798,25 @@ __session_conn_reopen(iscsi_conn_t *conn, queue_task_t *qtask, int do_stop)
 	actor_timer(&conn->connect_timer, conn->login_timeout*1000,
 		    __connect_timedout, qtask);
 
-	return MGMT_IPC_OK;
+	return 0;
+
+queue_reopen:
+	if (session->time2wait) {
+		rc = 0;
+		delay = session->time2wait;
+	} else {
+		rc = -1;
+		delay = DEFAULT_TIME2WAIT;
+	}
+	session->time2wait = 0;
+	queue_delayed_reopen(qtask, delay);
+	return rc;
 }
 
 static int
 session_conn_reopen(iscsi_conn_t *conn, queue_task_t *qtask, int do_stop)
 {
 	iscsi_session_t *session = conn->session;
-	int rc;
 
 	session->reopen_cnt++;
 	/*
@@ -816,11 +827,7 @@ session_conn_reopen(iscsi_conn_t *conn, queue_task_t *qtask, int do_stop)
 	memset(&conn->saddr, 0, sizeof(struct sockaddr_storage));
 	conn->saddr = conn->failback_saddr;
 
-	rc = __session_conn_reopen(conn, qtask, do_stop);
-	if (rc)
-		queue_delayed_reopen(qtask);
-
-	return rc;
+	return __session_conn_reopen(conn, qtask, do_stop);
 }
 
 static int
@@ -838,7 +845,6 @@ iscsi_login_redirect(iscsi_conn_t *conn)
 
 	if (__session_conn_reopen(conn, c->qtask, STOP_CONN_RECOVER)) {
 		log_error("redirct __session_conn_reopen failed\n");
-		__session_conn_cleanup(conn, c->qtask, MGMT_IPC_ERR_INTERNAL);
 		return 1;
 	}
 
@@ -1003,16 +1009,16 @@ setup_full_feature_phase(iscsi_conn_t *conn)
 
 	/* almost! entered full-feature phase */
 	if (__login_response_status(conn, c->ret) != CONN_LOGIN_SUCCESS) {
-		__session_conn_cleanup(conn, c->qtask,
-				       MGMT_IPC_ERR_LOGIN_FAILURE);
+		__session_conn_shutdown(conn, c->qtask,
+				        MGMT_IPC_ERR_LOGIN_FAILURE);
 		return;
 	}
 
 	/* check the login status */
 	if (__check_iscsi_status_class(session, conn->id, c->status_class,
 				      c->status_detail) != CONN_LOGIN_SUCCESS) {
-		__session_conn_cleanup(conn, c->qtask,
-				       MGMT_IPC_ERR_LOGIN_FAILURE);
+		__session_conn_shutdown(conn, c->qtask,
+				        MGMT_IPC_ERR_LOGIN_FAILURE);
 		return;
 	}
 
@@ -1032,7 +1038,7 @@ setup_full_feature_phase(iscsi_conn_t *conn)
 				  conntbl[i].param, session->id, conn->id,
 				  rc, errno);
 
-			__session_conn_cleanup(conn, c->qtask,
+			__session_conn_shutdown(conn, c->qtask,
 					       MGMT_IPC_ERR_LOGIN_FAILURE);
 			return;
 		}
@@ -1042,7 +1048,7 @@ setup_full_feature_phase(iscsi_conn_t *conn)
 
 	if (ipc->start_conn(session->transport_handle, session->id, conn->id,
 			    &rc) || rc) {
-		__session_conn_cleanup(conn, c->qtask,
+		__session_conn_shutdown(conn, c->qtask,
 				       MGMT_IPC_ERR_INTERNAL);
 		log_error("can't start connection %d:%d retcode %d (%d)",
 			  session->id, conn->id, rc, errno);
@@ -1086,6 +1092,43 @@ setup_full_feature_phase(iscsi_conn_t *conn)
 	}
 }
 
+static void iscsi_logout_timeout(void *data)
+{
+	iscsi_conn_t *conn = data;
+
+	/*
+	 * assume we were in STATE_IN_LOGOUT or there 
+	 * was some nasty error
+	 */
+	log_debug(3, "logout timeout, dropping conn...\n");
+	__conn_error_handle(conn->session, conn);
+}
+
+static int iscsi_send_logout(iscsi_conn_t *conn)
+{
+	struct iscsi_logout hdr;
+
+	if (conn->state == STATE_IN_LOGOUT ||
+	    conn->state != STATE_LOGGED_IN)
+		return -EINVAL;
+
+	memset(&hdr, 0, sizeof(struct iscsi_logout));
+	hdr.opcode = ISCSI_OP_LOGOUT | ISCSI_OP_IMMEDIATE;
+	hdr.flags = ISCSI_FLAG_CMD_FINAL |
+	   (ISCSI_LOGOUT_REASON_CLOSE_SESSION & ISCSI_FLAG_LOGOUT_REASON_MASK);
+	/* kernel will set the rest */
+
+	if (!iscsi_io_send_pdu(conn, (struct iscsi_hdr*)&hdr,
+			       ISCSI_DIGEST_NONE, NULL, ISCSI_DIGEST_NONE, 0))
+		return -EIO;
+	conn->state = STATE_IN_LOGOUT;
+
+	actor_timer(&conn->logout_timer, conn->logout_timeout * 1000,
+		    iscsi_logout_timeout, conn);
+	log_debug(3, "logout timeout timer %p start\n", &conn->logout_timer);
+	return 0;
+}
+
 static void iscsi_recv_nop_in(iscsi_conn_t *conn, struct iscsi_hdr *hdr)
 {
 	if (hdr->ttt == ISCSI_RESERVED_TAG)
@@ -1103,6 +1146,54 @@ static void iscsi_recv_logout_rsp(iscsi_conn_t *conn, struct iscsi_hdr *hdr)
 	log_debug(3, "Recv: logout response\n");
 	/* TODO process the hdr */
 	__conn_error_handle(conn->session, conn);
+}
+
+static void iscsi_recv_async_msg(iscsi_conn_t *conn, struct iscsi_hdr *hdr)
+{
+	iscsi_session_t *session = conn->session;
+	struct iscsi_async *async_hdr = (struct iscsi_async *)hdr;
+	char *buf = conn->data;
+	unsigned int senselen;
+
+	log_debug(3, "Read AEN %d\n", async_hdr->async_event);
+
+	switch (async_hdr->async_event) {
+	case ISCSI_ASYNC_MSG_SCSI_EVENT:
+		senselen = (buf[0] << 8) | buf[1];
+		buf += 2;
+
+		/* TODO: do something with it */
+		break;
+	case ISCSI_ASYNC_MSG_REQUEST_LOGOUT:
+		log_warning("Target requests logout within %u seconds for "
+			   "connection\n", ntohs(async_hdr->param3));
+		if (iscsi_send_logout(conn))
+			log_error("Could not send logout in response to"
+				 "logout request aen\n");
+		break;
+	case ISCSI_ASYNC_MSG_DROPPING_CONNECTION:
+		log_warning("Target dropping connection %u, reconnect min %u "
+			    "max %u\n", ntohs(async_hdr->param1),
+			    ntohs(async_hdr->param2), ntohs(async_hdr->param3));
+		session->time2wait =
+			(uint32_t)ntohs(async_hdr->param2) & 0x0000FFFFFL;
+		break;
+	case ISCSI_ASYNC_MSG_DROPPING_ALL_CONNECTIONS:
+		log_warning("Target dropping all connections, reconnect min %u "
+			    "max %u\n", ntohs(async_hdr->param2),
+			     ntohs(async_hdr->param3));
+		session->time2wait =
+			(uint32_t)ntohs(async_hdr->param2) & 0x0000FFFFFL;
+		break;
+	case ISCSI_ASYNC_MSG_PARAM_NEGOTIATION:
+		log_warning("Received async event param negotiation, "
+			    "dropping session\n");
+		__conn_error_handle(session, conn);
+		break;
+	case ISCSI_ASYNC_MSG_VENDOR_SPECIFIC:
+	default:
+		log_warning("AEN not supported\n");
+	}
 }
 
 static void
@@ -1123,7 +1214,7 @@ __session_conn_recv_pdu(queue_item_t *item)
 			log_debug(1, "login_rsp ret (%d)", c->ret);
 			if (c->ret != LOGIN_REDIRECT ||
 			    iscsi_login_redirect(conn))				
-				__session_conn_cleanup(conn, c->qtask,
+				__session_conn_shutdown(conn, c->qtask,
 					MGMT_IPC_ERR_LOGIN_FAILURE);
 			return;
 		}
@@ -1132,7 +1223,7 @@ __session_conn_recv_pdu(queue_item_t *item)
 			/* more nego. needed! */
 			conn->state = STATE_IN_LOGIN;
 			if (iscsi_login_req(session, c)) {
-				__session_conn_cleanup(conn, c->qtask,
+				__session_conn_shutdown(conn, c->qtask,
 						MGMT_IPC_ERR_LOGIN_FAILURE);
 				return;
 			}
@@ -1143,8 +1234,8 @@ __session_conn_recv_pdu(queue_item_t *item)
 	case STATE_IN_LOGOUT:
 	case STATE_LOGOUT_REQUESTED:
 		/* read incomming PDU */
-		if (!iscsi_io_recv_pdu(conn, &hdr, ISCSI_DIGEST_NONE,conn->data,
-			    DEFAULT_MAX_RECV_DATA_SEGMENT_LENGTH,
+		if (!iscsi_io_recv_pdu(conn, &hdr, ISCSI_DIGEST_NONE,
+			    conn->data, DEFAULT_MAX_RECV_DATA_SEGMENT_LENGTH,
 			    ISCSI_DIGEST_NONE, 0)) {
 			return;
 		}
@@ -1155,6 +1246,9 @@ __session_conn_recv_pdu(queue_item_t *item)
 			break;
 		case ISCSI_OP_LOGOUT_RSP:
 			iscsi_recv_logout_rsp(conn, &hdr);
+			break;
+		case ISCSI_OP_ASYNC_EVENT:
+			iscsi_recv_async_msg(conn, &hdr);
 			break;
 		default:
 			log_error("unsupported opcode 0x%x", hdr.opcode);
@@ -1308,7 +1402,7 @@ __session_conn_poll(queue_item_t *item)
 		/*
 		 * poll failed on reopen
 		 */
-		queue_delayed_reopen(qtask);
+		queue_delayed_reopen(qtask, DEFAULT_TIME2WAIT);
 	return;
 
 c_cleanup:
@@ -1323,7 +1417,7 @@ s_cleanup:
 	}
 cleanup:
 	session->provider->utransport->ep_disconnect(conn);
-	__session_mgmt_ipc_login_cleanup(qtask, err);
+	session_conn_cleanup(qtask, err);
 }
 
 static void
@@ -1341,16 +1435,16 @@ __session_conn_timer(queue_item_t *item)
 			log_debug(6, "conn_timer popped at XPT_WAIT: login");
 			/* timeout during initial connect.
 			 * clean connection. write ipc rsp */
-			__session_mgmt_ipc_login_cleanup(qtask,
-					    MGMT_IPC_ERR_TRANS_TIMEOUT);
+			session_conn_cleanup(qtask,
+					     MGMT_IPC_ERR_TRANS_TIMEOUT);
 			break;
 		case R_STAGE_SESSION_REDIRECT:
 			log_debug(6, "conn_timer popped at XPT_WAIT: "
 				  "login redirect");
 			/* timeout during initial redirect connect
 			 * clean connection. write ipc rsp */
-			__session_conn_cleanup(conn, qtask,
-					    MGMT_IPC_ERR_TRANS_TIMEOUT);
+			__session_conn_shutdown(conn, qtask,
+						MGMT_IPC_ERR_TRANS_TIMEOUT);
 			break;
 		case R_STAGE_SESSION_REOPEN:
 			log_debug(6, "conn_timer popped at XPT_WAIT: reopen");
@@ -1358,8 +1452,8 @@ __session_conn_timer(queue_item_t *item)
 			session_conn_reopen(conn, qtask, 0);
 			break;
 		case R_STAGE_SESSION_CLEANUP:
-			__session_conn_cleanup(conn, qtask,
-					       MGMT_IPC_ERR_TRANS_TIMEOUT);
+			__session_conn_shutdown(conn, qtask,
+					        MGMT_IPC_ERR_TRANS_TIMEOUT);
 			break;
 		default:
 			break;
@@ -1372,19 +1466,20 @@ __session_conn_timer(queue_item_t *item)
 		case R_STAGE_SESSION_REDIRECT:
 			log_debug(6, "conn_timer popped at IN_LOGIN: cleanup");
 			/*
-			 * send pdu timeout. during initial connect clean
-			 * connection. write rsp
+			 * send pdu timeout during initial connect or
+			 * initial redirected connect. Clean connection
+			 * and write rsp.
 			 */
-			session_conn_cleanup(conn, qtask,
-					     MGMT_IPC_ERR_PDU_TIMEOUT);
+			session_conn_shutdown(conn, qtask,
+					      MGMT_IPC_ERR_PDU_TIMEOUT);
 			break;
 		case R_STAGE_SESSION_REOPEN:
 			log_debug(6, "conn_timer popped at IN_LOGIN: reopen");
 			session_conn_reopen(conn, qtask, STOP_CONN_RECOVER);
 			break;
 		case R_STAGE_SESSION_CLEANUP:
-			session_conn_cleanup(conn, qtask,
-					     MGMT_IPC_ERR_PDU_TIMEOUT);
+			session_conn_shutdown(conn, qtask,
+					      MGMT_IPC_ERR_PDU_TIMEOUT);
 			break;
 		default:
 			break;
@@ -1408,8 +1503,8 @@ __conn_error_handle(iscsi_session_t *session, iscsi_conn_t *conn)
 		actor_delete(&conn->logout_timer);
 		/* logout was requested by user */
 		if (conn->logout_qtask) {
-			session_conn_cleanup(conn, conn->logout_qtask,
-					     MGMT_IPC_OK);
+			session_conn_shutdown(conn, conn->logout_qtask,
+					      MGMT_IPC_OK);
 			return;
 		}
 		/* logout was from eh - fall down to cleanup */
@@ -1761,43 +1856,6 @@ destroy_session:
 	return err;
 }
 
-static void iscsi_logout_timeout(void *data)
-{
-	iscsi_conn_t *conn = data;
-
-	/*
-	 * assume we were in STATE_IN_LOGOUT or there 
-	 * was some nasty error
-	 */
-	log_debug(3, "logout timeout, dropping conn...\n");
-	__conn_error_handle(conn->session, conn);
-}
-
-static int iscsi_send_logout(iscsi_conn_t *conn)
-{
-	struct iscsi_logout hdr;
-
-	if (conn->state == STATE_IN_LOGOUT ||
-	    conn->state != STATE_LOGGED_IN)
-		return -EINVAL;
-
-	memset(&hdr, 0, sizeof(struct iscsi_logout));
-	hdr.opcode = ISCSI_OP_LOGOUT | ISCSI_OP_IMMEDIATE;
-	hdr.flags = ISCSI_FLAG_CMD_FINAL |
-	   (ISCSI_LOGOUT_REASON_CLOSE_SESSION & ISCSI_FLAG_LOGOUT_REASON_MASK);
-	/* kernel will set the rest */
-
-	if (!iscsi_io_send_pdu(conn, (struct iscsi_hdr*)&hdr,
-			       ISCSI_DIGEST_NONE, NULL, ISCSI_DIGEST_NONE, 0))
-		return -EIO;
-	conn->state = STATE_IN_LOGOUT;
-
-	actor_timer(&conn->logout_timer, conn->logout_timeout * 1000,
-		    iscsi_logout_timeout, conn);
-	log_debug(3, "logout timeout timer %p start\n", &conn->logout_timer);
-	return 0;
-}
-
 int
 session_logout_task(iscsi_session_t *session, queue_task_t *qtask)
 {
@@ -1828,13 +1886,13 @@ session_logout_task(iscsi_session_t *session, queue_task_t *qtask)
 		log_error("Could not send logout pdu. Dropping session\n");
 		/* fallthrough */
 	case STATE_IN_LOGIN:
-		rc = session_conn_cleanup(conn, qtask, MGMT_IPC_OK);
+		rc = session_conn_shutdown(conn, qtask, MGMT_IPC_OK);
 		break;
 	case STATE_IN_LOGOUT:
 		rc = MGMT_IPC_ERR_LOGOUT_FAILURE;
 		break;
 	default:
-		rc = __session_conn_cleanup(conn, qtask, MGMT_IPC_OK);
+		rc = __session_conn_shutdown(conn, qtask, MGMT_IPC_OK);
 		break;
 	}
 
