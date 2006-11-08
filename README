@@ -4,7 +4,7 @@
 
 =================================================================
 
-                                                January 20, 2005
+                                                November 8, 2006
 
 Contents
 ========
@@ -42,7 +42,6 @@ open-iscsi@googlegroups.com
     - CHAP;
     - PDU header Digest;
     - multiple sessions;
-    - multi-connection sessions.
     
     For the most recent list of features please refer to:
     http://www.open-iscsi.org/cgi-bin/wiki.pl/Roadmap
