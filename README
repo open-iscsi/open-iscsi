@@ -186,6 +186,14 @@ Usage: iscsiadm [OPTION]
                           [new], [delete], [update] or [show]. In case of
                           [update], you have to provide [name] and [value]
                           you wish to update
+  -m node --logoutall=[all,manual,automatic]
+			  Logout "all" the running sessions or just the ones
+			  with startup value manial or automatic.
+			  Nodes marked as ONBOOT are skipped.
+  -m node --loginall=[all,manual,automatic]
+			  Login "all" the running sessions or just the ones
+			  with startup value manial or automatic.
+			  Nodes marked as ONBOOT are skipped.
   -m session              display all active sessions and connections
   -m session --sid=[sid] [--logout]
                           perform operation for specific session with

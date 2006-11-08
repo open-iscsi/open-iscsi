@@ -64,7 +64,8 @@ extern char* get_iscsi_initiatoralias(char *pathname);
 extern idbm_t* idbm_init(char *configfile);
 extern void idbm_terminate(idbm_t *db);
 extern int idbm_print_node(idbm_t *db, node_rec_t *rec, int show);
-extern int idbm_print_nodes(idbm_t *db);
+extern int idbm_for_each_node(idbm_t *db, void *data,
+			     int (* fn)(void *data, node_rec_t *rec));
 extern int idbm_print_discovery(idbm_t *db, discovery_rec_t *rec, int show);
 extern int idbm_print_all_discovery(idbm_t *db);
 extern int idbm_delete_discovery(idbm_t *db, discovery_rec_t *rec);

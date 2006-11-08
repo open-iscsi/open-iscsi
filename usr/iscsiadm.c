@@ -74,7 +74,9 @@ static struct option const long_options[] =
 	{"value", required_argument, NULL, 'v'},
 	{"sid", required_argument, NULL, 'r'},
 	{"login", no_argument, NULL, 'l'},
+	{"loginall", required_argument, NULL, 'L'},
 	{"logout", no_argument, NULL, 'u'},
+	{"logoutall", required_argument, NULL, 'U'},
 	{"stats", no_argument, NULL, 's'},
 	{"debug", required_argument, NULL, 'g'},
 	{"map", required_argument, NULL, 'M'},
@@ -83,7 +85,7 @@ static struct option const long_options[] =
 	{"help", no_argument, NULL, 'h'},
 	{NULL, 0, NULL, 0},
 };
-static char *short_options = "lVhm:M:p:T:d:r:n:v:o:sSt:u";
+static char *short_options = "lVhm:M:p:T:U:L:d:r:n:v:o:sSt:u";
 
 static void usage(int status)
 {
@@ -94,7 +96,7 @@ static void usage(int status)
 		printf("\
 iscsiadm -m discovery [ -dhV ] [ -t type -p ip:port [ -l ] ] | [ -p ip:port ] \
 [ -o operation ] [ -n name ] [ -v value ]\n\
-iscsiadm -m node [ -dhV ] [ -S ] [ [ -T targetname -p ip:port | -M sysdir ] [ -l | -u ] ] \
+iscsiadm -m node [ -dhV ] [ -L all,manual,automatic ] [ -U all,manual,automatic ] [ -S ] [ [ -T targetname -p ip:port | -M sysdir ] [ -l | -u ] ] \
 [ [ -o  operation  ] [ -n name ] [ -v value ] [ -p ip:port ] ]\n\
 iscsiadm -m session [ -dhV ] [ -r sessionid [ -u | -s ] ]\n");
 	}
@@ -288,6 +290,164 @@ session_logout(node_rec_t *rec)
 }
 
 static int
+match_startup_mode(node_rec_t *rec, char *mode)
+{
+	/*
+	 * we always skip onboot because this should be handled by
+	 * something else
+	 */
+	if (rec->startup == ISCSI_STARTUP_ONBOOT)
+		return -1;
+
+	if ((!strcmp(mode, "automatic") &&
+	    rec->startup == ISCSI_STARTUP_AUTOMATIC) ||
+	    (!strcmp(mode, "manual") &&
+	    rec->startup == ISCSI_STARTUP_MANUAL) ||
+	    !strcmp(mode, "all"))
+		return 0;
+
+	/* support conn or session startup params */
+	if ((!strcmp(mode, "automatic") &&
+	    rec->conn[0].startup == ISCSI_STARTUP_AUTOMATIC) ||
+	    (!strcmp(mode, "manual") &&
+	    rec->conn[0].startup == ISCSI_STARTUP_MANUAL) ||
+	    !strcmp(mode, "all"))
+		return 0;
+
+	return -1;
+}
+
+struct session_mgmt_fn {
+	idbm_t *db;
+	char *mode;
+};
+
+static int
+__group_logout(void *data, char *targetname, int tpgt, char *address,
+	       int port, int sid)
+{
+	struct session_mgmt_fn *mgmt = data;
+	char *mode = mgmt->mode;
+	idbm_t *db = mgmt->db;
+	node_rec_t rec;
+	int rc = 0;
+
+	log_debug(7, "logout all [%d][%s,%s.%d]\n", sid, targetname,
+		  address, port);
+
+	/* for now skip qlogic and other HW and offload drivers */
+	if (!get_transport_by_sid(sid))
+		return 0;
+
+	if (idbm_node_read(db, &rec, targetname, address, port)) {
+		/*
+		 * this is due to a HW driver or some other driver
+		 * not hooked in
+		 */
+		log_debug(7, "could not read data for [%s,%s.%d]\n",
+			  targetname, address, port);
+		return 0;
+	}
+	/*
+	 * we always skip on boot because if the user killed this on
+	 * they would not be able to do anything
+	 */
+	if (rec.startup == ISCSI_STARTUP_ONBOOT)
+		return 0;
+
+	if (!match_startup_mode(&rec, mode)) {
+		rc = session_logout(&rec);
+		/* we raced with another app or instance of iscsiadm */
+		if (rc == MGMT_IPC_ERR_NOT_FOUND)
+			rc = 0;
+		if (rc > 0) {
+			iscsid_handle_error(rc);
+			/* continue trying to logout the rest of them */
+			rc = 0;
+		}
+	}
+
+	return rc;
+}
+
+static int
+group_logout(idbm_t *db, char *mode)
+{
+	int num_found;
+	struct session_mgmt_fn mgmt;
+
+	if (!mode || !(!strcmp(mode, "automatic") || !strcmp(mode, "all") ||
+	    !strcmp(mode,"manual"))) {
+		log_error("Invalid logoutall option %s.", mode);
+		usage(0);
+		return -EINVAL;
+	}
+
+	mgmt.mode = mode;
+	mgmt.db = db;
+
+	return sysfs_for_each_session(&mgmt, &num_found, __group_logout);
+}
+
+static int
+__group_login(void *data, node_rec_t *rec)
+{
+	struct session_mgmt_fn *mgmt = data;
+	char *mode = mgmt->mode;
+	int rc;
+
+	log_debug(7, "group login %s:%d,%d %s\n", rec->conn[0].address,
+		  rec->conn[0].port, rec->tpgt, rec->name);
+	/*
+	 * we always skip onboot because this should be handled by
+	 * something else
+	 */
+	if (rec->startup == ISCSI_STARTUP_ONBOOT)
+		return 0;
+
+	if (!match_startup_mode(rec, mode)) {
+		rc = session_login(rec);
+		/* we raced with another app or instance of iscsiadm */
+		if (rc == MGMT_IPC_ERR_EXISTS)
+			rc = 0;
+		if (rc > 0) {
+			iscsid_handle_error(rc);
+			/* continue trying to login the rest of them */
+			rc = 0;
+		}
+	}
+
+	return 0;
+}
+
+static int
+group_login(idbm_t *db, char *mode)
+{
+	struct session_mgmt_fn mgmt;
+
+	if (!mode || !(!strcmp(mode, "automatic") || !strcmp(mode, "all") ||
+	    !strcmp(mode,"manual"))) {
+		log_error("Invalid loginall option %s.", mode);
+		usage(0);
+		return -EINVAL;
+	}
+
+	mgmt.mode = mode;
+	mgmt.db = db;
+
+	idbm_for_each_node(db, &mgmt, __group_login);
+	return 0;
+}
+
+static int
+print_node_info(void *data, node_rec_t *rec)
+{
+	printf("%s:%d,%d %s\n", rec->conn[0].address, rec->conn[0].port,
+	       rec->tpgt, rec->name);
+	return 0;
+}
+
+static int
 config_init(void)
 {
 	int rc;
@@ -444,7 +604,7 @@ do_sendtargets(idbm_t *db, struct iscsi_sendtargets_config *cfg)
 		discovery_rec_t *drec;
 		if ((drec = idbm_new_discovery(db, cfg->address, cfg->port,
 		    DISCOVERY_TYPE_SENDTARGETS, info.buffer))) {
-			idbm_print_nodes(db);
+			idbm_for_each_node(db, NULL, print_node_info);
 			free(drec);
 		}
 	}
@@ -484,9 +644,10 @@ int
 main(int argc, char **argv)
 {
 	char *ip = NULL, *name = NULL, *value = NULL, *sysfs_device = NULL;
-	char *targetname = NULL;
+	char *targetname = NULL, *group_session_mgmt_mode = NULL;
 	int ch, longindex, mode=-1, port=-1, do_login=0;
 	int rc=0, sid=-1, op=-1, type=-1, do_logout=0, do_stats=0, do_show=0;
+	int do_login_all=0, do_logout_all=0;
 	idbm_t *db;
 	struct sigaction sa_old;
 	struct sigaction sa_new;
@@ -543,6 +704,14 @@ main(int argc, char **argv)
 			break;
 		case 'u':
 			do_logout = 1;
+			break;
+		case 'U':
+			do_logout_all = 1;
+			group_session_mgmt_mode= optarg;
+			break;
+		case 'L':
+			do_login_all= 1;
+			group_session_mgmt_mode= optarg;
 			break;
 		case 's':
 			do_stats = 1;
@@ -691,12 +860,23 @@ main(int argc, char **argv)
 		node_rec_t rec;
 
 		memset(&rec, 0, sizeof(node_rec_t));
-		if ((rc = verify_mode_params(argc, argv, "dmMlSonvupT", 0))) {
+		if ((rc = verify_mode_params(argc, argv, "dmMlSonvupTUL", 0))) {
 			log_error("node mode: option '-%c' is not "
 				  "allowed/supported", rc);
 			rc = -1;
 			goto out;
 		}
+
+		if (do_login_all) {
+			rc = group_login(db, group_session_mgmt_mode);
+			goto out;
+		}
+
+		if (do_logout_all) {
+			rc = group_logout(db, group_session_mgmt_mode);
+			goto out;
+		}
+
 		if (sysfs_device) {
 			if (targetname && ip) {
 				log_error("only one of map and "
@@ -780,7 +960,7 @@ found_node_rec:
 				goto out;
 			}
 		} else if (op < 0 || op == OP_SHOW) {
-			if (!idbm_print_nodes(db)) {
+			if (!idbm_for_each_node(db, NULL, print_node_info)) {
 				log_error("no records found!");
 				rc = -1;
 				goto out;

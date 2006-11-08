@@ -160,6 +160,7 @@ struct iscsi_slp_config {
 typedef enum iscsi_startup {
 	ISCSI_STARTUP_MANUAL,
 	ISCSI_STARTUP_AUTOMATIC,
+	ISCSI_STARTUP_ONBOOT,
 } iscsi_startup_e;
 
 typedef enum discovery_type {

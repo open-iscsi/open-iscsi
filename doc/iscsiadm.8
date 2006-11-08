@@ -5,7 +5,7 @@ iscsiadm \- open-iscsi administration utility
 \fBiscsiadm\fR -m discovery [ -dhV ] [ -t type -p ip:port [ -l ] ] | 
 [ -o operation ] [ -n name ] [ -v value ]
 
-\fBiscsiadm\fR -m node [ -dhV ] [ -S ] [ [ -T targetname -p ip:port | -M sysdir ] [ -l | -u ] ]
+\fBiscsiadm\fR -m node [ -dhV ] [ -L all,manual,automatic ] [ -U all,manual,automatic ] [ -S ] [ [ -T targetname -p ip:port | -M sysdir ] [ -l | -u ] ]
 [ [ -o operation ]  [ -n name ] [ -v value ] [ -p ip:port ] ]
 
 \fBiscsiadm\fR -m session [ -dhV ] [ -r sessionid [ -u | -s ] ]
@@ -34,6 +34,15 @@ For node mode, login to a specified record. For discovery mode, login to
 all discovered targets.
 .IP
 This option is only valid for discovery and node modes.
+
+.TP
+\fB\-L\fR, \fB\-\-loginall==\fI[all,manual,automatic]\fR
+For node mode, login all sessions with the node.startup values passed in
+or all running sesssion, except ones marked onboot, if all is passed in.
+.IP
+This option is only valid for node mode (it is valid but not functional
+for session mode).
+
 
 .TP
 \fB\-m, \-\-mode \fIop\fR
@@ -121,6 +130,14 @@ This option is only valid for discovery mode.
 .TP
 \fB\-u\fR, \fB\-\-logout\fR
 logout for a specified record.
+.IP
+This option is only valid for node mode (it is valid but not functional
+for session mode).
+
+.TP
+\fB\-U\fR, \fB\-\-logoutall==\fI[all,manual,automatic]\fR
+logout all sessions with the node.startup values passed in or all
+running sesssion, except ones marked onboot, if all is passed in.
 .IP
 This option is only valid for node mode (it is valid but not functional
 for session mode).

@@ -646,7 +646,8 @@ int idbm_print_all_discovery(idbm_t *db)
 	return found;
 }
 
-int idbm_print_nodes(idbm_t *db)
+int idbm_for_each_node(idbm_t *db, void *data,
+		       int (* fn)(void *data, node_rec_t *rec))
 {
 	DIR *node_dirfd, *portal_dirfd;
 	struct dirent *node_dent, *portal_dent;
@@ -689,9 +690,7 @@ int idbm_print_nodes(idbm_t *db)
 					   tmp_ip, tmp_port))
 				continue;
 
-			printf("%s:%d,%d %s\n",
-				rec.conn[0].address, rec.conn[0].port,
-				rec.tpgt, rec.name);
+			fn(data, &rec);
 			found++;
 		}
 		closedir(portal_dirfd);
