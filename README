@@ -187,11 +187,11 @@ Usage: iscsiadm [OPTION]
                           you wish to update
   -m node --logoutall=[all,manual,automatic]
 			  Logout "all" the running sessions or just the ones
-			  with startup value manial or automatic.
+			  with a node or conn startup value manual or automatic.
 			  Nodes marked as ONBOOT are skipped.
   -m node --loginall=[all,manual,automatic]
 			  Login "all" the running sessions or just the ones
-			  with startup value manial or automatic.
+			  with a node or conn startup value manual or automatic.
 			  Nodes marked as ONBOOT are skipped.
   -m session              display all active sessions and connections
   -m session --sid=[sid] [--logout]
