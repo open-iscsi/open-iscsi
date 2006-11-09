@@ -1,99 +1,91 @@
-#!/bin/sh
-#
-# chkconfig: - 39 35
-# description: Starts and stops the iSCSI initiator
-# debianized start-stop script
-
-PID_FILE=/var/run/iscsid.pid
-CONFIG_FILE=/etc/iscsid.conf
-DAEMON=/sbin/iscsid
+#! /bin/sh
+### BEGIN INIT INFO
+# Provides:
+# Required-Start:
+# Required-Stop:
+# Default-Start:
+# Default-Stop:
+# Short-Description: Starts and stops the iSCSI initiator services and logins to default targets
+### END INIT INFO
 
 PATH=/sbin:/bin:/usr/sbin:/usr/bin
+DAEMON=/sbin/iscsid
+ADM=/sbin/iscsiadm
+PIDFILE=/var/run/iscsid.pid
+
+[ -x "$DAEMON" ] || exit 0
+
+. /lib/lsb/init-functions
+
+if [ ! -d /sys/class/ ]; then
+  log_failure_msg "iSCSI requires a mounted sysfs, not started."
+  exit 1
+fi
+
+nodestartup_re='s/^node\.conn\[0]\.startup[ 	]*=[ 	]*//p'
 
 RETVAL=0
 
-iscsid_start()
-{
-	echo -n "Starting iSCSI initiator service: "
-	modprobe scsi_transport_iscsi
-	modprobe libiscsi
-	modprobe iscsi_tcp
-	start-stop-daemon --start --exec $DAEMON --quiet
+start() {
+	log_daemon_msg "Starting iSCSI initiator service" "iscsid"
+	modprobe -q iscsi_tcp 2>/dev/null || :
+	modprobe -q ib_iser 2>/dev/null || :
+	start-stop-daemon --start --quiet --pidfile $PIDFILE --exec $DAEMON
 	RETVAL=$?
-	if [ $RETVAL == "0" ]; then
-	    echo "succeeded."
-	else
-	    echo "failed."
-	fi	    
+	log_end_msg $RETVAL
+	starttargets
 }
-	
-iscsid_stop()
-{
-	echo -n "Stopping iSCSI initiator service: "
-	start-stop-daemon --stop --quiet --exec $DAEMON --pidfile $PID_FILE
-	RETVAL=$?
-	if [ $RETVAL == "0" ]; then
-	    echo "succeeded."
-	else
-	    echo "failed."
-	fi
-	# ugly, but pid file is not removed by iscsid
-	rm -f $PID_FILE
 
-	echo -n "Removing iSCSI enterprise target modules: "
-	modprobe -r iscsi_tcp
-	modprobe -r libiscsi
-	modprobe -r scsi_transport_iscsi
-	RETVAL=$?
-	if [ $RETVAL == "0" ]; then
-	    echo "succeeded."
-	else
-	    echo "failed."
-	    exit 1
-	fi
+starttargets() {
+	log_daemon_msg "Setting up iSCSI targets"
+	$ADM -m node --loginall=automatic
+	done
+	log_end_msg 0
+}
+
+stoptargets() {
+	log_daemon_msg "Disconnecting iSCSI targets"
+	sync
+	$ADM -m node --logoutall=automatic
+   	done
+	log_end_msg 0
+}
+
+stop() {
+	stoptargets
+	log_daemon_msg "Stopping iSCSI initiator service"
+	start-stop-daemon --stop --quiet --pidfile $PIDFILE --exec $DAEMON
+	rm -f $PIDFILE
+	modprobe -r ib_iser 2>/dev/null
+	modprobe -r iscsi_tcp 2>/dev/null
+	log_end_msg 0
+}
+
+restart() {
+	stop
+	start
+}
+
+restarttargets() {
+	stoptargets
+	starttargets
+}
+
+status() {
+	#XXX FIXME: what to do here?
+	#status iscsid
+	# list active sessions
+	echo Current active iSCSI sessions:
+	$ADM -m session
 }
 
 case "$1" in
-  start)
-        iscsid_start
-        ;;
-  stop)
-        iscsid_stop
-        ;;
-  restart)
-        iscsid_stop
-	sleep 1
-	iscsid_start
-        ;;
-  status)
-	PID=`pidof iscsid`
-	if [ $PID ]; then
-		echo "iSCSI initiator is running at pid $PID"
-	else
-		echo "no iSCSI initiator found!"
+	start|starttargets|stop|stoptargets|restart|restarttargets|status)
+		$1
+		;;
+	*)
+		echo "Usage: $0 {start|stop|restart|status}"
 		exit 1
-	fi	
-        ;;
-  dump)
-	DUMP=`tempfile -p iscsid`
-	RETVAL=$?
-	if [ $RETVAL != "0" ]; then
-	    echo "Failed to create dump file $DUMP"
-	    exit 1
-	fi
-	iscsiadm -m node --record 0a45f8 >$DUMP
-	RETVAL=$?
-	if [ $RETVAL != "0" ]; then
-	    echo "Error dumping config from daemon"
-	    rm $DUMP
-	    exit 1
-	fi
-	mv -u $DUMP $CONFIG_FILE
-	echo "Config dumped to $CONFIG_FILE"
-        ;;
-  *)
-        echo $"Usage: $0 {start|stop|restart|status|dump}"
-        exit 1
+		;;
 esac
-
-exit 0
+exit $RETVAL

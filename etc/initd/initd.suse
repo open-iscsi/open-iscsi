@@ -23,73 +23,42 @@ ARGS="-c $CONFIG_FILE -p $PID_FILE"
 # Source LSB init functions
 . /etc/rc.status
 
-. /etc/sysconfig/open-iscsi
-
 # Reset status of this service
 rc_reset
 
-iscsi_discovery()
-{
-    $ISCSIADM -m discovery --type=$ISCSI_DISCOVERY --portal=$ISCSI_PORTAL > /dev/null
-}
-
 iscsi_login_all_nodes()
 {
-    $ISCSIADM -m node 2> /dev/null | while read line; do
-	set ${line}
-	TARGET=$(echo $line | cut -d" " -f2)
-	PORTAL=$(echo $line | cut -d"," -f1)
-	STARTUP=`$ISCSIADM -m node --targetname $TARGET -p $PORTAL | grep "node.conn\[0\].startup" | cut -d' ' -f3`
-	NODE=`$ISCSIADM -m node --targetname $TARGET -p $PORTAL | grep "node.name" | cut -d' ' -f3`
-	if [ $STARTUP = "automatic" ] ; then
-	    echo -n "Logging into $NODE: "
-	    $ISCSIADM -m node --targetname $TARGET -p $PORTAL -l
-	    rc_status -v
-	fi
-    done
+	echo -n "Setting up iSCSI targets: "
+	$ISCSIADM -m node --loginall=automatic
+	rc_status -v
 }
 
 iscsi_logout_all_nodes()
+{
+	# Logout from all active sessions
+	if $ISCSIADM -m node --logoutall=automatic ; then
+		rc_status -v
+	else
+		RETVAL=$?
+		rc_failed $RETVAL
+	fi
+
+	# Not sure whether this is still needed
+	sleep 1
+	return ${RETVAL:-0}
+}
+
+iscsi_list_all_nodes()
 {
     # Check for active sessions
     if $ISCSIADM -m session > /dev/null; then
 	return 0
     fi
-    # Logout from all active sessions
-    $ISCSIADM -m session | while read line; do
-	set ${line}
-	TARGET=$(echo $line | cut -d" " -f4)
-	PORTAL=$(echo $line | cut -d" " -f3 | sed 's/,.*//')
-	STARTUP=`$ISCSIADM -m node --targetname $TARGET -p $PORTAL | grep "node.conn\[0\].startup" | cut -d' ' -f3`
-	NODE=`$ISCSIADM -m node --targetname $TARGET -p $PORTAL | grep "node.name" | cut -d' ' -f3`
-	if [ $STARTUP != "onboot" ] ; then
-	    echo -n "Logging out from $NODE: "
-	    if $ISCSIADM -m node --targetname $TARGET -p $PORTAL --logout ; then
-		rc_status -v
-	    else
-		RETVAL=$?
-		rc_failed $RETVAL
-	    fi
-	fi
+    echo "Active connections:"
+    $ISCSIADM -m session | while read proto num PORTAL TARGET ; do
+	PORTAL=${PORTAL%,*}
+	echo -e "\t$TARGET at $PORTAL"
     done
-    # Not sure whether this is still needed
-    sleep 1
-    return ${RETVAL:-0}
-}
-
-iscsi_list_all_nodes()
-{
-    TARGETS=$($ISCSIADM -m session | sed 's@\[[^:]*:\(.*\)\] .*@\1@g')
-    if [ "$TARGETS" != "no active sessions" ] ; then
-	echo "Active connections:"
-	$ISCSIADM -m session | while read line; do
-	    set ${line}
-	    TARGET=$(echo $line | cut -d" " -f4)
-	    PORTAL=$(echo $line | cut -d" " -f3 | sed 's/,.*//')
-	    NODE=`$ISCSIADM -m node --targetname $TARGET -p $PORTAL | grep "node.name" | cut -d' ' -f3`
-	    echo -e "\t$NODE"
-	done
-    fi
 }
 
 case "$1" in

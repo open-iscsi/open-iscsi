@@ -18,6 +18,7 @@ start()
 {
 	echo -n $"Starting iSCSI initiator service: "
 	modprobe -q iscsi_tcp
+	modprobe -q ib_iser
 	daemon iscsid
 	RETVAL=$?
 	success
@@ -27,15 +28,7 @@ start()
 	touch /var/lock/subsys/open-iscsi
 
 	echo -n $"Setting up iSCSI targets: "
-	TARGETS=`iscsiadm -m node 2>/dev/null | sed 's/ /@/g'`
-	for node in $TARGETS; do
-		target=`echo $node | cut -d@ -f2`
-		port=`echo $node | cut -d@ -f1`
-		STARTUP=`iscsiadm -m node -T $target -p $port | grep "node.conn\[0\].startup" | cut -d' ' -f3`
-		if [ "$STARTUP" = "automatic" ]; then
-			iscsiadm -m node -T $target -p $port -l
-		fi
-	done
+	iscsiadm -m node --loginall=automatic
 	success
 	echo
 
@@ -45,22 +38,13 @@ stop()
 {
 	echo -n $"Stopping iSCSI initiator service: "
 	sync
-	TARGETS=`iscsiadm -m session 2>/dev/null| sed 's/ /@/g'`
-	if [ "$TARGETS" != "no@active@sessions" ] ; then
-		for sess in $TARGETS; do
-			target=`echo $sess | cut -d@ -f4`
-			port=`echo $sess | cut -d@ -f3`
-			STARTUP=`iscsiadm -m node -T $target -p $port | grep "node.conn\[0\].startup" | cut -d' ' -f3`
-			if [ "$STARTUP" != "onboot" ] ; then
-				 iscsiadm -m node -T $target -p $port -u
-			fi
-	   	done
-	fi
+	iscsiadm -m node --logoutall=automatic
 	pkill -KILL iscsid
 	rm -f /var/run/iscsid.pid
 	#killproc iscsid
 	[ $RETVAL -eq 0 ] && rm -f /var/lock/subsys/open-iscsi
 	modprobe -r iscsi_tcp 2>/dev/null
+	modprobe -r ib_iser 2>/dev/null
 	success
 	echo
 
