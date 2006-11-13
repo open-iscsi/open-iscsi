@@ -38,7 +38,7 @@ stop()
 {
 	echo -n $"Stopping iSCSI initiator service: "
 	sync
-	iscsiadm -m node --logoutall=automatic
+	iscsiadm -m node --logoutall=all
 	pkill -KILL iscsid
 	rm -f /var/run/iscsid.pid
 	#killproc iscsid

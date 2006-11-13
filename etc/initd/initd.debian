@@ -39,15 +39,13 @@ start() {
 starttargets() {
 	log_daemon_msg "Setting up iSCSI targets"
 	$ADM -m node --loginall=automatic
-	done
 	log_end_msg 0
 }
 
 stoptargets() {
 	log_daemon_msg "Disconnecting iSCSI targets"
 	sync
-	$ADM -m node --logoutall=automatic
-   	done
+	$ADM -m node --logoutall=all
 	log_end_msg 0
 }
 

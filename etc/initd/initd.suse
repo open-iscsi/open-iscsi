@@ -36,7 +36,7 @@ iscsi_login_all_nodes()
 iscsi_logout_all_nodes()
 {
 	# Logout from all active sessions
-	if $ISCSIADM -m node --logoutall=automatic ; then
+	if $ISCSIADM -m node --logoutall=all ; then
 		rc_status -v
 	else
 		RETVAL=$?
