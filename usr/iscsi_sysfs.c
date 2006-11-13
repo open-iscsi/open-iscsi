@@ -164,16 +164,36 @@ int get_sessioninfo_by_sysfs_id(int *sid, char *targetname, char *addr,
 		"persistent_address", *sid);
 	memset(addr, 0, NI_MAXHOST);
 	ret = read_sysfs_file(sysfs_file, addr, "%s\n");
-	if (ret)
-		log_debug(5, "could not read conn addr: %d", ret);
+	if (ret) {
+		/* fall back to current address */
+		log_debug(5, "could not read pers conn addr: %d", ret);
+		memset(sysfs_file, 0, PATH_MAX);
+		sprintf(sysfs_file,
+			 "/sys/class/iscsi_connection/connection%d:0/address",
+			 *sid);
+		memset(addr, 0, NI_MAXHOST);
+		ret = read_sysfs_file(sysfs_file, addr, "%s\n");
+		if (ret)
+			log_debug(5, "could not read curr addr: %d", ret);
+	}
 
 	memset(sysfs_file, 0, PATH_MAX);
 	sprintf(sysfs_file, "/sys/class/iscsi_connection/connection%d:0/"
 		"persistent_port", *sid);
 	*port = -1;
 	ret = read_sysfs_file(sysfs_file, port, "%u\n");
-	if (ret)
-		log_debug(5, "Could not read conn port %d\n", ret);
+	if (ret) {
+		/* fall back to current port */
+		log_debug(5, "Could not read pers conn port %d\n", ret);
+		memset(sysfs_file, 0, PATH_MAX);
+		sprintf(sysfs_file,
+			"/sys/class/iscsi_connection/connection%d:0/port",
+			*sid);
+		*port = -1;
+		ret = read_sysfs_file(sysfs_file, port, "%u\n");
+		if (ret)
+			log_debug(5, "Could not read curr conn port %d\n", ret);
+	}
 
 	log_debug(7, "found targetname %s address %s port %d\n",
 		  targetname, addr ? addr : "NA", *port);

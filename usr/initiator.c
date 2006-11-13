@@ -1623,17 +1623,18 @@ static int match_session(void *data, char *targetname, int tpgt, char *address,
 			 int port, int sid)
 {
 	node_rec_t *rec = data;
+	iscsi_provider_t *p;
 
-	log_debug(6, "looking for session [%s,%s,%d]",
+	log_debug(6, "looking for session [%d][%s,%s,%d]", sid,
 		  rec->name, rec->conn[0].address, rec->conn[0].port);
 
-	if (strlen(rec->name) != strlen(targetname) ||
-	    strlen(rec->conn[0].address) != strlen(address))
+	p = get_transport_by_sid(sid);
+	if (!p)
 		return 0;
 
-	if (!strncmp(rec->name, targetname, strlen(rec->name)) &&
-	    !strncmp(rec->conn[0].address, address,
-		     strlen(rec->conn[0].address)) &&
+	if (!strcmp(rec->transport_name, p->name) &&
+	    !strcmp(rec->name, targetname) &&
+	    !strcmp(rec->conn[0].address, address) &&
 	    rec->conn[0].port == port)
 		return 1;
 
@@ -1658,7 +1659,8 @@ session_find_by_rec(node_rec_t *rec)
 
 			if (match_session(rec, session->nrec.name,
 					  -1, session->nrec.conn[0].address,
-					  session->nrec.conn[0].port, -1))
+					  session->nrec.conn[0].port,
+					  session->id))
 				return session;
 
 			sitem = sitem->q_forw;

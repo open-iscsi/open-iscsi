@@ -97,19 +97,27 @@ static int sync_session(void *data, char *targetname, int tpgt, char *address,
 	int fd = -1;
 	iscsiadm_req_t req;
 	iscsiadm_rsp_t rsp;
+	iscsi_provider_t *p;
 
 	log_debug(7, "sync session [%d][%s,%s.%d]\n", sid, targetname, address,
 		  port);
 
-	/* for now skip qlogic and other HW and offload drivers */
-	if (!get_transport_by_sid(sid))
+	p = get_transport_by_sid(sid);
+	if (!p)
 		return 0;
 
 	if (idbm_node_read(db, &rec, targetname, address, port)) {
-		log_error("could not read data for [%s,%s.%d]\n",
-			  targetname, address, port);
+		log_warning("could not read data for [%s,%s.%d]\n",
+			    targetname, address, port);
 		return 0;
 	}
+
+	/*
+	 * for now skip qlogic and other HW and offload driver that
+	 * that store their data somewhere else
+	 */
+	if (strcmp(p->name, rec.transport_name))
+		return 0;
 
 	memset(&req, 0, sizeof(req));
 	req.command = MGMT_IPC_SESSION_SYNC;
