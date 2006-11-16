@@ -332,9 +332,6 @@ __group_logout(void *data, char *targetname, int tpgt, char *address,
 	node_rec_t rec;
 	int rc = 0;
 
-	log_debug(7, "logout all [%d][%s,%s.%d]\n", sid, targetname,
-		  address, port);
-
 	/* for now skip qlogic and other HW and offload drivers */
 	if (!get_transport_by_sid(sid))
 		return 0;
@@ -356,10 +353,15 @@ __group_logout(void *data, char *targetname, int tpgt, char *address,
 		return 0;
 
 	if (!match_startup_mode(&rec, mode)) {
+		printf("Logout session [%d][%s:%d %s]\n", sid, address, port,
+			targetname);
+
 		rc = session_logout(&rec);
 		/* we raced with another app or instance of iscsiadm */
 		if (rc == MGMT_IPC_ERR_NOT_FOUND)
 			rc = 0;
+		if (rc)
+			printf("Could not logout session (err %d).\n", rc);
 		if (rc > 0) {
 			iscsid_handle_error(rc);
 			/* continue trying to logout the rest of them */
@@ -396,8 +398,6 @@ __group_login(void *data, node_rec_t *rec)
 	char *mode = mgmt->mode;
 	int rc;
 
-	log_debug(7, "group login %s:%d,%d %s\n", rec->conn[0].address,
-		  rec->conn[0].port, rec->tpgt, rec->name);
 	/*
 	 * we always skip onboot because this should be handled by
 	 * something else
@@ -406,10 +406,15 @@ __group_login(void *data, node_rec_t *rec)
 		return 0;
 
 	if (!match_startup_mode(rec, mode)) {
+		printf("Login session [%s:%d %s]\n", rec->conn[0].address,
+			rec->conn[0].port, rec->name);
+
 		rc = session_login(rec);
 		/* we raced with another app or instance of iscsiadm */
 		if (rc == MGMT_IPC_ERR_EXISTS)
 			rc = 0;
+		if (rc)
+			printf("Could not login session (err %d).\n", rc);
 		if (rc > 0) {
 			iscsid_handle_error(rc);
 			/* continue trying to login the rest of them */
