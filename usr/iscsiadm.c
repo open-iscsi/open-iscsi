@@ -2,6 +2,8 @@
  * iSCSI Administration Utility
  *
  * Copyright (C) 2004 Dmitry Yusupov, Alex Aizman
+ * Copyright (C) 2006 Mike Christie
+ * Copyright (C) 2006 Red Hat, Inc. All rights reserved.
  * maintained by open-iscsi@googlegroups.com
  *
  * This program is free software; you can redistribute it and/or modify
@@ -215,7 +217,7 @@ sys_to_rec(idbm_t *db, node_rec_t *rec, char *sysfs_device)
 	log_debug(2, "%s: session %s", __FUNCTION__, sys_session);
 	rc = get_sessioninfo_by_sysfs_id(&sid, targetname, address, &port,
 					&tpgt, sys_session);
-	if (rc < 0) {
+	if (rc) {
 		log_error("Unable to find a record for iscsi %s (sys %s)",
 			  sys_session, sysfs_device);
 		goto free_address;
@@ -497,24 +499,186 @@ config_init(void)
 	return 0;
 }
 
+static void print_scsi_device_info(int host_no, int lun)
+{
+	printf("scsi%d Channel 00 Id 0 Lun: %d\n", host_no, lun);
+}
+
 static int print_session(void *data, char *targetname, int tpgt, char *address,
 			 int port, int sid)
 {
+	int extended = *((int *)data), host_no = -1, err = 0;
 	iscsi_provider_t *provider;
+	iscsiadm_req_t req;
+	iscsiadm_rsp_t rsp;
+	struct iscsi_session_operational_config session_conf;
+	struct iscsi_conn_operational_config conn_conf;
+        static char *conn_state[] = {
+			"FREE",
+			"TRANSPORT WAIT",
+			"IN LOGIN",
+			"LOGGED IN",
+			"IN LOGOUT",
+			"LOGOUT REQUESTED",
+			"CLEANUP WAIT",
+        };
+	static char *session_state[] = {
+			"NO CHANGE",
+			"CLEANUP"
+			"REPOEN"
+			"REDIRECT"
+	};
 
 	provider = get_transport_by_sid(sid);
 
-	printf("%s: [%d] %s:%d,%d %s\n", provider ? provider->name : "NA",
-		sid, address, port, tpgt, targetname);
+	if (!extended) {
+		printf("%s: [%d] %s:%d,%d %s\n",
+			provider ? provider->name : "NA",
+			sid, address, port, tpgt, targetname);
+		return 0;
+	}
+
+	/* TODO: how to pipe modinfo version info here */
+	printf("************************************\n");
+	printf("Session (sid %d) using module %s:\n", sid,
+		provider ? provider->name : "NA");
+	printf("************************************\n");
+	printf("TargetName: %s\n", targetname);
+	printf("Portal Group Tag: %d\n", tpgt);
+	printf("Network Portal: %s:%d\n", address, port);  
+
+	/* for now this is all we do for qla4xxx */
+	if (!provider)
+		return 0;
+
+	get_negotiated_session_conf(sid, &session_conf);
+	get_negotiated_conn_conf(sid, &conn_conf);
+
+	/*
+	 * get iscsid's conn and session state. This may be slightly different
+	 * the kernel's view.
+	 *
+	 * TODO: get kernel state and qla4xxx info
+	 */
+	memset(&req, 0, sizeof(iscsiadm_req_t));
+	req.command = MGMT_IPC_SESSION_INFO;
+	req.u.session.sid = sid;
+
+	if (do_iscsid(&ipc_fd, &req, &rsp)) {
+		printf("Could not get extended session info for session sid "
+			"%d\n", sid);
+		return -EINVAL;
+	}
+
+	if (rsp.u.session_state.conn_state < 0 ||
+	    rsp.u.session_state.conn_state > STATE_CLEANUP_WAIT)
+		printf("Invalid iSCSI Connection State\n");
+	else
+		printf("iSCSI Connection State: %s\n",
+			conn_state[rsp.u.session_state.conn_state]);
+
+	if (rsp.u.session_state.session_state < 0 ||
+	    rsp.u.session_state.session_state > R_STAGE_SESSION_REDIRECT)
+		printf("Invalid iscsid Session State\n");
+	else
+		printf("Internal iscsid Session State: %s\n",
+		       session_state[rsp.u.session_state.session_state]);
+
+	printf("\n");
+	printf("************************\n");
+	printf("Negotiated iSCSI params:\n");
+	printf("************************\n");
+
+	printf("HeaderDigest: %s\n",
+		conn_conf.HeaderDigest ? "CRC32C" : "None");
+	printf("DataDigest: %s\n",
+		conn_conf.DataDigest ? "CRC32C" : "None");
+	printf("MaxRecvDataSegmentLength: %d\n",
+		conn_conf.MaxRecvDataSegmentLength);
+	printf("MaxXmitDataSegmentLength: %d\n",
+		conn_conf.MaxXmitDataSegmentLength);
+	printf("FirstBurstLength: %d\n",
+		session_conf.FirstBurstLength);
+	printf("MaxBurstLength: %d\n",
+		session_conf.MaxBurstLength);
+	printf("ImmediateData: %s\n",
+		session_conf.ImmediateData ? "Yes" : "No");
+	printf("InitialR2T: %s\n",
+		session_conf.InitialR2T ? "Yes" : "No");
+	printf("MaxOutstandingR2T: %d\n",
+		session_conf.MaxOutstandingR2T);
+	printf("\n");
+
+	printf("************************\n");
+	printf("Attached SCSI devices:\n");
+	printf("************************\n");
+
+	host_no = get_host_no_from_sid(sid, &err);
+	if (err) {
+		printf("Host No: Unknown\n");
+		return err;
+	}
+	printf("Host No: %d\n", host_no);
+	sysfs_for_each_device(host_no, sid, print_scsi_device_info);
+	printf("\n");
+
 	return 0;
 }
 
-static int session_activelist(void)
+static int print_session_by_sid(int sid, int extended)
 {
-	int num_found = 0;
+	char session[64];
+	char *targetname;
+	char *address;
+	int tmp_sid, rc, port, tpgt;
 
-	sysfs_for_each_session(NULL, &num_found, print_session);
-	return num_found;
+	snprintf(session, 63, "session%d", sid);
+
+	targetname = malloc(TARGET_NAME_MAXLEN + 1);
+	if (!targetname)
+		return -ENOMEM;
+
+	address = malloc(NI_MAXHOST + 1);
+	if (!address) {
+		rc = -ENOMEM;
+		goto free_target;
+	}
+
+	rc = get_sessioninfo_by_sysfs_id(&tmp_sid, targetname, address, &port,
+					&tpgt, session);
+	if (rc) {
+		printf("Could not print session info for sid %d\n", sid);
+		goto free_address;
+	}
+	rc = print_session(&extended, targetname, tpgt, address, port, sid);
+
+free_address:
+	free(address);
+free_target:
+	free(targetname);
+	return rc;
+
+}
+
+static int session_activelist(int extended)
+{
+	char version[20];
+	int num_found = 0, err = 0;
+
+	if (extended) {
+		if (get_iscsi_kernel_version(version))
+			printf("iSCSI Transport Class version %s\n",
+				version);
+		printf("%s version %s\n", program_name, ISCSI_VERSION_STR);
+	}
+	
+	sysfs_for_each_session(&extended, &num_found, print_session);
+	if (err) {
+		printf("Can not get list of active sessions (%d)", err);
+		return err;
+	} else if (!num_found)
+		printf("no active sessions\n");
+	return 0;
 }
 
 static int rescan_session(void *data, char *targetname, int tpgt, char *address,
@@ -532,8 +696,7 @@ static int rescan_session(void *data, char *targetname, int tpgt, char *address,
 	return 0;
 }
 
-
-static int session_rescan(int sid)
+static int session_rescan(void)
 {
 	int num_found = 0;
 
@@ -1033,7 +1196,7 @@ found_node_rec:
 			goto out;
 		}
 	} else if (mode == MODE_SESSION) {
-		if ((rc = verify_mode_params(argc, argv, "Rdrmus", 1))) {
+		if ((rc = verify_mode_params(argc, argv, "iRdrmus", 1))) {
 			log_error("session mode: option '-%c' is not "
 				  "allowed or supported", rc);
 			rc = -1;
@@ -1049,6 +1212,11 @@ found_node_rec:
 			if (do_rescan) {
 				rc = rescan_session(NULL, NULL, 0, NULL, 0,
 						    sid);
+				goto out;
+			}
+
+			if (do_info) {
+				rc = print_session_by_sid(sid, 1);
 				goto out;
 			}
 
@@ -1068,6 +1236,7 @@ found_node_rec:
 				rc = -1;
 				goto out;
 			}
+
 			if (do_stats) {
 				log_error("--stats requires target id");
 				rc = -1;
@@ -1075,18 +1244,16 @@ found_node_rec:
 			}
 
 			if (do_rescan) {
-				rc = session_rescan(-1);
+				rc = session_rescan();
 				goto out;
 			}
 
-			if ((rc = session_activelist()) < 0) {
-				log_error("can not get list of active "
-					"sessions (%d)", rc);
-				rc = -1;
+			if (do_info) {
+				rc = session_activelist(1);
 				goto out;
-			} else if (!rc) {
-				printf("no active sessions\n");
 			}
+
+			rc = session_activelist(0);
 		}
 	} else {
 		log_error("This mode is not yet supported");

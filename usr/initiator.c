@@ -2,6 +2,8 @@
  * iSCSI Session Management and Slow-path Control
  *
  * Copyright (C) 2004 Dmitry Yusupov, Alex Aizman
+ * Copyright (C) 2006 Mike Christie
+ * Copyright (C) 2006 Red Hat, Inc. All rights reserved.
  * maintained by open-iscsi@googlegroups.com
  *
  * This program is free software; you can redistribute it and/or modify
@@ -1640,6 +1642,31 @@ static int match_session(void *data, char *targetname, int tpgt, char *address,
 
 	/* keep on looking */
 	return 0;
+}
+
+iscsi_session_t*
+session_find_by_sid(int sid)
+{
+	iscsi_provider_t *p;
+	iscsi_session_t *session;
+	struct qelem *pitem, *sitem;
+
+	pitem = providers.q_forw;
+	while (pitem != &providers) {
+		p = (iscsi_provider_t *)pitem;
+
+		sitem = p->sessions.q_forw;
+		while (sitem != &p->sessions) {
+			session = (iscsi_session_t *)sitem;
+
+			if (session->id == sid)
+				return session;
+			sitem = sitem->q_forw;
+		}
+		pitem = pitem->q_forw;
+	}
+
+	return NULL;
 }
 
 iscsi_session_t*

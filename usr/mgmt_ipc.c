@@ -2,6 +2,8 @@
  * iSCSI Administrator Utility Socket Interface
  *
  * Copyright (C) 2004 Dmitry Yusupov, Alex Aizman
+ * Copyright (C) 2006 Mike Christie
+ * Copyright (C) 2006 Red Hat, Inc. All rights reserved.
  * maintained by open-iscsi@googlegroups.com
  *
  * Originally based on:
@@ -157,6 +159,23 @@ mgmt_ipc_cfg_initiatorname(queue_task_t *qtask, iscsiadm_rsp_t *rsp)
 {
 	strcpy(rsp->u.config.var, dconfig->initiator_name);
 
+	return MGMT_IPC_OK;
+}
+
+static mgmt_ipc_err_e
+mgmt_ipc_session_info(queue_task_t *qtask, int sid, iscsiadm_rsp_t *rsp)
+{
+	iscsi_session_t *session;
+	struct msg_session_state *info;
+
+	if (!(session = session_find_by_sid(sid))) {
+		log_error("session with sid %d not found!", sid);
+		return MGMT_IPC_ERR_NOT_FOUND;
+	}
+
+	info = &rsp->u.session_state;
+	info->conn_state = session->conn[0].state;
+	info->session_state = session->r_stage;
 	return MGMT_IPC_OK;
 }
 
@@ -332,6 +351,11 @@ mgmt_ipc_handle(int accept_fd)
 						    &rsp);
 		immrsp = 1;
 		break;
+	case MGMT_IPC_SESSION_INFO:
+		rsp.err = mgmt_ipc_session_info(qtask, req.u.session.sid,
+						&rsp);
+		immrsp = 1;
+		break;
 	case MGMT_IPC_CONN_ADD:
 		rsp.err = mgmt_ipc_conn_add(qtask, req.u.conn.cid);
 		break;
@@ -358,6 +382,8 @@ mgmt_ipc_handle(int accept_fd)
 	default:
 		log_error("unknown request: %s(%d) %u",
 			  __FUNCTION__, __LINE__, req.command);
+		rsp.err = MGMT_IPC_ERR_INVALID_REQ;
+		immrsp = 1;
 		break;
 	}
 

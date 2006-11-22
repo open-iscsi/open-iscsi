@@ -2,6 +2,9 @@
  * iSCSI Initiator Daemon
  *
  * Copyright (C) 2004 Dmitry Yusupov, Alex Aizman
+ * Copyright (C) 2006 Mike Christie
+ * Copyright (C) 2006 Red Hat, Inc. All rights reserved.
+
  * maintained by open-iscsi@googlegroups.com
  *
  * This program is free software; you can redistribute it and/or modify

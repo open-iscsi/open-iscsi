@@ -10,11 +10,7 @@
 #include <netinet/in.h>
 #include <stdint.h>
 #include <sys/types.h>
-
-struct qelem {
-	struct qelem *q_forw;
-	struct qelem *q_back;
-};
+#include <search.h>
 
 #define DATASEG_MAX	8192
 #define HDRSEG_MAX	48+4

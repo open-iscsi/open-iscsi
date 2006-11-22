@@ -64,23 +64,6 @@ enum iscsi_login_status {
 	LOGIN_REDIRECT			= 9,
 };
 
-typedef enum iscsi_conn_state_e {
-	STATE_FREE			= 0,
-	STATE_XPT_WAIT			= 1,
-	STATE_IN_LOGIN			= 2,
-	STATE_LOGGED_IN			= 3,
-	STATE_IN_LOGOUT			= 4,
-	STATE_LOGOUT_REQUESTED		= 5,
-	STATE_CLEANUP_WAIT		= 6,
-} iscsi_conn_state_e;
-
-typedef enum iscsi_session_r_stage_e {
-	R_STAGE_NO_CHANGE		= 0,
-	R_STAGE_SESSION_CLEANUP		= 1,
-	R_STAGE_SESSION_REOPEN		= 2,
-	R_STAGE_SESSION_REDIRECT	= 3,
-} iscsi_session_r_stage_e;
-
 typedef enum iscsi_event_e {
 	EV_UNKNOWN			= 0,
 	EV_CONN_RECV_PDU		= 1,
@@ -377,6 +360,7 @@ extern int iscsi_io_recv_pdu(iscsi_conn_t *conn, struct iscsi_hdr *hdr,
 /* initiator.c */
 extern int session_login_task(node_rec_t *rec, queue_task_t *qtask);
 extern int session_logout_task(iscsi_session_t *session, queue_task_t *qtask);
+extern iscsi_session_t *session_find_by_sid(int sid);
 extern iscsi_session_t *session_find_by_rec(node_rec_t *rec);
 extern int session_is_running(node_rec_t *rec);
 extern void* recvpool_get(iscsi_conn_t *conn, int ev_size);

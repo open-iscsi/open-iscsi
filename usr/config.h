@@ -109,6 +109,7 @@ struct iscsi_tcp_config {
 
 struct iscsi_conn_operational_config {
 	int MaxRecvDataSegmentLength;
+	int MaxXmitDataSegmentLength;
 	int HeaderDigest;
 	int DataDigest;
 	int IFMarker;
@@ -120,6 +121,8 @@ struct iscsi_conn_operational_config {
  * both by TargetName and Subnet.
  */
 struct iscsi_session_operational_config {
+	int DataPDUInOrder;
+	int DataSequenceInOrder;
 	int protocol;
 	int InitialR2T;
 	int ImmediateData;

@@ -43,6 +43,7 @@ typedef enum mgmt_ipc_err {
 	MGMT_IPC_ERR_ACCESS		= 13,
 	MGMT_IPC_ERR_TRANS_CAPS		= 14,
 	MGMT_IPC_ERR_EXISTS		= 15,
+	MGMT_IPC_ERR_INVALID_REQ	= 16,
 } mgmt_ipc_err_e;
 
 typedef enum iscsiadm_cmd {
@@ -58,7 +59,25 @@ typedef enum iscsiadm_cmd {
 	MGMT_IPC_CONFIG_FILE		= 10,
 	MGMT_IPC_IMMEDIATE_STOP		= 11,
 	MGMT_IPC_SESSION_SYNC		= 12,
+	MGMT_IPC_SESSION_INFO		= 13,
 } iscsiadm_cmd_e;
+
+typedef enum iscsi_conn_state_e {
+	STATE_FREE,
+	STATE_XPT_WAIT,
+	STATE_IN_LOGIN,
+	STATE_LOGGED_IN,
+	STATE_IN_LOGOUT,
+	STATE_LOGOUT_REQUESTED,
+	STATE_CLEANUP_WAIT,
+} iscsi_conn_state_e;
+
+typedef enum iscsi_session_r_stage_e {
+	R_STAGE_NO_CHANGE,
+	R_STAGE_SESSION_CLEANUP,
+	R_STAGE_SESSION_REOPEN,
+	R_STAGE_SESSION_REDIRECT,
+} iscsi_session_r_stage_e;
 
 /* IPC Request */
 typedef struct iscsiadm_req {
@@ -96,6 +115,10 @@ typedef struct iscsiadm_rsp {
 		struct msg_config {
 			char var[VALUE_MAXLEN];
 		} config;
+		struct msg_session_state {
+			iscsi_session_r_stage_e session_state;
+			iscsi_conn_state_e conn_state;
+		} session_state;
 	} u;
 } iscsiadm_rsp_t;
 

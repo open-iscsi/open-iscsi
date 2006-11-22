@@ -29,6 +29,14 @@ print debugging information
 display help text and exit
 
 .TP
+\fB\-i\fR,  \fB\-\-info\fR
+If sid is also passed print the session info. If no sid has been passed in 
+print info for all running sessions.
+.IP
+\fIinfo\fR is only valid for session mode. The output format is currently
+unstable users should not rely on it.
+
+.TP
 \fB\-l\fR, \fB\-\-login\fR
 For node mode, login to a specified record. For discovery mode, login to
 all discovered targets.
