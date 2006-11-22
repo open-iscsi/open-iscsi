@@ -62,17 +62,6 @@ of their respective records are displayed; for \fIsession\fR, all active
 sessions and connections are displayed.
 
 .TP
-\fB\-M, \-\-map \fIdir\fR
-Use the record id associated with the sysfs open-iscsi directory
-\fIdir\fR, where \fIdir\fR is the directory of the corresponding
-scsi device, for example:
-
-.ft R
-	/sys/devices/platform/host0/session0/target0:0:0/0:0:0:0
-.IP
-Valid only in node mode, and cannot be used with the \fB\-r\fR option.
-
-.TP
 \fB\-n\fR, \fB\-\-name=\fIname\fR
 Specify a field \fIname\fR in a record. For use with the \fIupdate\fR
 operator.
@@ -83,17 +72,20 @@ operator.
 Specifies a database operator \fIop\fR. \fIop\fR must be one of
 \fInew\fR, \fIdelete\fR, \fIupdate\fR or \fIshow\fR.
 .IP
-This option is only valid for discovery and node modes.
+This option is only valid for all modes.
 .IP
-\fInew\fR is currently valid only for node mode, it creates a new database
-record for a given \fIportal\fR (IP address and port number).
+\fInew\fR is currently valid only for node and session mode. It creates a new
+database record for a given \fIportal\fR (IP address and port number).
 .IP
 \fIdelete\fR deletes a specified \fIrecid\fR.
 .IP
-\fIupdate\fR is currently valid only for node mode, it updates a specified
+\fIupdate\fR is currently valid only for node and session mode. It updates a
+specified
 \fIrecid\fR with \fIname\fR to the specified \fIvalue\fR.
 .IP
-\fIshow\fR is the default behaviour for node and discovery modes,
+\fIshow\fR is the default behaviour for node and discovery mode. It is
+also used when there are no commands passed into session mode and a running
+sid is passed in.
 \fIname\fR and \fIvalue\fR are currently ignored when used with \fIshow\fR.
 
 .TP
@@ -132,7 +124,7 @@ This option is only valid for session mode.
 When displaying records, do not hide masked values, such as the CHAP
 secret (password).
 .IP
-This option is only valid for node mode.
+This option is only valid for node and session mode.
 
 .TP
 \fB\-t\fR, \fB\-\-type=\fItype\fR
@@ -146,8 +138,7 @@ This option is only valid for discovery mode.
 \fB\-u\fR, \fB\-\-logout\fR
 logout for a specified record.
 .IP
-This option is only valid for node mode (it is valid but not functional
-for session mode).
+This option is only valid for node and session mode.
 
 .TP
 \fB\-U\fR, \fB\-\-logoutall==\fI[all,manual,automatic]\fR

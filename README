@@ -194,12 +194,18 @@ Usage: iscsiadm [OPTION]
 			  with a node or conn startup value manual or automatic.
 			  Nodes marked as ONBOOT are skipped.
   -m session              display all active sessions and connections
-  -m session --sid=[sid] [--info] [--rescan] [--logout]
+  -m session --sid=[sid] [--info | --rescan | --logout ]
+				--op=[op] [--name=[name] --value=[value]]
                           perform operation for specific session with
                           session id sid. If no sid is given the operation
-			  will be performed on all running sessions. If no
-			  sid and no operation is given print out the running
-			  sessions.
+			  will be performed on all running sessions if possible.
+			  --logout, --rescan, --op only work on single session.
+			  --logout and --op work like they do in node mode,
+			  but in session mode targetname and portal info is
+			  is not passed in.
+
+			  If no sid and no operation is given print out the
+			  running sessions.
   -d, --debug debuglevel  print debugging information
   -V, --version           display version and exit
   -h, --help              display this help and exit

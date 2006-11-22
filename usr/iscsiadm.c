@@ -83,13 +83,12 @@ static struct option const long_options[] =
 	{"logoutall", required_argument, NULL, 'U'},
 	{"stats", no_argument, NULL, 's'},
 	{"debug", required_argument, NULL, 'g'},
-	{"map", required_argument, NULL, 'M'},
 	{"show", no_argument, NULL, 'S'},
 	{"version", no_argument, NULL, 'V'},
 	{"help", no_argument, NULL, 'h'},
 	{NULL, 0, NULL, 0},
 };
-static char *short_options = "iRlVhm:M:p:T:U:L:d:r:n:v:o:sSt:u";
+static char *short_options = "iRlVhm:p:T:U:L:d:r:n:v:o:sSt:u";
 
 static void usage(int status)
 {
@@ -102,7 +101,7 @@ iscsiadm -m discovery [ -dhV ] [ -t type -p ip:port [ -l ] ] | [ -p ip:port ] \
 [ -o operation ] [ -n name ] [ -v value ]\n\
 iscsiadm -m node [ -dhV ] [ -L all,manual,automatic ] [ -U all,manual,automatic ] [ -S ] [ [ -T targetname -p ip:port | -M sysdir ] [ -l | -u ] ] \
 [ [ -o  operation  ] [ -n name ] [ -v value ] [ -p ip:port ] ]\n\
-iscsiadm -m session [ -dhV ] [ -r sessionid [ -i ] [ -R ] [ -u | -s ] ]\n");
+iscsiadm -m session [ -dhV ] [ -r sessionid [ -i | -R | -u | -s ] [ -o operation ] [ -n name ] [ -v value ] ]\n");
 	}
 	exit(status == 0 ? 0 : -1);
 }
@@ -159,82 +158,6 @@ str_to_type(char *str)
 		type = -1;
 
 	return type;
-}
-
-static int
-sys_to_rec(idbm_t *db, node_rec_t *rec, char *sysfs_device)
-{
-	char *targetname;
-	char *address;
-	int sid, rc, port, tpgt, len;
-	struct stat statb;
-	char sys_session[64], *start, *last;
-
-	/*
-	 * Given sysfs_device is a directory name of the form:
-	 *
-	 * /sys/devices/platform/hostH/sessionS/targetH:B:I/H:B:I:L
-	 * /sys/devices/platform/hostH/sessionS/targetH:B:I
-	 * /sys/devices/platform/hostH/sessionS
-	 *
-	 * We want to set sys_session to sessionS
-	 */
-	if (stat(sysfs_device, &statb)) {
-		log_error("stat %s failed with %d", sysfs_device, errno);
-		exit(1);
-	}
-	if (!S_ISDIR(statb.st_mode)) {
-		log_error("%s is not a directory", sysfs_device);
-		exit(1);
-	}
-
-	last = NULL;
-	start = strstr(sysfs_device, "session");
-	if (start && strncmp(start, "session", 7) == 0) {
-		len = strlen(start);
-		last = index(start, '/');
-		/*
-		 * If '/' not found last is NULL.
-		 */
-		if (last)
-			len = last - start;
-		strncpy(sys_session, start, len);
-	} else {
-		log_error("Unable to find session in %s", sysfs_device);
-		exit(1);
-	}
-
-	targetname = malloc(TARGET_NAME_MAXLEN + 1);
-	if (!targetname)
-		return -ENOMEM;
-
-	address = malloc(NI_MAXHOST + 1);
-	if (!address) {
-		rc = -ENOMEM;
-		goto free_target;
-	}
-
-	log_debug(2, "%s: session %s", __FUNCTION__, sys_session);
-	rc = get_sessioninfo_by_sysfs_id(&sid, targetname, address, &port,
-					&tpgt, sys_session);
-	if (rc) {
-		log_error("Unable to find a record for iscsi %s (sys %s)",
-			  sys_session, sysfs_device);
-		goto free_address;
-	}
-
-	rc = idbm_node_read(db, rec, targetname, address, port);
-	if (rc) {
-		log_error("node [%s, %s, %d] not found!",
-			  targetname, address, port);
-		goto free_address;
-	}
-
-free_address:
-	free(address);
-free_target:
-	free(targetname);
-	return rc;
 }
 
 static int
@@ -365,7 +288,7 @@ __group_logout(void *data, char *targetname, int tpgt, char *address,
 		if (rc == MGMT_IPC_ERR_NOT_FOUND)
 			rc = 0;
 		if (rc)
-			printf("Could not logout session (err %d).\n", rc);
+			log_error("Could not logout session (err %d).\n", rc);
 		if (rc > 0) {
 			iscsid_handle_error(rc);
 			/* continue trying to logout the rest of them */
@@ -418,7 +341,7 @@ __group_login(void *data, node_rec_t *rec)
 		if (rc == MGMT_IPC_ERR_EXISTS)
 			rc = 0;
 		if (rc)
-			printf("Could not login session (err %d).\n", rc);
+			log_error("Could not login session (err %d).\n", rc);
 		if (rc > 0) {
 			iscsid_handle_error(rc);
 			/* continue trying to login the rest of them */
@@ -565,7 +488,7 @@ static int print_session(void *data, char *targetname, int tpgt, char *address,
 	req.u.session.sid = sid;
 
 	if (do_iscsid(&ipc_fd, &req, &rsp)) {
-		printf("Could not get extended session info for session sid "
+		log_error("Could not get extended session info for session sid "
 			"%d\n", sid);
 		return -EINVAL;
 	}
@@ -625,41 +548,6 @@ static int print_session(void *data, char *targetname, int tpgt, char *address,
 	return 0;
 }
 
-static int print_session_by_sid(int sid, int extended)
-{
-	char session[64];
-	char *targetname;
-	char *address;
-	int tmp_sid, rc, port, tpgt;
-
-	snprintf(session, 63, "session%d", sid);
-
-	targetname = malloc(TARGET_NAME_MAXLEN + 1);
-	if (!targetname)
-		return -ENOMEM;
-
-	address = malloc(NI_MAXHOST + 1);
-	if (!address) {
-		rc = -ENOMEM;
-		goto free_target;
-	}
-
-	rc = get_sessioninfo_by_sysfs_id(&tmp_sid, targetname, address, &port,
-					&tpgt, session);
-	if (rc) {
-		printf("Could not print session info for sid %d\n", sid);
-		goto free_address;
-	}
-	rc = print_session(&extended, targetname, tpgt, address, port, sid);
-
-free_address:
-	free(address);
-free_target:
-	free(targetname);
-	return rc;
-
-}
-
 static int session_activelist(int extended)
 {
 	char version[20];
@@ -674,10 +562,10 @@ static int session_activelist(int extended)
 	
 	sysfs_for_each_session(&extended, &num_found, print_session);
 	if (err) {
-		printf("Can not get list of active sessions (%d)", err);
+		log_error("Can not get list of active sessions (%d)", err);
 		return err;
 	} else if (!num_found)
-		printf("no active sessions\n");
+		log_error("no active sessions\n");
 	return 0;
 }
 
@@ -688,7 +576,7 @@ static int rescan_session(void *data, char *targetname, int tpgt, char *address,
 
 	host_no = get_host_no_from_sid(sid, &err);
 	if (err) {
-		printf("Could not rescan session sid %d\n", sid);
+		log_error("Could not rescan session sid %d\n", sid);
 		return err;
 	}
 
@@ -837,10 +725,130 @@ static void catch_sigint( int signo ) {
 	exit(1);
 }
 
+static int exec_node_op(idbm_t *db, int op, int do_login, int do_logout,
+			int do_show, char *targetname,
+			char *ip, int port, char *name, char *value)
+{
+	int rc = 0;
+	node_rec_t rec;
+
+	memset(&rec, 0, sizeof(node_rec_t));
+
+	if (targetname && ip && op != OP_NEW) {
+		log_debug(2, "%s: node [%s,%s,%d]", __FUNCTION__,
+			  targetname, ip, port);
+		if (idbm_node_read(db, &rec, targetname, ip, port)) {
+			log_error("node [%s, %s, %d] not found!",
+				  targetname, ip, port);
+			rc = -1;
+			goto out;
+		}
+
+		if (do_login && do_logout) {
+			log_error("either login or "
+				  "logout at the time allowed!");
+			rc = -1;
+			goto out;
+		}
+
+		if ((do_login || do_logout) && op >= 0) {
+			log_error("either operation or login/logout "
+				  "at the time allowed!");
+			rc = -1;
+			goto out;
+		}
+
+		if (!do_login && !do_logout && op < 0) {
+			if (!idbm_print_node(db, &rec, do_show)) {
+				log_error("no records found!");
+				rc = -1;
+			}
+			goto out;
+	
+		}
+
+		if (do_login) {
+			if ((rc = session_login(&rec)) > 0) {
+				iscsid_handle_error(rc);
+				rc = -1;
+			}
+			goto out;
+		}
+
+		if (do_logout) {
+			if ((rc = session_logout(&rec)) > 0) {
+				iscsid_handle_error(rc);
+				rc = -1;
+			}
+			goto out;
+		}
+
+		if (op == OP_UPDATE) {
+			if (!name || !value) {
+				log_error("update require name and "
+					  "value");
+				rc = -1;
+				goto out;
+			}
+
+			if ((rc = idbm_node_set_param(db, &rec,
+				      name, value))) {
+				log_error("can not set parameter");
+				goto out;
+			}
+		} else if (op == OP_DELETE) {
+			if (idbm_delete_node(db, &rec)) {
+				log_error("can not delete record");
+				rc = -1;
+				goto out;
+			}
+		} else {
+			log_error("operation is not supported.");
+			rc = -1;
+			goto out;
+		}
+	} else if (op < 0 || op == OP_SHOW) {
+		if (!idbm_for_each_node(db, NULL, print_node_info)) {
+			log_error("no records found!");
+			rc = -1;
+			goto out;
+		}
+	} else if (op == OP_NEW) {
+		if (!ip || !targetname) {
+			log_error("portal and target required for new "
+				  "node record");
+			rc = -1;
+			goto out;
+		}
+
+		idbm_node_setup_defaults(&rec);
+		strncpy(rec.name, targetname, TARGET_NAME_MAXLEN);
+		rec.conn[0].port = port;
+		strncpy(rec.conn[0].address, ip, NI_MAXHOST);
+		if (idbm_new_node(db, &rec)) {
+			log_error("can not add new record.");
+			rc = -1;
+			goto out;
+		}
+		printf("new iSCSI node record added\n");
+	} else if (op == OP_DELETE) {
+		log_error("--record required for delete operation");
+		rc = -1;
+		goto out;
+	} else {
+		log_error("operation is not supported.");
+		rc = -1;
+		goto out;
+	}
+
+out:
+	return rc;
+}
+
 int
 main(int argc, char **argv)
 {
-	char *ip = NULL, *name = NULL, *value = NULL, *sysfs_device = NULL;
+	char *ip = NULL, *name = NULL, *value = NULL;
 	char *targetname = NULL, *group_session_mgmt_mode = NULL;
 	int ch, longindex, mode=-1, port=-1, do_login=0, do_rescan=0, do_info=0;
 	int rc=0, sid=-1, op=-1, type=-1, do_logout=0, do_stats=0, do_show=0;
@@ -927,9 +935,6 @@ main(int argc, char **argv)
 			break;
 		case 'm':
 			mode = str_to_mode(optarg);
-			break;
-		case 'M':
-			sysfs_device = optarg;
 			break;
 		case 'T':
 			targetname = optarg;
@@ -1060,10 +1065,7 @@ main(int argc, char **argv)
 			}
 		}
 	} else if (mode == MODE_NODE) {
-		node_rec_t rec;
-
-		memset(&rec, 0, sizeof(node_rec_t));
-		if ((rc = verify_mode_params(argc, argv, "dmMlSonvupTUL",
+		if ((rc = verify_mode_params(argc, argv, "dmlSonvupTUL",
 					     0))) {
 			log_error("node mode: option '-%c' is not "
 				  "allowed/supported", rc);
@@ -1081,142 +1083,23 @@ main(int argc, char **argv)
 			goto out;
 		}
 
-		if (sysfs_device) {
-			if (targetname && ip) {
-				log_error("only one of map and "
-					  "targetname,portal may be specified");
-				rc = -1;
-				goto out;
-			}
-			if (sys_to_rec(db, &rec, sysfs_device)) {
-				rc = -1;
-				goto out;
-			}
-			/* bleh */
-			goto found_node_rec;
-		}
-
-		if (targetname && ip && op != OP_NEW) {
-			log_debug(2, "%s: node [%s,%s,%d]", __FUNCTION__,
-				  targetname, ip, port);
-			if (idbm_node_read(db, &rec, targetname, ip, port)) {
-				log_error("node [%s, %s, %d] not found!",
-					  targetname, ip, port);
-				rc = -1;
-				goto out;
-			}
-
-found_node_rec:
-			if (do_login && do_logout) {
-				log_error("either login or "
-					  "logout at the time allowed!");
-				rc = -1;
-				goto out;
-			}
-			if ((do_login || do_logout) && op >= 0) {
-				log_error("either operation or login/logout "
-					  "at the time allowed!");
-				rc = -1;
-				goto out;
-			}
-			if (!do_login && !do_logout && op < 0) {
-				if (!idbm_print_node(db, &rec, do_show)) {
-					log_error("no records found!");
-					rc = -1;
-				}
-				goto out;
-			}
-			if (do_login) {
-				if ((rc = session_login(&rec)) > 0) {
-					iscsid_handle_error(rc);
-					rc = -1;
-				}
-				goto out;
-			}
-			if (do_logout) {
-				if ((rc = session_logout(&rec)) > 0) {
-					iscsid_handle_error(rc);
-					rc = -1;
-				}
-				goto out;
-			}
-			if (op == OP_UPDATE) {
-				if (!name || !value) {
-					log_error("update require name and "
-						  "value");
-					rc = -1;
-					goto out;
-				}
-				if ((rc = idbm_node_set_param(db, &rec,
-					      name, value))) {
-					log_error("can not set parameter");
-					goto out;
-				}
-			} else if (op == OP_DELETE) {
-				if (idbm_delete_node(db, &rec)) {
-					log_error("can not delete record");
-					rc = -1;
-					goto out;
-				}
-			} else {
-				log_error("operation is not supported.");
-				rc = -1;
-				goto out;
-			}
-		} else if (op < 0 || op == OP_SHOW) {
-			if (!idbm_for_each_node(db, NULL, print_node_info)) {
-				log_error("no records found!");
-				rc = -1;
-				goto out;
-			}
-		} else if (op == OP_NEW) {
-			if (!ip || !targetname) {
-				log_error("portal and target required for new "
-					  "node record");
-				rc = -1;
-				goto out;
-			}
-			idbm_node_setup_defaults(&rec);
-			strncpy(rec.name, targetname, TARGET_NAME_MAXLEN);
-			rec.conn[0].port = port;
-			strncpy(rec.conn[0].address, ip, NI_MAXHOST);
-			if (idbm_new_node(db, &rec)) {
-				log_error("can not add new record.");
-				rc = -1;
-				goto out;
-			}
-			printf("new iSCSI node record added\n");
-		} else if (op == OP_DELETE) {
-			log_error("--record required for delete operation");
-			rc = -1;
-			goto out;
-		} else {
-			log_error("operation is not supported.");
-			rc = -1;
-			goto out;
-		}
+		rc = exec_node_op(db, op, do_login, do_logout, do_show,
+				  targetname, ip, port, name, value);
+		goto out;
 	} else if (mode == MODE_SESSION) {
-		if ((rc = verify_mode_params(argc, argv, "iRdrmus", 1))) {
+		if ((rc = verify_mode_params(argc, argv, "iRdrmusonuSv", 1))) {
 			log_error("session mode: option '-%c' is not "
 				  "allowed or supported", rc);
 			rc = -1;
 			goto out;
 		}
 		if (sid >= 0) {
-			if (do_logout) {
-				log_error("operation is not implemented yet.");
-				rc = -1;
-				goto out;
-			}
+			char session[64];
+			int tmp_sid, tpgt;
 
 			if (do_rescan) {
 				rc = rescan_session(NULL, NULL, 0, NULL, 0,
 						    sid);
-				goto out;
-			}
-
-			if (do_info) {
-				rc = print_session_by_sid(sid, 1);
 				goto out;
 			}
 
@@ -1227,9 +1110,54 @@ found_node_rec:
 						"session with SID %d (%d)",
 						sid, rc);
 					rc = -1;
-					goto out;
 				}
+				goto out;
 			}
+
+			snprintf(session, 63, "session%d", sid);
+			session[63] = '\0';
+
+			targetname = malloc(TARGET_NAME_MAXLEN + 1);
+			if (!targetname) {
+				log_error("Could not allocate memory for "
+					  "targetname\n");
+				rc = -ENOMEM;
+				goto out;
+			}
+
+			ip = malloc(NI_MAXHOST + 1);
+			if (!ip) {
+				rc = -ENOMEM;
+				goto free_target;
+			}
+
+			rc = get_sessioninfo_by_sysfs_id(&tmp_sid, targetname,
+							ip, &port, &tpgt,
+							session);
+			if (rc) {
+				log_error("Could not get session info for sid "
+					  "%d\n", sid);
+				goto free_address;
+			}
+
+
+			if (do_info) {
+				int extended = 1;
+
+				rc = print_session(&extended, targetname,
+						   tpgt, ip, port, sid);
+				goto free_address;
+			}
+
+			/* drop down to node ops */
+			rc = exec_node_op(db, op, do_login, do_logout,
+					  do_show, targetname, ip,
+					  port, name, value);
+free_address:
+			free(ip);
+free_target:
+			free(targetname);
+			goto out;
 		} else {
 			if (do_logout) {
 				log_error("--logout requires target id");
