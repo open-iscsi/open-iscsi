@@ -73,6 +73,8 @@ static struct option const long_options[] =
 	{"name", required_argument, NULL, 'n'},
 	{"value", required_argument, NULL, 'v'},
 	{"sid", required_argument, NULL, 'r'},
+	{"rescan", no_argument, NULL, 'R'},
+	{"info", no_argument, NULL, 'i'},
 	{"login", no_argument, NULL, 'l'},
 	{"loginall", required_argument, NULL, 'L'},
 	{"logout", no_argument, NULL, 'u'},
@@ -85,7 +87,7 @@ static struct option const long_options[] =
 	{"help", no_argument, NULL, 'h'},
 	{NULL, 0, NULL, 0},
 };
-static char *short_options = "lVhm:M:p:T:U:L:d:r:n:v:o:sSt:u";
+static char *short_options = "iRlVhm:M:p:T:U:L:d:r:n:v:o:sSt:u";
 
 static void usage(int status)
 {
@@ -98,7 +100,7 @@ iscsiadm -m discovery [ -dhV ] [ -t type -p ip:port [ -l ] ] | [ -p ip:port ] \
 [ -o operation ] [ -n name ] [ -v value ]\n\
 iscsiadm -m node [ -dhV ] [ -L all,manual,automatic ] [ -U all,manual,automatic ] [ -S ] [ [ -T targetname -p ip:port | -M sysdir ] [ -l | -u ] ] \
 [ [ -o  operation  ] [ -n name ] [ -v value ] [ -p ip:port ] ]\n\
-iscsiadm -m session [ -dhV ] [ -r sessionid [ -u | -s ] ]\n");
+iscsiadm -m session [ -dhV ] [ -r sessionid [ -i ] [ -R ] [ -u | -s ] ]\n");
 	}
 	exit(status == 0 ? 0 : -1);
 }
@@ -515,8 +517,35 @@ static int session_activelist(void)
 	return num_found;
 }
 
+static int rescan_session(void *data, char *targetname, int tpgt, char *address,
+			  int port, int sid)
+{
+	int host_no, err;
+
+	host_no = get_host_no_from_sid(sid, &err);
+	if (err) {
+		printf("Could not rescan session sid %d\n", sid);
+		return err;
+	}
+
+	__scan_host(host_no, 0);
+	return 0;
+}
+
+
+static int session_rescan(int sid)
+{
+	int num_found = 0;
+
+	sysfs_for_each_session(NULL, &num_found, rescan_session);
+	if (num_found <= 0)
+		return -ENODEV;
+	else
+		return 0;
+}
+
 static int
-session_stats(idbm_t *db, int sid)
+session_stats(int sid)
 {
 	int rc, i;
 	iscsiadm_req_t req;
@@ -650,7 +679,7 @@ main(int argc, char **argv)
 {
 	char *ip = NULL, *name = NULL, *value = NULL, *sysfs_device = NULL;
 	char *targetname = NULL, *group_session_mgmt_mode = NULL;
-	int ch, longindex, mode=-1, port=-1, do_login=0;
+	int ch, longindex, mode=-1, port=-1, do_login=0, do_rescan=0, do_info=0;
 	int rc=0, sid=-1, op=-1, type=-1, do_logout=0, do_stats=0, do_show=0;
 	int do_login_all=0, do_logout_all=0;
 	idbm_t *db;
@@ -703,6 +732,12 @@ main(int argc, char **argv)
 					  optarg);
 				return -1;
 			}
+			break;
+		case 'R':
+			do_rescan = 1;
+			break;
+		case 'i':
+			do_info = 1;
 			break;
 		case 'l':
 			do_login = 1;
@@ -865,7 +900,8 @@ main(int argc, char **argv)
 		node_rec_t rec;
 
 		memset(&rec, 0, sizeof(node_rec_t));
-		if ((rc = verify_mode_params(argc, argv, "dmMlSonvupTUL", 0))) {
+		if ((rc = verify_mode_params(argc, argv, "dmMlSonvupTUL",
+					     0))) {
 			log_error("node mode: option '-%c' is not "
 				  "allowed/supported", rc);
 			rc = -1;
@@ -997,25 +1033,27 @@ found_node_rec:
 			goto out;
 		}
 	} else if (mode == MODE_SESSION) {
-		if ((rc = verify_mode_params(argc, argv, "drmus", 1))) {
+		if ((rc = verify_mode_params(argc, argv, "Rdrmus", 1))) {
 			log_error("session mode: option '-%c' is not "
 				  "allowed or supported", rc);
 			rc = -1;
 			goto out;
 		}
 		if (sid >= 0) {
-			if (do_logout && do_stats) {
-				log_error("--logout or --stats? what exactly?");
-				rc = -1;
-				goto out;
-			}
 			if (do_logout) {
 				log_error("operation is not implemented yet.");
 				rc = -1;
 				goto out;
 			}
+
+			if (do_rescan) {
+				rc = rescan_session(NULL, NULL, 0, NULL, 0,
+						    sid);
+				goto out;
+			}
+
 			if (do_stats) {
-				if ((rc = session_stats(db, sid)) > 0) {
+				if ((rc = session_stats(sid)) > 0) {
 					iscsid_handle_error(rc);
 					log_error("can not get statistics for "
 						"session with SID %d (%d)",
@@ -1035,6 +1073,12 @@ found_node_rec:
 				rc = -1;
 				goto out;
 			}
+
+			if (do_rescan) {
+				rc = session_rescan(-1);
+				goto out;
+			}
+
 			if ((rc = session_activelist()) < 0) {
 				log_error("can not get list of active "
 					"sessions (%d)", rc);

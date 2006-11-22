@@ -420,27 +420,24 @@ void delete_device(int hostno, int lun)
 	close(fd);
 }
 
-/*
- * Scan a session from usersapce using sysfs
- */
-pid_t scan_host(iscsi_session_t *session)
+pid_t __scan_host(int hostno, int async)
 {
-	int hostno = session->hostno;
-	pid_t pid;
+	pid_t pid = 0;
 	int fd;
 
 	sprintf(sysfs_file, "/sys/class/scsi_host/host%d/scan",
-		session->hostno);
+		hostno);
 	fd = open(sysfs_file, O_WRONLY);
 	if (fd < 0) {
 		log_error("could not scan scsi host%d\n", hostno);
 		return -1;
 	}
 
-	pid = fork();
+	if (async)
+		pid = fork();
 	if (pid == 0) {
 		/* child */
-		log_debug(4, "scanning host%d using %s",hostno,
+		log_debug(4, "scanning host%d using %s", hostno,
 			  sysfs_file);
 		write(fd, "- - -", 5);
 		log_debug(4, "scanning host%d completed\n", hostno);
@@ -457,6 +454,14 @@ pid_t scan_host(iscsi_session_t *session)
 
 	close(fd);
 	return pid;
+}
+
+/*
+ * Scan a session from usersapce using sysfs
+ */
+pid_t scan_host(iscsi_session_t *session, int async)
+{
+	return __scan_host(session->hostno, 1);
 }
 
 iscsi_provider_t *get_transport_by_session(char *sys_session)

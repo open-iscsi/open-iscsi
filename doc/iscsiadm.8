@@ -8,7 +8,7 @@ iscsiadm \- open-iscsi administration utility
 \fBiscsiadm\fR -m node [ -dhV ] [ -L all,manual,automatic ] [ -U all,manual,automatic ] [ -S ] [ [ -T targetname -p ip:port | -M sysdir ] [ -l | -u ] ]
 [ [ -o operation ]  [ -n name ] [ -v value ] [ -p ip:port ] ]
 
-\fBiscsiadm\fR -m session [ -dhV ] [ -r sessionid [ -u | -s ] ]
+\fBiscsiadm\fR -m session [ -dhV ] [ -r sessionid [ -R ] [ -u | -s ] ]
 
 .SH "DESCRIPTION"
 The iscsiadm utility is a command-line tool allowing discovery and login
@@ -105,6 +105,13 @@ Use target \fItargetname\fR.
 Use session ID \fIsid\fR.
 .IP
 \fIsid\fR is only required for session mode.
+
+.TP
+\fB\-R\fR,  \fB\-\-rescan\fR
+If sid is also passed in rescan the session. If no sid has been passed in 
+rescan all running sessions.
+.IP
+\fIrescan\fR is only valid for session mode.
 
 .TP
 \fB\-s\fR, \fB\-\-stats\fR

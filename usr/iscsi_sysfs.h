@@ -17,6 +17,7 @@ extern int sysfs_for_each_session(void *data, int *nr_found,
 extern uint32_t get_host_no_from_sid(uint32_t sid, int *err);
 extern int set_exp_statsn(struct iscsi_conn *conn);
 extern pid_t scan_host(struct iscsi_session *session);
+extern pid_t __scan_host(int hostno, int async);
 extern void set_device_online(int hostno, int lun);
 extern void delete_device(int hostno, int lun);
 extern int sysfs_for_each_device(int host_no, uint32_t sid,
