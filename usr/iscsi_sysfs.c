@@ -218,7 +218,7 @@ int get_sessioninfo_by_sysfs_id(int *sid, char *targetname, char *addr,
 
 	if (sscanf(session, "session%d", sid) != 1) {
 		log_error("invalid session '%s'", session);
-		return -EINVAL;
+		return EINVAL;
 	}
 
 	memset(sysfs_file, 0, PATH_MAX);
@@ -286,11 +286,11 @@ int sysfs_for_each_session(void *data, int *nr_found,
 
 	targetname = malloc(TARGET_NAME_MAXLEN + 1);
 	if (!targetname)
-		return -ENOMEM;
+		return ENOMEM;
 
 	address = malloc(NI_MAXHOST + 1);
 	if (!address) {
-		rc = -ENOMEM;
+		rc = ENOMEM;
 		goto free_target;
 	}
 
@@ -327,6 +327,73 @@ free_target:
 	return rc;
 }
 
+char *get_blockdev_from_lun(int host_no, int target, int lun)
+{
+	DIR *dirfd;
+	struct dirent *dent;
+	char *blockdev, *blockdup = NULL;
+
+	sprintf(sysfs_file, "/sys/bus/scsi/devices/%d:0:%d:%d",
+		host_no, target, lun);
+	dirfd = opendir(sysfs_file);
+	if (!dirfd)
+		return NULL;
+
+	while ((dent = readdir(dirfd))) {
+		if (!strcmp(dent->d_name, ".") || !strcmp(dent->d_name, ".."))
+			continue;
+
+		/* not sure what tape looks like */
+		if (strncmp(dent->d_name, "block:", 5))
+			continue;
+
+		blockdev = strchr(dent->d_name, ':');
+		if (!blockdev)
+			break;
+		/* increment past colon */
+		blockdev++;
+
+		blockdup = strdup(blockdev);
+		break;
+
+	}
+	closedir(dirfd);
+	return blockdup;
+}
+
+static uint32_t get_target_no_from_sid(uint32_t sid, int *err)
+{
+	DIR *dirfd;
+	struct dirent *dent;
+	uint32_t host, bus, target = 0;
+
+	*err = ENODEV;
+
+	sprintf(sysfs_file, ISCSI_SESSION_DIR"/session%u/device/", sid);
+	dirfd = opendir(sysfs_file);
+	if (!dirfd)
+		return 0;
+
+	while ((dent = readdir(dirfd))) {
+		if (!strcmp(dent->d_name, ".") || !strcmp(dent->d_name, ".."))
+			continue;
+
+		if (strncmp(dent->d_name, "target", 6))
+			continue;
+
+		if (sscanf(dent->d_name, "target%u:%u:%u",
+			   &host, &bus, &target) != 3)
+			break;
+
+		*err = 0;
+		break;
+
+	}
+	closedir(dirfd);
+	return target;
+
+}
+
 uint32_t get_host_no_from_sid(uint32_t sid, int *err)
 {
 	char buf[PATH_MAX], path[PATH_MAX], *tmp;
@@ -355,7 +422,7 @@ uint32_t get_host_no_from_sid(uint32_t sid, int *err)
 
 	if (sscanf(tmp, "host%u", &host_no) != 1) {
 		log_error("Could not get host for sid %u\n", sid);
-		*err = -ENXIO;
+		*err = ENXIO;
 		return 0;
 	}
 
@@ -442,13 +509,17 @@ int set_exp_statsn(iscsi_conn_t *conn)
 }
 
 int sysfs_for_each_device(int host_no, uint32_t sid,
-			  void (* fn)(int host_no, int lun))
+			  void (* fn)(int host_no, int target, int lun))
 {
 	struct dirent **namelist;
-	int h, b, t, l, i, n;
+	int h, b, t, l, i, n, err = 0, target;
 
-	sprintf(sysfs_file, ISCSI_SESSION_DIR"/session%d/device/target%d:0:0",
-		sid, host_no);
+	target = get_target_no_from_sid(sid, &err);
+	if (err)
+		return err;
+
+	sprintf(sysfs_file, ISCSI_SESSION_DIR"/session%d/device/target%d:0:%d",
+		sid, host_no, target);
 	n = scandir(sysfs_file, &namelist, trans_filter,
 		    versionsort);
 	if (n <= 0)
@@ -458,7 +529,7 @@ int sysfs_for_each_device(int host_no, uint32_t sid,
 		if (sscanf(namelist[i]->d_name, "%d:%d:%d:%d\n",
 			   &h, &b, &t, &l) != 4)
 			continue;
-		fn(h, l);
+		fn(h, t, l);
 	}
 
 	for (i = 0; i < n; i++)
@@ -468,12 +539,12 @@ int sysfs_for_each_device(int host_no, uint32_t sid,
 	return 0;
 }
 
-void set_device_online(int hostno, int lun)
+void set_device_online(int hostno, int target, int lun)
 {
 	int fd;
 
-	sprintf(sysfs_file, "/sys/bus/scsi/devices/%d:0:0:%d/state",
-		hostno, lun);
+	sprintf(sysfs_file, "/sys/bus/scsi/devices/%d:0:%d:%d/state",
+		hostno, target, lun);
 	fd = open(sysfs_file, O_WRONLY);
 	if (fd < 0)
 		return;
@@ -486,12 +557,12 @@ void set_device_online(int hostno, int lun)
 }
 
 /* TODO: remove this when we fix shutdown */
-void delete_device(int hostno, int lun)
+void delete_device(int hostno, int target, int lun)
 {
 	int fd;
 
-	sprintf(sysfs_file, "/sys/bus/scsi/devices/%d:0:0:%d/delete",
-		hostno, lun);
+	sprintf(sysfs_file, "/sys/bus/scsi/devices/%d:0:%d:%d/delete",
+		hostno, target, lun);
 	fd = open(sysfs_file, O_WRONLY);
 	if (fd < 0)
 		return;
@@ -559,7 +630,7 @@ iscsi_provider_t *get_transport_by_session(char *sys_session)
 int get_iscsi_kernel_version(char *buf)
 {
 	if (read_sysfs_file(ISCSI_VERSION_FILE, buf, "%s\n"))
-		return -ENODATA;
+		return ENODATA;
 	else
 		return 0;
 }

@@ -422,9 +422,21 @@ config_init(void)
 	return 0;
 }
 
-static void print_scsi_device_info(int host_no, int lun)
+static void print_scsi_device_info(int host_no, int target, int lun)
 {
-	printf("scsi%d Channel 00 Id 0 Lun: %d\n", host_no, lun);
+	char *blockdev;
+
+	printf("scsi%d Channel 00 Id %d Lun: %d\n", host_no, target, lun);
+	blockdev = get_blockdev_from_lun(host_no, target, lun);
+	if (blockdev) {
+		printf("Attached scsi disk %s\n", blockdev);
+		free(blockdev);
+	}
+}
+
+static int is_valid_operational_value(int value)
+{
+	return value != -1;
 }
 
 static int print_session(void *data, char *targetname, int tpgt, char *address,
@@ -470,10 +482,6 @@ static int print_session(void *data, char *targetname, int tpgt, char *address,
 	printf("Portal Group Tag: %d\n", tpgt);
 	printf("Network Portal: %s:%d\n", address, port);  
 
-	/* for now this is all we do for qla4xxx */
-	if (!provider)
-		return 0;
-
 	get_negotiated_session_conf(sid, &session_conf);
 	get_negotiated_conn_conf(sid, &conn_conf);
 
@@ -487,49 +495,58 @@ static int print_session(void *data, char *targetname, int tpgt, char *address,
 	req.command = MGMT_IPC_SESSION_INFO;
 	req.u.session.sid = sid;
 
-	if (do_iscsid(&ipc_fd, &req, &rsp)) {
-		log_error("Could not get extended session info for session sid "
-			"%d\n", sid);
-		return -EINVAL;
+	if (!do_iscsid(&ipc_fd, &req, &rsp)) {
+		/*
+		 * for drivers like qla4xxx, iscsid does not display anything
+		 * here since it does not know about it.
+		 */
+		if (rsp.u.session_state.conn_state < 0 ||
+		    rsp.u.session_state.conn_state > STATE_CLEANUP_WAIT)
+			printf("Invalid iSCSI Connection State\n");
+		else
+			printf("iSCSI Connection State: %s\n",
+				conn_state[rsp.u.session_state.conn_state]);
+
+		if (rsp.u.session_state.session_state < 0 ||
+		    rsp.u.session_state.session_state > R_STAGE_SESSION_REDIRECT)
+			printf("Invalid iscsid Session State\n");
+		else
+			printf("Internal iscsid Session State: %s\n",
+			      session_state[rsp.u.session_state.session_state]);
 	}
-
-	if (rsp.u.session_state.conn_state < 0 ||
-	    rsp.u.session_state.conn_state > STATE_CLEANUP_WAIT)
-		printf("Invalid iSCSI Connection State\n");
-	else
-		printf("iSCSI Connection State: %s\n",
-			conn_state[rsp.u.session_state.conn_state]);
-
-	if (rsp.u.session_state.session_state < 0 ||
-	    rsp.u.session_state.session_state > R_STAGE_SESSION_REDIRECT)
-		printf("Invalid iscsid Session State\n");
-	else
-		printf("Internal iscsid Session State: %s\n",
-		       session_state[rsp.u.session_state.session_state]);
 
 	printf("\n");
 	printf("************************\n");
 	printf("Negotiated iSCSI params:\n");
 	printf("************************\n");
 
-	printf("HeaderDigest: %s\n",
-		conn_conf.HeaderDigest ? "CRC32C" : "None");
-	printf("DataDigest: %s\n",
-		conn_conf.DataDigest ? "CRC32C" : "None");
-	printf("MaxRecvDataSegmentLength: %d\n",
-		conn_conf.MaxRecvDataSegmentLength);
-	printf("MaxXmitDataSegmentLength: %d\n",
-		conn_conf.MaxXmitDataSegmentLength);
-	printf("FirstBurstLength: %d\n",
-		session_conf.FirstBurstLength);
-	printf("MaxBurstLength: %d\n",
-		session_conf.MaxBurstLength);
-	printf("ImmediateData: %s\n",
-		session_conf.ImmediateData ? "Yes" : "No");
-	printf("InitialR2T: %s\n",
-		session_conf.InitialR2T ? "Yes" : "No");
-	printf("MaxOutstandingR2T: %d\n",
-		session_conf.MaxOutstandingR2T);
+	if (is_valid_operational_value(conn_conf.HeaderDigest))
+		printf("HeaderDigest: %s\n",
+			conn_conf.HeaderDigest ? "CRC32C" : "None");
+	if (is_valid_operational_value(conn_conf.DataDigest))
+		printf("DataDigest: %s\n",
+			conn_conf.DataDigest ? "CRC32C" : "None");
+	if (is_valid_operational_value(conn_conf.MaxRecvDataSegmentLength))
+		printf("MaxRecvDataSegmentLength: %d\n",
+			conn_conf.MaxRecvDataSegmentLength);
+	if (is_valid_operational_value(conn_conf.MaxXmitDataSegmentLength))
+		printf("MaxXmitDataSegmentLength: %d\n",
+			conn_conf.MaxXmitDataSegmentLength);
+	if (is_valid_operational_value(session_conf.FirstBurstLength))
+		printf("FirstBurstLength: %d\n",
+			session_conf.FirstBurstLength);
+	if (is_valid_operational_value(session_conf.MaxBurstLength))
+		printf("MaxBurstLength: %d\n",
+			session_conf.MaxBurstLength);
+	if (is_valid_operational_value(session_conf.ImmediateData))
+		printf("ImmediateData: %s\n",
+			session_conf.ImmediateData ? "Yes" : "No");
+	if (is_valid_operational_value(session_conf.InitialR2T))
+		printf("InitialR2T: %s\n",
+			session_conf.InitialR2T ? "Yes" : "No");
+	if (is_valid_operational_value(session_conf.MaxOutstandingR2T))
+		printf("MaxOutstandingR2T: %d\n",
+			session_conf.MaxOutstandingR2T);
 	printf("\n");
 
 	printf("************************\n");
@@ -541,14 +558,14 @@ static int print_session(void *data, char *targetname, int tpgt, char *address,
 		printf("Host No: Unknown\n");
 		return err;
 	}
-	printf("Host No: %d\n", host_no);
+	printf("Host Number: %d\n", host_no);
 	sysfs_for_each_device(host_no, sid, print_scsi_device_info);
 	printf("\n");
 
 	return 0;
 }
 
-static int session_activelist(int extended)
+static int print_sessions(int extended)
 {
 	char version[20];
 	int num_found = 0, err = 0;
@@ -584,7 +601,7 @@ static int rescan_session(void *data, char *targetname, int tpgt, char *address,
 	return 0;
 }
 
-static int session_rescan(void)
+static int rescan_sessions(void)
 {
 	int num_found = 0;
 
@@ -1172,16 +1189,16 @@ free_target:
 			}
 
 			if (do_rescan) {
-				rc = session_rescan();
+				rc = rescan_sessions();
 				goto out;
 			}
 
 			if (do_info) {
-				rc = session_activelist(1);
+				rc = print_sessions(1);
 				goto out;
 			}
 
-			rc = session_activelist(0);
+			rc = print_sessions(0);
 		}
 	} else {
 		log_error("This mode is not yet supported");
