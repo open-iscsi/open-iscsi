@@ -25,6 +25,8 @@ struct iscsi_conn;
 struct iscsi_session_operational_config;
 struct iscsi_conn_operational_config;
 
+#define SCSI_MAX_STATE_VALUE 32
+
 extern int get_iscsi_kernel_version(char *buf);
 extern void check_class_version(void);
 extern int get_sessioninfo_by_sysfs_id(int *sid, char *targetname,
@@ -42,6 +44,8 @@ extern void get_negotiated_conn_conf(int sid,
 				struct iscsi_conn_operational_config *conf);
 extern pid_t scan_host(struct iscsi_session *session);
 extern pid_t __scan_host(int hostno, int async);
+extern int get_host_state(char *state, int host_no);
+extern int get_device_state(char *state, int host_no, int target, int lun);
 extern void set_device_online(int hostno, int target, int lun);
 extern void delete_device(int hostno, int target, int lun);
 extern int sysfs_for_each_device(int host_no, uint32_t sid,

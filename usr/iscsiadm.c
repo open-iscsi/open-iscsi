@@ -424,13 +424,18 @@ config_init(void)
 
 static void print_scsi_device_info(int host_no, int target, int lun)
 {
-	char *blockdev;
+	char *blockdev, state[SCSI_MAX_STATE_VALUE];
 
 	printf("scsi%d Channel 00 Id %d Lun: %d\n", host_no, target, lun);
 	blockdev = get_blockdev_from_lun(host_no, target, lun);
 	if (blockdev) {
-		printf("Attached scsi disk %s\n", blockdev);
+		printf("Attached scsi disk %s\t\t", blockdev);
 		free(blockdev);
+
+		if (!get_device_state(state, host_no, target, lun))
+			printf("State: %s\n", state);
+		else
+			printf("State: Unknown\n");
 	}
 }
 
@@ -448,6 +453,7 @@ static int print_session(void *data, char *targetname, int tpgt, char *address,
 	iscsiadm_rsp_t rsp;
 	struct iscsi_session_operational_config session_conf;
 	struct iscsi_conn_operational_config conn_conf;
+	char state[SCSI_MAX_STATE_VALUE];
         static char *conn_state[] = {
 			"FREE",
 			"TRANSPORT WAIT",
@@ -558,7 +564,13 @@ static int print_session(void *data, char *targetname, int tpgt, char *address,
 		printf("Host No: Unknown\n");
 		return err;
 	}
-	printf("Host Number: %d\n", host_no);
+	printf("Host Number: %d\t", host_no);
+	if (!get_host_state(state, host_no))
+		printf("State: %s\n", state);
+	else
+		printf("State: Unknown\n");
+	printf("\n");
+
 	sysfs_for_each_device(host_no, sid, print_scsi_device_info);
 	printf("\n");
 

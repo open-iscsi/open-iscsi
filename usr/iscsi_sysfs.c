@@ -327,6 +327,21 @@ free_target:
 	return rc;
 }
 
+int get_host_state(char *state, int host_no)
+{
+	memset(sysfs_file, 0, PATH_MAX);
+	sprintf(sysfs_file, "/sys/class/scsi_host/host%d/state", host_no);
+	return read_sysfs_file(sysfs_file, state, "%s\n");
+}
+
+int get_device_state(char *state, int host_no, int target, int lun)
+{
+	memset(sysfs_file, 0, PATH_MAX);
+	sprintf(sysfs_file, "/sys/bus/scsi/devices/%d:0:%d:%d/state",
+		host_no, target, lun);
+	return read_sysfs_file(sysfs_file, state, "%s\n");
+}
+
 char *get_blockdev_from_lun(int host_no, int target, int lun)
 {
 	DIR *dirfd;
