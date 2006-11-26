@@ -677,16 +677,16 @@ void
 __conn_noop_out(void *data)
 {
 	iscsi_conn_t *conn = (iscsi_conn_t*)data;
-	__send_nopout(conn);
+
 	if (conn->noop_out_timeout_timer.state == ACTOR_NOTSCHEDULED) {
+		__send_nopout(conn);
+
 		actor_timer(&conn->noop_out_timeout_timer,
 				conn->noop_out_timeout*1000,
 				__conn_noop_out_timeout, conn);
-		log_debug(3, "noop out timeout timer %p start\n",
-				&conn->noop_out_timeout_timer);
+		log_debug(3, "noop out timeout timer %p start, timeout %d\n",
+			 &conn->noop_out_timeout_timer, conn->noop_out_timeout);
 	}
-	actor_timer(&conn->noop_out_timer, conn->noop_out_interval*1000,
-			__conn_noop_out, data);
 }
 
 static void
@@ -1133,10 +1133,13 @@ static int iscsi_send_logout(iscsi_conn_t *conn)
 
 static void iscsi_recv_nop_in(iscsi_conn_t *conn, struct iscsi_hdr *hdr)
 {
-	if (hdr->ttt == ISCSI_RESERVED_TAG)
+	if (hdr->ttt == ISCSI_RESERVED_TAG) {
 		/* noop out rsp */
 		actor_delete(&conn->noop_out_timeout_timer);
-	else /*  noop in req */
+		/* schedule a new ping */
+		actor_timer(&conn->noop_out_timer, conn->noop_out_interval*1000,
+			    __conn_noop_out, conn);
+	} else /*  noop in req */
 		if (!__send_nopin_rsp(conn, (struct iscsi_nopin*)hdr,
 				      conn->data)) {
 			log_error("can not send nopin response");
