@@ -465,9 +465,9 @@ static int print_session(void *data, char *targetname, int tpgt, char *address,
         };
 	static char *session_state[] = {
 			"NO CHANGE",
-			"CLEANUP"
-			"REPOEN"
-			"REDIRECT"
+			"CLEANUP",
+			"REPOEN",
+			"REDIRECT",
 	};
 
 	provider = get_transport_by_sid(sid);
