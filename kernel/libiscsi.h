@@ -76,7 +76,7 @@ struct iscsi_mgmt_task {
 	 * Becuae LLDs allocate their hdr differently, this is a pointer to
 	 * that storage. It must be setup at session creation time.
 	 */
-	struct iscsi_hdr	*hdr; 
+	struct iscsi_hdr	*hdr;
 	char			*data;		/* mgmt payload */
 	int			data_count;	/* counts data to be sent */
 	uint32_t		itt;		/* this ITT */

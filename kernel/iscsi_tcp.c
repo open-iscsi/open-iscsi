@@ -904,7 +904,7 @@ more:
 				goto again;
 			iscsi_conn_failure(conn, ISCSI_ERR_CONN_FAILED);
 			return 0;
-		}	
+		}
 
 		memcpy(&recv_digest, conn->data, sizeof(uint32_t));
 		if (recv_digest != tcp_conn->in.datadgst) {
@@ -1304,7 +1304,7 @@ iscsi_tcp_cmd_init(struct iscsi_cmd_task *ctask)
 		debug_scsi("cmd [itt 0x%x total %d imm_data %d "
 			   "unsol count %d, unsol offset %d]\n",
 			   ctask->itt, ctask->total_length, ctask->imm_count,
-			   ctask->unsol_count, ctask->unsol_offset); 
+			   ctask->unsol_count, ctask->unsol_offset);
 	} else
 		tcp_ctask->xmstate = XMSTATE_R_HDR;
 
@@ -1455,7 +1455,7 @@ iscsi_send_padding(struct iscsi_conn *conn, struct iscsi_cmd_task *ctask)
 	tcp_ctask->xmstate &= ~XMSTATE_W_PAD;
 	tcp_ctask->xmstate &= ~XMSTATE_W_RESEND_PAD;
 	debug_scsi("sending %d pad bytes for itt 0x%x\n",
-		   tcp_ctask->pad_count, ctask->itt); 
+		   tcp_ctask->pad_count, ctask->itt);
 	rc = iscsi_sendpage(conn, &tcp_ctask->sendbuf, &tcp_ctask->pad_count,
 			   &sent);
 	if (rc) {
@@ -1484,7 +1484,7 @@ iscsi_send_digest(struct iscsi_conn *conn, struct iscsi_cmd_task *ctask,
 		iscsi_buf_init_iov(buf, (char*)digest, 4);
 	}
 	tcp_ctask->xmstate &= ~XMSTATE_W_RESEND_DATA_DIGEST;
-	
+
 	rc = iscsi_sendpage(conn, buf, &tcp_ctask->digest_count, &sent);
 	if (!rc)
 		debug_scsi("sent digest 0x%x for itt 0x%x\n", *digest,
@@ -1593,7 +1593,7 @@ send_hdr:
 		int start = tcp_ctask->sent;
 
 		rc = iscsi_send_data(ctask, &tcp_ctask->sendbuf, &tcp_ctask->sg,
-				     &tcp_ctask->sent, &ctask->data_count, 
+				     &tcp_ctask->sent, &ctask->data_count,
 				     &dtask->digestbuf, &dtask->digest);
 		ctask->unsol_count -= tcp_ctask->sent - start;
 		if (rc)
