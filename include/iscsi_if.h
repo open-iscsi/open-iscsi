@@ -147,7 +147,7 @@ struct iscsi_uevent {
 		struct msg_create_conn_ret {
 			uint32_t	sid;
 			uint32_t	cid;
-		} c_conn_ret;			
+		} c_conn_ret;
 		struct msg_recv_req {
 			uint32_t	sid;
 			uint32_t	cid;

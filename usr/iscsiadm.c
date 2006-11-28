@@ -486,7 +486,7 @@ static int print_session(void *data, char *targetname, int tpgt, char *address,
 	printf("************************************\n");
 	printf("TargetName: %s\n", targetname);
 	printf("Portal Group Tag: %d\n", tpgt);
-	printf("Network Portal: %s:%d\n", address, port);  
+	printf("Network Portal: %s:%d\n", address, port);
 
 	get_negotiated_session_conf(sid, &session_conf);
 	get_negotiated_conn_conf(sid, &conn_conf);
@@ -588,7 +588,7 @@ static int print_sessions(int extended)
 				version);
 		printf("%s version %s\n", program_name, ISCSI_VERSION_STR);
 	}
-	
+
 	sysfs_for_each_session(&extended, &num_found, print_session);
 	if (err) {
 		log_error("Can not get list of active sessions (%d)", err);
@@ -793,7 +793,7 @@ static int exec_node_op(idbm_t *db, int op, int do_login, int do_logout,
 				rc = -1;
 			}
 			goto out;
-	
+
 		}
 
 		if (do_login) {
@@ -985,7 +985,7 @@ main(int argc, char **argv)
 		return -1;
 	}
 
-	if (mode < 0) 
+	if (mode < 0)
 		usage(0);
 
 	db = idbm_init(config_file);

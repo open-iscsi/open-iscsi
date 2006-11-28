@@ -1,4 +1,4 @@
-/* 
+/*
  * iSCSI Authorization Library
  *
  * maintained by open-iscsi@@googlegroups.com
@@ -272,7 +272,7 @@ extern enum auth_dbg_status acl_chap_compute_rsp(struct iscsi_acl *client,
 						 int rmt_auth,
 						 unsigned int id,
 						 unsigned char *challenge_data,
-						 unsigned int challenge_len, 
+						 unsigned int challenge_len,
 						 unsigned char *response_data);
 extern int acl_chap_auth_request(struct iscsi_acl *client, char *username,
 				 unsigned int id,

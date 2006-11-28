@@ -1163,7 +1163,7 @@ acl_hand_shake(struct iscsi_acl *client)
 		if (client->node_type == TYPE_INITIATOR) {
 			if (client->recv_key_block.transit_bit) {
 				if (client->rmt_state !=
-				    AUTH_RMT_STATE_DONE) 
+				    AUTH_RMT_STATE_DONE)
 					goto recv_transit_bit_err;
 				acl_next_phase(client);
 			} else
@@ -1943,7 +1943,7 @@ acl_set_user_name(struct iscsi_acl *client, const char *username)
 		return AUTH_STATUS_ERROR;
 	}
 
-	if (strlcpy(client->username, username, AUTH_STR_MAX_LEN) >= 
+	if (strlcpy(client->username, username, AUTH_STR_MAX_LEN) >=
 	    AUTH_STR_MAX_LEN) {
 		client->phase = AUTH_PHASE_ERROR;
 		return AUTH_STATUS_ERROR;

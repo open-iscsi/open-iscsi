@@ -153,7 +153,7 @@ static int check_params(char *initiatorname)
 		log_error("TargetName not set. Exiting %s\n", program_name);
 		return -EINVAL;
 	}
-	
+
 	if (!strlen(config_rec.conn[0].address)) {
 		log_error("IP Address not set. Exiting %s\n", program_name);
 		return -EINVAL;
@@ -238,7 +238,7 @@ int main(int argc, char *argv[])
 			check_str_param_len(optarg, AUTH_STR_MAX_LEN,
 					    "username_in");
 			strncpy(auth->username_in, optarg, AUTH_STR_MAX_LEN);
-			break;	
+			break;
 		case 'd':
 			log_level = atoi(optarg);
 			break;

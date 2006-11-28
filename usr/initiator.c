@@ -586,7 +586,7 @@ session_conn_cleanup(queue_task_t *qtask, mgmt_ipc_err_e err)
 		__session_destroy(session);
 }
 
-static mgmt_ipc_err_e 
+static mgmt_ipc_err_e
 __session_conn_shutdown(iscsi_conn_t *conn, queue_task_t *qtask,
 			mgmt_ipc_err_e err)
 {
@@ -612,7 +612,7 @@ __session_conn_shutdown(iscsi_conn_t *conn, queue_task_t *qtask,
 	return MGMT_IPC_OK;
 }
 
-static mgmt_ipc_err_e 
+static mgmt_ipc_err_e
 session_conn_shutdown(iscsi_conn_t *conn, queue_task_t *qtask,
 		      mgmt_ipc_err_e err)
 {
@@ -662,7 +662,7 @@ __send_nopout(iscsi_conn_t *conn)
 		ISCSI_DIGEST_NONE, NULL, ISCSI_DIGEST_NONE, 0);
 }
 
-void 
+void
 __conn_noop_out_timeout(void *data)
 {
 	iscsi_conn_t *conn = (iscsi_conn_t*)data;
@@ -1099,7 +1099,7 @@ static void iscsi_logout_timeout(void *data)
 	iscsi_conn_t *conn = data;
 
 	/*
-	 * assume we were in STATE_IN_LOGOUT or there 
+	 * assume we were in STATE_IN_LOGOUT or there
 	 * was some nasty error
 	 */
 	log_debug(3, "logout timeout, dropping conn...\n");
@@ -1218,7 +1218,7 @@ __session_conn_recv_pdu(queue_item_t *item)
 		if (iscsi_login_rsp(session, c)) {
 			log_debug(1, "login_rsp ret (%d)", c->ret);
 			if (c->ret != LOGIN_REDIRECT ||
-			    iscsi_login_redirect(conn))				
+			    iscsi_login_redirect(conn))
 				__session_conn_shutdown(conn, c->qtask,
 					MGMT_IPC_ERR_LOGIN_FAILURE);
 			return;
@@ -1369,12 +1369,12 @@ __session_conn_poll(queue_item_t *item)
 				   conn->id, conn->transport_ep_handle,
 				   (conn->id == 0), &rc) || rc) {
 			log_error("can't bind conn %d:%d to session %d, "
-				  "retcode %d (%d)", session->id, conn->id, 
+				  "retcode %d (%d)", session->id, conn->id,
 				   session->id, rc, errno);
 			err = MGMT_IPC_ERR_INTERNAL;
 			goto c_cleanup;
 		}
-		log_debug(3, "bound iSCSI connection %d:%d to session %d", 
+		log_debug(3, "bound iSCSI connection %d:%d to session %d",
 			  session->id, conn->id, session->id);
 
 		setup_kernel_io_callouts(conn);
@@ -1530,7 +1530,7 @@ __conn_error_handle(iscsi_session_t *session, iscsi_conn_t *conn)
 			}
 
 			break;
-		} 
+		}
 
 		/* mark all connections as failed */
 		for (i=0; i<ISCSI_CONN_MAX; i++) {
@@ -1577,7 +1577,7 @@ __session_conn_error(queue_item_t *item)
 	iscsi_session_t *session = conn->session;
 
 	log_warning("detected iSCSI connection %d:%d error (%d) "
-		    "state (%d)", session->id, conn->id, error, 
+		    "state (%d)", session->id, conn->id, error,
 		    conn->state);
 	__conn_error_handle(session, conn);
 

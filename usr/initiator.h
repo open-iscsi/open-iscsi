@@ -104,7 +104,7 @@ typedef void (*send_pdu_begin_f) (uint64_t transport_handle, uint32_t sid,
                                   uint32_t cid, int hdr_size, int data_size);
 typedef int (*send_pdu_end_f) (uint64_t transport_handle, uint32_t sid,
 			       uint32_t cid, int *retcode);
-typedef int (*recv_pdu_begin_f) (uint64_t transport_handle, 
+typedef int (*recv_pdu_begin_f) (uint64_t transport_handle,
 				 uintptr_t recv_handle, uintptr_t *pdu_handle,
 				 int *pdu_size);
 typedef int (*recv_pdu_end_f) (uint64_t transport_handle, uintptr_t conn_handle,

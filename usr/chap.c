@@ -372,7 +372,7 @@ static int chap_initiator_auth_create_challenge(struct connection *conn)
 	p += 2;
 
 	if (fd) {
-		read(fd, conn->auth.chap.challenge, 
+		read(fd, conn->auth.chap.challenge,
 		     sizeof(int) * conn->auth.chap.challenge_size);
 	}
 

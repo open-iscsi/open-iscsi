@@ -3,7 +3,7 @@
  *
  * Copyright (C) 2004 Dmitry Yusupov, Alex Aizman
  * Copyright (C) 2006 Mike Christie
- * Copyright (C) 2006 Red Hat, Inc. All rights reserved. 
+ * Copyright (C) 2006 Red Hat, Inc. All rights reserved.
  * maintained by open-iscsi@googlegroups.com
  *
  * This program is free software; you can redistribute it and/or modify
@@ -489,7 +489,7 @@ ksend_pdu_end(uint64_t transport_handle, uint32_t sid, uint32_t cid,
 		exit(-EIO);
 	}
 
-	log_debug(3, "send PDU finished for conn %d:%d", 
+	log_debug(3, "send PDU finished for conn %d:%d",
 		  sid, cid);
 
 	xmitbuf = NULL;
@@ -811,7 +811,7 @@ ctldev_handle(void)
 
 verify_conn:
 	if (conn == NULL) {
-		log_error("could not verify connection %d:%d", 
+		log_error("could not verify connection %d:%d",
 			  ev->r.recv_req.sid, ev->r.recv_req.cid);
 		return -ENXIO;
 	}

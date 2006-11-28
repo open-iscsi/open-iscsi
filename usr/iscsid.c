@@ -283,7 +283,7 @@ int main(int argc, char *argv[])
 	if (!daemon_config.initiator_alias) {
 		memset(&host_info, 0, sizeof (host_info));
 		if (uname(&host_info) >= 0) {
-			daemon_config.initiator_alias = 
+			daemon_config.initiator_alias =
 				strdup(host_info.nodename);
 		}
 	}

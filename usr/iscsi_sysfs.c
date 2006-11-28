@@ -564,7 +564,7 @@ void set_device_online(int hostno, int target, int lun)
 	if (fd < 0)
 		return;
 	log_debug(4, "online device using %s", sysfs_file);
-	if (write(fd, "running\n", 8) == -1 && errno != EINVAL) 
+	if (write(fd, "running\n", 8) == -1 && errno != EINVAL)
 		/* we should read the state */
 		log_error("Could not online LUN %d err %d\n",
 			  lun, errno);
