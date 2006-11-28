@@ -18,6 +18,7 @@
  */
 
 #include <search.h>
+#include <inttypes.h>
 #include "actor.h"
 #include "log.h"
 
@@ -42,14 +43,17 @@ static volatile uint64_t actor_jiffies = 0;
 #define ACTOR_TICKS_10MS(_a)	(_a)
 #define ACTOR_MS_TO_TICKS(_a)	((_a)/ACTOR_RESOLUTION)
 
-static uint32_t
-actor_diff_time(actor_t *thread, uint32_t current_time)
+static uint64_t
+actor_diff_time(actor_t *thread, uint64_t current_time)
 {
-	uint32_t diff_time = actor_diff(thread->scheduled_at, current_time);
+	uint64_t diff_time = actor_diff(thread->scheduled_at, current_time);
 	if(diff_time >= thread->ttschedule)
 		return 0;
 	return (thread->ttschedule - diff_time);
 }
+
+#define time_after(a,b) \
+	((int64_t)(b) - (int64_t)(a) < 0)
 
 void
 actor_init(void)
@@ -96,15 +100,15 @@ actor_delete(actor_t *thread)
 static void
 actor_schedule_private(actor_t *thread, uint32_t ttschedule)
 {
-	uint32_t delay_time, current_time, diff_time;
+	uint64_t delay_time, current_time;
 	struct qelem *next_item;
 	actor_t *next_thread;
 
 	delay_time = ACTOR_MS_TO_TICKS(ttschedule);
 	current_time = ACTOR_TICKS;
 
-	log_debug(7, "thread %08lx schedule: delay %d state %d", (long)thread,
-			delay_time, thread->state);
+	log_debug(7, "thread %08lx schedule: delay %" PRIu64 " state %d",
+		(long)thread, delay_time, thread->state);
 
 	/* convert ttscheduled msecs in 10s of msecs by dividing for now.
 	 * later we will change param to 10s of msecs */
@@ -133,16 +137,15 @@ actor_schedule_private(actor_t *thread, uint32_t ttschedule)
 			next_item = pend_list.q_forw;
 			while (next_item != &pend_list) {
 				next_thread = (actor_t *)next_item;
-				diff_time = actor_diff(
-				      next_thread->scheduled_at, current_time);
-				if ((diff_time - next_thread->ttschedule) >
-				     delay_time)
+
+				if (time_after(next_thread->scheduled_at +
+						       next_thread->ttschedule,
+						current_time + delay_time))
 					break;
 				next_item = next_item->q_forw;
 			}
-			/* find the right place in the queue to insert
-			 * need to add code */
-			insque(&thread->item, next_item);
+
+			insque(&thread->item, next_item->q_back);
 		}
 		break;
 	case ACTOR_POLL_WAITING:
@@ -180,7 +183,7 @@ actor_timer_mod(actor_t *thread, uint32_t timeout, void *data)
 }
 
 void
-actor_check(uint32_t current_time)
+actor_check(uint64_t current_time)
 {
 	while (pend_list.q_forw != &pend_list) {
 		actor_t *thread = (actor_t *)pend_list.q_forw;
@@ -195,10 +198,11 @@ actor_check(uint32_t current_time)
 		/* it is time to schedule this entry */
 		remque(&thread->item);
 
-		log_debug(2, "thread %08lx was scheduled at %u:%u, curtime %u "
-			"q_forw %p &pend_list %p", (long)thread,
-			thread->scheduled_at, thread->ttschedule, current_time,
-			pend_list.q_forw, &pend_list);
+		log_debug(2, "thread %08lx was scheduled at %" PRIu64 ":"
+			"%" PRIu64 ", curtime %" PRIu64 " q_forw %p "
+			"&pend_list %p",
+			(long)thread, thread->scheduled_at, thread->ttschedule,
+			current_time, pend_list.q_forw, &pend_list);
 
 		if (poll_in_progress) {
 			thread->state = ACTOR_POLL_WAITING;
@@ -217,7 +221,7 @@ actor_check(uint32_t current_time)
 void
 actor_poll(void)
 {
-	uint32_t current_time;
+	uint64_t current_time;
 
 	/* check that there are no any concurrency */
 	if (poll_in_progress) {

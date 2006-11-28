@@ -36,8 +36,8 @@ typedef struct actor {
     actor_state_e state;
     void *data;
     void (*callback)(void * );
-    uint32_t scheduled_at;
-    uint32_t ttschedule;
+    uint64_t scheduled_at;
+    uint64_t ttschedule;
 } actor_t;
 
 extern void actor_new(actor_t *thread, void (*callback)(void *), void * data);
