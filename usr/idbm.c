@@ -624,8 +624,8 @@ int idbm_print_all_discovery(idbm_t *db)
 {
 	DIR *entity_dirfd;
 	struct dirent *entity_dent;
-	char *tmp_ip;
-	int found = 0, tmp_port;
+	char *tmp_port;
+	int found = 0;
 
 	entity_dirfd = opendir(ST_CONFIG_DIR);
 	if (!entity_dirfd)
@@ -638,9 +638,13 @@ int idbm_print_all_discovery(idbm_t *db)
 
 		log_debug(5, "found %s\n", entity_dent->d_name);
 
-		tmp_ip = str_to_ipport(entity_dent->d_name, &tmp_port, ',');
+		tmp_port = strchr(entity_dent->d_name, ',');
+		if (!tmp_port)
+			continue;
+		*tmp_port++ = '\0';
 
-		printf("%s:%d via sendtargets\n", tmp_ip, tmp_port);
+		printf("%s:%d via sendtargets\n", entity_dent->d_name,
+		       atoi(tmp_port));
 		found++;
 	}
 	closedir(entity_dirfd);
@@ -677,19 +681,20 @@ int idbm_for_each_node(idbm_t *db, void *data,
 		if (!portal_dirfd)
 			continue;
 		while ((portal_dent = readdir(portal_dirfd))) {
-			int tmp_port;
-			char *tmp_ip;
+			char *tmp_port;
 
 			if (!strcmp(portal_dent->d_name, ".") ||
 			    !strcmp(portal_dent->d_name, ".."))
 				continue;
 
 			log_debug(5, "found %s\n", portal_dent->d_name);
-			tmp_ip = str_to_ipport(portal_dent->d_name, &tmp_port,
-					       ',');
+			tmp_port = strchr(portal_dent->d_name, ',');
+			if (!tmp_port)
+				continue;
+			*tmp_port++ = '\0';
 
 			if (idbm_node_read(db, &rec, node_dent->d_name,
-					   tmp_ip, tmp_port))
+					   portal_dent->d_name, atoi(tmp_port)))
 				continue;
 
 			fn(data, &rec);
