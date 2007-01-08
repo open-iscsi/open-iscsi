@@ -76,18 +76,32 @@ check_iscsi_compat = $(call generic_check_command, $(check_iscsi_compat_command)
 kernel_check:
 ifeq ($(KSUBLEVEL),16)
 	echo "kernel check... OK"
+	cp 2.6.16-2.6.19/*.c .
+	cp 2.6.16-2.6.19/*.h .
 else
 ifeq ($(KSUBLEVEL),17)
 	echo "kernel check... OK"
+	cp 2.6.16-2.6.19/*.c .
+	cp 2.6.16-2.6.19/*.h .
 else
 ifeq ($(KSUBLEVEL),18)
 	echo "kernel check... OK"
+	cp 2.6.16-2.6.19/*.c .
+	cp 2.6.16-2.6.19/*.h .
 else
 ifeq ($(KSUBLEVEL),19)
 	echo "kernel check... OK"
+	cp 2.6.16-2.6.19/*.c .
+	cp 2.6.16-2.6.19/*.h .
+else
+ifeq ($(KSUBLEVEL),20)
+	echo "kernel check... OK"
+	cp 2.6.20/*.c .
+	cp 2.6.20/*.h .
 else
 	@echo "kernel check... UNSUPPORTED KERNEL DETECTED"
 	exit 1;
+endif
 endif
 endif
 endif
@@ -97,6 +111,7 @@ endif
 
 clean:
 	$(KBUILD_BASE) clean
+	rm *.c *.h Module.symvers
 #echo rm -f -r *.mod.c .*cmd *.o *.ko .tmp_versions
 
 # the following is only for convienience

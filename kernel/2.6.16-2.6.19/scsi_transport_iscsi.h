@@ -24,7 +24,7 @@
 #define SCSI_TRANSPORT_ISCSI_H
 
 #include <linux/device.h>
-#include <iscsi_if.h>
+#include "iscsi_if.h"
 
 struct scsi_transport_template;
 struct iscsi_transport;
