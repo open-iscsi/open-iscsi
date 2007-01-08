@@ -1499,6 +1499,7 @@ iscsi_login(iscsi_session_t *session, int cid, char *buffer, size_t bufsize,
 {
 	iscsi_conn_t *conn = &session->conn[cid];
 	iscsi_login_context_t *c = &conn->login_context;
+	int ret;
 
 	conn->kernel_io = 0;
 	/*
@@ -1517,16 +1518,18 @@ iscsi_login(iscsi_session_t *session, int cid, char *buffer, size_t bufsize,
 	do {
 		if (iscsi_login_req(session, c))
 			return c->ret;
-		if (iscsi_login_rsp(session, c))
+		ret = iscsi_login_rsp(session, c);
+
+		if (status_class)
+			*status_class = c->status_class;
+		if (status_detail)
+			*status_detail = c->status_detail;
+
+		if (ret)
 			return c->ret;
 	} while (conn->current_stage != ISCSI_FULL_FEATURE_PHASE);
 
 	c->ret = LOGIN_OK;
-	if (status_class)
-		*status_class = c->status_class;
-	if (status_detail)
-		*status_detail = c->status_detail;
-
 	if (c->auth_client && acl_finish(c->auth_client) !=
 	    AUTH_STATUS_NO_ERROR) {
 		log_error("Login failed, error finishing c->auth_client");
