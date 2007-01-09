@@ -140,14 +140,13 @@ static void
 write_mgmt_rsp(queue_task_t *qtask, mgmt_ipc_err_e err)
 {
 	log_debug(4, "%s: rsp to fd %d", __FUNCTION__,
-		  qtask->u.login.mgmt_ipc_fd);
-	if (qtask->u.login.mgmt_ipc_fd == 0)
+		  qtask->mgmt_ipc_fd);
+	if (qtask->mgmt_ipc_fd < 0)
 		return;
 
-	qtask->u.login.rsp.err = err;
-	write(qtask->u.login.mgmt_ipc_fd, &qtask->u.login.rsp,
-	      sizeof(qtask->u.login.rsp));
-	close(qtask->u.login.mgmt_ipc_fd);
+	qtask->rsp.err = err;
+	write(qtask->mgmt_ipc_fd, &qtask->rsp, sizeof(qtask->rsp));
+	close(qtask->mgmt_ipc_fd);
 	free(qtask);
 }
 
@@ -486,6 +485,7 @@ __session_create(node_rec_t *rec, iscsi_provider_t *provider)
 	session->ctrl_fd = control_fd;
 	session->transport_handle = provider->handle;
 	session->provider = provider;
+	session->reopen_qtask.mgmt_ipc_fd = -1;
 
 	/* save node record. we might need it for redirection */
 	memcpy(&session->nrec, rec, sizeof(node_rec_t));
@@ -879,7 +879,7 @@ __session_scan_host(iscsi_session_t *session, queue_task_t *qtask)
 		write_mgmt_rsp(qtask, MGMT_IPC_OK);
 		exit(0);
 	} else if (pid > 0) {
-		close(qtask->u.login.mgmt_ipc_fd);
+		close(qtask->mgmt_ipc_fd);
 		need_reap();
 		free(qtask);
 	} else
@@ -1070,6 +1070,8 @@ setup_full_feature_phase(iscsi_conn_t *conn)
 		log_warning("connection%d:%d is operational now",
 			    session->id, conn->id);
 	} else {
+		session->sync_qtask = NULL;
+
 		__session_online_devs(session);
 		write_mgmt_rsp(c->qtask, MGMT_IPC_OK);
 		log_warning("connection%d:%d is operational after recovery "
@@ -1544,8 +1546,14 @@ __conn_error_handle(iscsi_session_t *session, iscsi_conn_t *conn)
 		break;
 	case STATE_IN_LOGIN:
 		if (session->r_stage == R_STAGE_SESSION_REOPEN) {
-			session_conn_reopen(conn, &session->reopen_qtask,
-					    STOP_CONN_RECOVER);
+			queue_task_t *qtask;
+
+			if (session->sync_qtask)
+				qtask = session->sync_qtask;
+			else
+				qtask = &session->reopen_qtask;
+
+			session_conn_reopen(conn, qtask, STOP_CONN_RECOVER);
 			return;
 		}
 
@@ -1820,8 +1828,8 @@ session_login_task(node_rec_t *rec, queue_task_t *qtask)
 	actor_timer(&conn->connect_timer, conn->login_timeout*1000,
 		    __connect_timedout, qtask);
 
-	qtask->u.login.rsp.command = MGMT_IPC_SESSION_LOGIN;
-	qtask->u.login.rsp.err = MGMT_IPC_OK;
+	qtask->rsp.command = MGMT_IPC_SESSION_LOGIN;
+	qtask->rsp.err = MGMT_IPC_OK;
 
 	return MGMT_IPC_OK;
 }
@@ -1879,7 +1887,8 @@ iscsi_sync_session(node_rec_t *rec, queue_task_t *qtask, uint32_t sid)
 		goto destroy_session;
 	}
 
-	qtask->u.login.rsp.command = MGMT_IPC_SESSION_SYNC;
+	session->sync_qtask = qtask;
+	qtask->rsp.command = MGMT_IPC_SESSION_SYNC;
 
 	session_conn_reopen(&session->conn[0], qtask, STOP_CONN_RECOVER);
 	log_debug(3, "Started sync iSCSI session %d", session->id);
@@ -1898,9 +1907,10 @@ session_logout_task(iscsi_session_t *session, queue_task_t *qtask)
 	mgmt_ipc_err_e rc = MGMT_IPC_OK;
 
 	conn = &session->conn[0];
-	if (conn->state == STATE_XPT_WAIT &&
+	if (session->sync_qtask ||
+	    (conn->state == STATE_XPT_WAIT &&
 	    (session->r_stage == R_STAGE_NO_CHANGE ||
-	     session->r_stage == R_STAGE_SESSION_REDIRECT)) {
+	     session->r_stage == R_STAGE_SESSION_REDIRECT))) {
 		log_error("session in invalid state for logout. "
 			   "Try again later\n");
 		return MGMT_IPC_ERR_INTERNAL;
@@ -1911,7 +1921,7 @@ session_logout_task(iscsi_session_t *session, queue_task_t *qtask)
 	/* FIXME: implement Logout Request */
 
 	qtask->conn = conn;
-	qtask->u.login.rsp.command = MGMT_IPC_SESSION_LOGOUT;
+	qtask->rsp.command = MGMT_IPC_SESSION_LOGOUT;
 	conn->logout_qtask = qtask;
 
 	switch (conn->state) {

@@ -186,22 +186,9 @@ typedef struct iscsi_conn {
 
 typedef struct queue_task {
 	iscsi_conn_t *conn;
-	union {
-		/* iSCSI requests originated via IPC */
-		struct ipcreq_login {
-			iscsiadm_req_t req;
-			iscsiadm_rsp_t rsp;
-			int mgmt_ipc_fd;
-		} login;
-		struct ipcreq_logout {
-			iscsiadm_req_t req;
-			iscsiadm_rsp_t rsp;
-			int mgmt_ipc_fd;
-		} logout;
-		/* iSCSI requests originated via CTL */
-		struct ctlreq_recv_pdu {
-		} recv_pdu;
-	} u;
+	iscsiadm_req_t req;
+	iscsiadm_rsp_t rsp;
+	int mgmt_ipc_fd;
 } queue_task_t;
 
 typedef enum iscsi_provider_status_e {
@@ -282,6 +269,9 @@ typedef struct iscsi_session {
 	queue_task_t reopen_qtask;
 	iscsi_session_r_stage_e r_stage;
 	uint32_t replacement_timeout;
+
+	/* sync up fields */
+	queue_task_t *sync_qtask;
 
 	/* session's processing */
 	actor_t mainloop;

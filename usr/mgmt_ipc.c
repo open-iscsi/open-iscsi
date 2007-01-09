@@ -332,8 +332,8 @@ mgmt_ipc_handle(int accept_fd)
 		rc = -ENOMEM;
 		goto err;
 	}
-	memcpy(&qtask->u.login.req, &req, sizeof(iscsiadm_req_t));
-	qtask->u.login.mgmt_ipc_fd = fd;
+	memcpy(&qtask->req, &req, sizeof(iscsiadm_req_t));
+	qtask->mgmt_ipc_fd = fd;
 
 	switch(req.command) {
 	case MGMT_IPC_SESSION_LOGIN:
