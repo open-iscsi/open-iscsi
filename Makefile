@@ -26,6 +26,7 @@ ETCFILES = etc/iscsid.conf
 all:
 	$(MAKE) -C usr
 	$(MAKE) -C kernel
+	$(MAKE) -C utils
 	@echo
 	@echo "Compilation complete                Output file"
 	@echo "----------------------------------- ----------------"
@@ -40,6 +41,7 @@ all:
 clean:
 	$(MAKE) -C usr clean
 	$(MAKE) -C kernel clean
+	$(MAKE) -C utils clean
 
 # this is for safety
 # now -jXXX will still be safe
