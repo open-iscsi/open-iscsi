@@ -874,6 +874,57 @@ out:
 	return rc;
 }
 
+static int parse_sid(char *session)
+{
+	struct stat statb;
+	char sys_session[64], *start, *last;
+	int sid = -1, len;
+
+	if (stat(session, &statb)) {
+		log_debug(1, "Could not stat %s failed with %d",
+			  session, errno);
+		if (index(session, '/')) {
+			log_error("%s is an invalid session path\n",
+				  session);
+			exit(1);
+		}
+		return atoi(session);
+	}
+
+	if (!S_ISDIR(statb.st_mode)) {
+		log_error("%s is not a directory", session);
+		exit(1);
+	}
+
+	/*
+	 * Given sysfs_device is a directory name of the form:
+	 *
+	 * /sys/devices/platform/hostH/sessionS/targetH:B:I/H:B:I:L
+	 * /sys/devices/platform/hostH/sessionS/targetH:B:I
+	 * /sys/devices/platform/hostH/sessionS
+	 *
+	 * We want to set sys_session to sessionS
+	 */
+	last = NULL;
+	start = strstr(session, "session");
+	if (start && strncmp(start, "session", 7) == 0) {
+		len = strlen(start);
+		last = index(start, '/');
+		/*
+		 * If '/' not found last is NULL.
+		 */
+		if (last)
+			len = last - start;
+		strncpy(sys_session, start, len);
+	} else {
+		log_error("Unable to find session in %s", session);
+		exit(1);
+	}
+
+	sscanf(sys_session, "session%d", &sid);
+	return sid;
+}
+
 int
 main(int argc, char **argv)
 {
@@ -926,7 +977,7 @@ main(int argc, char **argv)
 			value = optarg;
 			break;
 		case 'r':
-			sid = atoi(optarg);
+			sid = parse_sid(optarg);
 			if (sid < 0) {
 				log_error("invalid sid '%s'",
 					  optarg);
