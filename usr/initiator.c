@@ -1263,17 +1263,17 @@ __session_conn_recv_pdu(queue_item_t *item)
 		}
 		break;
 	case STATE_XPT_WAIT:
-		recvpool_put(conn, conn->recv_handle);
+		recvpool_put(conn, (void *)conn->recv_handle);
 		log_debug(1, "ignoring incomming PDU in XPT_WAIT. "
 			  "let connection re-establish or fail");
 		break;
 	case STATE_CLEANUP_WAIT:
-		recvpool_put(conn, conn->recv_handle);
+		recvpool_put(conn, (void *)conn->recv_handle);
 		log_debug(1, "ignoring incomming PDU in XPT_WAIT. "
 			  "let connection cleanup");
 		break;
 	default:
-		recvpool_put(conn, conn->recv_handle);
+		recvpool_put(conn, (void *)conn->recv_handle);
 		log_error("Invalid state. Dropping PDU.\n");
 	}
 }
