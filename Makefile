@@ -15,7 +15,8 @@ etcdir = /etc
 initddir = $(etcdir)/init.d
 
 MANPAGES = doc/iscsid.8 doc/iscsiadm.8 doc/iscsi_discovery.8
-PROGRAMS = usr/iscsid usr/iscsiadm utils/iscsi_discovery
+PROGRAMS = usr/iscsid usr/iscsiadm utils/iscsi_discovery \
+		   utils/fwparam_ibft/fwparam_ibft
 INSTALL = install
 ETCFILES = etc/iscsid.conf
 
@@ -26,6 +27,7 @@ ETCFILES = etc/iscsid.conf
 all:
 	$(MAKE) -C usr
 	$(MAKE) -C kernel
+	$(MAKE) -C utils/fwparam_ibft
 	@echo
 	@echo "Compilation complete                Output file"
 	@echo "----------------------------------- ----------------"
@@ -34,12 +36,14 @@ all:
 	@echo "Built iSCSI over TCP kernel module: kernel/iscsi_tcp.ko"
 	@echo "Built iSCSI daemon:                 usr/iscsid"
 	@echo "Built management application:       usr/iscsiadm"
+	@echo "Built utility:                      utils/fwparam_ibft/fwparam_ibft"
 	@echo
 	@echo Read README file for detailed information.
 
 clean:
 	$(MAKE) -C usr clean
 	$(MAKE) -C kernel clean
+	$(MAKE) -C utils/fwparam_ibft clean
 
 # this is for safety
 # now -jXXX will still be safe
