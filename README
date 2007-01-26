@@ -16,9 +16,7 @@ Contents
 - 5. Open-iSCSI Configuration Utility
 - 6. Configuration
 - 7. Getting Started
-- 8. TBD
-- Appendix A. SendTargets snapshot.
-
+- 8. iSCSI System Info
 
 
 1. In This Release
@@ -36,7 +34,6 @@ open-iscsi@googlegroups.com
     1.1. Features
     
     - highly optimized and very small-footprint data path;
-    - multiple outstanding R2Ts;
     - persistent configuration database;
     - SendTargets discovery;
     - CHAP;
@@ -211,7 +208,8 @@ Usage: iscsiadm [OPTION]
   -h, --help              display this help and exit
 
 
-    Usage examples (using the one-letter options):
+    Usage examples using the one-letter options (see iscsiadm man page
+    for long options):
 
     1) SendTargets iSCSI Discovery:
 
@@ -278,12 +276,17 @@ copied into e.g. /usr/local/share/man8.
 
 7. Getting Started
 ==================
-There are three steps needed to set up a system to use iscsi storage:
-1. automate iscsi startup using the init script.
-2. discover targets.
-3. automate target logins for future system reboots.
+There are three steps needed to set up a system to use iSCSI storage:
+7.1. iSCSI startup using the init script or manual startup.
+7.2. Discover targets.
+7.3. Automate target logins for future system reboots.
 
-1. automate iscsi startup using the init script
+The init scripts will start the iSCSI daemon and log into any
+connections or nodes that are set up for automatic login. If your distro
+does not have a init script, then you will have to start the daemon
+and log into the targets manually.
+
+7.1.1 iSCSI startup using the init script
 -----------------------------------------------
 
 Red Hat or Fedora:
@@ -312,8 +315,11 @@ gets installed with "make install"
 
 will usually get you started.
 
-Other:
-------
+7.1.2 Manual Startup:
+---------------------
+
+7.1.2.1 Starting up the iSCSI daemon (iscsid) and loading modules:
+-----------------------------------------------------------------
 If there is no initd script, you must start the tools by hand. First load the
 iscsi modules with:
 
@@ -328,25 +334,60 @@ redirected to the current console:
 
 	./iscsid -d8 -f &
 
-and use configuration utility to add/remove/update Discovery records,
-iSCSI Node records or monitor active iSCSI sessions (see above or the
-iscsiadm man files).
+7.1.2.2 Logging into Targets:
+---------------------------
+Use the configuration utility, iscsiadm, to add/remove/update Discovery
+records, iSCSI Node records or monitor active iSCSI sessions (see above or the
+iscsiadm man files and see section 7.2 below for how to discover targets).
 
-	./iscsiadm
+	./iscsiadm  -m node
 
+will print out the nodes that have been discovered as:
 
-To login:
+	10.15.85.19:3260,3 iqn.1992-08.com.netapp:sn.33615311
+	10.15.84.19:3260,2 iqn.1992-08.com.netapp:sn.33615311
+
+The format is:
+
+ip:port,target_portal_group_tag targetname
+
+where targetname is the name of the target and ip_address:port is the address
+and port of the portal. target_portal_group_tag, is the portal group tag of
+the portal, and is not used in iscsiadm commands.
+
+To login, take the ip, port and targetname from above and run:
 
 	./iscsiadm -m node -T targetname -p ip:port -l
 
-where targetname is the name of the target amd ip_address:port is the address
-and port of the portal of a discovered or manually added iSCSI Target Node
-(for iscsiadm usage examples see previous sections).
+In this example we would run
 
-2. discover targets
--------------------
-Once iscsi is up, you can perform discovery to targets using:
-iscsiadm -m discovery -t sendtargets -p 192.168.1.1:3260
+	./iscsiadm -m node -T iqn.1992-08.com.netapp:sn.33615311 -p 10.15.84.19:3260 -l
+
+	Note: drop the portal group tag from the "iscsiadm -m node" output.
+
+7.2. Discover Targets
+---------------------
+Once the iSCSI service is running, you can perform discovery to targets using:
+iscsiadm -m discovery -t sendtargets -p ip:port
+
+where "ip" is the address of the portal and port is the port.
+
+This will print out the list of all discovered targets and their portals:
+
+# iscsiadm -m discovery -t st -p 10.15.85.19:3260
+10.15.85.19:3260,3 iqn.1992-08.com.netapp:sn.33615311
+10.15.84.19:3260,2 iqn.1992-08.com.netapp:sn.33615311
+
+Note: this prints out every node in the db including the ones just discovered.
+This is a bug and will change in future releases.
+
+The format for the output is:
+
+ip:port,target_portal_group_tag targetname
+
+In this example, for the first target the ip address is 10.15.85.19.
+The port is 3260. The target portal group is 3, and the target name
+is iqn.1992-08.com.netapp:sn.33615311.
 
 While discovery targets are kept in the discovery db, they are
 usefull only for re-discovery. The discovered targets (a.k.a. nodes)
@@ -356,9 +397,12 @@ The discovered targets are not logged into yet. Rather than logging
 into the discovered nodes (making LUs from those nodes available as
 storage), it is better to automate the login to the nodes we need.
 
-3. automate target logins for future system reboots
----------------------------------------------------
-Note: this may only work for Red Hat, Fedora and SUSE configurations
+If you wish to log into a target manually now, see section
+"7.1.2.2 Logging in targets" above.
+
+7.3. Automate Target Logins for Future System Statups
+-----------------------------------------------------
+Note: this may only work for distros with init scripts.
 
 To automate login to a node, use the following with the record ID of the
 node discovered in the discovery above:
@@ -369,36 +413,37 @@ all sessions add the following to the /etc/iscsi/iscsid.conf:
 
 	node.conn[0].startup = automatic
 
-To login to all the automated nodes, simply restart the iscsi service
-e.g /etc/init.d/open-iscsi restart
+Setting this in iscsid.conf, will not affect existing nodes. It will only
+affect nodes that are discovered after setting the value.
+
+To login to all the automated nodes, simply restart the iscsi service:
+e.g /etc/init.d/open-iscsi restart. On your next startup the nodes will
+be logged into autmotically.
 
 
-8. TBD
-======
+8. iSCSI System Info
+====================
 
-To be completed:
+To get information about the running sessions: including the session and
+device state, session ids (sid) for session mode, and some of the
+negioated parameters, run:
 
-    - Kernel tracing and Troubleshooting
-    - Immediate and not-so-immediate plans
-    - Useful scripts
-    - White paper on Open-iSCSI design
+	iscsiadm -m session -i
 
+If you are looking for something shorter like just the sid to node mapping
+run:
 
-Appendix A. SendTargets iSCSI Discovery session snapshot.
-=========================================================
+	iscsiadm -m session
 
--bash-2.05b# ./iscsiadm -m discovery -tst -p 10.16.16.223:3260
-[02f611] 10.16.16.223:3260,1 iqn.2002-07.com.ttechnologies.target.a
-[01acd1] 17.1.1.223:3260,1 iqn.2002-07.com.ttechnologies.target.a
--bash-2.05b#
--bash-2.05b# ./iscsiadm -m node
-[02f611] 10.16.16.223:3260,1 iqn.2002-07.com.ttechnologies.target.a
-[01acd1] 17.1.1.223:3260,1 iqn.2002-07.com.ttechnologies.target.a
--bash-2.05b#
--bash-2.05b# ./iscsiadm -m discovery -tst -p 10.16.16.227:3260
-[02fb91] 10.16.16.227:3260,1 iqn.2001-04.com.example:storage.disk2.sys1.xyz
--bash-2.05b#
--bash-2.05b# ./iscsiadm -m node
-[02f611] 10.16.16.223:3260,1 iqn.2002-07.com.ttechnologies.target.a
-[02fb91] 10.16.16.227:3260,1 iqn.2001-04.com.example:storage.disk2.sys1.xyz
-[01acd1] 17.1.1.223:3260,1 iqn.2002-07.com.ttechnologies.target.a
+This will print the list of running sessions with the format:
+
+kernel module: [sid] ip:port,target_portal_group_tag targetname
+
+# iscsiadm -m session
+tcp: [2] 10.15.84.19:3260,2 iqn.1992-08.com.netapp:sn.33615311
+tcp: [3] 10.15.85.19:3260,3 iqn.1992-08.com.netapp:sn.33615311
+
+For example this first node is using the iscsi_tcp kernel module, has
+session id (sid) 2, is connected to a portal with address and port
+10.15.84.19:3260 in portal group 2 on the target,
+iqn.1992-08.com.netapp:sn.33615311.
