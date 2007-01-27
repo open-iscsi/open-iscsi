@@ -44,6 +44,7 @@ typedef enum mgmt_ipc_err {
 	MGMT_IPC_ERR_TRANS_CAPS		= 14,
 	MGMT_IPC_ERR_EXISTS		= 15,
 	MGMT_IPC_ERR_INVALID_REQ	= 16,
+	MGMT_IPC_ERR_ISNS_UNAVAILABLE	= 17,
 } mgmt_ipc_err_e;
 
 typedef enum iscsiadm_cmd {
@@ -60,6 +61,7 @@ typedef enum iscsiadm_cmd {
 	MGMT_IPC_IMMEDIATE_STOP		= 11,
 	MGMT_IPC_SESSION_SYNC		= 12,
 	MGMT_IPC_SESSION_INFO		= 13,
+	MGMT_IPC_ISNS_DEV_ATTR_QUERY	= 14,
 } iscsiadm_cmd_e;
 
 typedef enum iscsi_conn_state_e {
@@ -125,7 +127,10 @@ typedef struct iscsiadm_rsp {
 struct iscsi_ipc *ipc;
 
 void need_reap(void);
-void event_loop(struct iscsi_ipc *ipc, int control_fd, int mgmt_ipc_fd);
+void event_loop(struct iscsi_ipc *ipc, int control_fd, int mgmt_ipc_fd, int isns_fd);
+
+struct queue_task;
+void mgmt_ipc_write_rsp(struct queue_task *qtask, mgmt_ipc_err_e err);
 int mgmt_ipc_listen(void);
 void mgmt_ipc_close(int fd);
 

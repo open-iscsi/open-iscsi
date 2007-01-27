@@ -207,6 +207,12 @@ mgmt_ipc_conn_remove(queue_task_t *qtask, int cid)
 	return MGMT_IPC_ERR;
 }
 
+static mgmt_ipc_err_e
+mgmt_ipc_isns_dev_attr_query(queue_task_t *qtask)
+{
+	return isns_dev_attr_query_task(qtask);
+}
+
 static int
 mgmt_peeruser(int sock, char *user)
 {
@@ -289,6 +295,21 @@ mgmt_peeruser(int sock, char *user)
 		"on this platform");
 	return 0;
 #endif
+}
+
+void
+mgmt_ipc_write_rsp(queue_task_t *qtask, mgmt_ipc_err_e err)
+{
+	log_debug(4, "%s: rsp to fd %d", __FUNCTION__,
+		 qtask->mgmt_ipc_fd);
+
+	if (qtask->mgmt_ipc_fd < 0)
+		return;
+
+	qtask->rsp.err = err;
+	write(qtask->mgmt_ipc_fd, &qtask->rsp, sizeof(qtask->rsp));
+	close(qtask->mgmt_ipc_fd);
+	free(qtask);
 }
 
 static int
@@ -379,6 +400,9 @@ mgmt_ipc_handle(int accept_fd)
 		immrsp = 1;
 		rc = 1;
 		break;
+	case MGMT_IPC_ISNS_DEV_ATTR_QUERY:
+		rsp.err = mgmt_ipc_isns_dev_attr_query(qtask);
+		break;
 	default:
 		log_error("unknown request: %s(%d) %u",
 			  __FUNCTION__, __LINE__, req.command);
@@ -428,10 +452,12 @@ reaper(void)
 
 #define POLL_CTRL	0
 #define POLL_IPC	1
-#define POLL_MAX	2
+#define POLL_ISNS	2
+#define POLL_MAX	3
 
 /* TODO: this should go somewhere else */
-void event_loop(struct iscsi_ipc *ipc, int control_fd, int mgmt_ipc_fd)
+void event_loop(struct iscsi_ipc *ipc, int control_fd, int mgmt_ipc_fd,
+		int isns_fd)
 {
 	struct pollfd poll_array[POLL_MAX];
 	int res;
@@ -440,6 +466,13 @@ void event_loop(struct iscsi_ipc *ipc, int control_fd, int mgmt_ipc_fd)
 	poll_array[POLL_CTRL].events = POLLIN;
 	poll_array[POLL_IPC].fd = mgmt_ipc_fd;
 	poll_array[POLL_IPC].events = POLLIN;
+
+	if (isns_fd < 0)
+		poll_array[POLL_ISNS].fd = poll_array[POLL_ISNS].events = 0;
+	else {
+		poll_array[POLL_ISNS].fd = isns_fd;
+		poll_array[POLL_ISNS].events = POLLIN;
+	}
 
 	while (1) {
 		res = poll(poll_array, POLL_MAX, ACTOR_RESOLUTION);
@@ -451,6 +484,9 @@ void event_loop(struct iscsi_ipc *ipc, int control_fd, int mgmt_ipc_fd)
 			if (poll_array[POLL_IPC].revents)
 				if (mgmt_ipc_handle(mgmt_ipc_fd) == 1)
 					break;
+			if (poll_array[POLL_ISNS].revents)
+				isns_handle(isns_fd);
+
 		} else if (res < 0) {
 			if (errno == EINTR) {
 				log_debug(1, "event_loop interrupted");

@@ -726,6 +726,21 @@ do_sendtargets(idbm_t *db, struct iscsi_sendtargets_config *cfg)
 	return rc;
 }
 
+static int isns_dev_attr_query(idbm_t *db)
+{
+	iscsiadm_req_t req;
+	iscsiadm_rsp_t rsp;
+	int err;
+
+	memset(&req, 0, sizeof(iscsiadm_req_t));
+	req.command = MGMT_IPC_ISNS_DEV_ATTR_QUERY;
+
+	err = do_iscsid(&ipc_fd, &req, &rsp);
+	if (!err)
+		idbm_for_each_node(db, NULL, print_node_info);
+	return err;
+}
+
 static int
 verify_mode_params(int argc, char **argv, char *allowed, int skip_m)
 {
@@ -1079,9 +1094,10 @@ main(int argc, char **argv)
 			rc = -1;
 			goto out;
 		} else if (type == DISCOVERY_TYPE_ISNS) {
-			log_error("iSNS discovery is not fully "
-				  "implemented yet.");
-			rc = -1;
+			if ((rc = isns_dev_attr_query(db)) > 0) {
+				iscsid_handle_error(rc);
+				rc = -1;
+			}
 			goto out;
 		} else if (type < 0) {
 			if (ip) {

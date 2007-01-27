@@ -358,4 +358,10 @@ extern void recvpool_put(iscsi_conn_t *conn, void *handle);
 extern mgmt_ipc_err_e iscsi_sync_session(node_rec_t *rec, queue_task_t
 					 *tsk, uint32_t sid);
 
+/* isns.c */
+extern int isns_init(void);
+extern void isns_handle(int);
+extern void isns_exit(void);
+extern int isns_dev_attr_query_task(queue_task_t *qtask);
+
 #endif /* INITIATOR_H */

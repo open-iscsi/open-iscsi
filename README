@@ -367,12 +367,21 @@ In this example we would run
 
 7.2. Discover Targets
 ---------------------
-Once the iSCSI service is running, you can perform discovery to targets using:
+Once the iSCSI service is running, you can perform discovery using
+SendTarget with:
+
 iscsiadm -m discovery -t sendtargets -p ip:port
 
 where "ip" is the address of the portal and port is the port.
 
-This will print out the list of all discovered targets and their portals:
+Or you can you perform discovery using iSNS by setting the address
+of the iSNS server in iscsid.conf with the "isns.address" value and
+running:
+
+iscsiadm -m discovery -t isns
+
+Both commands will print out the list of all discovered targets and their
+portals:
 
 # iscsiadm -m discovery -t st -p 10.15.85.19:3260
 10.15.85.19:3260,3 iqn.1992-08.com.netapp:sn.33615311

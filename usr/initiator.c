@@ -136,20 +136,6 @@ __session_online_devs(iscsi_session_t *session)
 			      set_device_online);
 }
 
-static void
-write_mgmt_rsp(queue_task_t *qtask, mgmt_ipc_err_e err)
-{
-	log_debug(4, "%s: rsp to fd %d", __FUNCTION__,
-		  qtask->mgmt_ipc_fd);
-	if (qtask->mgmt_ipc_fd < 0)
-		return;
-
-	qtask->rsp.err = err;
-	write(qtask->mgmt_ipc_fd, &qtask->rsp, sizeof(qtask->rsp));
-	close(qtask->mgmt_ipc_fd);
-	free(qtask);
-}
-
 static conn_login_status_e
 __login_response_status(iscsi_conn_t *conn,
 		      enum iscsi_login_status login_status)
@@ -580,7 +566,7 @@ session_conn_cleanup(queue_task_t *qtask, mgmt_ipc_err_e err)
 	iscsi_conn_t *conn = qtask->conn;
 	iscsi_session_t *session = conn->session;
 
-	write_mgmt_rsp(qtask, err);
+	mgmt_ipc_write_rsp(qtask, err);
 	session_conn_destroy(session, conn->id);
 	if (conn->id == 0)
 		__session_destroy(session);
@@ -876,14 +862,14 @@ __session_scan_host(iscsi_session_t *session, queue_task_t *qtask)
 
 	pid = scan_host(session);
 	if (pid == 0) {
-		write_mgmt_rsp(qtask, MGMT_IPC_OK);
+		mgmt_ipc_write_rsp(qtask, MGMT_IPC_OK);
 		exit(0);
 	} else if (pid > 0) {
 		close(qtask->mgmt_ipc_fd);
 		need_reap();
 		free(qtask);
 	} else
-		write_mgmt_rsp(qtask, MGMT_IPC_ERR_INTERNAL);
+		mgmt_ipc_write_rsp(qtask, MGMT_IPC_ERR_INTERNAL);
 }
 
 static void
@@ -1073,7 +1059,7 @@ setup_full_feature_phase(iscsi_conn_t *conn)
 		session->sync_qtask = NULL;
 
 		__session_online_devs(session);
-		write_mgmt_rsp(c->qtask, MGMT_IPC_OK);
+		mgmt_ipc_write_rsp(c->qtask, MGMT_IPC_OK);
 		log_warning("connection%d:%d is operational after recovery "
 			    "(%d attempts)", session->id, conn->id,
 			     session->reopen_cnt);

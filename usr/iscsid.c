@@ -154,6 +154,7 @@ int main(int argc, char *argv[])
 	char *initiatorname_file = INITIATOR_NAME_FILE;
 	char *pid_file = PID_FILE;
 	int ch, longindex;
+	int isns_fd;
 	uid_t uid = 0;
 	gid_t gid = 0;
 	struct sigaction sa_old;
@@ -318,7 +319,9 @@ int main(int argc, char *argv[])
 	}
 
 	actor_init();
-	event_loop(ipc, control_fd, mgmt_ipc_fd);
+	isns_fd = isns_init();
+	event_loop(ipc, control_fd, mgmt_ipc_fd, isns_fd);
+	isns_exit();
 	log_debug(1, "daemon stopping");
 	return 0;
 }

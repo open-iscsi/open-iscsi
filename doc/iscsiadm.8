@@ -129,8 +129,8 @@ This option is only valid for node and session mode.
 .TP
 \fB\-t\fR, \fB\-\-type=\fItype\fR
 \fItype\fR must be \fIsendtargets\fR (or abbreviated as \fIst\fR),
-\fIslp\fR, or \fIisns\fR. Currently only sendtargets is supported, see the
-DISCOVERY TYPES section.
+\fIslp\fR, or \fIisns\fR. Currently only sendtargets and iSNS is supported,
+see the DISCOVERY TYPES section.
 .IP
 This option is only valid for discovery mode.
 
@@ -178,18 +178,18 @@ information about available targets.
 .TP
 .B
 iSNS
-iSNS (Internet Storage Name Service) is a proposed standard to record
-information about storage volumes within a larger network. In theory
-it can be implemented for iSCSI and Fibre Channel. However, no
-implementation of the central nameserver mandated by this standard is
-currently available.
+iSNS (Internet Storage Name Service) records information about storage
+volumes within a larger network. To utilize iSNS, the address of the
+iSNS server must be set in iscsid.conf using the "isns.address" value,
+and iscsiadm must be run in discovery mode with the "isns" discovery type.
+
 .P
-Currently open-iscsi supports only the
+iscsiadm supports the
 .B
-SendTargets
+iSNS (isns)
 or
 .B
-st
+SendTargets (st)
 discovery type. An SLP implementation is under development.
 
 .SH EXAMPLES
