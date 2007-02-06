@@ -256,11 +256,13 @@ __group_logout(void *data, char *targetname, int tpgt, char *address,
 	struct session_mgmt_fn *mgmt = data;
 	char *mode = mgmt->mode;
 	idbm_t *db = mgmt->db;
+	iscsi_provider_t *p;
 	node_rec_t rec;
 	int rc = 0;
 
 	/* for now skip qlogic and other HW and offload drivers */
-	if (!get_transport_by_sid(sid))
+	p = get_transport_by_sid(sid);
+	if (!p)
 		return 0;
 
 	if (idbm_node_read(db, &rec, targetname, address, port)) {
@@ -272,6 +274,11 @@ __group_logout(void *data, char *targetname, int tpgt, char *address,
 			  targetname, address, port);
 		return 0;
 	}
+
+	/* multiple drivers could be connected to the same portal */
+	if (strcmp(rec.transport_name, p->name))
+		return 0;
+
 	/*
 	 * we always skip on boot because if the user killed this on
 	 * they would not be able to do anything
