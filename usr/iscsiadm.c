@@ -99,9 +99,9 @@ static void usage(int status)
 		printf("\
 iscsiadm -m discovery [ -dhV ] [ -t type -p ip:port [ -l ] ] | [ -p ip:port ] \
 [ -o operation ] [ -n name ] [ -v value ]\n\
-iscsiadm -m node [ -dhV ] [ -L all,manual,automatic ] [ -U all,manual,automatic ] [ -S ] [ [ -T targetname -p ip:port | -M sysdir ] [ -l | -u ] ] \
+iscsiadm -m node [ -dhV ] [ -L all,manual,automatic ] [ -U all,manual,automatic ] [ -S ] [ [ -T targetname -p ip:port ] [ -l | -u ] ] \
 [ [ -o  operation  ] [ -n name ] [ -v value ] [ -p ip:port ] ]\n\
-iscsiadm -m session [ -dhV ] [ -r sessionid [ -i | -R | -u | -s ] [ -o operation ] [ -n name ] [ -v value ] ]\n");
+iscsiadm -m session [ -dhV ] [ -r sessionid | sysfsdir [ -i | -R | -u | -s ] [ -o operation ] [ -n name ] [ -v value ] ]\n");
 	}
 	exit(status == 0 ? 0 : -1);
 }

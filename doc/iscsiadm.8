@@ -5,10 +5,10 @@ iscsiadm \- open-iscsi administration utility
 \fBiscsiadm\fR -m discovery [ -dhV ] [ -t type -p ip:port [ -l ] ] | 
 [ -o operation ] [ -n name ] [ -v value ]
 
-\fBiscsiadm\fR -m node [ -dhV ] [ -L all,manual,automatic ] [ -U all,manual,automatic ] [ -S ] [ [ -T targetname -p ip:port | -M sysdir ] [ -l | -u ] ]
+\fBiscsiadm\fR -m node [ -dhV ] [ -L all,manual,automatic ] [ -U all,manual,automatic ] [ -S ] [ [ -T targetname -p ip:port ] [ -l | -u ] ]
 [ [ -o operation ]  [ -n name ] [ -v value ] [ -p ip:port ] ]
 
-\fBiscsiadm\fR -m session [ -dhV ] [ -r sessionid [ -R ] [ -u | -s ] ]
+\fBiscsiadm\fR -m session [ -dhV ] [ -r sessionid | sysfsdir [ -R ] [ -u | -s ] ]
 
 .SH "DESCRIPTION"
 The iscsiadm utility is a command-line tool allowing discovery and login
@@ -72,7 +72,7 @@ operator.
 Specifies a database operator \fIop\fR. \fIop\fR must be one of
 \fInew\fR, \fIdelete\fR, \fIupdate\fR or \fIshow\fR.
 .IP
-This option is only valid for all modes.
+This option is only valid for all modes, but delete should not be used on a running session.
 .IP
 \fInew\fR is currently valid only for node and session mode. It creates a new
 database record for a given \fIportal\fR (IP address and port number).
@@ -95,16 +95,23 @@ Use target portal with ip-address \fIip\fR and \fIport\fR, the default
 .IP
 This option is only valid for discovery, or for node operations with
 the \fInew\fR operator.
+.IP
+This should be used along with --target in node mode, to specify what the open-iscsi docs refer to as a node or node record. Note: open-iscsi's use of the word node, does not match the iSCSI RFC's iSCSI Node term.
 
 .TP
 \fB\-T\fR, \fB\-\-targetname=\fItargetname\fR
 Use target \fItargetname\fR.
+.IP
+This should be used along with --portal in node mode, to specify what the open-iscsi docs refer to as a node or node record. Note: open-iscsi's use of the word node, does not match the iSCSI RFC's iSCSI Node term.
 
 .TP
-\fB\-r\fR,  \fB\-\-sid=\fIsid\fR
-Use session ID \fIsid\fR.
+\fB\-r\fR,  \fB\-\-sid=\fIsid | sysfsdir\fR
+Use session ID \fIsid\fR. The sid of a session can be found from running
+iscsiadm in session mode with the --info argument.
+
+Instead of sid, a sysfs path containing the session can be used. For example using one of the following: /sys/devices/platform/hostH/sessionS/targetH:B:I/H:B:I:L, /sys/devices/platform/hostH/sessionS/targetH:B:I, or /sys/devices/platform/hostH/sessionS, for the sysfsdir argument would result in the session with sid S to be used.
 .IP
-\fIsid\fR is only required for session mode.
+\fIsid | sysfsdir\fR is only required for session mode.
 
 .TP
 \fB\-R\fR,  \fB\-\-rescan\fR
