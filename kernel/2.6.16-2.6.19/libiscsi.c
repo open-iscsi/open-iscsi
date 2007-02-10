@@ -25,6 +25,7 @@
 #include <linux/mutex.h>
 #include <linux/kfifo.h>
 #include <linux/delay.h>
+#include <asm/unaligned.h>
 #include <net/tcp.h>
 #include <scsi/scsi_cmnd.h>
 #include <scsi/scsi_device.h>
@@ -270,14 +271,14 @@ invalid_datalen:
 			goto out;
 		}
 
-		senselen = be16_to_cpu(*(uint16_t *)data);
+		senselen = be16_to_cpu(get_unaligned((__be16 *) data));
 		if (datalen < senselen)
 			goto invalid_datalen;
 
 		memcpy(sc->sense_buffer, data + 2,
 		       min_t(uint16_t, senselen, SCSI_SENSE_BUFFERSIZE));
 		debug_scsi("copied %d bytes of sense\n",
-			   min(senselen, SCSI_SENSE_BUFFERSIZE));
+			   min_t(uint16_t, senselen, SCSI_SENSE_BUFFERSIZE));
 	}
 
 	if (sc->sc_data_direction == DMA_TO_DEVICE)
