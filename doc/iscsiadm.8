@@ -14,6 +14,16 @@ iscsiadm \- open-iscsi administration utility
 The iscsiadm utility is a command-line tool allowing discovery and login
 to iSCSI targets, as well as access and management of the open-iscsi
 database.
+
+Open-iscsi does not use the term node as defined by the iSCSI RFC,
+where a node is a single iSCSI initiator or target. Open-iscsi uses the
+term node to refer to a portal on a target, so tools like iscsiadm
+require that --targetname and --portal argument be used when in node mode.
+
+For session mode, a session id (sid) is used. The sid of a session can be
+found by running iscsiadm -m session -i. The session id is not currently
+persistent and is partially determined by when the session is setup.
+
 .PP
 Note that many of the node and discovery operations require that the iSCSI
 daemon (iscsid) be running.

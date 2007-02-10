@@ -148,6 +148,15 @@ insert, query) the persistent database.
 The utility presents set of operations that a user can perform 
 on iSCSI nodes, sessions, connections, and discovery records.
 
+Open-iscsi does not use the term node as defined by the iSCSI RFC,
+where a node is a single iSCSI initiator or target. Open-iscsi uses the
+term node to refer to a portal on a target, so tools like iscsiadm
+require that --targetname and --portal argument be used when in node mode.
+
+For session mode, a session id (sid) is used. The sid of a session can be
+found by running iscsiadm -m session -i. The session id is not currently
+persistent and is partially determined by when the session is setup.
+
 Note that some of the iSCSI Node and iSCSI Discovery operations 
 do not require iSCSI daemon (iscsid) loaded.
 
@@ -413,8 +422,9 @@ If you wish to log into a target manually now, see section
 -----------------------------------------------------
 Note: this may only work for distros with init scripts.
 
-To automate login to a node, use the following with the record ID of the
-node discovered in the discovery above:
+To automate login to a node, use the following with the record ID
+(record ID is the targetname and portal) of the node discovered in the
+discovery above:
 	iscsiadm -m node -T targetname -p ip:port --op update -n node.conn[0].startup -v automatic
 
 Or to set the "node.conn[0].statup" attribute to "startup" as default for
