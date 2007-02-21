@@ -16,7 +16,7 @@ initddir = $(etcdir)/init.d
 
 MANPAGES = doc/iscsid.8 doc/iscsiadm.8 doc/iscsi_discovery.8
 PROGRAMS = usr/iscsid usr/iscsiadm utils/iscsi_discovery \
-		   utils/fwparam_ibft/fwparam_ibft
+		   utils/fwparam_ibft/fwparam_ibft utils/iscsi-iname
 INSTALL = install
 ETCFILES = etc/iscsid.conf
 
@@ -27,6 +27,7 @@ ETCFILES = etc/iscsid.conf
 all:
 	$(MAKE) -C usr
 	$(MAKE) -C kernel
+	$(MAKE) -C utils
 	$(MAKE) -C utils/fwparam_ibft
 	@echo
 	@echo "Compilation complete                Output file"
@@ -41,6 +42,7 @@ all:
 	@echo Read README file for detailed information.
 
 clean:
+	$(MAKE) -C utils clean
 	$(MAKE) -C usr clean
 	$(MAKE) -C kernel clean
 	$(MAKE) -C utils/fwparam_ibft clean
@@ -50,10 +52,10 @@ clean:
 # note that make may still execute the blocks in parallel
 .NOTPARALLEL: install_usr install_programs install_initd \
 	install_initd_suse install_initd_redhat install_initd_debian \
-	install_etc install_doc install_kernel
+	install_etc install_doc install_kernel install_iname
 
 install: install_kernel install_programs install_doc install_etc \
-	install_initd
+	install_initd install_iname
 
 install_programs:  $(PROGRAMS)
 	$(INSTALL) -d $(DESTDIR)$(sbindir)
@@ -96,5 +98,14 @@ install_doc: $(MANPAGES)
 
 install_kernel:
 	$(MAKE) -C kernel install_kernel
+
+install_iname:
+	if [ ! -f /etc/iscsi/initiatorname.iscsi ]; then \
+		echo "InitiatorName=`/sbin/iscsi-iname`" > /etc/iscsi/initiatorname.iscsi ; \
+		echo "***************************************************" ; \
+		echo "Setting InitiatorName to `cat /etc/iscsi/initiatorname.iscsi`" ; \
+		echo "To override edit /etc/iscsi/initiatorname.iscsi" ; \
+		echo "***************************************************" ; \
+	fi
 
 # vim: ft=make tw=72 sw=4 ts=4:
