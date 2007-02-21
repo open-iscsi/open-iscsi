@@ -44,10 +44,10 @@ static void *ioctl_recvbuf;
 static void *pdu_sendbuf;
 
 #define IOCTL_BUF_DEFAULT_MAX \
-	(DEFAULT_MAX_RECV_DATA_SEGMENT_LENGTH + sizeof(struct iscsi_hdr))
+	(ISCSI_DEF_MAX_RECV_SEG_LEN + sizeof(struct iscsi_hdr))
 
 #define PDU_SENDBUF_DEFAULT_MAX \
-	(DEFAULT_MAX_RECV_DATA_SEGMENT_LENGTH + sizeof(struct iscsi_hdr))
+	(ISCSI_DEF_MAX_RECV_SEG_LEN + sizeof(struct iscsi_hdr))
 
 static int
 kread(char *data, int count)

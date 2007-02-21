@@ -667,8 +667,8 @@ init_new_session(struct iscsi_sendtargets_config *config)
 						config->send_async_text : -1;
 	session->conn[0].hdrdgst_en = ISCSI_DIGEST_NONE;
 	session->conn[0].datadgst_en = ISCSI_DIGEST_NONE;
-	session->conn[0].max_recv_dlength = DEFAULT_MAX_RECV_DATA_SEGMENT_LENGTH;
-	session->conn[0].max_xmit_dlength = DEFAULT_MAX_RECV_DATA_SEGMENT_LENGTH;
+	session->conn[0].max_recv_dlength = ISCSI_DEF_MAX_RECV_SEG_LEN;
+	session->conn[0].max_xmit_dlength = ISCSI_DEF_MAX_RECV_SEG_LEN;
 
 	session->reopen_cnt = config->reopen_max;
 

@@ -45,7 +45,7 @@ struct isns_task {
 	int state;
 	int fd;
 	int len;
-	char data[DEFAULT_MAX_RECV_DATA_SEGMENT_LENGTH];
+	char data[ISCSI_DEF_MAX_RECV_SEG_LEN];
 	int transaction;
 	int done;
 	int retry;

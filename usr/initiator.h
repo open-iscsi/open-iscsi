@@ -120,7 +120,7 @@ typedef struct iscsi_conn {
 	struct iscsi_session *session;
 	iscsi_login_context_t login_context;
 	struct queue_task *logout_qtask;
-	char data[DEFAULT_MAX_RECV_DATA_SEGMENT_LENGTH];
+	char data[ISCSI_DEF_MAX_RECV_SEG_LEN];
 	char host[NI_MAXHOST];	/* scratch */
 	iscsi_conn_state_e state;
 	actor_t connect_timer;

@@ -1079,7 +1079,7 @@ fill_security_params_text(iscsi_session_t *session, int cid, struct iscsi_hdr *p
 			if ((conn->hdrdgst_en != ISCSI_DIGEST_NONE) ||
 			    (conn->datadgst_en != ISCSI_DIGEST_NONE) ||
 			    (conn->max_recv_dlength !=
-			    DEFAULT_MAX_RECV_DATA_SEGMENT_LENGTH))
+			    ISCSI_DEF_MAX_RECV_SEG_LEN))
 				conn->next_stage =
 					    ISCSI_OP_PARMS_NEGOTIATION_STAGE;
 			else

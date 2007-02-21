@@ -45,6 +45,7 @@
 #include "log.h"
 #include "util.h"
 #include "iscsi_sysfs.h"
+#include "iscsi_settings.h"
 
 static void __session_mainloop(void *data);
 static void __conn_error_handle(iscsi_session_t*, iscsi_conn_t*);
@@ -352,24 +353,65 @@ __session_conn_create(iscsi_session_t *session, int cid)
 	/* connection's timeouts */
 	conn->id = cid;
 	conn->logout_timeout = conn_rec->timeo.logout_timeout;
+	if (!conn->logout_timeout) {
+		log_error("Invalid timeo.logout_timeout. Must be greater "
+			  "than zero. Using default %d.\n",
+			  DEF_LOGOUT_TIMEO);
+		conn->logout_timeout = DEF_LOGOUT_TIMEO;
+	}
+
 	conn->login_timeout = conn_rec->timeo.login_timeout;
+	if (!conn->login_timeout) {
+		log_error("Invalid timeo.login_timeout. Must be greater "
+			  "than zero. Using default %d.\n",
+			  DEF_LOGIN_TIMEO);
+		conn->login_timeout = DEF_LOGIN_TIMEO;
+	}
+
+	/* noop-out setting */
+	conn->noop_out_interval = conn_rec->timeo.noop_out_interval;
+	conn->noop_out_timeout = conn_rec->timeo.noop_out_timeout;
+	if (conn->noop_out_interval && !conn->noop_out_timeout) {
+		log_error("Invalid timeo.noop_out_timeout. Must be greater "
+			  "than zero. Using default %d.\n",
+			  DEF_NOOP_OUT_TIMEO);
+		conn->noop_out_timeout = DEF_NOOP_OUT_TIMEO;
+	}
+
+	if (conn->noop_out_timeout && !conn->noop_out_interval) {
+		log_error("Invalid timeo.noop_out_interval. Must be greater "
+			  "than zero. Using default %d.\n",
+			  DEF_NOOP_OUT_INTERVAL);
+		conn->noop_out_timeout = DEF_NOOP_OUT_INTERVAL;
+	}
+
+	/*
+	 * currently not used (leftover from linux-iscsi which we
+	 * may do one day)
+	 */
 	conn->auth_timeout = conn_rec->timeo.auth_timeout;
 	conn->active_timeout = conn_rec->timeo.active_timeout;
 	conn->idle_timeout = conn_rec->timeo.idle_timeout;
 	conn->ping_timeout = conn_rec->timeo.ping_timeout;
 
-	/* noop-out setting */
-	conn->noop_out_interval = conn_rec->timeo.noop_out_interval;
-	conn->noop_out_timeout = conn_rec->timeo.noop_out_timeout;
-
 	/* operational parameters */
 	conn->max_recv_dlength =
 			__padding(conn_rec->iscsi.MaxRecvDataSegmentLength);
+	if (conn->max_recv_dlength < ISCSI_MIN_MAX_RECV_SEG_LEN ||
+	    conn->max_recv_dlength > ISCSI_MAX_MAX_RECV_SEG_LEN) {
+		log_error("Invalid iscsi.MaxRecvDataSegmentLength. Must be "
+			 "within %u and %u. Setting to %u\n",
+			  ISCSI_MIN_MAX_RECV_SEG_LEN,
+			  ISCSI_MAX_MAX_RECV_SEG_LEN,
+			  DEF_INI_MAX_RECV_SEG_LEN);
+		conn->max_recv_dlength = DEF_INI_MAX_RECV_SEG_LEN;
+	}
+
 	/*
 	 * iSCSI default, unless declared otherwise by the
 	 * target during login
 	 */
-	conn->max_xmit_dlength = DEFAULT_MAX_RECV_DATA_SEGMENT_LENGTH;
+	conn->max_xmit_dlength = ISCSI_DEF_MAX_RECV_SEG_LEN;
 	conn->hdrdgst_en = conn_rec->iscsi.HeaderDigest;
 	conn->datadgst_en = conn_rec->iscsi.DataDigest;
 
@@ -492,7 +534,27 @@ __session_create(node_rec_t *rec, iscsi_provider_t *provider)
 	session->initial_r2t_en = rec->session.iscsi.InitialR2T;
 	session->imm_data_en = rec->session.iscsi.ImmediateData;
 	session->first_burst = __padding(rec->session.iscsi.FirstBurstLength);
+	if (session->first_burst < ISCSI_MIN_FIRST_BURST_LEN ||
+	    session->first_burst > ISCSI_MAX_FIRST_BURST_LEN) {
+		log_error("Invalid iscsi.FirstBurstLength of %u. Must be "
+			 "within %u and %u. Setting to %u\n",
+			  session->first_burst,
+			  ISCSI_MIN_FIRST_BURST_LEN,
+			  ISCSI_MAX_FIRST_BURST_LEN,
+			  DEF_INI_FIRST_BURST_LEN);
+		session->first_burst = DEF_INI_FIRST_BURST_LEN;
+	}
+
 	session->max_burst = __padding(rec->session.iscsi.MaxBurstLength);
+	if (session->max_burst < ISCSI_MIN_MAX_BURST_LEN ||
+	    session->max_burst > ISCSI_MAX_MAX_BURST_LEN) {
+		log_error("Invalid iscsi.MaxBurstLength of %u. Must be "
+			  "within %u and %u. Setting to %u\n",
+			   session->max_burst, ISCSI_MIN_MAX_BURST_LEN,
+			   ISCSI_MAX_MAX_BURST_LEN, DEF_INI_MAX_BURST_LEN);
+		session->max_burst = DEF_INI_MAX_BURST_LEN;
+	}
+
 	session->def_time2wait = rec->session.iscsi.DefaultTime2Wait;
 	session->def_time2retain = rec->session.iscsi.DefaultTime2Retain;
 	session->erl = rec->session.iscsi.ERL;
@@ -509,7 +571,7 @@ __session_create(node_rec_t *rec, iscsi_provider_t *provider)
 	if (session->replacement_timeout == 0) {
 		log_error("Cannot set replacement_timeout to zero. Setting "
 			  "120 seconds\n");
-		session->replacement_timeout = 120;
+		session->replacement_timeout = DEF_REPLACEMENT_TIMEO;
 	}
 
 	/* OUI and uniqifying number */
@@ -716,7 +778,7 @@ reset_iscsi_params(iscsi_conn_t *conn)
 	 * iSCSI default, unless declared otherwise by the
 	 * target during login
 	 */
-	conn->max_xmit_dlength = DEFAULT_MAX_RECV_DATA_SEGMENT_LENGTH;
+	conn->max_xmit_dlength = ISCSI_DEF_MAX_RECV_SEG_LEN;
 	conn->hdrdgst_en = conn_rec->iscsi.HeaderDigest;
 	conn->datadgst_en = conn_rec->iscsi.DataDigest;
 
@@ -1228,7 +1290,7 @@ __session_conn_recv_pdu(queue_item_t *item)
 	case STATE_LOGOUT_REQUESTED:
 		/* read incomming PDU */
 		if (!iscsi_io_recv_pdu(conn, &hdr, ISCSI_DIGEST_NONE,
-			    conn->data, DEFAULT_MAX_RECV_DATA_SEGMENT_LENGTH,
+			    conn->data, ISCSI_DEF_MAX_RECV_SEG_LEN,
 			    ISCSI_DIGEST_NONE, 0)) {
 			return;
 		}

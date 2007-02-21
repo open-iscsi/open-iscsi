@@ -52,11 +52,11 @@ static void *setparam_buf;
 static int ctldev_handle(void);
 
 #define NLM_BUF_DEFAULT_MAX \
-	(NLMSG_SPACE(DEFAULT_MAX_RECV_DATA_SEGMENT_LENGTH + \
+	(NLMSG_SPACE(ISCSI_DEF_MAX_RECV_SEG_LEN + \
 			 sizeof(struct iscsi_hdr)))
 
 #define PDU_SENDBUF_DEFAULT_MAX \
-	(DEFAULT_MAX_RECV_DATA_SEGMENT_LENGTH + sizeof(struct iscsi_hdr))
+	(ISCSI_DEF_MAX_RECV_SEG_LEN + sizeof(struct iscsi_hdr))
 
 #define NLM_SETPARAM_DEFAULT_MAX \
 	(NI_MAXHOST + 1 + sizeof(struct iscsi_uevent))

@@ -19,6 +19,7 @@
 #include "config.h"
 #include "initiator.h"
 #include "version.h"
+#include "iscsi_settings.h"
 
 void daemon_init(void)
 {
@@ -170,11 +171,11 @@ void idbm_node_setup_defaults(node_rec_t *rec)
 	rec->session.auth.password_in_length = 0;
 	rec->session.err_timeo.abort_timeout = 10;
 	rec->session.err_timeo.reset_timeout = 30;
-	rec->session.timeo.replacement_timeout = 120;
+	rec->session.timeo.replacement_timeout = DEF_REPLACEMENT_TIMEO;
 	rec->session.iscsi.InitialR2T = 0;
 	rec->session.iscsi.ImmediateData = 1;
-	rec->session.iscsi.FirstBurstLength = 256 * 1024;
-	rec->session.iscsi.MaxBurstLength = (16 * 1024 * 1024) - 1024;
+	rec->session.iscsi.FirstBurstLength = DEF_INI_FIRST_BURST_LEN;
+	rec->session.iscsi.MaxBurstLength = DEF_INI_MAX_BURST_LEN;
 	rec->session.iscsi.DefaultTime2Wait = 0;
 	rec->session.iscsi.DefaultTime2Retain = 0;
 	rec->session.iscsi.MaxConnections = 1;
@@ -186,17 +187,18 @@ void idbm_node_setup_defaults(node_rec_t *rec)
 		rec->conn[i].port = DEF_ISCSI_PORT;
 		rec->conn[i].tcp.window_size = 512 * 1024;
 		rec->conn[i].tcp.type_of_service = 0;
-		rec->conn[i].timeo.login_timeout=15;
-		rec->conn[i].timeo.logout_timeout=15;
+		rec->conn[i].timeo.login_timeout= DEF_LOGIN_TIMEO;
+		rec->conn[i].timeo.logout_timeout= DEF_LOGOUT_TIMEO;
 		rec->conn[i].timeo.auth_timeout = 45;
 		rec->conn[i].timeo.active_timeout=5;
 		rec->conn[i].timeo.idle_timeout = 60;
 		rec->conn[i].timeo.ping_timeout = 5;
 
-		rec->conn[i].timeo.noop_out_interval = 0;
-		rec->conn[i].timeo.noop_out_timeout = 0;
+		rec->conn[i].timeo.noop_out_interval = DEF_NOOP_OUT_INTERVAL;
+		rec->conn[i].timeo.noop_out_timeout = DEF_NOOP_OUT_TIMEO;
 
-		rec->conn[i].iscsi.MaxRecvDataSegmentLength = 128 * 1024;
+		rec->conn[i].iscsi.MaxRecvDataSegmentLength =
+						DEF_INI_MAX_RECV_SEG_LEN;
 		rec->conn[i].iscsi.HeaderDigest = CONFIG_DIGEST_PREFER_OFF;
 		rec->conn[i].iscsi.DataDigest = CONFIG_DIGEST_NEVER;
 		rec->conn[i].iscsi.IFMarker = 0;
