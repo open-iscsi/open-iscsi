@@ -716,7 +716,9 @@ __conn_noop_out_timeout(void *data)
 	iscsi_conn_t *conn = (iscsi_conn_t*)data;
 	iscsi_session_t *session = conn->session;
 
-	log_debug(3, "noop out rsp timeout, closing conn...\n");
+	log_warning("Nop-out timedout after %d seconds on connection %d:%d "
+		    "state (%d). Dropping session.", conn->noop_out_timeout,
+		    session->id, conn->id, conn->state);
 	/* XXX: error handle */
 	__conn_error_handle(session, conn);
 }
@@ -1635,7 +1637,7 @@ __session_conn_error(queue_item_t *item)
 	iscsi_conn_t *conn = item->context;
 	iscsi_session_t *session = conn->session;
 
-	log_warning("detected iSCSI connection %d:%d error (%d) "
+	log_warning("Kernel reported iSCSI connection %d:%d error (%d) "
 		    "state (%d)", session->id, conn->id, error,
 		    conn->state);
 	__conn_error_handle(session, conn);
