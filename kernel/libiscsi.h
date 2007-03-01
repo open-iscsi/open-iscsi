@@ -25,10 +25,8 @@
 
 #include <linux/types.h>
 #include <linux/mutex.h>
-#include <linux/timer.h>
-#include <linux/workqueue.h>
-#include "iscsi_proto.h"
-#include "iscsi_if.h"
+#include <scsi/iscsi_proto.h>
+#include <iscsi_if.h>
 
 struct scsi_transport_template;
 struct scsi_device;

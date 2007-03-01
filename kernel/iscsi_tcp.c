@@ -108,7 +108,7 @@ iscsi_hdr_digest(struct iscsi_conn *conn, struct iscsi_buf *buf,
 {
 	struct iscsi_tcp_conn *tcp_conn = conn->dd_data;
 
-	crypto_hash_digest(&tcp_conn->tx_hash, &buf->sg, buf->sg.length, crc);
+	crypto_digest_digest(tcp_conn->tx_tfm, &buf->sg, 1, crc);
 	buf->sg.length = tcp_conn->hdr_size;
 }
 
@@ -468,8 +468,7 @@ iscsi_tcp_hdr_recv(struct iscsi_conn *conn)
 
 		sg_init_one(&sg, (u8 *)hdr,
 			    sizeof(struct iscsi_hdr) + ahslen);
-		crypto_hash_digest(&tcp_conn->rx_hash, &sg, sg.length,
-				   (u8 *)&cdgst);
+		crypto_digest_digest(tcp_conn->rx_tfm, &sg, 1, (u8 *)&cdgst);
 		rdgst = *(uint32_t*)((char*)hdr + sizeof(struct iscsi_hdr) +
 				     ahslen);
 		if (cdgst != rdgst) {
@@ -527,12 +526,12 @@ iscsi_tcp_hdr_recv(struct iscsi_conn *conn)
 		 * than 8K, but there are no targets that currently do this.
 		 * For now we fail until we find a vendor that needs it
 		 */
-		if (ISCSI_DEF_MAX_RECV_SEG_LEN <
+		if (DEFAULT_MAX_RECV_DATA_SEGMENT_LENGTH <
 		    tcp_conn->in.datalen) {
 			printk(KERN_ERR "iscsi_tcp: received buffer of len %u "
 			      "but conn buffer is only %u (opcode %0x)\n",
 			      tcp_conn->in.datalen,
-			      ISCSI_DEF_MAX_RECV_SEG_LEN, opcode);
+			      DEFAULT_MAX_RECV_DATA_SEGMENT_LENGTH, opcode);
 			rc = ISCSI_ERR_PROTO;
 			break;
 		}
@@ -676,7 +675,7 @@ iscsi_tcp_copy(struct iscsi_conn *conn, int buf_size)
 }
 
 static inline void
-partial_sg_digest_update(struct hash_desc *desc, struct scatterlist *sg,
+partial_sg_digest_update(struct crypto_tfm *tfm, struct scatterlist *sg,
 			 int offset, int length)
 {
 	struct scatterlist temp;
@@ -684,7 +683,7 @@ partial_sg_digest_update(struct hash_desc *desc, struct scatterlist *sg,
 	memcpy(&temp, sg, sizeof(struct scatterlist));
 	temp.offset = offset;
 	temp.length = length;
-	crypto_hash_update(desc, &temp, length);
+	crypto_digest_update(tfm, &temp, 1);
 }
 
 static void
@@ -693,7 +692,7 @@ iscsi_recv_digest_update(struct iscsi_tcp_conn *tcp_conn, char* buf, int len)
 	struct scatterlist tmp;
 
 	sg_init_one(&tmp, buf, len);
-	crypto_hash_update(&tcp_conn->rx_hash, &tmp, len);
+	crypto_digest_update(tcp_conn->rx_tfm, &tmp, 1);
 }
 
 static int iscsi_scsi_data_in(struct iscsi_conn *conn)
@@ -747,12 +746,12 @@ static int iscsi_scsi_data_in(struct iscsi_conn *conn)
 		if (!rc) {
 			if (conn->datadgst_en) {
 				if (!offset)
-					crypto_hash_update(
-							&tcp_conn->rx_hash,
-							&sg[i], sg[i].length);
+					crypto_digest_update(
+							tcp_conn->rx_tfm,
+							&sg[i], 1);
 				else
 					partial_sg_digest_update(
-							&tcp_conn->rx_hash,
+							tcp_conn->rx_tfm,
 							&sg[i],
 							sg[i].offset + offset,
 							sg[i].length - offset);
@@ -766,10 +765,9 @@ static int iscsi_scsi_data_in(struct iscsi_conn *conn)
 				/*
 				 * data-in is complete, but buffer not...
 				 */
-				partial_sg_digest_update(&tcp_conn->rx_hash,
-							 &sg[i],
-							 sg[i].offset,
-							 sg[i].length-rc);
+				partial_sg_digest_update(tcp_conn->rx_tfm,
+						&sg[i],
+						sg[i].offset, sg[i].length-rc);
 			rc = 0;
 			break;
 		}
@@ -887,7 +885,7 @@ more:
 		rc = iscsi_tcp_hdr_recv(conn);
 		if (!rc && tcp_conn->in.datalen) {
 			if (conn->datadgst_en)
-				crypto_hash_init(&tcp_conn->rx_hash);
+				crypto_digest_init(tcp_conn->rx_tfm);
 			tcp_conn->in_progress = IN_PROGRESS_DATA_RECV;
 		} else if (rc) {
 			iscsi_conn_failure(conn, rc);
@@ -944,11 +942,11 @@ more:
 					  tcp_conn->in.padding);
 				memset(pad, 0, tcp_conn->in.padding);
 				sg_init_one(&sg, pad, tcp_conn->in.padding);
-				crypto_hash_update(&tcp_conn->rx_hash,
-						   &sg, sg.length);
+				crypto_digest_update(tcp_conn->rx_tfm,
+						     &sg, 1);
 			}
-			crypto_hash_final(&tcp_conn->rx_hash,
-					  (u8 *) &tcp_conn->in.datadgst);
+			crypto_digest_final(tcp_conn->rx_tfm,
+					    (u8 *) &tcp_conn->in.datadgst);
 			debug_tcp("rx digest 0x%x\n", tcp_conn->in.datadgst);
 			tcp_conn->in_progress = IN_PROGRESS_DDIGEST_RECV;
 			tcp_conn->data_copied = 0;
@@ -1193,7 +1191,7 @@ static inline void
 iscsi_data_digest_init(struct iscsi_tcp_conn *tcp_conn,
 		      struct iscsi_tcp_cmd_task *tcp_ctask)
 {
-	crypto_hash_init(&tcp_conn->tx_hash);
+	crypto_digest_init(tcp_conn->tx_tfm);
 	tcp_ctask->digest_count = 4;
 }
 
@@ -1375,7 +1373,7 @@ iscsi_tcp_mtask_xmit(struct iscsi_conn *conn, struct iscsi_mgmt_task *mtask)
 	}
 
 	BUG_ON(tcp_mtask->xmstate != XMSTATE_IDLE);
-	if (mtask->hdr->itt == RESERVED_ITT) {
+	if (mtask->hdr->itt == cpu_to_be32(ISCSI_RESERVED_TAG)) {
 		struct iscsi_session *session = conn->session;
 
 		spin_lock_bh(&session->lock);
@@ -1449,9 +1447,8 @@ iscsi_send_padding(struct iscsi_conn *conn, struct iscsi_cmd_task *ctask)
 		iscsi_buf_init_iov(&tcp_ctask->sendbuf, (char*)&tcp_ctask->pad,
 				   tcp_ctask->pad_count);
 		if (conn->datadgst_en)
-			crypto_hash_update(&tcp_conn->tx_hash,
-					   &tcp_ctask->sendbuf.sg,
-					   tcp_ctask->sendbuf.sg.length);
+			crypto_digest_update(tcp_conn->tx_tfm,
+					     &tcp_ctask->sendbuf.sg, 1);
 	} else if (!(tcp_ctask->xmstate & XMSTATE_W_RESEND_PAD))
 		return 0;
 
@@ -1483,7 +1480,7 @@ iscsi_send_digest(struct iscsi_conn *conn, struct iscsi_cmd_task *ctask,
 	tcp_conn = conn->dd_data;
 
 	if (!(tcp_ctask->xmstate & XMSTATE_W_RESEND_DATA_DIGEST)) {
-		crypto_hash_final(&tcp_conn->tx_hash, (u8*)digest);
+		crypto_digest_final(tcp_conn->tx_tfm, (u8*)digest);
 		iscsi_buf_init_iov(buf, (char*)digest, 4);
 	}
 	tcp_ctask->xmstate &= ~XMSTATE_W_RESEND_DATA_DIGEST;
@@ -1517,7 +1514,7 @@ iscsi_send_data(struct iscsi_cmd_task *ctask, struct iscsi_buf *sendbuf,
 		rc = iscsi_sendpage(conn, sendbuf, count, &buf_sent);
 		*sent = *sent + buf_sent;
 		if (buf_sent && conn->datadgst_en)
-			partial_sg_digest_update(&tcp_conn->tx_hash,
+			partial_sg_digest_update(tcp_conn->tx_tfm,
 				&sendbuf->sg, sendbuf->sg.offset + offset,
 				buf_sent);
 		if (!iscsi_buf_left(sendbuf) && *sg != tcp_ctask->bad_sg) {
@@ -1762,7 +1759,7 @@ iscsi_tcp_conn_create(struct iscsi_cls_session *cls_session, uint32_t conn_idx)
 	 * due to strange issues with iser these are not set
 	 * in iscsi_conn_setup
 	 */
-	conn->max_recv_dlength = ISCSI_DEF_MAX_RECV_SEG_LEN;
+	conn->max_recv_dlength = DEFAULT_MAX_RECV_DATA_SEGMENT_LENGTH;
 
 	tcp_conn = kzalloc(sizeof(*tcp_conn), GFP_KERNEL);
 	if (!tcp_conn)
@@ -1774,22 +1771,18 @@ iscsi_tcp_conn_create(struct iscsi_cls_session *cls_session, uint32_t conn_idx)
 	/* initial operational parameters */
 	tcp_conn->hdr_size = sizeof(struct iscsi_hdr);
 
-	tcp_conn->tx_hash.tfm = crypto_alloc_hash("crc32c", 0,
-						  CRYPTO_ALG_ASYNC);
-	tcp_conn->tx_hash.flags = 0;
-	if (IS_ERR(tcp_conn->tx_hash.tfm))
+	tcp_conn->tx_tfm = crypto_alloc_tfm("crc32c", 0);
+	if (!tcp_conn->tx_tfm)
 		goto free_tcp_conn;
 
-	tcp_conn->rx_hash.tfm = crypto_alloc_hash("crc32c", 0,
-						  CRYPTO_ALG_ASYNC);
-	tcp_conn->rx_hash.flags = 0;
-	if (IS_ERR(tcp_conn->rx_hash.tfm))
+	tcp_conn->rx_tfm = crypto_alloc_tfm("crc32c", 0);
+	if (!tcp_conn->rx_tfm)
 		goto free_tx_tfm;
 
 	return cls_conn;
 
 free_tx_tfm:
-	crypto_free_hash(tcp_conn->tx_hash.tfm);
+	crypto_free_tfm(tcp_conn->tx_tfm);
 free_tcp_conn:
 	kfree(tcp_conn);
 tcp_conn_alloc_fail:
@@ -1823,10 +1816,10 @@ iscsi_tcp_conn_destroy(struct iscsi_cls_conn *cls_conn)
 	iscsi_tcp_release_conn(conn);
 	iscsi_conn_teardown(cls_conn);
 
-	if (tcp_conn->tx_hash.tfm)
-		crypto_free_hash(tcp_conn->tx_hash.tfm);
-	if (tcp_conn->rx_hash.tfm)
-		crypto_free_hash(tcp_conn->rx_hash.tfm);
+	if (tcp_conn->tx_tfm)
+		crypto_free_tfm(tcp_conn->tx_tfm);
+	if (tcp_conn->rx_tfm)
+		crypto_free_tfm(tcp_conn->rx_tfm);
 
 	kfree(tcp_conn);
 }
@@ -2044,11 +2037,13 @@ iscsi_tcp_conn_get_param(struct iscsi_cls_conn *cls_conn,
 		sk = tcp_conn->sock->sk;
 		if (sk->sk_family == PF_INET) {
 			inet = inet_sk(sk);
-			len = sprintf(buf, NIPQUAD_FMT "\n",
+			len = sprintf(buf, "%u.%u.%u.%u\n",
 				      NIPQUAD(inet->daddr));
 		} else {
 			np = inet6_sk(sk);
-			len = sprintf(buf, NIP6_FMT "\n", NIP6(np->daddr));
+			len = sprintf(buf,
+				"%04x:%04x:%04x:%04x:%04x:%04x:%04x:%04x\n",
+				NIP6(np->daddr));
 		}
 		mutex_unlock(&conn->xmitmutex);
 		break;

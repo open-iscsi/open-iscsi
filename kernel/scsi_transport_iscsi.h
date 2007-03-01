@@ -24,7 +24,7 @@
 #define SCSI_TRANSPORT_ISCSI_H
 
 #include <linux/device.h>
-#include "iscsi_if.h"
+#include <iscsi_if.h>
 
 struct scsi_transport_template;
 struct iscsi_transport;
@@ -176,7 +176,7 @@ struct iscsi_cls_session {
 
 	/* recovery fields */
 	int recovery_tmo;
-	struct delayed_work recovery_work;
+	struct work_struct recovery_work;
 
 	int target_id;
 
