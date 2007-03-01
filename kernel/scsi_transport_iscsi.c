@@ -33,7 +33,7 @@
 #define ISCSI_SESSION_ATTRS 11
 #define ISCSI_CONN_ATTRS 11
 #define ISCSI_HOST_ATTRS 0
-#define ISCSI_TRANSPORT_VERSION "2.0-727"
+#define ISCSI_TRANSPORT_VERSION "2.0-724"
 
 struct iscsi_internal {
 	int daemon_pid;
@@ -49,7 +49,7 @@ struct iscsi_internal {
 	struct class_device_attribute *session_attrs[ISCSI_SESSION_ATTRS + 1];
 };
 
-static int iscsi_session_nr;	/* sysfs session id for next new session */
+static atomic_t iscsi_session_nr; /* sysfs session id for next new session */
 
 /*
  * list of registered transports and lock that must
@@ -234,9 +234,11 @@ static int iscsi_user_scan(struct Scsi_Host *shost, uint channel,
 	return 0;
 }
 
-static void session_recovery_timedout(void *data)
+static void session_recovery_timedout(struct work_struct *work)
 {
-	struct iscsi_cls_session *session = data;
+	struct iscsi_cls_session *session =
+		container_of(work, struct iscsi_cls_session,
+			     recovery_work.work);
 
 	dev_printk(KERN_INFO, &session->dev, "iscsi: session recovery timed "
 		  "out after %d secs\n", session->recovery_tmo);
@@ -276,7 +278,7 @@ iscsi_alloc_session(struct Scsi_Host *shost,
 
 	session->transport = transport;
 	session->recovery_tmo = 120;
-	INIT_WORK(&session->recovery_work, session_recovery_timedout, session);
+	INIT_DELAYED_WORK(&session->recovery_work, session_recovery_timedout);
 	INIT_LIST_HEAD(&session->host_list);
 	INIT_LIST_HEAD(&session->sess_list);
 
@@ -298,7 +300,7 @@ int iscsi_add_session(struct iscsi_cls_session *session, unsigned int target_id)
 	int err;
 
 	ihost = shost->shost_data;
-	session->sid = iscsi_session_nr++;
+	session->sid = atomic_add_return(1, &iscsi_session_nr);
 	session->target_id = target_id;
 
 	snprintf(session->dev.bus_id, BUS_ID_SIZE, "session%u",
@@ -606,13 +608,11 @@ iscsi_if_send_reply(int pid, int seq, int type, int done, int multi,
 	int flags = multi ? NLM_F_MULTI : 0;
 	int t = done ? NLMSG_DONE : type;
 
-	skb = alloc_skb(len, GFP_KERNEL);
-	/*
-	 * FIXME:
-	 * user is supposed to react on iferror == -ENOMEM;
-	 * see iscsi_if_rx().
-	 */
-	BUG_ON(!skb);
+	skb = alloc_skb(len, GFP_ATOMIC);
+	if (!skb) {
+		printk(KERN_ERR "Could not allocate skb to send reply.\n");
+		return -ENOMEM;
+	}
 
 	nlh = __nlmsg_put(skb, pid, seq, t, (len - sizeof(*nlh)), 0);
 	nlh->nlmsg_flags = flags;
@@ -647,7 +647,7 @@ iscsi_if_get_stats(struct iscsi_transport *transport, struct nlmsghdr *nlh)
 	do {
 		int actual_size;
 
-		skbstat = alloc_skb(len, GFP_KERNEL);
+		skbstat = alloc_skb(len, GFP_ATOMIC);
 		if (!skbstat) {
 			dev_printk(KERN_ERR, &conn->dev, "iscsi: can not "
 				   "deliver stats: OOM\n");
@@ -1416,6 +1416,8 @@ static __init int iscsi_transport_init(void)
 
 	printk(KERN_INFO "Loading iSCSI transport class v%s.\n",
 		ISCSI_TRANSPORT_VERSION);
+
+	atomic_set(&iscsi_session_nr, 0);
 
 	err = class_register(&iscsi_transport_class);
 	if (err)

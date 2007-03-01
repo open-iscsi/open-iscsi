@@ -49,6 +49,7 @@
 #define ISCSI_SG_TABLESIZE		SG_ALL
 #define ISCSI_TCP_MAX_CMD_LEN		16
 
+struct crypto_hash;
 struct socket;
 
 /* Socket connection recieve helper */
@@ -81,6 +82,7 @@ struct iscsi_tcp_conn {
 						 * stop to terminate */
 	/* iSCSI connection-wide sequencing */
 	int			hdr_size;	/* PDU header size */
+
 	/* control data */
 	struct iscsi_tcp_recv	in;		/* TCP receive context */
 	int			in_progress;	/* connection state machine */
@@ -91,8 +93,8 @@ struct iscsi_tcp_conn {
 	void			(*old_write_space)(struct sock *);
 
 	/* data and header digests */
-	struct crypto_tfm	*tx_tfm;	/* CRC32C (Tx) */
-	struct crypto_tfm	*rx_tfm;	/* CRC32C (Rx) */
+	struct hash_desc	tx_hash;	/* CRC32C (Tx) */
+	struct hash_desc	rx_hash;	/* CRC32C (Rx) */
 
 	/* MIB custom statistics */
 	uint32_t		sendpage_failures_cnt;

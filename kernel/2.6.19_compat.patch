@@ -1,0 +1,74 @@
+diff -Nurp a/libiscsi.c b/libiscsi.c
+--- a/libiscsi.c	2007-02-21 11:57:49.000000000 +0200
++++ b/libiscsi.c	2007-02-21 11:57:49.000000000 +0200
+@@ -716,10 +716,9 @@ again:
+ 	return rc;
+ }
+ 
+-static void iscsi_xmitworker(struct work_struct *work)
++static void iscsi_xmitworker(void *data)
+ {
+-	struct iscsi_conn *conn =
+-		container_of(work, struct iscsi_conn, xmitwork);
++	struct iscsi_conn *conn = data;
+ 	int rc;
+ 	/*
+ 	 * serialize Xmit worker on a per-connection basis.
+@@ -1509,7 +1508,7 @@ iscsi_conn_setup(struct iscsi_cls_sessio
+ 	if (conn->mgmtqueue == ERR_PTR(-ENOMEM))
+ 		goto mgmtqueue_alloc_fail;
+ 
+-	INIT_WORK(&conn->xmitwork, iscsi_xmitworker);
++	INIT_WORK(&conn->xmitwork, iscsi_xmitworker, conn);
+ 
+ 	/* allocate login_mtask used for the login/text sequences */
+ 	spin_lock_bh(&session->lock);
+diff -Nurp a/libiscsi.h b/libiscsi.h
+--- a/libiscsi.h	2007-01-10 12:38:25.000000000 +0200
++++ b/libiscsi.h	2007-01-10 12:38:25.000000000 +0200
+@@ -25,8 +25,6 @@
+ 
+ #include <linux/types.h>
+ #include <linux/mutex.h>
+-#include <linux/timer.h>
+-#include <linux/workqueue.h>
+ #include "iscsi_proto.h"
+ #include "iscsi_if.h"
+ 
+diff -Nurp a/scsi_transport_iscsi.c b/scsi_transport_iscsi.c
+--- a/scsi_transport_iscsi.c	2007-01-10 12:38:25.000000000 +0200
++++ b/scsi_transport_iscsi.c	2007-01-10 12:38:25.000000000 +0200
+@@ -234,11 +234,9 @@ static int iscsi_user_scan(struct Scsi_H
+ 	return 0;
+ }
+ 
+-static void session_recovery_timedout(struct work_struct *work)
++static void session_recovery_timedout(void *data)
+ {
+-	struct iscsi_cls_session *session =
+-		container_of(work, struct iscsi_cls_session,
+-			     recovery_work.work);
++	struct iscsi_cls_session *session = data;
+ 
+ 	dev_printk(KERN_INFO, &session->dev, "iscsi: session recovery timed "
+ 		  "out after %d secs\n", session->recovery_tmo);
+@@ -278,7 +276,7 @@ iscsi_alloc_session(struct Scsi_Host *sh
+ 
+ 	session->transport = transport;
+ 	session->recovery_tmo = 120;
+-	INIT_DELAYED_WORK(&session->recovery_work, session_recovery_timedout);
++	INIT_WORK(&session->recovery_work, session_recovery_timedout, session);
+ 	INIT_LIST_HEAD(&session->host_list);
+ 	INIT_LIST_HEAD(&session->sess_list);
+ 
+diff -Nurp a/scsi_transport_iscsi.h b/scsi_transport_iscsi.h
+--- a/scsi_transport_iscsi.h	2007-01-10 12:38:26.000000000 +0200
++++ b/scsi_transport_iscsi.h	2007-01-10 12:38:25.000000000 +0200
+@@ -176,7 +176,7 @@ struct iscsi_cls_session {
+ 
+ 	/* recovery fields */
+ 	int recovery_tmo;
+-	struct delayed_work recovery_work;
++	struct work_struct recovery_work;
+ 
+ 	int target_id;

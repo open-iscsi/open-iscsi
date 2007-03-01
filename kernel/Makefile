@@ -3,7 +3,7 @@
 #
 # This Makefile invokes KBuild from outside the kernel directory when
 # used from the main open-iscsi package. It also contains all of the
-# KBuild stuff needed to build the the modules.
+# KBuild stuff needed to build the modules.
 #
 
 # Kbuild stuff, the following is the only part of this file that KBuild
@@ -36,83 +36,118 @@ KBUILD_OUTPUT ?=
 # this is the basic Kbuild invocation, just append your make target
 KBUILD_BASE = +$(MAKE) -C $(KSRC) M=`pwd` KBUILD_OUTPUT=$(KBUILD_OUTPUT) $(KARCH) V=$(V)
 
-# fun stuff for maintaining multiple versions
-KSUBLEVEL = $(shell cat $(KSRC)/Makefile | awk -F= '/^SUBLEVEL =/ {print $$2}' | \
-		sed 's/^[ \t]*//;s/[ \t]*$$//')
-
-ifeq ($(KSUBLEVEL), 11)
-EXTRA_CFLAGS += -DNETLINK_ISCSI=12
-else
-ifeq ($(KSUBLEVEL), 12)
-EXTRA_CFLAGS += -DNETLINK_ISCSI=12
-endif
-endif
-
 all: kernel_check
 	$(KBUILD_BASE) modules
 
-# ====== BEGIN code for kernel_check
+# ============ BEGIN code for kernel_check and source patching ================
+# We calculate the Linux version for compilation. Than according to version,
+# if needed, we patch source-code to match the compiling kernel.
+# if you need a new kernel sub-version just add a target below.
+#
+# IMPORTANT: do "make clean" before submitting to SVN so source is in unpatched
+#            form.
+
+#some constants
+13_patch=2.6.13_compat.patch
+14to15_patch=2.6.14-and-2.6.15-compat.patch
+16to18_patch=2.6.16-18_compat.patch
+19_patch=2.6.19_compat.patch
+all_patches=13_patch 14to15_patch 16to18_patch 19_patch
+cur_patched=cur_patched
+
+## fun stuff for maintaining multiple versions
+
+# check to see if code is unpatched 
+unpatch_code=$(shell test -e $(cur_patched) && echo do_unpatch_code )
+
+KSUBLEVEL = $(shell cat $(KSRC)/Makefile | awk -F= '/^SUBLEVEL =/ {print $$2}' | \
+		sed 's/^[ \t]*//;s/[ \t]*$$//')
+
+KERNEL_TARGET=linux_2_6_$(KSUBLEVEL)
+kernel_check: $(KERNEL_TARGET)
 
 
-# generic make function
-# syntax:
-# @$(call generic_check_command, CHECKING-COMMAND, PATCHNAME)
-generic_check_command = if $(1) ; then \
-				echo "kernel check... FAILED"; \
-				echo "Apply the $(2) first!"; exit 1; fi ; \
-				echo "kernel check... OK"
+linux_2_6_13: has_13_patch
 
-# this variable defines how we check for iscsi_compat
-check_iscsi_compat_command =  ! grep iscsi_compat scsi_transport_iscsi.c >/dev/null 
-# this variable is the actual make function
-check_iscsi_compat = $(call generic_check_command, $(check_iscsi_compat_command), $(1))
-# syntax:
-# @$(call check_iscsi_compat, PATCHNAME)
+linux_2_6_14: has_14to15_patch
 
-# this if-else ladder is horrible
-# but I don't know any quick way to clean it up
-# since Make doesn't support a switch construct
-.NOTPARALLEL: kernel_check
-kernel_check:
-ifeq ($(KSUBLEVEL),16)
-	echo "kernel check... OK"
-	cp 2.6.16-2.6.19/*.c .
-	cp 2.6.16-2.6.19/*.h .
-else
-ifeq ($(KSUBLEVEL),17)
-	echo "kernel check... OK"
-	cp 2.6.16-2.6.19/*.c .
-	cp 2.6.16-2.6.19/*.h .
-else
-ifeq ($(KSUBLEVEL),18)
-	echo "kernel check... OK"
-	cp 2.6.16-2.6.19/*.c .
-	cp 2.6.16-2.6.19/*.h .
-else
-ifeq ($(KSUBLEVEL),19)
-	echo "kernel check... OK"
-	cp 2.6.16-2.6.19/*.c .
-	cp 2.6.16-2.6.19/*.h .
-else
-ifeq ($(KSUBLEVEL),20)
-	echo "kernel check... OK"
-	cp 2.6.20/*.c .
-	cp 2.6.20/*.h .
-else
-	@echo "kernel check... UNSUPPORTED KERNEL DETECTED"
-	exit 1;
-endif
-endif
-endif
-endif
-endif
+linux_2_6_15: has_14to15_patch
 
-# ====== END code for kernel_check
+linux_2_6_16: has_16to18_patch
 
-clean:
+linux_2_6_17: has_16to18_patch
+
+linux_2_6_18: has_16to18_patch
+
+linux_2_6_19: has_19_patch
+
+linux_2_6_20: $(unpatch_code)
+
+linux_2_6_21: $(unpatch_code)
+
+do_unpatch_code:
+	echo "Un-patching source code for use with linux-2.6.20 and up ..."
+	patch -R -E -p1 < $(cur_patched)
+	rm -f `readlink $(cur_patched)`
+	rm -f $(cur_patched)
+
+# these below targets must be the same as the variable name prefixed by has_
+# otherwise below compat_patch: target will not work
+has_13_patch: $(13_patch)
+	echo "Patching source code for linux-2.6.13 ..."
+	if [ -e $(cur_patched) ]; then \
+		make -C . clean; \
+	fi
+	patch -p1 < $(13_patch)
+	cp $(13_patch) $@
+	ln -s $@ $(cur_patched)
+
+has_14to15_patch: $(14to15_patch)
+	echo "Patching source code for linux-2.6.14-15 ..."
+	if [ -e $(cur_patched) ]; then \
+		make -C . clean; \
+	fi
+	patch -p1 < $(14to15_patch)
+	cp $(14to15_patch) $@
+	ln -s $@ $(cur_patched)
+
+has_16to18_patch: $(16to18_patch)
+	echo "Patching source code for linux-2.6.16-18 ..."
+	if [ -e $(cur_patched) ]; then \
+		make -C . clean; \
+	fi
+	patch -p1 < $(16to18_patch)
+	cp $(16to18_patch) $@
+	ln -s $@ $(cur_patched)
+
+has_19_patch: $(19_patch)
+	echo "Patching source code for linux-2.6.19 ..."
+	if [ -e $(cur_patched) ]; then \
+		make -C . clean; \
+	fi
+	patch -p1 < $(19_patch)
+	cp $(19_patch) $@
+	ln -s $@ $(cur_patched)
+
+# ============ END code for kernel_check and source patching =================
+
+clean: $(unpatch_code)
 	$(KBUILD_BASE) clean
-	rm *.c *.h Module.symvers
-#echo rm -f -r *.mod.c .*cmd *.o *.ko .tmp_versions
+	rm -f Module.symvers
+
+## The folowing compat_patch target is what we need to do to prepare a clean
+# compat_patch set after new code is check-in to svn. To keep patches fuzzless.
+# the new patches are writen into .new files so svn diff of next file will
+# not trip on them.
+compat_patch: $(unpatch_code)
+	test -z "$(svn diff|head)" || { \
+		echo "please run make compat_patch after changse are submited to svn"; \
+		exit 1; \
+	}
+	for the_patch in all_patches ; do \
+		make -C . has_$(the_patch); \
+		svn diff > ${!the_patch}.new; \
+	done
 
 # the following is only for convienience
 # do not submit to Linus
