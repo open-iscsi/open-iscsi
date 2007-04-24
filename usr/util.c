@@ -82,14 +82,16 @@ str_to_ipport(char *str, int *port, int delim)
 	return str;
 }
 
+#define MAXSLEEP 128
+
 static int iscsid_connect(void)
 {
-	int fd, err;
+	int fd, err, nsec;
 	struct sockaddr_un addr;
 
 	fd = socket(AF_LOCAL, SOCK_STREAM, 0);
 	if (fd < 0) {
-		log_error("can not create IPC socket!");
+		log_error("can not create IPC socket (%d)!", errno);
 		return fd;
 	}
 
@@ -98,12 +100,22 @@ static int iscsid_connect(void)
 	memcpy((char *) &addr.sun_path + 1, ISCSIADM_NAMESPACE,
 		strlen(ISCSIADM_NAMESPACE));
 
-	if ((err = connect(fd, (struct sockaddr *) &addr, sizeof(addr))) < 0) {
-		log_error("can not connect to iSCSI daemon!");
-		fd = err;
+	/*
+	 * Trying to connect with exponential backoff
+	 */
+	for (nsec = 1; nsec <= MAXSLEEP; nsec <<= 1) {
+	    if (connect(fd, (struct sockaddr *) &addr, sizeof(addr)) == 0) {
+		/* Connection established */
+		return fd;
+	    }
+	    /*
+	     * Delay before trying again
+	     */
+	    if (nsec <= MAXSLEEP/2)
+		sleep(nsec);
 	}
-
-	return fd;
+	log_error("can not connect to iSCSI daemon (%d)!", errno);
+	return -1;
 }
 
 static int iscsid_request(int fd, iscsiadm_req_t *req)
