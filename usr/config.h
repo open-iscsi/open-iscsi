@@ -193,18 +193,16 @@ typedef struct session_rec {
 #define ISCSI_TRANSPORT_NAME_MAXLEN 16
 
 typedef struct iface_rec {
-	/* TODO move transport name from node to here */
-
 	/*
 	 * TODO: we may have to make this bigger and interconnect
 	 * specific for iser and and possibly qla4xxx hba serials
 	 */
 	char			name[ISCSI_MAX_IFACE_LEN];
+	char			transport_name[ISCSI_TRANSPORT_NAME_MAXLEN];
 } iface_rec_t;
 
 typedef struct node_rec {
 	char			name[TARGET_NAME_MAXLEN];
-	char			transport_name[ISCSI_TRANSPORT_NAME_MAXLEN];
 	int			tpgt;
 	iscsi_startup_e		startup;
 	session_rec_t		session;

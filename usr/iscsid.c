@@ -107,7 +107,8 @@ setup_rec_from_negotiated_values(idbm_t *db, node_rec_t *rec,
 	rec->conn[0].port = port;
 	strncpy(rec->conn[0].address, address, NI_MAXHOST);
 	strncpy(rec->iface.name, iface, ISCSI_MAX_IFACE_LEN);
-	strncpy(rec->transport_name, p->name, ISCSI_TRANSPORT_NAME_MAXLEN);
+	strncpy(rec->iface.transport_name, p->name,
+		ISCSI_TRANSPORT_NAME_MAXLEN);
 	rec->tpgt = tpgt;
 
 	get_negotiated_session_conf(sid, &session_conf);

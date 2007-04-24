@@ -72,6 +72,7 @@ static struct option const long_options[] =
 	{"portal", required_argument, NULL, 'p'},
 	{"targetname", required_argument, NULL, 'T'},
 	{"interface", required_argument, NULL, 'I'},
+	{"driver", required_argument, NULL, 'D'},
 	{"op", required_argument, NULL, 'o'},
 	{"type", required_argument, NULL, 't'},
 	{"name", required_argument, NULL, 'n'},
@@ -90,7 +91,7 @@ static struct option const long_options[] =
 	{"help", no_argument, NULL, 'h'},
 	{NULL, 0, NULL, 0},
 };
-static char *short_options = "RlVhm:p:P:T:I:U:L:d:r:n:v:o:sSt:u";
+static char *short_options = "RlVhm:p:P:T:I:D:U:L:d:r:n:v:o:sSt:u";
 
 static void usage(int status)
 {
@@ -101,7 +102,7 @@ static void usage(int status)
 		printf("\
 iscsiadm -m discovery [ -dhV ] [--print=[N]] [ -t type -p ip:port [ -l ] ] | [ -p ip:port ] \
 [ -o operation ] [ -n name ] [ -v value ]\n\
-iscsiadm -m node [ -dhV ] [ -P printlevel ] [ -L all,manual,automatic ] [ -U all,manual,automatic ] [ -S ] [ [ -T targetname -p ip:port -I HWaddress ] [ -l | -u | -R | -s] ] \
+iscsiadm -m node [ -dhV ] [ -P printlevel ] [ -L all,manual,automatic ] [ -U all,manual,automatic ] [ -S ] [ [ -T targetname -p ip:port -I HWaddress -D driver ] [ -l | -u | -R | -s] ] \
 [ [ -o  operation  ] [ -n name ] [ -v value ] [ -p ip:port ] ]\n\
 iscsiadm -m session [ -dhV ] [ -P  printlevel] [ -r sessionid | sysfsdir [ -R | -u | -s ] [ -o operation ] [ -n name ] [ -v value ] ]\n");
 	}
@@ -322,13 +323,18 @@ logout_by_startup(idbm_t *db, char *mode)
 }
 
 static int match_valid_session(node_rec_t *rec, char *targetname,
-			       char *address, int port, char *iface)
+			       char *address, int port, char *iface,
+			       char *driver)
 {
 	if (strlen(rec->name) && strcmp(rec->name, targetname))
 		return 0;
 
 	if (strlen(rec->conn[0].address) &&
 	   strcmp(rec->conn[0].address, address))
+		return 0;
+
+	if (strlen(rec->iface.transport_name) &&
+	    strcmp(rec->iface.transport_name, driver))
 		return 0;
 
 	if (strlen(rec->iface.name) && strcmp(rec->iface.name, iface))
@@ -352,7 +358,8 @@ logout_portal(void *data, char *targetname, int tpgt, char *address,
 	if (!p)
 		return 0;
 
-	if (!match_valid_session(rec, targetname, address, port, iface))
+	if (!match_valid_session(rec, targetname, address, port, iface,
+				 p->name))
 		return 0;
 
 	printf("Logout session [%s [%d] [%s]:%d %s]\n", iface, sid, address,
@@ -364,7 +371,8 @@ logout_portal(void *data, char *targetname, int tpgt, char *address,
 	tmprec.conn[0].port = port;
 	strncpy(tmprec.conn[0].address, address, NI_MAXHOST);
 	strncpy(tmprec.iface.name, iface, ISCSI_MAX_IFACE_LEN);
-	strncpy(tmprec.transport_name, p->name, ISCSI_TRANSPORT_NAME_MAXLEN);
+	strncpy(tmprec.iface.transport_name, p->name,
+		ISCSI_TRANSPORT_NAME_MAXLEN);
 
 	rc = session_logout(&tmprec);
 	/* we raced with another app or instance of iscsiadm */
@@ -382,7 +390,7 @@ logout_portal(void *data, char *targetname, int tpgt, char *address,
 }
 
 static void setup_node_record(node_rec_t *rec, char *targetname, char *ip,
-			      int port, char *iface)
+			      int port, char *iface, char *driver)
 {
 	memset(rec, 0, sizeof(*rec));
 	idbm_node_setup_defaults(rec);
@@ -395,16 +403,22 @@ static void setup_node_record(node_rec_t *rec, char *targetname, char *ip,
 		strncpy(rec->iface.name, iface, ISCSI_MAX_IFACE_LEN);
 	else
 		memset(rec->iface.name, 0, ISCSI_MAX_IFACE_LEN);
+	if (driver)
+		strncpy(rec->iface.transport_name, driver,
+			ISCSI_TRANSPORT_NAME_MAXLEN);
+	else
+		memset(rec->iface.transport_name, 0,
+		       ISCSI_TRANSPORT_NAME_MAXLEN);
 }
 
 static int
 for_each_session(idbm_t *db, char *targetname, char *ip, int port, char *iface,
-		 int (* fn)(void *, char *, int, char *, int, int, char *))
+		 char *driver, sysfs_op_fn *fn)
 {
 	node_rec_t rec;
 	int err, num_found = 0;
 
-	setup_node_record(&rec, targetname, ip, port, iface);
+	setup_node_record(&rec, targetname, ip, port, iface, driver);
 	err = sysfs_for_each_session(&rec, &num_found, fn);
 	if (!num_found) {
 		log_error("No portal found.");
@@ -428,7 +442,7 @@ static int login_portal(idbm_t *db, void *data, node_rec_t *rec)
 {
 	int rc;
 
-	printf("Login session [%s:%s [%s]:%d %s]\n", rec->transport_name,
+	printf("Login session [%s:%s [%s]:%d %s]\n", rec->iface.transport_name,
 		rec->iface.name, rec->conn[0].address,
 		rec->conn[0].port, rec->name);
 
@@ -485,13 +499,14 @@ static int iface_fn(idbm_t *db, void *data, node_rec_t *rec)
 
 	if (!match_valid_session(op_data->match_rec, rec->name,
 				 rec->conn[0].address, rec->conn[0].port,
-				 rec->iface.name))
+				 rec->iface.name, rec->iface.transport_name))
 		return 0;
 	return op_data->fn(db, op_data->data, rec);
 }
 
 static int for_each_rec(idbm_t *db, char *targetname, char *ip, int port,
-			char *iface, void *data, idbm_iface_op_fn *fn)
+			char *iface, char *driver, void *data,
+			idbm_iface_op_fn *fn)
 {
 	node_rec_t rec;
 	struct rec_op_data op_data;
@@ -501,7 +516,7 @@ static int for_each_rec(idbm_t *db, char *targetname, char *ip, int port,
 	op_data.match_rec = &rec;
 	op_data.fn = fn;
 
-	setup_node_record(&rec, targetname, ip, port, iface);
+	setup_node_record(&rec, targetname, ip, port, iface, driver);
 	if (!idbm_for_each_rec(db, &op_data, iface_fn))
 		goto nodev;
 	return 0;
@@ -511,7 +526,7 @@ nodev:
 }
 
 static int print_nodes(idbm_t *db, int info_level, char *targetname,
-		       char *ip, int port, char *iface)
+		       char *ip, int port, char *iface, char *driver)
 {
 	node_rec_t tmp_rec;
 	int rc = 0;
@@ -519,14 +534,14 @@ static int print_nodes(idbm_t *db, int info_level, char *targetname,
 	switch (info_level) {
 	case 0:
 	case -1:
-		if (for_each_rec(db, targetname, ip, port,
-				 iface, NULL, idbm_print_node_flat))
+		if (for_each_rec(db, targetname, ip, port, iface, driver, NULL,
+				 idbm_print_node_flat))
 			rc = -1;
 		break;
 	case 1:
 		memset(&tmp_rec, 0, sizeof(node_rec_t));
-		if (for_each_rec(db, targetname, ip, port,
-				 iface, &tmp_rec, idbm_print_node_tree))
+		if (for_each_rec(db, targetname, ip, port, iface, driver,
+				 &tmp_rec, idbm_print_node_tree))
 			rc = -1;
 		break;
 	default:
@@ -875,8 +890,13 @@ static int rescan_portal(void *data, char *targetname, int tpgt, char *address,
 			 int port, int sid, char *iface)
 {
 	int host_no, err;
+	iscsi_provider_t *p = get_transport_by_sid(sid);
 
-	if (!match_valid_session(data, targetname, address, port, iface))
+	if (!p)
+		return 0;
+
+	if (!match_valid_session(data, targetname, address, port, iface,
+				 p->name))
 		return 0;
 
 	printf("Rescanning session [%s [%d] [%s]:%d %s]\n", iface, sid, address,
@@ -896,11 +916,16 @@ static int
 session_stats(void *data, char *targetname, int tpgt, char *address,
 	      int port, int sid, char *iface)
 {
+	iscsi_provider_t *p = get_transport_by_sid(sid);
 	int rc, i;
 	iscsiadm_req_t req;
 	iscsiadm_rsp_t rsp;
 
-	if (!match_valid_session(data, targetname, address, port, iface))
+	if (!p)
+		return 0;
+
+	if (!match_valid_session(data, targetname, address, port, iface,
+				 p->name))
 		return 0;
 
 	memset(&req, 0, sizeof(req));
@@ -976,7 +1001,7 @@ session_stats(void *data, char *targetname, int tpgt, char *address,
 }
 
 static int add_static_rec(idbm_t *db, char *targetname, char *ip, int port,
-			  char *iface)
+			  char *iface, char *driver)
 {
 	node_rec_t *rec;
 	discovery_rec_t *drec;
@@ -1002,13 +1027,15 @@ static int add_static_rec(idbm_t *db, char *targetname, char *ip, int port,
 	rec->conn[0].port = port;
 	strncpy(rec->conn[0].address, ip, NI_MAXHOST);
 	strncpy(rec->iface.name, iface, ISCSI_MAX_IFACE_LEN);
+	strncpy(rec->iface.transport_name, driver,
+		ISCSI_TRANSPORT_NAME_MAXLEN);
 
 	rc = idbm_add_node(db, rec, drec);
 	if (rc)
 		log_error("Could not add new record.");
 	else
 		printf("New iSCSI node [%s:%s [%s]:%d %s] added\n",
-			rec->transport_name, iface, ip, port, targetname);
+			rec->iface.transport_name, iface, ip, port, targetname);
 	free(drec);
 free_rec:
 	free(rec);
@@ -1028,7 +1055,8 @@ static int for_each_portal_rec(idbm_t *db, void *data, char *targetname,
 	if (rec->conn[0].port != -1 && rec->conn[0].port != port)
 		return 0;
 
-	if (add_static_rec(db, targetname, ip, port, rec->iface.name))
+	if (add_static_rec(db, targetname, ip, port, rec->iface.name,
+			  rec->iface.transport_name))
 		return 0;
 	return 1;
 }
@@ -1047,7 +1075,8 @@ static int for_each_node_rec(idbm_t *db, void *data, char *targetname)
 		goto search;
 
 	if (add_static_rec(db, targetname, rec->conn[0].address,
-			   rec->conn[0].port, rec->iface.name))
+			   rec->conn[0].port, rec->iface.name,
+			   rec->iface.transport_name))
 		return 0;
 	return 1;
 
@@ -1056,7 +1085,7 @@ search:
 }
 
 static int add_static_recs(idbm_t *db, char *targetname, char *ip, int port,
-			   char *iface)
+			   char *iface, char *driver)
 {
 	node_rec_t *rec;
 	int rc;
@@ -1068,7 +1097,7 @@ static int add_static_recs(idbm_t *db, char *targetname, char *ip, int port,
 		goto done;
 	}
 
-	setup_node_record(rec, targetname, ip, port, iface);
+	setup_node_record(rec, targetname, ip, port, iface, driver);
 	rc = idbm_for_each_node(db, rec, for_each_node_rec);
 	if (rc)
 		goto free_rec;
@@ -1077,7 +1106,9 @@ static int add_static_recs(idbm_t *db, char *targetname, char *ip, int port,
 	if (targetname && ip) {
 		if (!iface)
 			iface = "default";
-		rc = add_static_rec(db, targetname, ip, port, iface);
+		if (!driver)
+			driver = "tcp";
+		rc = add_static_rec(db, targetname, ip, port, iface, driver);
 		if (!rc)
 			goto free_rec;
 	}
@@ -1152,30 +1183,31 @@ static void catch_sigint( int signo ) {
 static int exec_node_op(idbm_t *db, int op, int do_login, int do_logout,
 			int do_show, int do_rescan, int do_stats,
 			int info_level, char *targetname, char *ip, int port,
-			char *iface, char *name, char *value)
+			char *iface, char *driver, char *name, char *value)
 {
 	int rc = 0;
 	struct db_set_param set_param;
 
-	log_debug(2, "%s: node [%s,%s,%d]", __FUNCTION__,
-		  targetname, ip, port);
+	log_debug(2, "%s: %s:%s node [%s,%s,%d]", __FUNCTION__,
+		  driver, iface, targetname, ip, port);
 
 	if (op == OP_NEW) {
-		if (add_static_recs(db, targetname, ip, port, iface))
+		if (add_static_recs(db, targetname, ip, port, iface,
+				    driver))
 			rc = -1;
 		goto out;
 	}
 
 	if (do_rescan) {
 		if (for_each_session(db, targetname, ip, port, iface,
-				     rescan_portal))
+				     driver, rescan_portal))
 			rc = -1;
 		goto out;
 	}
 
 	if (do_stats) {
 		if (for_each_session(db, targetname, ip, port, iface,
-				     session_stats))
+				     driver, session_stats))
 			rc = -1;
 		goto out;
 	}
@@ -1193,29 +1225,29 @@ static int exec_node_op(idbm_t *db, int op, int do_login, int do_logout,
 		goto out;
 	}
 
-	if (!do_login && !do_logout && op < 0 &&
-	    !targetname && !ip && !iface) {
-		rc = print_nodes(db, info_level, targetname, ip, port, iface);
+	if (!do_login && !do_logout && op < 0) {
+		rc = print_nodes(db, info_level, targetname, ip, port, iface,
+				 driver);
 		goto out;
 	}
 
 	if (do_login) {
 		if (for_each_rec(db, targetname, ip, port,
-				 iface, NULL, login_portal))
+				 iface, driver, NULL, login_portal))
 			rc = -1;
 		goto out;
 	}
 
 	if (do_logout) {
 		if (for_each_session(db, targetname, ip, port, iface,
-				     logout_portal))
+				     driver, logout_portal))
 			rc = -1;
 		goto out;
 	}
 
 	if (op < 0 || (!do_login && !do_logout && op == OP_SHOW)) {
-		if (for_each_rec(db, targetname, ip, port,
-				 iface, &do_show, idbm_print_node_info))
+		if (for_each_rec(db, targetname, ip, port, iface, driver,
+				 &do_show, idbm_print_node_info))
 			rc = -1;
 		goto out;
 	}
@@ -1231,13 +1263,13 @@ static int exec_node_op(idbm_t *db, int op, int do_login, int do_logout,
 		set_param.name = name;
 		set_param.value = value;
 
-		if (for_each_rec(db, targetname, ip, port, iface,
+		if (for_each_rec(db, targetname, ip, port, iface, driver,
 				 &set_param, idbm_node_set_param))	
 			rc = -1;
 		goto out;
 	} else if (op == OP_DELETE) {
-		if (for_each_rec(db, targetname, ip, port,
-				 iface, NULL, idbm_delete_node))	
+		if (for_each_rec(db, targetname, ip, port, iface, driver,
+				 NULL, idbm_delete_node))
 			rc = -1;
 		goto out;
 	} else {
@@ -1304,6 +1336,7 @@ main(int argc, char **argv)
 {
 	char *ip = NULL, *name = NULL, *value = NULL, *iface = NULL;
 	char *targetname = NULL, *group_session_mgmt_mode = NULL;
+	char *driver = NULL;
 	int ch, longindex, mode=-1, port=-1, do_login=0, do_rescan=0;
 	int rc=0, sid=-1, op=-1, type=-1, do_logout=0, do_stats=0, do_show=0;
 	int do_login_all=0, do_logout_all=0, info_level=-1;
@@ -1399,6 +1432,9 @@ main(int argc, char **argv)
 			break;
 		case 'I':
 			iface = optarg;
+			break;
+		case 'D':
+			driver = optarg;
 			break;
 		case 'V':
 			printf("%s version %s\n", program_name,
@@ -1524,7 +1560,7 @@ main(int argc, char **argv)
 			}
 		}
 	} else if (mode == MODE_NODE) {
-		if ((rc = verify_mode_params(argc, argv, "RsPdmlSonvupTIUL",
+		if ((rc = verify_mode_params(argc, argv, "RDsPdmlSonvupTIUL",
 					     0))) {
 			log_error("node mode: option '-%c' is not "
 				  "allowed/supported", rc);
@@ -1544,10 +1580,11 @@ main(int argc, char **argv)
 
 		rc = exec_node_op(db, op, do_login, do_logout, do_show,
 				  do_rescan, do_stats, info_level, targetname,
-				  ip, port, iface, name, value);
+				  ip, port, iface, driver, name, value);
 		goto out;
 	} else if (mode == MODE_SESSION) {
-		if ((rc = verify_mode_params(argc, argv, "PiRdrmusonuSv", 1))) {
+		if ((rc = verify_mode_params(argc, argv,
+					      "PiDRdrmusonuSv", 1))) {
 			log_error("session mode: option '-%c' is not "
 				  "allowed or supported", rc);
 			rc = -1;
@@ -1556,6 +1593,7 @@ main(int argc, char **argv)
 		if (sid >= 0) {
 			char session[64];
 			int tmp_sid, tpgt;
+			iscsi_provider_t *p;
 
 			snprintf(session, 63, "session%d", sid);
 			session[63] = '\0';
@@ -1589,11 +1627,15 @@ main(int argc, char **argv)
 				goto free_iface;
 			}
 
+			p = get_transport_by_sid(sid);
+			if (!p)
+				goto free_iface;
+
 			/* drop down to node ops */
 			rc = exec_node_op(db, op, do_login, do_logout, do_show,
 					  do_rescan, do_stats, info_level,
-					  targetname, ip, port, iface, name,
-					  value);
+					  targetname, ip, port, iface,
+					  p->name, name, value);
 free_iface:
 			free(iface);
 free_address:
@@ -1606,7 +1648,8 @@ free_target:
 				rc = exec_node_op(db, op, do_login, do_logout,
 						 do_show, do_rescan, do_stats,
 						 info_level, NULL,
-						 NULL, -1, NULL, name, value);
+						 NULL, -1, NULL, NULL, name,
+						 value);
 				goto out;
 			}
 

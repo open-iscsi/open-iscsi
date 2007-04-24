@@ -161,7 +161,6 @@ void idbm_node_setup_defaults(node_rec_t *rec)
 
 	memset(rec, 0, sizeof(node_rec_t));
 
-	strcpy(rec->transport_name, "tcp");
 	rec->tpgt = PORTAL_GROUP_TAG_UNKNOWN;
 	rec->disc_type = DISCOVERY_TYPE_STATIC;
 	rec->session.initial_cmdsn = 0;
@@ -212,6 +211,7 @@ void idbm_node_setup_defaults(node_rec_t *rec)
 	 * selects for us
 	 */
 	sprintf(rec->iface.name, "default");
+	sprintf(rec->iface.transport_name, "tcp");
 }
 
 void iscsid_handle_error(int err)
@@ -253,7 +253,7 @@ int iscsi_match_session(void *data, char *targetname, int tpgt,
 	if (!p)
 		return 0;
 
-	if (!strcmp(rec->transport_name, p->name) &&
+	if (!strcmp(rec->iface.transport_name, p->name) &&
 	    !strcmp(rec->name, targetname) &&
 	    !strcmp(rec->conn[0].address, address) &&
 	    !strcmp(rec->iface.name, iface) &&

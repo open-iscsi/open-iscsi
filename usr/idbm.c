@@ -208,12 +208,16 @@ idbm_recinfo_node(node_rec_t *r, recinfo_t *ri)
 	int num = 0, i;
 
 	__recinfo_str("node.name", ri, r, name, IDBM_SHOW, num);
-	__recinfo_str("node.transport_name", ri, r, transport_name,
-		      IDBM_SHOW, num);
 	__recinfo_int("node.tpgt", ri, r, tpgt, IDBM_SHOW, num);
 	__recinfo_int_o3("node.startup", ri, r, startup,
 			IDBM_SHOW, "manual", "automatic", "onboot", num);
 	__recinfo_str("iface.name", ri, r, iface.name, IDBM_SHOW, num);
+	/*
+	 * svn 780 compat: older versions used node.transport_name and
+	 * rec->transport_name
+	 */
+	__recinfo_str("iface.transport_name", ri, r, iface.transport_name,
+		      IDBM_SHOW, num);
 	__recinfo_str("node.discovery_address", ri, r, disc_address, IDBM_SHOW,
 		      num);
 	__recinfo_int("node.discovery_port", ri, r, disc_port, IDBM_SHOW, num);
@@ -341,6 +345,8 @@ idbm_recinfo_iface(iface_rec_t *r, recinfo_t *ri)
 	for (i = 0; i < ISCSI_IFACE_MAX; i++) {
 		sprintf(key, "iface[%d].name", i);
 		__recinfo_str(key, ri, (&r[i]), name, IDBM_SHOW, num);
+		sprintf(key, "iface[%d].transport_name", i);
+		__recinfo_str(key, ri, (&r[i]), transport_name, IDBM_SHOW, num);
 	}
 }
 
@@ -694,7 +700,7 @@ int idbm_print_node_tree(idbm_t *db, void *data, node_rec_t *rec)
 			       rec->conn[0].port, rec->tpgt);
 	}
 
-	printf("\t\tDriver: %s\n", rec->transport_name);
+	printf("\t\tDriver: %s\n", rec->iface.transport_name);
 	printf("\t\tHWaddress: %s\n", rec->iface.name);
 
 	memcpy(last_rec, rec, sizeof(node_rec_t));
@@ -1380,7 +1386,7 @@ static int setup_disc_to_node_link(char *disc_portal, node_rec_t *rec)
 			 ST_CONFIG_DIR,
 			 rec->disc_address, rec->disc_port, rec->name,
 			 rec->tpgt, rec->conn[0].address, rec->conn[0].port,
-			 rec->iface.name, rec->transport_name);
+			 rec->iface.name, rec->iface.transport_name);
 		break;
 	case DISCOVERY_TYPE_STATIC:
 		if (access(STATIC_CONFIG_DIR, F_OK) != 0) {
@@ -1394,7 +1400,7 @@ static int setup_disc_to_node_link(char *disc_portal, node_rec_t *rec)
 		snprintf(disc_portal, PATH_MAX, "%s/%s,%s,%d,%s,%s",
 			 STATIC_CONFIG_DIR, rec->name,
 			 rec->conn[0].address, rec->conn[0].port,
-			 rec->iface.name, rec->transport_name);
+			 rec->iface.name, rec->iface.transport_name);
 		break;
 	case DISCOVERY_TYPE_ISNS:
 		if (access(ISNS_CONFIG_DIR, F_OK) != 0) {
@@ -1409,7 +1415,7 @@ static int setup_disc_to_node_link(char *disc_portal, node_rec_t *rec)
 			 ISNS_CONFIG_DIR, rec->disc_address, rec->disc_port,
 			 rec->name, rec->tpgt, rec->conn[0].address,
 			 rec->conn[0].port, rec->iface.name,
-			 rec->transport_name);
+			 rec->iface.transport_name);
 		break;
 	case DISCOVERY_TYPE_SLP:
 	default:
@@ -1487,6 +1493,8 @@ int idbm_add_nodes(idbm_t *db, node_rec_t *newrec, discovery_rec_t *drec)
 			continue;
 
 		strcpy(newrec->iface.name, db->irec_iface[i].name);
+		strcpy(newrec->iface.transport_name,
+		       db->irec_iface[i].transport_name);
 		rc = idbm_add_node(db, newrec, drec);
 		if (rc)
 			return rc;
@@ -1539,7 +1547,7 @@ static void idbm_rm_disc_node_links(idbm_t *db, char *disc_dir)
 		rec->conn[0].port = atoi(port);
 		strncpy(rec->conn[0].address, address, NI_MAXHOST);
 		strncpy(rec->iface.name, iface, ISCSI_MAX_IFACE_LEN);
-		strncpy(rec->transport_name, driver,
+		strncpy(rec->iface.transport_name, driver,
 			ISCSI_TRANSPORT_NAME_MAXLEN);
 
 		if (idbm_delete_node(db, NULL, rec))

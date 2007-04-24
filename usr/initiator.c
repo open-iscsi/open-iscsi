@@ -1819,7 +1819,7 @@ session_login_task(node_rec_t *rec, queue_task_t *qtask)
 	iscsi_conn_t *conn;
 	iscsi_provider_t *provider;
 
-	provider = get_transport_by_name(rec->transport_name);
+	provider = get_transport_by_name(rec->iface.transport_name);
 	if (!provider)
 		return MGMT_IPC_ERR_TRANS_NOT_FOUND;
 	if (set_uspace_transport(provider))
@@ -1935,7 +1935,7 @@ iscsi_sync_session(node_rec_t *rec, queue_task_t *qtask, uint32_t sid)
 	iscsi_provider_t *provider;
 	int err;
 
-	provider = get_transport_by_name(rec->transport_name);
+	provider = get_transport_by_name(rec->iface.transport_name);
 	if (!provider)
 		return MGMT_IPC_ERR_TRANS_NOT_FOUND;
 	if (set_uspace_transport(provider))

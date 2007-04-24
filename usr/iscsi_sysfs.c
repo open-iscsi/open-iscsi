@@ -35,6 +35,7 @@
 #include "initiator.h"
 #include "transport.h"
 #include "version.h"
+#include "iscsi_sysfs.h"
 
 #define ISCSI_TRANSPORT_DIR	"/sys/class/iscsi_transport"
 #define ISCSI_SESSION_DIR	"/sys/class/iscsi_session"
@@ -420,8 +421,7 @@ int get_sessioninfo_by_sysfs_id(int *sid, char *targetname, char *addr,
 	return 0;
 }
 
-int sysfs_for_each_session(void *data, int *nr_found,
-		     int (* fn)(void *, char *, int, char *, int, int, char *))
+int sysfs_for_each_session(void *data, int *nr_found, sysfs_op_fn *fn)
 {
 	struct dirent **namelist;
 	int rc = 0, sid, port, tpgt, n, i;
@@ -740,7 +740,7 @@ pid_t __scan_host(int hostno, int async)
 /*
  * Scan a session from usersapce using sysfs
  */
-pid_t scan_host(iscsi_session_t *session, int async)
+pid_t scan_host(iscsi_session_t *session)
 {
 	return __scan_host(session->hostno, 1);
 }
