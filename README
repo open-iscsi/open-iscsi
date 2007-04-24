@@ -192,10 +192,6 @@ Usage: iscsiadm [OPTION]
                           perform specific DB operation [op] for specific
                           interface on host that will connect to portal on
 			  target. targetname, portal and interface are optional.
-			  However, you must pass in either none of them,
-			  just the targetname, or just the targetname and
-			  portal or just the targetname, portal and interface.
-			  Other combinations are not yet supported.
 
 			  HWaddress must be he formed as: XX:XX:XX:XX:XX:XX.
 
@@ -206,10 +202,10 @@ Usage: iscsiadm [OPTION]
 
 			  Print level can be 0 to 1.
 
-			   Rescan will perform a SCSI layer scan of the session
-			   to find new LUNs.
+			  Rescan will perform a SCSI layer scan of the session
+			  to find new LUNs.
 
-			   Stats prints the iSCSI stats for the session.
+			  Stats prints the iSCSI stats for the session.
   -m node --logoutall=[all,manual,automatic]
 			  Logout "all" the running sessions or just the ones
 			  with a node or conn startup value manual or automatic.
@@ -248,10 +244,12 @@ Usage: iscsiadm [OPTION]
 
 
     Node mode. In node mode you can specify which records you want to log
-    into by specifying the targetname, ip address, port and interface.
-    You must pass in either none of them, just the targetname, or just the
-    targetname and portal or just the targetname, portal and interface.
-    Other combinations are not supported.
+    into by specifying the targetname, ip address, port or interface
+    (if specifying the interface it must already be setup in the node db).
+    iscsiadm will search the node db, for records which match the values
+    you pass in, so if you pass in the targetname and interface, iscsiadm
+    will search for records with those values and operate on only them.
+    Passing in none of them will result in all node records being operated on.
 
     - iSCSI Login to all portals on every node/starget through each interface
 	set in the db:

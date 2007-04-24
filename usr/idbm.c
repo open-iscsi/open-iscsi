@@ -790,8 +790,8 @@ free_disc:
 }
 
 int idbm_for_each_iface(char *buf, char *targetname, char *ip, int port,
-			idbm_t *db, void *data,
-			int (* fn)(void *data, node_rec_t *rec))
+			idbm_t *db, void *data, idbm_node_op_fn *op_fn,
+			node_rec_t *match_rec, idbm_match_fn *match_fn)
 {
 	DIR *iface_dirfd;
 	struct dirent *iface_dent;
@@ -807,9 +807,12 @@ int idbm_for_each_iface(char *buf, char *targetname, char *ip, int port,
 
 	if (!S_ISDIR(statb.st_mode)) {
 		if (idbm_node_read(db, &rec, targetname, ip, port, "default"))
-			return found;
+			return 0;
 
-		fn(data, &rec);
+		if (match_rec && match_fn &&
+		   !match_fn(match_rec, targetname, ip, port, "default"))
+			return 0;
+		op_fn(data, &rec);
 		return 1;
 	}
 
@@ -827,7 +830,11 @@ int idbm_for_each_iface(char *buf, char *targetname, char *ip, int port,
 				   iface_dent->d_name))
 			continue;
 
-		fn(data, &rec);
+		if (match_rec && match_fn &&
+		    !match_fn(match_rec, targetname, ip, port,
+			      iface_dent->d_name))
+			continue;
+		op_fn(data, &rec);
 		found++;
 	}
 
@@ -839,7 +846,8 @@ int idbm_for_each_iface(char *buf, char *targetname, char *ip, int port,
  * The portal could be a file or dir with interfaces
  */
 int idbm_for_each_portal(char *buf, char *targetname, idbm_t *db, void *data,
-			 int (* fn)(void *data, node_rec_t *rec))
+			 idbm_node_op_fn *op_fn, node_rec_t *match_rec,
+			 idbm_match_fn *match_fn)
 {
 	DIR *portal_dirfd;
 	struct dirent *portal_dent;
@@ -865,15 +873,15 @@ int idbm_for_each_portal(char *buf, char *targetname, idbm_t *db, void *data,
 
 		found += idbm_for_each_iface(buf, targetname,
 					     portal_dent->d_name,
-					     atoi(tmp_port),
-					     db, data, fn);
+					     atoi(tmp_port), db, data, op_fn,
+					     match_rec, match_fn);
 	}
 	return found;
 }
 
 
-int idbm_for_each_node(idbm_t *db, void *data,
-		       int (* fn)(void *data, node_rec_t *rec))
+int idbm_for_each_node(idbm_t *db, void *data, idbm_node_op_fn *op_fn,
+			node_rec_t *match_rec, idbm_match_fn *match_fn)
 {
 	DIR *node_dirfd;
 	struct dirent *node_dent;
@@ -895,7 +903,8 @@ int idbm_for_each_node(idbm_t *db, void *data,
 
 		log_debug(5, "searching %s\n", node_dent->d_name);
 		found += idbm_for_each_portal(buf, node_dent->d_name,
-					      db, data, fn);
+					      db, data, op_fn, match_rec,
+					      match_fn);
 	}
 
 	closedir(node_dirfd);
