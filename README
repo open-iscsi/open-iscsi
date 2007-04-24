@@ -187,6 +187,8 @@ Usage: iscsiadm [OPTION]
 							[--login|--logout]
   -m node --targetname=[name] --portal=[ip:port] --interface=[HWaddress] \
 				--op=[op] [--name=[name] --value=[value]]
+  -m node --targetname=[name] --portal=[ip:port] --interface=[HWaddress] \
+				--print=[level]
                           perform specific DB operation [op] for specific
                           interface on host that will connect to portal on
 			  target. targetname, portal and interface are optional.
@@ -201,6 +203,8 @@ Usage: iscsiadm [OPTION]
                           [new], [delete], [update] or [show]. In case of
                           [update], you have to provide [name] and [value]
                           you wish to update
+
+			  Print level can be 0 to 1.
   -m node --logoutall=[all,manual,automatic]
 			  Logout "all" the running sessions or just the ones
 			  with a node or conn startup value manual or automatic.
@@ -210,7 +214,7 @@ Usage: iscsiadm [OPTION]
 			  with a node or conn startup value manual or automatic.
 			  Nodes marked as ONBOOT are skipped.
   -m session              display all active sessions and connections
-  -m session --sid=[sid] [--info | --rescan | --logout ]
+  -m session --sid=[sid] [ --print=level | --rescan | --logout ]
 				--op=[op] [--name=[name] --value=[value]]
                           perform operation for specific session with
                           session id sid. If no sid is given the operation
@@ -219,6 +223,8 @@ Usage: iscsiadm [OPTION]
 			  --logout and --op work like they do in node mode,
 			  but in session mode targetname and portal info is
 			  is not passed in.
+
+			  Print level can be 0 to 2.
 
 			  If no sid and no operation is given print out the
 			  running sessions.
@@ -561,12 +567,12 @@ To get information about the running sessions: including the session and
 device state, session ids (sid) for session mode, and some of the
 negioated parameters, run:
 
-	iscsiadm -m session -i
+	iscsiadm -m session -P 2
 
 If you are looking for something shorter like just the sid to node mapping
 run:
 
-	iscsiadm -m session
+	iscsiadm -m session -P 0
 
 This will print the list of running sessions with the format:
 

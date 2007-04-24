@@ -79,7 +79,6 @@ static struct option const long_options[] =
 	{"value", required_argument, NULL, 'v'},
 	{"sid", required_argument, NULL, 'r'},
 	{"rescan", no_argument, NULL, 'R'},
-	{"info", no_argument, NULL, 'i'},
 	{"print", no_argument, NULL, 'P'},
 	{"login", no_argument, NULL, 'l'},
 	{"loginall", required_argument, NULL, 'L'},
@@ -92,7 +91,7 @@ static struct option const long_options[] =
 	{"help", no_argument, NULL, 'h'},
 	{NULL, 0, NULL, 0},
 };
-static char *short_options = "RilVhm:p:P:T:I:U:L:d:r:n:v:o:sSt:u";
+static char *short_options = "RlVhm:p:P:T:I:U:L:d:r:n:v:o:sSt:u";
 
 static void usage(int status)
 {
@@ -105,7 +104,7 @@ iscsiadm -m discovery [ -dhV ] [ -t type -p ip:port [ -l ] ] | [ -p ip:port ] \
 [ -o operation ] [ -n name ] [ -v value ]\n\
 iscsiadm -m node [ -dhV ] [ -P printlevel ] [ -L all,manual,automatic ] [ -U all,manual,automatic ] [ -S ] [ [ -T targetname -p ip:port -I HWaddress ] [ -l | -u ] ] \
 [ [ -o  operation  ] [ -n name ] [ -v value ] [ -p ip:port ] ]\n\
-iscsiadm -m session [ -dhV ] [ -P  printlevel] [ -r sessionid | sysfsdir [ -i | -R | -u | -s ] [ -o operation ] [ -n name ] [ -v value ] ]\n");
+iscsiadm -m session [ -dhV ] [ -P  printlevel] [ -r sessionid | sysfsdir [ -R | -u | -s ] [ -o operation ] [ -n name ] [ -v value ] ]\n");
 	}
 	exit(status == 0 ? 0 : -1);
 }
@@ -536,8 +535,8 @@ static int print_node_tree(void *data, node_rec_t *rec)
 			       rec->conn[0].port);
 	}
 
-	printf("\t\tdriver: %s hwaddress: %s\n", rec->transport_name,
-		rec->iface.name);
+	printf("\t\tdriver: %s\n", rec->transport_name);
+	printf("\t\thwaddress: %s\n", rec->iface.name);
 
 	memcpy(last_rec, rec, sizeof(node_rec_t));
 	return 0;
@@ -610,174 +609,6 @@ config_init(void)
 		strcpy(config_file, rsp.u.config.var);
 	}
 
-	return 0;
-}
-
-static void print_scsi_device_info(int host_no, int target, int lun)
-{
-	char *blockdev, state[SCSI_MAX_STATE_VALUE];
-
-	printf("scsi%d Channel 00 Id %d Lun: %d\n", host_no, target, lun);
-	blockdev = get_blockdev_from_lun(host_no, target, lun);
-	if (blockdev) {
-		printf("Attached scsi disk %s\t\t", blockdev);
-		free(blockdev);
-
-		if (!get_device_state(state, host_no, target, lun))
-			printf("State: %s\n", state);
-		else
-			printf("State: Unknown\n");
-	}
-}
-
-static int print_session_info(void *data, char *targetname, int tpgt,
-			      char *address, int port, int sid, char *iface)
-{
-	int host_no = -1, err = 0;
-	iscsi_provider_t *provider;
-	iscsiadm_req_t req;
-	iscsiadm_rsp_t rsp;
-	struct iscsi_session_operational_config session_conf;
-	struct iscsi_conn_operational_config conn_conf;
-	char state[SCSI_MAX_STATE_VALUE];
-        static char *conn_state[] = {
-			"FREE",
-			"TRANSPORT WAIT",
-			"IN LOGIN",
-			"LOGGED IN",
-			"IN LOGOUT",
-			"LOGOUT REQUESTED",
-			"CLEANUP WAIT",
-        };
-	static char *session_state[] = {
-			"NO CHANGE",
-			"CLEANUP",
-			"REPOEN",
-			"REDIRECT",
-	};
-
-	provider = get_transport_by_sid(sid);
-	/* TODO: how to pipe modinfo version info here */
-	printf("************************************\n");
-	printf("Session (sid %d) using module %s\n", sid,
-		provider ? provider->name : "NA");
-	printf("HWaddr: %s\n", iface);
-	printf("************************************\n");
-	printf("TargetName: %s\n", targetname);
-	printf("Portal Group Tag: %d\n", tpgt);
-	/*
-	 * TODO print portal we are connected to and the one
-	 * we were redirected from
-	 */
-	if (strchr(address, '.'))
-		printf("Network Portal: %s:%d\n", address, port);
-	else
-		printf("Network Portal: [%s]:%d\n", address, port);
-
-	get_negotiated_session_conf(sid, &session_conf);
-	get_negotiated_conn_conf(sid, &conn_conf);
-
-	/*
-	 * get iscsid's conn and session state. This may be slightly different
-	 * the kernel's view.
-	 *
-	 * TODO: get kernel state and qla4xxx info
-	 */
-	memset(&req, 0, sizeof(iscsiadm_req_t));
-	req.command = MGMT_IPC_SESSION_INFO;
-	req.u.session.sid = sid;
-
-	if (!do_iscsid(&ipc_fd, &req, &rsp)) {
-		/*
-		 * for drivers like qla4xxx, iscsid does not display anything
-		 * here since it does not know about it.
-		 */
-		if (rsp.u.session_state.conn_state < 0 ||
-		    rsp.u.session_state.conn_state > STATE_CLEANUP_WAIT)
-			printf("Invalid iSCSI Connection State\n");
-		else
-			printf("iSCSI Connection State: %s\n",
-				conn_state[rsp.u.session_state.conn_state]);
-
-		if (rsp.u.session_state.session_state < 0 ||
-		    rsp.u.session_state.session_state > R_STAGE_SESSION_REDIRECT)
-			printf("Invalid iscsid Session State\n");
-		else
-			printf("Internal iscsid Session State: %s\n",
-			      session_state[rsp.u.session_state.session_state]);
-	}
-
-	printf("\n");
-	printf("************************\n");
-	printf("Negotiated iSCSI params:\n");
-	printf("************************\n");
-
-	if (is_valid_operational_value(conn_conf.HeaderDigest))
-		printf("HeaderDigest: %s\n",
-			conn_conf.HeaderDigest ? "CRC32C" : "None");
-	if (is_valid_operational_value(conn_conf.DataDigest))
-		printf("DataDigest: %s\n",
-			conn_conf.DataDigest ? "CRC32C" : "None");
-	if (is_valid_operational_value(conn_conf.MaxRecvDataSegmentLength))
-		printf("MaxRecvDataSegmentLength: %d\n",
-			conn_conf.MaxRecvDataSegmentLength);
-	if (is_valid_operational_value(conn_conf.MaxXmitDataSegmentLength))
-		printf("MaxXmitDataSegmentLength: %d\n",
-			conn_conf.MaxXmitDataSegmentLength);
-	if (is_valid_operational_value(session_conf.FirstBurstLength))
-		printf("FirstBurstLength: %d\n",
-			session_conf.FirstBurstLength);
-	if (is_valid_operational_value(session_conf.MaxBurstLength))
-		printf("MaxBurstLength: %d\n",
-			session_conf.MaxBurstLength);
-	if (is_valid_operational_value(session_conf.ImmediateData))
-		printf("ImmediateData: %s\n",
-			session_conf.ImmediateData ? "Yes" : "No");
-	if (is_valid_operational_value(session_conf.InitialR2T))
-		printf("InitialR2T: %s\n",
-			session_conf.InitialR2T ? "Yes" : "No");
-	if (is_valid_operational_value(session_conf.MaxOutstandingR2T))
-		printf("MaxOutstandingR2T: %d\n",
-			session_conf.MaxOutstandingR2T);
-	printf("\n");
-
-	printf("************************\n");
-	printf("Attached SCSI devices:\n");
-	printf("************************\n");
-
-	host_no = get_host_no_from_sid(sid, &err);
-	if (err) {
-		printf("Host No: Unknown\n");
-		return err;
-	}
-	printf("Host Number: %d\t", host_no);
-	if (!get_host_state(state, host_no))
-		printf("State: %s\n", state);
-	else
-		printf("State: Unknown\n");
-	printf("\n");
-
-	sysfs_for_each_device(host_no, sid, print_scsi_device_info);
-	printf("\n");
-
-	return 0;
-}
-
-static int print_sessions_info(void)
-{
-	char version[20];
-	int num_found = 0, err = 0;
-
-	if (get_iscsi_kernel_version(version))
-		printf("iSCSI Transport Class version %s\n",
-			version);
-	printf("%s version %s\n", program_name, ISCSI_VERSION_STR);
-	err = sysfs_for_each_session(NULL, &num_found, print_session_info);
-	if (err) {
-		log_error("Can not get list of active sessions (%d)", err);
-		return err;
-	} else if (!num_found)
-		log_error("no active sessions.");
 	return 0;
 }
 
@@ -863,11 +694,139 @@ fail:
 	return -ENOMEM;
 }
 
-static void print_sessions_tree(struct list_head *list)
+static int print_iscsi_state(int sid)
+{
+	iscsiadm_req_t req;
+	iscsiadm_rsp_t rsp;
+	char *state = NULL;
+	static char *conn_state[] = {
+		"FREE",
+		"TRANSPORT WAIT",
+		"IN LOGIN",
+		"LOGGED IN",
+		"IN LOGOUT",
+		"LOGOUT REQUESTED",
+		"CLEANUP WAIT",
+	};
+	static char *session_state[] = {
+		"NO CHANGE",
+		"CLEANUP",
+		"REPOEN",
+		"REDIRECT",
+	};
+
+	memset(&req, 0, sizeof(iscsiadm_req_t));
+	req.command = MGMT_IPC_SESSION_INFO;
+	req.u.session.sid = sid;
+
+	if (do_iscsid(&ipc_fd, &req, &rsp))
+		return ENODEV;
+
+	/*
+	 * for drivers like qla4xxx, iscsid does not display
+	 * anything here since it does not know about it.
+	 */
+	if (rsp.u.session_state.conn_state >= 0 &&
+	    rsp.u.session_state.conn_state <= STATE_CLEANUP_WAIT)
+		state = conn_state[rsp.u.session_state.conn_state];
+	printf("\t\tiSCSI Connection State: %s\n", state ? state : "Unknown");
+	state = NULL;
+
+	if (rsp.u.session_state.session_state >= 0 &&
+	   rsp.u.session_state.session_state <= R_STAGE_SESSION_REDIRECT)
+		state = session_state[rsp.u.session_state.session_state];
+	printf("\t\tInternal iscsid Session State: %s\n",
+	       state ? state : "Unknown");
+	return 0;
+}
+
+static void print_iscsi_params(int sid)
+{
+	struct iscsi_session_operational_config session_conf;
+	struct iscsi_conn_operational_config conn_conf;
+
+	get_negotiated_session_conf(sid, &session_conf);
+	get_negotiated_conn_conf(sid, &conn_conf);
+
+	printf("\t\t************************\n");
+	printf("\t\tNegotiated iSCSI params:\n");
+	printf("\t\t************************\n");
+
+	if (is_valid_operational_value(conn_conf.HeaderDigest))
+		printf("\t\tHeaderDigest: %s\n",
+			conn_conf.HeaderDigest ? "CRC32C" : "None");
+	if (is_valid_operational_value(conn_conf.DataDigest))
+		printf("\t\tDataDigest: %s\n",
+			conn_conf.DataDigest ? "CRC32C" : "None");
+	if (is_valid_operational_value(conn_conf.MaxRecvDataSegmentLength))
+		printf("\t\tMaxRecvDataSegmentLength: %d\n",
+			conn_conf.MaxRecvDataSegmentLength);
+	if (is_valid_operational_value(conn_conf.MaxXmitDataSegmentLength))
+		printf("\t\tMaxXmitDataSegmentLength: %d\n",
+			conn_conf.MaxXmitDataSegmentLength);
+	if (is_valid_operational_value(session_conf.FirstBurstLength))
+		printf("\t\tFirstBurstLength: %d\n",
+			session_conf.FirstBurstLength);
+	if (is_valid_operational_value(session_conf.MaxBurstLength))
+		printf("\t\tMaxBurstLength: %d\n",
+			session_conf.MaxBurstLength);
+	if (is_valid_operational_value(session_conf.ImmediateData))
+		printf("\t\tImmediateData: %s\n",
+			session_conf.ImmediateData ? "Yes" : "No");
+	if (is_valid_operational_value(session_conf.InitialR2T))
+		printf("\t\tInitialR2T: %s\n",
+			session_conf.InitialR2T ? "Yes" : "No");
+	if (is_valid_operational_value(session_conf.MaxOutstandingR2T))
+		printf("\t\tMaxOutstandingR2T: %d\n",
+			session_conf.MaxOutstandingR2T);
+}
+
+static void print_scsi_device_info(int host_no, int target, int lun)
+{
+	char *blockdev, state[SCSI_MAX_STATE_VALUE];
+
+	printf("\t\tscsi%d Channel 00 Id %d Lun: %d\n", host_no, target, lun);
+	blockdev = get_blockdev_from_lun(host_no, target, lun);
+	if (blockdev) {
+		printf("\t\t\tAttached scsi disk %s\t\t", blockdev);
+		free(blockdev);
+
+		if (!get_device_state(state, host_no, target, lun))
+			printf("State: %s\n", state);
+		else
+			printf("State: Unknown\n");
+	}
+}
+
+static int print_scsi_state(int sid)
+{
+	int host_no = -1, err = 0;
+	char state[SCSI_MAX_STATE_VALUE];
+
+	printf("\t\t************************\n");
+	printf("\t\tAttached SCSI devices:\n");
+	printf("\t\t************************\n");
+
+	host_no = get_host_no_from_sid(sid, &err);
+	if (err) {
+		printf("\t\tHost No: Unknown\n");
+		return err;
+	}
+	printf("\t\tHost Number: %d\t", host_no);
+	if (!get_host_state(state, host_no))
+		printf("State: %s\n", state);
+	else
+		printf("State: Unknown\n");
+
+	sysfs_for_each_device(host_no, sid, print_scsi_device_info);
+	return 0;
+}
+
+static void print_sessions_tree(struct list_head *list, int level)
 {
 	struct session_list_head *curr, *prev = NULL, *tmp;
 	iscsi_provider_t *provider;
-	
+
 	list_for_each_entry(curr, list, list) {
 		if (!prev || strcmp(prev->targetname, curr->targetname)) {
 			printf("target: %s\n", curr->targetname);
@@ -879,9 +838,20 @@ static void print_sessions_tree(struct list_head *list)
 			printf("\tportal: %s:%d\n", curr->address, curr->port);
 
 		provider = get_transport_by_sid(curr->sid);
-		printf("\t\tdriver: %s hwaddress: %s sid: %d\n",
-		      provider ? provider->name : "NA", curr->iface, curr->sid);
+		printf("\t\ttpgt: %d\n", curr->tpgt);
+		printf("\t\tdriver: %s\n", provider ? provider->name : "NA");
+		printf("\t\thwaddress: %s\n", curr->iface);
+		printf("\t\tsid: %d\n", curr->sid);
+		print_iscsi_state(curr->sid);
 
+		if (level < 2)
+			goto next;
+		print_iscsi_params(curr->sid);
+
+		if (level < 3)
+			goto next;
+		print_scsi_state(curr->sid);
+next:
 		prev = curr;
 	}
 
@@ -899,6 +869,7 @@ static int print_sessions(int info_level)
 {
 	struct list_head list;
 	int num_found = 0, err = 0;
+	char version[20];
 
 	switch (info_level) {
 	case 0:
@@ -906,6 +877,15 @@ static int print_sessions(int info_level)
 		err = sysfs_for_each_session(NULL, &num_found,
 					     print_session);
 		break;
+	case 2:
+	case 3:
+		if (!get_iscsi_kernel_version(version)) {
+			printf("iSCSI Transport Class version %s\n",
+				version);
+			printf("%s version %s\n", program_name,
+			      ISCSI_VERSION_STR);
+		}
+		/* fall through */
 	case 1:
 		INIT_LIST_HEAD(&list);
 		
@@ -914,10 +894,10 @@ static int print_sessions(int info_level)
 		if (err || !num_found)
 			break;
 
-		print_sessions_tree(&list);
+		print_sessions_tree(&list, info_level);
 		break;
 	default:
-		log_error("Invalid info level %d. Try 0 or 1.", info_level);
+		log_error("Invalid info level %d. Try 0 - 2.", info_level);
 		return EINVAL;
 	}
 
@@ -1255,7 +1235,7 @@ main(int argc, char **argv)
 {
 	char *ip = NULL, *name = NULL, *value = NULL, *iface = NULL;
 	char *targetname = NULL, *group_session_mgmt_mode = NULL;
-	int ch, longindex, mode=-1, port=-1, do_login=0, do_rescan=0, do_info=0;
+	int ch, longindex, mode=-1, port=-1, do_login=0, do_rescan=0;
 	int rc=0, sid=-1, op=-1, type=-1, do_logout=0, do_stats=0, do_show=0;
 	int do_login_all=0, do_logout_all=0, info_level=-1;
 	idbm_t *db;
@@ -1311,9 +1291,6 @@ main(int argc, char **argv)
 			break;
 		case 'R':
 			do_rescan = 1;
-			break;
-		case 'i':
-			do_info = 1;
 			break;
 		case 'P':
 			info_level = atoi(optarg);
@@ -1559,13 +1536,6 @@ main(int argc, char **argv)
 				goto free_iface;
 			}
 
-			if (do_info) {
-				rc = print_session_info(NULL, targetname,
-							tpgt, ip, port, sid,
-							iface);
-				goto free_address;
-			}
-
 			/* drop down to node ops */
 			rc = exec_node_op(db, op, do_login, do_logout,
 					  do_show, info_level, targetname, ip,
@@ -1592,11 +1562,6 @@ free_target:
 
 			if (do_rescan) {
 				rc = rescan_sessions();
-				goto out;
-			}
-
-			if (do_info) {
-				rc = print_sessions_info();
 				goto out;
 			}
 
