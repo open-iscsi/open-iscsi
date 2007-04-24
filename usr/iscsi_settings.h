@@ -9,6 +9,10 @@
 #define DEF_NOOP_OUT_TIMEO	15
 #define DEF_REPLACEMENT_TIMEO	120
 
+/* q depths */
+#define CMDS_MAX	128
+#define QUEUE_DEPTH	32
+
 /* data and segment lengths in bytes */
 #define DEF_INI_FIRST_BURST_LEN		262144
 #define DEF_INI_MAX_BURST_LEN		16776192

@@ -305,6 +305,7 @@ __kipc_call(void *iov_base, int iov_len)
 
 static int
 kcreate_session(uint64_t transport_handle, uint32_t initial_cmdsn,
+		uint16_t cmds_max, uint16_t qdepth,
 		uint32_t *out_sid, uint32_t *out_hostno)
 {
 	int rc;
@@ -317,6 +318,8 @@ kcreate_session(uint64_t transport_handle, uint32_t initial_cmdsn,
 	ev.type = ISCSI_UEVENT_CREATE_SESSION;
 	ev.transport_handle = transport_handle;
 	ev.u.c_session.initial_cmdsn = initial_cmdsn;
+	ev.u.c_session.cmds_max = cmds_max;
+	ev.u.c_session.queue_depth = qdepth;
 
 	if ((rc = __kipc_call(&ev, sizeof(ev))) < 0) {
 		return rc;

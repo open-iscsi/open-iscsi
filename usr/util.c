@@ -165,6 +165,8 @@ void idbm_node_setup_defaults(node_rec_t *rec)
 	rec->dbversion = IDBM_VERSION;
 	rec->tpgt = PORTAL_GROUP_TAG_UNKNOWN;
 	rec->session.initial_cmdsn = 0;
+	rec->session.cmds_max = CMDS_MAX;
+	rec->session.queue_depth = QUEUE_DEPTH;
 	rec->session.reopen_max = 32;
 	rec->session.auth.authmethod = 0;
 	rec->session.auth.password_length = 0;

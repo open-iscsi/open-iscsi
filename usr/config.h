@@ -188,6 +188,8 @@ typedef struct conn_rec {
 typedef struct session_rec {
 	int					initial_cmdsn;
 	int					reopen_max;
+	int					cmds_max;
+	int					queue_depth;
 	struct iscsi_auth_config		auth;
 	struct iscsi_session_timeout_config	timeo;
 	struct iscsi_error_timeout_config	err_timeo;

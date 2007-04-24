@@ -216,6 +216,10 @@ idbm_recinfo_node(node_rec_t *r, recinfo_t *ri)
 	__recinfo_str("iface.name", ri, r, iface.name, IDBM_SHOW, num);
 	__recinfo_int("node.session.initial_cmdsn", ri, r,
 		      session.initial_cmdsn, IDBM_SHOW, num);
+	__recinfo_int("node.session.cmds_max", ri, r,
+		      session.cmds_max, IDBM_SHOW, num);
+	__recinfo_int("node.session.queue_depth", ri, r,
+		       session.queue_depth, IDBM_SHOW, num);
 	__recinfo_int_o2("node.session.auth.authmethod", ri, r,
 		session.auth.authmethod, IDBM_SHOW, "None", "CHAP", num);
 	__recinfo_str("node.session.auth.username", ri, r,

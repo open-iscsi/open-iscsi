@@ -184,11 +184,11 @@ void get_auth_conf(int sid, struct iscsi_auth_config *conf)
 	get_session_param(sid, "username", conf->username, "%s\n");
 	get_session_param(sid, "username_in", conf->username_in, "%s\n");
 	get_session_param(sid, "password", conf->password, "%s\n");
-	if (strlen(conf->password))
-		conf->password_length = strlen(conf->password);
+	if (strlen((char *)conf->password))
+		conf->password_length = strlen((char *)conf->password);
 	get_session_param(sid, "password_in", conf->password_in, "%s\n");
-	if (strlen(conf->password_in))
-		conf->password_in_length = strlen(conf->password_in);
+	if (strlen((char *)conf->password_in))
+		conf->password_in_length = strlen((char *)conf->password_in);
 }
 
 /* called must check for -1=invalid value */

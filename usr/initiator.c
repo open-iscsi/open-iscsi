@@ -1449,6 +1449,8 @@ __session_conn_poll(queue_item_t *item)
 			if (conn->id == 0 &&
 			    ipc->create_session(session->transport_handle,
 					session->nrec.session.initial_cmdsn,
+					session->nrec.session.cmds_max,
+					session->nrec.session.queue_depth,
 					&session->id, &session->hostno)) {
 				log_error("can't create session (%d)", errno);
 				err = MGMT_IPC_ERR_INTERNAL;
