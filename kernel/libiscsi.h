@@ -150,18 +150,11 @@ struct iscsi_conn {
 	struct iscsi_cmd_task	*ctask;		/* xmit ctask in progress */
 
 	/* xmit */
-	struct kfifo		*immqueue;	/* immediate xmit queue */
 	struct kfifo		*mgmtqueue;	/* mgmt (control) xmit queue */
 	struct list_head	mgmt_run_list;	/* list of control tasks */
 	struct list_head	xmitqueue;	/* data-path cmd queue */
 	struct list_head	run_list;	/* list of cmds in progress */
 	struct work_struct	xmitwork;	/* per-conn. xmit workqueue */
-	/*
-	 * serializes connection xmit, access to kfifos:
-	 * xmitqueue, immqueue, mgmtqueue
-	 */
-	struct mutex		xmitmutex;
-
 	unsigned long		suspend_tx;	/* suspend Tx */
 	unsigned long		suspend_rx;	/* suspend Rx */
 
