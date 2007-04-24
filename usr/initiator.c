@@ -904,19 +904,14 @@ iscsi_login_redirect(iscsi_conn_t *conn)
 }
 
 static void
-print_param_value(enum iscsi_param param, void *value)
+print_param_value(enum iscsi_param param, void *value, int type)
 {
 	log_debug(3, "set operational parameter %d to:", param);
 
-	switch (param) {
-	case ISCSI_PARAM_TARGET_NAME:
-	case ISCSI_PARAM_PERSISTENT_ADDRESS:
-		log_debug(3, "%s", (char *)value);
-		break;
-	default:
+	if (type == ISCSI_STRING)
+		log_debug(3, "%s", value ? (char *)value : "NULL");
+	else
 		log_debug(3, "%u", *(uint32_t *)value);
-		break;
-	}
 }
 
 static void
@@ -1132,7 +1127,8 @@ setup_full_feature_phase(iscsi_conn_t *conn)
 			return;
 		}
 
-		print_param_value(conntbl[i].param, conntbl[i].value);
+		print_param_value(conntbl[i].param, conntbl[i].value,
+				  conntbl[i].type);
 	}
 
 	for (i = 0; i < MAX_HOST_PARAMS; i++) {
@@ -1151,7 +1147,8 @@ setup_full_feature_phase(iscsi_conn_t *conn)
 			return;
 		}
 
-		print_param_value(hosttbl[i].param, hosttbl[i].value);
+		print_param_value(conntbl[i].param, conntbl[i].value,
+				  conntbl[i].type);
 	}
 
 	if (ipc->start_conn(session->transport_handle, session->id, conn->id,
