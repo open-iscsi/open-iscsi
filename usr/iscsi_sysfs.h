@@ -31,11 +31,12 @@ extern int get_iscsi_kernel_version(char *buf);
 extern void check_class_version(void);
 extern int get_sessioninfo_by_sysfs_id(int *sid, char *targetname,
 				      char *addr, int *port, int *tpgt,
-				      char *sys_session);
+				      char *iface, char *sys_session);
 extern int read_sysfs_file(char *filename, void *value, char *format);
 extern int sysfs_for_each_session(void *data, int *nr_found,
-			int (* fn)(void *, char *, int, char *, int, int));
+		int (* fn)(void *, char *, int, char *, int, int, char *));
 extern uint32_t get_host_no_from_sid(uint32_t sid, int *err);
+extern int get_netdev_from_mac(char *mac, char *dev);
 extern char *get_blockdev_from_lun(int hostno, int target, int sid);
 extern int set_exp_statsn(struct iscsi_conn *conn);
 extern void get_negotiated_session_conf(int sid,

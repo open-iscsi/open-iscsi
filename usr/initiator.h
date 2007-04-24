@@ -21,6 +21,7 @@
 #define INITIATOR_H
 
 #include <stdint.h>
+#include <net/if.h>
 
 #include "types.h"
 #include "iscsi_proto.h"
@@ -122,6 +123,7 @@ typedef struct iscsi_conn {
 	struct queue_task *logout_qtask;
 	char data[ISCSI_DEF_MAX_RECV_SEG_LEN];
 	char host[NI_MAXHOST];	/* scratch */
+	char dev[IFNAMSIZ + 1];
 	iscsi_conn_state_e state;
 	actor_t connect_timer;
 	actor_t send_pdu_timer;

@@ -502,6 +502,44 @@ err:
 }
 
 static int
+kset_host_param(uint64_t transport_handle, uint32_t host_no,
+		enum iscsi_host_param param, void *value, int type)
+{
+	struct iscsi_uevent *ev;
+	char *param_str;
+	int rc, len;
+
+	log_debug(7, "in %s", __FUNCTION__);
+
+	memset(setparam_buf, 0, NLM_SETPARAM_DEFAULT_MAX);
+	ev = (struct iscsi_uevent *)setparam_buf;
+	ev->type = ISCSI_UEVENT_SET_HOST_PARAM;
+	ev->transport_handle = transport_handle;
+	ev->u.set_host_param.host_no = host_no;
+	ev->u.set_host_param.param = param;
+
+	param_str = setparam_buf + sizeof(*ev);
+	switch (type) {
+	case ISCSI_INT:
+		sprintf(param_str, "%d", *((int *)value));
+		break;
+	case ISCSI_STRING:
+		sprintf(param_str, "%s", (char *)value);
+		break;
+	default:
+		log_error("invalid type %d\n", type);
+		return -EINVAL;
+	}
+	ev->u.set_host_param.len = len = strlen(param_str) + 1;
+
+	if ((rc = __kipc_call(ev, sizeof(*ev) + len)) < 0) {
+		return rc;
+	}
+
+	return 0;
+}
+
+static int
 kset_param(uint64_t transport_handle, uint32_t sid, uint32_t cid,
 	   enum iscsi_param param, void *value, int type)
 {
@@ -943,6 +981,7 @@ struct iscsi_ipc nl_ipc = {
 	.destroy_conn           = kdestroy_conn,
 	.bind_conn              = kbind_conn,
 	.set_param              = kset_param,
+	.set_host_param		= kset_host_param,
 	.get_param              = NULL,
 	.start_conn             = kstart_conn,
 	.stop_conn              = kstop_conn,

@@ -31,7 +31,7 @@ struct iscsi_uspace_transport iscsi_tcp = {
 	.rdma		= 0,
 	.ep_connect	= iscsi_io_tcp_connect,
 	.ep_poll	= iscsi_io_tcp_poll,
-	.ep_disconnect	= iscsi_io_tcp_disconnect
+	.ep_disconnect	= iscsi_io_tcp_disconnect,
 };
 
 struct iscsi_uspace_transport iscsi_iser = {
@@ -39,7 +39,7 @@ struct iscsi_uspace_transport iscsi_iser = {
 	.rdma		= 1,
 	.ep_connect	= ktransport_ep_connect,
 	.ep_poll	= ktransport_ep_poll,
-	.ep_disconnect	= ktransport_ep_disconnect
+	.ep_disconnect	= ktransport_ep_disconnect,
 };
 
 struct iscsi_uspace_transport *iscsi_utransports[] = {

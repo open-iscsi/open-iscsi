@@ -35,6 +35,7 @@
 #include "iscsi_proto.h"
 #include "initiator.h"
 #include "iscsi_ipc.h"
+#include "iscsi_sysfs.h"
 #include "log.h"
 
 #define LOG_CONN_CLOSED(conn) \
@@ -90,6 +91,28 @@ iscsi_io_tcp_connect(iscsi_conn_t *conn, int non_blocking)
 	if (conn->socket_fd < 0) {
 		log_error("cannot create TCP socket");
 		return -1;
+	}
+
+	if (conn->session &&
+	    strcmp(conn->session->nrec.iface.name, "default") &&
+	    get_netdev_from_mac(conn->session->nrec.iface.name, conn->dev)) {
+		log_error("Cannot match %s to net/scsi interface.\n",
+			  conn->session->nrec.iface.name);
+                return -1;
+	}
+
+	if (strlen(conn->dev)) {
+		struct ifreq ifr;
+
+		memset(&ifr, 0, sizeof(ifr));
+		strncpy(ifr.ifr_name, conn->dev, IFNAMSIZ);
+
+		if (setsockopt(conn->socket_fd, SOL_SOCKET, SO_BINDTODEVICE,
+			      conn->dev, strlen(conn->dev) + 1) < 0) {
+			log_error("Could not bind connection %d to %s\n",
+				  conn->id, conn->dev);
+			return -1;
+		}
 	}
 
 	onearg = 1;

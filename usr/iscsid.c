@@ -93,33 +93,25 @@ Open-iSCSI initiator daemon.\n\
 }
 
 static int sync_session(void *data, char *targetname, int tpgt, char *address,
-			int port, int sid)
+			int port, int sid, char *iface)
 {
 	idbm_t *db = data;
 	node_rec_t rec;
 	int fd = -1;
 	iscsiadm_req_t req;
 	iscsiadm_rsp_t rsp;
-	iscsi_provider_t *p;
 
-	log_debug(7, "sync session [%d][%s,%s.%d]\n", sid, targetname, address,
-		  port);
+	log_debug(7, "sync session [%d][%s,%s.%d][%s]\n", sid, targetname,
+		  address, port, iface);
 
-	p = get_transport_by_sid(sid);
-	if (!p)
-		return 0;
-
-	if (idbm_node_read(db, &rec, targetname, address, port)) {
+	if (idbm_node_read(db, &rec, targetname, address, port, iface)) {
 		log_warning("could not read data for [%s,%s.%d]\n",
 			    targetname, address, port);
 		return 0;
 	}
 
-	/*
-	 * for now skip qlogic and other HW and offload driver that
-	 * that store their data somewhere else
-	 */
-	if (strcmp(p->name, rec.transport_name))
+        if (!iscsi_match_session(&rec, targetname, tpgt, address, port,
+                                sid, iface))
 		return 0;
 
 	memset(&req, 0, sizeof(req));

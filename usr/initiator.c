@@ -943,27 +943,38 @@ setup_full_feature_phase(iscsi_conn_t *conn)
 	iscsi_login_context_t *c = &conn->login_context;
 	int i, rc;
 	uint32_t one = 1, zero = 0;
+	struct hostparam {
+		int param;
+		int type;
+		void *value;
+	} hosttbl[ISCSI_HOST_PARAM_HWADDRESS + 1] = {
+		{
+		.param = ISCSI_PARAM_MAX_RECV_DLENGTH,
+		.value = &session->nrec.iface.name,
+		.type = ISCSI_STRING,
+		},
+	};
 	struct connparam {
 		int param;
 		int type;
 		void *value;
-		int conn_only; } conntbl[ISCSI_PARAM_SESS_RECOVERY_TMO + 1] = {
-
+		int conn_only;
+	} conntbl[ISCSI_PARAM_SESS_RECOVERY_TMO + 1] = {
 		{
 		.param = ISCSI_PARAM_MAX_RECV_DLENGTH,
 		.value = &conn->max_recv_dlength,
-		.type = 0,
-		.conn_only = ISCSI_INT,
+		.type = ISCSI_INT,
+		.conn_only = 0,
 		}, {
 		.param = ISCSI_PARAM_MAX_XMIT_DLENGTH,
 		.value = &conn->max_xmit_dlength,
-		.type = 0,
-		.conn_only = ISCSI_INT,
+		.type = ISCSI_INT,
+		.conn_only = 0,
 		}, {
 		.param = ISCSI_PARAM_HDRDGST_EN,
 		.value = &conn->hdrdgst_en,
-		.type = 0,
-		.conn_only = ISCSI_INT,
+		.type = ISCSI_INT,
+		.conn_only = 0,
 		}, {
 		.param = ISCSI_PARAM_DATADGST_EN,
 		.value = &conn->datadgst_en,
@@ -1096,6 +1107,25 @@ setup_full_feature_phase(iscsi_conn_t *conn)
 		}
 
 		print_param_value(conntbl[i].param, conntbl[i].value);
+	}
+
+	for (i = 0; i < ISCSI_HOST_PARAM_HWADDRESS + 1; i++) {
+		rc = ipc->set_host_param(session->transport_handle,
+					 session->hostno, hosttbl[i].param,
+					 hosttbl[i].value, hosttbl[i].type);
+		/* 2.6.20 and below returns EINVAL */
+		if (rc && rc != -ENOSYS && rc != -EINVAL) {
+			log_error("can't set operational parameter %d for "
+				  "host %d, retcode %d (%d)",
+				  conntbl[i].param, session->hostno,
+				  rc, errno);
+
+			__session_conn_shutdown(conn, c->qtask,
+					       MGMT_IPC_ERR_LOGIN_FAILURE);
+			return;
+		}
+
+		print_param_value(hosttbl[i].param, hosttbl[i].value);
 	}
 
 	if (ipc->start_conn(session->transport_handle, session->id, conn->id,
@@ -1685,29 +1715,6 @@ __session_mainloop(void *data)
 	session_put(session);
 }
 
-static int match_session(void *data, char *targetname, int tpgt, char *address,
-			 int port, int sid)
-{
-	node_rec_t *rec = data;
-	iscsi_provider_t *p;
-
-	log_debug(6, "looking for session [%d][%s,%s,%d]", sid,
-		  rec->name, rec->conn[0].address, rec->conn[0].port);
-
-	p = get_transport_by_sid(sid);
-	if (!p)
-		return 0;
-
-	if (!strcmp(rec->transport_name, p->name) &&
-	    !strcmp(rec->name, targetname) &&
-	    !strcmp(rec->conn[0].address, address) &&
-	    rec->conn[0].port == port)
-		return 1;
-
-	/* keep on looking */
-	return 0;
-}
-
 iscsi_session_t*
 session_find_by_sid(int sid)
 {
@@ -1748,10 +1755,10 @@ session_find_by_rec(node_rec_t *rec)
 		while (sitem != &p->sessions) {
 			session = (iscsi_session_t *)sitem;
 
-			if (match_session(rec, session->nrec.name,
-					  -1, session->nrec.conn[0].address,
-					  session->nrec.conn[0].port,
-					  session->id))
+			if (iscsi_match_session(rec, session->nrec.name,
+					 -1, session->nrec.conn[0].address,
+					 session->nrec.conn[0].port,
+					 session->id, session->nrec.iface.name))
 				return session;
 
 			sitem = sitem->q_forw;
@@ -1773,7 +1780,7 @@ int session_is_running(node_rec_t *rec)
 	if (session_find_by_rec(rec))
 		return 1;
 
-	if (sysfs_for_each_session(rec, &nr_found, match_session))
+	if (sysfs_for_each_session(rec, &nr_found, iscsi_match_session))
 		return 1;
 
 	return 0;
@@ -1786,9 +1793,6 @@ session_login_task(node_rec_t *rec, queue_task_t *qtask)
 	iscsi_session_t *session;
 	iscsi_conn_t *conn;
 	iscsi_provider_t *provider;
-
-	if (!rec->active_conn)
-		return MGMT_IPC_ERR_INVAL;
 
 	provider = get_transport_by_name(rec->transport_name);
 	if (!provider)

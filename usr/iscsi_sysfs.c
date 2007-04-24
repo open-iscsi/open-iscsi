@@ -36,9 +36,11 @@
 #include "transport.h"
 #include "version.h"
 
-#define ISCSI_TRANSPORT_DIR "/sys/class/iscsi_transport"
-#define ISCSI_SESSION_DIR "/sys/class/iscsi_session"
-#define ISCSI_CONN_DIR "/sys/class/iscsi_connection"
+#define ISCSI_TRANSPORT_DIR	"/sys/class/iscsi_transport"
+#define ISCSI_SESSION_DIR	"/sys/class/iscsi_session"
+#define ISCSI_CONN_DIR		"/sys/class/iscsi_connection"
+#define ISCSI_HOST_DIR		"/sys/class/iscsi_host"
+#define NETDEV_DIR		"/sys/class/net"
 
 #define ISCSI_MAX_SYSFS_BUFFER NI_MAXHOST
 
@@ -211,10 +213,107 @@ void get_negotiated_session_conf(int sid,
 				     &conf->MaxOutstandingR2T);
 }
 
+uint32_t get_host_no_from_sid(uint32_t sid, int *err)
+{
+	char buf[PATH_MAX], path[PATH_MAX], *tmp;
+	uint32_t host_no;
+
+	*err = 0;
+
+	memset(buf, 0, PATH_MAX);
+	memset(path, 0, PATH_MAX);
+	sprintf(path, ISCSI_SESSION_DIR"/session%d/device", sid);
+	if (readlink(path, buf, PATH_MAX) < 0) {
+		log_error("Could not get link for %s\n", path);
+		*err = errno;
+		return 0;
+	}
+
+	/* buf will be .....bus_info/hostX/sessionY */
+
+	/* find hostX */
+	tmp = strrchr(buf, '/');
+	*tmp = '\0';
+
+	/* find bus and increment past it */
+	tmp = strrchr(buf, '/');
+	tmp++;
+
+	if (sscanf(tmp, "host%u", &host_no) != 1) {
+		log_error("Could not get host for sid %u\n", sid);
+		*err = ENXIO;
+		return 0;
+	}
+
+	return host_no;
+}
+
+/**
+ * get_netdev_from_mac - return netdev name of device with mac address
+ * @address: hw address
+ * @dev: netdev dev
+ **/
+int get_netdev_from_mac(char *address, char *dev)
+{
+	struct dirent **namelist;
+	int addr_len, ret = ENODEV, n, i;
+	char *tmpaddress;
+
+	if (!address || !strlen(address) || !dev)
+		return EINVAL;
+
+	n = scandir(NETDEV_DIR, &namelist, trans_filter,
+		versionsort);
+	if (n <= 0)
+		return ENODEV;
+
+	for (i = 0; i < n; i++) {
+		sprintf(sysfs_file, NETDEV_DIR"/%s/addr_len",
+			namelist[i]->d_name);
+		if (read_sysfs_file(sysfs_file, &addr_len, "%d\n")) {
+			log_error("Could not read address len for %s\n",
+				   namelist[i]->d_name);
+			continue;
+		}
+
+		if (addr_len <= 0)
+			continue;
+
+		tmpaddress = malloc((addr_len * 2) + 6);
+		if (!tmpaddress) {
+			log_error("Could not allocate address buffer\n");
+			break;
+		}
+
+		sprintf(sysfs_file, NETDEV_DIR"/%s/address",
+			namelist[i]->d_name);
+		if (!read_sysfs_file(sysfs_file, tmpaddress, "%s\n")) {
+			if (!strcasecmp(address, tmpaddress)) {
+				strcpy(dev, namelist[i]->d_name);
+				log_debug(4, "Matched %s to %s\n",
+					  address, dev);
+				ret = 0;
+			}
+		} else
+			log_error("Could not read address for %s\n",
+				  namelist[i]->d_name);
+		free(tmpaddress);
+		if (!ret)
+			break;
+	}
+
+	for (i = 0; i < n; i++)
+		free(namelist[i]);
+	free(namelist);
+	return ret;
+}
+
 int get_sessioninfo_by_sysfs_id(int *sid, char *targetname, char *addr,
-				int *port, int *tpgt, char *session)
+				int *port, int *tpgt, char *iface,
+				char *session)
 {
 	int ret;
+	uint32_t host_no;
 
 	if (sscanf(session, "session%d", sid) != 1) {
 		log_error("invalid session '%s'", session);
@@ -272,17 +371,36 @@ int get_sessioninfo_by_sysfs_id(int *sid, char *targetname, char *addr,
 			log_debug(5, "Could not read curr conn port %d\n", ret);
 	}
 
-	log_debug(7, "found targetname %s address %s port %d\n",
-		  targetname, addr ? addr : "NA", *port);
+	ret = 0;
+	host_no = get_host_no_from_sid(*sid, &ret);
+	if (ret) {
+		log_error("could not get host_no for session %d\n", ret);
+		return ret;
+	}
+
+	memset(sysfs_file, 0, PATH_MAX);
+	sprintf(sysfs_file, ISCSI_HOST_DIR"/host%u/hwaddress", host_no);
+	/*
+	 * backward compat
+	 * If we cannot get the address we assume we are doing the old
+	 * style and use default.
+	 */
+	sprintf(iface, "default");
+	ret = read_sysfs_file(sysfs_file, iface, "%s\n");
+	if (ret)
+		log_debug(7, "could not read hwaddress for %s\n", sysfs_file);
+
+	log_debug(7, "found targetname %s address %s port %d iface %s\n",
+		  targetname, addr ? addr : "NA", *port, iface);
 	return 0;
 }
 
 int sysfs_for_each_session(void *data, int *nr_found,
-			   int (* fn)(void *, char *, int, char *, int, int))
+		     int (* fn)(void *, char *, int, char *, int, int, char *))
 {
 	struct dirent **namelist;
 	int rc = 0, sid, port, tpgt, n, i;
-	char *targetname, *address;
+	char *targetname, *address, *iface;
 
 	targetname = malloc(TARGET_NAME_MAXLEN + 1);
 	if (!targetname)
@@ -294,6 +412,12 @@ int sysfs_for_each_session(void *data, int *nr_found,
 		goto free_target;
 	}
 
+	iface = malloc(ISCSI_MAX_IFACE_LEN);
+	if (!iface) {
+		rc = ENOMEM;
+		goto free_iface;
+	}
+
 	sprintf(sysfs_file, ISCSI_SESSION_DIR);
 	n = scandir(sysfs_file, &namelist, trans_filter,
 		    versionsort);
@@ -302,7 +426,7 @@ int sysfs_for_each_session(void *data, int *nr_found,
 
 	for (i = 0; i < n; i++) {
 		rc = get_sessioninfo_by_sysfs_id(&sid, targetname, address,
-						 &port, &tpgt,
+						 &port, &tpgt, iface,
 						 namelist[i]->d_name);
 		if (rc) {
 			log_error("could not find session info for %s",
@@ -310,7 +434,7 @@ int sysfs_for_each_session(void *data, int *nr_found,
 			continue;
 		}
 
-		rc = fn(data, targetname, tpgt, address, port, sid);
+		rc = fn(data, targetname, tpgt, address, port, sid, iface);
 		if (rc != 0)
 			break;
 		(*nr_found)++;
@@ -320,6 +444,8 @@ int sysfs_for_each_session(void *data, int *nr_found,
 		free(namelist[i]);
 	free(namelist);
 
+free_iface:
+	free(iface);
 free_address:
 	free(address);
 free_target:
@@ -407,41 +533,6 @@ static uint32_t get_target_no_from_sid(uint32_t sid, int *err)
 	closedir(dirfd);
 	return target;
 
-}
-
-uint32_t get_host_no_from_sid(uint32_t sid, int *err)
-{
-	char buf[PATH_MAX], path[PATH_MAX], *tmp;
-	uint32_t host_no;
-
-	*err = 0;
-
-	memset(buf, 0, PATH_MAX);
-	memset(path, 0, PATH_MAX);
-	sprintf(path, ISCSI_SESSION_DIR"/session%d/device", sid);
-	if (readlink(path, buf, PATH_MAX) < 0) {
-		log_error("Could not get link for %s\n", path);
-		*err = errno;
-		return 0;
-	}
-
-	/* buf will be .....bus_info/hostX/sessionY */
-
-	/* find hostX */
-	tmp = strrchr(buf, '/');
-	*tmp = '\0';
-
-	/* find bus and increment past it */
-	tmp = strrchr(buf, '/');
-	tmp++;
-
-	if (sscanf(tmp, "host%u", &host_no) != 1) {
-		log_error("Could not get host for sid %u\n", sid);
-		*err = ENXIO;
-		return 0;
-	}
-
-	return host_no;
 }
 
 iscsi_provider_t *get_transport_by_name(char *transport_name)

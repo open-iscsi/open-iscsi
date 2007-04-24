@@ -70,6 +70,10 @@ struct iscsi_ipc {
 			  uint32_t cid, enum iscsi_param param,
 			  void *value, int type);
 
+	int (*set_host_param) (uint64_t transport_handle, uint32_t host_no,
+			       enum iscsi_host_param param,
+			       void *value, int type);
+
 	/* not implemented yet */
 	int (*get_param) (uint64_t transport_handle, uint32_t sid,
 			  uint32_t cid, enum iscsi_param param,

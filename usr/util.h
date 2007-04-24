@@ -17,4 +17,7 @@ extern void iscsid_handle_error(int err);
 extern char *str_to_ipport(char *str, int *port, int delim);
 extern void idbm_node_setup_defaults(struct node_rec *rec);
 
+extern int iscsi_match_session(void *data, char *targetname, int tpgt,
+			       char *address, int port, int sid, char *iface);
+
 #endif

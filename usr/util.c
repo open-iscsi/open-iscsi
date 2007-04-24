@@ -20,6 +20,7 @@
 #include "initiator.h"
 #include "version.h"
 #include "iscsi_settings.h"
+#include "iscsi_sysfs.h"
 
 void daemon_init(void)
 {
@@ -162,7 +163,6 @@ void idbm_node_setup_defaults(node_rec_t *rec)
 
 	strcpy(rec->transport_name, "tcp");
 	rec->dbversion = IDBM_VERSION;
-	rec->active_conn = 1; /* at least one connection must exist */
 	rec->tpgt = PORTAL_GROUP_TAG_UNKNOWN;
 	rec->session.initial_cmdsn = 0;
 	rec->session.reopen_max = 32;
@@ -205,6 +205,11 @@ void idbm_node_setup_defaults(node_rec_t *rec)
 		rec->conn[i].iscsi.OFMarker = 0;
 	}
 
+	/*
+	 * default is to use tcp through whatever the network layer
+	 * selects for us
+	 */
+	sprintf(rec->iface.name, "default");
 }
 
 void iscsid_handle_error(int err)
@@ -230,4 +235,29 @@ void iscsid_handle_error(int err)
 		/* 17 */ "encountered iSNS failure",
 	};
 	log_error("initiator reported error (%d - %s)", err, err_msgs[err]);
+}
+
+int iscsi_match_session(void *data, char *targetname, int tpgt,
+			char *address, int port, int sid, char *iface)
+{
+	node_rec_t *rec = data;
+	iscsi_provider_t *p;
+
+	log_debug(6, "looking for session [%d][%s,%s,%d][%s]", sid,
+		  rec->name, rec->conn[0].address, rec->conn[0].port,
+		  iface);
+
+	p = get_transport_by_sid(sid);
+	if (!p)
+		return 0;
+
+	if (!strcmp(rec->transport_name, p->name) &&
+	    !strcmp(rec->name, targetname) &&
+	    !strcmp(rec->conn[0].address, address) &&
+	    !strcmp(rec->iface.name, iface) &&
+	    rec->conn[0].port == port)
+		return 1;
+
+	/* keep on looking */
+	return 0;
 }

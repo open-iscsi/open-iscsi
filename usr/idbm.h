@@ -51,6 +51,8 @@ typedef struct idbm {
 	void		*nodedb;
 	char		*configfile;
 	int             refs;
+	iface_rec_t	irec_iface[ISCSI_IFACE_MAX];
+	recinfo_t	iinfo[MAX_KEYS];
 	node_rec_t	nrec;
 	recinfo_t	ninfo[MAX_KEYS];
 	discovery_rec_t	drec_st;
@@ -61,18 +63,30 @@ typedef struct idbm {
 	recinfo_t	dinfo_isns[MAX_KEYS];
 } idbm_t;
 
+struct db_set_param {
+	char *name;
+	char *value;
+	struct idbm  *db;
+};
+
 extern char* get_iscsi_initiatorname(char *pathname);
 extern char* get_iscsi_initiatoralias(char *pathname);
 extern idbm_t* idbm_init(char *configfile);
 extern void idbm_terminate(idbm_t *db);
-extern int idbm_print_node(idbm_t *db, node_rec_t *rec, int show);
+extern int idbm_print_node(void *data, node_rec_t *rec);
 extern int idbm_for_each_node(idbm_t *db, void *data,
 			     int (* fn)(void *data, node_rec_t *rec));
+extern int idbm_for_each_portal(char *buf, char *targetname, idbm_t *db,
+				void *data,
+				int (* fn)(void *data, node_rec_t *rec));
+extern int idbm_for_each_iface(char *buf, char *targetname, char *ip, int port,
+				idbm_t *db, void *data,
+				int (* fn)(void *data, node_rec_t *rec));
 extern int idbm_print_discovery(idbm_t *db, discovery_rec_t *rec, int show);
 extern int idbm_print_all_discovery(idbm_t *db);
 extern int idbm_delete_discovery(idbm_t *db, discovery_rec_t *rec);
 extern void idbm_node_setup_defaults(node_rec_t *rec);
-extern int idbm_delete_node(idbm_t *db, node_rec_t *rec);
+extern int idbm_delete_node(void *data, node_rec_t *rec);
 extern int idbm_new_node(idbm_t *db, node_rec_t *newrec);
 extern int idbm_add_discovery(idbm_t *db, discovery_rec_t *newrec);
 extern discovery_rec_t* idbm_new_discovery(idbm_t *db, char *ip, int port,
@@ -83,7 +97,6 @@ extern void idbm_slp_defaults(idbm_t *db, struct iscsi_slp_config *cfg);
 extern int idbm_discovery_read(idbm_t *db, discovery_rec_t *rec, char *addr,
 				int port);
 extern int idbm_node_read(idbm_t *db, node_rec_t *out_rec, char *target_name,
-			 char *addr, int port);
-extern int idbm_node_set_param(idbm_t *db, node_rec_t *rec, char *name,
-			       char *value);
+			 char *addr, int port, char *iface);
+extern int idbm_node_set_param(void *data, node_rec_t *rec);
 #endif /* IDBM_H */

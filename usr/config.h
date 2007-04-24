@@ -21,6 +21,7 @@
 #define CONFIG_H
 
 #include <netdb.h>
+#include <net/if.h>
 #include "types.h"
 #include "auth.h"	/* for the username and password sizes */
 
@@ -41,6 +42,10 @@
 
 /* number of possible connections per session */
 #define ISCSI_CONN_MAX		1
+/* number of possible interfaces to manually enter */
+#define ISCSI_IFACE_MAX		32
+/* max len of interface */
+#define ISCSI_MAX_IFACE_LEN	65
 
 /* database version control */
 #define IDBM_VERSION		0x05
@@ -192,15 +197,25 @@ typedef struct session_rec {
 
 #define ISCSI_TRANSPORT_NAME_MAXLEN 16
 
+typedef struct iface_rec {
+	/* TODO move transport name from node to here */
+
+	/*
+	 * TODO: we may have to make this bigger and interconnect
+	 * specific for iser and and possibly qla4xxx hba serials
+	 */
+	char			name[ISCSI_MAX_IFACE_LEN];
+} iface_rec_t;
+
 typedef struct node_rec {
 	int			dbversion;
 	char			name[TARGET_NAME_MAXLEN];
 	char			transport_name[ISCSI_TRANSPORT_NAME_MAXLEN];
 	int			tpgt;
-	int			active_conn;
 	iscsi_startup_e		startup;
 	session_rec_t		session;
 	conn_rec_t		conn[ISCSI_CONN_MAX];
+	iface_rec_t		iface;
 } node_rec_t;
 
 typedef struct discovery_rec {
