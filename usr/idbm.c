@@ -576,9 +576,14 @@ idbm_recinfo_config(recinfo_t *info, FILE *f)
 	} while (line);
 }
 
+/*
+ * TODO: remove db's copy of nrec and infos
+ */
 static void
-idbm_sync_config(idbm_t *db, int read_config)
+idbm_sync_config(idbm_t *db)
 {
+	FILE *f;
+
 	/* in case of no configuration file found we just
 	 * initialize default node and default discovery records
 	 * from hard-coded default values */
@@ -594,27 +599,22 @@ idbm_sync_config(idbm_t *db, int read_config)
 	idbm_recinfo_node(&db->nrec, db->ninfo);
 	idbm_recinfo_iface(db->irec_iface, db->iinfo);
 
-	if (read_config) {
-		FILE *f;
-
-		f = fopen(db->configfile, "r");
-		if (!f) {
-			log_debug(1, "cannot open configuration file %s. "
-				  "Default location is %s.\n",
-				  db->configfile, CONFIG_FILE);
-			return;
-		}
-
-		log_debug(5, "updating defaults from '%s'", db->configfile);
-
-		idbm_recinfo_config(db->dinfo_st, f);
-		idbm_recinfo_config(db->dinfo_slp, f);
-		idbm_recinfo_config(db->dinfo_isns, f);
-		idbm_recinfo_config(db->ninfo, f);
-		idbm_recinfo_config(db->iinfo, f);
-
-		fclose(f);
+	f = fopen(db->configfile, "r");
+	if (!f) {
+		log_debug(1, "cannot open configuration file %s. "
+			  "Default location is %s.\n",
+			  db->configfile, CONFIG_FILE);
+		return;
 	}
+
+	log_debug(5, "updating defaults from '%s'", db->configfile);
+
+	idbm_recinfo_config(db->dinfo_st, f);
+	idbm_recinfo_config(db->dinfo_slp, f);
+	idbm_recinfo_config(db->dinfo_isns, f);
+	idbm_recinfo_config(db->ninfo, f);
+	idbm_recinfo_config(db->iinfo, f);
+	fclose(f);
 
 	/* update password lengths */
 	if (*db->drec_st.u.sendtargets.auth.password)
@@ -641,8 +641,7 @@ void idbm_node_setup_from_conf(idbm_t *db, node_rec_t *rec)
 {
 	memset(rec, 0, sizeof(*rec));
 	idbm_node_setup_defaults(rec);
-	/* sync default configuration */
-	idbm_sync_config(db, 1);
+	idbm_sync_config(db);
 	memcpy(rec, &db->nrec, sizeof(*rec));
 }
 
@@ -856,15 +855,20 @@ static void idbm_unlock(idbm_t *db)
 int
 idbm_discovery_read(idbm_t *db, discovery_rec_t *out_rec, char *addr, int port)
 {
+	recinfo_t *info;
 	char *portal;
 	int rc = 0;
 	FILE *f;
 
 	memset(out_rec, 0, sizeof(discovery_rec_t));
 
+	info = idbm_recinfo_alloc(MAX_KEYS);
+	if (!info)
+		return ENOMEM;
+
 	portal = malloc(PATH_MAX);
 	if (!portal)
-		return -ENOMEM;
+		goto free_info;
 
 	snprintf(portal, PATH_MAX, "%s/%s,%d", ST_CONFIG_DIR,
 		 addr, port);
@@ -876,16 +880,18 @@ idbm_discovery_read(idbm_t *db, discovery_rec_t *out_rec, char *addr, int port)
 	if (!f) {
 		log_debug(1, "Could not open %s err %d\n", portal, errno);
 		rc = errno;
-		goto free_portal;
+		goto free_info;
 	}
 
-	idbm_recinfo_config(db->dinfo_st, f);
-	memcpy(out_rec, &db->drec_st, sizeof(discovery_rec_t));
+	idbm_discovery_setup_defaults(out_rec, DISCOVERY_TYPE_SENDTARGETS);
+	idbm_recinfo_discovery(out_rec, info);
+	idbm_recinfo_config(info, f);
 	fclose(f);
 
-free_portal:
+free_info:
 	idbm_unlock(db);
 	free(portal);
+	free(info);
 	return rc;
 }
 
@@ -916,15 +922,20 @@ int
 idbm_node_read(idbm_t *db, node_rec_t *out_rec, char *target_name,
 	       char *addr, int port, char *iface)
 {
+	recinfo_t *info;
 	char *portal;
 	int rc = 0;
 	FILE *f;
 
 	memset(out_rec, 0, sizeof(node_rec_t));
 
+	info = idbm_recinfo_alloc(MAX_KEYS);
+	if (!info)
+		return ENOMEM;
+
 	portal = malloc(PATH_MAX);
 	if (!portal)
-		return -ENOMEM;
+		goto free_info;
 	snprintf(portal, PATH_MAX, "%s/%s/%s,%d", NODE_CONFIG_DIR,
 		 target_name, addr, port);
 
@@ -934,16 +945,18 @@ idbm_node_read(idbm_t *db, node_rec_t *out_rec, char *target_name,
 	if (!f) {
 		log_debug(5, "Could not open %s err %d\n", portal, errno);
 		rc = errno;
-		goto free_portal;
+		goto free_info;
 	}
 
-	idbm_recinfo_config(db->ninfo, f);
-	memcpy(out_rec, &db->nrec, sizeof(node_rec_t));
+	idbm_node_setup_defaults(out_rec);
+	idbm_recinfo_node(out_rec, info);
+	idbm_recinfo_config(info, f);
 	fclose(f);
 
-free_portal:
+free_info:
 	idbm_unlock(db);
 	free(portal);
+	free(info);
 	return rc;
 }
 
@@ -1093,7 +1106,7 @@ idbm_add_discovery(idbm_t *db, discovery_rec_t *newrec)
 
 	idbm_lock(db);
 	if (!idbm_discovery_read(db, &rec, newrec->u.sendtargets.address,
-				newrec->u.sendtargets.port) == 0) {
+				newrec->u.sendtargets.port)) {
 		log_debug(7, "overwriting existing record");
 	} else
 		log_debug(7, "adding new DB record");
@@ -1111,7 +1124,7 @@ idbm_add_node(idbm_t *db, node_rec_t *newrec)
 
 	idbm_lock(db);
 	if (!idbm_node_read(db, &rec, newrec->name, newrec->conn[0].address,
-			    newrec->conn[0].port, newrec->iface.name) == 0) {
+			    newrec->conn[0].port, newrec->iface.name)) {
 		log_debug(7, "overwriting existing record");
 	} else
 		log_debug(7, "adding new DB record");
@@ -1232,9 +1245,7 @@ free_portal:
 void
 idbm_sendtargets_defaults(idbm_t *db, struct iscsi_sendtargets_config *cfg)
 {
-	/* sync default configuration */
-	idbm_sync_config(db, 1);
-
+	idbm_sync_config(db);
 	memcpy(cfg, &db->drec_st.u.sendtargets,
 	       sizeof(struct iscsi_sendtargets_config));
 }
@@ -1283,10 +1294,7 @@ idbm_init(char *configfile)
 		return NULL;
 	}
 	memset(db, 0, sizeof(idbm_t));
-
 	db->configfile = strdup(configfile);
-	idbm_sync_config(db, 0);
-
 	return db;
 }
 
