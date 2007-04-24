@@ -947,10 +947,14 @@ setup_full_feature_phase(iscsi_conn_t *conn)
 		int param;
 		int type;
 		void *value;
-	} hosttbl[ISCSI_HOST_PARAM_HWADDRESS + 1] = {
+	} hosttbl[ISCSI_HOST_PARAM_INITIATOR_NAME + 1] = {
 		{
-		.param = ISCSI_PARAM_MAX_RECV_DLENGTH,
-		.value = &session->nrec.iface.name,
+		.param = ISCSI_HOST_PARAM_HWADDRESS,
+		.value = session->nrec.iface.name,
+		.type = ISCSI_STRING,
+		}, {
+		.param = ISCSI_HOST_PARAM_INITIATOR_NAME,
+		.value = session->initiator_name,
 		.type = ISCSI_STRING,
 		},
 	};
@@ -1109,7 +1113,7 @@ setup_full_feature_phase(iscsi_conn_t *conn)
 		print_param_value(conntbl[i].param, conntbl[i].value);
 	}
 
-	for (i = 0; i < ISCSI_HOST_PARAM_HWADDRESS + 1; i++) {
+	for (i = 0; i < ISCSI_HOST_PARAM_INITIATOR_NAME + 1; i++) {
 		rc = ipc->set_host_param(session->transport_handle,
 					 session->hostno, hosttbl[i].param,
 					 hosttbl[i].value, hosttbl[i].type);
