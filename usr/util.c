@@ -162,8 +162,8 @@ void idbm_node_setup_defaults(node_rec_t *rec)
 	memset(rec, 0, sizeof(node_rec_t));
 
 	strcpy(rec->transport_name, "tcp");
-	rec->dbversion = IDBM_VERSION;
 	rec->tpgt = PORTAL_GROUP_TAG_UNKNOWN;
+	rec->disc_type = DISCOVERY_TYPE_STATIC;
 	rec->session.initial_cmdsn = 0;
 	rec->session.cmds_max = CMDS_MAX;
 	rec->session.queue_depth = QUEUE_DEPTH;

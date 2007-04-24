@@ -135,8 +135,8 @@ iterate_targets(iscsi_session_t *session, uint32_t ttt)
 	return 1;
 }
 
-static int
-add_portal(idbm_t *db, node_rec_t *rec, char *address, char *port, char *tag)
+static int add_portal(idbm_t *db, discovery_rec_t *drec, node_rec_t *rec,
+		      char *address, char *port, char *tag)
 {
 	struct sockaddr_storage ss;
 	char host[NI_MAXHOST];
@@ -161,15 +161,15 @@ add_portal(idbm_t *db, node_rec_t *rec, char *address, char *port, char *tag)
 		rec->conn[0].port = DEF_ISCSI_PORT;
 	strncpy(rec->conn[0].address, address, NI_MAXHOST);
 
-	if (idbm_add_nodes(db, rec))
+	if (idbm_add_nodes(db, rec, drec))
 		log_error("Could not add record for %s %s,%d,%d\n",
 			  rec->name, address, rec->conn[0].port, rec->tpgt);
 	return 1;
 }
 
-int
+static int
 add_target_record(idbm_t *db, char *name, char *end,
-		  char *default_address, char *default_port)
+		  discovery_rec_t *drec, char *default_port)
 {
 	char *text = NULL;
 	char *nul = name;
@@ -213,12 +213,12 @@ add_target_record(idbm_t *db, char *name, char *end,
 
 	/* if no address is provided, use the default */
 	if (text >= end) {
-		if (default_address == NULL) {
+		if (drec->address == NULL) {
 			log_error("no default address known for target %s",
 				  name);
 			return 0;
-		} else if (!add_portal(db, &rec, default_address, default_port,
-				       NULL)) {
+		} else if (!add_portal(db, drec, &rec, drec->address,
+				       default_port, NULL)) {
 			log_error("failed to add default portal, ignoring "
 				  "target %s", name);
 			return 0;
@@ -255,7 +255,7 @@ add_target_record(idbm_t *db, char *name, char *end,
 					*temp = '\0';
 			}
 
-			if (!add_portal(db, &rec, address, port, tag)) {
+			if (!add_portal(db, drec, &rec, address, port, tag)) {
 				log_error("failed to add default portal, "
 					 "ignoring target %s", name);
 				return 0;
@@ -271,7 +271,7 @@ add_target_record(idbm_t *db, char *name, char *end,
 
 static int
 process_sendtargets_response(idbm_t *db, struct string_buffer *sendtargets,
-			     int final, char *default_address,
+			     int final, discovery_rec_t *drec,
 			     char *default_port)
 {
 	char *start = buffer_data(sendtargets);
@@ -323,8 +323,7 @@ process_sendtargets_response(idbm_t *db, struct string_buffer *sendtargets,
 				 * "TargetName=" prefix.
 				 */
 				if (!add_target_record(db, record + 11, text,
-							default_address,
-							default_port)) {
+							drec, default_port)) {
 					log_error(
 					       "failed to add target record");
 					truncate_buffer(sendtargets, 0);
@@ -352,7 +351,7 @@ process_sendtargets_response(idbm_t *db, struct string_buffer *sendtargets,
 				 "line %s",
 				 record, record);
 			if (add_target_record (db, record + 11, text,
-					       default_address, default_port)) {
+					       drec, default_port)) {
 				num_targets++;
 				record = NULL;
 				truncate_buffer(sendtargets, 0);
@@ -491,11 +490,8 @@ init_new_session(struct iscsi_sendtargets_config *config)
 	iscsi_session_t *session;
 
 	session = calloc(1, sizeof (*session));
-	if (session == NULL) {
-		log_error("discovery process to %s:%d failed to "
-		       "allocate a session", config->address, config->port);
+	if (session == NULL)
 		goto done;
-	}
 
 	/* initialize the session's leading connection */
 	session->conn[0].socket_fd = -1;
@@ -535,12 +531,6 @@ init_new_session(struct iscsi_sendtargets_config *config)
 	session->initiator_alias = initiator_alias;
 	session->portal_group_tag = PORTAL_GROUP_TAG_UNKNOWN;
 	session->type = ISCSI_SESSION_TYPE_DISCOVERY;
-
-	log_debug(4, "sendtargets discovery to %s:%d using "
-		 "isid 0x%02x%02x%02x%02x%02x%02x",
-		 config->address, config->port, session->isid[0],
-		 session->isid[1], session->isid[2], session->isid[3],
-		 session->isid[4], session->isid[5]);
 done:
 	return(session);
 }
@@ -548,6 +538,7 @@ done:
 
 static int
 setup_authentication(iscsi_session_t *session,
+		     discovery_rec_t *drec,
 		     struct iscsi_sendtargets_config *config)
 {
 	int rc;
@@ -568,11 +559,11 @@ setup_authentication(iscsi_session_t *session,
 			       "discovery process to %s:%d has incoming "
 			       "authentication credentials but has no outgoing "
 			       "credentials configured",
-			       config->address, config->port);
+			       drec->address, drec->port);
 			log_error(
 			       "discovery process to %s:%d exiting, bad "
 			       "configuration",
-			       config->address, config->port);
+			       drec->address, drec->port);
 			rc = 0;
 			goto done;
 		}
@@ -632,11 +623,12 @@ setup_authentication(iscsi_session_t *session,
 
 static int
 process_recvd_pdu(idbm_t *db, struct iscsi_hdr *pdu,
-		  struct iscsi_sendtargets_config *config,
+		  discovery_rec_t *drec,
 		  iscsi_session_t *session,
 		  struct string_buffer *sendtargets,
 		  char *default_port,
 		  int *active,
+		  int *valid_text,
 		  struct timeval *async_timer,
 		  char *data)
 {
@@ -654,8 +646,8 @@ process_recvd_pdu(idbm_t *db, struct iscsi_hdr *pdu,
 			log_debug(4, "discovery session to %s:%d received text"
 				 " response, %d data bytes, ttt 0x%x, "
 				 "final 0x%x",
-				 config->address,
-				 config->port,
+				 drec->address,
+				 drec->port,
 				 dlength,
 				 ntohl(text_response->ttt),
 				 text_response->flags & ISCSI_FLAG_CMD_FINAL);
@@ -665,10 +657,21 @@ process_recvd_pdu(idbm_t *db, struct iscsi_hdr *pdu,
 			 */
 			enlarge_data (sendtargets, dlength);
 
+			/*
+			 * we got a response so clear out the current
+			 * db values
+			 *
+			 * TODO: should we make whether rm the current
+			 * values configurable (maybe a --clear option)
+			 */
+			if (!*valid_text)
+				idbm_new_discovery(db, drec);
+			*valid_text = 1;
+
 			/* process as much as we can right now */
 			process_sendtargets_response(db, sendtargets,
 						     final,
-						     config->address,
+						     drec,
 						     default_port);
 
 			if (final) {
@@ -692,7 +695,7 @@ process_recvd_pdu(idbm_t *db, struct iscsi_hdr *pdu,
 			log_warning(
 			       "discovery session to %s:%d received "
 			       "unexpected opcode 0x%x",
-			       config->address, config->port, pdu->opcode);
+			       drec->address, drec->port, pdu->opcode);
 			rc = DISCOVERY_NEED_RECONNECT;
 			goto done;
 	}
@@ -760,7 +763,7 @@ done:
 }
 
 int
-sendtargets_discovery(idbm_t *db, struct iscsi_sendtargets_config *config)
+sendtargets_discovery(idbm_t *db, discovery_rec_t *drec)
 {
 	iscsi_session_t *session;
 	struct pollfd pfd;
@@ -768,7 +771,7 @@ sendtargets_discovery(idbm_t *db, struct iscsi_sendtargets_config *config)
 	struct iscsi_hdr *pdu = &pdu_buffer;
 	char *data = NULL;
 	char *end_of_data;
-	int active = 0;
+	int active = 0, valid_text = 0;
 	struct timeval connection_timer, async_timer;
 	int timeout;
 	int rc;
@@ -778,18 +781,28 @@ sendtargets_discovery(idbm_t *db, struct iscsi_sendtargets_config *config)
 	int login_delay = 0;
 	struct sockaddr_storage ss;
 	char host[NI_MAXHOST], serv[NI_MAXSERV], default_port[NI_MAXSERV];
+	struct iscsi_sendtargets_config *config = &drec->u.sendtargets;
 
 	/* initial setup */
 	log_debug(1, "starting sendtargets discovery, address %s:%d, ",
-		 config->address, config->port);
+		 drec->address, drec->port);
 	memset(&pdu_buffer, 0, sizeof (pdu_buffer));
 	clear_timer(&connection_timer);
 	clear_timer(&async_timer);
 
 	/* allocate a new session, and initialize default values */
 	session = init_new_session(config);
-	if (session == NULL)
+	if (session == NULL) {
+		log_error("discovery process to %s:%d failed to "
+			  "allocate a session", drec->address, drec->port);
 		return 1;
+	}
+
+	log_debug(4, "sendtargets discovery to %s:%d using "
+		 "isid 0x%02x%02x%02x%02x%02x%02x",
+		 drec->address, drec->port, session->isid[0],
+		 session->isid[1], session->isid[2], session->isid[3],
+		 session->isid[4], session->isid[5]);
 
 	/* allocate data buffers for SendTargets data and discovery pipe info */
 	init_string_buffer(&sendtargets,
@@ -799,10 +812,10 @@ sendtargets_discovery(idbm_t *db, struct iscsi_sendtargets_config *config)
 		goto free_session;
 	}
 
-	sprintf(default_port, "%d", config->port);
+	sprintf(default_port, "%d", drec->port);
 	/* resolve the DiscoveryAddress to an IP address */
-	if (resolve_address(config->address, default_port, &ss)) {
-		log_error("cannot resolve host name %s", config->address);
+	if (resolve_address(drec->address, default_port, &ss)) {
+		log_error("cannot resolve host name %s", drec->address);
 		rc = 1;
 		goto free_sendtargets;
 	}
@@ -814,7 +827,7 @@ sendtargets_discovery(idbm_t *db, struct iscsi_sendtargets_config *config)
 		 session->conn[0].idle_timeout, session->conn[0].ping_timeout);
 
 	/* setup authentication variables for the session*/
-	rc = setup_authentication(session, config);
+	rc = setup_authentication(session, drec, config);
 	if (rc == 0) {
 		rc = 1;
 		goto free_sendtargets;
@@ -861,7 +874,7 @@ redirect_reconnect:
 	if (login_delay) {
 		log_debug(4, "discovery session to %s:%d sleeping for %d "
 			 "seconds before next login attempt",
-			 config->address, config->port, login_delay);
+			 drec->address, drec->port, login_delay);
 		sleep(login_delay);
 	}
 
@@ -885,7 +898,7 @@ redirect_reconnect:
 	log_debug(1, "connected to discovery address %s", host);
 
 	log_debug(4, "discovery session to %s:%d starting iSCSI login on fd %d",
-		 config->address, config->port, session->conn[0].socket_fd);
+		 drec->address, drec->port, session->conn[0].socket_fd);
 
 	/* In case of discovery, we using socket's descriptor as ctrl. */
 	session->ctrl_fd = session->conn[0].socket_fd;
@@ -1007,7 +1020,7 @@ redirect_reconnect:
 	if (timer_expired(&connection_timer)) {
 		log_warning("discovery session to %s:%d session "
 			    "logout, connection timer expired",
-			    config->address, config->port);
+			    drec->address, drec->port);
 			    iscsi_logout_and_disconnect(session);
 		rc = 1;
 		goto free_sendtargets;
@@ -1027,7 +1040,7 @@ redirect_reconnect:
 			log_debug(4,
 				 "discovery session to %s:%d async "
 				 "timer expired, rediscovering",
-				 config->address, config->port);
+				 drec->address, drec->port);
 			clear_timer(&async_timer);
 			goto rediscover;
 		} else
@@ -1043,7 +1056,7 @@ redirect_reconnect:
 	log_debug(4,
 		 "discovery process  %s:%d polling fd %d, "
 		 "timeout in %f seconds",
-		 config->address, config->port, pfd.fd,
+		 drec->address, drec->port, pfd.fd,
 		 timeout / 1000.0);
 
 	pfd.revents = 0;
@@ -1051,7 +1064,7 @@ redirect_reconnect:
 
 	log_debug(7,
 		 "discovery process to %s:%d returned from poll, rc %d",
-		 config->address, config->port, rc);
+		 drec->address, drec->port, rc);
 
 	if (rc > 0) {
 		if (pfd.revents & (POLLIN | POLLPRI)) {
@@ -1074,11 +1087,12 @@ redirect_reconnect:
 				rc = process_recvd_pdu(
 					db,
 					pdu,
-					config,
+					drec,
 					session,
 					&sendtargets,
 					default_port,
 					&active,
+					&valid_text,
 					&async_timer,
 					data);
 				if (rc == DISCOVERY_NEED_RECONNECT)
@@ -1098,8 +1112,8 @@ redirect_reconnect:
 				log_debug(1, "discovery session to "
 					  "%s:%d failed to recv a PDU "
 					  "response, terminating",
-					   config->address,
-					   config->port);
+					   drec->address,
+					   drec->port);
 				iscsi_io_disconnect(&session->conn[0]);
 				rc = 1;
 				goto free_sendtargets;
@@ -1108,7 +1122,7 @@ redirect_reconnect:
 		if (pfd.revents & POLLHUP) {
 			log_warning("discovery session to %s:%d "
 				    "terminating after hangup",
-				     config->address, config->port);
+				     drec->address, drec->port);
 			iscsi_io_disconnect(&session->conn[0]);
 			rc = 1;
 			goto free_sendtargets;
@@ -1141,7 +1155,7 @@ redirect_reconnect:
 	}
 
 	log_debug(1, "discovery process to %s:%d exiting",
-		 config->address, config->port);
+		 drec->address, drec->port);
 	rc = 0;
 
 free_sendtargets:

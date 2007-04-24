@@ -233,18 +233,23 @@ void get_negotiated_session_conf(int sid,
 
 uint32_t get_host_no_from_sid(uint32_t sid, int *err)
 {
-	char buf[PATH_MAX], path[PATH_MAX], *tmp;
+	char *buf, *path, *tmp;
 	uint32_t host_no;
 
 	*err = 0;
 
-	memset(buf, 0, PATH_MAX);
-	memset(path, 0, PATH_MAX);
+	buf = calloc(2, PATH_MAX);
+	if (!buf) {
+		*err = ENOMEM;
+		return 0;
+	}
+	path = buf + PATH_MAX;
+
 	sprintf(path, ISCSI_SESSION_DIR"/session%d/device", sid);
 	if (readlink(path, buf, PATH_MAX) < 0) {
-		log_error("Could not get link for %s\n", path);
+		log_error("Could not get link for %s.", path);
 		*err = errno;
-		return 0;
+		goto free_buf;
 	}
 
 	/* buf will be .....bus_info/hostX/sessionY */
@@ -258,11 +263,13 @@ uint32_t get_host_no_from_sid(uint32_t sid, int *err)
 	tmp++;
 
 	if (sscanf(tmp, "host%u", &host_no) != 1) {
-		log_error("Could not get host for sid %u\n", sid);
+		log_error("Could not get host for sid %u.", sid);
 		*err = ENXIO;
-		return 0;
+		goto free_buf;
 	}
 
+free_buf:
+	free(buf);
 	return host_no;
 }
 
@@ -289,7 +296,7 @@ int get_netdev_from_mac(char *address, char *dev)
 		sprintf(sysfs_file, NETDEV_DIR"/%s/addr_len",
 			namelist[i]->d_name);
 		if (read_sysfs_file(sysfs_file, &addr_len, "%d\n")) {
-			log_error("Could not read address len for %s\n",
+			log_error("Could not read address len for %s.",
 				   namelist[i]->d_name);
 			continue;
 		}
@@ -299,7 +306,7 @@ int get_netdev_from_mac(char *address, char *dev)
 
 		tmpaddress = malloc((addr_len * 2) + 6);
 		if (!tmpaddress) {
-			log_error("Could not allocate address buffer\n");
+			log_error("Could not allocate address buffer.");
 			break;
 		}
 
@@ -313,7 +320,7 @@ int get_netdev_from_mac(char *address, char *dev)
 				ret = 0;
 			}
 		} else
-			log_error("Could not read address for %s\n",
+			log_error("Could not read address for %s.",
 				  namelist[i]->d_name);
 		free(tmpaddress);
 		if (!ret)
@@ -392,7 +399,7 @@ int get_sessioninfo_by_sysfs_id(int *sid, char *targetname, char *addr,
 	ret = 0;
 	host_no = get_host_no_from_sid(*sid, &ret);
 	if (ret) {
-		log_error("could not get host_no for session %d\n", ret);
+		log_error("could not get host_no for session %d.", ret);
 		return ret;
 	}
 
@@ -587,7 +594,7 @@ iscsi_provider_t *get_transport_by_hba(long host_no)
 	sprintf(sysfs_file, "/sys/class/scsi_host/host%lu/proc_name", host_no);
 	rc = read_sysfs_file(sysfs_file, name, "%s\n");
 	if (rc) {
-		log_error("Could not read %s rc %d\n", sysfs_file, rc);
+		log_error("Could not read %s rc %d.", sysfs_file, rc);
 		return NULL;
 	}
 
@@ -625,7 +632,7 @@ int set_exp_statsn(iscsi_conn_t *conn)
 		ISCSI_CONN_DIR"/connection%d:%d/exp_statsn",
 		conn->session->id, conn->id);
 	if (read_sysfs_file(sysfs_file, &conn->exp_statsn, "%u\n")) {
-		log_error("Could not read %s. Using zero fpr exp_statsn\n",
+		log_error("Could not read %s. Using zero fpr exp_statsn.",
 			  sysfs_file);
 		conn->exp_statsn = 0;
 	}
@@ -675,8 +682,7 @@ void set_device_online(int hostno, int target, int lun)
 	log_debug(4, "online device using %s", sysfs_file);
 	if (write(fd, "running\n", 8) == -1 && errno != EINVAL)
 		/* we should read the state */
-		log_error("Could not online LUN %d err %d\n",
-			  lun, errno);
+		log_error("Could not online LUN %d err %d.", lun, errno);
 	close(fd);
 }
 
@@ -704,7 +710,7 @@ pid_t __scan_host(int hostno, int async)
 		hostno);
 	fd = open(sysfs_file, O_WRONLY);
 	if (fd < 0) {
-		log_error("could not scan scsi host%d\n", hostno);
+		log_error("could not scan scsi host%d.", hostno);
 		return -1;
 	}
 
@@ -724,7 +730,7 @@ pid_t __scan_host(int hostno, int async)
 		 * scan by hand
 		  */
 		log_error("Could not start scanning process for host %d "
-			  "err %d. Try scanning through sysfs\n", hostno,
+			  "err %d. Try scanning through sysfs.", hostno,
 			  errno);
 
 	close(fd);
@@ -744,7 +750,7 @@ iscsi_provider_t *get_transport_by_session(char *sys_session)
 	uint32_t sid;
 
         if (sscanf(sys_session, "session%u", &sid) != 1) {
-                log_error("invalid session '%s'", sys_session);
+                log_error("invalid session '%s'.", sys_session);
                 return NULL;
         }
 
@@ -790,7 +796,7 @@ void check_class_version(void)
 fail:
 	log_error("Invalid version from %s. Make sure a up to date "
 		  "scsi_transport_iscsi module is loaded and a up to"
-		  "date version of iscsid is running. Exiting...\n",
+		  "date version of iscsid is running. Exiting...",
 		  ISCSI_VERSION_FILE);
 	exit(1);
 }

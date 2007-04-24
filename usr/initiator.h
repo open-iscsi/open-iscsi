@@ -32,11 +32,18 @@
 #include "actor.h"
 #include "queue.h"
 
-#define ST_CONFIG_DIR		"/etc/iscsi/send_targets"
-#define NODE_CONFIG_DIR		"/etc/iscsi/nodes"
-#define CONFIG_FILE		"/etc/iscsi/iscsid.conf"
+#define ISCSI_CONFIG_ROOT	"/etc/iscsi/"
+#define SLP_CONFIG_DIR		ISCSI_CONFIG_ROOT"slp"
+#define ISNS_CONFIG_DIR		ISCSI_CONFIG_ROOT"isns"
+#define STATIC_CONFIG_DIR	ISCSI_CONFIG_ROOT"static"
+#define ST_CONFIG_DIR		ISCSI_CONFIG_ROOT"send_targets"
+
+#define ST_CONFIG_NAME		"st_config"
+
+#define NODE_CONFIG_DIR		ISCSI_CONFIG_ROOT"nodes"
+#define CONFIG_FILE		ISCSI_CONFIG_ROOT"iscsid.conf"
 #define PID_FILE		"/var/run/iscsid.pid"
-#define INITIATOR_NAME_FILE	"/etc/iscsi/initiatorname.iscsi"
+#define INITIATOR_NAME_FILE	ISCSI_CONFIG_ROOT"initiatorname.iscsi"
 #define LOCK_DIR		"/var/lock/iscsi"
 #define LOCK_FILE		"/var/lock/iscsi/lock"
 #define LOCK_WRITE_FILE		"/var/lock/iscsi/lock.write"

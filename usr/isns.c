@@ -298,7 +298,7 @@ static void add_new_target_node(char *targetname, uint8_t *ip, int port,
 	rec.conn[0].port = port;
 	rec.tpgt = tag;
 	strncpy(rec.conn[0].address, dst, NI_MAXHOST);
-	err = idbm_add_nodes(db, &rec);
+	err = idbm_add_nodes(db, &rec, NULL);
 	if (err)
 		log_error("Could not add new target node:%s %s,%d",
 			  targetname, dst, port);

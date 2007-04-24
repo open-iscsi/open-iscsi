@@ -47,9 +47,6 @@
 /* max len of interface */
 #define ISCSI_MAX_IFACE_LEN	65
 
-/* database version control */
-#define IDBM_VERSION		0x05
-
 /* the following structures store the options set in the config file.
  * a structure is defined for each logically-related group of options.
  * if you are adding a new option, first check if it should belong
@@ -146,8 +143,6 @@ struct iscsi_session_operational_config {
 #define CONFIG_DIGEST_PREFER_OFF 3
 
 struct iscsi_sendtargets_config {
-	char address[NI_MAXHOST];
-	int port;
 	int reopen_max;
 	struct iscsi_auth_config auth;
 	struct iscsi_connection_timeout_config conn_timeo;
@@ -155,8 +150,6 @@ struct iscsi_sendtargets_config {
 };
 
 struct iscsi_slp_config {
-	char address[NI_MAXHOST];	/* for unicast */
-	int port;		/* for unicast */
 	char *scopes;
 	char *interfaces;	/* for multicast, list of interfaces names,
 				 * "all", or "none" */
@@ -174,6 +167,7 @@ typedef enum discovery_type {
 	DISCOVERY_TYPE_SENDTARGETS,
 	DISCOVERY_TYPE_SLP,
 	DISCOVERY_TYPE_ISNS,
+	DISCOVERY_TYPE_STATIC,
 } discovery_type_e;
 
 typedef struct conn_rec {
@@ -209,7 +203,6 @@ typedef struct iface_rec {
 } iface_rec_t;
 
 typedef struct node_rec {
-	int			dbversion;
 	char			name[TARGET_NAME_MAXLEN];
 	char			transport_name[ISCSI_TRANSPORT_NAME_MAXLEN];
 	int			tpgt;
@@ -217,13 +210,16 @@ typedef struct node_rec {
 	session_rec_t		session;
 	conn_rec_t		conn[ISCSI_CONN_MAX];
 	iface_rec_t		iface;
+	discovery_type_e	disc_type;
+	char			disc_address[NI_MAXHOST];
+	int			disc_port;
 } node_rec_t;
 
 typedef struct discovery_rec {
-	int					id;
-	int					dbversion;
 	iscsi_startup_e				startup;
 	discovery_type_e			type;
+	char					address[NI_MAXHOST];
+	int					port;
 	union {
 		struct iscsi_sendtargets_config	sendtargets;
 		struct iscsi_slp_config		slp;

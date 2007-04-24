@@ -1035,16 +1035,13 @@ session_stats(void *data, char *targetname, int tpgt, char *address,
  * particular config
  */
 static int
-do_sendtargets(idbm_t *db, struct iscsi_sendtargets_config *cfg)
+do_sendtargets(idbm_t *db, discovery_rec_t *drec)
 {
 	int rc;
 
-	rc = sendtargets_discovery(db, cfg);
-	if (!rc) {
-		idbm_new_discovery(db, cfg->address, cfg->port,
-				  DISCOVERY_TYPE_SENDTARGETS);
+	rc = sendtargets_discovery(db, drec);
+	if (!rc)
 		idbm_for_each_node(db, NULL, print_node);
-	}
 	return rc;
 }
 
@@ -1120,7 +1117,7 @@ static int exec_node_op(idbm_t *db, int op, int do_login, int do_logout,
 		strncpy(rec.conn[0].address, ip, NI_MAXHOST);
 		if (iface)
 			strncpy(rec.iface.name, iface, ISCSI_MAX_IFACE_LEN);
-		if (idbm_new_node(db, &rec)) {
+		if (idbm_add_node(db, &rec, NULL)) {
 			log_error("can not add new record.");
 			rc = -1;
 			goto out;
@@ -1200,7 +1197,7 @@ static int exec_node_op(idbm_t *db, int op, int do_login, int do_logout,
 		goto out;
 	} else if (op == OP_DELETE) {
 		if (for_each_portal_rec(db, targetname, ip, port,
-					iface, NULL, idbm_delete_node))	
+					iface, db, idbm_delete_node))	
 			rc = -1;
 		goto out;
 	} else {
@@ -1273,6 +1270,7 @@ main(int argc, char **argv)
 	idbm_t *db;
 	struct sigaction sa_old;
 	struct sigaction sa_new;
+	discovery_rec_t drec;
 
 	/* do not allow ctrl-c for now... */
 	sa_new.sa_handler = catch_sigint;
@@ -1393,8 +1391,6 @@ main(int argc, char **argv)
 			goto out;
 		}
 		if (type == DISCOVERY_TYPE_SENDTARGETS) {
-			struct iscsi_sendtargets_config cfg;
-
 			if (ip == NULL || port < 0) {
 				log_error("please specify right portal as "
 					  "<ipaddr>[:<ipport>]");
@@ -1402,11 +1398,12 @@ main(int argc, char **argv)
 				goto out;
 			}
 
-			idbm_sendtargets_defaults(db, &cfg);
-			strncpy(cfg.address, ip, sizeof(cfg.address));
+			memset(&drec, 0, sizeof(discovery_rec_t));
+			idbm_sendtargets_defaults(db, &drec.u.sendtargets);
+			strncpy(drec.address, ip, sizeof(drec.address));
+			drec.port = port;
 
-			cfg.port = port;
-			if (!do_sendtargets(db, &cfg) && do_login) {
+			if (!do_sendtargets(db, &drec) && do_login) {
 				log_error("automatic login after discovery "
 					  "is not fully implemented yet.");
 				rc = -1;
@@ -1426,37 +1423,35 @@ main(int argc, char **argv)
 			goto out;
 		} else if (type < 0) {
 			if (ip) {
-				discovery_rec_t rec;
-
-				if (idbm_discovery_read(db, &rec, ip, port)) {
+				if (idbm_discovery_read(db, &drec, ip, port)) {
 					log_error("discovery record [%s,%d] "
 						  "not found!", ip, port);
 					rc = -1;
 					goto out;
 				}
 				if (do_login &&
-				    rec.type == DISCOVERY_TYPE_SENDTARGETS) {
-					do_sendtargets(db, &rec.u.sendtargets);
+				    drec.type == DISCOVERY_TYPE_SENDTARGETS) {
+					do_sendtargets(db, &drec);
 				} else if (do_login &&
-					   rec.type == DISCOVERY_TYPE_SLP) {
+					   drec.type == DISCOVERY_TYPE_SLP) {
 					log_error("SLP discovery is not fully "
 						  "implemented yet.");
 					rc = -1;
 					goto out;
 				} else if (do_login &&
-					   rec.type == DISCOVERY_TYPE_ISNS) {
+					   drec.type == DISCOVERY_TYPE_ISNS) {
 					log_error("iSNS discovery is not fully "
 						  "implemented yet.");
 					rc = -1;
 					goto out;
 				} else if (op < 0 || op == OP_SHOW) {
-					if (!idbm_print_discovery(db, &rec,
+					if (!idbm_print_discovery(db, &drec,
 								  do_show)) {
 						log_error("no records found!");
 						rc = -1;
 					}
 				} else if (op == OP_DELETE) {
-					if (idbm_delete_discovery(db, &rec)) {
+					if (idbm_delete_discovery(db, &drec)) {
 						log_error("unable to delete "
 							   "record!");
 						rc = -1;
