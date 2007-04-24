@@ -257,6 +257,15 @@ Usage: iscsiadm [OPTION]
 
 	    ./iscsiadm -m node -T iqn.2005-03.com.max -p 192.168.0.4:3260 -l
 
+	To specify a IPv6 address the following can be used:
+
+	    ./iscsiadm -m node -T -p 2001:c90::211:9ff:feb8:a9e9 -l
+
+	The above command would use the default port, 3260. To specify a
+	port use the following:
+
+	    ./iscsiadm -m node -T -p [2001:c90::211:9ff:feb8:a9e9]:3260 -l
+
     - iSCSI Login to a specific portal through the NIC with MAC/HW
 	address 00:0F:1F:92:6B:BF set in the db:
 

@@ -284,7 +284,7 @@ __logout_by_startup(void *data, char *targetname, int tpgt, char *address,
 		return 0;
 
 	if (!match_startup_mode(&rec, mode)) {
-		printf("Logout session [%s [%d] %s:%d %s]\n", iface, sid,
+		printf("Logout session [%s [%d] [%s]:%d %s]\n", iface, sid,
 			address, port, targetname);
 
 		rc = session_logout(&rec);
@@ -347,8 +347,8 @@ logout_portal(void *data, char *targetname, int tpgt, char *address,
 	if (port != rec->conn[0].port)
 		return 0;
 
-	printf("Logout session [%s [%d] %s:%d %s]\n", iface, sid, address, port,
-		targetname);
+	printf("Logout session [%s [%d] [%s]:%d %s]\n", iface, sid, address,
+		port, targetname);
 
 	memset(&tmprec, 0, sizeof(node_rec_t));
 	idbm_node_setup_defaults(&tmprec);
@@ -401,7 +401,7 @@ login_portal(void *data, node_rec_t *rec)
 {
 	int rc;
 
-	printf("Login session [%s:%s %s:%d %s]\n", rec->transport_name,
+	printf("Login session [%s:%s [%s]:%d %s]\n", rec->transport_name,
 		rec->iface.name, rec->conn[0].address,
 		rec->conn[0].port, rec->name);
 
@@ -501,8 +501,12 @@ nodev:
  */
 static int print_node(void *data, node_rec_t *rec)
 {
-	printf("%s:%d,%d %s\n", rec->conn[0].address, rec->conn[0].port,
-		rec->tpgt, rec->name);
+	if (strchr(rec->conn[0].address, '.'))
+		printf("%s:%d,%d %s\n", rec->conn[0].address, rec->conn[0].port,
+		       rec->tpgt, rec->name);
+	else
+		printf("[%s]:%d,%d %s\n", rec->conn[0].address,
+		       rec->conn[0].port, rec->tpgt, rec->name);
 	return 0;
 }
 
@@ -516,9 +520,14 @@ static int print_node_tree(void *data, node_rec_t *rec)
 	}
 
 	if ((strcmp(last_rec->conn[0].address, rec->conn[0].address) ||
-	     last_rec->conn[0].port != rec->conn[0].port))
-		printf("\tportal: %s:%d\n", rec->conn[0].address,
-		       rec->conn[0].port);
+	     last_rec->conn[0].port != rec->conn[0].port)) {
+		if (strchr(rec->conn[0].address, '.'))
+			printf("\tportal: %s:%d\n", rec->conn[0].address,
+			       rec->conn[0].port);
+		else
+			printf("\tportal: [%s]:%d\n", rec->conn[0].address,
+			       rec->conn[0].port);
+	}
 
 	printf("\t\tdriver: %s hwaddress: %s\n", rec->transport_name,
 		rec->iface.name);
@@ -658,7 +667,10 @@ static int print_session_info(void *data, char *targetname, int tpgt,
 	 * TODO print portal we are connected to and the one
 	 * we were redirected from
 	 */
-	printf("Network Portal: %s:%d\n", address, port);
+	if (strchr(address, '.'))
+		printf("Network Portal: %s:%d\n", address, port);
+	else
+		printf("Network Portal: [%s]:%d\n", address, port);
 
 	get_negotiated_session_conf(sid, &session_conf);
 	get_negotiated_conn_conf(sid, &conn_conf);
@@ -772,9 +784,14 @@ static int print_session(void *data, char *targetname, int tpgt, char *address,
 {
 	iscsi_provider_t *provider = get_transport_by_sid(sid);
 
-	printf("%s: [%d] %s:%d,%d %s\n",
-		provider ? provider->name : "NA",
-		sid, address, port, tpgt, targetname);
+	if (strchr(address, '.'))
+		printf("%s: [%d] %s:%d,%d %s\n",
+			provider ? provider->name : "NA",
+			sid, address, port, tpgt, targetname);
+	else
+		printf("%s: [%d] [%s]:%d,%d %s\n",
+			provider ? provider->name : "NA",
+			sid, address, port, tpgt, targetname);
 	return 0;
 }
 
