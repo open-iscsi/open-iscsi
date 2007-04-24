@@ -48,6 +48,7 @@ enum iscsi_uevent_e {
 	ISCSI_UEVENT_TRANSPORT_EP_DISCONNECT	= UEVENT_BASE + 14,
 
 	ISCSI_UEVENT_TGT_DSCVR		= UEVENT_BASE + 15,
+	ISCSI_UEVENT_SET_HOST_PARAM	= UEVENT_BASE + 16,
 
 	/* up events */
 	ISCSI_KEVENT_RECV_PDU		= KEVENT_BASE + 1,
@@ -136,6 +137,11 @@ struct iscsi_uevent {
 			 */
 			uint32_t	enable;
 		} tgt_dscvr;
+		struct msg_set_host_param {
+			uint32_t	host_no;
+			uint32_t	param; /* enum iscsi_host_param */
+			uint32_t	len;
+		} set_host_param;
 	} u;
 	union {
 		/* messages k -> u */
@@ -249,6 +255,14 @@ enum iscsi_param {
 #define ISCSI_SESS_RECOVERY_TMO		(1 << ISCSI_PARAM_SESS_RECOVERY_TMO)
 #define ISCSI_CONN_PORT			(1 << ISCSI_PARAM_CONN_PORT)
 #define ISCSI_CONN_ADDRESS		(1 << ISCSI_PARAM_CONN_ADDRESS)
+
+/* iSCSI HBA params */
+enum iscsi_host_param {
+	ISCSI_HOST_PARAM_HWADDRESS,
+	ISCSI_HOST_PARAM_MAX,
+};
+
+#define ISCSI_HOST_HWADDRESS		(1 << ISCSI_HOST_PARAM_HWADDRESS)
 
 #define iscsi_ptr(_handle) ((void*)(unsigned long)_handle)
 #define iscsi_handle(_ptr) ((uint64_t)(unsigned long)_ptr)

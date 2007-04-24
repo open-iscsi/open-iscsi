@@ -32,7 +32,7 @@
 
 #define ISCSI_SESSION_ATTRS 11
 #define ISCSI_CONN_ATTRS 11
-#define ISCSI_HOST_ATTRS 0
+#define ISCSI_HOST_ATTRS 1
 #define ISCSI_TRANSPORT_VERSION "2.0-724"
 
 struct iscsi_internal {
@@ -945,15 +945,44 @@ static int
 iscsi_tgt_dscvr(struct iscsi_transport *transport,
 		struct iscsi_uevent *ev)
 {
+	struct Scsi_Host *shost;
 	struct sockaddr *dst_addr;
 
 	if (!transport->tgt_dscvr)
 		return -EINVAL;
 
+	shost = scsi_host_lookup(ev->u.tgt_dscvr.host_no);
+	if (IS_ERR(shost)) {
+		printk(KERN_ERR "target discovery could not find host no %u\n",
+		       ev->u.tgt_dscvr.host_no);
+		return -ENODEV;
+	}
+
+
 	dst_addr = (struct sockaddr *)((char*)ev + sizeof(*ev));
-	return transport->tgt_dscvr(ev->u.tgt_dscvr.type,
-				    ev->u.tgt_dscvr.host_no,
+	return transport->tgt_dscvr(shost, ev->u.tgt_dscvr.type,
 				    ev->u.tgt_dscvr.enable, dst_addr);
+}
+
+static int
+iscsi_set_host_param(struct iscsi_transport *transport,
+		     struct iscsi_uevent *ev)
+{
+	char *data = (char*)ev + sizeof(*ev);
+	struct Scsi_Host *shost;
+
+	if (!transport->set_host_param)
+		return -ENOSYS;
+
+	shost = scsi_host_lookup(ev->u.set_host_param.host_no);
+	if (IS_ERR(shost)) {
+		printk(KERN_ERR "set_host_param could not find host no %u\n",
+		       ev->u.set_host_param.host_no);
+		return -ENODEV;
+	}
+
+	return transport->set_host_param(shost, ev->u.set_host_param.param,
+					 data, ev->u.set_host_param.len);
 }
 
 static int
@@ -1047,8 +1076,11 @@ iscsi_if_recv_msg(struct sk_buff *skb, struct nlmsghdr *nlh)
 	case ISCSI_UEVENT_TGT_DSCVR:
 		err = iscsi_tgt_dscvr(transport, ev);
 		break;
+	case ISCSI_UEVENT_SET_HOST_PARAM:
+		err = iscsi_set_host_param(transport, ev);
+		break;
 	default:
-		err = -EINVAL;
+		err = -ENOSYS;
 		break;
 	}
 
@@ -1197,6 +1229,25 @@ static ISCSI_CLASS_ATTR(priv_sess, field, S_IRUGO, show_priv_session_##field, \
 			NULL)
 iscsi_priv_session_attr(recovery_tmo, "%d");
 
+/*
+ * iSCSI host attrs
+ */
+#define iscsi_host_attr_show(param)					\
+static ssize_t								\
+show_host_param_##param(struct class_device *cdev, char *buf)		\
+{									\
+	struct Scsi_Host *shost = transport_class_to_shost(cdev);	\
+	struct iscsi_internal *priv = to_iscsi_internal(shost->transportt); \
+	return priv->iscsi_transport->get_host_param(shost, param, buf); \
+}
+
+#define iscsi_host_attr(field, param)					\
+	iscsi_host_attr_show(param)					\
+static ISCSI_CLASS_ATTR(host, field, S_IRUGO, show_host_param_##param,	\
+			NULL);
+
+iscsi_host_attr(hwaddress, ISCSI_HOST_PARAM_HWADDRESS);
+
 #define SETUP_PRIV_SESSION_RD_ATTR(field)				\
 do {									\
 	priv->session_attrs[count] = &class_device_attr_priv_sess_##field; \
@@ -1216,6 +1267,14 @@ do {									\
 do {									\
 	if (tt->param_mask & param_flag) {				\
 		priv->conn_attrs[count] = &class_device_attr_conn_##field; \
+		count++;						\
+	}								\
+} while (0)
+
+#define SETUP_HOST_RD_ATTR(field, param_flag)				\
+do {									\
+	if (tt->host_param_mask & param_flag) {				\
+		priv->host_attrs[count] = &class_device_attr_host_##field; \
 		count++;						\
 	}								\
 } while (0)
@@ -1321,8 +1380,12 @@ iscsi_register_transport(struct iscsi_transport *tt)
 	priv->t.host_attrs.ac.class = &iscsi_host_class.class;
 	priv->t.host_attrs.ac.match = iscsi_host_match;
 	priv->t.host_size = sizeof(struct iscsi_host);
-	priv->host_attrs[0] = NULL;
 	transport_container_register(&priv->t.host_attrs);
+
+	SETUP_HOST_RD_ATTR(hwaddress, ISCSI_HOST_HWADDRESS);
+	BUG_ON(count > ISCSI_HOST_ATTRS);
+	priv->host_attrs[count] = NULL;
+	count = 0;
 
 	/* connection parameters */
 	priv->conn_cont.ac.attrs = &priv->conn_attrs[0];
