@@ -1104,7 +1104,7 @@ idbm_add_discovery(idbm_t *db, discovery_rec_t *newrec)
 }
 
 static int
-idbm_add_node(idbm_t *db, discovery_rec_t *drec, node_rec_t *newrec)
+idbm_add_node(idbm_t *db, node_rec_t *newrec)
 {
 	node_rec_t rec;
 	int rc;
@@ -1121,8 +1121,7 @@ idbm_add_node(idbm_t *db, discovery_rec_t *drec, node_rec_t *newrec)
 	return rc;
 }
 
-static int
-idbm_add_nodes(idbm_t *db, discovery_rec_t *drec, node_rec_t *newrec)
+int idbm_add_nodes(idbm_t *db, node_rec_t *newrec)
 {
 	int i, rc = 0;
 
@@ -1131,7 +1130,7 @@ idbm_add_nodes(idbm_t *db, discovery_rec_t *drec, node_rec_t *newrec)
 			continue;
 
 		strcpy(newrec->iface.name, db->irec_iface[i].name);
-		rc = idbm_add_node(db, drec, newrec);
+		rc = idbm_add_node(db, newrec);
 		if (rc)
 			return rc;
 	}
@@ -1240,7 +1239,7 @@ idbm_new_discovery(idbm_t *db, char *ip, int port,
 					goto out;
 				}
 
-				if (idbm_add_nodes(db, drec, nrec)) {
+				if (idbm_add_nodes(db, nrec)) {
 					log_error("can not update node "
 						  "record.");
 					free(drec);

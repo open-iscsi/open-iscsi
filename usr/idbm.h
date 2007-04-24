@@ -89,6 +89,7 @@ extern int idbm_delete_discovery(idbm_t *db, discovery_rec_t *rec);
 extern void idbm_node_setup_defaults(node_rec_t *rec);
 extern int idbm_delete_node(void *data, node_rec_t *rec);
 extern int idbm_new_node(idbm_t *db, node_rec_t *newrec);
+extern int idbm_add_nodes(idbm_t *db, node_rec_t *newrec);
 extern int idbm_add_discovery(idbm_t *db, discovery_rec_t *newrec);
 extern discovery_rec_t* idbm_new_discovery(idbm_t *db, char *ip, int port,
 			    discovery_type_e type, char *info);

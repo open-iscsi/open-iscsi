@@ -288,13 +288,17 @@ static void add_new_target_node(char *targetname, uint8_t *ip, int port,
 		  targetname, dst, port, tag);
 
 	db = idbm_init(dconfig->config_file);
-
-	idbm_node_setup_defaults(&rec);
+	if (!db) {
+		log_error("Could not add new target node:%s %s,%d",
+			  targetname, dst, port);
+		return;
+	}
+	idbm_node_setup_from_conf(db, &rec);
 	strncpy(rec.name, targetname, TARGET_NAME_MAXLEN);
 	rec.conn[0].port = port;
 	rec.tpgt = tag;
 	strncpy(rec.conn[0].address, dst, NI_MAXHOST);
-	err = idbm_new_node(db, &rec);
+	err = idbm_add_nodes(db, &rec);
 	if (err)
 		log_error("Could not add new target node:%s %s,%d",
 			  targetname, dst, port);
