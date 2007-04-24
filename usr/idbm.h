@@ -72,6 +72,7 @@ struct db_set_param {
 extern char* get_iscsi_initiatorname(char *pathname);
 extern char* get_iscsi_initiatoralias(char *pathname);
 extern idbm_t* idbm_init(char *configfile);
+extern void idbm_node_setup_from_conf(idbm_t *db, node_rec_t *rec);
 extern void idbm_terminate(idbm_t *db);
 extern int idbm_print_node(void *data, node_rec_t *rec);
 extern int idbm_for_each_node(idbm_t *db, void *data,

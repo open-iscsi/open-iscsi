@@ -637,6 +637,15 @@ idbm_sync_config(idbm_t *db, int read_config)
 			strlen((char*)db->nrec.session.auth.password_in);
 }
 
+void idbm_node_setup_from_conf(idbm_t *db, node_rec_t *rec)
+{
+	memset(rec, 0, sizeof(*rec));
+	idbm_node_setup_defaults(rec);
+	/* sync default configuration */
+	idbm_sync_config(db, 1);
+	memcpy(rec, &db->nrec, sizeof(*rec));
+}
+
 int
 idbm_print_discovery(idbm_t *db, discovery_rec_t *rec, int show)
 {

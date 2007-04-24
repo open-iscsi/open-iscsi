@@ -92,6 +92,74 @@ Open-iSCSI initiator daemon.\n\
 	exit(status == 0 ? 0 : -1);
 }
 
+static void
+setup_rec_from_negotiated_values(idbm_t *db, node_rec_t *rec,
+				iscsi_provider_t *p, char *targetname,
+				int tpgt, char *address,
+				int port, int sid, char *iface)
+{
+	struct iscsi_session_operational_config session_conf;
+	struct iscsi_conn_operational_config conn_conf;
+
+	idbm_node_setup_from_conf(db, rec);
+	strncpy(rec->name, targetname, TARGET_NAME_MAXLEN);
+	rec->conn[0].port = port;
+	strncpy(rec->conn[0].address, address, NI_MAXHOST);
+	strncpy(rec->iface.name, iface, ISCSI_MAX_IFACE_LEN);
+	strncpy(rec->transport_name, p->name, ISCSI_TRANSPORT_NAME_MAXLEN);
+	rec->tpgt = tpgt;
+
+	get_negotiated_session_conf(sid, &session_conf);
+	get_negotiated_conn_conf(sid, &conn_conf);
+
+	if (is_valid_operational_value(conn_conf.HeaderDigest)) {
+		if (conn_conf.HeaderDigest)
+			rec->conn[0].iscsi.HeaderDigest =
+						CONFIG_DIGEST_PREFER_ON;
+		else
+			rec->conn[0].iscsi.HeaderDigest =
+						CONFIG_DIGEST_PREFER_OFF;
+	}
+
+	if (is_valid_operational_value(conn_conf.DataDigest)) {
+		if (conn_conf.DataDigest)
+			rec->conn[0].iscsi.DataDigest = CONFIG_DIGEST_PREFER_ON;
+		else
+			rec->conn[0].iscsi.DataDigest =
+						CONFIG_DIGEST_PREFER_OFF;
+	}
+
+	if (is_valid_operational_value(conn_conf.MaxRecvDataSegmentLength))
+		rec->conn[0].iscsi.MaxRecvDataSegmentLength =
+					conn_conf.MaxRecvDataSegmentLength;
+
+	if (is_valid_operational_value(conn_conf.MaxXmitDataSegmentLength))
+		 rec->conn[0].iscsi.MaxXmitDataSegmentLength =
+					conn_conf.MaxXmitDataSegmentLength;
+
+	if (is_valid_operational_value(session_conf.FirstBurstLength))
+		rec->session.iscsi.FirstBurstLength =
+					session_conf.FirstBurstLength;
+
+	if (is_valid_operational_value(session_conf.MaxBurstLength))
+		rec->session.iscsi.MaxBurstLength =
+					session_conf.MaxBurstLength;
+
+	if (is_valid_operational_value(session_conf.ImmediateData)) {
+		if (session_conf.ImmediateData)
+			rec->session.iscsi.ImmediateData = 1;
+		else
+			rec->session.iscsi.ImmediateData = 0;
+	}
+
+	if (is_valid_operational_value(session_conf.InitialR2T)) {
+		if (session_conf.InitialR2T)
+			rec->session.iscsi.InitialR2T = 0;
+		else
+			rec->session.iscsi.InitialR2T = 1;
+	}
+}
+
 static int sync_session(void *data, char *targetname, int tpgt, char *address,
 			int port, int sid, char *iface)
 {
@@ -100,19 +168,26 @@ static int sync_session(void *data, char *targetname, int tpgt, char *address,
 	int fd = -1;
 	iscsiadm_req_t req;
 	iscsiadm_rsp_t rsp;
+	iscsi_provider_t *p;
 
 	log_debug(7, "sync session [%d][%s,%s.%d][%s]\n", sid, targetname,
 		  address, port, iface);
 
-	if (idbm_node_read(db, &rec, targetname, address, port, iface)) {
-		log_warning("could not read data for [%s,%s.%d]\n",
-			    targetname, address, port);
+	/* don't do anything for qlogic right now */
+	p = get_transport_by_sid(sid);
+	if (!p)
 		return 0;
-	}
 
-        if (!iscsi_match_session(&rec, targetname, tpgt, address, port,
-                                sid, iface))
-		return 0;
+	if (!idbm_node_read(db, &rec, targetname, address, port, iface)) {
+		if (!iscsi_match_session(&rec, targetname, tpgt, address,
+					  port, sid, iface))
+			return 0;
+	} else {
+		log_warning("Could not read data from db. Using default and "
+			    "currently negotiated values\n");
+		setup_rec_from_negotiated_values(db, &rec, p, targetname, tpgt,
+						address, port, sid, iface);
+	}
 
 	memset(&req, 0, sizeof(req));
 	req.command = MGMT_IPC_SESSION_SYNC;

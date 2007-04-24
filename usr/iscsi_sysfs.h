@@ -39,6 +39,12 @@ extern uint32_t get_host_no_from_sid(uint32_t sid, int *err);
 extern int get_netdev_from_mac(char *mac, char *dev);
 extern char *get_blockdev_from_lun(int hostno, int target, int sid);
 extern int set_exp_statsn(struct iscsi_conn *conn);
+
+static inline int is_valid_operational_value(int value)
+{
+	return value != -1;
+}
+
 extern void get_negotiated_session_conf(int sid,
 				struct iscsi_session_operational_config *conf);
 extern void get_negotiated_conn_conf(int sid,

@@ -623,11 +623,6 @@ static void print_scsi_device_info(int host_no, int target, int lun)
 	}
 }
 
-static int is_valid_operational_value(int value)
-{
-	return value != -1;
-}
-
 static int print_session_info(void *data, char *targetname, int tpgt,
 			      char *address, int port, int sid, char *iface)
 {
@@ -1120,7 +1115,7 @@ static int exec_node_op(idbm_t *db, int op, int do_login, int do_logout,
 			goto out;
 		}
 
-		idbm_node_setup_defaults(&rec);
+		idbm_node_setup_from_conf(db, &rec);
 		strncpy(rec.name, targetname, TARGET_NAME_MAXLEN);
 		rec.conn[0].port = port;
 		strncpy(rec.conn[0].address, ip, NI_MAXHOST);
