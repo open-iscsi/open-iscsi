@@ -297,8 +297,7 @@ extern int iscsi_conn_get_param(struct iscsi_cls_conn *cls_conn,
 /*
  * pdu and task processing
  */
-extern int iscsi_check_assign_cmdsn(struct iscsi_session *,
-				    struct iscsi_nopin *);
+extern void iscsi_update_cmdsn(struct iscsi_session *, struct iscsi_nopin *);
 extern void iscsi_prep_unsolicit_data_pdu(struct iscsi_cmd_task *,
 					struct iscsi_data *hdr);
 extern int iscsi_conn_send_pdu(struct iscsi_cls_conn *, struct iscsi_hdr *,
