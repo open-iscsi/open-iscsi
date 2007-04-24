@@ -121,6 +121,10 @@ static int setup_session(void)
 	iscsiadm_rsp_t rsp;
 	int rc;
 
+	/* we cannot answer so turn off */
+	config_rec.conn[0].timeo.noop_out_interval = 0;
+	config_rec.conn[0].timeo.noop_out_timeout = 0;
+
 	memset(&req, 0, sizeof(req));
 	req.command = MGMT_IPC_SESSION_LOGIN;
 	memcpy(&req.u.session.rec, &config_rec, sizeof(node_rec_t));
