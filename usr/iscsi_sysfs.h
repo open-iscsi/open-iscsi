@@ -33,11 +33,14 @@ extern void check_class_version(void);
 extern int get_sessioninfo_by_sysfs_id(int *sid, char *targetname,
 				      char *addr, int *port, int *tpgt,
 				      char *iface, char *sys_session);
-extern int read_sysfs_file(char *filename, void *value, char *format);
 
-typedef int (sysfs_op_fn)(void *, char *, int, char *, int, int, char *);
+typedef int (sysfs_session_op_fn)(void *, char *, int, char *, int, int,
+				  char *);
+typedef int (sysfs_host_op_fn)(void *, uint32_t, char *, char *);
 
-extern int sysfs_for_each_session(void *data, int *nr_found, sysfs_op_fn *fn);
+extern int sysfs_for_each_session(void *data, int *nr_found,
+				  sysfs_session_op_fn *fn);
+extern int sysfs_for_each_host(void *data, int *nr_found, sysfs_host_op_fn *fn);
 extern uint32_t get_host_no_from_sid(uint32_t sid, int *err);
 extern int get_netdev_from_mac(char *mac, char *dev);
 extern uint32_t get_host_no_from_mac(char *hwaddress, int *err);

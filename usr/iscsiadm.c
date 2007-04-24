@@ -57,6 +57,7 @@ enum iscsiadm_mode {
 	MODE_DISCOVERY,
 	MODE_NODE,
 	MODE_SESSION,
+	MODE_HOST,
 };
 
 enum iscsiadm_op {
@@ -99,11 +100,12 @@ static void usage(int status)
 			program_name);
 	else {
 		printf("\
-iscsiadm -m discovery [ -dhV ] [--print=N] [ -t type -p ip:port -I {driver,HWaddress} ... [ -l ] ] | [ -p ip:port ] \
+iscsiadm -m discovery [ -dhV ] [-P printlevel] [ -t type -p ip:port -I {driver,HWaddress} ... [ -l ] ] | [ -p ip:port ] \
 [ -o operation ] [ -n name ] [ -v value ]\n\
 iscsiadm -m node [ -dhV ] [ -P printlevel ] [ -L all,manual,automatic ] [ -U all,manual,automatic ] [ -S ] [ [ -T targetname -p ip:port -I {driver,HWaddress} ] [ -l | -u | -R | -s] ] \
 [ [ -o  operation  ] [ -n name ] [ -v value ] [ -p ip:port ] ]\n\
-iscsiadm -m session [ -dhV ] [ -P  printlevel] [ -r sessionid | sysfsdir [ -R | -u | -s ] [ -o operation ] [ -n name ] [ -v value ] ]\n");
+iscsiadm -m session [ -dhV ] [ -P  printlevel] [ -r sessionid | sysfsdir [ -R | -u | -s ] [ -o operation ] [ -n name ] [ -v value ] ]\n\
+iscsiadm -m host [ -dhV ] [ -P printlevel ]\n");
 	}
 	exit(status == 0 ? 0 : -1);
 }
@@ -138,6 +140,8 @@ str_to_mode(char *str)
 		mode = MODE_NODE;
 	else if (!strcmp("session", str))
 		mode = MODE_SESSION;
+	else if (!strcmp("host", str))
+		mode = MODE_HOST;
 	else
 		mode = -1;
 
@@ -160,6 +164,41 @@ str_to_type(char *str)
 		type = -1;
 
 	return type;
+}
+
+/* flat P0 style for now */
+static int print_host(void *data, uint32_t host_no, char *iname,
+		      char *hwaddress)
+{
+	struct iscsi_transport *t;
+
+	t = get_transport_by_hba(host_no);
+	printf("%s %s,%s %u\n", iname, t ? t->name : "NA",
+		hwaddress, host_no);
+	return 0;
+}
+
+/*
+ * TODO: when we get more time we can make add what sessions
+ * are connected to the host. For now you can see this in session
+ * mode although with -P 3, althought it is not nicely structured
+ * like how you would want
+ */
+static int print_hosts(int info_level)
+{
+	int err, num_found = 0;
+
+	if (info_level > 0) {
+		log_error("Invalid info level %d. Try 0.", info_level);
+		return EINVAL;
+	}
+
+	err = sysfs_for_each_host(NULL, &num_found, print_host);
+	if (!num_found) {
+		log_error("No hosts found.");
+		err = ENODEV;
+	}
+	return err;
 }
 
 static int
@@ -421,7 +460,7 @@ static void setup_node_record(node_rec_t *rec, char *targetname, char *ip,
 
 static int
 for_each_session(idbm_t *db, char *targetname, char *ip, int port,
-		 char *hwaddress, char *driver, sysfs_op_fn *fn)
+		 char *hwaddress, char *driver, sysfs_session_op_fn *fn)
 {
 	node_rec_t rec;
 	int err, num_found = 0;
@@ -823,7 +862,8 @@ static void print_sessions_tree(struct list_head *list, int level)
 			else
 				printf("\tPortal: [%s]:%d,%d\n", curr->address,
 				      curr->port, curr->tpgt);
-		}
+		} else
+			printf("\n");
 		t = get_transport_by_sid(curr->sid);
 		printf("\t\tDriver: %s\n", t ? t->name : "NA");
 		printf("\t\tHWaddress: %s\n", curr->hwaddress);
@@ -1589,7 +1629,18 @@ main(int argc, char **argv)
 		return -1;
 	}
 
-	if (mode == MODE_DISCOVERY) {
+	if (mode == MODE_HOST) {
+		if ((rc = verify_mode_params(argc, argv, "dmP", 0))) {
+			log_error("host mode: option '-%c' is not "
+				  "allowed/supported", rc);
+			rc = -1;
+			goto out;
+		}
+
+		if (print_hosts(info_level))
+			rc = -1;
+		goto out;
+	} else if (mode == MODE_DISCOVERY) {
 		if ((rc = verify_mode_params(argc, argv, "IPdmtplo", 0))) {
 			log_error("discovery mode: option '-%c' is not "
 				  "allowed/supported", rc);

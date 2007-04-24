@@ -363,6 +363,71 @@ int get_netdev_from_mac(char *address, char *dev)
 	return ret;
 }
 
+int sysfs_for_each_host(void *data, int *nr_found, sysfs_host_op_fn *fn)
+{
+	struct dirent **namelist;
+	int rc = 0, i, n, host_no;
+	char *iname, *hwaddress;
+
+	iname = malloc(TARGET_NAME_MAXLEN + 1);
+	if (!iname)
+		return ENOMEM;
+
+	hwaddress = malloc(ISCSI_MAX_IFACE_LEN);
+	if (!hwaddress) {
+		rc = ENOMEM;
+		goto free_target;
+	}
+
+	sprintf(sysfs_file, ISCSI_HOST_DIR);
+	n = scandir(sysfs_file, &namelist, trans_filter,
+		    versionsort);
+	if (n <= 0)
+		goto free_address;
+
+	for (i = 0; i < n; i++) {
+		if (sscanf(namelist[i]->d_name, "host%u", &host_no) != 1) {
+			log_error("Invalid iscsi host dir: %s",
+				  namelist[i]->d_name);
+			break;
+		}
+
+		memset(sysfs_file, 0, PATH_MAX);
+		sprintf(sysfs_file, ISCSI_HOST_DIR"/%s/initiatorname",
+			namelist[i]->d_name);
+		rc = read_sysfs_file(sysfs_file, iname, "%s\n");
+		if (rc) {
+			log_error("Could not read initiatorname for host %u. "
+				  "Error %d\n", host_no, rc);
+			break;
+		}
+
+		memset(sysfs_file, 0, PATH_MAX);
+		sprintf(sysfs_file, ISCSI_HOST_DIR"/%s/hwaddress",
+			namelist[i]->d_name);
+		rc = read_sysfs_file(sysfs_file, hwaddress, "%s\n");
+		if (rc) {
+			log_error("Could not read hwaddress for host %u. "
+				  "Error %d\n", host_no, rc);
+			break;
+		}
+		rc = fn(data, host_no, iname, hwaddress);
+		if (rc != 0)
+			break;
+		(*nr_found)++;
+	}
+
+	for (i = 0; i < n; i++)
+		free(namelist[i]);
+	free(namelist);
+
+free_address:
+	free(hwaddress);
+free_target:
+	free(iname);
+	return rc;
+}
+
 int get_sessioninfo_by_sysfs_id(int *sid, char *targetname, char *addr,
 				int *port, int *tpgt, char *hwaddress,
 				char *session)
@@ -449,8 +514,8 @@ int get_sessioninfo_by_sysfs_id(int *sid, char *targetname, char *addr,
 		  targetname, addr ? addr : "NA", *port, hwaddress);
 	return 0;
 }
-
-int sysfs_for_each_session(void *data, int *nr_found, sysfs_op_fn *fn)
+ 
+int sysfs_for_each_session(void *data, int *nr_found, sysfs_session_op_fn *fn)
 {
 	struct dirent **namelist;
 	int rc = 0, sid, port, tpgt, n, i;
