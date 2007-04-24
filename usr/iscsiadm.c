@@ -48,7 +48,6 @@
 struct iscsi_ipc *ipc = NULL; /* dummy */
 static int ipc_fd = -1;
 static char program_name[] = "iscsiadm";
-static char node_path_buf[PATH_MAX];
 
 char initiator_name[TARGET_NAME_MAXLEN];
 char initiator_alias[TARGET_NAME_MAXLEN];
@@ -495,31 +494,8 @@ static int for_each_portal_rec(idbm_t *db, char *targetname, char *ip, int port,
 	int err;
 
 	setup_node_record(&rec, targetname, ip, port, iface);
-	if (targetname && ip) {
-		if (iface) {
-			err = idbm_node_read(db, &rec, targetname, ip, port,
-					     iface);
-			if (err) {
-				log_error("node [%s, %s,%d][%s] not found!",
-					  targetname, ip, port, iface);
-				return err;
-			}
-
-			fn(data, &rec);
-			return 0;
-		}
-
-		if (!idbm_for_each_iface(node_path_buf, targetname, ip, port,
-					 db, data, fn, &rec,
-					 match_valid_session))
-			goto nodev;
-	} else if (targetname && !ip) {
-		if (!idbm_for_each_portal(node_path_buf, targetname, db,
-					 data, fn, &rec, match_valid_session))
-			goto nodev;
-	} else if (!idbm_for_each_node(db, data, fn, &rec, match_valid_session))
+	if (!idbm_for_each_node(db, data, fn, &rec, match_valid_session))
 		goto nodev;
-
 	return 0;
 nodev:
 	log_error("no records found!");

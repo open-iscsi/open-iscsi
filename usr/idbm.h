@@ -81,12 +81,6 @@ extern void idbm_terminate(idbm_t *db);
 extern int idbm_print_node(void *data, node_rec_t *rec);
 extern int idbm_for_each_node(idbm_t *db, void *data, idbm_node_op_fn *op_fn,
 			      node_rec_t *match_rec, idbm_match_fn *match_fn);
-extern int idbm_for_each_portal(char *buf, char *targetname, idbm_t *db,
-				void *data, idbm_node_op_fn *op_fn,
-				node_rec_t *match_rec, idbm_match_fn *match_fn);
-extern int idbm_for_each_iface(char *buf, char *targetname, char *ip, int port,
-				idbm_t *db, void *data, idbm_node_op_fn *op_fn,
-				node_rec_t *match_rec, idbm_match_fn *match_fn);
 extern int idbm_print_discovery(idbm_t *db, discovery_rec_t *rec, int show);
 extern int idbm_print_all_discovery(idbm_t *db);
 extern int idbm_delete_discovery(idbm_t *db, discovery_rec_t *rec);
