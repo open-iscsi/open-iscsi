@@ -683,7 +683,7 @@ ktransport_ep_connect(iscsi_conn_t *conn, int non_blocking)
 	memset(setparam_buf, 0, NLM_SETPARAM_DEFAULT_MAX);
 	ev = (struct iscsi_uevent *)setparam_buf;
 	ev->type = ISCSI_UEVENT_TRANSPORT_EP_CONNECT;
-	ev->transport_handle = conn->session->transport_handle;
+	ev->transport_handle = conn->session->t->handle;
 
 	if (dst_addr->sa_family == PF_INET)
 		addrlen = sizeof(struct sockaddr_in);
@@ -721,7 +721,7 @@ ktransport_ep_poll(iscsi_conn_t *conn, int timeout_ms)
 	memset(&ev, 0, sizeof(struct iscsi_uevent));
 
 	ev.type = ISCSI_UEVENT_TRANSPORT_EP_POLL;
-	ev.transport_handle = conn->session->transport_handle;
+	ev.transport_handle = conn->session->t->handle;
 	ev.u.ep_poll.ep_handle  = conn->transport_ep_handle;
 	ev.u.ep_poll.timeout_ms = timeout_ms;
 
@@ -745,7 +745,7 @@ ktransport_ep_disconnect(iscsi_conn_t *conn)
 	memset(&ev, 0, sizeof(struct iscsi_uevent));
 
 	ev.type = ISCSI_UEVENT_TRANSPORT_EP_DISCONNECT;
-	ev.transport_handle = conn->session->transport_handle;
+	ev.transport_handle = conn->session->t->handle;
 	ev.u.ep_disconnect.ep_handle = conn->transport_ep_handle;
 
 	if ((rc = __kipc_call(&ev, sizeof(ev))) < 0) {
@@ -807,8 +807,7 @@ ctldev_handle(void)
 {
 	int rc;
 	struct iscsi_uevent *ev;
-	struct qelem *item, *pitem;
-	iscsi_provider_t *p;
+	struct iscsi_transport *t;
 	iscsi_session_t *session = NULL;
 	iscsi_conn_t *conn = NULL;
 	uintptr_t recv_handle;
@@ -827,14 +826,10 @@ ctldev_handle(void)
 	ev = (struct iscsi_uevent *)NLMSG_DATA(nlm_ev);
 
 	/* verify connection */
-	pitem = providers.q_forw;
-	while (pitem != &providers) {
-		p = (iscsi_provider_t *)pitem;
-
-		item = p->sessions.q_forw;
-		while (item != &p->sessions) {
+	list_for_each_entry(t, &transports, list) {
+		list_for_each_entry(session, &t->sessions, list) {
 			int i;
-			session = (iscsi_session_t *)item;
+
 			for (i=0; i<ISCSI_CONN_MAX; i++) {
 				if (ev->type == ISCSI_KEVENT_RECV_PDU &&
 				    session->id == ev->r.recv_req.sid &&
@@ -849,9 +844,7 @@ ctldev_handle(void)
 					goto verify_conn;
 				}
 			}
-			item = item->q_forw;
 		}
-		pitem = pitem->q_forw;
 	}
 
 verify_conn:

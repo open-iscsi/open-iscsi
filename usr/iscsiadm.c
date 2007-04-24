@@ -351,15 +351,15 @@ logout_portal(void *data, char *targetname, int tpgt, char *address,
 	      int port, int sid, char *iface)
 {
 	node_rec_t tmprec, *rec = data;
-	iscsi_provider_t *p;
+	struct iscsi_transport *t;
 	int rc;
 
-	p = get_transport_by_sid(sid);
-	if (!p)
+	t = get_transport_by_sid(sid);
+	if (!t)
 		return 0;
 
 	if (!match_valid_session(rec, targetname, address, port, iface,
-				 p->name))
+				 t->name))
 		return 0;
 
 	printf("Logout session [%s [%d] [%s]:%d %s]\n", iface, sid, address,
@@ -371,7 +371,7 @@ logout_portal(void *data, char *targetname, int tpgt, char *address,
 	tmprec.conn[0].port = port;
 	strncpy(tmprec.conn[0].address, address, NI_MAXHOST);
 	strncpy(tmprec.iface.name, iface, ISCSI_MAX_IFACE_LEN);
-	strncpy(tmprec.iface.transport_name, p->name,
+	strncpy(tmprec.iface.transport_name, t->name,
 		ISCSI_TRANSPORT_NAME_MAXLEN);
 
 	rc = session_logout(&tmprec);
@@ -598,15 +598,15 @@ config_init(void)
 static int print_session(void *data, char *targetname, int tpgt, char *address,
 			 int port, int sid, char *iface)
 {
-	iscsi_provider_t *provider = get_transport_by_sid(sid);
+	struct iscsi_transport *t = get_transport_by_sid(sid);
 
 	if (strchr(address, '.'))
 		printf("%s: [%d] %s:%d,%d %s\n",
-			provider ? provider->name : "NA",
+			t ? t->name : "NA",
 			sid, address, port, tpgt, targetname);
 	else
 		printf("%s: [%d] [%s]:%d,%d %s\n",
-			provider ? provider->name : "NA",
+			t ? t->name : "NA",
 			sid, address, port, tpgt, targetname);
 	return 0;
 }
@@ -798,7 +798,7 @@ static int print_scsi_state(int sid)
 static void print_sessions_tree(struct list_head *list, int level)
 {
 	struct session_data *curr, *prev = NULL, *tmp;
-	iscsi_provider_t *provider;
+	struct iscsi_transport *t;
 
 	list_for_each_entry(curr, list, list) {
 		if (!prev || strcmp(prev->targetname, curr->targetname)) {
@@ -815,8 +815,8 @@ static void print_sessions_tree(struct list_head *list, int level)
 				printf("\tPortal: [%s]:%d,%d\n", curr->address,
 				      curr->port, curr->tpgt);
 		}
-		provider = get_transport_by_sid(curr->sid);
-		printf("\t\tDriver: %s\n", provider ? provider->name : "NA");
+		t = get_transport_by_sid(curr->sid);
+		printf("\t\tDriver: %s\n", t ? t->name : "NA");
 		printf("\t\tHWaddress: %s\n", curr->iface);
 		printf("\t\tSID: %d\n", curr->sid);
 		print_iscsi_state(curr->sid);
@@ -890,13 +890,14 @@ static int rescan_portal(void *data, char *targetname, int tpgt, char *address,
 			 int port, int sid, char *iface)
 {
 	int host_no, err;
-	iscsi_provider_t *p = get_transport_by_sid(sid);
+	struct iscsi_transport *t;
 
-	if (!p)
+	t = get_transport_by_sid(sid);
+	if (!t)
 		return 0;
 
 	if (!match_valid_session(data, targetname, address, port, iface,
-				 p->name))
+				 t->name))
 		return 0;
 
 	printf("Rescanning session [%s [%d] [%s]:%d %s]\n", iface, sid, address,
@@ -916,16 +917,17 @@ static int
 session_stats(void *data, char *targetname, int tpgt, char *address,
 	      int port, int sid, char *iface)
 {
-	iscsi_provider_t *p = get_transport_by_sid(sid);
+	struct iscsi_transport *t;
 	int rc, i;
 	iscsiadm_req_t req;
 	iscsiadm_rsp_t rsp;
 
-	if (!p)
+	t = get_transport_by_sid(sid);
+	if (!t)
 		return 0;
 
 	if (!match_valid_session(data, targetname, address, port, iface,
-				 p->name))
+				 t->name))
 		return 0;
 
 	memset(&req, 0, sizeof(req));
@@ -1593,7 +1595,7 @@ main(int argc, char **argv)
 		if (sid >= 0) {
 			char session[64];
 			int tmp_sid, tpgt;
-			iscsi_provider_t *p;
+			struct iscsi_transport *t;
 
 			snprintf(session, 63, "session%d", sid);
 			session[63] = '\0';
@@ -1627,15 +1629,15 @@ main(int argc, char **argv)
 				goto free_iface;
 			}
 
-			p = get_transport_by_sid(sid);
-			if (!p)
+			t = get_transport_by_sid(sid);
+			if (!t)
 				goto free_iface;
 
 			/* drop down to node ops */
 			rc = exec_node_op(db, op, do_login, do_logout, do_show,
 					  do_rescan, do_stats, info_level,
 					  targetname, ip, port, iface,
-					  p->name, name, value);
+					  t->name, name, value);
 free_iface:
 			free(iface);
 free_address:

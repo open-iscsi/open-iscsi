@@ -101,21 +101,15 @@ static mgmt_ipc_err_e
 mgmt_ipc_session_getstats(queue_task_t *qtask, int sid,
 			  iscsiadm_rsp_t *rsp)
 {
-	iscsi_provider_t *p;
+	struct iscsi_transport *t;
 	iscsi_session_t *session;
-	struct qelem *sitem, *pitem;
 
-	pitem = providers.q_forw;
-	while (pitem != &providers) {
-		p = (iscsi_provider_t *)pitem;
-
-		sitem = p->sessions.q_forw;
-		while (sitem != &p->sessions) {
-			session = (iscsi_session_t *)sitem;
+	list_for_each_entry(t, &transports, list) {
+		list_for_each_entry(session, &t->sessions, list) {
 			if (session->id == sid) {
 				int rc;
 
-				rc = ipc->get_stats(session->transport_handle,
+				rc = ipc->get_stats(session->t->handle,
 					session->id, session->conn[0].id,
 					(void*)&rsp->u.getstats,
 					MGMT_IPC_GETSTATS_BUF_MAX);
@@ -126,9 +120,7 @@ mgmt_ipc_session_getstats(queue_task_t *qtask, int sid,
 				}
 				return MGMT_IPC_OK;
 			}
-			sitem = sitem->q_forw;
 		}
-		pitem = pitem->q_forw;
 	}
 
 	return MGMT_IPC_ERR_NOT_FOUND;

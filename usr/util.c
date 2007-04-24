@@ -243,17 +243,17 @@ int iscsi_match_session(void *data, char *targetname, int tpgt,
 			char *address, int port, int sid, char *iface)
 {
 	node_rec_t *rec = data;
-	iscsi_provider_t *p;
+	struct iscsi_transport *t;
 
 	log_debug(6, "looking for session [%d][%s,%s,%d][%s]", sid,
 		  rec->name, rec->conn[0].address, rec->conn[0].port,
 		  iface);
 
-	p = get_transport_by_sid(sid);
-	if (!p)
+	t = get_transport_by_sid(sid);
+	if (!t)
 		return 0;
 
-	if (!strcmp(rec->iface.transport_name, p->name) &&
+	if (!strcmp(rec->iface.transport_name, t->name) &&
 	    !strcmp(rec->name, targetname) &&
 	    !strcmp(rec->conn[0].address, address) &&
 	    !strcmp(rec->iface.name, iface) &&

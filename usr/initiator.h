@@ -31,6 +31,7 @@
 #include "config.h"
 #include "actor.h"
 #include "queue.h"
+#include "list.h"
 
 #define ISCSI_CONFIG_ROOT	"/etc/iscsi/"
 #define SLP_CONFIG_DIR		ISCSI_CONFIG_ROOT"slp"
@@ -200,33 +201,25 @@ typedef struct queue_task {
 	int mgmt_ipc_fd;
 } queue_task_t;
 
-typedef enum iscsi_provider_status_e {
-	PROVIDER_STATUS_UNKNOWN		= 0,
-	PROVIDER_STATUS_OPERATIONAL	= 1,
-	PROVIDER_STATUS_FAILED		= 2,
-} iscsi_provider_status_e;
-
-struct iscsi_uspace_transport;
+struct iscsi_transport_template;
 
 /* represents data path provider */
-typedef struct iscsi_provider_t {
-	struct qelem list;
+struct iscsi_transport {
+	struct list_head list;
 	uint64_t handle;
 	uint32_t caps;
-	iscsi_provider_status_e status;
 	char name[ISCSI_TRANSPORT_NAME_MAXLEN];
-	struct qelem sessions;
-	struct iscsi_uspace_transport *utransport;
-} iscsi_provider_t;
+	struct list_head sessions;
+	struct iscsi_transport_template *template;
+};
 
 /* daemon's session structure */
 typedef struct iscsi_session {
-	struct qelem item; /* must stay at the top */
+	struct list_head list;
 	uint32_t id;
 	uint32_t hostno;
 	int refcount;
-	uint64_t transport_handle;
-	iscsi_provider_t *provider;
+	struct iscsi_transport *t;
 	node_rec_t nrec; /* copy of original Node record in database */
 	unsigned int irrelevant_keys_bitmap;
 	int send_async_text;

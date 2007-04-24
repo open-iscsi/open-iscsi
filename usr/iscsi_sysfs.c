@@ -36,6 +36,7 @@
 #include "transport.h"
 #include "version.h"
 #include "iscsi_sysfs.h"
+#include "list.h"
 
 #define ISCSI_TRANSPORT_DIR	"/sys/class/iscsi_transport"
 #define ISCSI_SESSION_DIR	"/sys/class/iscsi_session"
@@ -47,8 +48,8 @@
 
 /* tmp buffer used by sysfs functions */
 static char sysfs_file[PATH_MAX];
-int num_providers = 0;
-struct qelem providers;
+int num_transports = 0;
+LIST_HEAD(transports);
 
 int read_sysfs_file(char *filename, void *value, char *format)
 {
@@ -73,12 +74,6 @@ int read_sysfs_file(char *filename, void *value, char *format)
 	return err;
 }
 
-void init_providers(void)
-{
-	providers.q_forw = &providers;
-	providers.q_back = &providers;
-}
-
 static int trans_filter(const struct dirent *dir)
 {
 	return strcmp(dir->d_name, ".") && strcmp(dir->d_name, "..");
@@ -86,16 +81,12 @@ static int trans_filter(const struct dirent *dir)
 
 static int read_transports(void)
 {
-	struct qelem *item;
 	struct dirent **namelist;
 	char filename[64];
 	int i, n, found, err = 0;
-	iscsi_provider_t *p;
+	struct iscsi_transport *t;
 
 	log_debug(7, "in %s", __FUNCTION__);
-
-	if (num_providers == 0)
-		init_providers();
 
 	n = scandir(ISCSI_TRANSPORT_DIR, &namelist, trans_filter,
 		    versionsort);
@@ -107,49 +98,43 @@ static int read_transports(void)
 	for (i = 0; i < n; i++) {
 		found = 0;
 
-		/* copy existing pr vider to new array */
-		item = providers.q_forw;
-		while (item != &providers) {
-			p = (iscsi_provider_t *)item;
-
-			if (!strcmp(p->name, namelist[i]->d_name)) {
+		list_for_each_entry(t, &transports, list) {
+			if (!strcmp(t->name, namelist[i]->d_name)) {
 				found = 1;
 				break;
 			}
-			item = item->q_forw;
 		}
 
 		if (found)
 			continue;
 
-		/* copy new provider */
-		p = malloc(sizeof(iscsi_provider_t));
-		if (!p)
+		/* copy new transport */
+		t = malloc(sizeof(*t));
+		if (!t)
 			continue;
 
-		p->sessions.q_forw = &p->sessions;
-		p->sessions.q_back = &p->sessions;
-
-		strncpy(p->name, namelist[i]->d_name,
+		INIT_LIST_HEAD(&t->sessions);
+		INIT_LIST_HEAD(&t->list);
+		strncpy(t->name, namelist[i]->d_name,
 			ISCSI_TRANSPORT_NAME_MAXLEN);
 
-		sprintf(filename, ISCSI_TRANSPORT_DIR"/%s/handle", p->name);
-		err = read_sysfs_file(filename, &p->handle, "%llu\n");
+		sprintf(filename, ISCSI_TRANSPORT_DIR"/%s/handle", t->name);
+		err = read_sysfs_file(filename, &t->handle, "%llu\n");
 		if (err)
 			continue;
 
-		sprintf(filename, ISCSI_TRANSPORT_DIR"/%s/caps", p->name);
-		err = read_sysfs_file(filename, &p->caps, "0x%x");
+		sprintf(filename, ISCSI_TRANSPORT_DIR"/%s/caps", t->name);
+		err = read_sysfs_file(filename, &t->caps, "0x%x");
 		if (err)
 			continue;
 
-		insque(&p->list, &providers);
+		list_add_tail(&t->list, &transports);
 	}
 
 	for (i = 0; i < n; i++)
 		free(namelist[i]);
 	free(namelist);
-	num_providers = n;
+	num_transports = n;
 
 	return 0;
 }
@@ -560,29 +545,24 @@ static uint32_t get_target_no_from_sid(uint32_t sid, int *err)
 
 }
 
-iscsi_provider_t *get_transport_by_name(char *transport_name)
+struct iscsi_transport *get_transport_by_name(char *transport_name)
 {
-	struct qelem *pitem;
-	iscsi_provider_t *p;
+	struct iscsi_transport *t;
 
 	/* sync up kernel and userspace */
 	read_transports();
 
-	/* check if the transport is loaded */
-	pitem = providers.q_forw;
-	while (pitem != &providers) {
-		p = (iscsi_provider_t *)pitem;
-
-		if (p->handle && !strncmp(p->name, transport_name,
+	/* check if the transport is loaded and matches */
+	list_for_each_entry(t, &transports, list) {
+		if (t->handle && !strncmp(t->name, transport_name,
 					  ISCSI_TRANSPORT_NAME_MAXLEN))
-			return p;
-		pitem = pitem->q_forw;
+			return t;
 	}
 	return NULL;
 }
 
 /* TODO: replace the following functions with some decent sysfs links */
-iscsi_provider_t *get_transport_by_hba(long host_no)
+struct iscsi_transport *get_transport_by_hba(long host_no)
 {
 	char name[ISCSI_TRANSPORT_NAME_MAXLEN];
 	int rc;
@@ -608,7 +588,7 @@ iscsi_provider_t *get_transport_by_hba(long host_no)
 		return get_transport_by_name(name);
 }
 
-iscsi_provider_t *get_transport_by_sid(uint32_t sid)
+struct iscsi_transport *get_transport_by_sid(uint32_t sid)
 {
 	uint32_t host_no;
 	int err;
@@ -745,7 +725,7 @@ pid_t scan_host(iscsi_session_t *session)
 	return __scan_host(session->hostno, 1);
 }
 
-iscsi_provider_t *get_transport_by_session(char *sys_session)
+struct iscsi_transport *get_transport_by_session(char *sys_session)
 {
 	uint32_t sid;
 

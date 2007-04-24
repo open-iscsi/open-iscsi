@@ -411,7 +411,7 @@ iscsi_io_send_pdu(iscsi_conn_t *conn, struct iscsi_hdr *hdr,
 		pad_bytes = 0;
 
 	if (conn->kernel_io) {
-		conn->send_pdu_begin(session->transport_handle, session->id,
+		conn->send_pdu_begin(session->t->handle, session->id,
 			conn->id, end - header,
 			ntoh24(hdr->dlength) + pad_bytes);
 		conn->send_pdu_timer_add(conn, timeout);
@@ -474,7 +474,7 @@ iscsi_io_send_pdu(iscsi_conn_t *conn, struct iscsi_hdr *hdr,
 	}
 
 	if (conn->kernel_io) {
-		if (conn->send_pdu_end(session->transport_handle, session->id,
+		if (conn->send_pdu_end(session->t->handle, session->id,
 				       conn->id, &rc)) {
 			conn->send_pdu_timer_remove(conn);
 			ret = 0;

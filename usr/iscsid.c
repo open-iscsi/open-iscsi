@@ -94,7 +94,7 @@ Open-iSCSI initiator daemon.\n\
 
 static void
 setup_rec_from_negotiated_values(idbm_t *db, node_rec_t *rec,
-				iscsi_provider_t *p, char *targetname,
+				struct iscsi_transport *t, char *targetname,
 				int tpgt, char *address,
 				int port, int sid, char *iface)
 {
@@ -107,7 +107,7 @@ setup_rec_from_negotiated_values(idbm_t *db, node_rec_t *rec,
 	rec->conn[0].port = port;
 	strncpy(rec->conn[0].address, address, NI_MAXHOST);
 	strncpy(rec->iface.name, iface, ISCSI_MAX_IFACE_LEN);
-	strncpy(rec->iface.transport_name, p->name,
+	strncpy(rec->iface.transport_name, t->name,
 		ISCSI_TRANSPORT_NAME_MAXLEN);
 	rec->tpgt = tpgt;
 
@@ -190,14 +190,14 @@ static int sync_session(void *data, char *targetname, int tpgt, char *address,
 	int fd = -1;
 	iscsiadm_req_t req;
 	iscsiadm_rsp_t rsp;
-	iscsi_provider_t *p;
+	struct iscsi_transport *t;
 
 	log_debug(7, "sync session [%d][%s,%s.%d][%s]\n", sid, targetname,
 		  address, port, iface);
 
 	/* don't do anything for qlogic right now */
-	p = get_transport_by_sid(sid);
-	if (!p)
+	t = get_transport_by_sid(sid);
+	if (!t)
 		return 0;
 
 	if (!idbm_node_read(db, &rec, targetname, address, port, iface)) {
@@ -207,7 +207,7 @@ static int sync_session(void *data, char *targetname, int tpgt, char *address,
 	} else {
 		log_warning("Could not read data from db. Using default and "
 			    "currently negotiated values\n");
-		setup_rec_from_negotiated_values(db, &rec, p, targetname, tpgt,
+		setup_rec_from_negotiated_values(db, &rec, t, targetname, tpgt,
 						address, port, sid, iface);
 	}
 
@@ -380,8 +380,6 @@ int main(int argc, char *argv[])
 
 	log_debug(1, "InitiatorName=%s", daemon_config.initiator_name);
 	log_debug(1, "InitiatorAlias=%s", daemon_config.initiator_alias);
-
-	init_providers();
 
 	/* oom-killer will not kill us at the night... */
 	if (oom_adjust())

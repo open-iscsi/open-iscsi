@@ -19,10 +19,10 @@
 
 #include "types.h"
 
-struct iscsi_provider_t;
+struct iscsi_transport;
 struct iscsi_conn;
 
-struct iscsi_uspace_transport {
+struct iscsi_transport_template {
 	const char *name;
 	uint8_t rdma;
 	int (*ep_connect) (iscsi_conn_t *conn, int non_blocking);
@@ -30,6 +30,6 @@ struct iscsi_uspace_transport {
 	void (*ep_disconnect) (iscsi_conn_t *conn);
 };
 
-extern int set_uspace_transport(struct iscsi_provider_t *p);
+extern int set_transport_template(struct iscsi_transport *t);
 
 #endif

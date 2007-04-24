@@ -61,13 +61,12 @@ extern void set_device_online(int hostno, int target, int lun);
 extern void delete_device(int hostno, int target, int lun);
 extern int sysfs_for_each_device(int host_no, uint32_t sid,
 				 void (* fn)(int host_no, int target, int lun));
-extern struct iscsi_provider_t *get_transport_by_hba(long host_no);
-extern struct iscsi_provider_t *get_transport_by_session(char *sys_session);
-extern struct iscsi_provider_t *get_transport_by_sid(uint32_t sid);
-extern struct iscsi_provider_t *get_transport_by_name(char *transport_name);
-extern void init_providers(void);
+extern struct iscsi_transport *get_transport_by_hba(long host_no);
+extern struct iscsi_transport *get_transport_by_session(char *sys_session);
+extern struct iscsi_transport *get_transport_by_sid(uint32_t sid);
+extern struct iscsi_transport *get_transport_by_name(char *transport_name);
 
-extern struct qelem providers;
-extern int num_providers;
+extern struct list_head transports;
+extern int num_transports;
 
 #endif

@@ -263,8 +263,6 @@ int main(int argc, char *argv[])
 	if (check_params(initiatorname))
 		exit(1);
 
-	init_providers();
-
 	pid = fork();
 	if (pid < 0) {
 		log_error("iscsiboot fork failed");

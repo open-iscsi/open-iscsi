@@ -380,7 +380,7 @@ get_op_params_text_keys(iscsi_session_t *session, int cid,
 	} else if (iscsi_find_key_value("MaxRecvDataSegmentLength", text, end,
 				     &value, &value_end)) {
 		if (session->type == ISCSI_SESSION_TYPE_DISCOVERY ||
-		    !session->provider->utransport->rdma)
+		    !session->t->template->rdma)
 			conn->max_xmit_dlength = strtoul(value, NULL, 0);
 		text = value_end;
 	} else if (iscsi_find_key_value("FirstBurstLength", text, end, &value,
@@ -538,7 +538,7 @@ get_op_params_text_keys(iscsi_session_t *session, int cid,
 		text = value_end;
 	} else if (iscsi_find_key_value("RDMAExtensions", text, end,
 					&value, &value_end)) {
-		if (session->provider->utransport->rdma &&
+		if (session->t->template->rdma &&
 		    strcmp(value, "Yes") != 0) {
 			log_error("Login negotiation failed, "
 				  "Target must support RDMAExtensions");
@@ -547,14 +547,14 @@ get_op_params_text_keys(iscsi_session_t *session, int cid,
 		text = value_end;
 	} else if (iscsi_find_key_value("InitiatorRecvDataSegmentLength", text,
 					end, &value, &value_end)) {
-		if (session->provider->utransport->rdma) {
+		if (session->t->template->rdma) {
 			conn->max_recv_dlength = MIN(conn->max_recv_dlength,
 						     strtoul(value, NULL, 0));
 		}
 		text = value_end;
 	} else if (iscsi_find_key_value("TargetRecvDataSegmentLength", text,
 					end, &value, &value_end)) {
-		if (session->provider->utransport->rdma) {
+		if (session->t->template->rdma) {
 			conn->max_xmit_dlength = MIN(conn->max_xmit_dlength,
 						     strtoul(value, NULL, 0));
 		}
@@ -806,7 +806,7 @@ add_params_normal_session(iscsi_session_t *session, struct iscsi_hdr *pdu,
 }
 
 static int
-add_params_provider_specific(iscsi_session_t *session, int cid,
+add_params_transport_specific(iscsi_session_t *session, int cid,
 			     struct iscsi_hdr *pdu, char *data,
 			     int max_data_length)
 {
@@ -814,7 +814,7 @@ add_params_provider_specific(iscsi_session_t *session, int cid,
 	iscsi_conn_t *conn = &session->conn[cid];
 
 	if (session->type == ISCSI_SESSION_TYPE_DISCOVERY ||
-   	    !session->provider->utransport->rdma) {
+   	    !session->t->template->rdma) {
 		sprintf(value, "%d", conn->max_recv_dlength);
 		if (!iscsi_add_text(pdu, data, max_data_length,
 				    "MaxRecvDataSegmentLength", value))
@@ -958,7 +958,7 @@ fill_op_params_text(iscsi_session_t *session, int cid, struct iscsi_hdr *pdu,
 	*transit = 1;
 
 	rdma = (session->type == ISCSI_SESSION_TYPE_NORMAL) &&
-			session->provider->utransport->rdma;
+			session->t->template->rdma;
 
 	/*
 	 * If we haven't gotten a partial response, then either we shouldn't be
@@ -1001,7 +1001,7 @@ fill_op_params_text(iscsi_session_t *session, int cid, struct iscsi_hdr *pdu,
 						  max_data_length))
 				return 0;
 
-			if (!add_params_provider_specific(session, cid,
+			if (!add_params_transport_specific(session, cid,
 							  pdu, data,
  max_data_length))
 				return 0;

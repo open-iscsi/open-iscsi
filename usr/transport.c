@@ -26,7 +26,7 @@
 #include "util.h"
 #include "iscsi_sysfs.h"
 
-struct iscsi_uspace_transport iscsi_tcp = {
+struct iscsi_transport_template iscsi_tcp = {
 	.name		= "tcp",
 	.rdma		= 0,
 	.ep_connect	= iscsi_io_tcp_connect,
@@ -34,7 +34,7 @@ struct iscsi_uspace_transport iscsi_tcp = {
 	.ep_disconnect	= iscsi_io_tcp_disconnect,
 };
 
-struct iscsi_uspace_transport iscsi_iser = {
+struct iscsi_transport_template iscsi_iser = {
 	.name		= "iser",
 	.rdma		= 1,
 	.ep_connect	= ktransport_ep_connect,
@@ -42,27 +42,27 @@ struct iscsi_uspace_transport iscsi_iser = {
 	.ep_disconnect	= ktransport_ep_disconnect,
 };
 
-struct iscsi_uspace_transport *iscsi_utransports[] = {
+static struct iscsi_transport_template *iscsi_transport_templates[] = {
 	&iscsi_tcp,
 	&iscsi_iser,
 	NULL
 };
 
-int set_uspace_transport(iscsi_provider_t *p)
+int set_transport_template(struct iscsi_transport *t)
 {
-	struct iscsi_uspace_transport *utransport;
+	struct iscsi_transport_template *tmpl;
 	int j;
 
-	for (j = 0; iscsi_utransports[j] != NULL; j++) {
-		utransport = iscsi_utransports[j];
+	for (j = 0; iscsi_transport_templates[j] != NULL; j++) {
+		tmpl = iscsi_transport_templates[j];
 
-		if (!strcmp(utransport->name, p->name)) {
-			p->utransport = utransport;
-			log_debug(3, "Matched transport %s\n", p->name);
+		if (!strcmp(tmpl->name, t->name)) {
+			t->template = tmpl;
+			log_debug(3, "Matched transport %s\n", t->name);
 			return 0;
 		}
 	}
 
-	log_error("Could not fund uspace transport for %s\n", p->name);
+	log_error("Could not fund uspace transport for %s\n", t->name);
 	return -ENOSYS;
 }

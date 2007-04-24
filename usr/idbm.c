@@ -403,7 +403,12 @@ idbm_print(int type, void *rec, int show, FILE *f)
 static void
 idbm_interface_setup_defaults(iface_rec_t *rec)
 {
-	sprintf(rec[0].name, "default");
+	int i;
+
+	for (i = 0; i < ISCSI_IFACE_MAX; i++) {
+		sprintf(rec[i].name, "default");
+		sprintf(rec[i].transport_name, "tcp");
+	}
 }
 
 static void
@@ -789,8 +794,7 @@ static int print_discovered(char *disc_path, int info_level)
 			else
 				printf("Portal: [%s]:%d,%d\n", address,
 					last_port, atoi(tpgt));
-			last_address = namelist[i]->d_name +
-					strlen(namelist[i]->d_name) + 1;
+			last_address = tpgt + strlen(tpgt) + 1;
 		}
 
 		printf("           Driver: %s\n", driver);

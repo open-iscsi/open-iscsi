@@ -498,7 +498,7 @@ session_get(iscsi_session_t *session)
 }
 
 static iscsi_session_t*
-__session_create(node_rec_t *rec, iscsi_provider_t *provider)
+__session_create(node_rec_t *rec, struct iscsi_transport *t)
 {
 	iscsi_session_t *session;
 
@@ -508,11 +508,11 @@ __session_create(node_rec_t *rec, iscsi_provider_t *provider)
 		return NULL;
 	}
 
+	INIT_LIST_HEAD(&session->list);
 	session_get(session);
 	/* opened at daemon load time (iscsid.c) */
 	session->ctrl_fd = control_fd;
-	session->transport_handle = provider->handle;
-	session->provider = provider;
+	session->t = t;
 	session->reopen_qtask.mgmt_ipc_fd = -1;
 
 	/* save node record. we might need it for redirection */
@@ -586,19 +586,18 @@ __session_create(node_rec_t *rec, iscsi_provider_t *provider)
 	__setup_authentication(session, &rec->session.auth);
 
 	session->param_mask = 0xFFFFFFFF;
-	if (!(provider->caps & CAP_MULTI_R2T))
+	if (!(t->caps & CAP_MULTI_R2T))
 		session->param_mask &= ~(1 << ISCSI_PARAM_MAX_R2T);
-	if (!(provider->caps & CAP_HDRDGST))
+	if (!(t->caps & CAP_HDRDGST))
 		session->param_mask &= ~(1 << ISCSI_PARAM_HDRDGST_EN);
-	if (!(provider->caps & CAP_DATADGST))
+	if (!(t->caps & CAP_DATADGST))
 		session->param_mask &= ~(1 << ISCSI_PARAM_DATADGST_EN);
-	if (!(provider->caps & CAP_MARKERS)) {
+	if (!(t->caps & CAP_MARKERS)) {
 		session->param_mask &= ~(1 << ISCSI_PARAM_IFMARKER_EN);
 		session->param_mask &= ~(1 << ISCSI_PARAM_OFMARKER_EN);
 	}
 
-	insque(&session->item, &provider->sessions);
-
+	list_add_tail(&session->list, &t->sessions);
 	return session;
 }
 
@@ -606,7 +605,7 @@ static void
 __session_destroy(iscsi_session_t *session)
 {
 	log_debug(1, "destroying session\n");
-	remque(&session->item);
+	list_del(&session->list);
 	queue_flush(session->queue);
 	session_put(session);
 }
@@ -644,14 +643,14 @@ __session_conn_shutdown(iscsi_conn_t *conn, queue_task_t *qtask,
 	actor_delete(&conn->connect_timer);
 	queue_flush(session->queue);
 
-	if (ipc->destroy_conn(session->transport_handle, session->id,
+	if (ipc->destroy_conn(session->t->handle, session->id,
 		conn->id)) {
 		log_error("can not safely destroy connection %d", conn->id);
 		return MGMT_IPC_ERR_INTERNAL;
 	}
-	conn->session->provider->utransport->ep_disconnect(conn);
+	conn->session->t->template->ep_disconnect(conn);
 
-	if (ipc->destroy_session(session->transport_handle, session->id)) {
+	if (ipc->destroy_session(session->t->handle, session->id)) {
 		log_error("can not safely destroy session %d", session->id);
 		return MGMT_IPC_ERR_INTERNAL;
 	}
@@ -666,7 +665,7 @@ session_conn_shutdown(iscsi_conn_t *conn, queue_task_t *qtask,
 {
 	iscsi_session_t *session = conn->session;
 
-	if (ipc->stop_conn(session->transport_handle, session->id,
+	if (ipc->stop_conn(session->t->handle, session->id,
 			   conn->id, STOP_CONN_TERM)) {
 		log_error("can't stop connection %d:%d (%d)",
 			  session->id, conn->id, errno);
@@ -816,7 +815,7 @@ __session_conn_reopen(iscsi_conn_t *conn, queue_task_t *qtask, int do_stop)
 
 	if (do_stop) {
 		/* state: STATE_CLEANUP_WAIT */
-		if (ipc->stop_conn(session->transport_handle, session->id,
+		if (ipc->stop_conn(session->t->handle, session->id,
 				   conn->id, do_stop)) {
 			log_error("can't stop connection %d:%d (%d)",
 				  session->id, conn->id, errno);
@@ -825,12 +824,12 @@ __session_conn_reopen(iscsi_conn_t *conn, queue_task_t *qtask, int do_stop)
 		log_debug(3, "connection %d:%d is stopped for recovery",
 			  session->id, conn->id);
 	}
-	conn->session->provider->utransport->ep_disconnect(conn);
+	conn->session->t->template->ep_disconnect(conn);
 
 	if (session->time2wait)
 		goto queue_reopen;
 
-	rc = conn->session->provider->utransport->ep_connect(conn, 1);
+	rc = conn->session->t->template->ep_connect(conn, 1);
 	if (rc < 0 && errno != EINPROGRESS) {
 		char serv[NI_MAXSERV];
 
@@ -1113,7 +1112,7 @@ setup_full_feature_phase(iscsi_conn_t *conn)
 		if (!(session->param_mask & (1 << conntbl[i].param)))
 			continue;
 
-		rc = ipc->set_param(session->transport_handle, session->id,
+		rc = ipc->set_param(session->t->handle, session->id,
 				   conn->id, conntbl[i].param, conntbl[i].value,
 				   conntbl[i].type);
 		if (rc && rc != -ENOSYS) {
@@ -1132,7 +1131,7 @@ setup_full_feature_phase(iscsi_conn_t *conn)
 	}
 
 	for (i = 0; i < MAX_HOST_PARAMS; i++) {
-		rc = ipc->set_host_param(session->transport_handle,
+		rc = ipc->set_host_param(session->t->handle,
 					 session->hostno, hosttbl[i].param,
 					 hosttbl[i].value, hosttbl[i].type);
 		/* 2.6.20 and below returns EINVAL */
@@ -1151,7 +1150,7 @@ setup_full_feature_phase(iscsi_conn_t *conn)
 				  conntbl[i].type);
 	}
 
-	if (ipc->start_conn(session->transport_handle, session->id, conn->id,
+	if (ipc->start_conn(session->t->handle, session->id, conn->id,
 			    &rc) || rc) {
 		__session_conn_shutdown(conn, c->qtask,
 				       MGMT_IPC_ERR_INTERNAL);
@@ -1384,23 +1383,15 @@ __session_conn_recv_pdu(queue_item_t *item)
 static int
 __session_node_established(char *node_name)
 {
-	iscsi_provider_t *p;
-	struct qelem *sitem, *pitem;
+	struct iscsi_transport *t;
+	iscsi_session_t *session;
 
-	pitem = providers.q_forw;
-	while (pitem != &providers) {
-		p = (iscsi_provider_t *)pitem;
-
-		sitem = p->sessions.q_forw;
-		while (sitem != &p->sessions) {
-			iscsi_session_t *session = (iscsi_session_t *)sitem;
-			if (session->conn[0].state == STATE_LOGGED_IN &&
-			    !strncmp(session->nrec.name, node_name, TARGET_NAME_MAXLEN))
+	list_for_each_entry(t, &transports, list) {
+		list_for_each_entry(session, &t->sessions, list) {
+			if (!strncmp(session->nrec.name, node_name,
+				     TARGET_NAME_MAXLEN))
 				return 1;
-			sitem = sitem->q_forw;
 		}
-
-		pitem = pitem->q_forw;
 	}
 	return 0;
 }
@@ -1430,7 +1421,7 @@ __session_conn_poll(queue_item_t *item)
 	if (conn->state != STATE_XPT_WAIT)
 		return;
 
-	rc = session->provider->utransport->ep_poll(conn, 1);
+	rc = session->t->template->ep_poll(conn, 1);
 	if (rc == 0) {
 		/* timedout: Poll again. */
 		queue_produce(session->queue, EV_CONN_POLL, qtask, 0, NULL);
@@ -1444,7 +1435,7 @@ __session_conn_poll(queue_item_t *item)
 		/* do not allocate new connection in case of reopen */
 		if (session->r_stage == R_STAGE_NO_CHANGE) {
 			if (conn->id == 0 &&
-			    ipc->create_session(session->transport_handle,
+			    ipc->create_session(session->t->handle,
 					session->nrec.session.initial_cmdsn,
 					session->nrec.session.cmds_max,
 					session->nrec.session.queue_depth,
@@ -1464,7 +1455,7 @@ __session_conn_poll(queue_item_t *item)
 				session->isid[3] = session->id;
 			}
 
-			if (ipc->create_conn(session->transport_handle,
+			if (ipc->create_conn(session->t->handle,
 					session->id, conn->id, &conn->id)) {
 				log_error("can't create connection (%d)",
 					   errno);
@@ -1475,7 +1466,7 @@ __session_conn_poll(queue_item_t *item)
 				  "%d:%d", session->id, conn->id);
 		}
 
-		if (ipc->bind_conn(session->transport_handle, session->id,
+		if (ipc->bind_conn(session->t->handle, session->id,
 				   conn->id, conn->transport_ep_handle,
 				   (conn->id == 0), &rc) || rc) {
 			log_error("can't bind conn %d:%d to session %d, "
@@ -1521,17 +1512,17 @@ __session_conn_poll(queue_item_t *item)
 	return;
 
 c_cleanup:
-	if (ipc->destroy_conn(session->transport_handle, session->id,
+	if (ipc->destroy_conn(session->t->handle, session->id,
                 conn->id)) {
 		log_error("can not safely destroy connection %d:%d",
 			  session->id, conn->id);
 	}
 s_cleanup:
-	if (ipc->destroy_session(session->transport_handle, session->id)) {
+	if (ipc->destroy_session(session->t->handle, session->id)) {
 		log_error("can not safely destroy session %d", session->id);
 	}
 cleanup:
-	session->provider->utransport->ep_disconnect(conn);
+	session->t->template->ep_disconnect(conn);
 	session_conn_cleanup(qtask, err);
 }
 
@@ -1546,7 +1537,7 @@ __session_conn_timer(queue_item_t *item)
 	case STATE_XPT_WAIT:
 		switch (session->r_stage) {
 		case R_STAGE_NO_CHANGE:
-			session->provider->utransport->ep_disconnect(conn);
+			session->t->template->ep_disconnect(conn);
 			log_debug(6, "conn_timer popped at XPT_WAIT: login");
 			/* timeout during initial connect.
 			 * clean connection. write ipc rsp */
@@ -1743,54 +1734,33 @@ __session_mainloop(void *data)
 iscsi_session_t*
 session_find_by_sid(int sid)
 {
-	iscsi_provider_t *p;
+	struct iscsi_transport *t;
 	iscsi_session_t *session;
-	struct qelem *pitem, *sitem;
 
-	pitem = providers.q_forw;
-	while (pitem != &providers) {
-		p = (iscsi_provider_t *)pitem;
-
-		sitem = p->sessions.q_forw;
-		while (sitem != &p->sessions) {
-			session = (iscsi_session_t *)sitem;
-
+	list_for_each_entry(t, &transports, list) {
+		list_for_each_entry(session, &t->sessions, list) {
 			if (session->id == sid)
 				return session;
-			sitem = sitem->q_forw;
 		}
-		pitem = pitem->q_forw;
 	}
-
 	return NULL;
 }
 
 iscsi_session_t*
 session_find_by_rec(node_rec_t *rec)
 {
-	iscsi_provider_t *p;
+	struct iscsi_transport *t;
 	iscsi_session_t *session;
-	struct qelem *pitem, *sitem;
 
-	pitem = providers.q_forw;
-	while (pitem != &providers) {
-		p = (iscsi_provider_t *)pitem;
-
-		sitem = p->sessions.q_forw;
-		while (sitem != &p->sessions) {
-			session = (iscsi_session_t *)sitem;
-
+	list_for_each_entry(t, &transports, list) {
+		list_for_each_entry(session, &t->sessions, list) {
 			if (iscsi_match_session(rec, session->nrec.name,
 					 -1, session->nrec.conn[0].address,
 					 session->nrec.conn[0].port,
 					 session->id, session->nrec.iface.name))
 				return session;
-
-			sitem = sitem->q_forw;
 		}
-		pitem = pitem->q_forw;
 	}
-
 	return NULL;
 }
 
@@ -1817,60 +1787,60 @@ session_login_task(node_rec_t *rec, queue_task_t *qtask)
 	int rc;
 	iscsi_session_t *session;
 	iscsi_conn_t *conn;
-	iscsi_provider_t *provider;
+	struct iscsi_transport *t;
 
-	provider = get_transport_by_name(rec->iface.transport_name);
-	if (!provider)
+	t = get_transport_by_name(rec->iface.transport_name);
+	if (!t)
 		return MGMT_IPC_ERR_TRANS_NOT_FOUND;
-	if (set_uspace_transport(provider))
+	if (set_transport_template(t))
 		return MGMT_IPC_ERR_TRANS_NOT_FOUND;
 
-	if ((!(provider->caps & CAP_RECOVERY_L0) &&
+	if ((!(t->caps & CAP_RECOVERY_L0) &&
 	     rec->session.iscsi.ERL != 0) ||
-	    (!(provider->caps & CAP_RECOVERY_L1) &&
+	    (!(t->caps & CAP_RECOVERY_L1) &&
 	     rec->session.iscsi.ERL > 1)) {
 		log_error("transport '%s' does not support ERL %d",
-			  provider->name, rec->session.iscsi.ERL);
+			  t->name, rec->session.iscsi.ERL);
 		return MGMT_IPC_ERR_TRANS_CAPS;
 	}
 
-	if (!(provider->caps & CAP_MULTI_R2T) &&
+	if (!(t->caps & CAP_MULTI_R2T) &&
 	    rec->session.iscsi.MaxOutstandingR2T) {
 		log_error("transport '%s' does not support "
-			  "MaxOutstandingR2T %d", provider->name,
+			  "MaxOutstandingR2T %d", t->name,
 			  rec->session.iscsi.MaxOutstandingR2T);
 		return MGMT_IPC_ERR_TRANS_CAPS;
 	}
 
-	if (!(provider->caps & CAP_HDRDGST) &&
+	if (!(t->caps & CAP_HDRDGST) &&
 	    rec->conn[0].iscsi.HeaderDigest) {
 		log_error("transport '%s' does not support "
-			  "HeaderDigest != None", provider->name);
+			  "HeaderDigest != None", t->name);
 		return MGMT_IPC_ERR_TRANS_CAPS;
 	}
 
-	if (!(provider->caps & CAP_DATADGST) &&
+	if (!(t->caps & CAP_DATADGST) &&
 	    rec->conn[0].iscsi.DataDigest) {
 		log_error("transport '%s' does not support "
-			  "DataDigest != None", provider->name);
+			  "DataDigest != None", t->name);
 		return MGMT_IPC_ERR_TRANS_CAPS;
 	}
 
-	if (!(provider->caps & CAP_MARKERS) &&
+	if (!(t->caps & CAP_MARKERS) &&
 	    rec->conn[0].iscsi.IFMarker) {
 		log_error("transport '%s' does not support IFMarker",
-			  provider->name);
+			  t->name);
 		return MGMT_IPC_ERR_TRANS_CAPS;
 	}
 
-	if (!(provider->caps & CAP_MARKERS) &&
+	if (!(t->caps & CAP_MARKERS) &&
 	    rec->conn[0].iscsi.OFMarker) {
 		log_error("transport '%s' does not support OFMarker",
-			  provider->name);
+			  t->name);
 		return MGMT_IPC_ERR_TRANS_CAPS;
 	}
 
-	session = __session_create(rec, provider);
+	session = __session_create(rec, t);
 	if (!session)
 		return MGMT_IPC_ERR_LOGIN_FAILURE;
 
@@ -1884,7 +1854,7 @@ session_login_task(node_rec_t *rec, queue_task_t *qtask)
 	conn = &session->conn[0];
 	qtask->conn = conn;
 
-	rc = session->provider->utransport->ep_connect(conn, 1);
+	rc = session->t->template->ep_connect(conn, 1);
 	if (rc < 0 && errno != EINPROGRESS) {
 		char serv[NI_MAXSERV];
 
@@ -1932,16 +1902,16 @@ mgmt_ipc_err_e
 iscsi_sync_session(node_rec_t *rec, queue_task_t *qtask, uint32_t sid)
 {
 	iscsi_session_t *session;
-	iscsi_provider_t *provider;
+	struct iscsi_transport *t;
 	int err;
 
-	provider = get_transport_by_name(rec->iface.transport_name);
-	if (!provider)
+	t = get_transport_by_name(rec->iface.transport_name);
+	if (!t)
 		return MGMT_IPC_ERR_TRANS_NOT_FOUND;
-	if (set_uspace_transport(provider))
+	if (set_transport_template(t))
 		return MGMT_IPC_ERR_TRANS_NOT_FOUND;
 
-	session = __session_create(rec, provider);
+	session = __session_create(rec, t);
 	if (!session)
 		return MGMT_IPC_ERR_NOMEM;
 
