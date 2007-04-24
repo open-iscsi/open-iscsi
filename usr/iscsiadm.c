@@ -99,7 +99,7 @@ static void usage(int status)
 			program_name);
 	else {
 		printf("\
-iscsiadm -m discovery [ -dhV ] [ -t type -p ip:port [ -l ] ] | [ -p ip:port ] \
+iscsiadm -m discovery [ -dhV ] [--print=[N]] [ -t type -p ip:port [ -l ] ] | [ -p ip:port ] \
 [ -o operation ] [ -n name ] [ -v value ]\n\
 iscsiadm -m node [ -dhV ] [ -P printlevel ] [ -L all,manual,automatic ] [ -U all,manual,automatic ] [ -S ] [ [ -T targetname -p ip:port -I HWaddress ] [ -l | -u | -R | -s] ] \
 [ [ -o  operation  ] [ -n name ] [ -v value ] [ -p ip:port ] ]\n\
@@ -516,46 +516,6 @@ nodev:
 	return ENODEV;
 }
 
-/*
- * old style flat and interface unware
- */
-static int print_node(idbm_t *db, void *data, node_rec_t *rec)
-{
-	if (strchr(rec->conn[0].address, '.'))
-		printf("%s:%d,%d %s\n", rec->conn[0].address, rec->conn[0].port,
-		       rec->tpgt, rec->name);
-	else
-		printf("[%s]:%d,%d %s\n", rec->conn[0].address,
-		       rec->conn[0].port, rec->tpgt, rec->name);
-	return 0;
-}
-
-static int print_node_tree(idbm_t *db, void *data, node_rec_t *rec)
-{
-	node_rec_t *last_rec = data;
-
-	if (strcmp(last_rec->name, rec->name)) {
-		printf("target: %s\n", rec->name);
-		memset(last_rec, 0, sizeof(node_rec_t));
-	}
-
-	if ((strcmp(last_rec->conn[0].address, rec->conn[0].address) ||
-	     last_rec->conn[0].port != rec->conn[0].port)) {
-		if (strchr(rec->conn[0].address, '.'))
-			printf("\tportal: %s:%d\n", rec->conn[0].address,
-			       rec->conn[0].port);
-		else
-			printf("\tportal: [%s]:%d\n", rec->conn[0].address,
-			       rec->conn[0].port);
-	}
-
-	printf("\t\tdriver: %s\n", rec->transport_name);
-	printf("\t\thwaddress: %s\n", rec->iface.name);
-
-	memcpy(last_rec, rec, sizeof(node_rec_t));
-	return 0;
-}
-
 static int print_nodes(idbm_t *db, int info_level, char *targetname,
 		       char *ip, int port, char *iface)
 {
@@ -566,13 +526,13 @@ static int print_nodes(idbm_t *db, int info_level, char *targetname,
 	case 0:
 	case -1:
 		if (for_each_rec(db, targetname, ip, port,
-				 iface, NULL, print_node))
+				 iface, NULL, idbm_print_node_flat))
 			rc = -1;
 		break;
 	case 1:
 		memset(&tmp_rec, 0, sizeof(node_rec_t));
 		if (for_each_rec(db, targetname, ip, port,
-				 iface, &tmp_rec, print_node_tree))
+				 iface, &tmp_rec, idbm_print_node_tree))
 			rc = -1;
 		break;
 	default:
@@ -833,19 +793,23 @@ static void print_sessions_tree(struct list_head *list, int level)
 
 	list_for_each_entry(curr, list, list) {
 		if (!prev || strcmp(prev->targetname, curr->targetname)) {
-			printf("target: %s\n", curr->targetname);
+			printf("Target: %s\n", curr->targetname);
 			prev = NULL;
 		}
 
 		if (!prev || (strcmp(prev->address, curr->address) ||
-		     prev->port != curr->port))
-			printf("\tportal: %s:%d\n", curr->address, curr->port);
-
+		     prev->port != curr->port)) {
+			if (strchr(curr->address, '.'))
+				printf("\tPortal: %s:%d,%d\n", curr->address,
+				      curr->port, curr->tpgt);
+			else
+				printf("\tPortal: [%s]:%d,%d\n", curr->address,
+				      curr->port, curr->tpgt);
+		}
 		provider = get_transport_by_sid(curr->sid);
-		printf("\t\ttpgt: %d\n", curr->tpgt);
-		printf("\t\tdriver: %s\n", provider ? provider->name : "NA");
-		printf("\t\thwaddress: %s\n", curr->iface);
-		printf("\t\tsid: %d\n", curr->sid);
+		printf("\t\tDriver: %s\n", provider ? provider->name : "NA");
+		printf("\t\tHWaddress: %s\n", curr->iface);
+		printf("\t\tSID: %d\n", curr->sid);
 		print_iscsi_state(curr->sid);
 
 		if (level < 2)
@@ -1136,17 +1100,18 @@ done:
  * particular config
  */
 static int
-do_sendtargets(idbm_t *db, discovery_rec_t *drec)
+do_sendtargets(idbm_t *db, discovery_rec_t *drec, int info_level)
 {
 	int rc;
 
 	rc = sendtargets_discovery(db, drec);
 	if (!rc)
-		idbm_print_discovered_portals(drec);
+		idbm_print_discovered(drec, info_level);
 	return rc;
 }
 
-static int isns_dev_attr_query(idbm_t *db, discovery_rec_t *drec)
+static int isns_dev_attr_query(idbm_t *db, discovery_rec_t *drec,
+			       int info_level)
 {
 	iscsiadm_req_t req;
 	iscsiadm_rsp_t rsp;
@@ -1157,7 +1122,7 @@ static int isns_dev_attr_query(idbm_t *db, discovery_rec_t *drec)
 
 	err = do_iscsid(&ipc_fd, &req, &rsp);
 	if (!err)
-		idbm_print_discovered_portals(drec);
+		idbm_print_discovered(drec, info_level);
 	return err;
 }
 
@@ -1256,7 +1221,7 @@ static int exec_node_op(idbm_t *db, int op, int do_login, int do_logout,
 
 	if (op < 0 || (!do_login && !do_logout && op == OP_SHOW)) {
 		if (for_each_rec(db, targetname, ip, port,
-				 iface, &do_show, idbm_print_node))
+				 iface, &do_show, idbm_print_node_info))
 			rc = -1;
 		goto out;
 	}
@@ -1465,7 +1430,7 @@ main(int argc, char **argv)
 	}
 
 	if (mode == MODE_DISCOVERY) {
-		if ((rc = verify_mode_params(argc, argv, "dmtplo", 0))) {
+		if ((rc = verify_mode_params(argc, argv, "Pdmtplo", 0))) {
 			log_error("discovery mode: option '-%c' is not "
 				  "allowed/supported", rc);
 			rc = -1;
@@ -1485,7 +1450,8 @@ main(int argc, char **argv)
 			drec.port = port;
 			drec.type = DISCOVERY_TYPE_SENDTARGETS;
 
-			if (!do_sendtargets(db, &drec) && do_login) {
+			if (!do_sendtargets(db, &drec, info_level) &&
+					    do_login) {
 				log_error("automatic login after discovery "
 					  "is not fully implemented yet.");
 				rc = -1;
@@ -1500,7 +1466,8 @@ main(int argc, char **argv)
 		} else if (type == DISCOVERY_TYPE_ISNS) {
 			drec.type = DISCOVERY_TYPE_ISNS;
 
-			if ((rc = isns_dev_attr_query(db, &drec)) > 0) {
+			rc = isns_dev_attr_query(db, &drec, info_level);
+			if (rc > 0) {
 				iscsid_handle_error(rc);
 				rc = -1;
 			}
@@ -1515,7 +1482,7 @@ main(int argc, char **argv)
 				}
 				if (do_login &&
 				    drec.type == DISCOVERY_TYPE_SENDTARGETS) {
-					do_sendtargets(db, &drec);
+					do_sendtargets(db, &drec, info_level);
 				} else if (do_login &&
 					   drec.type == DISCOVERY_TYPE_SLP) {
 					log_error("SLP discovery is not fully "
@@ -1529,8 +1496,8 @@ main(int argc, char **argv)
 					rc = -1;
 					goto out;
 				} else if (op < 0 || op == OP_SHOW) {
-					if (!idbm_print_discovery(db, &drec,
-								  do_show)) {
+					if (!idbm_print_discovery_info(db,
+							&drec, do_show)) {
 						log_error("no records found!");
 						rc = -1;
 					}
@@ -1547,10 +1514,8 @@ main(int argc, char **argv)
 				}
 
 			} else if (op < 0 || op == OP_SHOW) {
-				if (!idbm_print_all_discovery(db)) {
-					log_error("no records found!");
+				if (!idbm_print_all_discovery(db, info_level))
 					rc = -1;
-				}
 				goto out;
 			} else if (op == OP_DELETE) {
 				log_error("--record required for delete operation");

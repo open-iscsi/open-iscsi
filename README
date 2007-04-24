@@ -167,14 +167,21 @@ For help, run:
 Usage: iscsiadm [OPTION]
 
   -m, --mode <op>         specify operational mode op = <discovery|node>
-  -m discovery --type=[type] --portal=[ip:port] --login
+  -m discovery --type=[type] --portal=[ip:port] --login --print=[N]
                           perform [type] discovery for target portal with
                           ip-address [ip] and port [port]. Initiate Login for
                           each discovered target if --login is specified
-  -m discovery            display all discovery records from internal
-                          persistent discovery database
-  -m discovery --portal=[ip:port] --login
+  -m discovery --print=[N] display all discovery records from internal
+                          persistent discovery database.
+  -m discovery --portal=[ip:port] --print=[N] --login 
                           perform discovery based on portal in database
+
+			  For the above commands "print" is optional. If
+			  used, N can be 0 or 1.
+			  0 = The old flat style of output is used.
+			  1 = The tree style with the inteface info is used.
+
+			  If print is not used the old flay style is used.
   -m discovery --portal=[ip:port] --op=[op] [--name=[name] --value=[value]]
                           perform specific DB operation [op] for specific
                           discovery portal. It could be one of:
@@ -225,7 +232,10 @@ Usage: iscsiadm [OPTION]
 			  is not passed in.
 
 			  Print level can be 0 to 2.
-
+			  1 = Print basic session info like node we are
+			  connected to and whether we are connected.
+			  2 = Print iscsi params used.
+			  3 = Print SCSI info like LUNs, device state.
 			  If no sid and no operation is given print out the
 			  running sessions.
   -d, --debug debuglevel  print debugging information
@@ -363,6 +373,11 @@ Usage: iscsiadm [OPTION]
 
             ./iscsiadm -m discovery
 
+    - Show all records in discovery database and show the targets that
+	were discovered from each record:
+
+            ./iscsiadm -m discovery -P 1
+
     - Display discovery record setting:
 
             ./iscsiadm -m discovery -p 192.168.0.4:3260
@@ -370,6 +385,21 @@ Usage: iscsiadm [OPTION]
     - Display session statistics:
 
             ./iscsiadm -m session -r 1 --stats
+
+	This function also works in node mode. instead of the "-r $sid"
+	argument, you would pass in the node info like targetname and/or portal,
+	and/or interface.
+
+    - Perform a SCSI scan on a session
+
+            ./iscsiadm -m session -r 1 --rescan
+
+	This function also works in node mode. instead of the "-r $sid"
+	argument, you would pass in the node info like targetname and/or portal,
+	and/or interface.
+
+	Note: Rescanning does not delete old LUNs. It will only pick up new
+	ones.
 
     - Display running sessions:
 
@@ -520,21 +550,36 @@ Both commands will print out the list of all discovered targets and their
 portals:
 
 # iscsiadm -m discovery -t st -p 10.15.85.19:3260
-tcp:default 10.15.85.19:3260,3 iqn.1992-08.com.netapp:sn.33615311
-tcp:default 10.15.84.19:3260,2 iqn.1992-08.com.netapp:sn.33615311
-
-Note: this prints out every node in the db including the ones just discovered.
-This is a bug and will change in future releases.
+10.15.84.19:3260,2 iqn.1992-08.com.netapp:sn.33615311
+10.15.85.19:3260,3 iqn.1992-08.com.netapp:sn.33615311
 
 The format for the output is:
 
-driver:HWaddress ip:port,target_portal_group_tag targetname
+ip:port,target_portal_group_tag targetname
+
+In this example, for the first target the ip address is 10.15.85.19.
+The port is 3260. The target portal group is 3. The target name
+is iqn.1992-08.com.netapp:sn.33615311.
+
+If you would also like to see the driver that will be used and
+the network interface for each session then use the --print[N] option.
+
+iscsiadm -m discovery -t sendtargets -p ip:port -P 1
+
+will print:
+    Target: iqn.1992-08.com.netapp:sn.33615311
+        Portal: 10.15.84.19:3260
+           Driver: tcp
+           HWaddress: default
+        Portal: 10.15.85.19:3260
+           Driver: tcp
+           HWaddress: default
 
 In this example, for the first target the ip address is 10.15.85.19.
 The port is 3260. The target portal group is 3. The target name
 is iqn.1992-08.com.netapp:sn.33615311. The driver that will be used
-is tcp/iscsi_tcp, and we will allow the network layer to decide
-how to best route IO through the NICs on the system.
+is iscsi_tcp, and "default" means that we will allow the network
+layer to decide which interface to use.
 
 While discovery targets are kept in the discovery db, they are
 usefull only for re-discovery. The discovered targets (a.k.a. nodes)
@@ -555,6 +600,10 @@ To automate login to a node, use the following with the record ID
 (record ID is the targetname and portal) of the node discovered in the
 discovery above:
 	iscsiadm -m node -T targetname -p ip:port --op update -n node.conn[0].startup -v automatic
+
+To set the automatic setting to all portals on a target through every
+interface setup for each protal, the following can be run:
+	iscsiadm -m node -T targetname --op update -n node.conn[0].startup -v automatic
 
 Or to set the "node.conn[0].statup" attribute to "startup" as default for
 all sessions add the following to the /etc/iscsi/iscsid.conf:
@@ -582,6 +631,8 @@ If you are looking for something shorter like just the sid to node mapping
 run:
 
 	iscsiadm -m session -P 0
+	or
+	iscsiadm -m session
 
 This will print the list of running sessions with the format:
 
@@ -598,16 +649,20 @@ To print the hw address info use the -P option with "1":
 This will print the sessions with the following format:
 
 target: targetname
-	portal: ip_address:port
-		driver: driver hwaddress: hwaddress sid: sid
+	portal: ip_address:port,tpgt
+		driver: driver
+		hwaddress: hwaddress
+		sid: sid
 
 [root@madmax usr]# ./iscsiadm -m session -P 1
-target: iqn.2001-04.com.home:max2
-        portal: 20.15.0.5:3260
-                driver: tcp hwaddress: 00:C0:DD:08:63:E7 sid: 20
-		driver: tcp hwaddress: 00:C0:DD:08:63:E7 sid: 21
-
-For example this first node is using the iscsi_tcp kernel module, has
-session id (sid) 2, is connected to a portal with address and port
-10.15.84.19:3260 in portal group 2 on the target,
-iqn.1992-08.com.netapp:sn.33615311.
+Target: iqn.1992-08.com.netapp:sn.33615311
+        Portal: 10.15.84.19:3260,2
+                Driver: tcp
+		HWaddress: 00:C0:DD:08:63:E7 sid: 20
+		Driver: tcp
+		HWaddress: 00:C0:DD:08:63:E7 sid: 21
+	Portal: 10.15.85.19:3260,3
+		Driver: tcp
+		HWaddress: 00:C0:DD:08:63:E7 sid: 20
+		Driver: tcp
+		HWaddress: 00:C0:DD:08:63:E7 sid: 21

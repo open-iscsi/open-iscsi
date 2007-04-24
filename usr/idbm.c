@@ -650,19 +650,83 @@ void idbm_node_setup_from_conf(idbm_t *db, node_rec_t *rec)
 	memcpy(rec, &db->nrec, sizeof(*rec));
 }
 
-int
-idbm_print_discovery(idbm_t *db, discovery_rec_t *rec, int show)
+int idbm_print_discovery_info(idbm_t *db, discovery_rec_t *rec, int show)
 {
 	idbm_print(PRINT_TYPE_DISCOVERY, rec, show, stdout);
 	return 1;
 }
 
-int
-idbm_print_node(idbm_t *db, void *data, node_rec_t *rec)
+int idbm_print_node_info(idbm_t *db, void *data, node_rec_t *rec)
 {
 	int show = *((int *)data);
 
 	idbm_print(PRINT_TYPE_NODE, rec, show, stdout);
+	return 0;
+}
+
+int idbm_print_node_flat(idbm_t *db, void *data, node_rec_t *rec)
+{
+	if (strchr(rec->conn[0].address, '.'))
+		printf("%s:%d,%d %s\n", rec->conn[0].address, rec->conn[0].port,
+			rec->tpgt, rec->name);
+	else
+		printf("[%s]:%d,%d %s\n", rec->conn[0].address,
+		       rec->conn[0].port, rec->tpgt, rec->name);
+	return 0;
+}
+
+int idbm_print_node_tree(idbm_t *db, void *data, node_rec_t *rec)
+{
+	node_rec_t *last_rec = data;
+
+	if (strcmp(last_rec->name, rec->name)) {
+		printf("Target: %s\n", rec->name);
+		memset(last_rec, 0, sizeof(node_rec_t));
+	}
+
+	if ((strcmp(last_rec->conn[0].address, rec->conn[0].address) ||
+	     last_rec->conn[0].port != rec->conn[0].port)) {
+		if (strchr(rec->conn[0].address, '.'))
+			printf("\tPortal: %s:%d,%d\n", rec->conn[0].address,
+			       rec->conn[0].port, rec->tpgt);
+		else
+			printf("\tPortal: [%s]:%d,%d\n", rec->conn[0].address,
+			       rec->conn[0].port, rec->tpgt);
+	}
+
+	printf("\t\tDriver: %s\n", rec->transport_name);
+	printf("\t\tHWaddress: %s\n", rec->iface.name);
+
+	memcpy(last_rec, rec, sizeof(node_rec_t));
+	return 0;
+}
+
+static int
+get_params_from_disc_link(char *link, char **target, char **tpgt,
+			  char **address, char **port, char **iface,
+			  char **driver)
+{
+	(*target) = link;
+	*tpgt = strchr((*target), ',');
+	if (!tpgt)
+		return EINVAL;
+	*(*tpgt)++ = '\0';
+	*address = strchr(*tpgt, ',');
+	if (!(*address))
+		return EINVAL;
+	*(*address)++ = '\0';
+	*port = strchr(*address, ',');
+	if (!(*port))
+		return EINVAL;
+	*(*port)++ = '\0';
+	*iface = strchr(*port, ',');
+	if (!(*iface))
+		return EINVAL;
+	*(*iface)++ = '\0';
+	*driver = strchr(*iface, ',');
+	if (!(*driver))
+		return EINVAL;
+	*(*driver)++ = '\0';
 	return 0;
 }
 
@@ -672,10 +736,11 @@ static int st_disc_filter(const struct dirent *dir)
 	       strcmp(dir->d_name, ST_CONFIG_NAME);
 }
 
-static int print_discovered_portals(char *disc_path)
+static int print_discovered(char *disc_path, int info_level)
 {
-	char *tmp_port, *last_address = NULL, *last_target = NULL;
-	char *target, *address, *iface, *driver;
+	char *tmp_port = NULL, *last_address = NULL, *last_target = NULL;
+	char *target = NULL, *tpgt = NULL, *address = NULL, *iface = NULL;
+	char *driver = NULL;
 	int n, i, last_port = -1;
 	struct dirent **namelist;
 
@@ -684,26 +749,25 @@ static int print_discovered_portals(char *disc_path)
 		return 0;
 
 	for (i = 0; i < n; i++) {
-		target = namelist[i]->d_name;
-		address = strchr(target, ',');
-		if (!address)
+		if (get_params_from_disc_link(namelist[i]->d_name, &target,
+					      &tpgt, &address, &tmp_port,
+					      &iface, &driver)) {
+			log_error("Improperly formed disc to node link");
 			continue;
-		*address++ = '\0';
-		tmp_port = strchr(address, ',');
-		if (!tmp_port)
+		}
+
+		if (info_level < 1) {
+			if (strchr(address, '.'))
+				printf("%s:%d,%d %s\n", address, atoi(tmp_port),
+					atoi(tpgt), target);
+			else
+				printf("[%s]:%d,%d %s\n", address,
+					atoi(tmp_port), atoi(tpgt), target);
 			continue;
-		*tmp_port++ = '\0';
-		iface = strchr(tmp_port, ',');
-		if (!iface)
-			continue;
-		*iface++ = '\0';
-		driver = strchr(iface, ',');
-		if (!driver)
-			continue;
-		*driver++ = '\0';
+		}
 
 		if (!last_target || strcmp(last_target, target)) {
-			printf("    target: %s\n", target);
+			printf("    Target: %s\n", target);
 			last_target = namelist[i]->d_name;
 			last_port = -1;
 			last_address = NULL;
@@ -714,15 +778,17 @@ static int print_discovered_portals(char *disc_path)
 			last_port = atoi(tmp_port);
 			printf("        ");
 			if (strchr(address, '.'))
-				printf("portal: %s:%d\n", address, last_port);
+				printf("Portal: %s:%d,%d\n", address,
+					last_port, atoi(tpgt));
 			else
-				printf("portal: [%s]:%d\n", address, last_port);
+				printf("Portal: [%s]:%d,%d\n", address,
+					last_port, atoi(tpgt));
 			last_address = namelist[i]->d_name +
 					strlen(namelist[i]->d_name) + 1;
 		}
 
-		printf("           driver: %s\n", driver);
-		printf("           hwaddress: %s\n", iface);
+		printf("           Driver: %s\n", driver);
+		printf("           HWaddress: %s\n", iface);
 	}
 
 	for (i = 0; i < n; i++)
@@ -731,7 +797,7 @@ static int print_discovered_portals(char *disc_path)
 	return n;
 }
 
-int idbm_print_discovered_portals(discovery_rec_t *drec)
+int idbm_print_discovered(discovery_rec_t *drec, int info_level)
 {
 	char *disc_path;
 	int rc;
@@ -757,13 +823,13 @@ int idbm_print_discovered_portals(discovery_rec_t *drec)
 		goto done;
 	}
 
-	rc = print_discovered_portals(disc_path);
+	rc = print_discovered(disc_path, info_level);
 done:
 	free(disc_path);
 	return rc;
 }
 
-static int idbm_print_all_st(idbm_t *db)
+static int idbm_print_all_st(idbm_t *db, int info_level)
 {
 	DIR *entity_dirfd;
 	struct dirent *entity_dent;
@@ -784,13 +850,25 @@ static int idbm_print_all_st(idbm_t *db)
 			continue;
 
 		log_debug(5, "found %s\n", entity_dent->d_name);
+		if (info_level >= 1) {
+			memset(disc_dir, 0, PATH_MAX);
+			snprintf(disc_dir, PATH_MAX, "%s/%s", ST_CONFIG_DIR,
+				 entity_dent->d_name);
 
-		memset(disc_dir, 0, PATH_MAX);
-		snprintf(disc_dir, PATH_MAX, "%s/%s", ST_CONFIG_DIR,
-			 entity_dent->d_name);
+			printf("DiscoveryAddress: %s\n", entity_dent->d_name);
+			found += print_discovered(disc_dir, info_level);
+		} else {
+			char *tmp_port;
 
-		printf("%s\n", entity_dent->d_name);
-		found += print_discovered_portals(disc_dir);
+			tmp_port = strchr(entity_dent->d_name, ',');
+			if (!tmp_port)
+				continue;
+			*tmp_port++ = '\0';
+
+			printf("%s:%d via sendtargets\n", entity_dent->d_name,
+			       atoi(tmp_port));
+			found++;
+		}
 	}
 	closedir(entity_dirfd);
 free_disc:
@@ -798,10 +876,13 @@ free_disc:
 	return found;
 }
 
-int idbm_print_all_discovery(idbm_t *db)
+int idbm_print_all_discovery(idbm_t *db, int info_level)
 {
 	discovery_rec_t *drec;
 	int found = 0, tmp;
+
+	if (info_level < 1)
+		return idbm_print_all_st(db, info_level);
 
 	drec = calloc(1, sizeof(*drec));
 	if (!drec)
@@ -809,7 +890,7 @@ int idbm_print_all_discovery(idbm_t *db)
 
 	tmp = 0;
 	printf("SENDTARGETS:\n");
-	tmp = idbm_print_all_st(db);
+	tmp = idbm_print_all_st(db, info_level);
 	if (!tmp)
 		printf("No targets found.\n");
 	found += tmp;
@@ -817,7 +898,7 @@ int idbm_print_all_discovery(idbm_t *db)
 
 	printf("iSNS:\n");
 	drec->type = DISCOVERY_TYPE_ISNS;
-	tmp = idbm_print_discovered_portals(drec);
+	tmp = idbm_print_discovered(drec, info_level);
 	if (!tmp)
 		printf("No targets found.\n");
 	found += tmp;
@@ -825,7 +906,7 @@ int idbm_print_all_discovery(idbm_t *db)
 
 	printf("STATIC:\n");
 	drec->type = DISCOVERY_TYPE_STATIC;
-	tmp = idbm_print_discovered_portals(drec);
+	tmp = idbm_print_discovered(drec, info_level);
 	if (!tmp)
 		printf("No targets found.\n");
 	found += tmp;
@@ -1295,10 +1376,10 @@ static int setup_disc_to_node_link(char *disc_portal, node_rec_t *rec)
 	switch (rec->disc_type) {
 	case DISCOVERY_TYPE_SENDTARGETS:
 		/* st dir setup when we create its discovery node */
-		snprintf(disc_portal, PATH_MAX, "%s/%s,%d/%s,%s,%d,%s,%s",
+		snprintf(disc_portal, PATH_MAX, "%s/%s,%d/%s,%d,%s,%d,%s,%s",
 			 ST_CONFIG_DIR,
 			 rec->disc_address, rec->disc_port, rec->name,
-			 rec->conn[0].address, rec->conn[0].port,
+			 rec->tpgt, rec->conn[0].address, rec->conn[0].port,
 			 rec->iface.name, rec->transport_name);
 		break;
 	case DISCOVERY_TYPE_STATIC:
@@ -1324,9 +1405,9 @@ static int setup_disc_to_node_link(char *disc_portal, node_rec_t *rec)
 			}
 		}
 
-		snprintf(disc_portal, PATH_MAX, "%s/%s,%d/%s,%s,%d,%s,%s",
+		snprintf(disc_portal, PATH_MAX, "%s/%s,%d/%s,%d,%s,%d,%s,%s",
 			 ISNS_CONFIG_DIR, rec->disc_address, rec->disc_port,
-			 rec->name, rec->conn[0].address,
+			 rec->name, rec->tpgt, rec->conn[0].address,
 			 rec->conn[0].port, rec->iface.name,
 			 rec->transport_name);
 		break;
@@ -1422,7 +1503,8 @@ void idbm_new_discovery(idbm_t *db, discovery_rec_t *drec)
 
 static void idbm_rm_disc_node_links(idbm_t *db, char *disc_dir)
 {
-	char *driver, *target, *port, *address, *iface;
+	char *driver = NULL, *target = NULL, *tpgt = NULL, *port = NULL;
+	char *address = NULL, *iface = NULL;
 	DIR *disc_dirfd;
 	struct dirent *disc_dent;
 	node_rec_t *rec;
@@ -1441,23 +1523,13 @@ static void idbm_rm_disc_node_links(idbm_t *db, char *disc_dir)
 		    !strcmp(disc_dent->d_name, ".."))
 			continue;
 
-		target = disc_dent->d_name;
-		address = strchr(disc_dent->d_name, ',');
-		if (!address)
+
+		if (get_params_from_disc_link(disc_dent->d_name, &target, &tpgt,
+					      &address, &port, &iface,
+					      &driver)) {
+			log_error("Improperly formed disc to node link");
 			continue;
-		*address++ = '\0';
-		port = strchr(address, ',');
-		if (!port)
-			continue;
-		*port++ = '\0';
-		iface = strchr(port, ',');
-		if (!iface)
-			continue;
-		*iface++ = '\0';
-		driver = strchr(iface, ',');
-		if (!driver)
-			continue;
-		*driver++ = '\0';
+		}
 
 		log_debug(5, "disc removal removing link %s %s %s %s %s\n",
 			  target, address, port, iface, driver);

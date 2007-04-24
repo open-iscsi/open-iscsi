@@ -91,10 +91,13 @@ extern char* get_iscsi_initiatoralias(char *pathname);
 extern idbm_t* idbm_init(char *configfile);
 extern void idbm_node_setup_from_conf(idbm_t *db, node_rec_t *rec);
 extern void idbm_terminate(idbm_t *db);
-extern int idbm_print_node(idbm_t *db, void *data, node_rec_t *rec);
-extern int idbm_print_discovery(idbm_t *db, discovery_rec_t *rec, int show);
-extern int idbm_print_all_discovery(idbm_t *db);
-extern int idbm_print_discovered_portals(discovery_rec_t *drec);
+extern int idbm_print_node_info(idbm_t *db, void *data, node_rec_t *rec);
+extern int idbm_print_node_flat(idbm_t *db, void *data, node_rec_t *rec);
+extern int idbm_print_node_tree(idbm_t *db, void *data, node_rec_t *rec);
+extern int idbm_print_discovery_info(idbm_t *db, discovery_rec_t *rec,
+				     int show);
+extern int idbm_print_all_discovery(idbm_t *db, int info_level);
+extern int idbm_print_discovered(discovery_rec_t *drec, int info_level);
 extern int idbm_delete_discovery(idbm_t *db, discovery_rec_t *rec);
 extern void idbm_node_setup_defaults(node_rec_t *rec);
 extern int idbm_delete_node(idbm_t *db, void *data, node_rec_t *rec);
