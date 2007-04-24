@@ -27,13 +27,8 @@ extern char initiator_name[];
 extern char initiator_alias[];
 
 /* discovery.c */
-extern int sendtargets_discovery(struct iscsi_sendtargets_config *config,
-				 struct string_buffer *info);
-extern int slp_discovery(struct iscsi_slp_config *config);
-extern int add_target_record(struct string_buffer *info, char *name, char *end,
-			     int lun_inventory_changed, char *default_address,
-			     char *default_port);
-extern int add_portal(struct string_buffer *info, char *address, char *port,
-		      char *tag);
+struct idbm;
+extern int sendtargets_discovery(struct idbm *db,
+				 struct iscsi_sendtargets_config *config);
 
 #endif /* ISCSIADM_H */

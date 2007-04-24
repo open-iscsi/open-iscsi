@@ -38,6 +38,9 @@
 #include "initiator.h"
 #include "iscsiadm.h"
 #include "log.h"
+#include "idbm.h"
+#include "iscsi_settings.h"
+#include "iscsi_proto.h"
 
 #ifdef SLP_ENABLE
 #include "iscsi-slp-discovery.h"
@@ -46,32 +49,6 @@
 #define DISCOVERY_NEED_RECONNECT 0xdead0001
 
 static int rediscover = 0;
-static int record_begin;
-
-static int
-send_nop_reply(iscsi_session_t *session, struct iscsi_nopin *nop,
-	       char *data, int timeout)
-{
-	struct iscsi_nopout out;
-
-	memset(&out, 0, sizeof (out));
-	out.opcode = ISCSI_OP_NOOP_OUT | ISCSI_OP_IMMEDIATE;
-	out.flags = ISCSI_FLAG_CMD_FINAL;
-	memcpy(out.lun, nop->lun, sizeof (out.lun));
-	out.itt = nop->itt;
-	out.ttt = nop->ttt;
-	memcpy(out.dlength, nop->dlength, sizeof (out.dlength));
-	out.cmdsn = htonl(session->cmdsn);	/* don't increment after
-						 * immediate cmds
-						 */
-	out.exp_statsn = htonl(session->conn[0].exp_statsn);
-
-	log_debug(4, "sending nop reply for ttt %u, cmdsn %u, dlength %d",
-		 ntohl(out.ttt), ntohl(out.cmdsn), ntoh24(out.dlength));
-
-	return iscsi_io_send_pdu(&session->conn[0], (struct iscsi_hdr *)&out,
-			ISCSI_DIGEST_NONE, data, ISCSI_DIGEST_NONE, timeout);
-}
 
 static int
 iscsi_make_text_pdu(iscsi_session_t *session, struct iscsi_hdr *hdr,
@@ -158,8 +135,8 @@ iterate_targets(iscsi_session_t *session, uint32_t ttt)
 	return 1;
 }
 
-int
-add_portal(struct string_buffer *info, char *address, char *port, char *tag)
+static int
+add_portal(idbm_t *db, node_rec_t *rec, char *address, char *port, char *tag)
 {
 	struct sockaddr_storage ss;
 	char host[NI_MAXHOST];
@@ -174,41 +151,30 @@ add_portal(struct string_buffer *info, char *address, char *port, char *tag)
 	getnameinfo((struct sockaddr *) &ss, sizeof(ss),
 		    host, sizeof(host), NULL, 0, NI_NUMERICHOST);
 
-	if (tag && *tag) {
-		if (!append_sprintf(info, "TT=%s\n", tag)) {
-			log_error("couldn't add portal tag %s",
-				  tag);
-			return 0;
-		}
-	}
-
-	if (port && *port) {
-		if (!append_sprintf(info, "TP=%s\n", port)) {
-			log_error("couldn't add port %s", port);
-			return 0;
-		}
-	}
-
-	if (strcmp(host, address))
-		/* if the resolved name doesn't match the original,
-		 * send an RA line as well as a TA line
-		 */
-		return append_sprintf(info, "RA=%s\nTA=%s\n",
-				      host, address);
+	if (tag && *tag)
+		rec->tpgt = atoi(tag);
 	else
-		/* don't need the RA line */
-		return append_sprintf(info, "TA=%s\n", address);
+		rec->tpgt = PORTAL_GROUP_TAG_UNKNOWN;
+	if (port && *port)
+		rec->conn[0].port = atoi(port);
+	else
+		rec->conn[0].port = DEF_ISCSI_PORT;
+	strncpy(rec->conn[0].address, address, NI_MAXHOST);
+
+	if (idbm_add_nodes(db, rec))
+		log_error("Could not add record for %s %s,%d,%d\n",
+			  rec->name, address, rec->conn[0].port, rec->tpgt);
+	return 1;
 }
 
 int
-add_target_record(struct string_buffer *info, char *name, char *end,
-		  int lun_inventory_changed, char *default_address,
-		  char *default_port)
+add_target_record(idbm_t *db, char *name, char *end,
+		  char *default_address, char *default_port)
 {
 	char *text = NULL;
 	char *nul = name;
 	size_t length;
-	size_t original = data_length(info);
+	node_rec_t rec;
 
 	/* address = IPv4
 	 * address = [IPv6]
@@ -236,24 +202,8 @@ add_target_record(struct string_buffer *info, char *name, char *end,
 		return 0;
 	}
 
-	if (!record_begin) {
-		if (!append_sprintf
-		    (info, lun_inventory_changed ? "DLC=%s\n" : "DTN=%s\n",
-		     name)) {
-			log_error("couldn't report target %s", name);
-			truncate_buffer(info, original);
-			return 0;
-		}
-		record_begin = 1;
-	} else {
-		if (!append_sprintf
-		    (info, lun_inventory_changed ? "LC=%s\n" : "TN=%s\n",
-		     name)) {
-			log_error("couldn't report target %s", name);
-			truncate_buffer(info, original);
-			return 0;
-		}
-	}
+	idbm_node_setup_from_conf(db, &rec);
+	strncpy(rec.name, name, TARGET_NAME_MAXLEN);
 
 	text = name + length;
 
@@ -264,26 +214,15 @@ add_target_record(struct string_buffer *info, char *name, char *end,
 	/* if no address is provided, use the default */
 	if (text >= end) {
 		if (default_address == NULL) {
-			log_error(
-			       "no default address known for target %s", name);
-			truncate_buffer(info, original);
+			log_error("no default address known for target %s",
+				  name);
 			return 0;
-		} else
-		    if (!add_portal(info, default_address, default_port, NULL))
-		{
-			log_error(
-			       "failed to add default portal, ignoring "
-			       "target %s", name);
-			truncate_buffer(info, original);
-			return 0;
-		} else if (!append_string(info, ";\n")) {
-			log_error(
-			       "failed to terminate target record, "
-			       "ignoring target %s", name);
-			truncate_buffer(info, original);
+		} else if (!add_portal(db, &rec, default_address, default_port,
+				       NULL)) {
+			log_error("failed to add default portal, ignoring "
+				  "target %s", name);
 			return 0;
 		}
-
 		/* finished adding the default */
 		return 1;
 	}
@@ -316,37 +255,23 @@ add_target_record(struct string_buffer *info, char *name, char *end,
 					*temp = '\0';
 			}
 
-			if (!add_portal(info, address, port, tag)) {
-				log_error(
-				       "failed to add default portal, "
-				       "ignoring target %s", name);
-				truncate_buffer(info, original);
+			if (!add_portal(db, &rec, address, port, tag)) {
+				log_error("failed to add default portal, "
+					 "ignoring target %s", name);
 				return 0;
 			}
-		} else {
+		} else
 			log_error("unexpected SendTargets data: %s",
 			       text);
-		}
-
 		text = next;
-	}
-
-	/* indicate the end of the target record */
-	if (!append_string(info, ";\n")) {
-		log_error(
-		       "failed to terminate target record, ignoring target %s",
-		       name);
-		truncate_buffer(info, original);
-		return 0;
 	}
 
 	return 1;
 }
 
 static int
-process_sendtargets_response(struct string_buffer *sendtargets,
-			     struct string_buffer *info, int final,
-			     int lun_inventory_changed, char *default_address,
+process_sendtargets_response(idbm_t *db, struct string_buffer *sendtargets,
+			     int final, char *default_address,
 			     char *default_port)
 {
 	char *start = buffer_data(sendtargets);
@@ -355,7 +280,6 @@ process_sendtargets_response(struct string_buffer *sendtargets,
 	char *nul = end - 1;
 	char *record = NULL;
 	int num_targets = 0;
-	size_t valid_info = 0;
 
 	if (start == end) {
 		/* no SendTargets data */
@@ -398,17 +322,15 @@ process_sendtargets_response(struct string_buffer *sendtargets,
 				 * the end of. don't bother passing the
 				 * "TargetName=" prefix.
 				 */
-				if (!add_target_record(info, record + 11, text,
-				        lun_inventory_changed, default_address,
-				        default_port)) {
+				if (!add_target_record(db, record + 11, text,
+							default_address,
+							default_port)) {
 					log_error(
 					       "failed to add target record");
 					truncate_buffer(sendtargets, 0);
-					truncate_buffer(info, valid_info);
 					goto done;
 				}
 				num_targets++;
-				valid_info = data_length(info);
 			}
 			record = text;
 		}
@@ -429,16 +351,14 @@ process_sendtargets_response(struct string_buffer *sendtargets,
 				 "processing final sendtargets record %p, "
 				 "line %s",
 				 record, record);
-			if (add_target_record (info, record + 11, text,
-					lun_inventory_changed, default_address,
-					default_port)) {
+			if (add_target_record (db, record + 11, text,
+					       default_address, default_port)) {
 				num_targets++;
 				record = NULL;
 				truncate_buffer(sendtargets, 0);
 			} else {
 				log_error("failed to add target record");
 				truncate_buffer(sendtargets, 0);
-				truncate_buffer(info, valid_info);
 				goto done;
 			}
 		} else {
@@ -458,49 +378,7 @@ process_sendtargets_response(struct string_buffer *sendtargets,
 	}
 
       done:
-	/* send all of the discovered targets to the fd ("stdout" currently) */
-	if (append_string(info, final ? "!\n" : ".\n")) {
-		if (final) {
-			record_begin = 0;
-		}
-		log_debug(4, "sent %d targets to the parent", num_targets);
-		return 1;
-	} else {
-		log_error("couldn't send %d targets to the parent",
-		       num_targets);
-		return 0;
-	}
 
-	return 1;
-}
-
-static int
-add_async_record(struct string_buffer *info, char *record, int targetoffline)
-{
-	int length = strlen(record);
-	size_t original = data_length(info);
-
-	log_debug(7, " adding async record for %s", record);
-
-	if (targetoffline) {
-		/* We have received targetoffline event */
-		if (length > TARGET_NAME_MAXLEN) {
-			log_error("Targetname %s too long, ignoring",
-			       record);
-			return 0;
-		}
-	}
-	if (!append_sprintf
-	    (info, targetoffline ? "ATF=%s\n" : "APF=%s\n", record)) {
-		log_error("couldn't report the record\n");
-		truncate_buffer(info, original);
-		return 0;
-	} else if (!append_string(info, ";\n")) {
-		log_error(
-		       "failed to terminate target record, ignoring target %s",
-		       record);
-		truncate_buffer(info, original);
-	}
 	return 1;
 }
 
@@ -508,43 +386,6 @@ static void
 clear_timer(struct timeval *timer)
 {
 	memset(timer, 0, sizeof (*timer));
-}
-
-static int
-process_async_event_text(struct string_buffer *sendtargets,
-			 struct string_buffer *info, struct timeval *timer)
-{
-	char *text = buffer_data(sendtargets);
-	int targetoffline = 0;
-	int slen = (ntohs(*(short *) (text)));
-	text = text + 2 + slen;
-
-	if (strncmp(text, "X-com.cisco.targetOffline=", 26) == 0) {
-		targetoffline = 1;
-		if (!add_async_record(info, text + 26, targetoffline)) {
-			log_error("failed to add async record");
-			return 0;
-		}
-		clear_timer(timer);
-	} else if (strncmp(text, "X-com.cisco.portalOffline=", 26) == 0) {
-		targetoffline = 0;
-		if (!add_async_record(info, text + 26, targetoffline)) {
-			log_error("failed to add async record");
-			return 0;
-		}
-		clear_timer(timer);
-	} else {
-		log_debug(1, "sendtargets for the other events");
-		return 1;
-	}
-
-	if (append_string(info, "!\n")) {
-		log_debug(4, "sent async event record to the caller");
-		return 1;
-	} else {
-		log_error("couldn't send async event record to the caller");
-		return 0;
-	}
 }
 
 /* set timer to now + seconds */
@@ -662,12 +503,21 @@ init_new_session(struct iscsi_sendtargets_config *config)
 	session->conn[0].auth_timeout = config->conn_timeo.auth_timeout;
 	session->conn[0].active_timeout = config->conn_timeo.active_timeout;
 	session->conn[0].idle_timeout = config->conn_timeo.idle_timeout;
-	session->conn[0].ping_timeout = config->conn_timeo.ping_timeout;
-	session->send_async_text = config->continuous ?
-						config->send_async_text : -1;
 	session->conn[0].hdrdgst_en = ISCSI_DIGEST_NONE;
 	session->conn[0].datadgst_en = ISCSI_DIGEST_NONE;
-	session->conn[0].max_recv_dlength = ISCSI_DEF_MAX_RECV_SEG_LEN;
+
+	session->conn[0].max_recv_dlength =
+					config->iscsi.MaxRecvDataSegmentLength;
+	if (session->conn[0].max_recv_dlength < ISCSI_MIN_MAX_RECV_SEG_LEN ||
+	    session->conn[0].max_recv_dlength > ISCSI_MAX_MAX_RECV_SEG_LEN) {
+		log_error("Invalid iscsi.MaxRecvDataSegmentLength. Must be "
+			  "within %u and %u. Setting to %u.",
+			  ISCSI_MIN_MAX_RECV_SEG_LEN,
+			  ISCSI_MAX_MAX_RECV_SEG_LEN,
+			  DEF_INI_DISC_MAX_RECV_SEG_LEN);
+		session->conn[0].max_recv_dlength =
+						DEF_INI_DISC_MAX_RECV_SEG_LEN;
+	}
 	session->conn[0].max_xmit_dlength = ISCSI_DEF_MAX_RECV_SEG_LEN;
 
 	session->reopen_cnt = config->reopen_max;
@@ -781,15 +631,12 @@ setup_authentication(iscsi_session_t *session,
 }
 
 static int
-process_recvd_pdu(struct iscsi_hdr *pdu,
+process_recvd_pdu(idbm_t *db, struct iscsi_hdr *pdu,
 		  struct iscsi_sendtargets_config *config,
 		  iscsi_session_t *session,
 		  struct string_buffer *sendtargets,
-		  struct string_buffer *info,
-		  int *lun_inventory_changed,
 		  char *default_port,
 		  int *active,
-		  int *long_lived,
 		  struct timeval *async_timer,
 		  char *data)
 {
@@ -819,17 +666,15 @@ process_recvd_pdu(struct iscsi_hdr *pdu,
 			enlarge_data (sendtargets, dlength);
 
 			/* process as much as we can right now */
-			process_sendtargets_response (sendtargets,
-						      info, final,
-						      *lun_inventory_changed,
-						      config->address,
-						      default_port);
+			process_sendtargets_response(db, sendtargets,
+						     final,
+						     config->address,
+						     default_port);
 
 			if (final) {
 				/* SendTargets exchange is now complete
 				 */
 				*active = 0;
-				*lun_inventory_changed = 1;
 				/* from now on, after any reconnect,
 				 * assume LUNs may have changed
 				 */
@@ -843,150 +688,13 @@ process_recvd_pdu(struct iscsi_hdr *pdu,
 			}
 			break;
 		}
-		case ISCSI_OP_ASYNC_EVENT:{
-			struct iscsi_async *async_hdr =
-				(struct iscsi_async *) pdu;
-			int dlength = ntoh24(pdu->dlength);
-			short senselen;
-			char logbuf[128];
-			int i;
-
-			/*
-			 * If we receive an async message stating
-			 * the target wants to close the connection,
-			 * then don't try to reconnect anymore.
-			 * This is reasonable, so we don't log
-			 * anything here.
-			 */
-			if ((async_hdr->async_event ==
-			      ISCSI_ASYNC_MSG_REQUEST_LOGOUT)||
-			     (async_hdr->async_event ==
-			      ISCSI_ASYNC_MSG_DROPPING_CONNECTION)||
-			     (async_hdr->async_event ==
-			      ISCSI_ASYNC_MSG_DROPPING_ALL_CONNECTIONS)) {
-				*long_lived=0;
-				break;
-			}
-
-			/*
-			 * Log info about the async message.
-			 */
-			log_warning(
-			       "Received Async Msg from target, Event = %d, "
-			       "Code = %d, Data Len = %d",
-			       async_hdr->async_event,
-			       async_hdr->async_vcode, dlength);
-
-			/*
-			 * If there was data, print out the first 8 bytes
-			 */
-			if (dlength > 0) {
-				memset(logbuf, 0, sizeof(logbuf));
-				for (i=0; i<8 && i<dlength; ++i) {
-					sprintf(logbuf+i*5, "0x%02x ",
-						data[i]);
-				}
-				log_warning(" Data[0]-[%d]: %s",
-					i<dlength ? dlength-1 : i-1,
-					logbuf);
-			}
-
-
-			if (dlength > (sizeof (short))) {
-				senselen = (ntohs(*(short *) (data)));
-
-				log_debug(1, " senselen = %d", senselen);
-				if (dlength > senselen + 2) {
-					log_debug(1, "recvd async event : %s",
-						 data + 2 + senselen);
-				}
-			}
-			*long_lived = 1;
-
-			/*
-			 * Arrange for a rediscovery to  occur in the near
-			 * future.  We use a timer so that we merge
-			 * multiple events that occur in rapid succession,
-			 * and only rediscover once for each  burst of
-			 * Async events.
-			 */
-			set_timer(async_timer, 1);
-			if (*active) {
-				log_debug(4, "discovery process received Async "
-					 "event while active");
-			} else {
-				log_debug(4, "discovery process received Async "
-					 "event while idle");
-			}
-			process_async_event_text(sendtargets, info,
-						 async_timer);
-			break;
-		}
-		case ISCSI_OP_NOOP_IN:{
-			struct iscsi_nopin *nop =
-				(struct iscsi_nopin *) pdu;
-
-			/*
-			 * The iSCSI spec doesn't allow Nops on
-			 * discovery sessions, but some targets
-			 * use them anyway.  If we receive one, we
-			 * can safely assume that the target
-			 * supports long-lived discovery sessions
-			 * (otherwise it wouldn't be sending nops
-			 * to verify the connection is still
-			 * working).
-			 */
-			*long_lived = 1;
-			log_debug(4,"discovery session to %s:%d  received"
-				 " Nop-in with itt %u, ttt %u, dlength %u",
-				 config->address, config->port,
-				 ntohl(nop->itt), ntohl(nop->ttt),
-				 ntoh24(nop->dlength));
-
-			if (nop->ttt != ISCSI_RESERVED_TAG) {
-				/* reply to the  Nop-in */
-				if (!send_nop_reply(session, nop, data,
-					    session->conn[0].active_timeout)) {
-					log_error(
-						"discovery session to %s:%d "
-						"failed to send Nop reply, "
-						"ttt %u, reconnecting",
-						 config->address,
-						 config->port,
-						 ntohl(nop->ttt));
-					rc = DISCOVERY_NEED_RECONNECT;
-					goto done;
-				}
-			}
-			break;
-		}
-		case ISCSI_OP_REJECT:{
-			struct iscsi_reject *reject =
-				(struct iscsi_reject *) pdu;
-			int dlength = ntoh24(pdu->dlength);
-
-			log_error("reject, dlength=%d, "
-			       "data[0]=0x%x",
-			       dlength, data[0]);
-			log_error(
-			       "Received a reject from the target "
-			       "with reason code = 0x%x",
-			       reject->reason);
-			/*
-			 * Just attempt to reconnect if we receive a reject
-			 */
-			rc = DISCOVERY_NEED_RECONNECT;
-			goto done;
-			break;
-		}
-		default:{
+		default:
 			log_warning(
 			       "discovery session to %s:%d received "
 			       "unexpected opcode 0x%x",
 			       config->address, config->port, pdu->opcode);
 			rc = DISCOVERY_NEED_RECONNECT;
 			goto done;
-		}
 	}
  done:
 	return(rc);
@@ -1052,8 +760,7 @@ done:
 }
 
 int
-sendtargets_discovery(struct iscsi_sendtargets_config *config,
-		      struct string_buffer *info)
+sendtargets_discovery(idbm_t *db, struct iscsi_sendtargets_config *config)
 {
 	iscsi_session_t *session;
 	struct pollfd pfd;
@@ -1061,8 +768,6 @@ sendtargets_discovery(struct iscsi_sendtargets_config *config,
 	struct iscsi_hdr *pdu = &pdu_buffer;
 	char *data = NULL;
 	char *end_of_data;
-	int long_lived = (config->continuous > 0) ? 1 : 0;
-	int lun_inventory_changed = 0;
 	int active = 0;
 	struct timeval connection_timer, async_timer;
 	int timeout;
@@ -1075,27 +780,31 @@ sendtargets_discovery(struct iscsi_sendtargets_config *config,
 	char host[NI_MAXHOST], serv[NI_MAXSERV], default_port[NI_MAXSERV];
 
 	/* initial setup */
-	log_debug(1, "starting sendtargets discovery, address %s:%d, "
-		 "continuous %d", config->address, config->port,
-		 config->continuous);
+	log_debug(1, "starting sendtargets discovery, address %s:%d, ",
+		 config->address, config->port);
 	memset(&pdu_buffer, 0, sizeof (pdu_buffer));
 	clear_timer(&connection_timer);
 	clear_timer(&async_timer);
 
-	/* allocate data buffers for SendTargets data and discovery pipe info */
-	init_string_buffer(&sendtargets, 32 * 1024);
-
 	/* allocate a new session, and initialize default values */
 	session = init_new_session(config);
-	if (session == NULL) {
+	if (session == NULL)
 		return 1;
+
+	/* allocate data buffers for SendTargets data and discovery pipe info */
+	init_string_buffer(&sendtargets,
+			  session->conn[0].max_recv_dlength);
+	if (!sendtargets.buffer) {
+		rc = 1;
+		goto free_session;
 	}
 
 	sprintf(default_port, "%d", config->port);
 	/* resolve the DiscoveryAddress to an IP address */
 	if (resolve_address(config->address, default_port, &ss)) {
 		log_error("cannot resolve host name %s", config->address);
-		return 1;
+		rc = 1;
+		goto free_sendtargets;
 	}
 
 	log_debug(4, "discovery timeouts: login %d, reopen_cnt %d, auth %d, "
@@ -1106,8 +815,10 @@ sendtargets_discovery(struct iscsi_sendtargets_config *config,
 
 	/* setup authentication variables for the session*/
 	rc = setup_authentication(session, config);
-	if (rc == 0)
-		return 1;
+	if (rc == 0) {
+		rc = 1;
+		goto free_sendtargets;
+	}
 
 set_address:
 	/*
@@ -1121,7 +832,8 @@ reconnect:
 	if (--session->reopen_cnt < 0) {
 		log_error("connection login retries (reopen_max) %d exceeded",
 			  config->reopen_max);
-		return 1;
+		rc = 1;
+		goto free_sendtargets;
 	}
 
 redirect_reconnect:
@@ -1207,7 +919,8 @@ redirect_reconnect:
 	case LOGIN_INVALID_PDU:
 		log_error("discovery login to %s failed, giving up", host);
 		iscsi_io_disconnect(&session->conn[0]);
-		return 1;
+		rc = 1;
+		goto free_sendtargets;
 	}
 
 	/* check the login status */
@@ -1248,7 +961,8 @@ redirect_reconnect:
 			"initiator error (%02x/%02x), non-retryable, giving up",
 			host, status_class, status_detail);
 		iscsi_io_disconnect(&session->conn[0]);
-		return 1;
+		rc = 1;
+		goto free_sendtargets;
 	case ISCSI_STATUS_CLS_TARGET_ERR:
 		log_error(
 			"discovery login to %s rejected: "
@@ -1271,7 +985,6 @@ redirect_reconnect:
       rediscover:
 	/* reinitialize */
 	truncate_buffer(&sendtargets, 0);
-	truncate_buffer(info, 0);
 
 	/* we're going to do a discovery regardless */
 	clear_timer(&async_timer);
@@ -1283,12 +996,7 @@ redirect_reconnect:
 	active = 1;
 
 	/* set timeouts */
-	if (long_lived) {
-		clear_timer(&connection_timer);
-	} else {
-		set_timer(&connection_timer,
-		 session->conn[0].active_timeout + session->conn[0].ping_timeout);
-	}
+	set_timer(&connection_timer, session->conn[0].active_timeout);
 
 	/* prepare to poll */
 	memset(&pfd, 0, sizeof (pfd));
@@ -1297,24 +1005,12 @@ redirect_reconnect:
 
 	/* check timers before blocking */
 	if (timer_expired(&connection_timer)) {
-		if (long_lived || !lun_inventory_changed) {
-			/* long-lived, or never finished the first
-			 * exchange (might be long-lived)
-			 */
-			clear_timer(&connection_timer);
-			log_debug(1,
-			       "discovery session to %s:%d  "
-			       "reconnecting after connection timeout",
-			       config->address, config->port);
-			goto reconnect;
-		} else {
-			log_warning(
-			       "discovery session to %s:%d session "
-			       "logout, connection timer expired",
-			       config->address, config->port);
-			iscsi_logout_and_disconnect(session);
-			return 1;
-		}
+		log_warning("discovery session to %s:%d session "
+			    "logout, connection timer expired",
+			    config->address, config->port);
+			    iscsi_logout_and_disconnect(session);
+		rc = 1;
+		goto free_sendtargets;
 	}
 
 	if (active) {
@@ -1376,75 +1072,46 @@ redirect_reconnect:
 				 * process iSCSI PDU received
 				 */
 				rc = process_recvd_pdu(
+					db,
 					pdu,
 					config,
 					session,
 					&sendtargets,
-					info,
-					&lun_inventory_changed,
 					default_port,
 					&active,
-					&long_lived,
 					&async_timer,
 					data);
 				if (rc == DISCOVERY_NEED_RECONNECT)
 					goto reconnect;
 
 				/* reset timers after receiving a PDU */
-				if (long_lived) {
-					clear_timer(&connection_timer);
-				} else {
-					if (active)
-						set_timer
-						    (&connection_timer,
-						     session->conn[0].
-						     active_timeout);
-					else
-						/*
-						 * 3 minutes to try
-						 * to go long-lived
-						 */
-						set_timer(&connection_timer,
-							  3 * 60);
-				}
+				if (active)
+					set_timer(&connection_timer,
+					       session->conn[0].active_timeout);
+				else
+					/*
+					 * 3 minutes to try
+					 * to go long-lived
+					 */
+					set_timer(&connection_timer, 3 * 60);
 			} else {
-				if (long_lived) {
-					log_debug(1,
-					       "discovery session to  "
-					       "%s:%d failed to recv a "
-					       "PDU response, "
-					       "reconnecting",
-					       config->address,
-					       config->port);
-					goto reconnect;
-				} else {
-					log_debug(1,
-					       "discovery session to "
-					       "%s:%d failed to recv a "
-					       "PDU response, "
-					       "terminating",
-					       config->address,
-					       config->port);
-					iscsi_io_disconnect(&session->conn[0]);
-					return 1;
-				}
+				log_debug(1, "discovery session to "
+					  "%s:%d failed to recv a PDU "
+					  "response, terminating",
+					   config->address,
+					   config->port);
+				iscsi_io_disconnect(&session->conn[0]);
+				rc = 1;
+				goto free_sendtargets;
 			}
 		}
 		if (pfd.revents & POLLHUP) {
-			if (long_lived) {
-				log_warning(
-				       "discovery session to  %s:%d "
-				       "reconnecting after hangup",
-				       config->address, config->port);
-				goto reconnect;
-			} else {
-				log_warning(
-				       "discovery session to %s:%d "
-				       "terminating after hangup",
-				       config->address, config->port);
-				iscsi_io_disconnect(&session->conn[0]);
-				return 1;
-			}
+			log_warning("discovery session to %s:%d "
+				    "terminating after hangup",
+				     config->address, config->port);
+			iscsi_io_disconnect(&session->conn[0]);
+			rc = 1;
+			goto free_sendtargets;
 		}
 
 		if (pfd.revents & POLLNVAL) {
@@ -1468,14 +1135,20 @@ redirect_reconnect:
 			}
 		} else {
 			log_error("poll error");
-			return 1;
+			rc = 1;
+			goto free_sendtargets;
 		}
 	}
 
 	log_debug(1, "discovery process to %s:%d exiting",
 		 config->address, config->port);
+	rc = 0;
 
-	return 0;
+free_sendtargets:
+	free_string_buffer(&sendtargets);
+free_session:
+	free(session);
+	return rc;
 }
 
 #ifdef SLP_ENABLE

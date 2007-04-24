@@ -1034,19 +1034,13 @@ static int
 do_sendtargets(idbm_t *db, struct iscsi_sendtargets_config *cfg)
 {
 	int rc;
-	struct string_buffer info;
 
-	init_string_buffer(&info, 8 * 1024);
-	rc =  sendtargets_discovery(cfg, &info);
+	rc = sendtargets_discovery(db, cfg);
 	if (!rc) {
-		discovery_rec_t *drec;
-		if ((drec = idbm_new_discovery(db, cfg->address, cfg->port,
-		    DISCOVERY_TYPE_SENDTARGETS, info.buffer))) {
-			idbm_for_each_node(db, NULL, print_node);
-			free(drec);
-		}
+		idbm_new_discovery(db, cfg->address, cfg->port,
+				  DISCOVERY_TYPE_SENDTARGETS);
+		idbm_for_each_node(db, NULL, print_node);
 	}
-	truncate_buffer(&info, 0);
 	return rc;
 }
 

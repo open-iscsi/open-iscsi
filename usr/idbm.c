@@ -35,6 +35,7 @@
 #include "idbm.h"
 #include "log.h"
 #include "util.h"
+#include "iscsi_settings.h"
 
 #define IDBM_HIDE	0    /* Hide parameter when print. */
 #define IDBM_SHOW	1    /* Show parameter when print. */
@@ -163,10 +164,6 @@ idbm_recinfo_discovery(discovery_rec_t *r, recinfo_t *ri)
 			u.sendtargets.address, IDBM_SHOW, num);
 		__recinfo_int("discovery.sendtargets.port", ri, r,
 			u.sendtargets.port, IDBM_SHOW, num);
-		__recinfo_int("discovery.sendtargets.continuous", ri, r,
-			u.sendtargets.continuous, IDBM_SHOW, num);
-		__recinfo_int("discovery.sendtargets.send_async_text", ri, r,
-			u.sendtargets.send_async_text, IDBM_SHOW, num);
 		__recinfo_int_o2("discovery.sendtargets.auth.authmethod", ri, r,
 			u.sendtargets.auth.authmethod,
 			IDBM_SHOW, "None", "CHAP", num);
@@ -199,8 +196,8 @@ idbm_recinfo_discovery(discovery_rec_t *r, recinfo_t *ri)
 		__recinfo_int("discovery.sendtargets.timeo.idle_timeout", ri, r,
 			u.sendtargets.conn_timeo.idle_timeout,
 			IDBM_SHOW, num);
-		__recinfo_int("discovery.sendtargets.timeo.ping_timeout", ri, r,
-			u.sendtargets.conn_timeo.ping_timeout,
+		__recinfo_int("discovery.sendtargets.iscsi.MaxRecvDataSegmentLength",
+			ri, r, u.sendtargets.iscsi.MaxRecvDataSegmentLength,
 			IDBM_SHOW, num);
 	}
 }
@@ -402,17 +399,16 @@ idbm_discovery_setup_defaults(discovery_rec_t *rec, discovery_type_e type)
 	rec->startup = ISCSI_STARTUP_MANUAL;
 	rec->type = type;
 	if (type == DISCOVERY_TYPE_SENDTARGETS) {
-		rec->u.sendtargets.continuous = 0;
-		rec->u.sendtargets.send_async_text = 0;
 		rec->u.sendtargets.reopen_max = 5;
 		rec->u.sendtargets.auth.authmethod = 0;
 		rec->u.sendtargets.auth.password_length = 0;
 		rec->u.sendtargets.auth.password_in_length = 0;
 		rec->u.sendtargets.conn_timeo.login_timeout=15;
 		rec->u.sendtargets.conn_timeo.auth_timeout = 45;
-		rec->u.sendtargets.conn_timeo.active_timeout=5;
-		rec->u.sendtargets.conn_timeo.idle_timeout = 60;
-		rec->u.sendtargets.conn_timeo.ping_timeout = 5;
+		rec->u.sendtargets.conn_timeo.active_timeout=30;
+		rec->u.sendtargets.conn_timeo.idle_timeout = 60;	
+		rec->u.sendtargets.iscsi.MaxRecvDataSegmentLength =
+						DEF_INI_DISC_MAX_RECV_SEG_LEN;
 	} else if (type == DISCOVERY_TYPE_SLP) {
 		rec->u.slp.interfaces = NULL;
 		rec->u.slp.scopes = NULL;
@@ -1143,139 +1139,29 @@ idbm_new_node(idbm_t *db, node_rec_t *newrec)
 	return idbm_node_write(db, newrec);
 }
 
-discovery_rec_t*
-idbm_new_discovery(idbm_t *db, char *ip, int port,
-			discovery_type_e type, char *info)
+/* Do we even need to store this? */
+void idbm_new_discovery(idbm_t *db, char *ip, int port, discovery_type_e type)
 {
-	char *ptr, *newinfo;
 	discovery_rec_t *drec;
-	node_rec_t *nrec;
+
+	if (type != DISCOVERY_TYPE_SENDTARGETS)
+		return;
 
 	/* allocate new discovery record and initialize with defaults */
 	drec = malloc(sizeof(discovery_rec_t));
 	if (!drec) {
 		log_error("out of memory on discovery record allocation");
-		return NULL;
-	}
-	drec->type = type;
-
-	if (drec->type == DISCOVERY_TYPE_SENDTARGETS) {
-		memcpy(drec, &db->drec_st, sizeof(discovery_rec_t));
-	} else if (drec->type == DISCOVERY_TYPE_SLP) {
-		memcpy(drec, &db->drec_slp, sizeof(discovery_rec_t));
-	} else if (drec->type == DISCOVERY_TYPE_ISNS) {
-		memcpy(drec, &db->drec_isns, sizeof(discovery_rec_t));
+		return;
 	}
 
-	/* allocate new node record and initialize with defaults */
-	nrec = malloc(sizeof(node_rec_t));
-	if (!nrec) {
-		log_error("out of memory on node record allocation");
-		free(drec);
-		return NULL;
-	}
-	memcpy(nrec, &db->nrec, sizeof(node_rec_t));
+	memcpy(drec, &db->drec_st, sizeof(discovery_rec_t));
+	strncpy(drec->u.sendtargets.address, ip, NI_MAXHOST);
+	drec->u.sendtargets.port = port;
+	drec->type = DISCOVERY_TYPE_SENDTARGETS;
 
-	/* update discovery record */
-	if (drec->type == DISCOVERY_TYPE_SENDTARGETS) {
-		strncpy(drec->u.sendtargets.address, ip, NI_MAXHOST);
-		drec->u.sendtargets.port = port;
-	} else if (drec->type == DISCOVERY_TYPE_SLP) {
-		log_error("not implemented discovery type");
-	} else if (drec->type == DISCOVERY_TYPE_ISNS) {
-		log_error("not implemented discovery type");
-	}
-
-	/*
-	 * Discovery info example:
-	 *
-	 * DTN=iqn.2001-04.com.example:storage.disk2.sys1.xyz
-	 * TT=1
-	 * TP=3260
-	 * TA=10.16.16.227
-	 * ;
-	 * DTN=iqn.2001-04.com.example:storage.disk2.sys2.xyz
-	 * TT=1
-	 * TP=3260
-	 * TA=10.16.16.228
-	 * ;
-	 * !
-	 */
-	ptr = newinfo = strdup(info);
-	log_debug(6, "parsing discovery info:\n---\n%s\n---", ptr);
-
-	/* Maybe there are no targets */
-	if (!strcmp(ptr, "!\n")) {
-		log_debug(3, "No targets were found\n");
-		free(drec);
-		drec = NULL;
-		goto out;
-	}
-
-	while (*ptr) {
-		char *dp;
-
-		/* convert line to zero-string */
-		if ((dp = strchr(ptr, '\n'))) {
-			*dp = '\0';
-		}
-
-		/* separate name and value */
-		if ((dp = strchr(ptr, '='))) {
-			*dp = '\0'; dp++;
-			if (!strcmp(ptr, "DTN") || !strcmp(ptr, "TN")) {
-				strncpy(nrec->name, dp, TARGET_NAME_MAXLEN);
-			} else if (!strcmp(ptr, "TT")) {
-				nrec->tpgt = strtoul(dp, NULL, 10);
-			} else if (!strcmp(ptr, "TP")) {
-				nrec->conn[0].port = strtoul(dp, NULL, 10);
-			} else if (!strcmp(ptr, "TA")) {
-				strncpy(nrec->conn[0].address, dp, NI_MAXHOST);
-				if (idbm_add_discovery(db, drec)) {
-					log_error("can not update discovery "
-						  "record.");
-					free(drec);
-					drec = NULL;
-					goto out;
-				}
-
-				if (idbm_add_nodes(db, nrec)) {
-					log_error("can not update node "
-						  "record.");
-					free(drec);
-					drec = NULL;
-					goto out;
-				}
-			} else {
-				log_error("can not parse discovery info value. "
-					  "Bug?");
-				free(drec);
-				drec = NULL;
-				goto out;
-			}
-			log_debug(7, "discovery info key %s value %s", ptr, dp);
-			ptr = dp + strlen(dp) + 1;
-		} else if (*ptr == ';' && *(ptr+1) == '\0' && *(ptr+2) == '!') {
-			/* end of discovery info */
-			ptr += 3;
-		} else if (*ptr == ';' && *(ptr+1) == '\0') {
-			/* end of entry */
-			ptr += 2;
-		} else if (*ptr == '\0') {
-			ptr++;
-		} else {
-			log_error("can not parse discovery info key '..%s' "
-				  "Bug?", ptr);
-			free(drec);
-			drec = NULL;
-			goto out;
-		}
-	}
-
-out:
-	free(nrec);
-	free(newinfo);
-	return drec;
+	if (idbm_add_discovery(db, drec))
+		log_error("can not update discovery record.");
+	free(drec);
 }
 
 int

@@ -148,11 +148,10 @@ struct iscsi_session_operational_config {
 struct iscsi_sendtargets_config {
 	char address[NI_MAXHOST];
 	int port;
-	int continuous;
-	int send_async_text;
 	int reopen_max;
 	struct iscsi_auth_config auth;
 	struct iscsi_connection_timeout_config conn_timeo;
+	struct iscsi_conn_operational_config iscsi;
 };
 
 struct iscsi_slp_config {

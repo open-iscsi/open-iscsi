@@ -68,7 +68,6 @@ free_string_buffer(struct string_buffer *s)
 		}
 		s->allocated_length = 0;
 		s->data_length = 0;
-		free(s);
 	}
 }
 
