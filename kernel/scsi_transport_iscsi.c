@@ -947,6 +947,7 @@ iscsi_tgt_dscvr(struct iscsi_transport *transport,
 {
 	struct Scsi_Host *shost;
 	struct sockaddr *dst_addr;
+	int err;
 
 	if (!transport->tgt_dscvr)
 		return -EINVAL;
@@ -960,8 +961,10 @@ iscsi_tgt_dscvr(struct iscsi_transport *transport,
 
 
 	dst_addr = (struct sockaddr *)((char*)ev + sizeof(*ev));
-	return transport->tgt_dscvr(shost, ev->u.tgt_dscvr.type,
-				    ev->u.tgt_dscvr.enable, dst_addr);
+	err = transport->tgt_dscvr(shost, ev->u.tgt_dscvr.type,
+				   ev->u.tgt_dscvr.enable, dst_addr);
+	scsi_host_put(shost);
+	return err;
 }
 
 static int
@@ -970,6 +973,7 @@ iscsi_set_host_param(struct iscsi_transport *transport,
 {
 	char *data = (char*)ev + sizeof(*ev);
 	struct Scsi_Host *shost;
+	int err;
 
 	if (!transport->set_host_param)
 		return -ENOSYS;
@@ -981,8 +985,10 @@ iscsi_set_host_param(struct iscsi_transport *transport,
 		return -ENODEV;
 	}
 
-	return transport->set_host_param(shost, ev->u.set_host_param.param,
-					 data, ev->u.set_host_param.len);
+	err = transport->set_host_param(shost, ev->u.set_host_param.param,
+					data, ev->u.set_host_param.len);
+	scsi_host_put(shost);
+	return err;
 }
 
 static int
