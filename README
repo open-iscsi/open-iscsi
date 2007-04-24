@@ -184,7 +184,7 @@ Usage: iscsiadm [OPTION]
   -m node                 display all discovered nodes from internal
                           persistent discovery database
   -m node --targetname=[name] --portal=[ip:port] --interface=[HWaddress] \
-							[--login|--logout]
+					[--login|--logout|--rescan|--stats]
   -m node --targetname=[name] --portal=[ip:port] --interface=[HWaddress] \
 				--op=[op] [--name=[name] --value=[value]]
   -m node --targetname=[name] --portal=[ip:port] --interface=[HWaddress] \
@@ -205,6 +205,11 @@ Usage: iscsiadm [OPTION]
                           you wish to update
 
 			  Print level can be 0 to 1.
+
+			   Rescan will perform a SCSI layer scan of the session
+			   to find new LUNs.
+
+			   Stats prints the iSCSI stats for the session.
   -m node --logoutall=[all,manual,automatic]
 			  Logout "all" the running sessions or just the ones
 			  with a node or conn startup value manual or automatic.
@@ -219,7 +224,6 @@ Usage: iscsiadm [OPTION]
                           perform operation for specific session with
                           session id sid. If no sid is given the operation
 			  will be performed on all running sessions if possible.
-			  --logout, --rescan, --op only work on single session.
 			  --logout and --op work like they do in node mode,
 			  but in session mode targetname and portal info is
 			  is not passed in.

@@ -5,7 +5,7 @@ iscsiadm \- open-iscsi administration utility
 \fBiscsiadm\fR -m discovery [ -dhV ] [ -t type -p ip:port [ -l ] ] | 
 [ -o operation ] [ -n name ] [ -v value ]
 
-\fBiscsiadm\fR -m node [ -dhV ] [ -P printlevel ] [ -L all,manual,automatic ] [ -U all,manual,automatic ] [ -S ] [ [ -T targetname -p ip:port -I HWaddress ] [ -l | -u ] ]
+\fBiscsiadm\fR -m node [ -dhV ] [ -P printlevel ] [ -L all,manual,automatic ] [ -U all,manual,automatic ] [ -S ] [ [ -T targetname -p ip:port -I HWaddress ] [ -l | -u | -R | -s] ]
 [ [ -o operation ]  [ -n name ] [ -v value ] [ -p ip:port ] ]
 
 \fBiscsiadm\fR -m session [ -dhV ] [ -P printlevel ] [ -r sessionid | sysfsdir [ -R ] [ -u | -s ] ]
@@ -122,16 +122,15 @@ Instead of sid, a sysfs path containing the session can be used. For example usi
 
 .TP
 \fB\-R\fR,  \fB\-\-rescan\fR
-If sid is also passed in rescan the session. If no sid has been passed in 
-rescan all running sessions.
-.IP
-\fIrescan\fR is only valid for session mode.
+In session mode, if sid is also passed in rescan the session. If no sid has
+been passed in  rescan all running sessions.
+
+In node mode, rescan a session running through the target, portal, iface
+tuple passed in.
 
 .TP
 \fB\-s\fR, \fB\-\-stats\fR
 Display session statistics.
-.IP
-This option is only valid for session mode.
 
 .TP
 \fB\-S\fR, \fB\-\-show\fR

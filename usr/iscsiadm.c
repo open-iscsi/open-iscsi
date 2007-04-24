@@ -102,7 +102,7 @@ static void usage(int status)
 		printf("\
 iscsiadm -m discovery [ -dhV ] [ -t type -p ip:port [ -l ] ] | [ -p ip:port ] \
 [ -o operation ] [ -n name ] [ -v value ]\n\
-iscsiadm -m node [ -dhV ] [ -P printlevel ] [ -L all,manual,automatic ] [ -U all,manual,automatic ] [ -S ] [ [ -T targetname -p ip:port -I HWaddress ] [ -l | -u ] ] \
+iscsiadm -m node [ -dhV ] [ -P printlevel ] [ -L all,manual,automatic ] [ -U all,manual,automatic ] [ -S ] [ [ -T targetname -p ip:port -I HWaddress ] [ -l | -u | -R | -s] ] \
 [ [ -o  operation  ] [ -n name ] [ -v value ] [ -p ip:port ] ]\n\
 iscsiadm -m session [ -dhV ] [ -P  printlevel] [ -r sessionid | sysfsdir [ -R | -u | -s ] [ -o operation ] [ -n name ] [ -v value ] ]\n");
 	}
@@ -322,13 +322,10 @@ logout_by_startup(idbm_t *db, char *mode)
 	return sysfs_for_each_session(&mgmt, &num_found, __logout_by_startup);
 }
 
-static int
-logout_portal(void *data, char *targetname, int tpgt, char *address,
-	      int port, int sid, char *iface)
+static int match_valid_session(node_rec_t *rec, char *targetname, int tpgt,
+			       char *address, int port, int sid, char *iface)
 {
-	node_rec_t tmprec, *rec = data;
 	iscsi_provider_t *p;
-	int rc;
 
 	p = get_transport_by_sid(sid);
 	if (!p)
@@ -344,7 +341,26 @@ logout_portal(void *data, char *targetname, int tpgt, char *address,
 	if (strlen(rec->iface.name) && strcmp(rec->iface.name, iface))
 		return 0;
 
-	if (rec->conn[0].port!= -1 && port != rec->conn[0].port)
+	if (rec->conn[0].port != -1 && port != rec->conn[0].port)
+		return 0;
+
+	return 1;
+}
+
+static int
+logout_portal(void *data, char *targetname, int tpgt, char *address,
+	      int port, int sid, char *iface)
+{
+	node_rec_t tmprec, *rec = data;
+	iscsi_provider_t *p;
+	int rc;
+
+	p = get_transport_by_sid(sid);
+	if (!p)
+		return 0;
+
+	if (!match_valid_session(rec, targetname, tpgt, address, port, sid,
+				 iface))
 		return 0;
 
 	printf("Logout session [%s [%d] [%s]:%d %s]\n", iface, sid, address,
@@ -908,10 +924,17 @@ static int print_sessions(int info_level)
 	return 0;
 }
 
-static int rescan_session(void *data, char *targetname, int tpgt, char *address,
-			  int port, int sid, char *iface)
+static int rescan_portal(void *data, char *targetname, int tpgt, char *address,
+			 int port, int sid, char *iface)
 {
 	int host_no, err;
+
+	if (!match_valid_session(data, targetname, tpgt, address, port, sid,
+				 iface))
+		return 0;
+
+	printf("Rescanning session [%s [%d] [%s]:%d %s]\n", iface, sid, address,
+		port, targetname);
 
 	host_no = get_host_no_from_sid(sid, &err);
 	if (err) {
@@ -923,23 +946,17 @@ static int rescan_session(void *data, char *targetname, int tpgt, char *address,
 	return 0;
 }
 
-static int rescan_sessions(void)
-{
-	int num_found = 0;
-
-	sysfs_for_each_session(NULL, &num_found, rescan_session);
-	if (num_found <= 0)
-		return -ENODEV;
-	else
-		return 0;
-}
-
 static int
-session_stats(int sid)
+session_stats(void *data, char *targetname, int tpgt, char *address,
+	      int port, int sid, char *iface)
 {
 	int rc, i;
 	iscsiadm_req_t req;
 	iscsiadm_rsp_t rsp;
+
+	if (!match_valid_session(data, targetname, tpgt, address, port, sid,
+				 iface))
+		return 0;
 
 	memset(&req, 0, sizeof(req));
 	req.command = MGMT_IPC_SESSION_STATS;
@@ -947,9 +964,10 @@ session_stats(int sid)
 
 	rc = do_iscsid(&ipc_fd, &req, &rsp);
 	if (rc)
-		return rc;
+		return EIO;
 
-	printf("[%02d]\n", sid);
+	printf("Stats for session [%s [%d] [%s]:%d %s]\n", iface, sid, address,
+		port, targetname);
 	printf( "iSCSI SNMP:\n"
 
 		"\ttxdata_octets: %lld\n"
@@ -1073,10 +1091,11 @@ static void catch_sigint( int signo ) {
 	exit(1);
 }
 
+/* TODO cleanup arguments */
 static int exec_node_op(idbm_t *db, int op, int do_login, int do_logout,
-			int do_show, int info_level, char *targetname,
-			char *ip, int port, char *iface, char *name,
-			char *value)
+			int do_show, int do_rescan, int do_stats,
+			int info_level, char *targetname, char *ip, int port,
+			char *iface, char *name, char *value)
 {
 	int rc = 0;
 	node_rec_t rec;
@@ -1107,6 +1126,20 @@ static int exec_node_op(idbm_t *db, int op, int do_login, int do_logout,
 			goto out;
 		}
 		printf("new iSCSI node record added\n");
+		goto out;
+	}
+
+	if (do_rescan) {
+		if (for_each_portal(db, targetname, ip, port, iface,
+				    rescan_portal))
+			rc = -1;
+		goto out;
+	}
+
+	if (do_stats) {
+		if (for_each_portal(db, targetname, ip, port, iface,
+				    session_stats))
+			rc = -1;
 		goto out;
 	}
 
@@ -1453,7 +1486,7 @@ main(int argc, char **argv)
 			}
 		}
 	} else if (mode == MODE_NODE) {
-		if ((rc = verify_mode_params(argc, argv, "PdmlSonvupTIUL",
+		if ((rc = verify_mode_params(argc, argv, "RsPdmlSonvupTIUL",
 					     0))) {
 			log_error("node mode: option '-%c' is not "
 				  "allowed/supported", rc);
@@ -1472,8 +1505,8 @@ main(int argc, char **argv)
 		}
 
 		rc = exec_node_op(db, op, do_login, do_logout, do_show,
-				  info_level, targetname, ip, port, iface,
-				  name, value);
+				  do_rescan, do_stats, info_level, targetname,
+				  ip, port, iface, name, value);
 		goto out;
 	} else if (mode == MODE_SESSION) {
 		if ((rc = verify_mode_params(argc, argv, "PiRdrmusonuSv", 1))) {
@@ -1485,23 +1518,6 @@ main(int argc, char **argv)
 		if (sid >= 0) {
 			char session[64];
 			int tmp_sid, tpgt;
-
-			if (do_rescan) {
-				rc = rescan_session(NULL, NULL, 0, NULL, 0,
-						    sid, NULL);
-				goto out;
-			}
-
-			if (do_stats) {
-				if ((rc = session_stats(sid)) > 0) {
-					iscsid_handle_error(rc);
-					log_error("can not get statistics for "
-						"session with SID %d (%d)",
-						sid, rc);
-					rc = -1;
-				}
-				goto out;
-			}
 
 			snprintf(session, 63, "session%d", sid);
 			session[63] = '\0';
@@ -1536,9 +1552,10 @@ main(int argc, char **argv)
 			}
 
 			/* drop down to node ops */
-			rc = exec_node_op(db, op, do_login, do_logout,
-					  do_show, info_level, targetname, ip,
-					  port, iface, name, value);
+			rc = exec_node_op(db, op, do_login, do_logout, do_show,
+					  do_rescan, do_stats, info_level,
+					  targetname, ip, port, iface, name,
+					  value);
 free_iface:
 			free(iface);
 free_address:
@@ -1547,20 +1564,11 @@ free_target:
 			free(targetname);
 			goto out;
 		} else {
-			if (do_logout) {
-				log_error("--logout requires target id");
-				rc = -1;
-				goto out;
-			}
-
-			if (do_stats) {
-				log_error("--stats requires target id");
-				rc = -1;
-				goto out;
-			}
-
-			if (do_rescan) {
-				rc = rescan_sessions();
+			if (do_logout || do_rescan || do_stats) {
+				rc = exec_node_op(db, op, do_login, do_logout,
+						 do_show, do_rescan, do_stats,
+						 info_level, NULL,
+						 NULL, -1, NULL, name, value);
 				goto out;
 			}
 
