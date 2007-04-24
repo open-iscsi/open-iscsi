@@ -24,6 +24,7 @@ struct iscsi_session;
 struct iscsi_conn;
 struct iscsi_session_operational_config;
 struct iscsi_conn_operational_config;
+struct iscsi_auth_config;
 
 #define SCSI_MAX_STATE_VALUE 32
 
@@ -45,6 +46,7 @@ static inline int is_valid_operational_value(int value)
 	return value != -1;
 }
 
+extern void get_auth_conf(int sid, struct iscsi_auth_config *conf);
 extern void get_negotiated_session_conf(int sid,
 				struct iscsi_session_operational_config *conf);
 extern void get_negotiated_conn_conf(int sid,

@@ -100,6 +100,7 @@ setup_rec_from_negotiated_values(idbm_t *db, node_rec_t *rec,
 {
 	struct iscsi_session_operational_config session_conf;
 	struct iscsi_conn_operational_config conn_conf;
+	struct iscsi_auth_config auth_conf;
 
 	idbm_node_setup_from_conf(db, rec);
 	strncpy(rec->name, targetname, TARGET_NAME_MAXLEN);
@@ -111,6 +112,26 @@ setup_rec_from_negotiated_values(idbm_t *db, node_rec_t *rec,
 
 	get_negotiated_session_conf(sid, &session_conf);
 	get_negotiated_conn_conf(sid, &conn_conf);
+	get_auth_conf(sid, &auth_conf);
+
+	if (strlen(auth_conf.username))
+		strcpy(rec->session.auth.username, auth_conf.username);
+
+	if (strlen(auth_conf.username_in))
+		strcpy(rec->session.auth.username_in, auth_conf.username_in);
+
+	if (strlen((char *)auth_conf.password)) {
+		strcpy((char *)rec->session.auth.password,
+			(char *)auth_conf.password);
+		rec->session.auth.password_length = auth_conf.password_length;
+	}
+
+	if (strlen((char *)auth_conf.password_in)) {
+		strcpy((char *)rec->session.auth.password_in,
+			(char *)auth_conf.password_in);
+		rec->session.auth.password_in_length =
+						auth_conf.password_in_length;
+	}
 
 	if (is_valid_operational_value(conn_conf.HeaderDigest)) {
 		if (conn_conf.HeaderDigest)

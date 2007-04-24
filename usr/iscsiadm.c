@@ -292,7 +292,7 @@ __logout_by_startup(void *data, char *targetname, int tpgt, char *address,
 		if (rc == MGMT_IPC_ERR_NOT_FOUND)
 			rc = 0;
 		if (rc)
-			log_error("Could not logout session (err %d).\n", rc);
+			log_error("Could not logout session (err %d).", rc);
 		if (rc > 0) {
 			iscsid_handle_error(rc);
 			/* continue trying to logout the rest of them */
@@ -363,7 +363,7 @@ logout_portal(void *data, char *targetname, int tpgt, char *address,
 	if (rc == MGMT_IPC_ERR_NOT_FOUND)
 		rc = 0;
 	if (rc)
-		log_error("Could not logout session (err %d).\n", rc);
+		log_error("Could not logout session (err %d).", rc);
 	if (rc > 0) {
 		iscsid_handle_error(rc);
 		/* continue trying to logout the rest of them */
@@ -378,7 +378,7 @@ for_each_portal(idbm_t *db, char *targetname, char *ip, int port, char *iface,
 		int (* fn)(void *, char *, int, char *, int, int, char *))
 {
 	node_rec_t rec;
-	int num_found = 0;
+	int err, num_found = 0;
 
 	memset(&rec, 0, sizeof(node_rec_t));
 	idbm_node_setup_defaults(&rec);
@@ -393,7 +393,13 @@ for_each_portal(idbm_t *db, char *targetname, char *ip, int port, char *iface,
 	else
 		memset(rec.iface.name, 0, ISCSI_MAX_IFACE_LEN);
 
-	return sysfs_for_each_session(&rec, &num_found, fn);
+	err = sysfs_for_each_session(&rec, &num_found, fn);
+	if (!num_found) {
+		log_error("No portal found.");
+		err = ENODEV;
+	}
+
+	return err;
 }
 
 static int
@@ -410,7 +416,7 @@ login_portal(void *data, node_rec_t *rec)
 	if (rc == MGMT_IPC_ERR_EXISTS)
 		rc = 0;
 	if (rc)
-		log_error("Could not login session (err %d).\n", rc);
+		log_error("Could not login session (err %d).", rc);
 	if (rc > 0) {
 		iscsid_handle_error(rc);
 		/* continue trying to login the rest of them */
@@ -545,13 +551,13 @@ static int print_nodes(idbm_t *db, int info_level, char *targetname,
 	switch (info_level) {
 	case 0:
 	case -1:
-		if (!for_each_portal_rec(db, targetname, ip, port,
+		if (for_each_portal_rec(db, targetname, ip, port,
 					iface, NULL, print_node))
 			rc = -1;
 		break;
 	case 1:
 		memset(&tmp_rec, 0, sizeof(node_rec_t));
-		if (!for_each_portal_rec(db, targetname, ip, port,
+		if (for_each_portal_rec(db, targetname, ip, port,
 					iface, &tmp_rec, print_node_tree))
 			rc = -1;
 		break;
@@ -770,7 +776,7 @@ static int print_sessions_info(void)
 		log_error("Can not get list of active sessions (%d)", err);
 		return err;
 	} else if (!num_found)
-		log_error("no active sessions\n");
+		log_error("no active sessions.");
 	return 0;
 }
 
@@ -918,7 +924,7 @@ static int print_sessions(int info_level)
 		log_error("Can not get list of active sessions (%d)", err);
 		return err;
 	} else if (!num_found)
-		log_error("no active sessions\n");
+		log_error("no active sessions.");
 	return 0;
 }
 
@@ -929,7 +935,7 @@ static int rescan_session(void *data, char *targetname, int tpgt, char *address,
 
 	host_no = get_host_no_from_sid(sid, &err);
 	if (err) {
-		log_error("Could not rescan session sid %d\n", sid);
+		log_error("Could not rescan session sid %d.", sid);
 		return err;
 	}
 
@@ -1125,8 +1131,7 @@ static int exec_node_op(idbm_t *db, int op, int do_login, int do_logout,
 	}
 
 	if (do_login && do_logout) {
-		log_error("either login or "
-			  "logout at the time allowed!");
+		log_error("either login or logout at the time allowed!");
 		rc = -1;
 		goto out;
 	}
@@ -1204,8 +1209,7 @@ static int parse_sid(char *session)
 		log_debug(1, "Could not stat %s failed with %d",
 			  session, errno);
 		if (index(session, '/')) {
-			log_error("%s is an invalid session path\n",
-				  session);
+			log_error("%s is an invalid session path\n", session);
 			exit(1);
 		}
 		return atoi(session);
@@ -1550,7 +1554,7 @@ main(int argc, char **argv)
 							session);
 			if (rc) {
 				log_error("Could not get session info for sid "
-					  "%d\n", sid);
+					  "%d", sid);
 				goto free_iface;
 			}
 

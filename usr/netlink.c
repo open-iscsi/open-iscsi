@@ -524,6 +524,8 @@ kset_host_param(uint64_t transport_handle, uint32_t host_no,
 		sprintf(param_str, "%d", *((int *)value));
 		break;
 	case ISCSI_STRING:
+		if (!strlen(value))
+			return 0;
 		sprintf(param_str, "%s", (char *)value);
 		break;
 	default:
@@ -563,6 +565,8 @@ kset_param(uint64_t transport_handle, uint32_t sid, uint32_t cid,
 		sprintf(param_str, "%d", *((int *)value));
 		break;
 	case ISCSI_STRING:
+		if (!strlen(value))
+			return 0;
 		sprintf(param_str, "%s", (char *)value);
 		break;
 	default:

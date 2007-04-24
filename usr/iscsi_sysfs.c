@@ -153,14 +153,17 @@ static int read_transports(void)
 	return 0;
 }
 
-static void get_negotiated_session_param(int sid, char *param, int *value)
+static void get_session_param(int sid, char *param, void *value, char *format)
 {
 	/* set to invalid */
-	*value = -1;
+	if (!strcmp(format, "%s\n"))
+		((char *)value)[0] = '\0';
+	else
+		*((int *)value) = -1;
 
 	memset(sysfs_file, 0, PATH_MAX);
 	sprintf(sysfs_file, ISCSI_SESSION_DIR"/session%d/%s", sid, param);
-	read_sysfs_file(sysfs_file, value, "%d\n");
+	read_sysfs_file(sysfs_file, value, format);
 }
 
 static void get_negotiated_conn_param(int sid, char *param, int *value)
@@ -171,6 +174,21 @@ static void get_negotiated_conn_param(int sid, char *param, int *value)
 	memset(sysfs_file, 0, PATH_MAX);
 	sprintf(sysfs_file, ISCSI_CONN_DIR"/connection%d:0/%s", sid, param);
 	read_sysfs_file(sysfs_file, value, "%d\n");
+}
+
+/* caller must check lengths */
+void get_auth_conf(int sid, struct iscsi_auth_config *conf)
+{
+	memset(conf, 0, sizeof(*conf));
+
+	get_session_param(sid, "username", conf->username, "%s\n");
+	get_session_param(sid, "username_in", conf->username_in, "%s\n");
+	get_session_param(sid, "password", conf->password, "%s\n");
+	if (strlen(conf->password))
+		conf->password_length = strlen(conf->password);
+	get_session_param(sid, "password_in", conf->password_in, "%s\n");
+	if (strlen(conf->password_in))
+		conf->password_in_length = strlen(conf->password_in);
 }
 
 /* called must check for -1=invalid value */
@@ -195,22 +213,22 @@ void get_negotiated_session_conf(int sid,
 {
 	memset(conf, 0, sizeof(*conf));
 
-	get_negotiated_session_param(sid, "data_pdu_in_order",
-				     &conf->DataPDUInOrder);
-	get_negotiated_session_param(sid, "data_seq_in_order",
-				     &conf->DataSequenceInOrder);
-	get_negotiated_session_param(sid, "erl",
-				     &conf->ERL);
-	get_negotiated_session_param(sid, "first_burst_len",
-				     &conf->FirstBurstLength);
-	get_negotiated_session_param(sid, "max_burst_len",
-				     &conf->MaxBurstLength);
-	get_negotiated_session_param(sid, "immediate_data",
-				     &conf->ImmediateData);
-	get_negotiated_session_param(sid, "initial_r2t",
-				     &conf->InitialR2T);
-	get_negotiated_session_param(sid, "max_outstanding_r2t",
-				     &conf->MaxOutstandingR2T);
+	get_session_param(sid, "data_pdu_in_order",
+			  &conf->DataPDUInOrder, "%d\n");
+	get_session_param(sid, "data_seq_in_order",
+			  &conf->DataSequenceInOrder, "%d\n");
+	get_session_param(sid, "erl",
+			  &conf->ERL, "%d\n");
+	get_session_param(sid, "first_burst_len",
+			  &conf->FirstBurstLength, "%d\n");
+	get_session_param(sid, "max_burst_len",
+			  &conf->MaxBurstLength, "%d\n");
+	get_session_param(sid, "immediate_data",
+			  &conf->ImmediateData, "%d\n");
+	get_session_param(sid, "initial_r2t",
+			  &conf->InitialR2T, "%d\n");
+	get_session_param(sid, "max_outstanding_r2t",
+			  &conf->MaxOutstandingR2T, "%d\n");
 }
 
 uint32_t get_host_no_from_sid(uint32_t sid, int *err)

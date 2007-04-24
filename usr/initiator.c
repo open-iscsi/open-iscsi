@@ -936,6 +936,9 @@ __session_scan_host(iscsi_session_t *session, queue_task_t *qtask)
 		mgmt_ipc_write_rsp(qtask, MGMT_IPC_ERR_INTERNAL);
 }
 
+#define MAX_SESSION_PARAMS 24
+#define MAX_HOST_PARAMS 2
+
 static void
 setup_full_feature_phase(iscsi_conn_t *conn)
 {
@@ -947,15 +950,15 @@ setup_full_feature_phase(iscsi_conn_t *conn)
 		int param;
 		int type;
 		void *value;
-	} hosttbl[ISCSI_HOST_PARAM_INITIATOR_NAME + 1] = {
+	} hosttbl[MAX_HOST_PARAMS] = {
 		{
-		.param = ISCSI_HOST_PARAM_HWADDRESS,
-		.value = session->nrec.iface.name,
-		.type = ISCSI_STRING,
+			.param = ISCSI_HOST_PARAM_HWADDRESS,
+			.value = session->nrec.iface.name,
+			.type = ISCSI_STRING,
 		}, {
-		.param = ISCSI_HOST_PARAM_INITIATOR_NAME,
-		.value = session->initiator_name,
-		.type = ISCSI_STRING,
+			.param = ISCSI_HOST_PARAM_INITIATOR_NAME,
+			.value = session->initiator_name,
+			.type = ISCSI_STRING,
 		},
 	};
 	struct connparam {
@@ -963,109 +966,128 @@ setup_full_feature_phase(iscsi_conn_t *conn)
 		int type;
 		void *value;
 		int conn_only;
-	} conntbl[ISCSI_PARAM_SESS_RECOVERY_TMO + 1] = {
+	} conntbl[MAX_SESSION_PARAMS] = {
 		{
-		.param = ISCSI_PARAM_MAX_RECV_DLENGTH,
-		.value = &conn->max_recv_dlength,
-		.type = ISCSI_INT,
-		.conn_only = 0,
+			.param = ISCSI_PARAM_MAX_RECV_DLENGTH,
+			.value = &conn->max_recv_dlength,
+			.type = ISCSI_INT,
+			.conn_only = 0,
 		}, {
-		.param = ISCSI_PARAM_MAX_XMIT_DLENGTH,
-		.value = &conn->max_xmit_dlength,
-		.type = ISCSI_INT,
-		.conn_only = 0,
+			.param = ISCSI_PARAM_MAX_XMIT_DLENGTH,
+			.value = &conn->max_xmit_dlength,
+			.type = ISCSI_INT,
+			.conn_only = 0,
 		}, {
-		.param = ISCSI_PARAM_HDRDGST_EN,
-		.value = &conn->hdrdgst_en,
-		.type = ISCSI_INT,
-		.conn_only = 0,
+			.param = ISCSI_PARAM_HDRDGST_EN,
+			.value = &conn->hdrdgst_en,
+			.type = ISCSI_INT,
+			.conn_only = 0,
 		}, {
-		.param = ISCSI_PARAM_DATADGST_EN,
-		.value = &conn->datadgst_en,
-		.type = ISCSI_INT,
-		.conn_only = 1,
+			.param = ISCSI_PARAM_DATADGST_EN,
+			.value = &conn->datadgst_en,
+			.type = ISCSI_INT,
+			.conn_only = 1,
 		}, {
-		.param = ISCSI_PARAM_INITIAL_R2T_EN,
-		.value = &session->initial_r2t_en,
-		.type = ISCSI_INT,
-		.conn_only = 0,
+			.param = ISCSI_PARAM_INITIAL_R2T_EN,
+			.value = &session->initial_r2t_en,
+			.type = ISCSI_INT,
+			.conn_only = 0,
 		}, {
-		.param = ISCSI_PARAM_MAX_R2T,
-		.value = &one, /* FIXME: session->max_r2t */
-		.type = ISCSI_INT,
-		.conn_only = 0,
+			.param = ISCSI_PARAM_MAX_R2T,
+			.value = &one, /* FIXME: session->max_r2t */
+			.type = ISCSI_INT,
+			.conn_only = 0,
 		}, {
-		.param = ISCSI_PARAM_IMM_DATA_EN,
-		.value = &session->imm_data_en,
-		.type = ISCSI_INT,
-		.conn_only = 0,
+			.param = ISCSI_PARAM_IMM_DATA_EN,
+			.value = &session->imm_data_en,
+			.type = ISCSI_INT,
+			.conn_only = 0,
 		}, {
-		.param = ISCSI_PARAM_FIRST_BURST,
-		.value = &session->first_burst,
-		.type = ISCSI_INT,
-		.conn_only = 0,
+			.param = ISCSI_PARAM_FIRST_BURST,
+			.value = &session->first_burst,
+			.type = ISCSI_INT,
+			.conn_only = 0,
 		}, {
-		.param = ISCSI_PARAM_MAX_BURST,
-		.value = &session->max_burst,
-		.type = ISCSI_INT,
-		.conn_only = 0,
+			.param = ISCSI_PARAM_MAX_BURST,
+			.value = &session->max_burst,
+			.type = ISCSI_INT,
+			.conn_only = 0,
 		}, {
-		.param = ISCSI_PARAM_PDU_INORDER_EN,
-		.value = &session->pdu_inorder_en,
-		.type = ISCSI_INT,
-		.conn_only = 0,
+			.param = ISCSI_PARAM_PDU_INORDER_EN,
+			.value = &session->pdu_inorder_en,
+			.type = ISCSI_INT,
+			.conn_only = 0,
 		}, {
-		.param =ISCSI_PARAM_DATASEQ_INORDER_EN,
-		.value = &session->dataseq_inorder_en,
-		.type = ISCSI_INT,
-		.conn_only = 0,
+			.param =ISCSI_PARAM_DATASEQ_INORDER_EN,
+			.value = &session->dataseq_inorder_en,
+			.type = ISCSI_INT,
+			.conn_only = 0,
 		}, {
-		.param = ISCSI_PARAM_ERL,
-		.value = &zero, /* FIXME: session->erl */
-		.type = ISCSI_INT,
-		.conn_only = 0,
+			.param = ISCSI_PARAM_ERL,
+			.value = &zero, /* FIXME: session->erl */
+			.type = ISCSI_INT,
+			.conn_only = 0,
 		}, {
-		.param = ISCSI_PARAM_IFMARKER_EN,
-		.value = &zero,/* FIXME: session->ifmarker_en */
-		.type = ISCSI_INT,
-		.conn_only = 0,
+			.param = ISCSI_PARAM_IFMARKER_EN,
+			.value = &zero,/* FIXME: session->ifmarker_en */
+			.type = ISCSI_INT,
+			.conn_only = 0,
 		}, {
-		.param = ISCSI_PARAM_OFMARKER_EN,
-		.value = &zero,/* FIXME: session->ofmarker_en */
-		.type = ISCSI_INT,
-		.conn_only = 0,
+			.param = ISCSI_PARAM_OFMARKER_EN,
+			.value = &zero,/* FIXME: session->ofmarker_en */
+			.type = ISCSI_INT,
+			.conn_only = 0,
 		}, {
-		.param = ISCSI_PARAM_EXP_STATSN,
-		.value = &conn->exp_statsn,
-		.type = ISCSI_INT,
-		.conn_only = 1,
+			.param = ISCSI_PARAM_EXP_STATSN,
+			.value = &conn->exp_statsn,
+			.type = ISCSI_INT,
+			.conn_only = 1,
 		}, {
-		.param = ISCSI_PARAM_TARGET_NAME,
-		.conn_only = 0,
-		.type = ISCSI_STRING,
-		.value = session->target_name,
+			.param = ISCSI_PARAM_TARGET_NAME,
+			.conn_only = 0,
+			.type = ISCSI_STRING,
+			.value = session->target_name,
 		}, {
-		.param = ISCSI_PARAM_TPGT,
-		.value = &session->portal_group_tag,
-		.type = ISCSI_INT,
-		.conn_only = 0,
+			.param = ISCSI_PARAM_TPGT,
+			.value = &session->portal_group_tag,
+			.type = ISCSI_INT,
+			.conn_only = 0,
 		}, {
-		.param = ISCSI_PARAM_PERSISTENT_ADDRESS,
-		.value = session->nrec.conn[conn->id].address,
-		.type = ISCSI_STRING,
-		.conn_only = 1,
+			.param = ISCSI_PARAM_PERSISTENT_ADDRESS,
+			.value = session->nrec.conn[conn->id].address,
+			.type = ISCSI_STRING,
+			.conn_only = 1,
 		}, {
-		.param = ISCSI_PARAM_PERSISTENT_PORT,
-		.value = &session->nrec.conn[conn->id].port,
-		.type = ISCSI_INT,
-		.conn_only = 1,
+			.param = ISCSI_PARAM_PERSISTENT_PORT,
+			.value = &session->nrec.conn[conn->id].port,
+			.type = ISCSI_INT,
+			.conn_only = 1,
 		}, {
-		.param = ISCSI_PARAM_SESS_RECOVERY_TMO,
-		.value = &session->replacement_timeout,
-		.type = ISCSI_INT,
-		.conn_only = 0,
-		}
-
+			.param = ISCSI_PARAM_SESS_RECOVERY_TMO,
+			.value = &session->replacement_timeout,
+			.type = ISCSI_INT,
+			.conn_only = 0,
+		}, {
+			.param = ISCSI_PARAM_USERNAME,
+			.value = session->username,
+			.type = ISCSI_STRING,
+			.conn_only = 0,
+		}, {
+			.param = ISCSI_PARAM_USERNAME_IN,
+			.value = session->username_in,
+			.type = ISCSI_STRING,
+			.conn_only = 0,
+		}, {
+			.param = ISCSI_PARAM_PASSWORD,
+			.value = session->password,
+			.type = ISCSI_STRING,
+			.conn_only = 0,
+		}, {
+			.param = ISCSI_PARAM_PASSWORD_IN,
+			.value = session->password_in,
+			.type = ISCSI_STRING,
+			.conn_only = 0,
+		},
 		/*
 		 * FIXME: set these timeouts via set_param() API
 		 *
@@ -1090,7 +1112,7 @@ setup_full_feature_phase(iscsi_conn_t *conn)
 	}
 
 	/* Entered full-feature phase! */
-	for (i = 0; i < ISCSI_PARAM_SESS_RECOVERY_TMO + 1; i++) {
+	for (i = 0; i < MAX_SESSION_PARAMS; i++) {
 		if (conn->id != 0 && !conntbl[i].conn_only)
 			continue;
 		if (!(session->param_mask & (1 << conntbl[i].param)))
@@ -1113,7 +1135,7 @@ setup_full_feature_phase(iscsi_conn_t *conn)
 		print_param_value(conntbl[i].param, conntbl[i].value);
 	}
 
-	for (i = 0; i < ISCSI_HOST_PARAM_INITIATOR_NAME + 1; i++) {
+	for (i = 0; i < MAX_HOST_PARAMS; i++) {
 		rc = ipc->set_host_param(session->transport_handle,
 					 session->hostno, hosttbl[i].param,
 					 hosttbl[i].value, hosttbl[i].type);
