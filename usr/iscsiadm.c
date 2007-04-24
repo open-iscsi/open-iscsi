@@ -79,7 +79,7 @@ static struct option const long_options[] =
 	{"value", required_argument, NULL, 'v'},
 	{"sid", required_argument, NULL, 'r'},
 	{"rescan", no_argument, NULL, 'R'},
-	{"print", no_argument, NULL, 'P'},
+	{"print", required_argument, NULL, 'P'},
 	{"login", no_argument, NULL, 'l'},
 	{"loginall", required_argument, NULL, 'L'},
 	{"logout", no_argument, NULL, 'u'},
