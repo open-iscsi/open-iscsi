@@ -450,8 +450,7 @@ static int login_portal(idbm_t *db, void *data, node_rec_t *rec)
 static int
 __login_by_startup(idbm_t *db, void *data, node_rec_t *rec)
 {
-	struct session_mgmt_fn *mgmt = data;
-	char *mode = mgmt->mode;
+	char *mode = data;
 	int rc = 0;
 
 	/*
@@ -469,8 +468,6 @@ __login_by_startup(idbm_t *db, void *data, node_rec_t *rec)
 static int
 login_by_startup(idbm_t *db, char *mode)
 {
-	struct session_mgmt_fn mgmt;
-
 	if (!mode || !(!strcmp(mode, "automatic") || !strcmp(mode, "all") ||
 	    !strcmp(mode,"manual"))) {
 		log_error("Invalid loginall option %s.", mode);
@@ -478,10 +475,7 @@ login_by_startup(idbm_t *db, char *mode)
 		return -EINVAL;
 	}
 
-	mgmt.mode = mode;
-	mgmt.db = db;
-
-	idbm_for_each_rec(db, &mgmt, __login_by_startup);
+	idbm_for_each_rec(db, mode, __login_by_startup);
 	return 0;
 }
 
