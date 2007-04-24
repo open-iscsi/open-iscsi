@@ -651,14 +651,22 @@ static int iscsi_check_cmdsn_window_closed(struct iscsi_conn *conn)
 
 static int iscsi_xmit_ctask(struct iscsi_conn *conn)
 {
-	int rc;
+	struct iscsi_cmd_task *ctask = conn->ctask;
+	int rc = 0;
 
-	__iscsi_get_ctask(conn->ctask);
+	/*
+	 * serialize with TMF AbortTask
+	 */
+	if (ctask->mtask)
+		goto done;
+
+	__iscsi_get_ctask(ctask);
 	spin_unlock_bh(&conn->session->lock);
-	rc = conn->session->tt->xmit_cmd_task(conn, conn->ctask);
+	rc = conn->session->tt->xmit_cmd_task(conn, ctask);
 	spin_lock_bh(&conn->session->lock);
-	__iscsi_put_ctask(conn->ctask);
+	__iscsi_put_ctask(ctask);
 
+done:
 	if (!rc)
 		/* done with this ctask */
 		conn->ctask = NULL;
@@ -684,7 +692,6 @@ static int iscsi_data_xmit(struct iscsi_conn *conn)
 		spin_unlock_bh(&conn->session->lock);
 		return -ENODATA;
 	}
-	BUG_ON(conn->ctask && conn->mtask);
 
 	if (conn->ctask) {
 		rc = iscsi_xmit_ctask(conn);
@@ -1120,11 +1127,14 @@ static void fail_command(struct iscsi_conn *conn, struct iscsi_cmd_task *ctask,
 	if (!sc)
 		return;
 
-	conn->session->tt->cleanup_cmd_task(conn, ctask);
+	if (ctask->state != ISCSI_TASK_PENDING)
+		conn->session->tt->cleanup_cmd_task(conn, ctask);
 	iscsi_ctask_mtask_cleanup(ctask);
 
 	sc->result = err;
 	sc->resid = sc->request_bufflen;
+	if (conn->ctask == ctask)
+		conn->ctask = NULL;
 	/* release ref from queuecommand */
 	__iscsi_put_ctask(ctask);
 }
@@ -1189,7 +1199,21 @@ int iscsi_eh_abort(struct scsi_cmnd *sc)
 
 	switch (conn->tmabort_state) {
 	case TMABORT_SUCCESS:
-		goto success_cleanup;
+		spin_unlock_bh(&session->lock);
+		/*
+		 * clean up task if aborted. grab the recv lock as a writer
+		 */
+		write_lock_bh(conn->recv_lock);
+		spin_lock(&session->lock);
+		fail_command(conn, ctask, DID_ABORT << 16);
+		spin_unlock(&session->lock);
+		write_unlock_bh(conn->recv_lock);
+		/*
+		 * make sure xmit thread is not still touching the
+		 * ctask/scsi_cmnd
+		 */
+		scsi_flush_work(session->host);
+		goto success_unlocked;
 	case TMABORT_NOT_FOUND:
 		if (!ctask->sc) {
 			/* ctask completed before tmf abort response */
@@ -1201,29 +1225,18 @@ int iscsi_eh_abort(struct scsi_cmnd *sc)
 		/* timedout or failed */
 		spin_unlock_bh(&session->lock);
 		iscsi_conn_failure(conn, ISCSI_ERR_CONN_FAILED);
-		spin_lock_bh(&session->lock);
-		goto failed;
+		goto failed_unlocked;
 	}
-
-success_cleanup:
-	debug_scsi("abort success [sc %lx itt 0x%x]\n", (long)sc, ctask->itt);
-	spin_unlock_bh(&session->lock);
-
-	/*
-	 * clean up task if aborted. grab the recv lock as a writer
-	 */
-	write_lock_bh(conn->recv_lock);
-	spin_lock(&session->lock);
-	fail_command(conn, ctask, DID_ABORT << 16);
-	spin_unlock(&session->lock);
-	write_unlock_bh(conn->recv_lock);
 
 success:
 	spin_unlock_bh(&session->lock);
+success_unlocked:
+	debug_scsi("abort success [sc %lx itt 0x%x]\n", (long)sc, ctask->itt);
 	return SUCCESS;
 
 failed:
 	spin_unlock_bh(&session->lock);
+failed_unlocked:
 	debug_scsi("abort failed [sc %lx itt 0x%x]\n", (long)sc, ctask->itt);
 	return FAILED;
 }
