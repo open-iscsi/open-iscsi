@@ -96,7 +96,7 @@ static void
 setup_rec_from_negotiated_values(idbm_t *db, node_rec_t *rec,
 				struct iscsi_transport *t, char *targetname,
 				int tpgt, char *address,
-				int port, int sid, char *iface)
+				int port, int sid, char *hwaddress)
 {
 	struct iscsi_session_operational_config session_conf;
 	struct iscsi_conn_operational_config conn_conf;
@@ -106,7 +106,7 @@ setup_rec_from_negotiated_values(idbm_t *db, node_rec_t *rec,
 	strncpy(rec->name, targetname, TARGET_NAME_MAXLEN);
 	rec->conn[0].port = port;
 	strncpy(rec->conn[0].address, address, NI_MAXHOST);
-	strncpy(rec->iface.name, iface, ISCSI_MAX_IFACE_LEN);
+	strncpy(rec->iface.hwaddress, hwaddress, ISCSI_MAX_IFACE_LEN);
 	strncpy(rec->iface.transport_name, t->name,
 		ISCSI_TRANSPORT_NAME_MAXLEN);
 	rec->tpgt = tpgt;
@@ -183,32 +183,48 @@ setup_rec_from_negotiated_values(idbm_t *db, node_rec_t *rec,
 }
 
 static int sync_session(void *data, char *targetname, int tpgt, char *address,
-			int port, int sid, char *iface)
+			int port, int sid, char *hwaddress)
 {
 	idbm_t *db = data;
 	node_rec_t rec;
-	int fd = -1;
 	iscsiadm_req_t req;
 	iscsiadm_rsp_t rsp;
 	struct iscsi_transport *t;
 
 	log_debug(7, "sync session [%d][%s,%s.%d][%s]\n", sid, targetname,
-		  address, port, iface);
+		  address, port, hwaddress);
 
-	/* don't do anything for qlogic right now */
 	t = get_transport_by_sid(sid);
 	if (!t)
 		return 0;
 
-	if (!idbm_node_read(db, &rec, targetname, address, port, iface)) {
+	/*
+	 * Just rescan the device in case this is the first startup.
+	 * (TODO: should do this async and check for state).
+	 */
+	if (t->caps & CAP_FW_DB) {
+		uint32_t host_no;
+		int err;
+
+		host_no = get_host_no_from_sid(sid, &err);
+		if (err) {
+			log_error("Could not get host no from sid %u. Can not "
+				  "sync session. Error %d", sid, err);
+			return 0;
+		}
+		scan_host(host_no, 0);
+		return 0;
+	}
+
+	if (!idbm_node_read(db, &rec, targetname, address, port, hwaddress)) {
 		if (!iscsi_match_session(&rec, targetname, tpgt, address,
-					  port, sid, iface))
+					  port, sid, hwaddress))
 			return 0;
 	} else {
 		log_warning("Could not read data from db. Using default and "
 			    "currently negotiated values\n");
 		setup_rec_from_negotiated_values(db, &rec, t, targetname, tpgt,
-						address, port, sid, iface);
+						address, port, sid, hwaddress);
 	}
 
 	memset(&req, 0, sizeof(req));
@@ -216,7 +232,7 @@ static int sync_session(void *data, char *targetname, int tpgt, char *address,
 	req.u.session.sid = sid;
 	memcpy(&req.u.session.rec, &rec, sizeof(node_rec_t));
 
-	do_iscsid(&fd, &req, &rsp);
+	do_iscsid(&req, &rsp);
 	return 0;
 }
 

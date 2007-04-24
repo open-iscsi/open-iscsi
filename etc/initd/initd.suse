@@ -70,6 +70,7 @@ case "$1" in
 	    echo -n "Starting iSCSI initiator service: "
 	    modprobe iscsi_tcp
 	    modprobe -q ib_iser
+	    modprobe -q qla4xxx 
 	    startproc $DAEMON $ARGS
 	    RETVAL=$?
 	    rc_status -v
@@ -90,6 +91,7 @@ case "$1" in
 	    rm -f $PID_FILE
 	    modprobe -r iscsi_tcp
 	    modprobe -q -r ib_iser
+	    modprobe -q -r qla4xxx
 	    rc_failed 0
 	else
 	    rc_failed 1

@@ -130,10 +130,9 @@ void recvpool_put(iscsi_conn_t *conn, void *handle)
 	}
 }
 
-static void
-__session_online_devs(iscsi_session_t *session)
+static void session_online_devs(int host_no, int sid)
 {
-	sysfs_for_each_device(session->hostno, session->id,
+	sysfs_for_each_device(host_no, sid,
 			      set_device_online);
 }
 
@@ -914,18 +913,20 @@ print_param_value(enum iscsi_param param, void *value, int type)
 }
 
 static void
-__session_scan_host(iscsi_session_t *session, queue_task_t *qtask)
+__session_scan_host(int host_no, queue_task_t *qtask)
 {
 	pid_t pid;
 
-	pid = scan_host(session);
+	pid = scan_host(host_no, 1);
 	if (pid == 0) {
 		mgmt_ipc_write_rsp(qtask, MGMT_IPC_OK);
 		exit(0);
 	} else if (pid > 0) {
-		close(qtask->mgmt_ipc_fd);
 		need_reap();
-		free(qtask);
+		if (qtask) {
+			close(qtask->mgmt_ipc_fd);
+			free(qtask);
+		}
 	} else
 		mgmt_ipc_write_rsp(qtask, MGMT_IPC_ERR_INTERNAL);
 }
@@ -947,7 +948,7 @@ setup_full_feature_phase(iscsi_conn_t *conn)
 	} hosttbl[MAX_HOST_PARAMS] = {
 		{
 			.param = ISCSI_HOST_PARAM_HWADDRESS,
-			.value = session->nrec.iface.name,
+			.value = session->nrec.iface.hwaddress,
 			.type = ISCSI_STRING,
 		}, {
 			.param = ISCSI_HOST_PARAM_INITIATOR_NAME,
@@ -1167,14 +1168,14 @@ setup_full_feature_phase(iscsi_conn_t *conn)
 		 * don't want to re-scan it on recovery.
 		 */
 		if (conn->id == 0)
-			__session_scan_host(session, c->qtask);
+			__session_scan_host(session->hostno, c->qtask);
 
 		log_warning("connection%d:%d is operational now",
 			    session->id, conn->id);
 	} else {
 		session->sync_qtask = NULL;
 
-		__session_online_devs(session);
+		session_online_devs(session->hostno, session->id);
 		mgmt_ipc_write_rsp(c->qtask, MGMT_IPC_OK);
 		log_warning("connection%d:%d is operational after recovery "
 			    "(%d attempts)", session->id, conn->id,
@@ -1757,7 +1758,8 @@ session_find_by_rec(node_rec_t *rec)
 			if (iscsi_match_session(rec, session->nrec.name,
 					 -1, session->nrec.conn[0].address,
 					 session->nrec.conn[0].port,
-					 session->id, session->nrec.iface.name))
+					 session->id,
+					 session->nrec.iface.hwaddress))
 				return session;
 		}
 	}
@@ -1991,4 +1993,43 @@ session_logout_task(iscsi_session_t *session, queue_task_t *qtask)
 	}
 
 	return rc;
+}
+
+mgmt_ipc_err_e
+iscsi_host_send_targets(queue_task_t *qtask, int host_no, int do_login,
+			struct sockaddr_storage *ss)
+{
+	struct iscsi_transport *t;
+
+	t = get_transport_by_hba(host_no);
+	if (!t || set_transport_template(t)) {
+		log_error("Invalid host no %d for sendtargets\n", host_no);
+		return MGMT_IPC_ERR_TRANS_FAILURE;
+	}
+	if (!(t->caps & CAP_SENDTARGETS_OFFLOAD))
+		return MGMT_IPC_ERR_TRANS_CAPS;
+
+	if (ipc->sendtargets(t->handle, host_no, (struct sockaddr *)ss))
+		return MGMT_IPC_ERR;
+
+	return MGMT_IPC_OK;
+}
+
+/*
+ * HW drivers like qla4xxx present a interface that hides most of the iscsi
+ * details. Userspace sends down a discovery event then it gets notified
+ * if the sessions that were logged in as a result asynchronously, or
+ * the card will have sessions preset in the FLASH and will log into them
+ * automaotically then send us notification that a session is setup.
+ */
+void iscsi_async_session_creation(uint32_t host_no, uint32_t sid)
+{
+	log_debug(3, "session created sid %u host no %d", sid, host_no);
+	session_online_devs(host_no, sid);
+	__session_scan_host(host_no, NULL);
+}
+
+void iscsi_async_session_destruction(uint32_t host_no, uint32_t sid)
+{
+	log_debug(3, "session destroyed sid %u host no %d", sid, host_no);
 }

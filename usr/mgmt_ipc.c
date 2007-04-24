@@ -292,6 +292,8 @@ mgmt_peeruser(int sock, char *user)
 void
 mgmt_ipc_write_rsp(queue_task_t *qtask, mgmt_ipc_err_e err)
 {
+	if (!qtask)
+		return;
 	log_debug(4, "%s: rsp to fd %d", __FUNCTION__,
 		 qtask->mgmt_ipc_fd);
 
@@ -362,6 +364,12 @@ mgmt_ipc_handle(int accept_fd)
 	case MGMT_IPC_SESSION_STATS:
 		rsp.err = mgmt_ipc_session_getstats(qtask, req.u.session.sid,
 						    &rsp);
+		immrsp = 1;
+		break;
+	case MGMT_IPC_SEND_TARGETS:
+		rsp.err = iscsi_host_send_targets(qtask, req.u.st.host_no,
+						  req.u.st.do_login,
+						  &req.u.st.ss);
 		immrsp = 1;
 		break;
 	case MGMT_IPC_SESSION_INFO:

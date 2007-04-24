@@ -37,6 +37,8 @@
 #include "iscsi_ipc.h"
 #include "iscsi_sysfs.h"
 #include "log.h"
+#include "transport.h"
+#include "iscsi_settings.h"
 
 #define LOG_CONN_CLOSED(conn) \
 do { \
@@ -94,10 +96,11 @@ iscsi_io_tcp_connect(iscsi_conn_t *conn, int non_blocking)
 	}
 
 	if (conn->session &&
-	    strcmp(conn->session->nrec.iface.name, "default") &&
-	    get_netdev_from_mac(conn->session->nrec.iface.name, conn->dev)) {
+	    strcmp(conn->session->nrec.iface.hwaddress, DEFAULT_HWADDRESS) &&
+	    get_netdev_from_mac(conn->session->nrec.iface.hwaddress,
+				conn->dev)) {
 		log_error("Cannot match %s to net/scsi interface.\n",
-			  conn->session->nrec.iface.name);
+			  conn->session->nrec.iface.hwaddress);
                 return -1;
 	}
 

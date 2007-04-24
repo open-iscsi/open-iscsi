@@ -167,14 +167,34 @@ For help, run:
 Usage: iscsiadm [OPTION]
 
   -m, --mode <op>         specify operational mode op = <discovery|node>
-  -m discovery --type=[type] --portal=[ip:port] --login --print=[N]
+  -m discovery --type=[type] --interface=[driver,HWaddress] \
+			--portal=[ip:port] --login --print=[N]
                           perform [type] discovery for target portal with
-                          ip-address [ip] and port [port]. Initiate Login for
-                          each discovered target if --login is specified
+                          ip-address [ip] and port [port].
+
+			  The hwaddress is the MAC address to bind the session
+			  or operation to and must be formed as:
+			  XX:XX:XX:XX:XX:XX
+
+			  Valid values for driver are, tcp (software  iSCSI 
+			  over  TCP/IP), iser (software  iSCSI  over
+			  infinniband), or  qla4xxx (Qlogic 4XXXX HBAs).
+			  For software iSCSI (iser or tcp) the driver
+			  may  be  the special value "default" which directs
+			  the initiator to not bind the session to a specific
+			  hardware resource and instead allow the network or
+			  infinniband layer to decide where to direct traffic.
+
+			  For tcp and iser, the interface argument will
+			  will result in DB configs being created for
+			  each portal discovered. Multiple interfaces
+			  can be specified by passing in --interrface
+			  multiple times. See the examples below.
   -m discovery --print=[N] display all discovery records from internal
                           persistent discovery database.
-  -m discovery --portal=[ip:port] --print=[N] --login 
-                          perform discovery based on portal in database
+  -m discovery --interface --portal=[ip:port] --print=[N] --login
+                          perform discovery based on portal in database. See
+			  above for info in the interface argument.
 
 			  For the above commands "print" is optional. If
 			  used, N can be 0 or 1.
@@ -190,17 +210,33 @@ Usage: iscsiadm [OPTION]
                           you wish to update
   -m node                 display all discovered nodes from internal
                           persistent discovery database
-  -m node --targetname=[name] --portal=[ip:port] --interface=[HWaddress] \
+  -m node --targetname=[name] --portal=[ip:port] \
+					--interface=[driver,HWaddress] \
 					[--login|--logout|--rescan|--stats]
-  -m node --targetname=[name] --portal=[ip:port] --interface=[HWaddress] \
+  -m node --targetname=[name] --portal=[ip:port]
+				--interface=[driver,HWaddress] \
 				--op=[op] [--name=[name] --value=[value]]
-  -m node --targetname=[name] --portal=[ip:port] --interface=[HWaddress] \
+  -m node --targetname=[name] --portal=[ip:port]
+				--interface=[driver,HWaddress] \
 				--print=[level]
                           perform specific DB operation [op] for specific
                           interface on host that will connect to portal on
 			  target. targetname, portal and interface are optional.
 
-			  HWaddress must be he formed as: XX:XX:XX:XX:XX:XX.
+			  Valid values for driver are, tcp (software  iSCSI 
+			  over  TCP/IP), iser (software  iSCSI  over
+			  infinniband), or  qla4xxx (Qlogic 4XXXX HBAs).
+
+			  Valid values for driver are, tcp (software  iSCSI 
+			  over  TCP/IP), iser (software  iSCSI  over
+			  infinniband), or  qla4xxx (Qlogic 4XXXX HBAs).
+			  For software iSCSI (iser or tcp) the driver
+			  may  be  the special value "default" which directs
+			  the initiator to not bind the session to a specific
+			  hardware resource and instead allow the network or
+			  infinniband layer to decide where to direct traffic.
+			  A single interface is supported in each iscsiadm
+			  call in node mode. See the examples below.
 
 			  op could be one of:
                           [new], [delete], [update] or [show]. In case of
@@ -213,11 +249,11 @@ Usage: iscsiadm [OPTION]
 			  to find new LUNs.
 
 			  Stats prints the iSCSI stats for the session.
-  -m node --logoutall=[all,manual,automatic]
+  -m node --logoutall=[all|manual|automatic]
 			  Logout "all" the running sessions or just the ones
 			  with a node or conn startup value manual or automatic.
 			  Nodes marked as ONBOOT are skipped.
-  -m node --loginall=[all,manual,automatic]
+  -m node --loginall=[all|manual|automatic]
 			  Login "all" the running sessions or just the ones
 			  with a node or conn startup value manual or automatic.
 			  Nodes marked as ONBOOT are skipped.
@@ -248,10 +284,27 @@ Usage: iscsiadm [OPTION]
 
     Discovery mode:
 
-    - SendTargets iSCSI Discovery:
+    - SendTargets iSCSI Discovery using the default driver and interface:
 
 	    ./iscsiadm -m discovery -t sendtargets -p 192.168.1.1:3260
 
+    - SendTargets iSCSI Discovery using the the tcp driver (software iSCSI
+	over TCP/IP) and bind the resulting DB records to the two NICs:
+
+	     ./iscsiadm -m discovery -t sendtargets -p 192.168.1.1:3260 \
+	      --inerface=tcp,00:0F:1F:92:6B:BF --interface=tcp,00:0F:1F:92:6B:BC
+
+    - SendTargets iSCSI Discovery using the the qla4xxx driver:
+
+	     ./iscsiadm -m discovery -t sendtargets -p 192.168.1.1:3260 \
+	      --inerface=qla4xxx,00:c0:dd:08:63:ea
+
+	qla4xxx support is very basic and experimental. Currently, this command
+	will have the driver store the discovery address in the HBA's flash,
+	have the driver log into every portal returned by doing send targets,
+	and for future reloads of the driver will have it read the discovery
+	address from flash and log into all the portals returned at that
+	time.
 
     Node mode. In node mode you can specify which records you want to log
     into by specifying the targetname, ip address, port or interface
@@ -288,7 +341,7 @@ Usage: iscsiadm [OPTION]
 	address 00:0F:1F:92:6B:BF set in the db:
 
 	    ./iscsiadm -m node -T iqn.2005-03.com.max -p 192.168.0.4:3260 \
-				-I 00:0F:1F:92:6B:BF -l
+				-I tcp,00:0F:1F:92:6B:BF -l
 
     - iSCSI Logout to all portals on every node/starget through each interface
 	set in the db:
@@ -311,7 +364,7 @@ Usage: iscsiadm [OPTION]
 	address 00:0F:1F:92:6B:BF set in the db:
 
 	    ./iscsiadm -m node -T iqn.2005-03.com.max -p 192.168.0.4:3260 \
-				-I 00:0F:1F:92:6B:BF -u
+				-I tcp,00:0F:1F:92:6B:BF -u
 
     - Changing iSCSI parameter:
 
@@ -325,7 +378,7 @@ Usage: iscsiadm [OPTION]
     - Adding custom iSCSI portal:
 
 	    ./iscsiadm -m node -o new -T iqn.2005-03.com.max \
-			-p 192.168.0.1:3260 -I 00:0F:1F:92:6B:BF
+			-p 192.168.0.1:3260 -I tcp,00:0F:1F:92:6B:BF
 
 	The -I/--interface is optional. If not passed in, "default" is used.
 	For iscsi_tcp, this would allow the network layer to decide what is
@@ -333,7 +386,7 @@ Usage: iscsiadm [OPTION]
 
     - Adding custom NIC config to multiple targets:
 
-	    ./iscsiadm -m node -o new -I 00:0F:1F:92:6B:BF
+	    ./iscsiadm -m node -o new -I tcp,00:0F:1F:92:6B:BF
 
 	This command will add a interface config using the iSCSI and SCSI
 	settings from iscsid.conf to every target that is in the node db.

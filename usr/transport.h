@@ -18,6 +18,7 @@
 #define ISCSI_TRANSPORT_H
 
 #include "types.h"
+#include "config.h"
 
 struct iscsi_transport;
 struct iscsi_conn;
@@ -28,6 +29,16 @@ struct iscsi_transport_template {
 	int (*ep_connect) (iscsi_conn_t *conn, int non_blocking);
 	int (*ep_poll) (iscsi_conn_t *conn, int timeout_ms);
 	void (*ep_disconnect) (iscsi_conn_t *conn);
+};
+
+/* represents data path provider */
+struct iscsi_transport {
+	struct list_head list;
+	uint64_t handle;
+	uint32_t caps;
+	char name[ISCSI_TRANSPORT_NAME_MAXLEN];
+	struct list_head sessions;
+	struct iscsi_transport_template *template;
 };
 
 extern int set_transport_template(struct iscsi_transport *t);

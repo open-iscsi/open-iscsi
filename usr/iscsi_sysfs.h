@@ -40,6 +40,7 @@ typedef int (sysfs_op_fn)(void *, char *, int, char *, int, int, char *);
 extern int sysfs_for_each_session(void *data, int *nr_found, sysfs_op_fn *fn);
 extern uint32_t get_host_no_from_sid(uint32_t sid, int *err);
 extern int get_netdev_from_mac(char *mac, char *dev);
+extern uint32_t get_host_no_from_mac(char *hwaddress, int *err);
 extern char *get_blockdev_from_lun(int hostno, int target, int sid);
 extern int set_exp_statsn(struct iscsi_conn *conn);
 
@@ -53,8 +54,7 @@ extern void get_negotiated_session_conf(int sid,
 				struct iscsi_session_operational_config *conf);
 extern void get_negotiated_conn_conf(int sid,
 				struct iscsi_conn_operational_config *conf);
-extern pid_t scan_host(iscsi_session_t *session);
-extern pid_t __scan_host(int hostno, int async);
+extern pid_t scan_host(int hostno, int async);
 extern int get_host_state(char *state, int host_no);
 extern int get_device_state(char *state, int host_no, int target, int lun);
 extern void set_device_online(int hostno, int target, int lun);

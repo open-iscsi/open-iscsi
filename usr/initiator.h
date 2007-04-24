@@ -202,16 +202,7 @@ typedef struct queue_task {
 } queue_task_t;
 
 struct iscsi_transport_template;
-
-/* represents data path provider */
-struct iscsi_transport {
-	struct list_head list;
-	uint64_t handle;
-	uint32_t caps;
-	char name[ISCSI_TRANSPORT_NAME_MAXLEN];
-	struct list_head sessions;
-	struct iscsi_transport_template *template;
-};
+struct iscsi_transport;
 
 /* daemon's session structure */
 typedef struct iscsi_session {
@@ -359,6 +350,10 @@ extern void* recvpool_get(iscsi_conn_t *conn, int ev_size);
 extern void recvpool_put(iscsi_conn_t *conn, void *handle);
 extern mgmt_ipc_err_e iscsi_sync_session(node_rec_t *rec, queue_task_t
 					 *tsk, uint32_t sid);
+extern mgmt_ipc_err_e iscsi_host_send_targets(queue_task_t *qtask,
+			int host_no, int do_login, struct sockaddr_storage *ss);
+extern void iscsi_async_session_creation(uint32_t host_no, uint32_t sid);
+extern void iscsi_async_session_destruction(uint32_t host_no, uint32_t sid);
 
 /* isns.c */
 extern int isns_init(void);

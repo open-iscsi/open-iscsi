@@ -21,6 +21,7 @@
 #include "version.h"
 #include "iscsi_settings.h"
 #include "iscsi_sysfs.h"
+#include "transport.h"
 
 void daemon_init(void)
 {
@@ -132,26 +133,25 @@ static int iscsid_response(int fd, iscsiadm_rsp_t *rsp)
 	return err;
 }
 
-int do_iscsid(int *ipc_fd, iscsiadm_req_t *req, iscsiadm_rsp_t *rsp)
+int do_iscsid(iscsiadm_req_t *req, iscsiadm_rsp_t *rsp)
 {
 	int err;
+	int fd;
 
-	if ((*ipc_fd = iscsid_connect()) < 0) {
-		err = *ipc_fd;
+	if ((fd = iscsid_connect()) < 0) {
+		err = fd;
 		goto out;
 	}
 
-	if ((err = iscsid_request(*ipc_fd, req)) < 0)
+	if ((err = iscsid_request(fd, req)) < 0)
 		goto out;
 
-	err = iscsid_response(*ipc_fd, rsp);
+	err = iscsid_response(fd, rsp);
 	if (!err && req->command != rsp->command)
 		err = -EIO;
 out:
-	if (*ipc_fd > 0)
-		close(*ipc_fd);
-	*ipc_fd = -1;
-
+	if (fd > 0)
+		close(fd);
 	return err;
 }
 
@@ -210,8 +210,8 @@ void idbm_node_setup_defaults(node_rec_t *rec)
 	 * default is to use tcp through whatever the network layer
 	 * selects for us
 	 */
-	sprintf(rec->iface.name, "default");
-	sprintf(rec->iface.transport_name, "tcp");
+	sprintf(rec->iface.hwaddress, DEFAULT_HWADDRESS);
+	sprintf(rec->iface.transport_name, DEFAULT_TRANSPORT);
 }
 
 void iscsid_handle_error(int err)
@@ -240,14 +240,14 @@ void iscsid_handle_error(int err)
 }
 
 int iscsi_match_session(void *data, char *targetname, int tpgt,
-			char *address, int port, int sid, char *iface)
+			char *address, int port, int sid, char *hwaddress)
 {
 	node_rec_t *rec = data;
 	struct iscsi_transport *t;
 
 	log_debug(6, "looking for session [%d][%s,%s,%d][%s]", sid,
 		  rec->name, rec->conn[0].address, rec->conn[0].port,
-		  iface);
+		  hwaddress);
 
 	t = get_transport_by_sid(sid);
 	if (!t)
@@ -256,7 +256,7 @@ int iscsi_match_session(void *data, char *targetname, int tpgt,
 	if (!strcmp(rec->iface.transport_name, t->name) &&
 	    !strcmp(rec->name, targetname) &&
 	    !strcmp(rec->conn[0].address, address) &&
-	    !strcmp(rec->iface.name, iface) &&
+	    !strcasecmp(rec->iface.hwaddress, hwaddress) &&
 	    rec->conn[0].port == port)
 		return 1;
 

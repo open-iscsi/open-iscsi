@@ -302,7 +302,7 @@ static void add_new_target_node(char *targetname, uint8_t *ip, int port,
 
 	/* TODO?: shoudl we set the address and port of the server ? */
 	drec.type = DISCOVERY_TYPE_ISNS;
-	err = idbm_add_nodes(db, &rec, &drec);
+	err = idbm_add_nodes(db, &rec, &drec, NULL);
 	if (err)
 		log_error("Could not add new target node:%s %s,%d",
 			  targetname, dst, port);

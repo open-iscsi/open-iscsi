@@ -29,6 +29,11 @@ extern char initiator_alias[];
 /* discovery.c */
 struct idbm;
 struct discovery_rec;
-extern int sendtargets_discovery(struct idbm *db, struct discovery_rec *drec);
+struct list_head;
+
+extern int discovery_sendtargets(struct idbm *db, struct discovery_rec *drec,
+				 struct list_head *ifaces);
+extern int discovery_offload_sendtargets(struct idbm *db, int host_no,
+					 int do_login, discovery_rec_t *drec);
 
 #endif /* ISCSIADM_H */

@@ -37,6 +37,7 @@
 #include "iscsi_ipc.h"
 #include "initiator.h"
 #include "iscsi_sysfs.h"
+#include "transport.h"
 
 static int ctrl_fd;
 static struct sockaddr_nl src_addr, dest_addr;
@@ -301,6 +302,40 @@ __kipc_call(void *iov_base, int iov_len)
 	} while (ev->type != type);
 
 	return rc;
+}
+
+static int
+ksendtargets(uint64_t transport_handle, uint32_t host_no, struct sockaddr *addr)
+{
+	int rc, addrlen;
+	struct iscsi_uevent *ev;
+
+	log_debug(7, "in %s", __FUNCTION__);
+
+	memset(setparam_buf, 0, NLM_SETPARAM_DEFAULT_MAX);
+	ev = (struct iscsi_uevent *)setparam_buf;
+	ev->type = ISCSI_UEVENT_TGT_DSCVR;
+	ev->transport_handle = transport_handle;
+	ev->u.tgt_dscvr.type = ISCSI_TGT_DSCVR_SEND_TARGETS;
+	ev->u.tgt_dscvr.host_no = host_no;
+
+	if (addr->sa_family == PF_INET)
+		addrlen = sizeof(struct sockaddr_in);
+	else if (addr->sa_family == PF_INET6)
+		addrlen = sizeof(struct sockaddr_in6);
+	else {
+		log_error("%s unknown addr family %d\n",
+			  __FUNCTION__, addr->sa_family);
+		return -EINVAL;
+	}
+	memcpy(setparam_buf + sizeof(*ev), addr, addrlen);
+
+	rc = __kipc_call(ev, sizeof(*ev) + addrlen);
+	if (rc < 0) {
+		log_error("sendtargets failed rc%d\n", rc);
+		return rc;
+	}
+	return 0;
 }
 
 static int
@@ -802,8 +837,15 @@ kget_stats(uint64_t transport_handle, uint32_t sid, uint32_t cid,
 	return 0;
 }
 
-static int
-ctldev_handle(void)
+static void drop_data(struct nlmsghdr *nlh)
+{
+	int ev_size;
+
+	ev_size = nlh->nlmsg_len - NLMSG_ALIGN(sizeof(struct nlmsghdr));
+	nlpayload_read(ctrl_fd, setparam_buf, ev_size, 0);
+}
+
+static int ctldev_handle(void)
 {
 	int rc;
 	struct iscsi_uevent *ev;
@@ -824,6 +866,23 @@ ctldev_handle(void)
 	}
 	nlh = (struct nlmsghdr *)nlm_ev;
 	ev = (struct iscsi_uevent *)NLMSG_DATA(nlm_ev);
+
+	log_debug(7, "%s got event type %u\n", __FUNCTION__, ev->type);
+	/* drivers like qla4xxx can be inserted after iscsid is started */
+	switch (ev->type) {
+	case ISCSI_UEVENT_CREATE_SESSION:
+		drop_data(nlh);
+		iscsi_async_session_creation(ev->r.c_session_ret.host_no,
+					     ev->r.c_session_ret.sid);
+		return 0;
+	case ISCSI_KEVENT_DESTROY_SESSION:
+		drop_data(nlh);
+		iscsi_async_session_destruction(ev->r.d_session.host_no,
+						ev->r.d_session.sid);
+		return 0;
+	default:
+		; /* fall through */
+	}
 
 	/* verify connection */
 	list_for_each_entry(t, &transports, list) {
@@ -849,15 +908,17 @@ ctldev_handle(void)
 
 verify_conn:
 	if (conn == NULL) {
-		log_error("could not verify connection %d:%d",
-			  ev->r.recv_req.sid, ev->r.recv_req.cid);
+		log_error("Could not verify connection %d:%d. Dropping "
+			   "event.\n", ev->r.recv_req.sid, ev->r.recv_req.cid);
+		drop_data(nlh);
 		return -ENXIO;
 	}
 
 	ev_size = nlh->nlmsg_len - NLMSG_ALIGN(sizeof(struct nlmsghdr));
 	recv_handle = (uintptr_t)recvpool_get(conn, ev_size);
 	if (!recv_handle) {
-		log_error("can not allocate memory for receive handle");
+		/* retry later */
+		log_error("Can not allocate memory for receive handle.");
 		return -ENOMEM;
 	}
 
@@ -868,21 +929,25 @@ verify_conn:
 				ev_size, 0)) < 0) {
 		recvpool_put(conn, (void*)recv_handle);
 		log_error("can not read from NL socket, error %d", rc);
+		/* retry later */
 		return rc;
 	}
 
-	if (ev->type == ISCSI_KEVENT_RECV_PDU) {
+	switch (ev->type) {
+	case ISCSI_KEVENT_RECV_PDU:
 		/* produce an event, so session manager will handle */
 		queue_produce(session->queue, EV_CONN_RECV_PDU, conn,
 			sizeof(uintptr_t), &recv_handle);
 		actor_schedule(&session->mainloop);
-	} else if (ev->type == ISCSI_KEVENT_CONN_ERROR) {
+		break;
+	case ISCSI_KEVENT_CONN_ERROR:
 		/* produce an event, so session manager will handle */
 		queue_produce(session->queue, EV_CONN_ERROR, conn,
 			sizeof(uintptr_t), (void*)&ev->r.connerror.error);
 		actor_schedule(&session->mainloop);
 		recvpool_put(conn, (void*)recv_handle);
-	} else {
+		break;
+	default:
 		recvpool_put(conn, (void*)recv_handle);
 		log_error("unknown kernel event %d", ev->type);
 		return -EEXIST;
@@ -975,6 +1040,7 @@ struct iscsi_ipc nl_ipc = {
 	.ctldev_open		= ctldev_open,
 	.ctldev_close		= ctldev_close,
 	.ctldev_handle		= ctldev_handle,
+	.sendtargets		= ksendtargets,
 	.create_session         = kcreate_session,
 	.destroy_session        = kdestroy_session,
 	.create_conn            = kcreate_conn,

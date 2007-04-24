@@ -37,6 +37,7 @@
 #include "version.h"
 #include "iscsi_sysfs.h"
 #include "list.h"
+#include "iscsi_settings.h"
 
 #define ISCSI_TRANSPORT_DIR	"/sys/class/iscsi_transport"
 #define ISCSI_SESSION_DIR	"/sys/class/iscsi_session"
@@ -259,6 +260,49 @@ free_buf:
 	return host_no;
 }
 
+uint32_t get_host_no_from_mac(char *hwaddress, int *err)
+{
+	DIR *dirfd;
+	struct dirent *dent;
+	char mac[ISCSI_MAX_IFACE_LEN];
+	int rc;
+	uint32_t host_no = -1;
+
+	*err = 0;
+
+	log_debug(2, "looking for hwaddress%s\n", hwaddress);
+	sprintf(sysfs_file, ISCSI_HOST_DIR); 
+	dirfd = opendir(sysfs_file);
+	if (!dirfd) {
+		*err = -EINVAL;
+		return -1;
+	}
+
+	while ((dent = readdir(dirfd))) {
+		if (!strcmp(dent->d_name, ".") || !strcmp(dent->d_name, ".."))
+			continue;
+
+		sprintf(sysfs_file, "/sys/class/iscsi_host/%s/hwaddress",
+			dent->d_name);
+		rc = read_sysfs_file(sysfs_file, mac, "%s\n");
+		if (rc)
+			continue;
+
+		log_debug(2, "found %s\n", mac);
+		if (!strncasecmp(hwaddress, mac, strlen(hwaddress))) {
+			sscanf(sysfs_file,
+			       "/sys/class/iscsi_host/host%u/hwaddress",
+			       &host_no);
+			log_debug(2, "Found host %u\n", host_no);
+			closedir(dirfd);
+			return host_no;
+		}
+	}
+	closedir(dirfd);
+	*err = -EINVAL;
+	return -1;
+}
+
 /**
  * get_netdev_from_mac - return netdev name of device with mac address
  * @address: hw address
@@ -320,7 +364,7 @@ int get_netdev_from_mac(char *address, char *dev)
 }
 
 int get_sessioninfo_by_sysfs_id(int *sid, char *targetname, char *addr,
-				int *port, int *tpgt, char *iface,
+				int *port, int *tpgt, char *hwaddress,
 				char *session)
 {
 	int ret;
@@ -396,13 +440,13 @@ int get_sessioninfo_by_sysfs_id(int *sid, char *targetname, char *addr,
 	 * If we cannot get the address we assume we are doing the old
 	 * style and use default.
 	 */
-	sprintf(iface, "default");
-	ret = read_sysfs_file(sysfs_file, iface, "%s\n");
+	sprintf(hwaddress, DEFAULT_HWADDRESS);
+	ret = read_sysfs_file(sysfs_file, hwaddress, "%s\n");
 	if (ret)
 		log_debug(7, "could not read hwaddress for %s\n", sysfs_file);
 
-	log_debug(7, "found targetname %s address %s port %d iface %s\n",
-		  targetname, addr ? addr : "NA", *port, iface);
+	log_debug(7, "found targetname %s address %s port %d hwaddress %s\n",
+		  targetname, addr ? addr : "NA", *port, hwaddress);
 	return 0;
 }
 
@@ -410,7 +454,7 @@ int sysfs_for_each_session(void *data, int *nr_found, sysfs_op_fn *fn)
 {
 	struct dirent **namelist;
 	int rc = 0, sid, port, tpgt, n, i;
-	char *targetname, *address, *iface;
+	char *targetname, *address, *hwaddress;
 
 	targetname = malloc(TARGET_NAME_MAXLEN + 1);
 	if (!targetname)
@@ -422,10 +466,10 @@ int sysfs_for_each_session(void *data, int *nr_found, sysfs_op_fn *fn)
 		goto free_target;
 	}
 
-	iface = malloc(ISCSI_MAX_IFACE_LEN);
-	if (!iface) {
+	hwaddress = malloc(ISCSI_MAX_IFACE_LEN);
+	if (!hwaddress) {
 		rc = ENOMEM;
-		goto free_iface;
+		goto free_hwaddress;
 	}
 
 	sprintf(sysfs_file, ISCSI_SESSION_DIR);
@@ -436,7 +480,7 @@ int sysfs_for_each_session(void *data, int *nr_found, sysfs_op_fn *fn)
 
 	for (i = 0; i < n; i++) {
 		rc = get_sessioninfo_by_sysfs_id(&sid, targetname, address,
-						 &port, &tpgt, iface,
+						 &port, &tpgt, hwaddress,
 						 namelist[i]->d_name);
 		if (rc) {
 			log_error("could not find session info for %s",
@@ -444,7 +488,7 @@ int sysfs_for_each_session(void *data, int *nr_found, sysfs_op_fn *fn)
 			continue;
 		}
 
-		rc = fn(data, targetname, tpgt, address, port, sid, iface);
+		rc = fn(data, targetname, tpgt, address, port, sid, hwaddress);
 		if (rc != 0)
 			break;
 		(*nr_found)++;
@@ -454,8 +498,8 @@ int sysfs_for_each_session(void *data, int *nr_found, sysfs_op_fn *fn)
 		free(namelist[i]);
 	free(namelist);
 
-free_iface:
-	free(iface);
+free_hwaddress:
+	free(hwaddress);
 free_address:
 	free(address);
 free_target:
@@ -681,7 +725,7 @@ void delete_device(int hostno, int target, int lun)
 	close(fd);
 }
 
-pid_t __scan_host(int hostno, int async)
+pid_t scan_host(int hostno, int async)
 {
 	pid_t pid = 0;
 	int fd;
@@ -715,14 +759,6 @@ pid_t __scan_host(int hostno, int async)
 
 	close(fd);
 	return pid;
-}
-
-/*
- * Scan a session from usersapce using sysfs
- */
-pid_t scan_host(iscsi_session_t *session)
-{
-	return __scan_host(session->hostno, 1);
 }
 
 struct iscsi_transport *get_transport_by_session(char *sys_session)

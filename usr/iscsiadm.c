@@ -44,9 +44,9 @@
 #include "version.h"
 #include "iscsi_sysfs.h"
 #include "list.h"
+#include "iscsi_settings.h"
 
 struct iscsi_ipc *ipc = NULL; /* dummy */
-static int ipc_fd = -1;
 static char program_name[] = "iscsiadm";
 
 char initiator_name[TARGET_NAME_MAXLEN];
@@ -72,7 +72,6 @@ static struct option const long_options[] =
 	{"portal", required_argument, NULL, 'p'},
 	{"targetname", required_argument, NULL, 'T'},
 	{"interface", required_argument, NULL, 'I'},
-	{"driver", required_argument, NULL, 'D'},
 	{"op", required_argument, NULL, 'o'},
 	{"type", required_argument, NULL, 't'},
 	{"name", required_argument, NULL, 'n'},
@@ -91,7 +90,7 @@ static struct option const long_options[] =
 	{"help", no_argument, NULL, 'h'},
 	{NULL, 0, NULL, 0},
 };
-static char *short_options = "RlVhm:p:P:T:I:D:U:L:d:r:n:v:o:sSt:u";
+static char *short_options = "RlVhm:p:P:T:H:I:U:L:d:r:n:v:o:sSt:u";
 
 static void usage(int status)
 {
@@ -100,9 +99,9 @@ static void usage(int status)
 			program_name);
 	else {
 		printf("\
-iscsiadm -m discovery [ -dhV ] [--print=[N]] [ -t type -p ip:port [ -l ] ] | [ -p ip:port ] \
+iscsiadm -m discovery [ -dhV ] [--print=N] [ -t type -p ip:port -I {driver,HWaddress} ... [ -l ] ] | [ -p ip:port ] \
 [ -o operation ] [ -n name ] [ -v value ]\n\
-iscsiadm -m node [ -dhV ] [ -P printlevel ] [ -L all,manual,automatic ] [ -U all,manual,automatic ] [ -S ] [ [ -T targetname -p ip:port -I HWaddress -D driver ] [ -l | -u | -R | -s] ] \
+iscsiadm -m node [ -dhV ] [ -P printlevel ] [ -L all,manual,automatic ] [ -U all,manual,automatic ] [ -S ] [ [ -T targetname -p ip:port -I {driver,HWaddress} ] [ -l | -u | -R | -s] ] \
 [ [ -o  operation  ] [ -n name ] [ -v value ] [ -p ip:port ] ]\n\
 iscsiadm -m session [ -dhV ] [ -P  printlevel] [ -r sessionid | sysfsdir [ -R | -u | -s ] [ -o operation ] [ -n name ] [ -v value ] ]\n");
 	}
@@ -173,12 +172,12 @@ session_login(node_rec_t *rec)
 	req.command = MGMT_IPC_SESSION_LOGIN;
 	memcpy(&req.u.session.rec, rec, sizeof(node_rec_t));
 
-	return do_iscsid(&ipc_fd, &req, &rsp);
+	return do_iscsid(&req, &rsp);
 }
 
 static int
 __delete_target(void *data, char *targetname, int tpgt, char *address,
-	      int port, int sid, char *iface)
+	      int port, int sid, char *hwaddress)
 {
 	node_rec_t *rec = data;
 	uint32_t host_no;
@@ -188,7 +187,7 @@ __delete_target(void *data, char *targetname, int tpgt, char *address,
 		  rec->name, rec->conn[0].address, rec->conn[0].port);
 
 	if (iscsi_match_session(rec, targetname, tpgt, address, port,
-				sid, iface)) {
+				sid, hwaddress)) {
 		host_no = get_host_no_from_sid(sid, &err);
 		if (err) {
 			log_error("Could not properly delete target\n");
@@ -215,7 +214,7 @@ session_logout(node_rec_t *rec)
 	memcpy(&req.u.session.rec, rec, sizeof(node_rec_t));
 
 	sysfs_for_each_session(rec, &num_found, __delete_target);
-	return do_iscsid(&ipc_fd, &req, &rsp);
+	return do_iscsid(&req, &rsp);
 }
 
 static int
@@ -253,7 +252,7 @@ struct session_mgmt_fn {
 
 static int
 __logout_by_startup(void *data, char *targetname, int tpgt, char *address,
-		    int port, int sid, char *iface)
+		    int port, int sid, char *hwaddress)
 {
 	struct session_mgmt_fn *mgmt = data;
 	char *mode = mgmt->mode;
@@ -261,7 +260,7 @@ __logout_by_startup(void *data, char *targetname, int tpgt, char *address,
 	node_rec_t rec;
 	int rc = 0;
 
-	if (idbm_node_read(db, &rec, targetname, address, port, iface)) {
+	if (idbm_node_read(db, &rec, targetname, address, port, hwaddress)) {
 		/*
 		 * this is due to a HW driver or some other driver
 		 * not hooked in
@@ -273,7 +272,7 @@ __logout_by_startup(void *data, char *targetname, int tpgt, char *address,
 
 	/* multiple drivers could be connected to the same portal */
 	if (!iscsi_match_session(&rec, targetname, tpgt, address, port,
-				sid, iface))
+				sid, hwaddress))
 		return 0;
 
 	/*
@@ -284,7 +283,7 @@ __logout_by_startup(void *data, char *targetname, int tpgt, char *address,
 		return 0;
 
 	if (!match_startup_mode(&rec, mode)) {
-		printf("Logout session [%s [%d] [%s]:%d %s]\n", iface, sid,
+		printf("Logout session [%s [%d] [%s]:%d %s]\n", hwaddress, sid,
 			address, port, targetname);
 
 		rc = session_logout(&rec);
@@ -323,7 +322,7 @@ logout_by_startup(idbm_t *db, char *mode)
 }
 
 static int match_valid_session(node_rec_t *rec, char *targetname,
-			       char *address, int port, char *iface,
+			       char *address, int port, char *hwaddress,
 			       char *driver)
 {
 	if (strlen(rec->name) && strcmp(rec->name, targetname))
@@ -337,7 +336,8 @@ static int match_valid_session(node_rec_t *rec, char *targetname,
 	    strcmp(rec->iface.transport_name, driver))
 		return 0;
 
-	if (strlen(rec->iface.name) && strcmp(rec->iface.name, iface))
+	if (strlen(rec->iface.hwaddress) &&
+	    strcasecmp(rec->iface.hwaddress, hwaddress))
 		return 0;
 
 	if (rec->conn[0].port != -1 && port != rec->conn[0].port)
@@ -348,7 +348,7 @@ static int match_valid_session(node_rec_t *rec, char *targetname,
 
 static int
 logout_portal(void *data, char *targetname, int tpgt, char *address,
-	      int port, int sid, char *iface)
+	      int port, int sid, char *hwaddress)
 {
 	node_rec_t tmprec, *rec = data;
 	struct iscsi_transport *t;
@@ -358,11 +358,19 @@ logout_portal(void *data, char *targetname, int tpgt, char *address,
 	if (!t)
 		return 0;
 
-	if (!match_valid_session(rec, targetname, address, port, iface,
+	if (!match_valid_session(rec, targetname, address, port, hwaddress,
 				 t->name))
 		return 0;
 
-	printf("Logout session [%s [%d] [%s]:%d %s]\n", iface, sid, address,
+	/* we do not support this yet */
+	if (t->caps & CAP_FW_DB) {
+		log_error("Could not logout [%s [%d] [%s]:%d %s].", hwaddress,
+			  sid, address, port, targetname);
+		log_error("Logout not supported for driver: %s.", t->name);
+		return 0;
+	}
+
+	printf("Logout session [%s [%d] [%s]:%d %s]\n", hwaddress, sid, address,
 		port, targetname);
 
 	memset(&tmprec, 0, sizeof(node_rec_t));
@@ -370,7 +378,7 @@ logout_portal(void *data, char *targetname, int tpgt, char *address,
 	strncpy(tmprec.name, targetname, TARGET_NAME_MAXLEN);
 	tmprec.conn[0].port = port;
 	strncpy(tmprec.conn[0].address, address, NI_MAXHOST);
-	strncpy(tmprec.iface.name, iface, ISCSI_MAX_IFACE_LEN);
+	strncpy(tmprec.iface.hwaddress, hwaddress, ISCSI_MAX_IFACE_LEN);
 	strncpy(tmprec.iface.transport_name, t->name,
 		ISCSI_TRANSPORT_NAME_MAXLEN);
 
@@ -390,7 +398,7 @@ logout_portal(void *data, char *targetname, int tpgt, char *address,
 }
 
 static void setup_node_record(node_rec_t *rec, char *targetname, char *ip,
-			      int port, char *iface, char *driver)
+			      int port, char *hwaddress, char *driver)
 {
 	memset(rec, 0, sizeof(*rec));
 	idbm_node_setup_defaults(rec);
@@ -399,10 +407,10 @@ static void setup_node_record(node_rec_t *rec, char *targetname, char *ip,
 	rec->conn[0].port = port;
 	if (ip)
 		strncpy(rec->conn[0].address, ip, NI_MAXHOST);
-	if (iface)
-		strncpy(rec->iface.name, iface, ISCSI_MAX_IFACE_LEN);
+	if (hwaddress)
+		strncpy(rec->iface.hwaddress, hwaddress, ISCSI_MAX_IFACE_LEN);
 	else
-		memset(rec->iface.name, 0, ISCSI_MAX_IFACE_LEN);
+		memset(rec->iface.hwaddress, 0, ISCSI_MAX_IFACE_LEN);
 	if (driver)
 		strncpy(rec->iface.transport_name, driver,
 			ISCSI_TRANSPORT_NAME_MAXLEN);
@@ -412,13 +420,13 @@ static void setup_node_record(node_rec_t *rec, char *targetname, char *ip,
 }
 
 static int
-for_each_session(idbm_t *db, char *targetname, char *ip, int port, char *iface,
-		 char *driver, sysfs_op_fn *fn)
+for_each_session(idbm_t *db, char *targetname, char *ip, int port,
+		 char *hwaddress, char *driver, sysfs_op_fn *fn)
 {
 	node_rec_t rec;
 	int err, num_found = 0;
 
-	setup_node_record(&rec, targetname, ip, port, iface, driver);
+	setup_node_record(&rec, targetname, ip, port, hwaddress, driver);
 	err = sysfs_for_each_session(&rec, &num_found, fn);
 	if (!num_found) {
 		log_error("No portal found.");
@@ -432,7 +440,7 @@ struct session_data {
 	struct list_head list;
 	char *targetname;
 	char *address;
-	char *iface;
+	char *hwaddress;
 	int port;
 	int sid;
 	int tpgt;
@@ -443,7 +451,7 @@ static int login_portal(idbm_t *db, void *data, node_rec_t *rec)
 	int rc;
 
 	printf("Login session [%s:%s [%s]:%d %s]\n", rec->iface.transport_name,
-		rec->iface.name, rec->conn[0].address,
+		rec->iface.hwaddress, rec->conn[0].address,
 		rec->conn[0].port, rec->name);
 
 	rc = session_login(rec);
@@ -499,13 +507,14 @@ static int iface_fn(idbm_t *db, void *data, node_rec_t *rec)
 
 	if (!match_valid_session(op_data->match_rec, rec->name,
 				 rec->conn[0].address, rec->conn[0].port,
-				 rec->iface.name, rec->iface.transport_name))
+				 rec->iface.hwaddress,
+				 rec->iface.transport_name))
 		return 0;
 	return op_data->fn(db, op_data->data, rec);
 }
 
 static int for_each_rec(idbm_t *db, char *targetname, char *ip, int port,
-			char *iface, char *driver, void *data,
+			char *hwaddress, char *driver, void *data,
 			idbm_iface_op_fn *fn)
 {
 	node_rec_t rec;
@@ -516,7 +525,7 @@ static int for_each_rec(idbm_t *db, char *targetname, char *ip, int port,
 	op_data.match_rec = &rec;
 	op_data.fn = fn;
 
-	setup_node_record(&rec, targetname, ip, port, iface, driver);
+	setup_node_record(&rec, targetname, ip, port, hwaddress, driver);
 	if (!idbm_for_each_rec(db, &op_data, iface_fn))
 		goto nodev;
 	return 0;
@@ -526,7 +535,7 @@ nodev:
 }
 
 static int print_nodes(idbm_t *db, int info_level, char *targetname,
-		       char *ip, int port, char *iface, char *driver)
+		       char *ip, int port, char *hwaddress, char *driver)
 {
 	node_rec_t tmp_rec;
 	int rc = 0;
@@ -534,13 +543,13 @@ static int print_nodes(idbm_t *db, int info_level, char *targetname,
 	switch (info_level) {
 	case 0:
 	case -1:
-		if (for_each_rec(db, targetname, ip, port, iface, driver, NULL,
-				 idbm_print_node_flat))
+		if (for_each_rec(db, targetname, ip, port, hwaddress, driver,
+				 NULL, idbm_print_node_flat))
 			rc = -1;
 		break;
 	case 1:
 		memset(&tmp_rec, 0, sizeof(node_rec_t));
-		if (for_each_rec(db, targetname, ip, port, iface, driver,
+		if (for_each_rec(db, targetname, ip, port, hwaddress, driver,
 				 &tmp_rec, idbm_print_node_tree))
 			rc = -1;
 		break;
@@ -562,7 +571,7 @@ config_init(void)
 	memset(&req, 0, sizeof(req));
 	req.command = MGMT_IPC_CONFIG_INAME;
 
-	rc = do_iscsid(&ipc_fd, &req, &rsp);
+	rc = do_iscsid(&req, &rsp);
 	if (rc)
 		return rc;
 
@@ -573,7 +582,7 @@ config_init(void)
 	memset(&req, 0, sizeof(req));
 	req.command = MGMT_IPC_CONFIG_IALIAS;
 
-	rc = do_iscsid(&ipc_fd, &req, &rsp);
+	rc = do_iscsid(&req, &rsp);
 	if (rc)
 		return rc;
 
@@ -584,7 +593,7 @@ config_init(void)
 	memset(&req, 0, sizeof(req));
 	req.command = MGMT_IPC_CONFIG_FILE;
 
-	rc = do_iscsid(&ipc_fd, &req, &rsp);
+	rc = do_iscsid(&req, &rsp);
 	if (rc)
 		return rc;
 
@@ -596,7 +605,7 @@ config_init(void)
 }
 
 static int print_session(void *data, char *targetname, int tpgt, char *address,
-			 int port, int sid, char *iface)
+			 int port, int sid, char *hwaddress)
 {
 	struct iscsi_transport *t = get_transport_by_sid(sid);
 
@@ -612,7 +621,7 @@ static int print_session(void *data, char *targetname, int tpgt, char *address,
 }
 
 static int link_sessions(void *data, char *targetname, int tpgt, char *address,
-			 int port, int sid, char *iface)
+			 int port, int sid, char *hwaddress)
 {
 	struct list_head *list = data;
 	struct session_data *new, *curr, *match = NULL;
@@ -627,8 +636,8 @@ static int link_sessions(void *data, char *targetname, int tpgt, char *address,
 	new->address = strdup(address);
 	if (!new->address)
 		goto free_targetname;
-	new->iface = strdup(iface);
-	if (!new->iface)
+	new->hwaddress = strdup(hwaddress);
+	if (!new->hwaddress)
 		goto free_address;
 	new->port = port;
 	new->sid = sid;
@@ -692,7 +701,7 @@ static int print_iscsi_state(int sid)
 	req.command = MGMT_IPC_SESSION_INFO;
 	req.u.session.sid = sid;
 
-	if (do_iscsid(&ipc_fd, &req, &rsp))
+	if (do_iscsid(&req, &rsp))
 		return ENODEV;
 
 	/*
@@ -817,7 +826,7 @@ static void print_sessions_tree(struct list_head *list, int level)
 		}
 		t = get_transport_by_sid(curr->sid);
 		printf("\t\tDriver: %s\n", t ? t->name : "NA");
-		printf("\t\tHWaddress: %s\n", curr->iface);
+		printf("\t\tHWaddress: %s\n", curr->hwaddress);
 		printf("\t\tSID: %d\n", curr->sid);
 		print_iscsi_state(curr->sid);
 
@@ -837,7 +846,7 @@ next:
 
 		free(curr->targetname);
 		free(curr->address);
-		free(curr->iface);
+		free(curr->hwaddress);
 		free(curr);
 	}
 }
@@ -887,7 +896,7 @@ static int print_sessions(int info_level)
 }
 
 static int rescan_portal(void *data, char *targetname, int tpgt, char *address,
-			 int port, int sid, char *iface)
+			 int port, int sid, char *hwaddress)
 {
 	int host_no, err;
 	struct iscsi_transport *t;
@@ -896,12 +905,12 @@ static int rescan_portal(void *data, char *targetname, int tpgt, char *address,
 	if (!t)
 		return 0;
 
-	if (!match_valid_session(data, targetname, address, port, iface,
+	if (!match_valid_session(data, targetname, address, port, hwaddress,
 				 t->name))
 		return 0;
 
-	printf("Rescanning session [%s [%d] [%s]:%d %s]\n", iface, sid, address,
-		port, targetname);
+	printf("Rescanning session [%s [%d] [%s]:%d %s]\n", hwaddress, sid,
+		address, port, targetname);
 
 	host_no = get_host_no_from_sid(sid, &err);
 	if (err) {
@@ -909,13 +918,13 @@ static int rescan_portal(void *data, char *targetname, int tpgt, char *address,
 		return err;
 	}
 
-	__scan_host(host_no, 0);
+	scan_host(host_no, 0);
 	return 0;
 }
 
 static int
 session_stats(void *data, char *targetname, int tpgt, char *address,
-	      int port, int sid, char *iface)
+	      int port, int sid, char *hwaddress)
 {
 	struct iscsi_transport *t;
 	int rc, i;
@@ -926,7 +935,7 @@ session_stats(void *data, char *targetname, int tpgt, char *address,
 	if (!t)
 		return 0;
 
-	if (!match_valid_session(data, targetname, address, port, iface,
+	if (!match_valid_session(data, targetname, address, port, hwaddress,
 				 t->name))
 		return 0;
 
@@ -934,12 +943,12 @@ session_stats(void *data, char *targetname, int tpgt, char *address,
 	req.command = MGMT_IPC_SESSION_STATS;
 	req.u.session.sid = sid;
 
-	rc = do_iscsid(&ipc_fd, &req, &rsp);
+	rc = do_iscsid(&req, &rsp);
 	if (rc)
 		return EIO;
 
-	printf("Stats for session [%s [%d] [%s]:%d %s]\n", iface, sid, address,
-		port, targetname);
+	printf("Stats for session [%s [%d] [%s]:%d %s]\n", hwaddress, sid,
+		address, port, targetname);
 	printf( "iSCSI SNMP:\n"
 
 		"\ttxdata_octets: %lld\n"
@@ -1003,7 +1012,7 @@ session_stats(void *data, char *targetname, int tpgt, char *address,
 }
 
 static int add_static_rec(idbm_t *db, char *targetname, char *ip, int port,
-			  char *iface, char *driver)
+			  char *hwaddress, char *driver)
 {
 	node_rec_t *rec;
 	discovery_rec_t *drec;
@@ -1028,16 +1037,19 @@ static int add_static_rec(idbm_t *db, char *targetname, char *ip, int port,
 	strncpy(rec->name, targetname, TARGET_NAME_MAXLEN);
 	rec->conn[0].port = port;
 	strncpy(rec->conn[0].address, ip, NI_MAXHOST);
-	strncpy(rec->iface.name, iface, ISCSI_MAX_IFACE_LEN);
-	strncpy(rec->iface.transport_name, driver,
-		ISCSI_TRANSPORT_NAME_MAXLEN);
+	if (hwaddress && strlen(hwaddress))
+		strncpy(rec->iface.hwaddress, hwaddress, ISCSI_MAX_IFACE_LEN);
+	if (driver && strlen(driver))
+		strncpy(rec->iface.transport_name, driver,
+			ISCSI_TRANSPORT_NAME_MAXLEN);
 
 	rc = idbm_add_node(db, rec, drec);
 	if (rc)
 		log_error("Could not add new record.");
 	else
 		printf("New iSCSI node [%s:%s [%s]:%d %s] added\n",
-			rec->iface.transport_name, iface, ip, port, targetname);
+			rec->iface.transport_name, hwaddress, ip, port,
+			targetname);
 	free(drec);
 free_rec:
 	free(rec);
@@ -1057,7 +1069,7 @@ static int for_each_portal_rec(idbm_t *db, void *data, char *targetname,
 	if (rec->conn[0].port != -1 && rec->conn[0].port != port)
 		return 0;
 
-	if (add_static_rec(db, targetname, ip, port, rec->iface.name,
+	if (add_static_rec(db, targetname, ip, port, rec->iface.hwaddress,
 			  rec->iface.transport_name))
 		return 0;
 	return 1;
@@ -1077,7 +1089,7 @@ static int for_each_node_rec(idbm_t *db, void *data, char *targetname)
 		goto search;
 
 	if (add_static_rec(db, targetname, rec->conn[0].address,
-			   rec->conn[0].port, rec->iface.name,
+			   rec->conn[0].port, rec->iface.hwaddress,
 			   rec->iface.transport_name))
 		return 0;
 	return 1;
@@ -1087,7 +1099,7 @@ search:
 }
 
 static int add_static_recs(idbm_t *db, char *targetname, char *ip, int port,
-			   char *iface, char *driver)
+			   char *hwaddress, char *driver)
 {
 	node_rec_t *rec;
 	int rc;
@@ -1099,18 +1111,15 @@ static int add_static_recs(idbm_t *db, char *targetname, char *ip, int port,
 		goto done;
 	}
 
-	setup_node_record(rec, targetname, ip, port, iface, driver);
+	setup_node_record(rec, targetname, ip, port, hwaddress, driver);
 	rc = idbm_for_each_node(db, rec, for_each_node_rec);
 	if (rc)
 		goto free_rec;
 
 	/* brand new target */
 	if (targetname && ip) {
-		if (!iface)
-			iface = "default";
-		if (!driver)
-			driver = "tcp";
-		rc = add_static_rec(db, targetname, ip, port, iface, driver);
+		rc = add_static_rec(db, targetname, ip, port, hwaddress,
+				    driver);
 		if (!rc)
 			goto free_rec;
 	}
@@ -1127,14 +1136,97 @@ done:
  * particular config
  */
 static int
-do_sendtargets(idbm_t *db, discovery_rec_t *drec, int info_level)
+do_offload_sendtargets(idbm_t *db, discovery_rec_t *drec,
+			int host_no, int do_login)
+{
+	drec->type = DISCOVERY_TYPE_OFFLOAD_SENDTARGETS;
+	return discovery_offload_sendtargets(db, host_no, do_login, drec);
+}
+
+static int
+do_sofware_sendtargets(idbm_t *db, discovery_rec_t *drec,
+			struct list_head *ifaces, int info_level, int do_login)
 {
 	int rc;
 
-	rc = sendtargets_discovery(db, drec);
+	drec->type = DISCOVERY_TYPE_SENDTARGETS;
+	rc = discovery_sendtargets(db, drec, ifaces);
 	if (!rc)
 		idbm_print_discovered(drec, info_level);
 	return rc;
+}
+
+static int
+do_sendtargets(idbm_t *db, discovery_rec_t *drec, struct list_head *ifaces,
+	       int info_level, int do_login)
+{
+	struct iface_rec *tmp, *iface;
+	int rc, host_no, err = 0;
+	struct iscsi_transport *t;
+
+	if (list_empty(ifaces)) {
+		ifaces = NULL;
+		goto sw_st;
+	}
+
+	/* we allow users to mix hw and sw iscsi so we have to sort it out */
+	list_for_each_entry_safe(iface, tmp, ifaces, list) {
+		if (!strlen(iface->hwaddress) &&
+		    !strlen(iface->transport_name)) {
+			log_error("Invalid interface. No hwaddress or driver "
+				  "passed in. Dropping interface.\n");
+			list_del(&iface->list);
+			continue;
+		} else if (!strlen(iface->hwaddress)) {
+			log_error("No hwaddress passed in. Using %s.\n",
+				   DEFAULT_HWADDRESS);
+			strcpy(iface->hwaddress, DEFAULT_HWADDRESS);
+		} else if (!strlen(iface->transport_name)) {
+			log_error("No driver passed in. Using %s.\n",
+				  DEFAULT_TRANSPORT);
+			strcpy(iface->transport_name, DEFAULT_TRANSPORT);
+		}
+
+		if (!strcasecmp(iface->hwaddress, DEFAULT_HWADDRESS))
+			continue;
+
+		host_no = get_host_no_from_mac(iface->hwaddress, &rc);
+		if (rc || host_no == -1) {
+			log_error("Could not match hwaddress %s to "
+				  "host.", iface->hwaddress); 
+			/* try software iscsi */
+			continue;
+		}
+
+		t = get_transport_by_hba(host_no);
+		if (!t) {
+			log_error("Could not match hostno %d to "
+				  "transport. Dropping interface %s,%s.",
+				   host_no, iface->transport_name,
+				   iface->hwaddress);
+			list_del(&iface->list);
+			free(iface);
+			continue;
+		}
+
+		if (t->caps & CAP_SENDTARGETS_OFFLOAD) {
+			rc = do_offload_sendtargets(db, drec, host_no,
+						    do_login);
+			if (rc)
+				err = rc;
+			list_del(&iface->list);
+			free(iface);
+		}
+	}
+
+	if (list_empty(ifaces))
+		return err;
+
+sw_st:
+	rc = do_sofware_sendtargets(db, drec, ifaces, info_level, do_login);
+	if (rc)
+		err = rc;
+	return err;
 }
 
 static int isns_dev_attr_query(idbm_t *db, discovery_rec_t *drec,
@@ -1147,7 +1239,7 @@ static int isns_dev_attr_query(idbm_t *db, discovery_rec_t *drec,
 	memset(&req, 0, sizeof(iscsiadm_req_t));
 	req.command = MGMT_IPC_ISNS_DEV_ATTR_QUERY;
 
-	err = do_iscsid(&ipc_fd, &req, &rsp);
+	err = do_iscsid(&req, &rsp);
 	if (!err)
 		idbm_print_discovered(drec, info_level);
 	return err;
@@ -1176,8 +1268,6 @@ verify_mode_params(int argc, char **argv, char *allowed, int skip_m)
 
 static void catch_sigint( int signo ) {
 	log_warning("caught SIGINT, exiting...");
-	if (ipc_fd > 0)
-		close(ipc_fd);
 	exit(1);
 }
 
@@ -1185,30 +1275,30 @@ static void catch_sigint( int signo ) {
 static int exec_node_op(idbm_t *db, int op, int do_login, int do_logout,
 			int do_show, int do_rescan, int do_stats,
 			int info_level, char *targetname, char *ip, int port,
-			char *iface, char *driver, char *name, char *value)
+			char *hwaddress, char *driver, char *name, char *value)
 {
 	int rc = 0;
 	struct db_set_param set_param;
 
 	log_debug(2, "%s: %s:%s node [%s,%s,%d]", __FUNCTION__,
-		  driver, iface, targetname, ip, port);
+		  driver, hwaddress, targetname, ip, port);
 
 	if (op == OP_NEW) {
-		if (add_static_recs(db, targetname, ip, port, iface,
+		if (add_static_recs(db, targetname, ip, port, hwaddress,
 				    driver))
 			rc = -1;
 		goto out;
 	}
 
 	if (do_rescan) {
-		if (for_each_session(db, targetname, ip, port, iface,
+		if (for_each_session(db, targetname, ip, port, hwaddress,
 				     driver, rescan_portal))
 			rc = -1;
 		goto out;
 	}
 
 	if (do_stats) {
-		if (for_each_session(db, targetname, ip, port, iface,
+		if (for_each_session(db, targetname, ip, port, hwaddress,
 				     driver, session_stats))
 			rc = -1;
 		goto out;
@@ -1228,27 +1318,27 @@ static int exec_node_op(idbm_t *db, int op, int do_login, int do_logout,
 	}
 
 	if (!do_login && !do_logout && op < 0) {
-		rc = print_nodes(db, info_level, targetname, ip, port, iface,
-				 driver);
+		rc = print_nodes(db, info_level, targetname, ip, port,
+				 hwaddress, driver);
 		goto out;
 	}
 
 	if (do_login) {
-		if (for_each_rec(db, targetname, ip, port,
-				 iface, driver, NULL, login_portal))
+		if (for_each_rec(db, targetname, ip, port, hwaddress,
+				 driver, NULL, login_portal))
 			rc = -1;
 		goto out;
 	}
 
 	if (do_logout) {
-		if (for_each_session(db, targetname, ip, port, iface,
+		if (for_each_session(db, targetname, ip, port, hwaddress,
 				     driver, logout_portal))
 			rc = -1;
 		goto out;
 	}
 
 	if (op < 0 || (!do_login && !do_logout && op == OP_SHOW)) {
-		if (for_each_rec(db, targetname, ip, port, iface, driver,
+		if (for_each_rec(db, targetname, ip, port, hwaddress, driver,
 				 &do_show, idbm_print_node_info))
 			rc = -1;
 		goto out;
@@ -1265,12 +1355,12 @@ static int exec_node_op(idbm_t *db, int op, int do_login, int do_logout,
 		set_param.name = name;
 		set_param.value = value;
 
-		if (for_each_rec(db, targetname, ip, port, iface, driver,
+		if (for_each_rec(db, targetname, ip, port, hwaddress, driver,
 				 &set_param, idbm_node_set_param))	
 			rc = -1;
 		goto out;
 	} else if (op == OP_DELETE) {
-		if (for_each_rec(db, targetname, ip, port, iface, driver,
+		if (for_each_rec(db, targetname, ip, port, hwaddress, driver,
 				 NULL, idbm_delete_node))
 			rc = -1;
 		goto out;
@@ -1333,20 +1423,57 @@ static int parse_sid(char *session)
 	return sid;
 }
 
+static int parse_iface(char *optarg, struct list_head *ifaces)
+{
+	struct iface_rec *iface;
+	char *hwaddress, *driver;
+	int err;
+
+	iface = calloc(1, sizeof(*iface));
+	if (!iface) {
+		printf("Could not allocate memory.\n");
+		return ENOMEM;
+	}
+	INIT_LIST_HEAD(&iface->list);
+			
+	hwaddress = strchr(optarg, ',');
+	if (!hwaddress) {
+		err = EINVAL;
+		printf("Invalid interface %s. Try --interface "
+			"driver,hwaddress\n", optarg);
+		goto free_iface;
+	}
+
+	*hwaddress++ = '\0';
+	strncpy(iface->hwaddress, hwaddress, ISCSI_MAX_IFACE_LEN);
+
+	driver = optarg;
+	strncpy(iface->transport_name, driver, ISCSI_TRANSPORT_NAME_MAXLEN);
+	list_add_tail(&iface->list, ifaces);
+	return 0;
+
+free_iface:
+	free(iface);
+	return err;
+}
+
 int
 main(int argc, char **argv)
 {
-	char *ip = NULL, *name = NULL, *value = NULL, *iface = NULL;
+	char *ip = NULL, *name = NULL, *value = NULL;
 	char *targetname = NULL, *group_session_mgmt_mode = NULL;
-	char *driver = NULL;
+	char *hwaddress, *driver;
 	int ch, longindex, mode=-1, port=-1, do_login=0, do_rescan=0;
 	int rc=0, sid=-1, op=-1, type=-1, do_logout=0, do_stats=0, do_show=0;
-	int do_login_all=0, do_logout_all=0, info_level=-1;
+	int do_login_all=0, do_logout_all=0, info_level=-1, num_ifaces = 0;
 	idbm_t *db;
 	struct sigaction sa_old;
 	struct sigaction sa_new;
 	discovery_rec_t drec;
+	struct list_head ifaces;
+	struct iface_rec *iface, *tmp;
 
+	INIT_LIST_HEAD(&ifaces);
 	/* do not allow ctrl-c for now... */
 	sa_new.sa_handler = catch_sigint;
 	sigemptyset(&sa_new.sa_mask);
@@ -1433,10 +1560,11 @@ main(int argc, char **argv)
 			ip = str_to_ipport(optarg, &port, ':');
 			break;
 		case 'I':
-			iface = optarg;
-			break;
-		case 'D':
-			driver = optarg;
+			if (parse_iface(optarg, &ifaces)) {
+				rc = -1;
+				goto free_ifaces;
+			}
+			num_ifaces++;
 			break;
 		case 'V':
 			printf("%s version %s\n", program_name,
@@ -1462,7 +1590,7 @@ main(int argc, char **argv)
 	}
 
 	if (mode == MODE_DISCOVERY) {
-		if ((rc = verify_mode_params(argc, argv, "Pdmtplo", 0))) {
+		if ((rc = verify_mode_params(argc, argv, "IPdmtplo", 0))) {
 			log_error("discovery mode: option '-%c' is not "
 				  "allowed/supported", rc);
 			rc = -1;
@@ -1480,12 +1608,9 @@ main(int argc, char **argv)
 			idbm_sendtargets_defaults(db, &drec.u.sendtargets);
 			strncpy(drec.address, ip, sizeof(drec.address));
 			drec.port = port;
-			drec.type = DISCOVERY_TYPE_SENDTARGETS;
 
-			if (!do_sendtargets(db, &drec, info_level) &&
-					    do_login) {
-				log_error("automatic login after discovery "
-					  "is not fully implemented yet.");
+			if (do_sendtargets(db, &drec, &ifaces, info_level,
+					   do_login)) {
 				rc = -1;
 				goto out;
 			}
@@ -1514,7 +1639,8 @@ main(int argc, char **argv)
 				}
 				if (do_login &&
 				    drec.type == DISCOVERY_TYPE_SENDTARGETS) {
-					do_sendtargets(db, &drec, info_level);
+					do_sendtargets(db, &drec, &ifaces,
+							info_level, do_login);
 				} else if (do_login &&
 					   drec.type == DISCOVERY_TYPE_SLP) {
 					log_error("SLP discovery is not fully "
@@ -1562,7 +1688,10 @@ main(int argc, char **argv)
 			}
 		}
 	} else if (mode == MODE_NODE) {
-		if ((rc = verify_mode_params(argc, argv, "RDsPdmlSonvupTIUL",
+		driver = NULL;
+		hwaddress = NULL;
+
+		if ((rc = verify_mode_params(argc, argv, "RsPIdmlSonvupTUL",
 					     0))) {
 			log_error("node mode: option '-%c' is not "
 				  "allowed/supported", rc);
@@ -1580,13 +1709,27 @@ main(int argc, char **argv)
 			goto out;
 		}
 
+		if (!list_empty(&ifaces)) {
+			iface = list_entry(ifaces.next, struct iface_rec,
+					   list);
+			if (strlen(iface->hwaddress))
+				hwaddress = iface->hwaddress;
+			if (strlen(iface->transport_name))
+				driver = iface->transport_name;
+			if (num_ifaces > 1)
+				log_error("NODE mode only accepts one "
+					  "interface. Using the first one "
+					  "driver %s hwaddress %s.",
+					 driver, hwaddress);
+		}
+
 		rc = exec_node_op(db, op, do_login, do_logout, do_show,
 				  do_rescan, do_stats, info_level, targetname,
-				  ip, port, iface, driver, name, value);
+				  ip, port, hwaddress, driver, name, value);
 		goto out;
 	} else if (mode == MODE_SESSION) {
 		if ((rc = verify_mode_params(argc, argv,
-					      "PiDRdrmusonuSv", 1))) {
+					      "PiRdrmusonuSv", 1))) {
 			log_error("session mode: option '-%c' is not "
 				  "allowed or supported", rc);
 			rc = -1;
@@ -1614,32 +1757,32 @@ main(int argc, char **argv)
 				goto free_target;
 			}
 
-			iface = malloc(ISCSI_MAX_IFACE_LEN);
-			if (!iface) {
+			hwaddress = malloc(ISCSI_MAX_IFACE_LEN);
+			if (!hwaddress) {
 				rc = -ENOMEM;
 				goto free_address;
 			}
 
 			rc = get_sessioninfo_by_sysfs_id(&tmp_sid, targetname,
-							ip, &port, &tpgt, iface,
-							session);
+							ip, &port, &tpgt,
+							hwaddress, session);
 			if (rc) {
 				log_error("Could not get session info for sid "
 					  "%d", sid);
-				goto free_iface;
+				goto free_hwaddress;
 			}
 
 			t = get_transport_by_sid(sid);
 			if (!t)
-				goto free_iface;
+				goto free_hwaddress;
 
 			/* drop down to node ops */
 			rc = exec_node_op(db, op, do_login, do_logout, do_show,
 					  do_rescan, do_stats, info_level,
-					  targetname, ip, port, iface,
+					  targetname, ip, port, hwaddress,
 					  t->name, name, value);
-free_iface:
-			free(iface);
+free_hwaddress:
+			free(hwaddress);
 free_address:
 			free(ip);
 free_target:
@@ -1663,5 +1806,10 @@ free_target:
 
 out:
 	idbm_terminate(db);
+free_ifaces:
+	list_for_each_entry_safe(iface, tmp, &ifaces, list) {
+		list_del(&iface->list);
+		free(iface);
+	}
 	return rc;
 }

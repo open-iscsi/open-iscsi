@@ -93,6 +93,14 @@
 	_n++; \
 } while(0)
 
+#define __recinfo_int_o5(_key,_info,_rec,_name,_show,_op0,_op1,_op2,_op3,_op4,_n)do{\
+	__recinfo_int_o4(_key,_info,_rec,_name,_show,_op0,_op1,_op2,_op3,_n); _n--; \
+	if (_rec->_name == 4) strncpy(_info[_n].value, _op4, VALUE_MAXVAL); \
+	_info[_n].opts[4] = _op4; \
+	_info[_n].numopts = 5; \
+	_n++; \
+} while(0)
+
 static char *get_global_string_param(char *pathname, const char *key)
 {
 	FILE *f = NULL;
@@ -157,8 +165,9 @@ idbm_recinfo_discovery(discovery_rec_t *r, recinfo_t *ri)
 
 	__recinfo_int_o2("discovery.startup", ri, r, startup, IDBM_SHOW,
 			"manual", "automatic", num);
-	__recinfo_int_o3("discovery.type", ri, r, type, IDBM_SHOW,
-			"sendtargets", "slp", "isns", num);
+	__recinfo_int_o5("discovery.type", ri, r, type, IDBM_SHOW,
+			"sendtargets", "offload_send_targets", "slp", "isns",
+			"static", num);
 	if (r->type == DISCOVERY_TYPE_SENDTARGETS) {
 		__recinfo_str("discovery.sendtargets.address", ri, r,
 			address, IDBM_SHOW, num);
@@ -211,7 +220,8 @@ idbm_recinfo_node(node_rec_t *r, recinfo_t *ri)
 	__recinfo_int("node.tpgt", ri, r, tpgt, IDBM_SHOW, num);
 	__recinfo_int_o3("node.startup", ri, r, startup,
 			IDBM_SHOW, "manual", "automatic", "onboot", num);
-	__recinfo_str("iface.name", ri, r, iface.name, IDBM_SHOW, num);
+	__recinfo_str("iface.hwaddress", ri, r, iface.hwaddress, IDBM_SHOW,
+		      num);
 	/*
 	 * svn 780 compat: older versions used node.transport_name and
 	 * rec->transport_name
@@ -221,9 +231,9 @@ idbm_recinfo_node(node_rec_t *r, recinfo_t *ri)
 	__recinfo_str("node.discovery_address", ri, r, disc_address, IDBM_SHOW,
 		      num);
 	__recinfo_int("node.discovery_port", ri, r, disc_port, IDBM_SHOW, num);
-	__recinfo_int_o4("node.discovery_type", ri, r, disc_type,
-			 IDBM_SHOW, "send_targets", "slp", "isns", "static",
-			 num);
+	__recinfo_int_o5("node.discovery_type", ri, r, disc_type,
+			 IDBM_SHOW, "send_targets", "offload_send_targets",
+			 "slp", "isns", "static", num);
 	__recinfo_int("node.session.initial_cmdsn", ri, r,
 		      session.initial_cmdsn, IDBM_SHOW, num);
 	__recinfo_int("node.session.cmds_max", ri, r,
@@ -343,8 +353,8 @@ idbm_recinfo_iface(iface_rec_t *r, recinfo_t *ri)
 	char key[NAME_MAXVAL];
 
 	for (i = 0; i < ISCSI_IFACE_MAX; i++) {
-		sprintf(key, "iface[%d].name", i);
-		__recinfo_str(key, ri, (&r[i]), name, IDBM_SHOW, num);
+		sprintf(key, "iface[%d].hwaddress", i);
+		__recinfo_str(key, ri, (&r[i]), hwaddress, IDBM_SHOW, num);
 		sprintf(key, "iface[%d].transport_name", i);
 		__recinfo_str(key, ri, (&r[i]), transport_name, IDBM_SHOW, num);
 	}
@@ -406,8 +416,8 @@ idbm_interface_setup_defaults(iface_rec_t *rec)
 	int i;
 
 	for (i = 0; i < ISCSI_IFACE_MAX; i++) {
-		sprintf(rec[i].name, "default");
-		sprintf(rec[i].transport_name, "tcp");
+		sprintf(rec[i].hwaddress, DEFAULT_HWADDRESS);
+		sprintf(rec[i].transport_name, DEFAULT_TRANSPORT);
 	}
 }
 
@@ -706,7 +716,7 @@ int idbm_print_node_tree(idbm_t *db, void *data, node_rec_t *rec)
 	}
 
 	printf("\t\tDriver: %s\n", rec->iface.transport_name);
-	printf("\t\tHWaddress: %s\n", rec->iface.name);
+	printf("\t\tHWaddress: %s\n", rec->iface.hwaddress);
 
 	memcpy(last_rec, rec, sizeof(node_rec_t));
 	return 0;
@@ -714,7 +724,7 @@ int idbm_print_node_tree(idbm_t *db, void *data, node_rec_t *rec)
 
 static int
 get_params_from_disc_link(char *link, char **target, char **tpgt,
-			  char **address, char **port, char **iface,
+			  char **address, char **port, char **hwaddress,
 			  char **driver)
 {
 	(*target) = link;
@@ -730,11 +740,11 @@ get_params_from_disc_link(char *link, char **target, char **tpgt,
 	if (!(*port))
 		return EINVAL;
 	*(*port)++ = '\0';
-	*iface = strchr(*port, ',');
-	if (!(*iface))
+	*hwaddress = strchr(*port, ',');
+	if (!(*hwaddress))
 		return EINVAL;
-	*(*iface)++ = '\0';
-	*driver = strchr(*iface, ',');
+	*(*hwaddress)++ = '\0';
+	*driver = strchr(*hwaddress, ',');
 	if (!(*driver))
 		return EINVAL;
 	*(*driver)++ = '\0';
@@ -750,7 +760,7 @@ static int st_disc_filter(const struct dirent *dir)
 static int print_discovered(char *disc_path, int info_level)
 {
 	char *tmp_port = NULL, *last_address = NULL, *last_target = NULL;
-	char *target = NULL, *tpgt = NULL, *address = NULL, *iface = NULL;
+	char *target = NULL, *tpgt = NULL, *address = NULL, *hwaddress= NULL;
 	char *driver = NULL;
 	int n, i, last_port = -1;
 	struct dirent **namelist;
@@ -762,7 +772,7 @@ static int print_discovered(char *disc_path, int info_level)
 	for (i = 0; i < n; i++) {
 		if (get_params_from_disc_link(namelist[i]->d_name, &target,
 					      &tpgt, &address, &tmp_port,
-					      &iface, &driver)) {
+					      &hwaddress, &driver)) {
 			log_error("Improperly formed disc to node link");
 			continue;
 		}
@@ -798,7 +808,7 @@ static int print_discovered(char *disc_path, int info_level)
 		}
 
 		printf("           Driver: %s\n", driver);
-		printf("           HWaddress: %s\n", iface);
+		printf("           HWaddress: %s\n", hwaddress);
 	}
 
 	for (i = 0; i < n; i++)
@@ -1185,7 +1195,7 @@ free_info:
 
 int
 idbm_node_read(idbm_t *db, node_rec_t *out_rec, char *target_name,
-	       char *addr, int port, char *iface)
+	       char *addr, int port, char *hwaddress)
 {
 	recinfo_t *info;
 	char *portal;
@@ -1205,7 +1215,7 @@ idbm_node_read(idbm_t *db, node_rec_t *out_rec, char *target_name,
 		 target_name, addr, port);
 
 	idbm_lock(db);
-	f = idbm_open_node_rec_r(portal, iface);
+	f = idbm_open_node_rec_r(portal, hwaddress);
 	if (!f) {
 		log_debug(5, "Could not open %s err %d\n", portal, errno);
 		rc = errno;
@@ -1303,10 +1313,10 @@ static int idbm_node_write(idbm_t *db, node_rec_t *rec)
 
 	snprintf(portal, PATH_MAX, "%s/%s/%s,%d", NODE_CONFIG_DIR,
 		 rec->name, rec->conn[0].address, rec->conn[0].port);
-	log_debug(5, "Looking for config file %s iface %s\n", portal,
-		  rec->iface.name);
+	log_debug(5, "Looking for config file %s hwaddress %s\n", portal,
+		  rec->iface.hwaddress);
 
-	f = idbm_open_node_rec_w(portal, rec->iface.name);
+	f = idbm_open_node_rec_w(portal, rec->iface.hwaddress);
 	if (!f) {
 		rc = errno;
 		goto free_portal;
@@ -1390,7 +1400,7 @@ static int setup_disc_to_node_link(char *disc_portal, node_rec_t *rec)
 			 ST_CONFIG_DIR,
 			 rec->disc_address, rec->disc_port, rec->name,
 			 rec->tpgt, rec->conn[0].address, rec->conn[0].port,
-			 rec->iface.name, rec->iface.transport_name);
+			 rec->iface.hwaddress, rec->iface.transport_name);
 		break;
 	case DISCOVERY_TYPE_STATIC:
 		if (access(STATIC_CONFIG_DIR, F_OK) != 0) {
@@ -1404,7 +1414,7 @@ static int setup_disc_to_node_link(char *disc_portal, node_rec_t *rec)
 		snprintf(disc_portal, PATH_MAX, "%s/%s,%s,%d,%s,%s",
 			 STATIC_CONFIG_DIR, rec->name,
 			 rec->conn[0].address, rec->conn[0].port,
-			 rec->iface.name, rec->iface.transport_name);
+			 rec->iface.hwaddress, rec->iface.transport_name);
 		break;
 	case DISCOVERY_TYPE_ISNS:
 		if (access(ISNS_CONFIG_DIR, F_OK) != 0) {
@@ -1418,7 +1428,7 @@ static int setup_disc_to_node_link(char *disc_portal, node_rec_t *rec)
 		snprintf(disc_portal, PATH_MAX, "%s/%s,%d/%s,%d,%s,%d,%s,%s",
 			 ISNS_CONFIG_DIR, rec->disc_address, rec->disc_port,
 			 rec->name, rec->tpgt, rec->conn[0].address,
-			 rec->conn[0].port, rec->iface.name,
+			 rec->conn[0].port, rec->iface.hwaddress,
 			 rec->iface.transport_name);
 		break;
 	case DISCOVERY_TYPE_SLP:
@@ -1437,7 +1447,7 @@ int idbm_add_node(idbm_t *db, node_rec_t *newrec, discovery_rec_t *drec)
 
 	idbm_lock(db);
 	if (!idbm_node_read(db, &rec, newrec->name, newrec->conn[0].address,
-			    newrec->conn[0].port, newrec->iface.name)) {
+			    newrec->conn[0].port, newrec->iface.hwaddress)) {
 		rc = idbm_delete_node(db, NULL, &rec);
 		if (rc)
 			return rc;
@@ -1488,20 +1498,34 @@ unlock:
 	return rc;
 }
 
-int idbm_add_nodes(idbm_t *db, node_rec_t *newrec, discovery_rec_t *drec)
+int idbm_add_nodes(idbm_t *db, node_rec_t *newrec, discovery_rec_t *drec,
+		   struct list_head *ifaces)
 {
+	struct iface_rec *iface;
 	int i, rc = 0;
 
-	for (i = 0; i < ISCSI_IFACE_MAX; i++) {
-		if (!strlen(db->irec_iface[i].name))
-			continue;
+	if (!ifaces || list_empty(ifaces)) {
+		for (i = 0; i < ISCSI_IFACE_MAX; i++) {
+			if (!strlen(db->irec_iface[i].hwaddress))
+				continue;
 
-		strcpy(newrec->iface.name, db->irec_iface[i].name);
-		strcpy(newrec->iface.transport_name,
-		       db->irec_iface[i].transport_name);
-		rc = idbm_add_node(db, newrec, drec);
-		if (rc)
-			return rc;
+			strcpy(newrec->iface.hwaddress,
+			       db->irec_iface[i].hwaddress);
+			strcpy(newrec->iface.transport_name,
+			       db->irec_iface[i].transport_name);
+			rc = idbm_add_node(db, newrec, drec);
+			if (rc)
+				return rc;
+		}
+	} else {
+		list_for_each_entry(iface, ifaces, list) {
+			strcpy(newrec->iface.hwaddress, iface->hwaddress);
+			strcpy(newrec->iface.transport_name,
+			       iface->transport_name);
+			rc = idbm_add_node(db, newrec, drec);
+			if (rc)
+				return rc;
+		}
 	}
 	return 0;
 }
@@ -1516,7 +1540,7 @@ void idbm_new_discovery(idbm_t *db, discovery_rec_t *drec)
 static void idbm_rm_disc_node_links(idbm_t *db, char *disc_dir)
 {
 	char *driver = NULL, *target = NULL, *tpgt = NULL, *port = NULL;
-	char *address = NULL, *iface = NULL;
+	char *address = NULL, *hwaddress= NULL;
 	DIR *disc_dirfd;
 	struct dirent *disc_dent;
 	node_rec_t *rec;
@@ -1537,27 +1561,27 @@ static void idbm_rm_disc_node_links(idbm_t *db, char *disc_dir)
 
 
 		if (get_params_from_disc_link(disc_dent->d_name, &target, &tpgt,
-					      &address, &port, &iface,
+					      &address, &port, &hwaddress,
 					      &driver)) {
 			log_error("Improperly formed disc to node link");
 			continue;
 		}
 
 		log_debug(5, "disc removal removing link %s %s %s %s %s\n",
-			  target, address, port, iface, driver);
+			  target, address, port, hwaddress, driver);
 
 		memset(rec, 0, sizeof(*rec));	
 		strncpy(rec->name, target, TARGET_NAME_MAXLEN);
 		rec->conn[0].port = atoi(port);
 		strncpy(rec->conn[0].address, address, NI_MAXHOST);
-		strncpy(rec->iface.name, iface, ISCSI_MAX_IFACE_LEN);
+		strncpy(rec->iface.hwaddress, hwaddress, ISCSI_MAX_IFACE_LEN);
 		strncpy(rec->iface.transport_name, driver,
 			ISCSI_TRANSPORT_NAME_MAXLEN);
 
 		if (idbm_delete_node(db, NULL, rec))
 			log_error("Could not delete node %s/%s/%s,%s/%s",
 				  NODE_CONFIG_DIR, target, address, port,
-				  iface);
+				  hwaddress);
  	}
 
 	closedir(disc_dirfd);
@@ -1628,7 +1652,7 @@ static int idbm_remove_disc_to_node_link(idbm_t *db, node_rec_t *rec,
 		return ENOMEM;
 
 	rc = idbm_node_read(db, newrec, rec->name, rec->conn[0].address,
-			    rec->conn[0].port, rec->iface.name);
+			    rec->conn[0].port, rec->iface.hwaddress);
 	if (rc)
 		goto done;
 
@@ -1672,8 +1696,8 @@ int idbm_delete_node(idbm_t *db, void *data, node_rec_t *rec)
 	memset(portal, 0, PATH_MAX);
 	snprintf(portal, PATH_MAX, "%s/%s/%s,%d", NODE_CONFIG_DIR,
 		 rec->name, rec->conn[0].address, rec->conn[0].port);
-	log_debug(5, "Removing config file %s iface %s\n",
-		  portal, rec->iface.name);
+	log_debug(5, "Removing config file %s hwaddress %s\n",
+		  portal, rec->iface.hwaddress);
 
 	if (stat(portal, &statb)) {
 		log_error("Could not stat %s to delete node err %d\n",
@@ -1684,7 +1708,7 @@ int idbm_delete_node(idbm_t *db, void *data, node_rec_t *rec)
 
 	if (S_ISDIR(statb.st_mode)) {
 		strncat(portal, "/", PATH_MAX);
-		strncat(portal, rec->iface.name, PATH_MAX);
+		strncat(portal, rec->iface.hwaddress, PATH_MAX);
 	}
 
 	if (unlink(portal)) {

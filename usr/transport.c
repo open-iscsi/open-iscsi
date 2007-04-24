@@ -42,9 +42,15 @@ struct iscsi_transport_template iscsi_iser = {
 	.ep_disconnect	= ktransport_ep_disconnect,
 };
 
+struct iscsi_transport_template qla4xxx = {
+	.name		= "qla4xxx",
+	.rdma		= 0,
+};
+
 static struct iscsi_transport_template *iscsi_transport_templates[] = {
 	&iscsi_tcp,
 	&iscsi_iser,
+	&qla4xxx,
 	NULL
 };
 

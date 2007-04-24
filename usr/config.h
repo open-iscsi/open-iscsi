@@ -24,6 +24,7 @@
 #include <net/if.h>
 #include "types.h"
 #include "auth.h"	/* for the username and password sizes */
+#include "list.h"
 
 #define PORTAL_GROUP_TAG_UNKNOWN -1
 
@@ -165,6 +166,7 @@ typedef enum iscsi_startup {
 
 typedef enum discovery_type {
 	DISCOVERY_TYPE_SENDTARGETS,
+	DISCOVERY_TYPE_OFFLOAD_SENDTARGETS,
 	DISCOVERY_TYPE_SLP,
 	DISCOVERY_TYPE_ISNS,
 	DISCOVERY_TYPE_STATIC,
@@ -193,11 +195,12 @@ typedef struct session_rec {
 #define ISCSI_TRANSPORT_NAME_MAXLEN 16
 
 typedef struct iface_rec {
+	struct list_head	list;
 	/*
 	 * TODO: we may have to make this bigger and interconnect
 	 * specific for iser and and possibly qla4xxx hba serials
 	 */
-	char			name[ISCSI_MAX_IFACE_LEN];
+	char			hwaddress[ISCSI_MAX_IFACE_LEN];
 	char			transport_name[ISCSI_TRANSPORT_NAME_MAXLEN];
 } iface_rec_t;
 
@@ -214,10 +217,10 @@ typedef struct node_rec {
 } node_rec_t;
 
 typedef struct discovery_rec {
-	iscsi_startup_e				startup;
-	discovery_type_e			type;
-	char					address[NI_MAXHOST];
-	int					port;
+	iscsi_startup_e		startup;
+	discovery_type_e	type;
+	char			address[NI_MAXHOST];
+	int			port;
 	union {
 		struct iscsi_sendtargets_config	sendtargets;
 		struct iscsi_slp_config		slp;

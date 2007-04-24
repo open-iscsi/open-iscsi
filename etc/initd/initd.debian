@@ -30,6 +30,7 @@ start() {
 	log_daemon_msg "Starting iSCSI initiator service" "iscsid"
 	modprobe -q iscsi_tcp 2>/dev/null || :
 	modprobe -q ib_iser 2>/dev/null || :
+	modprobe -q qla4xxx 2>/dev/null || :
 	start-stop-daemon --start --quiet --pidfile $PIDFILE --exec $DAEMON
 	RETVAL=$?
 	log_end_msg $RETVAL
@@ -54,6 +55,7 @@ stop() {
 	log_daemon_msg "Stopping iSCSI initiator service"
 	start-stop-daemon --stop --quiet --pidfile $PIDFILE --exec $DAEMON
 	rm -f $PIDFILE
+	modprobe -r qla4xxx 2>/dev/null
 	modprobe -r ib_iser 2>/dev/null
 	modprobe -r iscsi_tcp 2>/dev/null
 	log_end_msg 0

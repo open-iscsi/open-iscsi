@@ -50,7 +50,6 @@ struct iscsi_daemon_config *dconfig = &daemon_config;
 static node_rec_t config_rec;
 
 static char program_name[] = "iscsistart";
-static int ipc_fd;
 static int mgmt_ipc_fd;
 
 /* used by initiator */
@@ -107,7 +106,7 @@ static int stop_event_loop(void)
 
 	memset(&req, 0, sizeof(req));
 	req.command = MGMT_IPC_IMMEDIATE_STOP;
-	rc = do_iscsid(&ipc_fd, &req, &rsp);
+	rc = do_iscsid(&req, &rsp);
 	if (rc > 0)
 		iscsid_handle_error(rc);
 	if (rc)
@@ -125,7 +124,7 @@ static int setup_session(void)
 	memset(&req, 0, sizeof(req));
 	req.command = MGMT_IPC_SESSION_LOGIN;
 	memcpy(&req.u.session.rec, &config_rec, sizeof(node_rec_t));
-	rc = do_iscsid(&ipc_fd, &req, &rsp);
+	rc = do_iscsid(&req, &rsp);
 	if (rc > 0)
 		iscsid_handle_error(rc);
 

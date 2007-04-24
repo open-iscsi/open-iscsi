@@ -62,6 +62,7 @@ typedef enum iscsiadm_cmd {
 	MGMT_IPC_SESSION_SYNC		= 12,
 	MGMT_IPC_SESSION_INFO		= 13,
 	MGMT_IPC_ISNS_DEV_ATTR_QUERY	= 14,
+	MGMT_IPC_SEND_TARGETS		= 15,
 } iscsiadm_cmd_e;
 
 typedef enum iscsi_conn_state_e {
@@ -95,6 +96,11 @@ typedef struct iscsiadm_req {
 			int sid;
 			int cid;
 		} conn;
+		struct msg_send_targets {
+			int host_no;
+			int do_login;
+			struct sockaddr_storage ss;
+		} st;
 	} u;
 } iscsiadm_req_t;
 

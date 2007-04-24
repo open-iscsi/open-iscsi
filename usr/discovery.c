@@ -41,6 +41,7 @@
 #include "idbm.h"
 #include "iscsi_settings.h"
 #include "iscsi_proto.h"
+#include "util.h"
 
 #ifdef SLP_ENABLE
 #include "iscsi-slp-discovery.h"
@@ -49,6 +50,46 @@
 #define DISCOVERY_NEED_RECONNECT 0xdead0001
 
 static int rediscover = 0;
+
+int discovery_offload_sendtargets(idbm_t *db, int host_no, int do_login,
+				  discovery_rec_t *drec)
+{
+	struct sockaddr_storage ss;
+	char default_port[NI_MAXSERV];
+	iscsiadm_req_t req;
+	iscsiadm_rsp_t rsp;
+	int rc;
+
+	memset(&req, 0, sizeof(req));
+	req.command = MGMT_IPC_SEND_TARGETS;
+	req.u.st.host_no = host_no;
+	req.u.st.do_login = do_login;
+
+	/* resolve the DiscoveryAddress to an IP address */
+	sprintf(default_port, "%d", drec->port);
+	if (resolve_address(drec->address, default_port, &ss)) {
+		log_error("Cannot resolve host name %s.", drec->address);
+		return -EIO;
+	}       
+	req.u.st.ss = ss;
+
+	/*
+	 * We only know how ask qla4xxx to do discovery and login
+	 * to what it finds. We are not able to get what it finds or
+	 * is able to log into so we just send the command and proceed.
+	 *
+	 * There is a way to just use the hw to send a sendtargets command
+	 * and get back the results. We should do this since it would
+	 * allows us to then process the results like software iscsi.
+	 */
+	rc = do_iscsid(&req, &rsp);
+	if (rc > 0)
+		iscsid_handle_error(rc);
+	else if (rc < 0)
+		log_error("Could not offload sendtargets to %s. Error %d.\n",
+			  drec->address, rc);
+	return rc;
+}
 
 static int
 iscsi_make_text_pdu(iscsi_session_t *session, struct iscsi_hdr *hdr,
@@ -135,7 +176,8 @@ iterate_targets(iscsi_session_t *session, uint32_t ttt)
 	return 1;
 }
 
-static int add_portal(idbm_t *db, discovery_rec_t *drec, node_rec_t *rec,
+static int add_portal(idbm_t *db, discovery_rec_t *drec,
+		      struct list_head *ifaces, node_rec_t *rec,
 		      char *address, char *port, char *tag)
 {
 	struct sockaddr_storage ss;
@@ -161,7 +203,7 @@ static int add_portal(idbm_t *db, discovery_rec_t *drec, node_rec_t *rec,
 		rec->conn[0].port = DEF_ISCSI_PORT;
 	strncpy(rec->conn[0].address, address, NI_MAXHOST);
 
-	if (idbm_add_nodes(db, rec, drec))
+	if (idbm_add_nodes(db, rec, drec, ifaces))
 		log_error("Could not add record for %s %s,%d,%d\n",
 			  rec->name, address, rec->conn[0].port, rec->tpgt);
 	return 1;
@@ -169,7 +211,8 @@ static int add_portal(idbm_t *db, discovery_rec_t *drec, node_rec_t *rec,
 
 static int
 add_target_record(idbm_t *db, char *name, char *end,
-		  discovery_rec_t *drec, char *default_port)
+		  discovery_rec_t *drec, struct list_head *ifaces,
+		  char *default_port)
 {
 	char *text = NULL;
 	char *nul = name;
@@ -217,7 +260,7 @@ add_target_record(idbm_t *db, char *name, char *end,
 			log_error("no default address known for target %s",
 				  name);
 			return 0;
-		} else if (!add_portal(db, drec, &rec, drec->address,
+		} else if (!add_portal(db, drec, ifaces, &rec, drec->address,
 				       default_port, NULL)) {
 			log_error("failed to add default portal, ignoring "
 				  "target %s", name);
@@ -255,7 +298,8 @@ add_target_record(idbm_t *db, char *name, char *end,
 					*temp = '\0';
 			}
 
-			if (!add_portal(db, drec, &rec, address, port, tag)) {
+			if (!add_portal(db, drec, ifaces, &rec, address, port,
+					tag)) {
 				log_error("failed to add default portal, "
 					 "ignoring target %s", name);
 				return 0;
@@ -272,6 +316,7 @@ add_target_record(idbm_t *db, char *name, char *end,
 static int
 process_sendtargets_response(idbm_t *db, struct string_buffer *sendtargets,
 			     int final, discovery_rec_t *drec,
+			     struct list_head *ifaces,
 			     char *default_port)
 {
 	char *start = buffer_data(sendtargets);
@@ -323,7 +368,8 @@ process_sendtargets_response(idbm_t *db, struct string_buffer *sendtargets,
 				 * "TargetName=" prefix.
 				 */
 				if (!add_target_record(db, record + 11, text,
-							drec, default_port)) {
+							drec, ifaces,
+							default_port)) {
 					log_error(
 					       "failed to add target record");
 					truncate_buffer(sendtargets, 0);
@@ -351,7 +397,7 @@ process_sendtargets_response(idbm_t *db, struct string_buffer *sendtargets,
 				 "line %s",
 				 record, record);
 			if (add_target_record (db, record + 11, text,
-					       drec, default_port)) {
+					       drec, ifaces, default_port)) {
 				num_targets++;
 				record = NULL;
 				truncate_buffer(sendtargets, 0);
@@ -624,6 +670,7 @@ setup_authentication(iscsi_session_t *session,
 static int
 process_recvd_pdu(idbm_t *db, struct iscsi_hdr *pdu,
 		  discovery_rec_t *drec,
+		  struct list_head *ifaces,
 		  iscsi_session_t *session,
 		  struct string_buffer *sendtargets,
 		  char *default_port,
@@ -672,6 +719,7 @@ process_recvd_pdu(idbm_t *db, struct iscsi_hdr *pdu,
 			process_sendtargets_response(db, sendtargets,
 						     final,
 						     drec,
+						     ifaces,
 						     default_port);
 
 			if (final) {
@@ -762,8 +810,8 @@ done:
 	iscsi_io_disconnect(&session->conn[0]);
 }
 
-int
-sendtargets_discovery(idbm_t *db, discovery_rec_t *drec)
+int discovery_sendtargets(idbm_t *db, discovery_rec_t *drec,
+			  struct list_head *ifaces)
 {
 	iscsi_session_t *session;
 	struct pollfd pfd;
@@ -1088,6 +1136,7 @@ redirect_reconnect:
 					db,
 					pdu,
 					drec,
+					ifaces,
 					session,
 					&sendtargets,
 					default_port,

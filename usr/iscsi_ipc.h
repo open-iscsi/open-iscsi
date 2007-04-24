@@ -50,6 +50,9 @@ struct iscsi_ipc {
 
 	int (*ctldev_handle) (void);
 
+	int (*sendtargets) (uint64_t transport_handle, uint32_t host_no,
+			    struct sockaddr *addr);
+
 	int (*create_session) (uint64_t transport_handle,
 			       uint32_t initial_cmdsn, uint16_t cmds_max,
 			       uint16_t qdepth, uint32_t *out_sid,

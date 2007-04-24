@@ -19,6 +19,7 @@ start()
 	echo -n $"Starting iSCSI initiator service: "
 	modprobe -q iscsi_tcp
 	modprobe -q ib_iser
+	modprobe -q qla4xxx
 	daemon iscsid
 	RETVAL=$?
 	success
@@ -45,6 +46,7 @@ stop()
 	[ $RETVAL -eq 0 ] && rm -f /var/lock/subsys/open-iscsi
 	modprobe -r iscsi_tcp 2>/dev/null
 	modprobe -r ib_iser 2>/dev/null
+	modprobe -r qla4xxx 2>/dev/null
 	success
 	echo
 
