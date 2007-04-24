@@ -317,9 +317,16 @@ Usage: iscsiadm [OPTION]
 	    ./iscsiadm -m node -o new -T iqn.2005-03.com.max \
 			-p 192.168.0.1:3260 -I 00:0F:1F:92:6B:BF
 
-	The -I/--interface is optiniol. If not passed in, "default" is used.
+	The -I/--interface is optional. If not passed in, "default" is used.
 	For iscsi_tcp, this would allow the network layer to decide what is
 	best.
+
+    - Adding custom NIC config to multiple targets:
+
+	    ./iscsiadm -m node -o new -I 00:0F:1F:92:6B:BF
+
+	This command will add a interface config using the iSCSI and SCSI
+	settings from iscsid.conf to every target that is in the node db.
 
     - Removing iSCSI portal:
 

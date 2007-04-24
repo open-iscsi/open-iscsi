@@ -658,7 +658,7 @@ idbm_print_discovery(idbm_t *db, discovery_rec_t *rec, int show)
 }
 
 int
-idbm_print_node(void *data, node_rec_t *rec)
+idbm_print_node(idbm_t *db, void *data, node_rec_t *rec)
 {
 	int show = *((int *)data);
 
@@ -834,36 +834,38 @@ int idbm_print_all_discovery(idbm_t *db)
 	return found;
 }
 
-int idbm_for_each_iface(char *buf, char *targetname, char *ip, int port,
-			idbm_t *db, void *data, idbm_node_op_fn *op_fn,
-			node_rec_t *match_rec, idbm_match_fn *match_fn)
+int idbm_for_each_iface(idbm_t *db, void *data, idbm_iface_op_fn *fn,
+			char *targetname, char *ip, int port)
 {
 	DIR *iface_dirfd;
 	struct dirent *iface_dent;
 	struct stat statb;
 	node_rec_t rec;
 	int found = 0;
+	char *config;
 
-	sprintf(buf, "%s/%s/%s,%d", NODE_CONFIG_DIR, targetname, ip, port);
-	if (stat(buf, &statb)) {
-		log_error("iface iter could not stat %s\n", buf);
+	config = calloc(1, PATH_MAX);
+	if (!config)
 		return 0;
+
+	sprintf(config, "%s/%s/%s,%d", NODE_CONFIG_DIR, targetname, ip, port);
+	if (stat(config, &statb)) {
+		log_error("iface iter could not stat %s\n", config);
+		goto done;
 	}
 
 	if (!S_ISDIR(statb.st_mode)) {
 		if (idbm_node_read(db, &rec, targetname, ip, port, "default"))
-			return 0;
+			goto done;
 
-		if (match_rec && match_fn &&
-		   !match_fn(match_rec, targetname, ip, port, "default"))
-			return 0;
-		op_fn(data, &rec);
-		return 1;
+		fn(db, data, &rec);
+		found = 1;
+		goto done;
 	}
 
-	iface_dirfd = opendir(buf);
+	iface_dirfd = opendir(config);
 	if (!iface_dirfd)
-		return 0;
+		goto done;
 
 	while ((iface_dent = readdir(iface_dirfd))) {
 		if (!strcmp(iface_dent->d_name, ".") ||
@@ -875,14 +877,13 @@ int idbm_for_each_iface(char *buf, char *targetname, char *ip, int port,
 				   iface_dent->d_name))
 			continue;
 
-		if (match_rec && match_fn &&
-		    !match_fn(match_rec, targetname, ip, port,
-			      iface_dent->d_name))
-			continue;
-		op_fn(data, &rec);
+		fn(db, data, &rec);
 		found++;
 	}
 
+	closedir(iface_dirfd);
+done:
+	free(config);
 	return found;
 }
 
@@ -890,18 +891,22 @@ int idbm_for_each_iface(char *buf, char *targetname, char *ip, int port,
  * backwards compat
  * The portal could be a file or dir with interfaces
  */
-int idbm_for_each_portal(char *buf, char *targetname, idbm_t *db, void *data,
-			 idbm_node_op_fn *op_fn, node_rec_t *match_rec,
-			 idbm_match_fn *match_fn)
+int idbm_for_each_portal(idbm_t *db, void *data, idbm_portal_op_fn *fn,
+			 char *targetname)
 {
 	DIR *portal_dirfd;
 	struct dirent *portal_dent;
 	int found = 0;
+	char *portal;
 
-	sprintf(buf, "%s/%s", NODE_CONFIG_DIR, targetname);
-	portal_dirfd = opendir(buf);
+	portal = calloc(1, PATH_MAX);
+	if (!portal)
+		return 0;
+
+	sprintf(portal, "%s/%s", NODE_CONFIG_DIR, targetname);
+	portal_dirfd = opendir(portal);
 	if (!portal_dirfd)
-		return found;
+		goto done;
 
 	while ((portal_dent = readdir(portal_dirfd))) {
 		char *tmp_port;
@@ -916,30 +921,24 @@ int idbm_for_each_portal(char *buf, char *targetname, idbm_t *db, void *data,
 			continue;
 		*tmp_port++ = '\0';
 
-		found += idbm_for_each_iface(buf, targetname,
-					     portal_dent->d_name,
-					     atoi(tmp_port), db, data, op_fn,
-					     match_rec, match_fn);
+		found += fn(db, data, targetname, portal_dent->d_name,
+			    atoi(tmp_port));
 	}
+	closedir(portal_dirfd);
+done:
+	free(portal);
 	return found;
 }
 
-
-int idbm_for_each_node(idbm_t *db, void *data, idbm_node_op_fn *op_fn,
-			node_rec_t *match_rec, idbm_match_fn *match_fn)
+int idbm_for_each_node(idbm_t *db, void *data, idbm_node_op_fn *fn)
 {
 	DIR *node_dirfd;
 	struct dirent *node_dent;
-	char *buf;
 	int found = 0;
-
-	buf = malloc(PATH_MAX);
-	if (!buf)
-		return 0;
 
 	node_dirfd = opendir(NODE_CONFIG_DIR);
 	if (!node_dirfd)
-		goto free_portal;
+		return 0;
 
 	while ((node_dent = readdir(node_dirfd))) {
 		if (!strcmp(node_dent->d_name, ".") ||
@@ -947,16 +946,40 @@ int idbm_for_each_node(idbm_t *db, void *data, idbm_node_op_fn *op_fn,
 			continue;
 
 		log_debug(5, "searching %s\n", node_dent->d_name);
-		found += idbm_for_each_portal(buf, node_dent->d_name,
-					      db, data, op_fn, match_rec,
-					      match_fn);
+		found += fn(db, data, node_dent->d_name);
 	}
 
 	closedir(node_dirfd);
-
-free_portal:
-	free(buf);
 	return found;
+}
+
+static int iface_fn(idbm_t *db, void *data, node_rec_t *rec)
+{
+	struct rec_op_data *op_data = data;
+
+	return op_data->fn(db, op_data->data, rec);
+}
+
+static int portal_fn(idbm_t *db, void *data, char *targetname,
+		     char *ip, int port)
+{
+	return idbm_for_each_iface(db, data, iface_fn, targetname, ip, port);
+}
+
+static int node_fn(idbm_t *db, void *data, char *targetname)
+{
+	return idbm_for_each_portal(db, data, portal_fn, targetname);
+}
+
+int idbm_for_each_rec(idbm_t *db, void *data, idbm_iface_op_fn *fn)
+{
+	struct rec_op_data op_data;
+
+	memset(&op_data, 0, sizeof(struct rec_op_data));
+	op_data.data = data;
+	op_data.fn = fn;
+
+	return idbm_for_each_node(db, &op_data, node_fn);
 }
 
 static int idbm_lock(idbm_t *db)
@@ -1324,7 +1347,7 @@ int idbm_add_node(idbm_t *db, node_rec_t *newrec, discovery_rec_t *drec)
 	idbm_lock(db);
 	if (!idbm_node_read(db, &rec, newrec->name, newrec->conn[0].address,
 			    newrec->conn[0].port, newrec->iface.name)) {
-		rc = idbm_delete_node(db, &rec);
+		rc = idbm_delete_node(db, NULL, &rec);
 		if (rc)
 			return rc;
 		log_debug(7, "overwriting existing record");
@@ -1447,7 +1470,7 @@ static void idbm_rm_disc_node_links(idbm_t *db, char *disc_dir)
 		strncpy(rec->transport_name, driver,
 			ISCSI_TRANSPORT_NAME_MAXLEN);
 
-		if (idbm_delete_node(db, rec))
+		if (idbm_delete_node(db, NULL, rec))
 			log_error("Could not delete node %s/%s/%s,%s/%s",
 				  NODE_CONFIG_DIR, target, address, port,
 				  iface);
@@ -1548,9 +1571,8 @@ done:
 	return rc;
 }
 
-int idbm_delete_node(void *data, node_rec_t *rec)
+int idbm_delete_node(idbm_t *db, void *data, node_rec_t *rec)
 {
-	idbm_t *db = data;
 	struct stat statb;
 	char *portal;
 	int rc = 0, dir_rm_rc = 0;
@@ -1633,7 +1655,7 @@ idbm_slp_defaults(idbm_t *db, struct iscsi_slp_config *cfg)
 }
 
 int
-idbm_node_set_param(void *data, node_rec_t *rec)
+idbm_node_set_param(idbm_t *db, void *data, node_rec_t *rec)
 {
 	struct db_set_param *param = data;
 	recinfo_t *info;
