@@ -344,7 +344,7 @@ logout_portal(void *data, char *targetname, int tpgt, char *address,
 	if (strlen(rec->iface.name) && strcmp(rec->iface.name, iface))
 		return 0;
 
-	if (port != rec->conn[0].port)
+	if (rec->conn[0].port!= -1 && port != rec->conn[0].port)
 		return 0;
 
 	printf("Logout session [%s [%d] [%s]:%d %s]\n", iface, sid, address,
@@ -384,8 +384,7 @@ for_each_portal(idbm_t *db, char *targetname, char *ip, int port, char *iface,
 	idbm_node_setup_defaults(&rec);
 	if (targetname)
 		strncpy(rec.name, targetname, TARGET_NAME_MAXLEN);
-	if (port != -1)
-		rec.conn[0].port = port;
+	rec.conn[0].port = port;
 	if (ip)
 		strncpy(rec.conn[0].address, ip, NI_MAXHOST);
 	if (iface)
