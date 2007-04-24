@@ -1300,9 +1300,11 @@ iscsi_tcp_cmd_init(struct iscsi_cmd_task *ctask)
  *	call it again later, or recover. '0' return code means successful
  *	xmit.
  *
- *	Management xmit state machine consists of two states:
- *		IN_PROGRESS_IMM_HEAD - PDU Header xmit in progress
- *		IN_PROGRESS_IMM_DATA - PDU Data xmit in progress
+ *	Management xmit state machine consists of these states:
+ *		XMSTATE_IMM_HDR_INIT	- calculate digest of PDU Header
+ *		XMSTATE_IMM_HDR 	- PDU Header xmit in progress
+ *		XMSTATE_IMM_DATA 	- PDU Data xmit in progress
+ *		XMSTATE_IDLE		- management PDU is done
  **/
 static int
 iscsi_tcp_mtask_xmit(struct iscsi_conn *conn, struct iscsi_mgmt_task *mtask)
@@ -1711,6 +1713,46 @@ send_hdr:
 	return 0;
 }
 
+/**
+ * iscsi_tcp_ctask_xmit - xmit normal PDU task
+ * @conn: iscsi connection
+ * @ctask: iscsi command task
+ *
+ * Notes:
+ *	The function can return -EAGAIN in which case caller must
+ *	call it again later, or recover. '0' return code means successful
+ *	xmit.
+ *	The function is devided to logical helpers (above) for the different
+ *	xmit stages.
+ *
+ *iscsi_send_cmd_hdr()
+ *	XMSTATE_CMD_HDR_INIT - prepare Header and Data buffers Calculate
+ *	                       Header Digest
+ *	XMSTATE_CMD_HDR_XMIT - Transmit header in progress
+ *
+ *iscsi_send_padding
+ *	XMSTATE_W_PAD        - Prepare and send pading
+ *	XMSTATE_W_RESEND_PAD - retry send pading
+ *
+ *iscsi_send_digest
+ *	XMSTATE_W_RESEND_DATA_DIGEST - Finalize and send Data Digest
+ *	XMSTATE_W_RESEND_DATA_DIGEST - retry sending digest
+ *
+ *iscsi_send_unsol_hdr
+ *	XMSTATE_UNS_INIT     - prepare un-solicit data header and digest
+ *	XMSTATE_UNS_HDR      - send un-solicit header
+ *
+ *iscsi_send_unsol_pdu
+ *	XMSTATE_UNS_DATA     - send un-solicit data in progress
+ *
+ *iscsi_send_sol_pdu
+ *	XMSTATE_SOL_HDR_INIT - solicit data header and digest initialize
+ *	XMSTATE_SOL_HDR      - send solicit header
+ *	XMSTATE_SOL_DATA     - send solicit data
+ *
+ *iscsi_tcp_ctask_xmit
+ *	XMSTATE_IMM_DATA     - xmit managment data (??)
+ **/
 static int
 iscsi_tcp_ctask_xmit(struct iscsi_conn *conn, struct iscsi_cmd_task *ctask)
 {
