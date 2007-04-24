@@ -232,7 +232,7 @@ dump_nic_prefix(void *ibft_loc, struct ibft_nic *nic, char *prefix)
 		 * bringup, this sounds less flexible than the normal
 		 * masks used.
 		 */
-		printf("%s%s:%d\n", prefix, "MASK", nic->subnet_mask_prefix);
+		printf("%s%s=%d\n", prefix, "MASK", nic->subnet_mask_prefix);
 		dump_ipaddr(prefix, "GATEWAY", nic->gateway);
 		dump_ipaddr(prefix, "DNSADDR1", nic->primary_dns);
 		dump_ipaddr(prefix, "DNSADDR2", nic->secondary_dns);
