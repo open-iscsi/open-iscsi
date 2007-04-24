@@ -413,12 +413,8 @@ idbm_print(int type, void *rec, int show, FILE *f)
 static void
 idbm_interface_setup_defaults(iface_rec_t *rec)
 {
-	int i;
-
-	for (i = 0; i < ISCSI_IFACE_MAX; i++) {
-		sprintf(rec[i].hwaddress, DEFAULT_HWADDRESS);
-		sprintf(rec[i].transport_name, DEFAULT_TRANSPORT);
-	}
+	sprintf(rec[0].hwaddress, DEFAULT_HWADDRESS);
+	sprintf(rec[0].transport_name, DEFAULT_TRANSPORT);
 }
 
 static void
