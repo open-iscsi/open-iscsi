@@ -5,10 +5,10 @@ iscsiadm \- open-iscsi administration utility
 \fBiscsiadm\fR -m discovery [ -dhV ] [ -t type -p ip:port [ -l ] ] | 
 [ -o operation ] [ -n name ] [ -v value ]
 
-\fBiscsiadm\fR -m node [ -dhV ] [ -L all,manual,automatic ] [ -U all,manual,automatic ] [ -S ] [ [ -T targetname -p ip:port ] [ -l | -u ] ]
+\fBiscsiadm\fR -m node [ -dhV ] [ -P printlevel ] [ -L all,manual,automatic ] [ -U all,manual,automatic ] [ -S ] [ [ -T targetname -p ip:port -I HWaddress ] [ -l | -u ] ]
 [ [ -o operation ]  [ -n name ] [ -v value ] [ -p ip:port ] ]
 
-\fBiscsiadm\fR -m session [ -dhV ] [ -r sessionid | sysfsdir [ -R ] [ -u | -s ] ]
+\fBiscsiadm\fR -m session [ -dhV ] [ -P printlevel ] [ -r sessionid | sysfsdir [ -R ] [ -u | -s ] ]
 
 .SH "DESCRIPTION"
 The iscsiadm utility is a command-line tool allowing discovery and login
@@ -107,6 +107,11 @@ This option is only valid for discovery, or for node operations with
 the \fInew\fR operator.
 .IP
 This should be used along with --target in node mode, to specify what the open-iscsi docs refer to as a node or node record. Note: open-iscsi's use of the word node, does not match the iSCSI RFC's iSCSI Node term.
+
+.TP
+\fB\-P\fR,  \fB\-\-print=\fIprintlevel\fR
+If in node mode print nodes in tree format. If in session mode print
+sessions in tree format.
 
 .TP
 \fB\-T\fR, \fB\-\-targetname=\fItargetname\fR

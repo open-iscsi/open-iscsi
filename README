@@ -183,11 +183,21 @@ Usage: iscsiadm [OPTION]
                           you wish to update
   -m node                 display all discovered nodes from internal
                           persistent discovery database
-  -m node --targetname=[name] --portal=[ip:port] [--login|--logout]
-  -m node --targetname=[name] --portal=[ip:port] --op=[op] [--name=[name] \
-							--value=[value]]
+  -m node --targetname=[name] --portal=[ip:port] --interface=[HWaddress] \
+							[--login|--logout]
+  -m node --targetname=[name] --portal=[ip:port] --interface=[HWaddress] \
+				--op=[op] [--name=[name] --value=[value]]
                           perform specific DB operation [op] for specific
-                          portal on target. It could be one of:
+                          interface on host that will connect to portal on
+			  target. targetname, portal and interface are optional.
+			  However, you must pass in either none of them,
+			  just the targetname, or just the targetname and
+			  portal or just the targetname, portal and interface.
+			  Other combinations are not yet supported.
+
+			  HWaddress must be he formed as: XX:XX:XX:XX:XX:XX.
+
+			  op could be one of:
                           [new], [delete], [update] or [show]. In case of
                           [update], you have to provide [name] and [value]
                           you wish to update
@@ -220,54 +230,126 @@ Usage: iscsiadm [OPTION]
     Usage examples using the one-letter options (see iscsiadm man page
     for long options):
 
-    1) SendTargets iSCSI Discovery:
+    Discovery mode:
+
+    - SendTargets iSCSI Discovery:
 
 	    ./iscsiadm -m discovery -t sendtargets -p 192.168.1.1:3260
 
-    2) iSCSI Login:
+
+    Node mode. In node mode you can specify which records you want to log
+    into by specifying the targetname, ip address, port and interface.
+    You must pass in either none of them, just the targetname, or just the
+    targetname and portal or just the targetname, portal and interface.
+    Other combinations are not supported.
+
+    - iSCSI Login to all portals on every node/starget through each interface
+	set in the db:
+
+	    ./iscsiadm -m node -l
+
+    - iSCSI login to all portals on a node/target through each interface set
+	in the db:
+
+	    ./iscsiadm -m node -T iqn.2005-03.com.max -l
+
+    - iSCSI login to a specific portal through each interface set in the db:
 
 	    ./iscsiadm -m node -T iqn.2005-03.com.max -p 192.168.0.4:3260 -l
 
-    3) iSCSI Logout:
+    - iSCSI Login to a specific portal through the NIC with MAC/HW
+	address 00:0F:1F:92:6B:BF set in the db:
 
-	    ./iscsiadm -m node -T iqn.2005-03.com.max -p 192.168.0.4:3260  -u
+	    ./iscsiadm -m node -T iqn.2005-03.com.max -p 192.168.0.4:3260 \
+				-I 00:0F:1F:92:6B:BF -l
 
-    4) Changing iSCSI parameter:
+    - iSCSI Logout to all portals on every node/starget through each interface
+	set in the db:
+
+	    ./iscsiadm -m node -u
+
+	Warning: this does not check startup values like the logout/login all
+	option. Do not use this if you are running iscsi on your root disk.	
+
+    - iSCSI logout to all portals on a node/target through each interface set
+	in the db:
+
+	    ./iscsiadm -m node -T iqn.2005-03.com.max -u
+
+    - iSCSI logout to a specific portal through each interface set in the db:
+
+	    ./iscsiadm -m node -T iqn.2005-03.com.max -p 192.168.0.4:3260 -u
+
+    - iSCSI Logout to a specific portal through the NIC with MAC/HW
+	address 00:0F:1F:92:6B:BF set in the db:
+
+	    ./iscsiadm -m node -T iqn.2005-03.com.max -p 192.168.0.4:3260 \
+				-I 00:0F:1F:92:6B:BF -u
+
+    - Changing iSCSI parameter:
 
 	    ./iscsiadm -m node -T iqn.2005-03.com.max -p 192.168.0.4:3260 \
 	       -o update -n node.cnx[0].iscsi.MaxRecvDataSegmentLength -v 65536
 
-    5) Adding custom iSCSI Node:
+	You can also change paramaters for multiple records at once, by
+	specifying different combinations of the target, portal and interface
+	like above.
 
-	    ./iscsiadm -m node -o new -p 192.168.0.1:3260
+    - Adding custom iSCSI portal:
 
-    6) Removing iSCSI Node:
+	    ./iscsiadm -m node -o new -T iqn.2005-03.com.max \
+			-p 192.168.0.1:3260 -I 00:0F:1F:92:6B:BF
+
+	The -I/--interface is optiniol. If not passed in, "default" is used.
+	For iscsi_tcp, this would allow the network layer to decide what is
+	best.
+
+    - Removing iSCSI portal:
 
 	    ./iscsiadm -m node -o delete -T iqn.2005-03.com.max -p 192.168.0.4:3260
 
-    7) Display iSCSI Node configuration:
+	You can also delete multiple records at once, by specifying different
+	combinations of the target, portal and interface like above.
+
+    - Display iSCSI portal onfiguration:
 
 	    ./iscsiadm -m node -T iqn.2005-03.com.max -p 192.168.0.4:3260
 
 	or
 
 	    ./iscsiadm -m node -o show -T iqn.2005-03.com.max -p 192.168.0.4:3260
+	You can also display multiple records at once, by specifying different
+	combinations of the target, portal and interface like above.
 
-    8) Show all node records:
+	Note: running "iscsiadm -m node" will only display the records. It
+	will not display the configuration info. You must run,
+	"iscsiadm -m node -o show".
+
+    - Show all node records:
 
             ./iscsiadm -m node
 
-    9) Show all records in discovery database:
+	This will print the nodes using the old flat format where the
+	interface and driver are not displayed. To display that info
+	use the -P argument with the arguent "1":
+
+	    ./iscsiadm -m node -P 1
+
+    - Show all records in discovery database:
 
             ./iscsiadm -m discovery
 
-   10) Display discovery record setting:
+    - Display discovery record setting:
 
             ./iscsiadm -m discovery -p 192.168.0.4:3260
 
-   11) Display session statistics:
+    - Display session statistics:
 
             ./iscsiadm -m session -r 1 --stats
+
+    - Display running sessions:
+
+	    ./iscsiadm -m session -P 1
 
 6. Configuration
 ================
@@ -353,16 +435,37 @@ iscsiadm man files and see section 7.2 below for how to discover targets).
 
 will print out the nodes that have been discovered as:
 
-	10.15.85.19:3260,3 iqn.1992-08.com.netapp:sn.33615311
+	10.15.85.19:3260,3 iqn.1992-08.com.netapp:sn.33615311 
 	10.15.84.19:3260,2 iqn.1992-08.com.netapp:sn.33615311
 
 The format is:
 
 ip:port,target_portal_group_tag targetname
 
+If you are using the iface.name argument or want to see the driver
+info use the following:
+
+	./iscsiadm -m node -P 1
+
+target: iqn.2001-04.com.home:max2
+        portal: 20.15.0.5:3260
+                driver: tcp hwaddress: 00:0F:1F:92:6B:BF
+                driver: tcp hwaddress: 00:C0:DD:08:63:E7
+
+The format is:
+
+target: targetname
+	portal ip_address:port
+		driver: driver hwaddress: hwaddress
+
 where targetname is the name of the target and ip_address:port is the address
 and port of the portal. target_portal_group_tag, is the portal group tag of
-the portal, and is not used in iscsiadm commands.
+the portal, and is not used in iscsiadm commands. Driver is the iscsi
+transport/interconnect driver that will be used to access the portal
+and HWaddress is the address of the NIC/HBA which the session will go through.
+For tcp/iscsi_tcp "default" means that we will create one session to the
+portal and that the network layer will decide how to best route it through
+the NICs on the system.
 
 To login, take the ip, port and targetname from above and run:
 
@@ -393,19 +496,21 @@ Both commands will print out the list of all discovered targets and their
 portals:
 
 # iscsiadm -m discovery -t st -p 10.15.85.19:3260
-10.15.85.19:3260,3 iqn.1992-08.com.netapp:sn.33615311
-10.15.84.19:3260,2 iqn.1992-08.com.netapp:sn.33615311
+tcp:default 10.15.85.19:3260,3 iqn.1992-08.com.netapp:sn.33615311
+tcp:default 10.15.84.19:3260,2 iqn.1992-08.com.netapp:sn.33615311
 
 Note: this prints out every node in the db including the ones just discovered.
 This is a bug and will change in future releases.
 
 The format for the output is:
 
-ip:port,target_portal_group_tag targetname
+driver:HWaddress ip:port,target_portal_group_tag targetname
 
 In this example, for the first target the ip address is 10.15.85.19.
-The port is 3260. The target portal group is 3, and the target name
-is iqn.1992-08.com.netapp:sn.33615311.
+The port is 3260. The target portal group is 3. The target name
+is iqn.1992-08.com.netapp:sn.33615311. The driver that will be used
+is tcp/iscsi_tcp, and we will allow the network layer to decide
+how to best route IO through the NICs on the system.
 
 While discovery targets are kept in the discovery db, they are
 usefull only for re-discovery. The discovered targets (a.k.a. nodes)
@@ -456,11 +561,27 @@ run:
 
 This will print the list of running sessions with the format:
 
-kernel module: [sid] ip:port,target_portal_group_tag targetname
+driver [sid] ip:port,target_portal_group_tag targetname
 
 # iscsiadm -m session
-tcp: [2] 10.15.84.19:3260,2 iqn.1992-08.com.netapp:sn.33615311
-tcp: [3] 10.15.85.19:3260,3 iqn.1992-08.com.netapp:sn.33615311
+tcp [2] 10.15.84.19:3260,2 iqn.1992-08.com.netapp:sn.33615311
+tcp [3] 10.15.85.19:3260,3 iqn.1992-08.com.netapp:sn.33615311
+
+To print the hw address info use the -P option with "1":
+
+       iscsiadm -m session -P 1
+
+This will print the sessions with the following format:
+
+target: targetname
+	portal: ip_address:port
+		driver: driver hwaddress: hwaddress sid: sid
+
+[root@madmax usr]# ./iscsiadm -m session -P 1
+target: iqn.2001-04.com.home:max2
+        portal: 20.15.0.5:3260
+                driver: tcp hwaddress: 00:C0:DD:08:63:E7 sid: 20
+		driver: tcp hwaddress: 00:C0:DD:08:63:E7 sid: 21
 
 For example this first node is using the iscsi_tcp kernel module, has
 session id (sid) 2, is connected to a portal with address and port
