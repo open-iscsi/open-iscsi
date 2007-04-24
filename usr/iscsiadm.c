@@ -491,7 +491,6 @@ static int for_each_portal_rec(idbm_t *db, char *targetname, char *ip, int port,
 			       int (* fn)(void *data, node_rec_t *rec))
 {
 	node_rec_t rec;
-	int err;
 
 	setup_node_record(&rec, targetname, ip, port, iface);
 	if (!idbm_for_each_node(db, data, fn, &rec, match_valid_session))
@@ -1014,11 +1013,11 @@ do_sendtargets(idbm_t *db, discovery_rec_t *drec)
 
 	rc = sendtargets_discovery(db, drec);
 	if (!rc)
-		idbm_for_each_node(db, NULL, print_node, NULL, NULL);
+		idbm_print_discovered_portals(drec);
 	return rc;
 }
 
-static int isns_dev_attr_query(idbm_t *db)
+static int isns_dev_attr_query(idbm_t *db, discovery_rec_t *drec)
 {
 	iscsiadm_req_t req;
 	iscsiadm_rsp_t rsp;
@@ -1029,7 +1028,7 @@ static int isns_dev_attr_query(idbm_t *db)
 
 	err = do_iscsid(&ipc_fd, &req, &rsp);
 	if (!err)
-		idbm_for_each_node(db, NULL, print_node, NULL, NULL);
+		idbm_print_discovered_portals(drec);
 	return err;
 }
 
@@ -1075,6 +1074,7 @@ static int exec_node_op(idbm_t *db, int op, int do_login, int do_logout,
 
 	if (op == OP_NEW) {
 		node_rec_t *rec;
+		discovery_rec_t *drec;
 
 		if (!ip || !targetname) {
 			log_error("portal and target required for new "
@@ -1083,13 +1083,15 @@ static int exec_node_op(idbm_t *db, int op, int do_login, int do_logout,
 			goto out;
 		}
 
-		rec = calloc(1, sizeof(*rec));
+		rec = calloc(1, sizeof(*rec) + sizeof(*drec));
 		if (!rec) {
 			log_error("Could not allocate memory for node "
 				 "addition");
 			rc = -1;
 			goto out;
 		}
+		drec = (discovery_rec_t *)((char *)rec + sizeof(*rec));
+		drec->type = DISCOVERY_TYPE_STATIC;
 
 		idbm_node_setup_from_conf(db, rec);
 		strncpy(rec->name, targetname, TARGET_NAME_MAXLEN);
@@ -1097,7 +1099,8 @@ static int exec_node_op(idbm_t *db, int op, int do_login, int do_logout,
 		strncpy(rec->conn[0].address, ip, NI_MAXHOST);
 		if (iface)
 			strncpy(rec->iface.name, iface, ISCSI_MAX_IFACE_LEN);
-		if (idbm_add_node(db, rec, NULL)) {
+
+		if (idbm_add_node(db, rec, drec)) {
 			log_error("can not add new record.");
 			rc = -1;
 		} else
@@ -1382,6 +1385,7 @@ main(int argc, char **argv)
 			idbm_sendtargets_defaults(db, &drec.u.sendtargets);
 			strncpy(drec.address, ip, sizeof(drec.address));
 			drec.port = port;
+			drec.type = DISCOVERY_TYPE_SENDTARGETS;
 
 			if (!do_sendtargets(db, &drec) && do_login) {
 				log_error("automatic login after discovery "
@@ -1396,7 +1400,9 @@ main(int argc, char **argv)
 			rc = -1;
 			goto out;
 		} else if (type == DISCOVERY_TYPE_ISNS) {
-			if ((rc = isns_dev_attr_query(db)) > 0) {
+			drec.type = DISCOVERY_TYPE_ISNS;
+
+			if ((rc = isns_dev_attr_query(db, &drec)) > 0) {
 				iscsid_handle_error(rc);
 				rc = -1;
 			}

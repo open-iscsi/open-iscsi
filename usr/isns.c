@@ -275,6 +275,7 @@ static void add_new_target_node(char *targetname, uint8_t *ip, int port,
 {
 	int err;
 	node_rec_t rec;
+	discovery_rec_t drec;
 	idbm_t *db;
 	char dst[INET6_ADDRSTRLEN];
 
@@ -298,7 +299,10 @@ static void add_new_target_node(char *targetname, uint8_t *ip, int port,
 	rec.conn[0].port = port;
 	rec.tpgt = tag;
 	strncpy(rec.conn[0].address, dst, NI_MAXHOST);
-	err = idbm_add_nodes(db, &rec, NULL);
+
+	/* TODO?: shoudl we set the address and port of the server ? */
+	drec.type = DISCOVERY_TYPE_ISNS;
+	err = idbm_add_nodes(db, &rec, &drec);
 	if (err)
 		log_error("Could not add new target node:%s %s,%d",
 			  targetname, dst, port);

@@ -672,7 +672,7 @@ static int st_disc_filter(const struct dirent *dir)
 	       strcmp(dir->d_name, ST_CONFIG_NAME);
 }
 
-static int print_discovered_portals(char *disc_path, char *disc_dir)
+static int print_discovered_portals(char *disc_path)
 {
 	char *tmp_port, *last_address = NULL, *last_target = NULL;
 	char *target, *address, *iface, *driver;
@@ -680,13 +680,6 @@ static int print_discovered_portals(char *disc_path, char *disc_dir)
 	struct dirent **namelist;
 
 	n = scandir(disc_path, &namelist, st_disc_filter, versionsort);
-
-	tmp_port = strchr(disc_dir, ',');
-	if (tmp_port)
-		*tmp_port++ = '\0';
-	printf("    %s:%d\n", disc_dir,
-		tmp_port ? atoi(tmp_port) : DEF_ISCSI_PORT);
-
 	if (n < 0)
 		return 0;
 
@@ -710,7 +703,7 @@ static int print_discovered_portals(char *disc_path, char *disc_dir)
 		*driver++ = '\0';
 
 		if (!last_target || strcmp(last_target, target)) {
-			printf("        target: %s\n", target);
+			printf("    target: %s\n", target);
 			last_target = namelist[i]->d_name;
 			last_port = -1;
 			last_address = NULL;
@@ -719,7 +712,7 @@ static int print_discovered_portals(char *disc_path, char *disc_dir)
 		if (!last_address || strcmp(last_address, address) ||
 		    last_port == -1 || last_port != atoi(tmp_port)) {
 			last_port = atoi(tmp_port);
-			printf("            ");
+			printf("        ");
 			if (strchr(address, '.'))
 				printf("portal: %s:%d\n", address, last_port);
 			else
@@ -728,23 +721,53 @@ static int print_discovered_portals(char *disc_path, char *disc_dir)
 					strlen(namelist[i]->d_name) + 1;
 		}
 
-		printf("               driver: %s\n", driver);
-		printf("               hwaddress: %s\n", iface);
+		printf("           driver: %s\n", driver);
+		printf("           hwaddress: %s\n", iface);
 	}
 
 	for (i = 0; i < n; i++)
 		free(namelist[i]);
 	free(namelist);
-	return 0;
+	return n;
 }
 
-int idbm_print_all_discovery(idbm_t *db)
+int idbm_print_discovered_portals(discovery_rec_t *drec)
+{
+	char *disc_path;
+	int rc;
+
+	disc_path = calloc(1, PATH_MAX);
+	if (!disc_path)
+		return 0;
+
+	switch (drec->type) {
+	case DISCOVERY_TYPE_SENDTARGETS:
+		snprintf(disc_path, PATH_MAX, "%s/%s,%d", ST_CONFIG_DIR,
+			 drec->address, drec->port);
+		break;
+	case DISCOVERY_TYPE_STATIC:
+		snprintf(disc_path, PATH_MAX, "%s", STATIC_CONFIG_DIR);
+		break;
+	case DISCOVERY_TYPE_ISNS:
+		snprintf(disc_path, PATH_MAX, "%s", ISNS_CONFIG_DIR);
+		break;
+	case DISCOVERY_TYPE_SLP:
+	default:
+		rc = 0;
+		goto done;
+	}
+
+	rc = print_discovered_portals(disc_path);
+done:
+	free(disc_path);
+	return rc;
+}
+
+static int idbm_print_all_st(idbm_t *db)
 {
 	DIR *entity_dirfd;
 	struct dirent *entity_dent;
-	char *tmp_port;
 	int found = 0;
-	struct stat statb;
 	char *disc_dir;
 
 	disc_dir = malloc(PATH_MAX);
@@ -765,27 +788,49 @@ int idbm_print_all_discovery(idbm_t *db)
 		memset(disc_dir, 0, PATH_MAX);
 		snprintf(disc_dir, PATH_MAX, "%s/%s", ST_CONFIG_DIR,
 			 entity_dent->d_name);
-		if (stat(disc_dir, &statb))
-			continue;
 
-		if (!found)
-			printf("SENDTARGETS\n");
-		if (S_ISDIR(statb.st_mode))
-			print_discovered_portals(disc_dir, entity_dent->d_name);
-		else {
-			tmp_port = strchr(entity_dent->d_name, ',');
-			if (!tmp_port)
-				continue;
-			*tmp_port++ = '\0';
-			printf("    %s:%d\n", entity_dent->d_name,
-			       atoi(tmp_port));
-		}
-
-		found++;
+		printf("%s\n", entity_dent->d_name);
+		found += print_discovered_portals(disc_dir);
 	}
 	closedir(entity_dirfd);
 free_disc:
 	free(disc_dir);
+	return found;
+}
+
+int idbm_print_all_discovery(idbm_t *db)
+{
+	discovery_rec_t *drec;
+	int found = 0, tmp;
+
+	drec = calloc(1, sizeof(*drec));
+	if (!drec)
+		return ENOMEM;
+
+	tmp = 0;
+	printf("SENDTARGETS:\n");
+	tmp = idbm_print_all_st(db);
+	if (!tmp)
+		printf("No targets found.\n");
+	found += tmp;
+	tmp = 0;
+
+	printf("iSNS:\n");
+	drec->type = DISCOVERY_TYPE_ISNS;
+	tmp = idbm_print_discovered_portals(drec);
+	if (!tmp)
+		printf("No targets found.\n");
+	found += tmp;
+	tmp = 0;
+
+	printf("STATIC:\n");
+	drec->type = DISCOVERY_TYPE_STATIC;
+	tmp = idbm_print_discovered_portals(drec);
+	if (!tmp)
+		printf("No targets found.\n");
+	found += tmp;
+
+	free(drec);
 	return found;
 }
 
@@ -1220,12 +1265,13 @@ idbm_add_discovery(idbm_t *db, discovery_rec_t *newrec)
 	return rc;
 }
 
-static int form_disc_to_node_link(char *disc_portal, node_rec_t *rec)
+static int setup_disc_to_node_link(char *disc_portal, node_rec_t *rec)
 {
 	int rc = 0;
 
 	switch (rec->disc_type) {
 	case DISCOVERY_TYPE_SENDTARGETS:
+		/* st dir setup when we create its discovery node */
 		snprintf(disc_portal, PATH_MAX, "%s/%s,%d/%s,%s,%d,%s,%s",
 			 ST_CONFIG_DIR,
 			 rec->disc_address, rec->disc_port, rec->name,
@@ -1233,12 +1279,28 @@ static int form_disc_to_node_link(char *disc_portal, node_rec_t *rec)
 			 rec->iface.name, rec->transport_name);
 		break;
 	case DISCOVERY_TYPE_STATIC:
+		if (access(STATIC_CONFIG_DIR, F_OK) != 0) {
+			if (mkdir(STATIC_CONFIG_DIR, 0660) != 0) {
+				log_error("Could not make %s\n",
+					  STATIC_CONFIG_DIR);
+				rc = errno;
+			}
+		}
+
 		snprintf(disc_portal, PATH_MAX, "%s/%s,%s,%d,%s,%s",
 			 STATIC_CONFIG_DIR, rec->name,
 			 rec->conn[0].address, rec->conn[0].port,
 			 rec->iface.name, rec->transport_name);
 		break;
 	case DISCOVERY_TYPE_ISNS:
+		if (access(ISNS_CONFIG_DIR, F_OK) != 0) {
+			if (mkdir(ISNS_CONFIG_DIR, 0660) != 0) {
+				log_error("Could not make %s\n",
+					  ISNS_CONFIG_DIR);
+				rc = errno;
+			}
+		}
+
 		snprintf(disc_portal, PATH_MAX, "%s/%s,%d/%s,%s,%d,%s,%s",
 			 ISNS_CONFIG_DIR, rec->disc_address, rec->disc_port,
 			 rec->name, rec->conn[0].address,
@@ -1262,6 +1324,9 @@ int idbm_add_node(idbm_t *db, node_rec_t *newrec, discovery_rec_t *drec)
 	idbm_lock(db);
 	if (!idbm_node_read(db, &rec, newrec->name, newrec->conn[0].address,
 			    newrec->conn[0].port, newrec->iface.name)) {
+		rc = idbm_delete_node(db, &rec);
+		if (rc)
+			return rc;
 		log_debug(7, "overwriting existing record");
 	} else
 		log_debug(7, "adding new DB record");
@@ -1285,7 +1350,7 @@ int idbm_add_node(idbm_t *db, node_rec_t *newrec, discovery_rec_t *drec)
 	disc_portal = node_portal + PATH_MAX;
 	snprintf(node_portal, PATH_MAX, "%s/%s/%s,%d", NODE_CONFIG_DIR,
 		 newrec->name, newrec->conn[0].address, newrec->conn[0].port);
-	rc = form_disc_to_node_link(disc_portal, newrec);
+	rc = setup_disc_to_node_link(disc_portal, newrec);
 	if (rc)
 		goto done;
 
@@ -1464,7 +1529,7 @@ static int idbm_remove_disc_to_node_link(idbm_t *db, node_rec_t *rec,
 		 newrec->disc_port); 
 	/* rm link from discovery source to node */
 	memset(portal, 0, PATH_MAX);
-	rc = form_disc_to_node_link(portal, newrec);
+	rc = setup_disc_to_node_link(portal, newrec);
 	if (rc)
 		goto done;
 
