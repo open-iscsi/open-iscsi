@@ -657,7 +657,7 @@ static int iscsi_xmit_ctask(struct iscsi_conn *conn)
 	/*
 	 * serialize with TMF AbortTask
 	 */
-	if (ctask->mtask)
+	if (ctask->state == ISCSI_TASK_ABORTING)
 		goto done;
 
 	__iscsi_get_ctask(ctask);
@@ -710,14 +710,16 @@ static int iscsi_data_xmit(struct iscsi_conn *conn)
 	 * only have one nop-out as a ping from us and targets should not
 	 * overflow us with nop-ins
 	 */
+check_mgmt:
 	while (__kfifo_len(conn->mgmtqueue)) {
-		rc = iscsi_check_cmdsn_window_closed(conn);
-		if (rc) {
-			spin_unlock_bh(&conn->session->lock);
-			return rc;
+		if (conn->c_stage == ISCSI_CONN_STARTED) {
+			rc = iscsi_check_cmdsn_window_closed(conn);
+			if (rc) {
+				spin_unlock_bh(&conn->session->lock);
+				return rc;
+			}
 		}
-
-	        if (!__kfifo_get(conn->mgmtqueue, (void*)&conn->mtask,
+		if (!__kfifo_get(conn->mgmtqueue, (void*)&conn->mtask,
 			         sizeof(void*)))
 			break;
 		iscsi_prep_mtask(conn, conn->mtask);
@@ -749,6 +751,13 @@ static int iscsi_data_xmit(struct iscsi_conn *conn)
 		rc = iscsi_xmit_ctask(conn);
 		if (rc)
 			goto again;
+		/*
+		 * we could continuously get new ctask requests so
+		 * we need to check the mgmt queue for nops that need to
+		 * be sent to aviod starvation
+		 */
+		if (__kfifo_len(conn->mgmtqueue))
+			goto check_mgmt;
 	}
 	spin_unlock_bh(&conn->session->lock);
 	return -ENODATA;
@@ -1041,6 +1050,7 @@ static int iscsi_exec_abort_task(struct scsi_cmnd *sc,
 		debug_scsi("abort sent failure [itt 0x%x]\n", ctask->itt);
 		return -EPERM;
 	}
+	ctask->state = ISCSI_TASK_ABORTING;
 
 	debug_scsi("abort sent [itt 0x%x]\n", ctask->itt);
 

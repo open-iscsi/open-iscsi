@@ -48,7 +48,7 @@ struct iscsi_nopin;
 #define debug_scsi(fmt...)
 #endif
 
-#define ISCSI_XMIT_CMDS_MAX	128	/* must be power of 2 */
+#define ISCSI_XMIT_CMDS_MAX	1024	/* must be power of 2 */
 #define ISCSI_MGMT_CMDS_MAX	32	/* must be power of 2 */
 #define ISCSI_CONN_MAX			1
 
@@ -90,6 +90,7 @@ enum {
 	ISCSI_TASK_COMPLETED,
 	ISCSI_TASK_PENDING,
 	ISCSI_TASK_RUNNING,
+	ISCSI_TASK_ABORTING,
 };
 
 struct iscsi_cmd_task {
