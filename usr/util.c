@@ -86,7 +86,7 @@ str_to_ipport(char *str, int *port, int delim)
 
 static int iscsid_connect(void)
 {
-	int fd, err, nsec;
+	int fd, nsec;
 	struct sockaddr_un addr;
 
 	fd = socket(AF_LOCAL, SOCK_STREAM, 0);
@@ -99,20 +99,20 @@ static int iscsid_connect(void)
 	addr.sun_family = AF_LOCAL;
 	memcpy((char *) &addr.sun_path + 1, ISCSIADM_NAMESPACE,
 		strlen(ISCSIADM_NAMESPACE));
-
 	/*
 	 * Trying to connect with exponential backoff
 	 */
 	for (nsec = 1; nsec <= MAXSLEEP; nsec <<= 1) {
-	    if (connect(fd, (struct sockaddr *) &addr, sizeof(addr)) == 0) {
-		/* Connection established */
-		return fd;
-	    }
-	    /*
-	     * Delay before trying again
-	     */
-	    if (nsec <= MAXSLEEP/2)
-		sleep(nsec);
+		if (connect(fd, (struct sockaddr *) &addr, sizeof(addr)) == 0) {
+			/* Connection established */
+			return fd;
+		}
+
+		/*
+		 * Delay before trying again
+		 */
+		if (nsec <= MAXSLEEP/2)
+			sleep(nsec);
 	}
 	log_error("can not connect to iSCSI daemon (%d)!", errno);
 	return -1;
@@ -241,9 +241,9 @@ void iscsid_handle_error(int err)
 		/* 9 */ "internal error",
 		/* 10 */ "encountered iSCSI logout failure",
 		/* 11 */ "iSCSI PDU timed out",
-		/* 12 */ "iSCSI transport not found",
+		/* 12 */ "iSCSI driver not found. Please make sure it is loaded, and retry the operation",
 		/* 13 */ "daemon access denied",
-		/* 14 */ "iSCSI transport capability failure",
+		/* 14 */ "iSCSI driver does not support requested capability.",
 		/* 15 */ "already exists",
 		/* 16 */ "Unknown request",
 		/* 17 */ "encountered iSNS failure",
