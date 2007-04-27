@@ -376,7 +376,7 @@ int sysfs_for_each_host(void *data, int *nr_found, sysfs_host_op_fn *fn)
 	hwaddress = malloc(ISCSI_MAX_IFACE_LEN);
 	if (!hwaddress) {
 		rc = ENOMEM;
-		goto free_target;
+		goto free_iname;
 	}
 
 	sprintf(sysfs_file, ISCSI_HOST_DIR);
@@ -423,7 +423,7 @@ int sysfs_for_each_host(void *data, int *nr_found, sysfs_host_op_fn *fn)
 
 free_address:
 	free(hwaddress);
-free_target:
+free_iname:
 	free(iname);
 	return rc;
 }
