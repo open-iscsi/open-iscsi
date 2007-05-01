@@ -643,8 +643,8 @@ config_init(void)
 	return 0;
 }
 
-static int print_session(void *data, char *targetname, int tpgt, char *address,
-			 int port, int sid, char *hwaddress)
+static int print_session_flat(void *data, char *targetname, int tpgt,
+			      char *address, int port, int sid, char *hwaddress)
 {
 	struct iscsi_transport *t = get_transport_by_sid(sid);
 
@@ -891,6 +891,39 @@ next:
 	}
 }
 
+static int print_session(int info_level, char *targetname, int tpgt,
+			 char *address, int port, int sid, char *hwaddress)
+{
+	struct list_head list;
+	int err;
+
+	switch (info_level) {
+	case 0:
+	case -1:
+		err = print_session_flat(NULL, targetname, tpgt, address,
+					port, sid, hwaddress);
+		break;
+	case 1:
+	case 2:
+	case 3:
+		INIT_LIST_HEAD(&list);
+
+		err = link_sessions(&list, targetname, tpgt, address,
+				    port, sid, hwaddress);
+		if (err)
+			break;
+		print_sessions_tree(&list, info_level);
+		break;
+	default:
+		log_error("Invalid info level %d. Try 0 - 3.", info_level);
+		return EINVAL;
+	}
+
+	if (err)
+		log_error("Can not get session info (%d)", err);
+	return 0;
+}
+
 static int print_sessions(int info_level)
 {
 	struct list_head list;
@@ -901,7 +934,7 @@ static int print_sessions(int info_level)
 	case 0:
 	case -1:
 		err = sysfs_for_each_session(NULL, &num_found,
-					     print_session);
+					     print_session_flat);
 		break;
 	case 2:
 	case 3:
@@ -923,7 +956,7 @@ static int print_sessions(int info_level)
 		print_sessions_tree(&list, info_level);
 		break;
 	default:
-		log_error("Invalid info level %d. Try 0 - 2.", info_level);
+		log_error("Invalid info level %d. Try 0 - 3.", info_level);
 		return EINVAL;
 	}
 
@@ -1357,7 +1390,8 @@ static int exec_node_op(idbm_t *db, int op, int do_login, int do_logout,
 		goto out;
 	}
 
-	if (!do_login && !do_logout && op < 0) {
+	if ((!do_login && !do_logout && op < 0) &&
+	    (!targetname && !ip && !hwaddress && !driver)) {
 		rc = print_nodes(db, info_level, targetname, ip, port,
 				 hwaddress, driver);
 		goto out;
@@ -1826,6 +1860,15 @@ main(int argc, char **argv)
 			t = get_transport_by_sid(sid);
 			if (!t)
 				goto free_hwaddress;
+
+			if (!do_logout && !do_rescan && !do_stats && op < 0) {
+				rc = print_session(info_level, targetname, tpgt,
+						    ip, port, tmp_sid,
+						    hwaddress);
+				if (rc)
+					rc = -1;
+				goto free_hwaddress;
+			}
 
 			/* drop down to node ops */
 			rc = exec_node_op(db, op, do_login, do_logout, do_show,
