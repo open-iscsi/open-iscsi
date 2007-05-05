@@ -167,14 +167,13 @@ str_to_type(char *str)
 }
 
 /* flat P0 style for now */
-static int print_host(void *data, uint32_t host_no, char *iname,
-		      char *hwaddress)
+static int print_host(void *data, struct host_info *info)
 {
 	struct iscsi_transport *t;
 
-	t = get_transport_by_hba(host_no);
-	printf("%s %s,%s %u\n", iname, t ? t->name : "NA",
-		hwaddress, host_no);
+	t = get_transport_by_hba(info->host_no);
+	printf("%s %s,%s,%s %u\n", info->iname, t ? t->name : "NA",
+		info->hwaddress, info->ipaddress, info->host_no);
 	return 0;
 }
 
@@ -856,6 +855,8 @@ static void print_sessions_tree(struct list_head *list, int level)
 		t = get_transport_by_sid(curr->sid);
 		printf("\t\tDriver: %s\n", t ? t->name : "NA");
 		printf("\t\tHWaddress: %s\n", curr->hwaddress);
+		printf("\t\tLocal address: %s\n", strlen(curr->local_address) ?
+		       curr->local_address : "Unknown");
 		printf("\t\tSID: %d\n", curr->sid);
 		print_iscsi_state(curr->sid);
 

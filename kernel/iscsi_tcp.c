@@ -1869,18 +1869,22 @@ tcp_conn_alloc_fail:
 static void
 iscsi_tcp_release_conn(struct iscsi_conn *conn)
 {
+	struct iscsi_session *session = conn->session;
 	struct iscsi_tcp_conn *tcp_conn = conn->dd_data;
+	struct socket *sock = tcp_conn->sock;
 
-	if (!tcp_conn->sock)
+	if (!sock)
 		return;
 
-	sock_hold(tcp_conn->sock->sk);
+	sock_hold(sock->sk);
 	iscsi_conn_restore_callbacks(tcp_conn);
-	sock_put(tcp_conn->sock->sk);
+	sock_put(sock->sk);
 
-	sockfd_put(tcp_conn->sock);
+	spin_lock_bh(&session->lock);
 	tcp_conn->sock = NULL;
 	conn->recv_lock = NULL;
+	spin_unlock_bh(&session->lock);
+	sockfd_put(sock);
 }
 
 static void
@@ -2071,43 +2075,104 @@ iscsi_conn_set_param(struct iscsi_cls_conn *cls_conn, enum iscsi_param param,
 	return 0;
 }
 
+static int iscsi_tcp_get_addr(struct iscsi_session *session,
+			     char *buf, int peer, int get_addr)
+{
+	struct iscsi_tcp_conn *tcp_conn;
+	struct sockaddr_storage *addr;
+	struct sockaddr_in6 *sin6;
+	struct sockaddr_in *sin;
+	int rc = 0, len;
+
+	addr = kmalloc(GFP_KERNEL, sizeof(*addr));
+	if (!addr)
+		return -ENOMEM;
+
+	spin_lock_bh(&session->lock);
+	if (!session->leadconn) {
+		len = -ENODEV;
+		goto free_addr;
+	}
+	tcp_conn = session->leadconn->dd_data;
+
+	if (!tcp_conn->sock) {
+		rc = -ENODEV;
+		goto free_addr;
+	}
+
+	if (tcp_conn->sock->ops->getname(tcp_conn->sock,
+					 (struct sockaddr *) addr, &len,
+					 peer)) {
+		rc = -ENODEV;
+		goto free_addr;
+	}
+
+	if (get_addr) {
+		switch (addr->ss_family) {
+		case AF_INET:
+			sin = (struct sockaddr_in *)addr;
+			rc = sprintf(buf, NIPQUAD_FMT "\n",
+				     NIPQUAD(sin->sin_addr.s_addr));
+			break;
+		case AF_INET6:
+			sin6 = (struct sockaddr_in6 *)addr;
+			rc = sprintf(buf, NIP6_FMT "\n",
+				     NIP6(sin6->sin6_addr));
+			break;
+		}
+	} else {
+		switch (addr->ss_family) {
+		case AF_INET:
+			sin = (struct sockaddr_in *)addr;
+			rc = sprintf(buf, "%hu\n",
+				     be16_to_cpu(sin->sin_port ));
+			break;
+		case AF_INET6:
+			sin6 = (struct sockaddr_in6 *)addr;
+			rc = sprintf(buf, "%hu\n",
+				     be16_to_cpu(sin6->sin6_port ));
+			break;
+		}
+	}
+free_addr:
+	spin_unlock_bh(&session->lock);
+	kfree(addr);
+	return len;
+}
+
 static int
 iscsi_tcp_conn_get_param(struct iscsi_cls_conn *cls_conn,
 			 enum iscsi_param param, char *buf)
 {
 	struct iscsi_conn *conn = cls_conn->dd_data;
-	struct iscsi_tcp_conn *tcp_conn = conn->dd_data;
-	struct inet_sock *inet;
-	struct ipv6_pinfo *np;
-	struct sock *sk;
 	int len;
 
 	switch(param) {
 	case ISCSI_PARAM_CONN_PORT:
-		if (!tcp_conn->sock)
-			return -EINVAL;
-
-		inet = inet_sk(tcp_conn->sock->sk);
-		len = sprintf(buf, "%hu\n", be16_to_cpu(inet->dport));
-		break;
+		return iscsi_tcp_get_addr(conn->session, buf, 1, 0);
 	case ISCSI_PARAM_CONN_ADDRESS:
-		if (!tcp_conn->sock)
-			return -EINVAL;
-
-		sk = tcp_conn->sock->sk;
-		if (sk->sk_family == PF_INET) {
-			inet = inet_sk(sk);
-			len = sprintf(buf, NIPQUAD_FMT "\n",
-				      NIPQUAD(inet->daddr));
-		} else {
-			np = inet6_sk(sk);
-			len = sprintf(buf, NIP6_FMT "\n", NIP6(np->daddr));
-		}
-		break;
+		return iscsi_tcp_get_addr(conn->session, buf, 1, 1);
 	default:
 		return iscsi_conn_get_param(cls_conn, param, buf);
 	}
 
+	return len;
+}
+
+static int
+iscsi_tcp_host_get_param(struct Scsi_Host *shost, enum iscsi_host_param param,
+			 char *buf)
+{
+        struct iscsi_session *session = iscsi_hostdata(shost->hostdata);
+	int len;
+
+	switch (param) {
+	case ISCSI_HOST_PARAM_IPADDRESS:
+		len = iscsi_tcp_get_addr(session, buf, 0, 1);
+		break;
+	default:
+		return iscsi_host_get_param(shost, param, buf);
+	}
 	return len;
 }
 
@@ -2225,7 +2290,7 @@ static struct iscsi_transport iscsi_tcp_transport = {
 				  ISCSI_TARGET_NAME | ISCSI_TPGT |
 				  ISCSI_USERNAME | ISCSI_PASSWORD |
 				  ISCSI_USERNAME_IN | ISCSI_PASSWORD_IN,
-	.host_param_mask	= ISCSI_HOST_HWADDRESS |
+	.host_param_mask	= ISCSI_HOST_HWADDRESS | ISCSI_HOST_IPADDRESS |
 				  ISCSI_HOST_INITIATOR_NAME,
 	.host_template		= &iscsi_sht,
 	.conndata_size		= sizeof(struct iscsi_conn),
@@ -2244,7 +2309,7 @@ static struct iscsi_transport iscsi_tcp_transport = {
 	.start_conn		= iscsi_conn_start,
 	.stop_conn		= iscsi_tcp_conn_stop,
 	/* iscsi host params */
-	.get_host_param		= iscsi_host_get_param,
+	.get_host_param		= iscsi_tcp_host_get_param,
 	.set_host_param		= iscsi_host_set_param,
 	/* IO */
 	.send_pdu		= iscsi_conn_send_pdu,

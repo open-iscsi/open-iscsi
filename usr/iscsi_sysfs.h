@@ -35,7 +35,7 @@ extern int get_sessioninfo_by_sysfs_id(struct session_info *info,
 				      char *sys_session);
 
 typedef int (sysfs_session_op_fn)(void *, struct session_info *);
-typedef int (sysfs_host_op_fn)(void *, uint32_t, char *, char *);
+typedef int (sysfs_host_op_fn)(void *, struct host_info *);
 
 extern int sysfs_for_each_session(void *data, int *nr_found,
 				  sysfs_session_op_fn *fn);

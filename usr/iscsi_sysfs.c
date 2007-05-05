@@ -377,27 +377,22 @@ int get_netdev_from_mac(char *address, char *dev)
 int sysfs_for_each_host(void *data, int *nr_found, sysfs_host_op_fn *fn)
 {
 	struct dirent **namelist;
-	int rc = 0, i, n, host_no;
-	char *iname, *hwaddress;
+	int rc = 0, i, n;
+	struct host_info *info;
 
-	iname = malloc(TARGET_NAME_MAXLEN + 1);
-	if (!iname)
+	info = calloc(1, sizeof(*info));
+	if (!info)
 		return ENOMEM;
-
-	hwaddress = malloc(ISCSI_MAX_IFACE_LEN);
-	if (!hwaddress) {
-		rc = ENOMEM;
-		goto free_iname;
-	}
 
 	sprintf(sysfs_file, ISCSI_HOST_DIR);
 	n = scandir(sysfs_file, &namelist, trans_filter,
 		    versionsort);
 	if (n <= 0)
-		goto free_address;
+		goto free_info;
 
 	for (i = 0; i < n; i++) {
-		if (sscanf(namelist[i]->d_name, "host%u", &host_no) != 1) {
+		if (sscanf(namelist[i]->d_name, "host%u", &info->host_no) !=
+			   1) {
 			log_error("Invalid iscsi host dir: %s",
 				  namelist[i]->d_name);
 			break;
@@ -406,23 +401,33 @@ int sysfs_for_each_host(void *data, int *nr_found, sysfs_host_op_fn *fn)
 		memset(sysfs_file, 0, PATH_MAX);
 		sprintf(sysfs_file, ISCSI_HOST_DIR"/%s/initiatorname",
 			namelist[i]->d_name);
-		rc = read_sysfs_file(sysfs_file, iname, "%s\n");
+		rc = read_sysfs_file(sysfs_file, info->iname, "%s\n");
 		if (rc) {
 			log_error("Could not read initiatorname for host %u. "
-				  "Error %d\n", host_no, rc);
+				  "Error %d\n", info->host_no, rc);
+			break;
+		}
+
+		memset(sysfs_file, 0, PATH_MAX);
+		sprintf(sysfs_file, ISCSI_HOST_DIR"/%s/ipaddress",
+			namelist[i]->d_name);
+		rc = read_sysfs_file(sysfs_file, info->ipaddress, "%s\n");
+		if (rc) {
+			log_error("Could not read ipaddress for host %u. "
+				  "Error %d\n", info->host_no, rc);
 			break;
 		}
 
 		memset(sysfs_file, 0, PATH_MAX);
 		sprintf(sysfs_file, ISCSI_HOST_DIR"/%s/hwaddress",
 			namelist[i]->d_name);
-		rc = read_sysfs_file(sysfs_file, hwaddress, "%s\n");
+		rc = read_sysfs_file(sysfs_file, info->hwaddress, "%s\n");
 		if (rc) {
 			log_error("Could not read hwaddress for host %u. "
-				  "Error %d\n", host_no, rc);
+				  "Error %d\n", info->host_no, rc);
 			break;
 		}
-		rc = fn(data, host_no, iname, hwaddress);
+		rc = fn(data, info);
 		if (rc != 0)
 			break;
 		(*nr_found)++;
@@ -432,10 +437,8 @@ int sysfs_for_each_host(void *data, int *nr_found, sysfs_host_op_fn *fn)
 		free(namelist[i]);
 	free(namelist);
 
-free_address:
-	free(hwaddress);
-free_iname:
-	free(iname);
+free_info:
+	free(info);
 	return rc;
 }
 
@@ -541,11 +544,20 @@ int get_sessioninfo_by_sysfs_id(struct session_info *info, char *session)
 	if (ret)
 		log_debug(7, "could not read hwaddress for %s\n", sysfs_file);
 
+	
+	memset(sysfs_file, 0, PATH_MAX);
+	sprintf(sysfs_file, ISCSI_HOST_DIR"/host%u/ipaddress", host_no);
+	ret = read_sysfs_file(sysfs_file, info->local_address, "%s\n");
+	if (ret)
+		log_debug(7, "could not read local address for %s\n",
+			 sysfs_file);
+
 	log_debug(7, "found targetname %s address %s pers address %s port %d "
-		 "pers port %d hwaddress %s\n",
+		 "pers port %d hwaddress %s src address %s\n",
 		  info->targetname, info->address ? info->address : "NA",
 		  info->persistent_address ? info->persistent_address : "NA",
-		  info->port, info->persistent_port, info->hwaddress);
+		  info->port, info->persistent_port, info->hwaddress,
+		  info->local_address);
 	return 0;
 }
  

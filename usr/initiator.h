@@ -276,6 +276,7 @@ typedef struct iscsi_session {
 struct session_info {
 	struct list_head list;
 	char targetname[TARGET_NAME_MAXLEN + 1];
+	char local_address[NI_MAXHOST + 1];
 	char address[NI_MAXHOST + 1];
 	char persistent_address[NI_MAXHOST + 1];
 	char hwaddress[ISCSI_MAX_IFACE_LEN];
@@ -283,6 +284,13 @@ struct session_info {
 	int persistent_port;
 	int sid;
 	int tpgt;
+};
+
+struct host_info {
+	char iname[TARGET_NAME_MAXLEN + 1];
+	char hwaddress[ISCSI_MAX_IFACE_LEN];
+	char ipaddress[NI_MAXHOST + 1];
+	int host_no;
 };
 
 /* login.c */
