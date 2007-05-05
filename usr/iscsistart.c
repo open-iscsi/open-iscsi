@@ -41,6 +41,7 @@
 #include "idbm.h"
 #include "version.h"
 #include "iscsi_sysfs.h"
+#include "iscsi_settings.h"
 
 /* global config info */
 /* initiator needs initiator name/alias */

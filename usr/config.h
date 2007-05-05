@@ -26,13 +26,6 @@
 #include "auth.h"	/* for the username and password sizes */
 #include "list.h"
 
-#define PORTAL_GROUP_TAG_UNKNOWN -1
-
-/* default iSCSI port number */
-#define ISCSI_DEFAULT_PORT 3260
-
-#define CHAP_AUTHENTICATION     1
-
 /* ISIDs now have a typed naming authority in them.  We use an OUI */
 #define DRIVER_ISID_0  0x00
 #define DRIVER_ISID_1  0x02

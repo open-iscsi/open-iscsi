@@ -17,6 +17,11 @@
 #define DEFAULT_HWADDRESS	"default"
 #define DEFAULT_TRANSPORT	"tcp"
 
+#define PORTAL_GROUP_TAG_UNKNOWN -1
+
+/* default iSCSI port number */
+#define ISCSI_DEFAULT_PORT 3260
+
 /* data and segment lengths in bytes */
 #define DEF_INI_FIRST_BURST_LEN		262144
 #define DEF_INI_MAX_BURST_LEN		16776192

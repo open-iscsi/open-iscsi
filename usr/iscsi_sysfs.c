@@ -123,6 +123,7 @@ static int read_transports(void)
 		t = malloc(sizeof(*t));
 		if (!t)
 			continue;
+		log_debug(7, "Adding new transport %s", namelist[i]->d_name);
 
 		INIT_LIST_HEAD(&t->sessions);
 		INIT_LIST_HEAD(&t->list);
