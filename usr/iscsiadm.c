@@ -172,8 +172,10 @@ static int print_host(void *data, struct host_info *info)
 	struct iscsi_transport *t;
 
 	t = get_transport_by_hba(info->host_no);
-	printf("%s %s,%s,%s %u\n", info->iname, t ? t->name : "NA",
-		info->hwaddress, info->ipaddress, info->host_no);
+	printf("%s %s,%s,%s %u\n", strlen(info->iname) ? info->iname :
+		UNKNOWN_VALUE, t ? t->name : UNKNOWN_VALUE,
+		info->hwaddress, strlen(info->ipaddress) ? info->ipaddress :
+		UNKNOWN_VALUE, info->host_no);
 	return 0;
 }
 
@@ -648,12 +650,12 @@ static int print_session_flat(void *data, struct session_info *info)
 
 	if (strchr(info->persistent_address, '.'))
 		printf("%s: [%d] %s:%d,%d %s\n",
-			t ? t->name : "NA",
+			t ? t->name : UNKNOWN_VALUE,
 			info->sid, info->persistent_address,
 			info->persistent_port, info->tpgt, info->targetname);
 	else
 		printf("%s: [%d] [%s]:%d,%d %s\n",
-			t ? t->name : "NA",
+			t ? t->name : UNKNOWN_VALUE,
 			info->sid, info->persistent_address,
 			info->persistent_port, info->tpgt, info->targetname);
 	return 0;
@@ -856,10 +858,10 @@ static void print_sessions_tree(struct list_head *list, int level)
 			printf("\n");
 
 		t = get_transport_by_sid(curr->sid);
-		printf("\t\tDriver: %s\n", t ? t->name : "NA");
+		printf("\t\tDriver: %s\n", t ? t->name : UNKNOWN_VALUE);
 		printf("\t\tHWaddress: %s\n", curr->hwaddress);
 		printf("\t\tLocal address: %s\n", strlen(curr->local_address) ?
-		       curr->local_address : "Unknown");
+		       curr->local_address : UNKNOWN_VALUE);
 		printf("\t\tSID: %d\n", curr->sid);
 		print_iscsi_state(curr->sid);
 

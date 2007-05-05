@@ -14,6 +14,7 @@
 #define QUEUE_DEPTH	32
 
 /* interface */
+#define UNKNOWN_VALUE		"unknown"
 #define DEFAULT_HWADDRESS	"default"
 #define DEFAULT_TRANSPORT	"tcp"
 
