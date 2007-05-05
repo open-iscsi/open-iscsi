@@ -470,7 +470,7 @@ __send_pdu_timer_remove(struct iscsi_conn *conn)
 
 
 static void
-session_conn_destroy(iscsi_session_t *session, int cid)
+session_stop_conn_timers(iscsi_session_t *session, int cid)
 {
 	iscsi_conn_t *conn = &session->conn[cid];
 
@@ -654,7 +654,7 @@ session_conn_cleanup(queue_task_t *qtask, mgmt_ipc_err_e err)
 	iscsi_session_t *session = conn->session;
 
 	mgmt_ipc_write_rsp(qtask, err);
-	session_conn_destroy(session, conn->id);
+	session_stop_conn_timers(session, conn->id);
 	__session_destroy(session);
 }
 
@@ -1908,7 +1908,7 @@ session_login_task(node_rec_t *rec, queue_task_t *qtask)
 
 		log_error("cannot make a connection to %s:%s (%d)",
 			 conn->host, serv, errno);
-		session_conn_destroy(session, 0);
+		session_stop_conn_timers(session, 0);
 		__session_destroy(session);
 		return MGMT_IPC_ERR_TRANS_FAILURE;
 	}
