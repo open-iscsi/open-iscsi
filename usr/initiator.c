@@ -476,18 +476,27 @@ session_conn_destroy(iscsi_session_t *session, int cid)
 
 	__send_pdu_timer_remove(conn);
 	actor_delete(&conn->connect_timer);
-	__recvpool_free(conn);
+}
+
+static void
+session_release(iscsi_session_t *session)
+{
+	log_debug(2, "Releasing session %p", session);
+
+	if (session->target_alias)
+		free(session->target_alias);
+	__recvpool_free(&session->conn[0]);
+	actor_delete(&session->mainloop);
+	queue_destroy(session->queue);
+	free(session);
 }
 
 static void
 session_put(iscsi_session_t *session)
 {
 	session->refcount--;
-	if (session->refcount == 0) {
-		actor_delete(&session->mainloop);
-		queue_destroy(session->queue);
-		free(session);
-	}
+	if (session->refcount == 0)
+		session_release(session);
 }
 
 static void
@@ -506,6 +515,7 @@ __session_create(node_rec_t *rec, struct iscsi_transport *t)
 		log_debug(1, "can not allocate memory for session");
 		return NULL;
 	}
+	log_debug(2, "Allocted session %p", session);
 
 	INIT_LIST_HEAD(&session->list);
 	session_get(session);
@@ -600,12 +610,29 @@ __session_create(node_rec_t *rec, struct iscsi_transport *t)
 	return session;
 }
 
+static void iscsi_queue_flush(queue_t *queue)
+{
+	unsigned char item_buf[sizeof(queue_item_t) + EVENT_PAYLOAD_MAX];
+	queue_item_t *item = (queue_item_t *)(void *)item_buf;
+
+	/* flush queue by consuming all enqueued items */
+	while (queue_consume(queue, EVENT_PAYLOAD_MAX,
+			     item) != QUEUE_IS_EMPTY) {
+		uintptr_t recv_handle = *(uintptr_t *)queue_item_data(item);
+
+		log_debug(7, "item %p(%d) data size %d flushed", item,
+			  item->event_type, item->data_size);
+		if (item->data_size)
+			recvpool_put(item->context, (void*)recv_handle);
+	}
+}
+
 static void
 __session_destroy(iscsi_session_t *session)
 {
 	log_debug(1, "destroying session\n");
 	list_del(&session->list);
-	queue_flush(session->queue);
+	iscsi_queue_flush(session->queue);
 	session_put(session);
 }
 
@@ -628,8 +655,7 @@ session_conn_cleanup(queue_task_t *qtask, mgmt_ipc_err_e err)
 
 	mgmt_ipc_write_rsp(qtask, err);
 	session_conn_destroy(session, conn->id);
-	if (conn->id == 0)
-		__session_destroy(session);
+	__session_destroy(session);
 }
 
 static mgmt_ipc_err_e
@@ -640,7 +666,7 @@ __session_conn_shutdown(iscsi_conn_t *conn, queue_task_t *qtask,
 
 	__conn_noop_out_delete(conn);
 	actor_delete(&conn->connect_timer);
-	queue_flush(session->queue);
+	iscsi_queue_flush(session->queue);
 
 	if (ipc->destroy_conn(session->t->handle, session->id,
 		conn->id)) {
@@ -746,7 +772,7 @@ __connect_timedout(void *data)
 
 	if (conn->state == STATE_XPT_WAIT) {
 		/* flush any polls or other events queued */
-		queue_flush(session->queue);
+		iscsi_queue_flush(session->queue);
 		log_debug(3, "__connect_timedout queue EV_CONN_TIMER\n");
 		queue_produce(session->queue, EV_CONN_TIMER, qtask, 0, NULL);
 		actor_schedule(&session->mainloop);
@@ -805,7 +831,7 @@ __session_conn_reopen(iscsi_conn_t *conn, queue_task_t *qtask, int do_stop)
 	qtask->conn = conn;
 
 	/* flush stale polls or errors queued */
-	queue_flush(session->queue);
+	iscsi_queue_flush(session->queue);
 	actor_delete(&conn->connect_timer);
 	__conn_noop_out_delete(conn);
 
@@ -888,7 +914,7 @@ iscsi_login_redirect(iscsi_conn_t *conn)
 
 	log_debug(3, "login redirect ...\n");
 
-	queue_flush(session->queue);
+	iscsi_queue_flush(session->queue);
 
 	if (session->r_stage == R_STAGE_NO_CHANGE)
 		session->r_stage = R_STAGE_SESSION_REDIRECT;
@@ -912,12 +938,26 @@ print_param_value(enum iscsi_param param, void *value, int type)
 		log_debug(3, "%u", *(uint32_t *)value);
 }
 
-static void
-__session_scan_host(int host_no, queue_task_t *qtask)
+void free_initiator(void)
+{
+	struct iscsi_transport *t;
+	iscsi_session_t *session, *tmp;
+
+	list_for_each_entry(t, &transports, list) {
+		list_for_each_entry_safe(session, tmp, &t->sessions, list) {
+			list_del(&session->list);
+			session_release(session);
+		}
+	}
+
+	free_transports();
+}
+
+static void session_scan_host(int hostno, queue_task_t *qtask)
 {
 	pid_t pid;
 
-	pid = scan_host(host_no, 1);
+	pid = scan_host(hostno, 1);
 	if (pid == 0) {
 		mgmt_ipc_write_rsp(qtask, MGMT_IPC_OK);
 		exit(0);
@@ -1168,7 +1208,7 @@ setup_full_feature_phase(iscsi_conn_t *conn)
 		 * don't want to re-scan it on recovery.
 		 */
 		if (conn->id == 0)
-			__session_scan_host(session->hostno, c->qtask);
+			session_scan_host(session->hostno, c->qtask);
 
 		log_warning("connection%d:%d is operational now",
 			    session->id, conn->id);
@@ -1680,7 +1720,8 @@ __conn_error_handle(iscsi_session_t *session, iscsi_conn_t *conn)
 static void
 __session_conn_error(queue_item_t *item)
 {
-	enum iscsi_err error = *(enum iscsi_err *)queue_item_data(item);
+	uintptr_t recv_handle = *(uintptr_t *)queue_item_data(item);
+	enum iscsi_err error = *(enum iscsi_err *)recv_handle;
 	iscsi_conn_t *conn = item->context;
 	iscsi_session_t *session = conn->session;
 
@@ -1688,7 +1729,7 @@ __session_conn_error(queue_item_t *item)
 		    "state (%d)", session->id, conn->id, error,
 		    conn->state);
 	__conn_error_handle(session, conn);
-
+	recvpool_put(conn, (void*)recv_handle);
 }
 
 static void
@@ -2026,7 +2067,7 @@ void iscsi_async_session_creation(uint32_t host_no, uint32_t sid)
 {
 	log_debug(3, "session created sid %u host no %d", sid, host_no);
 	session_online_devs(host_no, sid);
-	__session_scan_host(host_no, NULL);
+	session_scan_host(host_no, NULL);
 }
 
 void iscsi_async_session_destruction(uint32_t host_no, uint32_t sid)

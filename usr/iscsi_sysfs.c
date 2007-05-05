@@ -75,6 +75,16 @@ int read_sysfs_file(char *filename, void *value, char *format)
 	return err;
 }
 
+void free_transports(void)
+{
+	struct iscsi_transport *t, *tmp;
+
+	list_for_each_entry_safe(t, tmp, &transports, list) {
+		list_del(&t->list);
+		free(t);
+	}
+}
+
 static int trans_filter(const struct dirent *dir)
 {
 	return strcmp(dir->d_name, ".") && strcmp(dir->d_name, "..");
@@ -854,7 +864,7 @@ void check_class_version(void)
 	if (get_iscsi_kernel_version(version))
 		goto fail;
 
-	log_warning("transport class version %s. iscsid version %s\n",
+	log_warning("transport class version %s. iscsid version %s",
 		    version, ISCSI_VERSION_STR);
 
 	for (i = 0; i < strlen(version); i++) {
@@ -875,9 +885,9 @@ void check_class_version(void)
 		return;
 
 fail:
-	log_error("Invalid version from %s. Make sure a up to date "
-		  "scsi_transport_iscsi module is loaded and a up to"
-		  "date version of iscsid is running. Exiting...",
-		  ISCSI_VERSION_FILE);
+	log_error( "Missing or Invalid version from %s. Make sure a up "
+		"to date scsi_transport_iscsi module is loaded and a up to"
+		"date version of iscsid is running. Exiting...",
+		ISCSI_VERSION_FILE);
 	exit(1);
 }

@@ -341,14 +341,17 @@ static void catch_signal(int signo)
 		break;
 	}
 
-	log_warning("pid %d caught signal -%d", getpid(), signo);
+	log_debug(1, "pid %d caught signal -%d", getpid(), signo);
 }
 
 static void __log_close(void)
 {
-	log_flush();
-	closelog();
-	free_logarea();
+	if (log_daemon) {
+		fprintf(stderr, "close log\n");
+		log_flush();
+		closelog();
+		free_logarea();
+	}
 }
 
 int log_init(char *program_name, int size)
@@ -405,7 +408,7 @@ void log_close(pid_t pid)
 {
 	int status;
 
-	if (!log_daemon || pid <= 0) {
+	if (!log_daemon || pid < 0) {
 		__log_close();
 		return;
 	}

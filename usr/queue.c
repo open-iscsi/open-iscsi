@@ -182,20 +182,6 @@ queue_consume(queue_t *queue, int data_max_size, queue_item_t *item)
 	return QUEUE_OK;
 }
 
-void
-queue_flush(queue_t *queue)
-{
-	unsigned char item_buf[sizeof(queue_item_t) + EVENT_PAYLOAD_MAX];
-	queue_item_t *item = (queue_item_t *)(void *)item_buf;
-
-	/* flush queue by consuming all enqueued items */
-	while (queue_consume(queue, EVENT_PAYLOAD_MAX,
-				item) != QUEUE_IS_EMPTY) {
-		/* do nothing */
-		log_debug(7, "item %p(%d) flushed", item, item->event_type);
-	}
-}
-
 void*
 queue_item_data (queue_item_t *item)
 {

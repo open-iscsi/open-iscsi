@@ -1905,5 +1905,6 @@ free_ifaces:
 		list_del(&iface->list);
 		free(iface);
 	}
+	free_transports();
 	return rc;
 }

@@ -332,6 +332,7 @@ int main(int argc, char *argv[])
 	event_loop(ipc, control_fd, mgmt_ipc_fd, -1);
 	ipc->ctldev_close();
 	mgmt_ipc_close(mgmt_ipc_fd);
+	free_initiator();
 
 	log_debug(1, "iscsi child done");
 	return 0;

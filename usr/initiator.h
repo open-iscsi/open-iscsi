@@ -354,6 +354,7 @@ extern mgmt_ipc_err_e iscsi_host_send_targets(queue_task_t *qtask,
 			int host_no, int do_login, struct sockaddr_storage *ss);
 extern void iscsi_async_session_creation(uint32_t host_no, uint32_t sid);
 extern void iscsi_async_session_destruction(uint32_t host_no, uint32_t sid);
+extern void free_initiator(void);
 
 /* isns.c */
 extern int isns_init(void);

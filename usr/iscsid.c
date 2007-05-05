@@ -53,6 +53,7 @@ struct iscsi_daemon_config *dconfig = &daemon_config;
 
 static char program_name[] = "iscsid";
 int control_fd, mgmt_ipc_fd;
+static pid_t log_pid;
 
 extern char sysfs_file[];
 
@@ -252,6 +253,18 @@ static void catch_signal(int signo) {
 	log_warning("caught signal -%d, ignoring...", signo);
 }
 
+static void iscsid_exit(void)
+{
+	log_debug(1, "iscsid_exit");
+	if (daemon_config.initiator_name)
+		free(daemon_config.initiator_name);
+	if (daemon_config.initiator_alias)
+		free(daemon_config.initiator_alias);
+	free_initiator();
+	mgmt_ipc_close(mgmt_ipc_fd);
+	ipc->ctldev_close();
+}
+
 int main(int argc, char *argv[])
 {
 	struct utsname host_info; /* will use to compound initiator alias */
@@ -313,20 +326,36 @@ int main(int argc, char *argv[])
 
 	/* make sure we have initiatorname config file first */
 	if (access(initiatorname_file, R_OK)) {
-		fprintf(stderr, "Error: initiatorname file doesn't exist!");
-		fprintf(stderr, " default [%s]\n", INITIATOR_NAME_FILE);
+		fprintf(stderr, "Error: initiatorname file %s doesn't exist.\n",
+			initiatorname_file);
+		fprintf(stderr, "Please create a file %s that contains\n",
+			initiatorname_file);
+		fprintf(stderr, "a sting with the format: InitiatorName="
+			"iqn.yyyy-mm.<reversed domain name>[:identifier].\n");
+		fprintf(stderr, "Example: InitiatorName=iqn.2001-04.com.redhat:"
+			"fc6\n");
 		usage(0);
 	}
 
 	/* initialize logger */
-	log_init(program_name, DEFAULT_AREA_SIZE);
+	log_pid = log_init(program_name, DEFAULT_AREA_SIZE);
+	if (log_pid < 0)
+		exit(1);
 	check_class_version();
 
 	umask(0177);
 
-	if ((mgmt_ipc_fd = mgmt_ipc_listen()) < 0) {
-		exit(-1);
+	mgmt_ipc_fd = -1;
+	control_fd = -1;
+	daemon_config.initiator_name = NULL;
+	daemon_config.initiator_alias = NULL;
+	if (atexit(iscsid_exit)) {
+		log_error("failed to set exit function\n");
+		exit(1);
 	}
+
+	if ((mgmt_ipc_fd = mgmt_ipc_listen()) < 0)
+		exit(-1);
 
 	if (log_daemon) {
 		char buf[64];
@@ -334,25 +363,24 @@ int main(int argc, char *argv[])
 
 		fd = open(pid_file, O_WRONLY|O_CREAT, 0644);
 		if (fd < 0) {
-			log_error("unable to create pid file");
+			log_error("Unable to create pid file");
 			exit(1);
 		}
 		pid = fork();
 		if (pid < 0) {
-			log_error("starting daemon failed");
+			log_error("Starting daemon failed");
 			exit(1);
 		} else if (pid) {
-			log_warning("iSCSI daemon with pid=%d started!", pid);
+			log_error("iSCSI daemon with pid=%d started!", pid);
 			exit(0);
 		}
 
-		if ((control_fd = ipc->ctldev_open()) < 0) {
+		if ((control_fd = ipc->ctldev_open()) < 0)
 			exit(-1);
-		}
 
 		chdir("/");
 		if (lockf(fd, F_TLOCK, 0) < 0) {
-			log_error("unable to lock pid file");
+			log_error("Unable to lock pid file");
 			exit(1);
 		}
 		ftruncate(fd, 0);
@@ -361,9 +389,8 @@ int main(int argc, char *argv[])
 
 		daemon_init();
 	} else {
-		if ((control_fd = ipc->ctldev_open()) < 0) {
+		if ((control_fd = ipc->ctldev_open()) < 0)
 			exit(-1);
-		}
 	}
 
 	if (uid && setuid(uid) < 0)
@@ -397,6 +424,17 @@ int main(int argc, char *argv[])
 	log_debug(1, "InitiatorName=%s", daemon_config.initiator_name);
 	log_debug(1, "InitiatorAlias=%s", daemon_config.initiator_alias);
 
+	pid = fork();
+	if (pid == 0) {
+		/* child */
+		sync_sessions();
+		exit(0);
+	} else if (pid < 0) {
+		log_error("Fork failed error %d: existing sessions"
+			  " will not be synced", errno);
+	} else
+		need_reap();
+
 	/* oom-killer will not kill us at the night... */
 	if (oom_adjust())
 		log_debug(1, "can not adjust oom-killer's pardon");
@@ -407,24 +445,11 @@ int main(int argc, char *argv[])
 		exit(1);
 	}
 
-	pid = fork();
-	if (pid == 0) {
-		/* child */
-		sync_sessions();
-		exit(0);
-	} else if (pid < 0) {
-		log_error("fork failed error %d: existing sessions"
-			  " will not be synced", errno);
-	} else {
-		/* parent continues */
-		log_warning("iSCSI sync pid=%d started", pid);
-		need_reap();
-	}
-
 	actor_init();
 	isns_fd = isns_init();
 	event_loop(ipc, control_fd, mgmt_ipc_fd, isns_fd);
 	isns_exit();
+
 	log_debug(1, "daemon stopping");
 	return 0;
 }

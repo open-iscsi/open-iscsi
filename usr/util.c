@@ -162,7 +162,7 @@ int do_iscsid(iscsiadm_req_t *req, iscsiadm_rsp_t *rsp)
 	if (!err && req->command != rsp->command)
 		err = -EIO;
 out:
-	if (fd > 0)
+	if (fd >= 0)
 		close(fd);
 	return err;
 }

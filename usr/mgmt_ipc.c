@@ -54,7 +54,7 @@ mgmt_ipc_listen(void)
 
 	fd = socket(AF_LOCAL, SOCK_STREAM, 0);
 	if (fd < 0) {
-		log_error("can not create IPC socket");
+		log_error("Can not create IPC socket");
 		return fd;
 	}
 
@@ -64,18 +64,16 @@ mgmt_ipc_listen(void)
 		strlen(ISCSIADM_NAMESPACE));
 
 	if ((err = bind(fd, (struct sockaddr *) &addr, sizeof(addr))) < 0) {
-		log_error("can not bind IPC socket");
+		log_error("Can not bind IPC socket");
 		close(fd);
 		return err;
 	}
 
 	if ((err = listen(fd, 32)) < 0) {
-		log_error("can not listen IPC socket");
+		log_error("Can not listen IPC socket");
 		close(fd);
 		return err;
 	}
-
-	log_debug(1, "IPC socket is listening...");
 
 	return fd;
 }

@@ -64,6 +64,5 @@ extern queue_status_e queue_produce(queue_t* queue, int event_type,
 	    void *context, const int data_size, void *data);
 extern queue_status_e queue_consume(queue_t *queue, int	data_max_size,
 				    queue_item_t *item);
-extern void queue_flush(queue_t *queue);
 
 #endif /* QUEUE_H */

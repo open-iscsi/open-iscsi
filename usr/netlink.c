@@ -942,10 +942,11 @@ verify_conn:
 		break;
 	case ISCSI_KEVENT_CONN_ERROR:
 		/* produce an event, so session manager will handle */
+		memcpy((void *)recv_handle, &ev->r.connerror.error,
+			sizeof(ev->r.connerror.error));
 		queue_produce(session->queue, EV_CONN_ERROR, conn,
-			sizeof(uintptr_t), (void*)&ev->r.connerror.error);
+			sizeof(uintptr_t), &recv_handle);
 		actor_schedule(&session->mainloop);
-		recvpool_put(conn, (void*)recv_handle);
 		break;
 	default:
 		recvpool_put(conn, (void*)recv_handle);
@@ -986,7 +987,7 @@ ctldev_open(void)
 	}
 
 	ctrl_fd = socket(PF_NETLINK, SOCK_RAW, NETLINK_ISCSI);
-	if (!ctrl_fd) {
+	if (ctrl_fd < 0) {
 		log_error("can not create NETLINK_ISCSI socket");
 		goto free_setparam_buf;
 	}
@@ -1031,7 +1032,8 @@ ctldev_close(void)
 	free(pdu_sendbuf);
 	free(nlm_recvbuf);
 	free(nlm_sendbuf);
-	close(ctrl_fd);
+	if (ctrl_fd >= 0)
+		close(ctrl_fd);
 }
 
 struct iscsi_ipc nl_ipc = {
