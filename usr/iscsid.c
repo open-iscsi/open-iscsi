@@ -95,26 +95,25 @@ Open-iSCSI initiator daemon.\n\
 
 static void
 setup_rec_from_negotiated_values(idbm_t *db, node_rec_t *rec,
-				struct iscsi_transport *t, char *targetname,
-				int tpgt, char *address,
-				int port, int sid, char *hwaddress)
+				struct iscsi_transport *t,
+				struct session_info *info)
 {
 	struct iscsi_session_operational_config session_conf;
 	struct iscsi_conn_operational_config conn_conf;
 	struct iscsi_auth_config auth_conf;
 
 	idbm_node_setup_from_conf(db, rec);
-	strncpy(rec->name, targetname, TARGET_NAME_MAXLEN);
-	rec->conn[0].port = port;
-	strncpy(rec->conn[0].address, address, NI_MAXHOST);
-	strncpy(rec->iface.hwaddress, hwaddress, ISCSI_MAX_IFACE_LEN);
+	strncpy(rec->name, info->targetname, TARGET_NAME_MAXLEN);
+	rec->conn[0].port = info->persistent_port;
+	strncpy(rec->conn[0].address, info->persistent_address, NI_MAXHOST);
+	strncpy(rec->iface.hwaddress, info->hwaddress, ISCSI_MAX_IFACE_LEN);
 	strncpy(rec->iface.transport_name, t->name,
 		ISCSI_TRANSPORT_NAME_MAXLEN);
-	rec->tpgt = tpgt;
+	rec->tpgt = info->tpgt;
 
-	get_negotiated_session_conf(sid, &session_conf);
-	get_negotiated_conn_conf(sid, &conn_conf);
-	get_auth_conf(sid, &auth_conf);
+	get_negotiated_session_conf(info->sid, &session_conf);
+	get_negotiated_conn_conf(info->sid, &conn_conf);
+	get_auth_conf(info->sid, &auth_conf);
 
 	if (strlen(auth_conf.username))
 		strcpy(rec->session.auth.username, auth_conf.username);
@@ -183,8 +182,7 @@ setup_rec_from_negotiated_values(idbm_t *db, node_rec_t *rec,
 	}
 }
 
-static int sync_session(void *data, char *targetname, int tpgt, char *address,
-			int port, int sid, char *hwaddress)
+static int sync_session(void *data, struct session_info *info)
 {
 	idbm_t *db = data;
 	node_rec_t rec;
@@ -192,10 +190,11 @@ static int sync_session(void *data, char *targetname, int tpgt, char *address,
 	iscsiadm_rsp_t rsp;
 	struct iscsi_transport *t;
 
-	log_debug(7, "sync session [%d][%s,%s.%d][%s]\n", sid, targetname,
-		  address, port, hwaddress);
+	log_debug(7, "sync session [%d][%s,%s.%d][%s]\n", info->sid,
+		  info->targetname, info->persistent_address,
+		  info->port, info->hwaddress);
 
-	t = get_transport_by_sid(sid);
+	t = get_transport_by_sid(info->sid);
 	if (!t)
 		return 0;
 
@@ -207,30 +206,30 @@ static int sync_session(void *data, char *targetname, int tpgt, char *address,
 		uint32_t host_no;
 		int err;
 
-		host_no = get_host_no_from_sid(sid, &err);
+		host_no = get_host_no_from_sid(info->sid, &err);
 		if (err) {
 			log_error("Could not get host no from sid %u. Can not "
-				  "sync session. Error %d", sid, err);
+				  "sync session. Error %d", info->sid, err);
 			return 0;
 		}
 		scan_host(host_no, 0);
 		return 0;
 	}
 
-	if (!idbm_node_read(db, &rec, targetname, address, port, hwaddress)) {
-		if (!iscsi_match_session(&rec, targetname, tpgt, address,
-					  port, sid, hwaddress))
+	if (!idbm_node_read(db, &rec, info->targetname,
+			   info->persistent_address, info->persistent_port,
+			   info->hwaddress)) {
+		if (!iscsi_match_session(&rec, info))
 			return 0;
 	} else {
 		log_warning("Could not read data from db. Using default and "
 			    "currently negotiated values\n");
-		setup_rec_from_negotiated_values(db, &rec, t, targetname, tpgt,
-						address, port, sid, hwaddress);
+		setup_rec_from_negotiated_values(db, &rec, t, info);
 	}
 
 	memset(&req, 0, sizeof(req));
 	req.command = MGMT_IPC_SESSION_SYNC;
-	req.u.session.sid = sid;
+	req.u.session.sid = info->sid;
 	memcpy(&req.u.session.rec, &rec, sizeof(node_rec_t));
 
 	do_iscsid(&req, &rsp);

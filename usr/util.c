@@ -251,10 +251,9 @@ void iscsid_handle_error(int err)
 	log_error("initiator reported error (%d - %s)", err, err_msgs[err]);
 }
 
-int iscsi_match_session(void *data, char *targetname, int tpgt,
-			char *address, int port, int sid, char *hwaddress)
+int __iscsi_match_session(node_rec_t *rec, char *targetname, int tpgt,
+			  char *address, int port, int sid, char *hwaddress)
 {
-	node_rec_t *rec = data;
 	struct iscsi_transport *t;
 
 	log_debug(6, "looking for session [%d][%s,%s,%d][%s]", sid,
@@ -274,4 +273,12 @@ int iscsi_match_session(void *data, char *targetname, int tpgt,
 
 	/* keep on looking */
 	return 0;
+}
+
+int iscsi_match_session(void *data, struct session_info *info)
+{
+	return __iscsi_match_session(data, info->targetname, info->tpgt,
+				     info->persistent_address,
+				     info->persistent_port,
+				     info->sid, info->hwaddress);
 }

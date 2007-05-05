@@ -439,21 +439,19 @@ free_iname:
 	return rc;
 }
 
-int get_sessioninfo_by_sysfs_id(int *sid, char *targetname, char *addr,
-				int *port, int *tpgt, char *hwaddress,
-				char *session)
+int get_sessioninfo_by_sysfs_id(struct session_info *info, char *session)
 {
-	int ret;
+	int ret, pers_failed = 0;
 	uint32_t host_no;
 
-	if (sscanf(session, "session%d", sid) != 1) {
+	if (sscanf(session, "session%d", &info->sid) != 1) {
 		log_error("invalid session '%s'", session);
 		return EINVAL;
 	}
 
 	memset(sysfs_file, 0, PATH_MAX);
 	sprintf(sysfs_file, ISCSI_SESSION_DIR"/%s/targetname", session);
-	ret = read_sysfs_file(sysfs_file, targetname, "%s\n");
+	ret = read_sysfs_file(sysfs_file, info->targetname, "%s\n");
 	if (ret) {
 		log_error("could not read session targetname: %d", ret);
 		return ret;
@@ -461,7 +459,7 @@ int get_sessioninfo_by_sysfs_id(int *sid, char *targetname, char *addr,
 
 	memset(sysfs_file, 0, PATH_MAX);
 	sprintf(sysfs_file, ISCSI_SESSION_DIR"/%s/tpgt", session);
-	ret = read_sysfs_file(sysfs_file, tpgt, "%u\n");
+	ret = read_sysfs_file(sysfs_file, &info->tpgt, "%u\n");
 	if (ret) {
 		log_error("could not read session tpgt: %d", ret);
 		return ret;
@@ -470,40 +468,62 @@ int get_sessioninfo_by_sysfs_id(int *sid, char *targetname, char *addr,
 	/* some HW drivers do not export addr and port */
 	memset(sysfs_file, 0, PATH_MAX);
 	sprintf(sysfs_file, ISCSI_CONN_DIR"/connection%d:0/"
-		"persistent_address", *sid);
-	memset(addr, 0, NI_MAXHOST);
-	ret = read_sysfs_file(sysfs_file, addr, "%s\n");
+		"persistent_address", info->sid);
+	memset(info->persistent_address, 0, NI_MAXHOST);
+	ret = read_sysfs_file(sysfs_file, info->persistent_address, "%s\n");
 	if (ret) {
-		/* fall back to current address */
+		pers_failed = 1;
+		/* older qlogic does not support this */
 		log_debug(5, "could not read pers conn addr: %d", ret);
-		memset(sysfs_file, 0, PATH_MAX);
-		sprintf(sysfs_file, ISCSI_CONN_DIR"/connection%d:0/address",
-			 *sid);
-		memset(addr, 0, NI_MAXHOST);
-		ret = read_sysfs_file(sysfs_file, addr, "%s\n");
-		if (ret)
-			log_debug(5, "could not read curr addr: %d", ret);
 	}
 
 	memset(sysfs_file, 0, PATH_MAX);
-	sprintf(sysfs_file, ISCSI_CONN_DIR"/connection%d:0/"
-		"persistent_port", *sid);
-	*port = -1;
-	ret = read_sysfs_file(sysfs_file, port, "%u\n");
+	sprintf(sysfs_file, ISCSI_CONN_DIR"/connection%d:0/address",
+		 info->sid);
+	memset(info->address, 0, NI_MAXHOST);
+	ret = read_sysfs_file(sysfs_file, info->address, "%s\n");
 	if (ret) {
-		/* fall back to current port */
+		log_debug(5, "could not read curr addr: %d", ret);
+		/* iser did not export this */
+		if (!pers_failed)
+			strcpy(info->address, info->persistent_address);
+	} else if (pers_failed)
+		/*
+		 * for qla if we could not get the persistent addr
+		 * we will use the current for both addrs
+		 */
+		strcpy(info->persistent_address, info->address);
+	pers_failed = 0;
+
+	memset(sysfs_file, 0, PATH_MAX);
+	sprintf(sysfs_file, ISCSI_CONN_DIR"/connection%d:0/"
+		"persistent_port", info->sid);
+	info->persistent_port = -1;
+	ret = read_sysfs_file(sysfs_file, &info->persistent_port, "%u\n");
+	if (ret) {
+		pers_failed = 1;
 		log_debug(5, "Could not read pers conn port %d\n", ret);
-		memset(sysfs_file, 0, PATH_MAX);
-		sprintf(sysfs_file, ISCSI_CONN_DIR"/connection%d:0/port",
-			*sid);
-		*port = -1;
-		ret = read_sysfs_file(sysfs_file, port, "%u\n");
-		if (ret)
-			log_debug(5, "Could not read curr conn port %d\n", ret);
 	}
 
+	memset(sysfs_file, 0, PATH_MAX);
+	sprintf(sysfs_file, ISCSI_CONN_DIR"/connection%d:0/port",
+		info->sid);
+	info->port = -1;
+	ret = read_sysfs_file(sysfs_file, &info->port, "%u\n");
+	if (ret) {
+		/* iser did not export this */
+		if (!pers_failed)
+			info->port = info->persistent_port;
+		log_debug(5, "Could not read curr conn port %d\n", ret);
+	} else if (pers_failed)
+		/*
+		 * for qla if we could not get the persistent addr
+		 * we will use the current for both addrs
+		 */
+		info->persistent_port = info->port;
+
 	ret = 0;
-	host_no = get_host_no_from_sid(*sid, &ret);
+	host_no = get_host_no_from_sid(info->sid, &ret);
 	if (ret) {
 		log_error("could not get host_no for session %d.", ret);
 		return ret;
@@ -516,55 +536,44 @@ int get_sessioninfo_by_sysfs_id(int *sid, char *targetname, char *addr,
 	 * If we cannot get the address we assume we are doing the old
 	 * style and use default.
 	 */
-	sprintf(hwaddress, DEFAULT_HWADDRESS);
-	ret = read_sysfs_file(sysfs_file, hwaddress, "%s\n");
+	sprintf(info->hwaddress, DEFAULT_HWADDRESS);
+	ret = read_sysfs_file(sysfs_file, info->hwaddress, "%s\n");
 	if (ret)
 		log_debug(7, "could not read hwaddress for %s\n", sysfs_file);
 
-	log_debug(7, "found targetname %s address %s port %d hwaddress %s\n",
-		  targetname, addr ? addr : "NA", *port, hwaddress);
+	log_debug(7, "found targetname %s address %s pers address %s port %d "
+		 "pers port %d hwaddress %s\n",
+		  info->targetname, info->address ? info->address : "NA",
+		  info->persistent_address ? info->persistent_address : "NA",
+		  info->port, info->persistent_port, info->hwaddress);
 	return 0;
 }
  
 int sysfs_for_each_session(void *data, int *nr_found, sysfs_session_op_fn *fn)
 {
 	struct dirent **namelist;
-	int rc = 0, sid, port, tpgt, n, i;
-	char *targetname, *address, *hwaddress;
+	int rc = 0, n, i;
+	struct session_info *info;
 
-	targetname = malloc(TARGET_NAME_MAXLEN + 1);
-	if (!targetname)
+	info = calloc(1, sizeof(*info));
+	if (!info)
 		return ENOMEM;
-
-	address = malloc(NI_MAXHOST + 1);
-	if (!address) {
-		rc = ENOMEM;
-		goto free_target;
-	}
-
-	hwaddress = malloc(ISCSI_MAX_IFACE_LEN);
-	if (!hwaddress) {
-		rc = ENOMEM;
-		goto free_hwaddress;
-	}
 
 	sprintf(sysfs_file, ISCSI_SESSION_DIR);
 	n = scandir(sysfs_file, &namelist, trans_filter,
 		    versionsort);
 	if (n <= 0)
-		goto free_address;
+		goto free_info;
 
 	for (i = 0; i < n; i++) {
-		rc = get_sessioninfo_by_sysfs_id(&sid, targetname, address,
-						 &port, &tpgt, hwaddress,
-						 namelist[i]->d_name);
+		rc = get_sessioninfo_by_sysfs_id(info, namelist[i]->d_name);
 		if (rc) {
 			log_error("could not find session info for %s",
 				   namelist[i]->d_name);
 			continue;
 		}
 
-		rc = fn(data, targetname, tpgt, address, port, sid, hwaddress);
+		rc = fn(data, info);
 		if (rc != 0)
 			break;
 		(*nr_found)++;
@@ -574,12 +583,8 @@ int sysfs_for_each_session(void *data, int *nr_found, sysfs_session_op_fn *fn)
 		free(namelist[i]);
 	free(namelist);
 
-free_hwaddress:
-	free(hwaddress);
-free_address:
-	free(address);
-free_target:
-	free(targetname);
+free_info:
+	free(info);
 	return rc;
 }
 

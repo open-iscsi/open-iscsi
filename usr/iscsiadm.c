@@ -215,8 +215,7 @@ session_login(node_rec_t *rec)
 }
 
 static int
-__delete_target(void *data, char *targetname, int tpgt, char *address,
-	      int port, int sid, char *hwaddress)
+__delete_target(void *data, struct session_info *info)
 {
 	node_rec_t *rec = data;
 	uint32_t host_no;
@@ -225,15 +224,14 @@ __delete_target(void *data, char *targetname, int tpgt, char *address,
 	log_debug(6, "looking for session [%s,%s,%d]",
 		  rec->name, rec->conn[0].address, rec->conn[0].port);
 
-	if (iscsi_match_session(rec, targetname, tpgt, address, port,
-				sid, hwaddress)) {
-		host_no = get_host_no_from_sid(sid, &err);
+	if (iscsi_match_session(rec, info)) {
+		host_no = get_host_no_from_sid(info->sid, &err);
 		if (err) {
 			log_error("Could not properly delete target\n");
 			return 1;
 		}
 
-		sysfs_for_each_device(host_no, sid, delete_device);
+		sysfs_for_each_device(host_no, info->sid, delete_device);
 		return 1;
 	}
 
@@ -290,8 +288,7 @@ struct session_mgmt_fn {
 };
 
 static int
-__logout_by_startup(void *data, char *targetname, int tpgt, char *address,
-		    int port, int sid, char *hwaddress)
+__logout_by_startup(void *data, struct session_info *info)
 {
 	struct session_mgmt_fn *mgmt = data;
 	char *mode = mgmt->mode;
@@ -299,19 +296,21 @@ __logout_by_startup(void *data, char *targetname, int tpgt, char *address,
 	node_rec_t rec;
 	int rc = 0;
 
-	if (idbm_node_read(db, &rec, targetname, address, port, hwaddress)) {
+	if (idbm_node_read(db, &rec, info->targetname,
+			   info->persistent_address,
+			   info->persistent_port, info->hwaddress)) {
 		/*
 		 * this is due to a HW driver or some other driver
 		 * not hooked in
 		 */
 		log_debug(7, "could not read data for [%s,%s.%d]\n",
-			  targetname, address, port);
+			  info->targetname, info->persistent_address,
+			  info->persistent_port);
 		return 0;
 	}
 
 	/* multiple drivers could be connected to the same portal */
-	if (!iscsi_match_session(&rec, targetname, tpgt, address, port,
-				sid, hwaddress))
+	if (!iscsi_match_session(&rec, info))
 		return 0;
 
 	/*
@@ -322,8 +321,9 @@ __logout_by_startup(void *data, char *targetname, int tpgt, char *address,
 		return 0;
 
 	if (!match_startup_mode(&rec, mode)) {
-		printf("Logout session [%s [%d] [%s]:%d %s]\n", hwaddress, sid,
-			address, port, targetname);
+		printf("Logout session [%s [%d] %s,%d %s]\n", info->hwaddress,
+			info->sid, info->persistent_address, info->port,
+			info->targetname);
 
 		rc = session_logout(&rec);
 		/* we raced with another app or instance of iscsiadm */
@@ -360,9 +360,9 @@ logout_by_startup(idbm_t *db, char *mode)
 	return sysfs_for_each_session(&mgmt, &num_found, __logout_by_startup);
 }
 
-static int match_valid_session(node_rec_t *rec, char *targetname,
-			       char *address, int port, char *hwaddress,
-			       char *driver)
+static int __match_valid_session(node_rec_t *rec, char *targetname,
+				 char *address, int port, char *hwaddress,
+				 char *driver)
 {
 	if (strlen(rec->name) && strcmp(rec->name, targetname))
 		return 0;
@@ -385,39 +385,49 @@ static int match_valid_session(node_rec_t *rec, char *targetname,
 	return 1;
 }
 
+static int match_valid_session(node_rec_t *rec, struct session_info *info,
+			       char *driver)
+{
+	return __match_valid_session(rec, info->targetname,
+				     info->persistent_address,
+				     info->persistent_port, info->hwaddress,
+				     driver);
+}
+
 static int
-logout_portal(void *data, char *targetname, int tpgt, char *address,
-	      int port, int sid, char *hwaddress)
+logout_portal(void *data, struct session_info *info)
 {
 	node_rec_t tmprec, *rec = data;
 	struct iscsi_transport *t;
 	int rc;
 
-	t = get_transport_by_sid(sid);
+	t = get_transport_by_sid(info->sid);
 	if (!t)
 		return 0;
 
-	if (!match_valid_session(rec, targetname, address, port, hwaddress,
-				 t->name))
+	if (!match_valid_session(rec, info, t->name))
 		return 0;
 
 	/* we do not support this yet */
 	if (t->caps & CAP_FW_DB) {
-		log_error("Could not logout [%s [%d] [%s]:%d %s].", hwaddress,
-			  sid, address, port, targetname);
+		log_error("Could not logout [%s [%d] %s,%d %s].",
+			  info->hwaddress, info->sid,
+			  info->persistent_address, info->persistent_port,
+			  info->targetname);
 		log_error("Logout not supported for driver: %s.", t->name);
 		return 0;
 	}
 
-	printf("Logout session [%s [%d] [%s]:%d %s]\n", hwaddress, sid, address,
-		port, targetname);
+	printf("Logout session [%s [%d] %s,%d %s]\n", info->hwaddress,
+		info->sid, info->persistent_address, info->port,
+		info->targetname);
 
 	memset(&tmprec, 0, sizeof(node_rec_t));
 	idbm_node_setup_defaults(&tmprec);
-	strncpy(tmprec.name, targetname, TARGET_NAME_MAXLEN);
-	tmprec.conn[0].port = port;
-	strncpy(tmprec.conn[0].address, address, NI_MAXHOST);
-	strncpy(tmprec.iface.hwaddress, hwaddress, ISCSI_MAX_IFACE_LEN);
+	strncpy(tmprec.name, info->targetname, TARGET_NAME_MAXLEN);
+	tmprec.conn[0].port = info->persistent_port;
+	strncpy(tmprec.conn[0].address, info->persistent_address, NI_MAXHOST);
+	strncpy(tmprec.iface.hwaddress, info->hwaddress, ISCSI_MAX_IFACE_LEN);
 	strncpy(tmprec.iface.transport_name, t->name,
 		ISCSI_TRANSPORT_NAME_MAXLEN);
 
@@ -475,21 +485,11 @@ for_each_session(idbm_t *db, char *targetname, char *ip, int port,
 	return err;
 }
 
-struct session_data {
-	struct list_head list;
-	char *targetname;
-	char *address;
-	char *hwaddress;
-	int port;
-	int sid;
-	int tpgt;
-};
-
 static int login_portal(idbm_t *db, void *data, node_rec_t *rec)
 {
 	int rc;
 
-	printf("Login session [%s:%s [%s]:%d %s]\n", rec->iface.transport_name,
+	printf("Login session [%s:%s %s,%d %s]\n", rec->iface.transport_name,
 		rec->iface.hwaddress, rec->conn[0].address,
 		rec->conn[0].port, rec->name);
 
@@ -544,7 +544,7 @@ static int iface_fn(idbm_t *db, void *data, node_rec_t *rec)
 {
 	struct rec_op_data *op_data = data;
 
-	if (!match_valid_session(op_data->match_rec, rec->name,
+	if (!__match_valid_session(op_data->match_rec, rec->name,
 				 rec->conn[0].address, rec->conn[0].port,
 				 rec->iface.hwaddress,
 				 rec->iface.transport_name))
@@ -643,44 +643,32 @@ config_init(void)
 	return 0;
 }
 
-static int print_session_flat(void *data, char *targetname, int tpgt,
-			      char *address, int port, int sid, char *hwaddress)
+static int print_session_flat(void *data, struct session_info *info)
 {
-	struct iscsi_transport *t = get_transport_by_sid(sid);
+	struct iscsi_transport *t = get_transport_by_sid(info->sid);
 
-	if (strchr(address, '.'))
+	if (strchr(info->persistent_address, '.'))
 		printf("%s: [%d] %s:%d,%d %s\n",
 			t ? t->name : "NA",
-			sid, address, port, tpgt, targetname);
+			info->sid, info->persistent_address,
+			info->persistent_port, info->tpgt, info->targetname);
 	else
 		printf("%s: [%d] [%s]:%d,%d %s\n",
 			t ? t->name : "NA",
-			sid, address, port, tpgt, targetname);
+			info->sid, info->persistent_address,
+			info->persistent_port, info->tpgt, info->targetname);
 	return 0;
 }
 
-static int link_sessions(void *data, char *targetname, int tpgt, char *address,
-			 int port, int sid, char *hwaddress)
+static int link_sessions(void *data, struct session_info *info)
 {
 	struct list_head *list = data;
-	struct session_data *new, *curr, *match = NULL;
+	struct session_info *new, *curr, *match = NULL;
 
 	new = calloc(1, sizeof(*new));
 	if (!new)
-		goto fail;
-
-	new->targetname = strdup(targetname);
-	if (!new)
-		goto free_new;
-	new->address = strdup(address);
-	if (!new->address)
-		goto free_targetname;
-	new->hwaddress = strdup(hwaddress);
-	if (!new->hwaddress)
-		goto free_address;
-	new->port = port;
-	new->sid = sid;
-	new->tpgt = tpgt;
+		return ENOMEM;
+	memcpy(new, info, sizeof(*new));
 
 	if (list_empty(list)) {
 		list_add_tail(&new->list, list);
@@ -688,13 +676,13 @@ static int link_sessions(void *data, char *targetname, int tpgt, char *address,
 	}
 
 	list_for_each_entry(curr, list, list) {
-		if (!strcmp(curr->targetname, targetname)) {
+		if (!strcmp(curr->targetname, info->targetname)) {
 			match = curr;
 
-			if (!strcmp(curr->address, address)) {
+			if (!strcmp(curr->address, info->address)) {
 				match = curr;
 
-				if (curr->port == port) {
+				if (curr->port == info->port) {
 					match = curr;
 					break;
 				}
@@ -704,15 +692,6 @@ static int link_sessions(void *data, char *targetname, int tpgt, char *address,
 
 	list_add_tail(&new->list, match ? &match->list : list);
 	return 0;
-
-free_address:
-	free(new->address);
-free_targetname:
-	free(new->targetname);
-free_new:
-	free(new);
-fail:
-	return -ENOMEM;
 }
 
 static int print_iscsi_state(int sid)
@@ -845,7 +824,7 @@ static int print_scsi_state(int sid)
 
 static void print_sessions_tree(struct list_head *list, int level)
 {
-	struct session_data *curr, *prev = NULL, *tmp;
+	struct session_info *curr, *prev = NULL, *tmp;
 	struct iscsi_transport *t;
 
 	list_for_each_entry(curr, list, list) {
@@ -857,13 +836,23 @@ static void print_sessions_tree(struct list_head *list, int level)
 		if (!prev || (strcmp(prev->address, curr->address) ||
 		     prev->port != curr->port)) {
 			if (strchr(curr->address, '.'))
-				printf("\tPortal: %s:%d,%d\n", curr->address,
-				      curr->port, curr->tpgt);
+				printf("\tCurrent Portal: %s:%d,%d\n",
+				      curr->address, curr->port, curr->tpgt);
 			else
-				printf("\tPortal: [%s]:%d,%d\n", curr->address,
-				      curr->port, curr->tpgt);
+				printf("\tCurrent Portal: [%s]:%d,%d\n",
+				      curr->address, curr->port, curr->tpgt);
+
+			if (strchr(curr->persistent_address, '.'))
+				printf("\tPersistent Portal: %s:%d,%d\n",
+				      curr->persistent_address,
+				      curr->persistent_port, curr->tpgt);
+			else
+				printf("\tPersistent Portal: [%s]:%d,%d\n",
+				      curr->persistent_address,
+				      curr->persistent_port, curr->tpgt);
 		} else
 			printf("\n");
+
 		t = get_transport_by_sid(curr->sid);
 		printf("\t\tDriver: %s\n", t ? t->name : "NA");
 		printf("\t\tHWaddress: %s\n", curr->hwaddress);
@@ -883,16 +872,11 @@ next:
 
 	list_for_each_entry_safe(curr, tmp, list, list) {
 		list_del(&curr->list);
-
-		free(curr->targetname);
-		free(curr->address);
-		free(curr->hwaddress);
 		free(curr);
 	}
 }
 
-static int print_session(int info_level, char *targetname, int tpgt,
-			 char *address, int port, int sid, char *hwaddress)
+static int print_session(int info_level, struct session_info *info)
 {
 	struct list_head list;
 	int err;
@@ -900,16 +884,14 @@ static int print_session(int info_level, char *targetname, int tpgt,
 	switch (info_level) {
 	case 0:
 	case -1:
-		err = print_session_flat(NULL, targetname, tpgt, address,
-					port, sid, hwaddress);
+		err = print_session_flat(NULL, info);
 		break;
 	case 1:
 	case 2:
 	case 3:
 		INIT_LIST_HEAD(&list);
 
-		err = link_sessions(&list, targetname, tpgt, address,
-				    port, sid, hwaddress);
+		err = link_sessions(&list, info);
 		if (err)
 			break;
 		print_sessions_tree(&list, info_level);
@@ -968,26 +950,25 @@ static int print_sessions(int info_level)
 	return 0;
 }
 
-static int rescan_portal(void *data, char *targetname, int tpgt, char *address,
-			 int port, int sid, char *hwaddress)
+static int rescan_portal(void *data, struct session_info *info)
 {
 	int host_no, err;
 	struct iscsi_transport *t;
 
-	t = get_transport_by_sid(sid);
+	t = get_transport_by_sid(info->sid);
 	if (!t)
 		return 0;
 
-	if (!match_valid_session(data, targetname, address, port, hwaddress,
-				 t->name))
+	if (!match_valid_session(data, info, t->name))
 		return 0;
 
-	printf("Rescanning session [%s [%d] [%s]:%d %s]\n", hwaddress, sid,
-		address, port, targetname);
+	printf("Rescanning session [%s [%d] %s,%d %s]\n", info->hwaddress,
+		info->sid, info->persistent_address, info->port,
+		info->targetname);
 
-	host_no = get_host_no_from_sid(sid, &err);
+	host_no = get_host_no_from_sid(info->sid, &err);
 	if (err) {
-		log_error("Could not rescan session sid %d.", sid);
+		log_error("Could not rescan session sid %d.", info->sid);
 		return err;
 	}
 
@@ -996,32 +977,31 @@ static int rescan_portal(void *data, char *targetname, int tpgt, char *address,
 }
 
 static int
-session_stats(void *data, char *targetname, int tpgt, char *address,
-	      int port, int sid, char *hwaddress)
+session_stats(void *data, struct session_info *info)
 {
 	struct iscsi_transport *t;
 	int rc, i;
 	iscsiadm_req_t req;
 	iscsiadm_rsp_t rsp;
 
-	t = get_transport_by_sid(sid);
+	t = get_transport_by_sid(info->sid);
 	if (!t)
 		return 0;
 
-	if (!match_valid_session(data, targetname, address, port, hwaddress,
-				 t->name))
+	if (!match_valid_session(data, info, t->name))
 		return 0;
 
 	memset(&req, 0, sizeof(req));
 	req.command = MGMT_IPC_SESSION_STATS;
-	req.u.session.sid = sid;
+	req.u.session.sid = info->sid;
 
 	rc = do_iscsid(&req, &rsp);
 	if (rc)
 		return EIO;
 
-	printf("Stats for session [%s [%d] [%s]:%d %s]\n", hwaddress, sid,
-		address, port, targetname);
+	printf("Stats for session [%s [%d] %s,%d %s]\n", info->hwaddress,
+		info->sid, info->persistent_address,
+		info->persistent_port, info->targetname);
 	printf( "iSCSI SNMP:\n"
 
 		"\ttxdata_octets: %lld\n"
@@ -1822,65 +1802,45 @@ main(int argc, char **argv)
 		}
 		if (sid >= 0) {
 			char session[64];
-			int tmp_sid, tpgt;
 			struct iscsi_transport *t;
+			struct session_info *info;
 
 			snprintf(session, 63, "session%d", sid);
 			session[63] = '\0';
 
-			targetname = malloc(TARGET_NAME_MAXLEN + 1);
-			if (!targetname) {
-				log_error("Could not allocate memory for "
-					  "targetname\n");
-				rc = -ENOMEM;
+			info = calloc(1, sizeof(*info));
+			if (!info) {
+				rc = ENOMEM;
 				goto out;
 			}
 
-			ip = malloc(NI_MAXHOST + 1);
-			if (!ip) {
-				rc = -ENOMEM;
-				goto free_target;
-			}
-
-			hwaddress = malloc(ISCSI_MAX_IFACE_LEN);
-			if (!hwaddress) {
-				rc = -ENOMEM;
-				goto free_address;
-			}
-
-			rc = get_sessioninfo_by_sysfs_id(&tmp_sid, targetname,
-							ip, &port, &tpgt,
-							hwaddress, session);
+			rc = get_sessioninfo_by_sysfs_id(info, session);
 			if (rc) {
 				log_error("Could not get session info for sid "
 					  "%d", sid);
-				goto free_hwaddress;
+				goto free_info;
 			}
 
 			t = get_transport_by_sid(sid);
 			if (!t)
-				goto free_hwaddress;
+				goto free_info;
 
 			if (!do_logout && !do_rescan && !do_stats && op < 0) {
-				rc = print_session(info_level, targetname, tpgt,
-						    ip, port, tmp_sid,
-						    hwaddress);
+				rc = print_session(info_level, info);
 				if (rc)
 					rc = -1;
-				goto free_hwaddress;
+				goto free_info;
 			}
 
 			/* drop down to node ops */
 			rc = exec_node_op(db, op, do_login, do_logout, do_show,
 					  do_rescan, do_stats, info_level,
-					  targetname, ip, port, hwaddress,
+					  info->targetname,
+					  info->persistent_address,
+					  info->port, info->hwaddress,
 					  t->name, name, value);
-free_hwaddress:
-			free(hwaddress);
-free_address:
-			free(ip);
-free_target:
-			free(targetname);
+free_info:
+			free(info);
 			goto out;
 		} else {
 			if (do_logout || do_rescan || do_stats) {

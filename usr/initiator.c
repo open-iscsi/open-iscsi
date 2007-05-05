@@ -1796,7 +1796,7 @@ session_find_by_rec(node_rec_t *rec)
 
 	list_for_each_entry(t, &transports, list) {
 		list_for_each_entry(session, &t->sessions, list) {
-			if (iscsi_match_session(rec, session->nrec.name,
+			if (__iscsi_match_session(rec, session->nrec.name,
 					 -1, session->nrec.conn[0].address,
 					 session->nrec.conn[0].port,
 					 session->id,

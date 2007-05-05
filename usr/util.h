@@ -6,6 +6,7 @@
 struct iscsiadm_req;
 struct iscsiadm_rsp;
 struct node_rec;
+struct session_info;
 
 extern int oom_adjust(void);
 extern void daemon_init(void);
@@ -16,7 +17,9 @@ extern void iscsid_handle_error(int err);
 extern char *str_to_ipport(char *str, int *port, int delim);
 extern void idbm_node_setup_defaults(struct node_rec *rec);
 
-extern int iscsi_match_session(void *data, char *targetname, int tpgt,
-			       char *address, int port, int sid, char *iface);
+extern int iscsi_match_session(void *data, struct session_info *info);
+extern int __iscsi_match_session(struct node_rec *rec, char *targetname,
+				 int tpgt, char *address, int port, int sid,
+				 char *hwaddress);
 
 #endif

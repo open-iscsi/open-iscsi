@@ -273,6 +273,18 @@ typedef struct iscsi_session {
 
 } iscsi_session_t;
 
+struct session_info {
+	struct list_head list;
+	char targetname[TARGET_NAME_MAXLEN + 1];
+	char address[NI_MAXHOST + 1];
+	char persistent_address[NI_MAXHOST + 1];
+	char hwaddress[ISCSI_MAX_IFACE_LEN];
+	int port;
+	int persistent_port;
+	int sid;
+	int tpgt;
+};
+
 /* login.c */
 
 #define ISCSI_SESSION_TYPE_NORMAL 0

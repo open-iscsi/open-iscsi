@@ -31,12 +31,10 @@ struct iscsi_auth_config;
 extern void free_transports(void);
 extern int get_iscsi_kernel_version(char *buf);
 extern void check_class_version(void);
-extern int get_sessioninfo_by_sysfs_id(int *sid, char *targetname,
-				      char *addr, int *port, int *tpgt,
-				      char *iface, char *sys_session);
+extern int get_sessioninfo_by_sysfs_id(struct session_info *info,
+				      char *sys_session);
 
-typedef int (sysfs_session_op_fn)(void *, char *, int, char *, int, int,
-				  char *);
+typedef int (sysfs_session_op_fn)(void *, struct session_info *);
 typedef int (sysfs_host_op_fn)(void *, uint32_t, char *, char *);
 
 extern int sysfs_for_each_session(void *data, int *nr_found,
