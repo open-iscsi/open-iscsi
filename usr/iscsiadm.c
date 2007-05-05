@@ -718,8 +718,11 @@ static int print_iscsi_state(int sid)
 	req.command = MGMT_IPC_SESSION_INFO;
 	req.u.session.sid = sid;
 
-	if (do_iscsid(&req, &rsp))
+	if (do_iscsid(&req, &rsp)) {
+		printf("\t\tiSCSI Connection State: Unknown\n");
+		printf("\t\tInternal iscsid Session State: Unknown\n");
 		return ENODEV;
+	}
 
 	/*
 	 * for drivers like qla4xxx, iscsid does not display

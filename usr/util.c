@@ -198,7 +198,7 @@ void idbm_node_setup_defaults(node_rec_t *rec)
 	for (i=0; i<ISCSI_CONN_MAX; i++) {
 		rec->conn[i].startup = 0;
 		rec->conn[i].port = DEF_ISCSI_PORT;
-		rec->conn[i].tcp.window_size = 512 * 1024;
+		rec->conn[i].tcp.window_size = TCP_WINDOW_SIZE;
 		rec->conn[i].tcp.type_of_service = 0;
 		rec->conn[i].timeo.login_timeout= DEF_LOGIN_TIMEO;
 		rec->conn[i].timeo.logout_timeout= DEF_LOGOUT_TIMEO;

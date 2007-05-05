@@ -31,9 +31,6 @@
 #define DRIVER_ISID_1  0x02
 #define DRIVER_ISID_2  0x3D
 
-/* default window size */
-#define TCP_WINDOW_SIZE (256 * 1024)
-
 /* number of possible connections per session */
 #define ISCSI_CONN_MAX		1
 /* number of possible interfaces to manually enter */

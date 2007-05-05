@@ -19,6 +19,9 @@
 
 #define PORTAL_GROUP_TAG_UNKNOWN -1
 
+/* default window size */
+#define TCP_WINDOW_SIZE (512 * 1024)
+
 /* default iSCSI port number */
 #define ISCSI_DEFAULT_PORT 3260
 
