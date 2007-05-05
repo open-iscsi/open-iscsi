@@ -1413,8 +1413,8 @@ static int setup_disc_to_node_link(char *disc_portal, node_rec_t *rec)
 			}
 		}
 
-		snprintf(disc_portal, PATH_MAX, "%s/%s,%s,%d,%s,%s",
-			 STATIC_CONFIG_DIR, rec->name,
+		snprintf(disc_portal, PATH_MAX, "%s/%s,%d,%s,%d,%s,%s",
+			 STATIC_CONFIG_DIR, rec->name, rec->tpgt,
 			 rec->conn[0].address, rec->conn[0].port,
 			 rec->iface.hwaddress, rec->iface.transport_name);
 		break;
