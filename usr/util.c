@@ -251,34 +251,45 @@ void iscsid_handle_error(int err)
 	log_error("initiator reported error (%d - %s)", err, err_msgs[err]);
 }
 
-int __iscsi_match_session(node_rec_t *rec, char *targetname, int tpgt,
-			  char *address, int port, int sid, char *hwaddress)
+int __iscsi_match_session(node_rec_t *rec, char *targetname,
+			  char *address, int port, char *hwaddress,
+			  char *driver)
 {
-	struct iscsi_transport *t;
-
-	log_debug(6, "looking for session [%d][%s,%s,%d][%s]", sid,
+	log_debug(6, "match session [%s,%s,%d][%s,%s]",
 		  rec->name, rec->conn[0].address, rec->conn[0].port,
-		  hwaddress);
+		  driver, hwaddress);
 
-	t = get_transport_by_sid(sid);
-	if (!t)
+	if (strlen(rec->name) && strcmp(rec->name, targetname))
 		return 0;
 
-	if (!strcmp(rec->iface.transport_name, t->name) &&
-	    !strcmp(rec->name, targetname) &&
-	    !strcmp(rec->conn[0].address, address) &&
-	    !strcasecmp(rec->iface.hwaddress, hwaddress) &&
-	    rec->conn[0].port == port)
-		return 1;
+	if (strlen(rec->conn[0].address) &&
+	    strcmp(rec->conn[0].address, address))
+		return 0;
 
-	/* keep on looking */
-	return 0;
+	if (strlen(rec->iface.transport_name) &&
+	    strcmp(rec->iface.transport_name, driver))
+		return 0;
+
+	if (strlen(rec->iface.hwaddress) &&
+	    strcasecmp(rec->iface.hwaddress, hwaddress))
+		return 0;
+
+	if (rec->conn[0].port != -1 && port != rec->conn[0].port)
+		return 0;
+
+	return 1;
 }
 
 int iscsi_match_session(void *data, struct session_info *info)
 {
-	return __iscsi_match_session(data, info->targetname, info->tpgt,
+	struct iscsi_transport *t;
+
+	t = get_transport_by_sid(info->sid);
+	if (!t)
+		return 0;
+
+	return __iscsi_match_session(data, info->targetname,
 				     info->persistent_address,
 				     info->persistent_port,
-				     info->sid, info->hwaddress);
+				     info->hwaddress, t->name);
 }

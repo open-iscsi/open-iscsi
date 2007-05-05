@@ -361,40 +361,6 @@ logout_by_startup(idbm_t *db, char *mode)
 	return sysfs_for_each_session(&mgmt, &num_found, __logout_by_startup);
 }
 
-static int __match_valid_session(node_rec_t *rec, char *targetname,
-				 char *address, int port, char *hwaddress,
-				 char *driver)
-{
-	if (strlen(rec->name) && strcmp(rec->name, targetname))
-		return 0;
-
-	if (strlen(rec->conn[0].address) &&
-	   strcmp(rec->conn[0].address, address))
-		return 0;
-
-	if (strlen(rec->iface.transport_name) &&
-	    strcmp(rec->iface.transport_name, driver))
-		return 0;
-
-	if (strlen(rec->iface.hwaddress) &&
-	    strcasecmp(rec->iface.hwaddress, hwaddress))
-		return 0;
-
-	if (rec->conn[0].port != -1 && port != rec->conn[0].port)
-		return 0;
-
-	return 1;
-}
-
-static int match_valid_session(node_rec_t *rec, struct session_info *info,
-			       char *driver)
-{
-	return __match_valid_session(rec, info->targetname,
-				     info->persistent_address,
-				     info->persistent_port, info->hwaddress,
-				     driver);
-}
-
 static int
 logout_portal(void *data, struct session_info *info)
 {
@@ -406,7 +372,7 @@ logout_portal(void *data, struct session_info *info)
 	if (!t)
 		return 0;
 
-	if (!match_valid_session(rec, info, t->name))
+	if (!iscsi_match_session(rec, info))
 		return 0;
 
 	/* we do not support this yet */
@@ -545,10 +511,10 @@ static int iface_fn(idbm_t *db, void *data, node_rec_t *rec)
 {
 	struct rec_op_data *op_data = data;
 
-	if (!__match_valid_session(op_data->match_rec, rec->name,
-				 rec->conn[0].address, rec->conn[0].port,
-				 rec->iface.hwaddress,
-				 rec->iface.transport_name))
+	if (!__iscsi_match_session(op_data->match_rec, rec->name,
+				   rec->conn[0].address, rec->conn[0].port,
+				   rec->iface.hwaddress,
+				   rec->iface.transport_name))
 		return 0;
 	return op_data->fn(db, op_data->data, rec);
 }
@@ -959,13 +925,8 @@ static int print_sessions(int info_level)
 static int rescan_portal(void *data, struct session_info *info)
 {
 	int host_no, err;
-	struct iscsi_transport *t;
 
-	t = get_transport_by_sid(info->sid);
-	if (!t)
-		return 0;
-
-	if (!match_valid_session(data, info, t->name))
+	if (!iscsi_match_session(data, info))
 		return 0;
 
 	printf("Rescanning session [%s [%d] %s,%d %s]\n", info->hwaddress,
@@ -985,16 +946,11 @@ static int rescan_portal(void *data, struct session_info *info)
 static int
 session_stats(void *data, struct session_info *info)
 {
-	struct iscsi_transport *t;
 	int rc, i;
 	iscsiadm_req_t req;
 	iscsiadm_rsp_t rsp;
 
-	t = get_transport_by_sid(info->sid);
-	if (!t)
-		return 0;
-
-	if (!match_valid_session(data, info, t->name))
+	if (!iscsi_match_session(data, info))
 		return 0;
 
 	memset(&req, 0, sizeof(req));
