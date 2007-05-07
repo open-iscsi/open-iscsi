@@ -1917,32 +1917,22 @@ iscsi_tcp_conn_stop(struct iscsi_cls_conn *cls_conn, int flag)
 }
 
 static int iscsi_tcp_get_addr(struct iscsi_conn *conn, struct socket *sock,
-			      int peer)
+			      char *buf, int *port,
+			      int (*getname)(struct socket *, struct sockaddr *,
+					int *addrlen))
 {
 	struct sockaddr_storage *addr;
 	struct sockaddr_in6 *sin6;
 	struct sockaddr_in *sin;
-	int rc = 0, len, *port;
-	char *buf;
+	int rc = 0, len;
 
 	addr = kmalloc(GFP_KERNEL, sizeof(*addr));
 	if (!addr)
 		return -ENOMEM;
 
-	if (peer) {
-		if (kernel_getpeername(sock, (struct sockaddr *) addr, &len)) {
-			rc = -ENODEV;
-			goto free_addr;
-		}
-		buf = conn->portal_address;
-		port = &conn->portal_port;
-	} else {
-		if (kernel_getsockname(sock, (struct sockaddr *) addr, &len)) {
-			rc = -ENODEV;
-			goto free_addr;
-		}
-		buf = conn->local_address;
-		port = &conn->local_port;
+	if (getname(sock, (struct sockaddr *) addr, &len)) {
+		rc = -ENODEV;
+		goto free_addr;
 	}
 
 	switch (addr->ss_family) {
@@ -1985,14 +1975,16 @@ iscsi_tcp_conn_bind(struct iscsi_cls_session *cls_session,
 	}
 	/*
 	 * copy these values now because if we drop the session
-	 * userspace may still want to query the values we had while
-	 * we are trying to reconnect
+	 * userspace may still want to query the values since we will
+	 * be using them for the reconnect
 	 */
-	err = iscsi_tcp_get_addr(conn, sock, 1);
+	err = iscsi_tcp_get_addr(conn, sock, conn->portal_address,
+				 &conn->portal_port, kernel_getpeername);
 	if (err)
 		goto free_socket;
 
-	err = iscsi_tcp_get_addr(conn, sock, 0);
+	err = iscsi_tcp_get_addr(conn, sock, conn->local_address,
+				&conn->local_port, kernel_getsockname);
 	if (err)
 		goto free_socket;
 
