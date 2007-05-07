@@ -1916,6 +1916,53 @@ iscsi_tcp_conn_stop(struct iscsi_cls_conn *cls_conn, int flag)
 	tcp_conn->hdr_size = sizeof(struct iscsi_hdr);
 }
 
+static int iscsi_tcp_get_addr(struct iscsi_conn *conn, struct socket *sock,
+			      int peer)
+{
+	struct sockaddr_storage *addr;
+	struct sockaddr_in6 *sin6;
+	struct sockaddr_in *sin;
+	int rc = 0, len, *port;
+	char *buf;
+
+	addr = kmalloc(GFP_KERNEL, sizeof(*addr));
+	if (!addr)
+		return -ENOMEM;
+
+	if (sock->ops->getname(sock, (struct sockaddr *) addr, &len, peer)) {
+		rc = -ENODEV;
+		goto free_addr;
+	}
+
+	if (peer) {
+		buf = conn->portal_address;
+		port = &conn->portal_port;
+	} else {
+		buf = conn->local_address;
+		port = &conn->local_port;
+	}
+
+	switch (addr->ss_family) {
+	case AF_INET:
+		sin = (struct sockaddr_in *)addr;
+		spin_lock_bh(&conn->session->lock);
+		sprintf(buf, NIPQUAD_FMT, NIPQUAD(sin->sin_addr.s_addr));
+		*port = be16_to_cpu(sin->sin_port);
+		spin_unlock_bh(&conn->session->lock);
+		break;
+	case AF_INET6:
+		sin6 = (struct sockaddr_in6 *)addr;
+		spin_lock_bh(&conn->session->lock);
+		sprintf(buf, NIP6_FMT, NIP6(sin6->sin6_addr));
+		*port = be16_to_cpu(sin6->sin6_port);
+		spin_unlock_bh(&conn->session->lock);
+		break;
+	}
+free_addr:
+	kfree(addr);
+	return rc;
+}
+
 static int
 iscsi_tcp_conn_bind(struct iscsi_cls_session *cls_session,
 		    struct iscsi_cls_conn *cls_conn, uint64_t transport_eph,
@@ -1933,10 +1980,22 @@ iscsi_tcp_conn_bind(struct iscsi_cls_session *cls_session,
 		printk(KERN_ERR "iscsi_tcp: sockfd_lookup failed %d\n", err);
 		return -EEXIST;
 	}
+	/*
+	 * copy these values now because if we drop the session
+	 * userspace may still want to query the values we had while
+	 * we are trying to reconnect
+	 */
+	err = iscsi_tcp_get_addr(conn, sock, 1);
+	if (err)
+		goto free_socket;
+
+	err = iscsi_tcp_get_addr(conn, sock, 0);
+	if (err)
+		goto free_socket;
 
 	err = iscsi_conn_bind(cls_session, cls_conn, is_leading);
 	if (err)
-		return err;
+		goto free_socket;
 
 	/* bind iSCSI connection and socket */
 	tcp_conn->sock = sock;
@@ -1960,8 +2019,11 @@ iscsi_tcp_conn_bind(struct iscsi_cls_session *cls_session,
 	 * set receive state machine into initial state
 	 */
 	tcp_conn->in_progress = IN_PROGRESS_WAIT_HEADER;
-
 	return 0;
+
+free_socket:
+	sockfd_put(sock);
+	return err;
 }
 
 /* called with host lock */
@@ -2076,71 +2138,6 @@ iscsi_conn_set_param(struct iscsi_cls_conn *cls_conn, enum iscsi_param param,
 	return 0;
 }
 
-static int iscsi_tcp_get_addr(struct iscsi_session *session,
-			     char *buf, int peer, int get_addr)
-{
-	struct iscsi_tcp_conn *tcp_conn;
-	struct sockaddr_storage *addr;
-	struct sockaddr_in6 *sin6;
-	struct sockaddr_in *sin;
-	int rc = 0, len;
-
-	addr = kmalloc(GFP_KERNEL, sizeof(*addr));
-	if (!addr)
-		return -ENOMEM;
-
-	spin_lock_bh(&session->lock);
-	if (!session->leadconn) {
-		len = -ENODEV;
-		goto free_addr;
-	}
-	tcp_conn = session->leadconn->dd_data;
-
-	if (!tcp_conn->sock) {
-		rc = -ENODEV;
-		goto free_addr;
-	}
-
-	if (tcp_conn->sock->ops->getname(tcp_conn->sock,
-					 (struct sockaddr *) addr, &len,
-					 peer)) {
-		rc = -ENODEV;
-		goto free_addr;
-	}
-
-	if (get_addr) {
-		switch (addr->ss_family) {
-		case AF_INET:
-			sin = (struct sockaddr_in *)addr;
-			rc = sprintf(buf, NIPQUAD_FMT "\n",
-				     NIPQUAD(sin->sin_addr.s_addr));
-			break;
-		case AF_INET6:
-			sin6 = (struct sockaddr_in6 *)addr;
-			rc = sprintf(buf, NIP6_FMT "\n",
-				     NIP6(sin6->sin6_addr));
-			break;
-		}
-	} else {
-		switch (addr->ss_family) {
-		case AF_INET:
-			sin = (struct sockaddr_in *)addr;
-			rc = sprintf(buf, "%hu\n",
-				     be16_to_cpu(sin->sin_port ));
-			break;
-		case AF_INET6:
-			sin6 = (struct sockaddr_in6 *)addr;
-			rc = sprintf(buf, "%hu\n",
-				     be16_to_cpu(sin6->sin6_port ));
-			break;
-		}
-	}
-free_addr:
-	spin_unlock_bh(&session->lock);
-	kfree(addr);
-	return len;
-}
-
 static int
 iscsi_tcp_conn_get_param(struct iscsi_cls_conn *cls_conn,
 			 enum iscsi_param param, char *buf)
@@ -2150,9 +2147,15 @@ iscsi_tcp_conn_get_param(struct iscsi_cls_conn *cls_conn,
 
 	switch(param) {
 	case ISCSI_PARAM_CONN_PORT:
-		return iscsi_tcp_get_addr(conn->session, buf, 1, 0);
+		spin_lock_bh(&conn->session->lock);
+		len = sprintf(buf, "%hu\n", conn->portal_port);
+		spin_unlock_bh(&conn->session->lock);
+		break;
 	case ISCSI_PARAM_CONN_ADDRESS:
-		return iscsi_tcp_get_addr(conn->session, buf, 1, 1);
+		spin_lock_bh(&conn->session->lock);
+		len = sprintf(buf, "%s\n", conn->portal_address);
+		spin_unlock_bh(&conn->session->lock);
+		break;
 	default:
 		return iscsi_conn_get_param(cls_conn, param, buf);
 	}
@@ -2169,7 +2172,13 @@ iscsi_tcp_host_get_param(struct Scsi_Host *shost, enum iscsi_host_param param,
 
 	switch (param) {
 	case ISCSI_HOST_PARAM_IPADDRESS:
-		len = iscsi_tcp_get_addr(session, buf, 0, 1);
+		spin_lock_bh(&session->lock);
+		if (!session->leadconn)
+			len = -ENODEV;
+		else
+			len = sprintf(buf, "%s\n",
+				     session->leadconn->local_address);
+		spin_unlock_bh(&session->lock);
 		break;
 	default:
 		return iscsi_host_get_param(shost, param, buf);
