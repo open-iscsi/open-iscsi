@@ -1,7 +1,7 @@
-diff -Nurp a/iscsi_2.6.20_compat.h b/iscsi_2.6.20_compat.h
---- a/iscsi_2.6.20_compat.h	1970-01-01 00:00:00.000000000 +0200
-+++ b/iscsi_2.6.20_compat.h	2007-02-22 18:21:22.000000000 +0200
-@@ -0,0 +1,47 @@
+diff -Naurp kernel/iscsi_2.6.20_compat.h.orig kernel.diff/iscsi_2.6.20_compat.h.orig
+--- kernel/iscsi_2.6.20_compat.h.orig	1969-12-31 18:00:00.000000000 -0600
++++ kernel.diff/iscsi_2.6.20_compat.h.orig	2007-05-07 16:31:04.000000000 -0500
+@@ -0,0 +1,59 @@
 +
 +#define CRYPTO_ALG_ASYNC		0x00000080
 +struct hash_desc
@@ -48,6 +48,18 @@ diff -Nurp a/iscsi_2.6.20_compat.h b/iscsi_2.6.20_compat.h
 +static inline void crypto_free_hash(struct crypto_tfm *tfm)
 +{
 +	crypto_free_tfm(tfm);
++}
++
++int kernel_getsockname(struct socket *sock, struct sockaddr *addr,
++			int *addrlen)
++{
++	return sock->ops->getname(sock, addr, addrlen, 0);
++}
++
++int kernel_getpeername(struct socket *sock, struct sockaddr *addr,
++			int *addrlen)
++{
++	return sock->ops->getname(sock, addr, addrlen, 1);
 +}
 diff -Nurp a/iscsi_tcp.h b/iscsi_tcp.h
 --- a/iscsi_tcp.h	2007-01-10 12:38:25.000000000 +0200
