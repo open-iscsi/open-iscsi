@@ -1929,15 +1929,18 @@ static int iscsi_tcp_get_addr(struct iscsi_conn *conn, struct socket *sock,
 	if (!addr)
 		return -ENOMEM;
 
-	if (sock->ops->getname(sock, (struct sockaddr *) addr, &len, peer)) {
-		rc = -ENODEV;
-		goto free_addr;
-	}
-
 	if (peer) {
+		if (kernel_getpeername(sock, (struct sockaddr *) addr, &len)) {
+			rc = -ENODEV;
+			goto free_addr;
+		}
 		buf = conn->portal_address;
 		port = &conn->portal_port;
 	} else {
+		if (kernel_getsockname(sock, (struct sockaddr *) addr, &len)) {
+			rc = -ENODEV;
+			goto free_addr;
+		}
 		buf = conn->local_address;
 		port = &conn->local_port;
 	}
