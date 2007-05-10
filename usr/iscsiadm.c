@@ -1502,12 +1502,6 @@ main(int argc, char **argv)
 	log_daemon = 0;
 	log_init(program_name, 1024);
 
-	config_init();
-	if (initiator_name[0] == '\0') {
-		log_warning("exiting due to configuration error");
-		return -1;
-	}
-
 	optopt = 0;
 	while ((ch = getopt_long(argc, argv, short_options,
 				 long_options, &longindex)) >= 0) {
@@ -1598,6 +1592,12 @@ main(int argc, char **argv)
 
 	if (mode < 0)
 		usage(0);
+
+	config_init();
+	if (initiator_name[0] == '\0') {
+		log_warning("exiting due to configuration error");
+		return -1;
+	}
 
 	db = idbm_init(config_file);
 	if (!db) {
