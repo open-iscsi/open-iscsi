@@ -171,7 +171,7 @@ resolve_address(char *host, char *port, struct sockaddr_storage *ss)
 		return rc;
 	}
 
-	memcpy(ss, res->ai_addr, sizeof(*ss));
+	memcpy(ss, res->ai_addr, res->ai_addrlen);
 
 	freeaddrinfo(res);
 
