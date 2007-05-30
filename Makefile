@@ -19,6 +19,7 @@ PROGRAMS = usr/iscsid usr/iscsiadm utils/iscsi_discovery \
 		   utils/fwparam_ibft/fwparam_ibft utils/iscsi-iname
 INSTALL = install
 ETCFILES = etc/iscsid.conf
+IFACEFILES = etc/iface.example
 
 # Random comments:
 # using '$(MAKE)' instead of just 'make' allows make to run in parallel
@@ -52,10 +53,10 @@ clean:
 # note that make may still execute the blocks in parallel
 .NOTPARALLEL: install_usr install_programs install_initd \
 	install_initd_suse install_initd_redhat install_initd_debian \
-	install_etc install_doc install_kernel install_iname
+	install_etc install_iface install_doc install_kernel install_iname
 
 install: install_kernel install_programs install_doc install_etc \
-	install_initd install_iname
+	install_initd install_iname install_iface
 
 install_programs:  $(PROGRAMS)
 	$(INSTALL) -d $(DESTDIR)$(sbindir)
@@ -87,6 +88,10 @@ install_initd_debian:
 	$(INSTALL) -d $(DESTDIR)$(initddir)
 	$(INSTALL) -m 755 etc/initd/initd.debian \
 		$(DESTDIR)$(initddir)/open-iscsi
+
+install_iface: $(IFACEFILES)
+	$(INSTALL) -d $(DESTDIR)$(etcdir)/iscsi/ifaces
+	$(INSTALL) -m 644 $^ $(DESTDIR)$(etcdir)/iscsi/ifaces
 
 install_etc: $(ETCFILES)
 	$(INSTALL) -d $(DESTDIR)$(etcdir)/iscsi

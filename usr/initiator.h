@@ -34,22 +34,14 @@
 #include "list.h"
 
 #define ISCSI_CONFIG_ROOT	"/etc/iscsi/"
-#define SLP_CONFIG_DIR		ISCSI_CONFIG_ROOT"slp"
-#define ISNS_CONFIG_DIR		ISCSI_CONFIG_ROOT"isns"
-#define STATIC_CONFIG_DIR	ISCSI_CONFIG_ROOT"static"
-#define ST_CONFIG_DIR		ISCSI_CONFIG_ROOT"send_targets"
 
-#define ST_CONFIG_NAME		"st_config"
-
-#define NODE_CONFIG_DIR		ISCSI_CONFIG_ROOT"nodes"
 #define CONFIG_FILE		ISCSI_CONFIG_ROOT"iscsid.conf"
-#define PID_FILE		"/var/run/iscsid.pid"
 #define INITIATOR_NAME_FILE	ISCSI_CONFIG_ROOT"initiatorname.iscsi"
+
+#define PID_FILE		"/var/run/iscsid.pid"
 #define LOCK_DIR		"/var/lock/iscsi"
 #define LOCK_FILE		"/var/lock/iscsi/lock"
 #define LOCK_WRITE_FILE		"/var/lock/iscsi/lock.write"
-
-#define DEF_ISCSI_PORT		3260
 
 typedef enum conn_login_status_e {
 	CONN_LOGIN_SUCCESS		= 0,
@@ -131,7 +123,6 @@ typedef struct iscsi_conn {
 	struct queue_task *logout_qtask;
 	char data[ISCSI_DEF_MAX_RECV_SEG_LEN];
 	char host[NI_MAXHOST];	/* scratch */
-	char dev[IFNAMSIZ + 1];
 	iscsi_conn_state_e state;
 	actor_t connect_timer;
 	actor_t send_pdu_timer;
@@ -210,6 +201,7 @@ typedef struct iscsi_session {
 	uint32_t id;
 	uint32_t hostno;
 	int refcount;
+	char netdev[IFNAMSIZ];
 	struct iscsi_transport *t;
 	node_rec_t nrec; /* copy of original Node record in database */
 	unsigned int irrelevant_keys_bitmap;
@@ -273,23 +265,28 @@ typedef struct iscsi_session {
 
 } iscsi_session_t;
 
+/*
+ * TODO: replace session_info and host_info with
+ * node_rec and iface_rec
+ */
 struct session_info {
 	struct list_head list;
-	char targetname[TARGET_NAME_MAXLEN + 1];
-	char local_address[NI_MAXHOST + 1];
-	char address[NI_MAXHOST + 1];
-	char persistent_address[NI_MAXHOST + 1];
-	char hwaddress[ISCSI_MAX_IFACE_LEN];
-	int port;
-	int persistent_port;
+	/* local info */
+	struct iface_rec iface;
 	int sid;
+
+	/* remote info */	
+	char targetname[TARGET_NAME_MAXLEN + 1];
 	int tpgt;
+	char address[NI_MAXHOST + 1];
+	int port;
+	char persistent_address[NI_MAXHOST + 1];
+	int persistent_port;
 };
 
 struct host_info {
 	char iname[TARGET_NAME_MAXLEN + 1];
-	char hwaddress[ISCSI_MAX_IFACE_LEN];
-	char ipaddress[NI_MAXHOST + 1];
+	struct iface_rec iface;
 	int host_no;
 };
 
@@ -372,6 +369,7 @@ extern mgmt_ipc_err_e iscsi_sync_session(node_rec_t *rec, queue_task_t
 					 *tsk, uint32_t sid);
 extern mgmt_ipc_err_e iscsi_host_send_targets(queue_task_t *qtask,
 			int host_no, int do_login, struct sockaddr_storage *ss);
+extern mgmt_ipc_err_e iscsi_host_set_param(int host_no, int param, char *value);
 extern void iscsi_async_session_creation(uint32_t host_no, uint32_t sid);
 extern void iscsi_async_session_destruction(uint32_t host_no, uint32_t sid);
 extern void free_initiator(void);

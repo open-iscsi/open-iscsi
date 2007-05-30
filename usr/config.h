@@ -33,8 +33,6 @@
 
 /* number of possible connections per session */
 #define ISCSI_CONN_MAX		1
-/* number of possible interfaces to manually enter */
-#define ISCSI_IFACE_MAX		32
 /* max len of interface */
 #define ISCSI_MAX_IFACE_LEN	65
 
@@ -186,15 +184,21 @@ typedef struct session_rec {
 
 typedef struct iface_rec {
 	struct list_head	list;
+	/* iscsi iface record name */
+	char			name[ISCSI_MAX_IFACE_LEN];
+	/* network layer iface name (eth0) */
+	char			netdev[IFNAMSIZ];
+	char			ipaddress[NI_MAXHOST];
 	/*
 	 * TODO: we may have to make this bigger and interconnect
-	 * specific for iser and and possibly qla4xxx hba serials
+	 * specific for infinniband 
 	 */
 	char			hwaddress[ISCSI_MAX_IFACE_LEN];
 	char			transport_name[ISCSI_TRANSPORT_NAME_MAXLEN];
 } iface_rec_t;
 
 typedef struct node_rec {
+	struct list_head	list;
 	char			name[TARGET_NAME_MAXLEN];
 	int			tpgt;
 	iscsi_startup_e		startup;

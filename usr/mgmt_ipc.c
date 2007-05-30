@@ -156,7 +156,7 @@ static mgmt_ipc_err_e
 mgmt_ipc_session_info(queue_task_t *qtask, int sid, iscsiadm_rsp_t *rsp)
 {
 	iscsi_session_t *session;
-	struct msg_session_state *info;
+	struct ipc_msg_session_state *info;
 
 	if (!(session = session_find_by_sid(sid))) {
 		log_error("session with sid %d not found!", sid);
@@ -400,6 +400,12 @@ mgmt_ipc_handle(int accept_fd)
 		break;
 	case MGMT_IPC_ISNS_DEV_ATTR_QUERY:
 		rsp.err = mgmt_ipc_isns_dev_attr_query(qtask);
+		break;
+	case MGMT_IPC_SET_HOST_PARAM:
+		rsp.err = iscsi_host_set_param(req.u.set_host_param.host_no,
+						req.u.set_host_param.param,
+						req.u.set_host_param.value);
+		immrsp = 1;
 		break;
 	default:
 		log_error("unknown request: %s(%d) %u",

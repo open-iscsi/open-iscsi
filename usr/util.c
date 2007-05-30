@@ -21,7 +21,9 @@
 #include "version.h"
 #include "iscsi_settings.h"
 #include "iscsi_sysfs.h"
+#include "iscsi_proto.h"
 #include "transport.h"
+#include "idbm.h"
 
 void daemon_init(void)
 {
@@ -58,28 +60,36 @@ int oom_adjust(void)
 }
 
 char*
-str_to_ipport(char *str, int *port, int delim)
+str_to_ipport(char *str, int *port, int *tpgt)
 {
-	char *sport = str;
+	char *stpgt, *sport = str, *ip = str;
 
-	if (!strchr(str, '.')) {
-		if (*str == '[') {
-			if (!(sport = strchr(str, ']')))
+	if (!strchr(ip, '.')) {
+		if (*ip == '[') {
+			if (!(sport = strchr(ip, ']')))
 				return NULL;
 			*sport++ = '\0';
-			str++;
+			ip++;
+			str = sport;
 		} else
 			sport = NULL;
 	}
 
-	if (sport && (sport = strchr(sport, delim))) {
-		*sport = '\0';
-		sport++;
+	if (sport && (sport = strchr(str, ':'))) {
+		*sport++ = '\0';
 		*port = strtoul(sport, NULL, 10);
+		str = sport;
 	} else
-		*port = DEF_ISCSI_PORT;
+		*port = ISCSI_LISTEN_PORT;
 
-	return str;
+	if ((stpgt = strchr(str, ','))) {
+		*stpgt++ = '\0';
+		*tpgt = strtoul(stpgt, NULL, 10);
+	} else
+		*tpgt = PORTAL_GROUP_TAG_UNKNOWN;
+
+	log_debug(2, "ip %s, port %d, tgpt %d", ip, *port, *tpgt);
+	return ip;
 }
 
 #define MAXSLEEP 128
@@ -197,7 +207,7 @@ void idbm_node_setup_defaults(node_rec_t *rec)
 
 	for (i=0; i<ISCSI_CONN_MAX; i++) {
 		rec->conn[i].startup = 0;
-		rec->conn[i].port = DEF_ISCSI_PORT;
+		rec->conn[i].port = ISCSI_LISTEN_PORT;
 		rec->conn[i].tcp.window_size = TCP_WINDOW_SIZE;
 		rec->conn[i].tcp.type_of_service = 0;
 		rec->conn[i].timeo.login_timeout= DEF_LOGIN_TIMEO;
@@ -218,12 +228,7 @@ void idbm_node_setup_defaults(node_rec_t *rec)
 		rec->conn[i].iscsi.OFMarker = 0;
 	}
 
-	/*
-	 * default is to use tcp through whatever the network layer
-	 * selects for us
-	 */
-	sprintf(rec->iface.hwaddress, DEFAULT_HWADDRESS);
-	sprintf(rec->iface.transport_name, DEFAULT_TRANSPORT);
+	iface_init(&rec->iface);
 }
 
 void iscsid_handle_error(int err)
@@ -252,12 +257,24 @@ void iscsid_handle_error(int err)
 }
 
 int __iscsi_match_session(node_rec_t *rec, char *targetname,
-			  char *address, int port, char *hwaddress,
-			  char *driver)
+			  char *address, int port, struct iface_rec *iface)
 {
-	log_debug(6, "match session [%s,%s,%d][%s,%s]",
+	if (!rec) {
+		log_debug(6, "no rec info to match\n");
+		return 1;
+	}
+
+	log_debug(6, "match session [%s,%s,%d][%s,%s,%s]",
 		  rec->name, rec->conn[0].address, rec->conn[0].port,
-		  driver, hwaddress);
+		  rec->iface.transport_name, rec->iface.hwaddress,
+		  rec->iface.ipaddress);
+
+	if (iface)
+		log_debug(6, "to [%s,%s,%d][%s,%s,%s]",
+			  targetname, address, port,
+			  iface->transport_name, iface->hwaddress,
+			  iface->ipaddress);
+
 
 	if (strlen(rec->name) && strcmp(rec->name, targetname))
 		return 0;
@@ -266,15 +283,14 @@ int __iscsi_match_session(node_rec_t *rec, char *targetname,
 	    strcmp(rec->conn[0].address, address))
 		return 0;
 
-	if (strlen(rec->iface.transport_name) &&
-	    strcmp(rec->iface.transport_name, driver))
-		return 0;
-
-	if (strlen(rec->iface.hwaddress) &&
-	    strcasecmp(rec->iface.hwaddress, hwaddress))
-		return 0;
-
 	if (rec->conn[0].port != -1 && port != rec->conn[0].port)
+		return 0;
+
+	if (strlen(rec->iface.transport_name) &&
+	    strcmp(rec->iface.transport_name, iface->transport_name))
+		return 0;
+
+	if (!iface_match_bind_info(&rec->iface, iface))
 		return 0;
 
 	return 1;
@@ -282,14 +298,7 @@ int __iscsi_match_session(node_rec_t *rec, char *targetname,
 
 int iscsi_match_session(void *data, struct session_info *info)
 {
-	struct iscsi_transport *t;
-
-	t = get_transport_by_sid(info->sid);
-	if (!t)
-		return 0;
-
 	return __iscsi_match_session(data, info->targetname,
 				     info->persistent_address,
-				     info->persistent_port,
-				     info->hwaddress, t->name);
+				     info->persistent_port, &info->iface);
 }

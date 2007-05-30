@@ -63,6 +63,7 @@ typedef enum iscsiadm_cmd {
 	MGMT_IPC_SESSION_INFO		= 13,
 	MGMT_IPC_ISNS_DEV_ATTR_QUERY	= 14,
 	MGMT_IPC_SEND_TARGETS		= 15,
+	MGMT_IPC_SET_HOST_PARAM		= 16,
 } iscsiadm_cmd_e;
 
 typedef enum iscsi_conn_state_e {
@@ -88,19 +89,26 @@ typedef struct iscsiadm_req {
 
 	union {
 		/* messages */
-		struct msg_session {
+		struct ipc_msg_session {
 			int sid;
 			node_rec_t rec;
 		} session;
-		struct msg_conn {
+		struct ipc_msg_conn {
 			int sid;
 			int cid;
 		} conn;
-		struct msg_send_targets {
+		struct ipc_msg_send_targets {
 			int host_no;
 			int do_login;
 			struct sockaddr_storage ss;
 		} st;
+		struct ipc_msg_set_host_param {
+			int host_no;
+			int param;
+			/* TODO: make this variable len to support */
+			char value[IFNAMSIZ + 1];
+
+		} set_host_param;
 	} u;
 } iscsiadm_req_t;
 
@@ -114,16 +122,16 @@ typedef struct iscsiadm_rsp {
 					sizeof(struct iscsi_stats) + \
 					sizeof(struct iscsi_stats_custom) * \
 						ISCSI_STATS_CUSTOM_MAX)
-		struct msg_getstats {
+		struct ipc_msg_getstats {
 			struct iscsi_uevent ev;
 			struct iscsi_stats stats;
 			char custom[sizeof(struct iscsi_stats_custom) *
 					ISCSI_STATS_CUSTOM_MAX];
 		} getstats;
-		struct msg_config {
+		struct ipc_msg_config {
 			char var[VALUE_MAXLEN];
 		} config;
-		struct msg_session_state {
+		struct ipc_msg_session_state {
 			iscsi_session_r_stage_e session_state;
 			iscsi_conn_state_e conn_state;
 		} session_state;

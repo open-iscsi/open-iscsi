@@ -46,6 +46,7 @@
 #include "idbm.h"
 #include "version.h"
 #include "iscsi_sysfs.h"
+#include "iscsi_settings.h"
 
 /* global config info */
 struct iscsi_daemon_config daemon_config;
@@ -95,7 +96,6 @@ Open-iSCSI initiator daemon.\n\
 
 static void
 setup_rec_from_negotiated_values(idbm_t *db, node_rec_t *rec,
-				struct iscsi_transport *t,
 				struct session_info *info)
 {
 	struct iscsi_session_operational_config session_conf;
@@ -106,10 +106,9 @@ setup_rec_from_negotiated_values(idbm_t *db, node_rec_t *rec,
 	strncpy(rec->name, info->targetname, TARGET_NAME_MAXLEN);
 	rec->conn[0].port = info->persistent_port;
 	strncpy(rec->conn[0].address, info->persistent_address, NI_MAXHOST);
-	strncpy(rec->iface.hwaddress, info->hwaddress, ISCSI_MAX_IFACE_LEN);
-	strncpy(rec->iface.transport_name, t->name,
-		ISCSI_TRANSPORT_NAME_MAXLEN);
+	memcpy(&rec->iface, &info->iface, sizeof(struct iface_rec));
 	rec->tpgt = info->tpgt;
+	iface_copy(&rec->iface, &info->iface);
 
 	get_negotiated_session_conf(info->sid, &session_conf);
 	get_negotiated_conn_conf(info->sid, &conn_conf);
@@ -192,7 +191,7 @@ static int sync_session(void *data, struct session_info *info)
 
 	log_debug(7, "sync session [%d][%s,%s.%d][%s]\n", info->sid,
 		  info->targetname, info->persistent_address,
-		  info->port, info->hwaddress);
+		  info->port, info->iface.hwaddress);
 
 	t = get_transport_by_sid(info->sid);
 	if (!t)
@@ -216,15 +215,14 @@ static int sync_session(void *data, struct session_info *info)
 		return 0;
 	}
 
-	if (!idbm_node_read(db, &rec, info->targetname,
-			   info->persistent_address, info->persistent_port,
-			   info->hwaddress)) {
-		if (!iscsi_match_session(&rec, info))
-			return 0;
-	} else {
+	memset(&rec, 0, sizeof(node_rec_t));
+	iface_get_by_bind_info(db, &info->iface, &rec.iface);
+	if (idbm_rec_read(db, &rec, info->targetname, info->tpgt,
+			  info->persistent_address, info->persistent_port,
+			  &rec.iface)) {
 		log_warning("Could not read data from db. Using default and "
 			    "currently negotiated values\n");
-		setup_rec_from_negotiated_values(db, &rec, t, info);
+		setup_rec_from_negotiated_values(db, &rec, info);
 	}
 
 	memset(&req, 0, sizeof(req));
@@ -248,7 +246,8 @@ static void sync_sessions(void)
 	idbm_terminate(db);
 }
 
-static void catch_signal(int signo) {
+static void catch_signal(int signo)
+{
 	log_warning("caught signal -%d, ignoring...", signo);
 }
 

@@ -36,6 +36,8 @@
 #include "log.h"
 #include "util.h"
 #include "iscsi_settings.h"
+#include "transport.h"
+#include "iscsi_sysfs.h"
 
 #define IDBM_HIDE	0    /* Hide parameter when print. */
 #define IDBM_SHOW	1    /* Show parameter when print. */
@@ -222,6 +224,12 @@ idbm_recinfo_node(node_rec_t *r, recinfo_t *ri)
 			IDBM_SHOW, "manual", "automatic", "onboot", num);
 	__recinfo_str("iface.hwaddress", ri, r, iface.hwaddress, IDBM_SHOW,
 		      num);
+//	__recinfo_str("iface.ipaddress", ri, r, iface.ipaddress,
+//		     IDBM_SHOW, num);
+	__recinfo_str("iface.iscsi_ifacename", ri, r, iface.name, IDBM_SHOW,
+		      num);
+	__recinfo_str("iface.net_ifacename", ri, r, iface.netdev, IDBM_SHOW,
+		      num);
 	/*
 	 * svn 780 compat: older versions used node.transport_name and
 	 * rec->transport_name
@@ -349,15 +357,14 @@ idbm_recinfo_node(node_rec_t *r, recinfo_t *ri)
 static void
 idbm_recinfo_iface(iface_rec_t *r, recinfo_t *ri)
 {
-	int num = 0, i;
-	char key[NAME_MAXVAL];
+	int num = 0;
 
-	for (i = 0; i < ISCSI_IFACE_MAX; i++) {
-		sprintf(key, "iface[%d].hwaddress", i);
-		__recinfo_str(key, ri, (&r[i]), hwaddress, IDBM_SHOW, num);
-		sprintf(key, "iface[%d].transport_name", i);
-		__recinfo_str(key, ri, (&r[i]), transport_name, IDBM_SHOW, num);
-	}
+	__recinfo_str("iface.iscsi_ifacename", ri, r, name, IDBM_SHOW, num);
+	__recinfo_str("iface.net_ifacename", ri, r, netdev, IDBM_SHOW, num);
+//	__recinfo_str("iface.ipaddress", ri, r, ipaddress, IDBM_SHOW, num);
+	__recinfo_str("iface.hwaddress", ri, r, hwaddress, IDBM_SHOW, num);
+	__recinfo_str("iface.transport_name", ri, r, transport_name,
+		      IDBM_SHOW, num);
 }
 
 static recinfo_t*
@@ -372,8 +379,12 @@ idbm_recinfo_alloc(int max_keys)
 	return info;
 }
 
-#define PRINT_TYPE_DISCOVERY	0
-#define PRINT_TYPE_NODE		1
+enum {
+	PRINT_TYPE_DISCOVERY,
+	PRINT_TYPE_NODE,
+	PRINT_TYPE_IFACE,
+};
+
 static void
 idbm_print(int type, void *rec, int show, FILE *f)
 {
@@ -384,13 +395,19 @@ idbm_print(int type, void *rec, int show, FILE *f)
 	if (!info)
 		return;
 
-	if (type == PRINT_TYPE_DISCOVERY) {
+	switch (type) {
+	case PRINT_TYPE_DISCOVERY:
 		idbm_recinfo_discovery((discovery_rec_t*)rec, info);
-	} else {
+		break;
+	case PRINT_TYPE_NODE:
 		idbm_recinfo_node((node_rec_t*)rec, info);
+		break;
+	case PRINT_TYPE_IFACE:
+		idbm_recinfo_iface((struct iface_rec *)rec, info);
+		break;
 	}
 
-	for (i=0; i<MAX_KEYS; i++) {
+	for (i = 0; i < MAX_KEYS; i++) {
 		if (!info[i].visible)
 			continue;
 		if (!show && info[i].visible == IDBM_MASKED) {
@@ -408,19 +425,6 @@ idbm_print(int type, void *rec, int show, FILE *f)
 	}
 
 	free(info);
-}
-
-static void
-idbm_interface_setup_defaults(iface_rec_t *rec)
-{
-	int i;
-
-	sprintf(rec[0].hwaddress, DEFAULT_HWADDRESS);
-	sprintf(rec[0].transport_name, DEFAULT_TRANSPORT);
-
-	/* allow user to set hwaddress but not driver */
-	for (i = 1; i < ISCSI_IFACE_MAX; i++)
-		sprintf(rec[i].transport_name, DEFAULT_TRANSPORT);
 }
 
 static void
@@ -616,7 +620,6 @@ idbm_sync_config(idbm_t *db)
 	 * initialize default node and default discovery records
 	 * from hard-coded default values */
 	idbm_node_setup_defaults(&db->nrec);
-	idbm_interface_setup_defaults(db->irec_iface);
 	idbm_discovery_setup_defaults(&db->drec_st, DISCOVERY_TYPE_SENDTARGETS);
 	idbm_discovery_setup_defaults(&db->drec_slp, DISCOVERY_TYPE_SLP);
 	idbm_discovery_setup_defaults(&db->drec_isns, DISCOVERY_TYPE_ISNS);
@@ -625,7 +628,6 @@ idbm_sync_config(idbm_t *db)
 	idbm_recinfo_discovery(&db->drec_slp, db->dinfo_slp);
 	idbm_recinfo_discovery(&db->drec_isns, db->dinfo_isns);
 	idbm_recinfo_node(&db->nrec, db->ninfo);
-	idbm_recinfo_iface(db->irec_iface, db->iinfo);
 
 	f = fopen(db->configfile, "r");
 	if (!f) {
@@ -641,7 +643,6 @@ idbm_sync_config(idbm_t *db)
 	idbm_recinfo_config(db->dinfo_slp, f);
 	idbm_recinfo_config(db->dinfo_isns, f);
 	idbm_recinfo_config(db->ninfo, f);
-	idbm_recinfo_config(db->iinfo, f);
 	fclose(f);
 
 	/* update password lengths */
@@ -717,8 +718,7 @@ int idbm_print_node_tree(idbm_t *db, void *data, node_rec_t *rec)
 			       rec->conn[0].port, rec->tpgt);
 	}
 
-	printf("\t\tDriver: %s\n", rec->iface.transport_name);
-	printf("\t\tHWaddress: %s\n", rec->iface.hwaddress);
+	printf("\t\tIface Name: %s\n", rec->iface.name);
 
 	memcpy(last_rec, rec, sizeof(node_rec_t));
 	return 0;
@@ -726,15 +726,10 @@ int idbm_print_node_tree(idbm_t *db, void *data, node_rec_t *rec)
 
 static int
 get_params_from_disc_link(char *link, char **target, char **tpgt,
-			  char **address, char **port, char **hwaddress,
-			  char **driver)
+			  char **address, char **port, char **ifaceid)
 {
 	(*target) = link;
-	*tpgt = strchr((*target), ',');
-	if (!tpgt)
-		return EINVAL;
-	*(*tpgt)++ = '\0';
-	*address = strchr(*tpgt, ',');
+	*address = strchr(*target, ',');
 	if (!(*address))
 		return EINVAL;
 	*(*address)++ = '\0';
@@ -742,347 +737,15 @@ get_params_from_disc_link(char *link, char **target, char **tpgt,
 	if (!(*port))
 		return EINVAL;
 	*(*port)++ = '\0';
-	*hwaddress = strchr(*port, ',');
-	if (!(*hwaddress))
+	*tpgt = strchr(*port, ',');
+	if (!(*tpgt))
 		return EINVAL;
-	*(*hwaddress)++ = '\0';
-	*driver = strchr(*hwaddress, ',');
-	if (!(*driver))
+	*(*tpgt)++ = '\0';
+	*ifaceid = strchr(*tpgt, ',');
+	if (!(*ifaceid))
 		return EINVAL;
-	*(*driver)++ = '\0';
+	*(*ifaceid)++ = '\0';
 	return 0;
-}
-
-static int st_disc_filter(const struct dirent *dir)
-{
-	return strcmp(dir->d_name, ".") && strcmp(dir->d_name, "..") &&
-	       strcmp(dir->d_name, ST_CONFIG_NAME);
-}
-
-static int print_discovered(char *disc_path, int info_level)
-{
-	char *tmp_port = NULL, *last_address = NULL, *last_target = NULL;
-	char *target = NULL, *tpgt = NULL, *address = NULL, *hwaddress= NULL;
-	char *driver = NULL;
-	int n, i, last_port = -1;
-	struct dirent **namelist;
-
-	n = scandir(disc_path, &namelist, st_disc_filter, versionsort);
-	if (n < 0)
-		return 0;
-
-	for (i = 0; i < n; i++) {
-		if (get_params_from_disc_link(namelist[i]->d_name, &target,
-					      &tpgt, &address, &tmp_port,
-					      &hwaddress, &driver)) {
-			log_error("Improperly formed disc to node link");
-			continue;
-		}
-
-		if (info_level < 1) {
-			if (strchr(address, '.'))
-				printf("%s:%d,%d %s\n", address, atoi(tmp_port),
-					atoi(tpgt), target);
-			else
-				printf("[%s]:%d,%d %s\n", address,
-					atoi(tmp_port), atoi(tpgt), target);
-			continue;
-		}
-
-		if (!last_target || strcmp(last_target, target)) {
-			printf("    Target: %s\n", target);
-			last_target = namelist[i]->d_name;
-			last_port = -1;
-			last_address = NULL;
-		}
-
-		if (!last_address || strcmp(last_address, address) ||
-		    last_port == -1 || last_port != atoi(tmp_port)) {
-			last_port = atoi(tmp_port);
-			printf("        ");
-			if (strchr(address, '.'))
-				printf("Portal: %s:%d,%d\n", address,
-					last_port, atoi(tpgt));
-			else
-				printf("Portal: [%s]:%d,%d\n", address,
-					last_port, atoi(tpgt));
-			last_address = tpgt + strlen(tpgt) + 1;
-		}
-
-		printf("           Driver: %s\n", driver);
-		printf("           HWaddress: %s\n", hwaddress);
-	}
-
-	for (i = 0; i < n; i++)
-		free(namelist[i]);
-	free(namelist);
-	return n;
-}
-
-int idbm_print_discovered(discovery_rec_t *drec, int info_level)
-{
-	char *disc_path;
-	int rc;
-
-	disc_path = calloc(1, PATH_MAX);
-	if (!disc_path)
-		return 0;
-
-	switch (drec->type) {
-	case DISCOVERY_TYPE_SENDTARGETS:
-		snprintf(disc_path, PATH_MAX, "%s/%s,%d", ST_CONFIG_DIR,
-			 drec->address, drec->port);
-		break;
-	case DISCOVERY_TYPE_STATIC:
-		snprintf(disc_path, PATH_MAX, "%s", STATIC_CONFIG_DIR);
-		break;
-	case DISCOVERY_TYPE_ISNS:
-		snprintf(disc_path, PATH_MAX, "%s", ISNS_CONFIG_DIR);
-		break;
-	case DISCOVERY_TYPE_SLP:
-	default:
-		rc = 0;
-		goto done;
-	}
-
-	rc = print_discovered(disc_path, info_level);
-done:
-	free(disc_path);
-	return rc;
-}
-
-static int idbm_print_all_st(idbm_t *db, int info_level)
-{
-	DIR *entity_dirfd;
-	struct dirent *entity_dent;
-	int found = 0;
-	char *disc_dir;
-
-	disc_dir = malloc(PATH_MAX);
-	if (!disc_dir)
-		return 0;
-
-	entity_dirfd = opendir(ST_CONFIG_DIR);
-	if (!entity_dirfd)
-		goto free_disc;
-
-	while ((entity_dent = readdir(entity_dirfd))) {
-		if (!strcmp(entity_dent->d_name, ".") ||
-		    !strcmp(entity_dent->d_name, ".."))
-			continue;
-
-		log_debug(5, "found %s\n", entity_dent->d_name);
-		if (info_level >= 1) {
-			memset(disc_dir, 0, PATH_MAX);
-			snprintf(disc_dir, PATH_MAX, "%s/%s", ST_CONFIG_DIR,
-				 entity_dent->d_name);
-
-			printf("DiscoveryAddress: %s\n", entity_dent->d_name);
-			found += print_discovered(disc_dir, info_level);
-		} else {
-			char *tmp_port;
-
-			tmp_port = strchr(entity_dent->d_name, ',');
-			if (!tmp_port)
-				continue;
-			*tmp_port++ = '\0';
-
-			printf("%s:%d via sendtargets\n", entity_dent->d_name,
-			       atoi(tmp_port));
-			found++;
-		}
-	}
-	closedir(entity_dirfd);
-free_disc:
-	free(disc_dir);
-	return found;
-}
-
-int idbm_print_all_discovery(idbm_t *db, int info_level)
-{
-	discovery_rec_t *drec;
-	int found = 0, tmp;
-
-	if (info_level < 1)
-		return idbm_print_all_st(db, info_level);
-
-	drec = calloc(1, sizeof(*drec));
-	if (!drec)
-		return ENOMEM;
-
-	tmp = 0;
-	printf("SENDTARGETS:\n");
-	tmp = idbm_print_all_st(db, info_level);
-	if (!tmp)
-		printf("No targets found.\n");
-	found += tmp;
-	tmp = 0;
-
-	printf("iSNS:\n");
-	drec->type = DISCOVERY_TYPE_ISNS;
-	tmp = idbm_print_discovered(drec, info_level);
-	if (!tmp)
-		printf("No targets found.\n");
-	found += tmp;
-	tmp = 0;
-
-	printf("STATIC:\n");
-	drec->type = DISCOVERY_TYPE_STATIC;
-	tmp = idbm_print_discovered(drec, info_level);
-	if (!tmp)
-		printf("No targets found.\n");
-	found += tmp;
-
-	free(drec);
-	return found;
-}
-
-int idbm_for_each_iface(idbm_t *db, void *data, idbm_iface_op_fn *fn,
-			char *targetname, char *ip, int port)
-{
-	DIR *iface_dirfd;
-	struct dirent *iface_dent;
-	struct stat statb;
-	node_rec_t rec;
-	int found = 0;
-	char *config;
-
-	config = calloc(1, PATH_MAX);
-	if (!config)
-		return 0;
-
-	sprintf(config, "%s/%s/%s,%d", NODE_CONFIG_DIR, targetname, ip, port);
-	if (stat(config, &statb)) {
-		log_error("iface iter could not stat %s\n", config);
-		goto done;
-	}
-
-	if (!S_ISDIR(statb.st_mode)) {
-		if (idbm_node_read(db, &rec, targetname, ip, port, "default"))
-			goto done;
-
-		fn(db, data, &rec);
-		found = 1;
-		goto done;
-	}
-
-	iface_dirfd = opendir(config);
-	if (!iface_dirfd)
-		goto done;
-
-	while ((iface_dent = readdir(iface_dirfd))) {
-		if (!strcmp(iface_dent->d_name, ".") ||
-		    !strcmp(iface_dent->d_name, ".."))
-			continue;
-
-		log_debug(5, "found %s\n", iface_dent->d_name);
-		if (idbm_node_read(db, &rec, targetname, ip, port,
-				   iface_dent->d_name))
-			continue;
-
-		fn(db, data, &rec);
-		found++;
-	}
-
-	closedir(iface_dirfd);
-done:
-	free(config);
-	return found;
-}
-
-/*
- * backwards compat
- * The portal could be a file or dir with interfaces
- */
-int idbm_for_each_portal(idbm_t *db, void *data, idbm_portal_op_fn *fn,
-			 char *targetname)
-{
-	DIR *portal_dirfd;
-	struct dirent *portal_dent;
-	int found = 0;
-	char *portal;
-
-	portal = calloc(1, PATH_MAX);
-	if (!portal)
-		return 0;
-
-	sprintf(portal, "%s/%s", NODE_CONFIG_DIR, targetname);
-	portal_dirfd = opendir(portal);
-	if (!portal_dirfd)
-		goto done;
-
-	while ((portal_dent = readdir(portal_dirfd))) {
-		char *tmp_port;
-
-		if (!strcmp(portal_dent->d_name, ".") ||
-		    !strcmp(portal_dent->d_name, ".."))
-			continue;
-
-		log_debug(5, "found %s\n", portal_dent->d_name);
-		tmp_port = strchr(portal_dent->d_name, ',');
-		if (!tmp_port)
-			continue;
-		*tmp_port++ = '\0';
-
-		found += fn(db, data, targetname, portal_dent->d_name,
-			    atoi(tmp_port));
-	}
-	closedir(portal_dirfd);
-done:
-	free(portal);
-	return found;
-}
-
-int idbm_for_each_node(idbm_t *db, void *data, idbm_node_op_fn *fn)
-{
-	DIR *node_dirfd;
-	struct dirent *node_dent;
-	int found = 0;
-
-	node_dirfd = opendir(NODE_CONFIG_DIR);
-	if (!node_dirfd)
-		return 0;
-
-	while ((node_dent = readdir(node_dirfd))) {
-		if (!strcmp(node_dent->d_name, ".") ||
-		    !strcmp(node_dent->d_name, ".."))
-			continue;
-
-		log_debug(5, "searching %s\n", node_dent->d_name);
-		found += fn(db, data, node_dent->d_name);
-	}
-
-	closedir(node_dirfd);
-	return found;
-}
-
-static int iface_fn(idbm_t *db, void *data, node_rec_t *rec)
-{
-	struct rec_op_data *op_data = data;
-
-	return op_data->fn(db, op_data->data, rec);
-}
-
-static int portal_fn(idbm_t *db, void *data, char *targetname,
-		     char *ip, int port)
-{
-	return idbm_for_each_iface(db, data, iface_fn, targetname, ip, port);
-}
-
-static int node_fn(idbm_t *db, void *data, char *targetname)
-{
-	return idbm_for_each_portal(db, data, portal_fn, targetname);
-}
-
-int idbm_for_each_rec(idbm_t *db, void *data, idbm_iface_op_fn *fn)
-{
-	struct rec_op_data op_data;
-
-	memset(&op_data, 0, sizeof(struct rec_op_data));
-	op_data.data = data;
-	op_data.fn = fn;
-
-	return idbm_for_each_node(db, &op_data, node_fn);
 }
 
 static int idbm_lock(idbm_t *db)
@@ -1129,18 +792,524 @@ static void idbm_unlock(idbm_t *db)
 }
 
 /*
+ * default is to use tcp through whatever the network layer
+ * selects for us
+ */
+void iface_init(struct iface_rec *iface)
+{
+	sprintf(iface->netdev, DEFAULT_NETDEV);
+//	sprintf(iface->ipaddress, DEFAULT_IPADDRESS);
+	sprintf(iface->hwaddress, DEFAULT_HWADDRESS);
+	sprintf(iface->transport_name, DEFAULT_TRANSPORT);
+	if (!strlen(iface->name))
+		sprintf(iface->name, DEFAULT_IFACENAME);
+}
+
+struct iface_rec *iface_alloc(char *ifname, int *err)
+{
+	struct iface_rec *iface;
+
+	if (!strlen(ifname) || strlen(ifname) + 1 > ISCSI_MAX_IFACE_LEN) {
+		*err = EINVAL;
+		return NULL;
+	}
+
+	iface = calloc(1, sizeof(*iface));
+	if (!iface) {
+		*err = ENOMEM;
+		return NULL;
+	}
+
+	strncpy(iface->name, ifname, ISCSI_MAX_IFACE_LEN);
+	INIT_LIST_HEAD(&iface->list);
+	return iface;
+}
+
+int iface_conf_read(struct iface_rec *iface)
+{
+	char *iface_conf;
+	recinfo_t *info;
+	FILE *f;
+	int rc = 0;
+
+	iface_conf = calloc(1, PATH_MAX);
+	if (!iface_conf)
+		return ENOMEM;
+
+	info = idbm_recinfo_alloc(MAX_KEYS);
+	if (!info) {
+		rc = ENOMEM;
+		goto free_conf;
+	}
+
+	snprintf(iface_conf, PATH_MAX, "%s/%s", IFACE_CONFIG_DIR,
+		 iface->name);
+
+	log_debug(5, "looking for iface conf %s", iface_conf);
+	f = fopen(iface_conf, "r");
+	if (!f) {
+		/*
+		 * if someone passes in default but has not defined
+		 * a iface with default then we do it for them
+		 */
+		if (!strcmp(iface->name, DEFAULT_IFACENAME)) {
+			iface_init(iface);
+			rc = 0;
+		} else
+			rc = errno;
+		goto free_info;
+	}
+
+	iface_init(iface);
+	idbm_recinfo_iface(iface, info);
+	idbm_recinfo_config(info, f);
+	fclose(f);
+
+free_info:
+	free(info);
+free_conf:
+	free(iface_conf);
+	return rc;
+}
+
+static int iface_conf_write(struct iface_rec *iface)
+{
+	char *iface_conf;
+	FILE *f;
+	int rc = 0;
+
+	iface_conf = calloc(1, PATH_MAX);
+	if (!iface_conf)
+		return ENOMEM;
+
+	sprintf(iface_conf, "%s/%s", IFACE_CONFIG_DIR, iface->name);
+	f = fopen(iface_conf, "w");
+	if (!f) {
+		rc = errno;
+		goto free_conf;
+	}
+
+	idbm_print(PRINT_TYPE_IFACE, iface, 1, f);
+	fclose(f);
+free_conf:
+	free(iface_conf);
+	return rc;
+}
+
+static void idbm_read_def_ifaces(struct list_head *ifaces)
+{
+	DIR *iface_dirfd;
+	struct dirent *iface_dent;
+	struct iface_rec *iface;
+	int err = 0;
+
+	iface_dirfd = opendir(IFACE_CONFIG_DIR);
+	if (!iface_dirfd)
+		return;
+
+	while ((iface_dent = readdir(iface_dirfd))) {
+		if (!strcmp(iface_dent->d_name, ".") ||
+		    !strcmp(iface_dent->d_name, ".."))
+			continue;
+
+		log_debug(5, "idbm_read_def_ifaces found %s",
+			 iface_dent->d_name);
+		iface = iface_alloc(iface_dent->d_name, &err);
+		if (!iface || err) {
+			if (err == EINVAL)
+				log_error("Invalid iface name %s. Must be "
+					  "from 1 to %d characters.",
+					   iface_dent->d_name,
+					   ISCSI_MAX_IFACE_LEN - 1);
+			else
+				log_error("Could not add iface %s.",
+					  iface_dent->d_name);
+			free(iface);
+			continue;
+		}
+
+		err = iface_conf_read(iface);
+		if (err) {
+			log_error("Could not read def iface %s (err %d)",
+				  iface->name, err);
+			free(iface);
+			continue;
+		}
+		if (!iface_is_bound(iface)) {
+			log_debug(5, "Default iface is not bound "
+				  "Iface settings " iface_fmt,
+				  iface_str(iface));
+			free(iface);
+			continue;
+		}
+
+		log_debug(5, "idbm_read_def_ifaces added %s", iface->name);
+		list_add_tail(&iface->list, ifaces);
+	}
+	closedir(iface_dirfd);
+}
+
+static int iface_get_next_id(void)
+{
+	struct stat statb;
+	char *iface_conf;
+	int i, rc = ENOSPC;
+
+	iface_conf = calloc(1, PATH_MAX);
+	if (!iface_conf)
+		return ENOMEM;
+
+	for (i = 0; i < INT_MAX; i++) {
+		memset(iface_conf, 0, PATH_MAX);
+		/* check len */
+		snprintf(iface_conf, PATH_MAX, "iface%d", i);
+		if (strlen(iface_conf) > ISCSI_MAX_IFACE_LEN - 1) {
+			log_error("iface namespace is full. Remove unused "
+				  "iface definitions from %s or send mail "
+				  "to open-iscsi@googlegroups.com to report "
+				  "the problem", IFACE_CONFIG_DIR);
+			rc = ENOSPC;
+			break;
+		}
+		memset(iface_conf, 0, PATH_MAX);
+		snprintf(iface_conf, PATH_MAX, "%s/iface%d", IFACE_CONFIG_DIR,
+			i);
+
+		if (!stat(iface_conf, &statb))
+			continue;
+		if (errno == ENOENT) {
+			rc = i;
+			break;
+		}
+	}
+
+	free(iface_conf);
+        return rc;
+}
+
+struct iface_search {
+	struct iface_rec *pattern;
+	struct iface_rec *found;
+};
+
+static int __iface_get_by_bind_info(void *data, struct iface_rec *iface)
+{
+	struct iface_search *search = data;
+
+	if (!strcmp(search->pattern->name, iface->name)) {
+		iface_copy(search->found, iface);
+		return 1;
+	}
+
+	if (iface_is_bound_by_hwaddr(search->pattern)) {
+		if (!strcmp(iface->hwaddress, search->pattern->hwaddress)) {
+			iface_copy(search->found, iface);
+			return 1;
+		} else
+			return 0;
+	}
+
+	if (iface_is_bound_by_netdev(search->pattern)) {
+		if (!strcmp(iface->netdev, search->pattern->netdev)) {
+			iface_copy(search->found, iface);
+			return 1;
+		} else
+			return 0;
+	}
+
+/*
+	if (iface_is_bound_by_ipaddr(search->pattern)) {
+		if (!strcmp(iface->ipaddress, search->pattern->ipaddress)) {
+			iface_copy(search->found, iface);
+			return 1;
+		} else
+			return 0;
+	}
+*/
+	return 0;
+}
+
+int iface_get_by_bind_info(idbm_t *db, struct iface_rec *pattern,
+			   struct iface_rec *out_rec)
+{
+	int num_found = 0, rc;
+	struct iface_search search;
+
+	search.pattern = pattern;
+	search.found = out_rec;
+
+	rc = iface_for_each_iface(db, &search, &num_found,
+				  __iface_get_by_bind_info);
+	if (rc == 1)
+		return 0;
+
+	/*
+	 * compat for default behavior
+	 */
+	if (!iface_is_bound(pattern) ||
+	    strcmp(pattern->name, DEFAULT_IFACENAME)) {
+		strcpy(out_rec->name, pattern->name);
+		iface_init(out_rec);
+		return 0;
+	}
+
+	return ENODEV;
+}
+
+static int __iface_setup_host_bindings(void *data, struct host_info *info)
+{
+	idbm_t *db = data;
+	struct iface_rec iface;
+	struct iscsi_transport *t;
+	int id;
+
+	if (!strlen(info->iface.hwaddress) ||
+	    !strlen(info->iface.transport_name))
+		return 0;
+
+	t = get_transport_by_hba(info->host_no);
+	if (!t)
+		return 0;
+	/*
+	 * if software iscsi do not touch the bindngs. They do not
+	 * need it and may not support it
+	 */
+	if (!(t->caps & CAP_DATA_PATH_OFFLOAD))
+		return 0;
+
+	if (iface_get_by_bind_info(db, &info->iface, &iface)) {
+		/* Must be a new port */
+		id = iface_get_next_id();
+		if (id < 0) {
+			log_error("Could not add iface for %s.",
+				  info->iface.hwaddress);
+			return 0;
+		}
+		memset(&iface, 0, sizeof(struct iface_rec));
+		strcpy(iface.hwaddress, info->iface.hwaddress);
+		strcpy(iface.transport_name, info->iface.transport_name);
+		sprintf(iface.name, "iface%d", id);
+		if (iface_conf_write(&iface))
+			log_error("Could not write iface conf for %s %s",
+				  iface.name, iface.hwaddress);
+			/* fall through - will not be persistent */
+	}
+	return 0;
+}
+
+/*
+ * sync hw/offload iscsi scsi_hosts with iface values
+ */
+void iface_setup_host_bindings(idbm_t *db)
+{
+	int nr_found = 0;
+
+	idbm_lock(db);
+	if (access(IFACE_CONFIG_DIR, F_OK) != 0) {
+		if (mkdir(IFACE_CONFIG_DIR, 0660) != 0) {
+			log_error("Could not make %s. HW/OFFLOAD iscsi "
+				  "may not be supported", IFACE_CONFIG_DIR);
+			idbm_unlock(db);
+			return;
+		}
+	}
+	idbm_unlock(db);
+
+	if (sysfs_for_each_host(db, &nr_found,
+				__iface_setup_host_bindings))
+		log_error("Could not scan scsi hosts. HW/OFFLOAD iscsi "
+			  "operations may not be supported.");
+}
+
+int iface_print_flat(void *data, struct iface_rec *iface)
+{
+	printf("%s:%s %s,%s\n",
+	       strlen(iface->name) ? iface->name : UNKNOWN_VALUE,
+	       strlen(iface->transport_name) ? iface->transport_name :
+								UNKNOWN_VALUE,
+	       strlen(iface->hwaddress) ? iface->hwaddress : UNKNOWN_VALUE,
+//	       strlen(iface->ipaddress) ? iface->ipaddress : UNKNOWN_VALUE,
+	       strlen(iface->netdev) ? iface->netdev : UNKNOWN_VALUE);
+	return 0;
+}
+
+void iface_copy(struct iface_rec *dst, struct iface_rec *src)
+{
+	if (strlen(src->name))
+		strcpy(dst->name, src->name);
+	if (strlen(src->netdev))
+		strcpy(dst->netdev, src->netdev);
+//	if (strlen(src->ipaddress))
+//		strcpy(dst->ipaddress, src->ipaddress);
+	if (strlen(src->hwaddress))
+		strcpy(dst->hwaddress, src->hwaddress);
+	if (strlen(src->transport_name))
+		strcpy(dst->transport_name, src->transport_name);
+}
+
+int iface_is_bound(struct iface_rec *iface)
+{
+	if (!iface)
+		return 0;
+
+	if (iface_is_bound_by_hwaddr(iface))
+		return 1;
+
+	if (iface_is_bound_by_netdev(iface))
+		return 1;
+
+//	if (iface_is_bound_by_ipaddr(iface))
+//		return 1;
+
+	return 0;
+}
+
+int iface_match_bind_info(struct iface_rec *pattern, struct iface_rec *iface)
+{
+	if (!pattern || !iface)
+		return 1;
+
+	/* if no values set then we have a match */
+	if (!strlen(pattern->hwaddress) &&
+//	    !strlen(pattern->ipaddress) &&
+	    !strlen(pattern->netdev) &&
+	    !strlen(pattern->name))
+		return 1;
+
+	/*
+	 * If both interfaces are not bound we return match.
+	 * This assumes we will not have two ifaces with different
+	 * names and no binding info. There should only be one
+	 * iface with no binding info for each transport and that
+	 * is the "default" which is used for backward compat from
+	 * when we did not have ifaces.	
+	 */
+	if (!iface_is_bound(iface) &&
+	    !iface_is_bound(pattern))
+		return 1;
+
+	if (iface_is_bound_by_hwaddr(pattern) &&
+	    !strcmp(pattern->hwaddress, iface->hwaddress))
+		return 1;
+
+	if (iface_is_bound_by_netdev(iface) &&
+	   !strcmp(pattern->netdev, iface->netdev))
+		return 1;
+
+//	if (iface_is_bound_by_ipaddr(iface) &&
+//	   !strcmp(pattern->ipaddress, iface->ipaddress))
+//		return 1;
+
+	if (strlen(pattern->name)) {
+		if (!strcmp(pattern->name, iface->name))
+			return 1;
+	}
+
+	return 0;
+}
+
+int iface_is_bound_by_hwaddr(struct iface_rec *iface)
+{
+	if (iface && strlen(iface->hwaddress) &&
+	   strcmp(iface->hwaddress, DEFAULT_HWADDRESS))
+		return 1;
+	return 0;
+}
+
+int iface_is_bound_by_netdev(struct iface_rec *iface)
+{
+	if (iface && strlen(iface->netdev) &&
+	   strcmp(iface->netdev, DEFAULT_NETDEV))
+		return 1;
+	return 0;
+}
+
+int iface_is_bound_by_ipaddr(struct iface_rec *iface)
+{
+	return 0;
+/*	if (iface && strlen(iface->ipaddress) &&
+	   strcmp(iface->ipaddress, DEFAULT_NETDEV))
+		return 1;
+	return 0;
+*/
+}
+
+static int iface_filter(const struct dirent *dir)
+{
+	return strcmp(dir->d_name, ".") && strcmp(dir->d_name, "..");
+}
+
+int iface_for_each_iface(idbm_t *db, void *data, int *nr_found, iface_op_fn *fn)
+{
+	struct dirent **namelist;
+	struct iface_rec *iface;
+	int err = 0, n, i;
+
+	n = scandir(IFACE_CONFIG_DIR, &namelist, iface_filter, versionsort);
+	if (n <= 0)
+		return 0;
+
+	for (i = 0; i < n; i++) {
+		log_debug(5, "iface_for_each_iface found %s",
+			 namelist[i]->d_name);
+		iface = iface_alloc(namelist[i]->d_name, &err);
+		if (!iface || err) {
+			if (err == EINVAL)
+				log_error("Invalid iface name %s. Must be "
+					  "from 1 to %d characters.",
+					   namelist[i]->d_name,
+					   ISCSI_MAX_IFACE_LEN - 1);
+			else
+				log_error("Could not add iface %s.",
+					  namelist[i]->d_name);
+			free(iface);
+			continue;
+		}
+
+		idbm_lock(db);
+		err = iface_conf_read(iface);
+		idbm_unlock(db);
+		if (err) {
+			log_error("Could not read def iface %s (err %d)",
+				  iface->name, err);
+			free(iface);
+			continue;
+		}
+
+		if (!iface_is_bound(iface)) {
+			log_debug(5, "Default iface is not bound "
+				  "Iface settings " iface_fmt,
+				  iface_str(iface));
+			free(iface);
+			continue;
+		}
+
+		err = fn(data, iface);
+		free(iface);
+		if (err)
+			break;
+		(*nr_found)++;
+	}
+
+	for (i = 0; i < n; i++)
+		free(namelist[i]);
+	free(namelist);
+	return err;
+}
+
+/*
  * Backwards Compat:
  * If the portal is a file then we are doing the old style default
  * session behavior (svn pre 780).
  */
-static FILE *idbm_open_node_rec_r(char *portal, char *config)
+static FILE *idbm_open_rec_r(char *portal, char *config)
 {
 	struct stat statb;
 
-	log_debug(5, "Looking for config file %s config %s\n", portal, config);
+	log_debug(5, "Looking for config file %s config %s.", portal, config);
 
 	if (stat(portal, &statb)) {
-		log_debug(5, "Could not stat %s err %d\n", portal, errno);
+		log_debug(5, "Could not stat %s err %d.", portal, errno);
 		return NULL;
 	}
 
@@ -1149,6 +1318,438 @@ static FILE *idbm_open_node_rec_r(char *portal, char *config)
 		strncat(portal, config, PATH_MAX);
 	}
 	return fopen(portal, "r");
+}
+
+static int __idbm_rec_read(idbm_t *db, node_rec_t *out_rec, char *conf)
+{
+	recinfo_t *info;
+	FILE *f;
+	int rc = 0;
+
+	info = idbm_recinfo_alloc(MAX_KEYS);
+	if (!info)
+		return ENOMEM;
+
+	idbm_lock(db);
+	f = fopen(conf, "r");
+	if (!f) {
+		log_debug(5, "Could not open %s err %d\n", conf, errno);
+		rc = errno;
+		goto unlock;
+	}
+
+	memset(out_rec, 0, sizeof(*out_rec));
+	idbm_node_setup_defaults(out_rec);
+	idbm_recinfo_node(out_rec, info);
+	idbm_recinfo_config(info, f);
+	fclose(f);
+
+unlock:
+	idbm_unlock(db);
+	free(info);
+	return rc;
+}
+
+int
+idbm_rec_read(idbm_t *db, node_rec_t *out_rec, char *targetname, int tpgt,
+	      char *ip, int port, struct iface_rec *iface)
+{
+	struct stat statb;
+	char *portal;
+	int rc;
+
+	portal = calloc(1, PATH_MAX);
+	if (!portal)
+		return ENOMEM;
+
+	/* try old style portal as config */
+	snprintf(portal, PATH_MAX, "%s/%s/%s,%d", NODE_CONFIG_DIR,
+		 targetname, ip, port);
+	log_debug(5, "rec read looking for config file %s.", portal);
+	if (!stat(portal, &statb))
+		goto read;
+
+	snprintf(portal, PATH_MAX, "%s/%s/%s,%d,%d/%s", NODE_CONFIG_DIR,
+		 targetname, ip, port, tpgt, iface->name);
+	log_debug(5, "rec read looking for config file %s.", portal);
+	if (stat(portal, &statb)) {
+		log_debug(5, "Could not stat %s err %d.", portal, errno);
+		free(portal);
+		return errno;
+	}
+
+read:
+	rc = __idbm_rec_read(db, out_rec, portal);
+	free(portal);
+	return rc;
+}
+
+static int st_disc_filter(const struct dirent *dir)
+{
+	return strcmp(dir->d_name, ".") && strcmp(dir->d_name, "..") &&
+	       strcmp(dir->d_name, ST_CONFIG_NAME);
+}
+
+static int print_discovered(idbm_t *db, char *disc_path, int info_level)
+{
+	char *tmp_port = NULL, *last_address = NULL, *last_target = NULL;
+	char *target = NULL, *address = NULL, *ifaceid = NULL, *tpgt = NULL;
+	char *portal;
+	int n, i, last_port = -1;
+	struct dirent **namelist;
+	node_rec_t *rec;
+
+	n = scandir(disc_path, &namelist, st_disc_filter, versionsort);
+	if (n < 0)
+		return 0;
+
+	rec = malloc(sizeof(*rec));
+	if (!rec)
+		goto free_namelist;
+
+	portal = malloc(PATH_MAX);
+	if (!portal)
+		goto free_rec;
+
+	for (i = 0; i < n; i++) {
+		if (get_params_from_disc_link(namelist[i]->d_name, &target,
+					      &tpgt, &address, &tmp_port,
+					      &ifaceid)) {
+			log_error("Improperly formed disc to node link");
+			continue;
+		}
+
+		memset(portal, 0, PATH_MAX);
+		snprintf(portal, PATH_MAX, "%s/%s/%s,%s,%s/%s", NODE_CONFIG_DIR,
+			 target, address, tmp_port, tpgt, ifaceid);
+		if (__idbm_rec_read(db, rec, portal)) {
+			log_error("Could not read node record for %s "
+				  "%s %d %s", target, address, atoi(tmp_port),
+				  ifaceid);
+			continue;
+		}
+
+		if (info_level < 1) {
+			if (strchr(address, '.'))
+				printf("%s:%d,%d %s\n", address, atoi(tmp_port),
+					rec->tpgt, target);
+			else
+				printf("[%s]:%d,%d %s\n", address,
+					atoi(tmp_port), rec->tpgt, target);
+			continue;
+		}
+
+		if (!last_target || strcmp(last_target, target)) {
+			printf("    Target: %s\n", target);
+			last_target = namelist[i]->d_name;
+			last_port = -1;
+			last_address = NULL;
+		}
+
+		if (!last_address || strcmp(last_address, address) ||
+		    last_port == -1 || last_port != atoi(tmp_port)) {
+			last_port = atoi(tmp_port);
+			printf("        ");
+			if (strchr(address, '.'))
+				printf("Portal: %s:%d,%d\n", address,
+					last_port, rec->tpgt);
+			else
+				printf("Portal: [%s]:%d,%d\n", address,
+					last_port, rec->tpgt);
+			last_address = address;
+		}
+
+		printf("           Iface Name: %s\n", rec->iface.name);
+	}
+
+	free(portal);
+free_rec:
+	free(rec);
+free_namelist:
+	for (i = 0; i < n; i++)
+		free(namelist[i]);
+	free(namelist);
+	return n;
+}
+
+int idbm_print_discovered(idbm_t *db, discovery_rec_t *drec, int info_level)
+{
+	char *disc_path;
+	int rc;
+
+	disc_path = calloc(1, PATH_MAX);
+	if (!disc_path)
+		return 0;
+
+	switch (drec->type) {
+	case DISCOVERY_TYPE_SENDTARGETS:
+		snprintf(disc_path, PATH_MAX, "%s/%s,%d", ST_CONFIG_DIR,
+			 drec->address, drec->port);
+		break;
+	case DISCOVERY_TYPE_STATIC:
+		snprintf(disc_path, PATH_MAX, "%s", STATIC_CONFIG_DIR);
+		break;
+	case DISCOVERY_TYPE_ISNS:
+		snprintf(disc_path, PATH_MAX, "%s", ISNS_CONFIG_DIR);
+		break;
+	case DISCOVERY_TYPE_SLP:
+	default:
+		rc = 0;
+		goto done;
+	}
+
+	rc = print_discovered(db, disc_path, info_level);
+done:
+	free(disc_path);
+	return rc;
+}
+
+static int idbm_print_all_st(idbm_t *db, int info_level)
+{
+	DIR *entity_dirfd;
+	struct dirent *entity_dent;
+	int found = 0;
+	char *disc_dir;
+
+	disc_dir = malloc(PATH_MAX);
+	if (!disc_dir)
+		return 0;
+
+	entity_dirfd = opendir(ST_CONFIG_DIR);
+	if (!entity_dirfd)
+		goto free_disc;
+
+	while ((entity_dent = readdir(entity_dirfd))) {
+		if (!strcmp(entity_dent->d_name, ".") ||
+		    !strcmp(entity_dent->d_name, ".."))
+			continue;
+
+		log_debug(5, "found %s\n", entity_dent->d_name);
+		if (info_level >= 1) {
+			memset(disc_dir, 0, PATH_MAX);
+			snprintf(disc_dir, PATH_MAX, "%s/%s", ST_CONFIG_DIR,
+				 entity_dent->d_name);
+
+			printf("DiscoveryAddress: %s\n", entity_dent->d_name);
+			found += print_discovered(db, disc_dir, info_level);
+		} else {
+			char *tmp_port;
+
+			tmp_port = strchr(entity_dent->d_name, ',');
+			if (!tmp_port)
+				continue;
+			*tmp_port++ = '\0';
+
+			printf("%s:%d via sendtargets\n", entity_dent->d_name,
+			       atoi(tmp_port));
+			found++;
+		}
+	}
+	closedir(entity_dirfd);
+free_disc:
+	free(disc_dir);
+	return found;
+}
+
+int idbm_print_all_discovery(idbm_t *db, int info_level)
+{
+	discovery_rec_t *drec;
+	int found = 0, tmp;
+
+	if (info_level < 1)
+		return idbm_print_all_st(db, info_level);
+
+	drec = calloc(1, sizeof(*drec));
+	if (!drec)
+		return ENOMEM;
+
+	tmp = 0;
+	printf("SENDTARGETS:\n");
+	tmp = idbm_print_all_st(db, info_level);
+	if (!tmp)
+		printf("No targets found.\n");
+	found += tmp;
+	tmp = 0;
+
+	printf("iSNS:\n");
+	drec->type = DISCOVERY_TYPE_ISNS;
+	tmp = idbm_print_discovered(db, drec, info_level);
+	if (!tmp)
+		printf("No targets found.\n");
+	found += tmp;
+	tmp = 0;
+
+	printf("STATIC:\n");
+	drec->type = DISCOVERY_TYPE_STATIC;
+	tmp = idbm_print_discovered(db, drec, info_level);
+	if (!tmp)
+		printf("No targets found.\n");
+	found += tmp;
+
+	free(drec);
+	return found;
+}
+
+int idbm_for_each_iface(idbm_t *db, void *data, idbm_iface_op_fn *fn,
+			char *targetname, int tpgt, char *ip, int port)
+{
+	DIR *iface_dirfd;
+	struct dirent *iface_dent;
+	struct stat statb;
+	node_rec_t rec;
+	int found = 0;
+	char *portal;
+
+	portal = calloc(1, PATH_MAX);
+	if (!portal)
+		return 0;
+
+	if (tpgt >= 0)
+		goto read_iface;
+
+	/* old style portal as a config */
+	snprintf(portal, PATH_MAX, "%s/%s/%s,%d", NODE_CONFIG_DIR, targetname,
+		 ip, port);
+	if (stat(portal, &statb)) {
+		log_error("iface iter could not stat %s.", portal);
+		goto free_portal;
+	}
+
+	if (__idbm_rec_read(db, &rec, portal))
+		goto free_portal;
+
+	fn(db, data, &rec);
+	found = 1;
+	goto free_portal;
+
+read_iface:
+	snprintf(portal, PATH_MAX, "%s/%s/%s,%d,%d", NODE_CONFIG_DIR,
+		 targetname, ip, port, tpgt);
+
+	iface_dirfd = opendir(portal);
+	if (!iface_dirfd)
+		goto free_portal;
+
+	while ((iface_dent = readdir(iface_dirfd))) {
+		if (!strcmp(iface_dent->d_name, ".") ||
+		    !strcmp(iface_dent->d_name, ".."))
+			continue;
+
+		log_debug(5, "iface iter found %s.", iface_dent->d_name);
+		memset(portal, 0, PATH_MAX);
+		snprintf(portal, PATH_MAX, "%s/%s/%s,%d,%d/%s", NODE_CONFIG_DIR,
+			 targetname, ip, port, tpgt, iface_dent->d_name);
+		if (__idbm_rec_read(db, &rec, portal))
+			continue;
+
+		fn(db, data, &rec);
+		found++;
+	}
+
+	closedir(iface_dirfd);
+free_portal:
+	free(portal);
+	return found;
+}
+
+/*
+ * backwards compat
+ * The portal could be a file or dir with interfaces
+ */
+int idbm_for_each_portal(idbm_t *db, void *data, idbm_portal_op_fn *fn,
+			 char *targetname)
+{
+	DIR *portal_dirfd;
+	struct dirent *portal_dent;
+	int found = 0;
+	char *portal;
+
+	portal = calloc(1, PATH_MAX);
+	if (!portal)
+		return 0;
+
+	snprintf(portal, PATH_MAX, "%s/%s", NODE_CONFIG_DIR, targetname);
+	portal_dirfd = opendir(portal);
+	if (!portal_dirfd)
+		goto done;
+
+	while ((portal_dent = readdir(portal_dirfd))) {
+		char *tmp_port, *tmp_tpgt;
+
+		if (!strcmp(portal_dent->d_name, ".") ||
+		    !strcmp(portal_dent->d_name, ".."))
+			continue;
+
+		log_debug(5, "found %s\n", portal_dent->d_name);
+		tmp_port = strchr(portal_dent->d_name, ',');
+		if (!tmp_port)
+			continue;
+		*tmp_port++ = '\0';
+		tmp_tpgt = strchr(tmp_port, ',');
+		if (tmp_tpgt)
+			*tmp_tpgt++ = '\0';
+
+		found += fn(db, data, targetname,
+			    tmp_tpgt ? atoi(tmp_tpgt) : -1,
+			    portal_dent->d_name, atoi(tmp_port));
+	}
+	closedir(portal_dirfd);
+done:
+	free(portal);
+	return found;
+}
+
+int idbm_for_each_node(idbm_t *db, void *data, idbm_node_op_fn *fn)
+{
+	DIR *node_dirfd;
+	struct dirent *node_dent;
+	int found = 0;
+
+	node_dirfd = opendir(NODE_CONFIG_DIR);
+	if (!node_dirfd)
+		return 0;
+
+	while ((node_dent = readdir(node_dirfd))) {
+		if (!strcmp(node_dent->d_name, ".") ||
+		    !strcmp(node_dent->d_name, ".."))
+			continue;
+
+		log_debug(5, "searching %s\n", node_dent->d_name);
+		found += fn(db, data, node_dent->d_name);
+	}
+
+	closedir(node_dirfd);
+	return found;
+}
+
+static int iface_fn(idbm_t *db, void *data, node_rec_t *rec)
+{
+	struct rec_op_data *op_data = data;
+
+	return op_data->fn(db, op_data->data, rec);
+}
+
+static int portal_fn(idbm_t *db, void *data, char *targetname, int tpgt,
+		     char *ip, int port)
+{
+	return idbm_for_each_iface(db, data, iface_fn, targetname, tpgt, ip,
+				   port);
+}
+
+static int node_fn(idbm_t *db, void *data, char *targetname)
+{
+	return idbm_for_each_portal(db, data, portal_fn, targetname);
+}
+
+int idbm_for_each_rec(idbm_t *db, void *data, idbm_iface_op_fn *fn)
+{
+	struct rec_op_data op_data;
+
+	memset(&op_data, 0, sizeof(struct rec_op_data));
+	op_data.data = data;
+	op_data.fn = fn;
+
+	return idbm_for_each_node(db, &op_data, node_fn);
 }
 
 int
@@ -1175,7 +1776,7 @@ idbm_discovery_read(idbm_t *db, discovery_rec_t *out_rec, char *addr, int port)
 
 	idbm_lock(db);
 
-	f = idbm_open_node_rec_r(portal, ST_CONFIG_NAME);
+	f = idbm_open_rec_r(portal, ST_CONFIG_NAME);
 	if (!f) {
 		log_debug(1, "Could not open %s err %d\n", portal, errno);
 		rc = errno;
@@ -1195,54 +1796,12 @@ free_info:
 	return rc;
 }
 
-int
-idbm_node_read(idbm_t *db, node_rec_t *out_rec, char *target_name,
-	       char *addr, int port, char *hwaddress)
-{
-	recinfo_t *info;
-	char *portal;
-	int rc = 0;
-	FILE *f;
-
-	memset(out_rec, 0, sizeof(node_rec_t));
-
-	info = idbm_recinfo_alloc(MAX_KEYS);
-	if (!info)
-		return ENOMEM;
-
-	portal = malloc(PATH_MAX);
-	if (!portal)
-		goto free_info;
-	snprintf(portal, PATH_MAX, "%s/%s/%s,%d", NODE_CONFIG_DIR,
-		 target_name, addr, port);
-
-	idbm_lock(db);
-	f = idbm_open_node_rec_r(portal, hwaddress);
-	if (!f) {
-		log_debug(5, "Could not open %s err %d\n", portal, errno);
-		rc = errno;
-		goto unlock;
-	}
-
-	idbm_node_setup_defaults(out_rec);
-	idbm_recinfo_node(out_rec, info);
-	idbm_recinfo_config(info, f);
-	fclose(f);
-
-unlock:
-	idbm_unlock(db);
-free_info:
-	free(portal);
-	free(info);
-	return rc;
-}
-
 /*
  * Backwards Compat:
  * If the portal is a file then we are doing the old style default
  * session behavior (svn pre 780).
  */
-static FILE *idbm_open_node_rec_w(char *portal, char *config)
+static FILE *idbm_open_rec_w(char *portal, char *config)
 {
 	struct stat statb;
 	FILE *f;
@@ -1281,8 +1840,9 @@ mkdir_portal:
 	return f;
 }
 
-static int idbm_node_write(idbm_t *db, node_rec_t *rec)
+static int idbm_rec_write(idbm_t *db, node_rec_t *rec)
 {
+	struct stat statb;
 	FILE *f;
 	char *portal;
 	int rc = 0;
@@ -1292,8 +1852,6 @@ static int idbm_node_write(idbm_t *db, node_rec_t *rec)
 		log_error("Could not alloc portal\n");
 		return ENOMEM;
 	}
-
-	idbm_lock(db);
 
 	snprintf(portal, PATH_MAX, "%s", NODE_CONFIG_DIR);
 	if (access(portal, F_OK) != 0) {
@@ -1315,19 +1873,68 @@ static int idbm_node_write(idbm_t *db, node_rec_t *rec)
 
 	snprintf(portal, PATH_MAX, "%s/%s/%s,%d", NODE_CONFIG_DIR,
 		 rec->name, rec->conn[0].address, rec->conn[0].port);
-	log_debug(5, "Looking for config file %s hwaddress %s\n", portal,
-		  rec->iface.hwaddress);
+	log_debug(5, "Looking for config file %s", portal);
 
-	f = idbm_open_node_rec_w(portal, rec->iface.hwaddress);
+	idbm_lock(db);
+
+	rc = stat(portal, &statb);
+	if (rc) {
+		rc = 0;
+		/*
+		 * older iscsiadm versions had you create the config then set
+		 * set the tgpt. In new versions you must pass all the info in
+		 * from the start
+		 */
+		if (rec->tpgt == PORTAL_GROUP_TAG_UNKNOWN)
+			/* drop down to old style portal as config */
+			goto open_conf;
+		else
+			goto mkdir_portal;
+	}
+
+	if (!S_ISDIR(statb.st_mode)) {
+		/*
+		 * Old style portal as a file. Let's update it.
+		 */
+		if (unlink(portal)) {
+			log_error("Could not convert %s. err %d\n", portal,
+				  errno);
+			rc = errno;
+			goto unlock;
+		}
+	} else {
+		rc = EINVAL;
+		goto unlock;
+	}	
+
+mkdir_portal:
+	snprintf(portal, PATH_MAX, "%s/%s/%s,%d,%d", NODE_CONFIG_DIR,
+		 rec->name, rec->conn[0].address, rec->conn[0].port, rec->tpgt);
+	if (stat(portal, &statb)) {
+		if (mkdir(portal, 0660) != 0) {
+			log_error("Could not make dir %s err %d\n",
+				  portal, errno);
+			rc = errno;
+			goto unlock;
+		}
+	}
+
+	snprintf(portal, PATH_MAX, "%s/%s/%s,%d,%d/%s", NODE_CONFIG_DIR,
+		 rec->name, rec->conn[0].address, rec->conn[0].port, rec->tpgt,
+		 rec->iface.name);
+open_conf:
+	f = fopen(portal, "w");
 	if (!f) {
+		log_error("Could not open %s err %d\n", portal, errno);
 		rc = errno;
-		goto free_portal;
+		goto unlock;
 	}
 
 	idbm_print(PRINT_TYPE_NODE, rec, 1, f);
 	fclose(f);
-free_portal:
+unlock:
 	idbm_unlock(db);
+free_portal:
 	free(portal);
 	return rc;
 }
@@ -1358,7 +1965,7 @@ idbm_discovery_write(idbm_t *db, discovery_rec_t *rec)
 	snprintf(portal, PATH_MAX, "%s/%s,%d", ST_CONFIG_DIR,
 		 rec->address, rec->port);
 
-	f = idbm_open_node_rec_w(portal, ST_CONFIG_NAME);
+	f = idbm_open_rec_w(portal, ST_CONFIG_NAME);
 	if (!f) {
 		log_error("Could not open %s err %d\n", portal, errno);
 		rc = errno;
@@ -1379,7 +1986,6 @@ idbm_add_discovery(idbm_t *db, discovery_rec_t *newrec)
 	discovery_rec_t rec;
 	int rc;
 
-	idbm_lock(db);
 	if (!idbm_discovery_read(db, &rec, newrec->address,
 				newrec->port)) {
 		log_debug(7, "overwriting existing record");
@@ -1387,7 +1993,6 @@ idbm_add_discovery(idbm_t *db, discovery_rec_t *newrec)
 		log_debug(7, "adding new DB record");
 
 	rc = idbm_discovery_write(db, newrec);
-	idbm_unlock(db);
 	return rc;
 }
 
@@ -1398,11 +2003,11 @@ static int setup_disc_to_node_link(char *disc_portal, node_rec_t *rec)
 	switch (rec->disc_type) {
 	case DISCOVERY_TYPE_SENDTARGETS:
 		/* st dir setup when we create its discovery node */
-		snprintf(disc_portal, PATH_MAX, "%s/%s,%d/%s,%d,%s,%d,%s,%s",
+		snprintf(disc_portal, PATH_MAX, "%s/%s,%d/%s,%s,%d,%d,%s",
 			 ST_CONFIG_DIR,
 			 rec->disc_address, rec->disc_port, rec->name,
-			 rec->tpgt, rec->conn[0].address, rec->conn[0].port,
-			 rec->iface.hwaddress, rec->iface.transport_name);
+			 rec->conn[0].address, rec->conn[0].port, rec->tpgt,
+			 rec->iface.name);
 		break;
 	case DISCOVERY_TYPE_STATIC:
 		if (access(STATIC_CONFIG_DIR, F_OK) != 0) {
@@ -1413,10 +2018,10 @@ static int setup_disc_to_node_link(char *disc_portal, node_rec_t *rec)
 			}
 		}
 
-		snprintf(disc_portal, PATH_MAX, "%s/%s,%d,%s,%d,%s,%s",
-			 STATIC_CONFIG_DIR, rec->name, rec->tpgt,
-			 rec->conn[0].address, rec->conn[0].port,
-			 rec->iface.hwaddress, rec->iface.transport_name);
+		snprintf(disc_portal, PATH_MAX, "%s/%s,%s,%d,%d,%s",
+			 STATIC_CONFIG_DIR, rec->name,
+			 rec->conn[0].address, rec->conn[0].port, rec->tpgt,
+			 rec->iface.name);
 		break;
 	case DISCOVERY_TYPE_ISNS:
 		if (access(ISNS_CONFIG_DIR, F_OK) != 0) {
@@ -1427,11 +2032,10 @@ static int setup_disc_to_node_link(char *disc_portal, node_rec_t *rec)
 			}
 		}
 
-		snprintf(disc_portal, PATH_MAX, "%s/%s,%d/%s,%d,%s,%d,%s,%s",
+		snprintf(disc_portal, PATH_MAX, "%s/%s,%d/%s,%s,%d,%d,%s",
 			 ISNS_CONFIG_DIR, rec->disc_address, rec->disc_port,
-			 rec->name, rec->tpgt, rec->conn[0].address,
-			 rec->conn[0].port, rec->iface.hwaddress,
-			 rec->iface.transport_name);
+			 rec->name, rec->conn[0].address,
+			 rec->conn[0].port, rec->tpgt, rec->iface.name);
 		break;
 	case DISCOVERY_TYPE_SLP:
 	default:
@@ -1447,9 +2051,9 @@ int idbm_add_node(idbm_t *db, node_rec_t *newrec, discovery_rec_t *drec)
 	char *node_portal, *disc_portal;
 	int rc;
 
-	idbm_lock(db);
-	if (!idbm_node_read(db, &rec, newrec->name, newrec->conn[0].address,
-			    newrec->conn[0].port, newrec->iface.hwaddress)) {
+	if (!idbm_rec_read(db, &rec, newrec->name, newrec->tpgt,
+			   newrec->conn[0].address, newrec->conn[0].port,
+			   &newrec->iface)) {
 		rc = idbm_delete_node(db, NULL, &rec);
 		if (rc)
 			return rc;
@@ -1463,25 +2067,30 @@ int idbm_add_node(idbm_t *db, node_rec_t *newrec, discovery_rec_t *drec)
 		strcpy(newrec->disc_address, drec->address);
 	}
 
-	rc = idbm_node_write(db, newrec);
-	if (rc || !drec)
-		goto unlock;
+	rc = idbm_rec_write(db, newrec);
+	/*
+	 * if a old app passed in a bogus tpgt then we do not create links
+	 * since it will set a different tpgt in another iscsiadm call
+	 */
+	if (rc || !drec || newrec->tpgt == PORTAL_GROUP_TAG_UNKNOWN)
+		return rc;
 
 	node_portal = calloc(2, PATH_MAX);
-	if (!node_portal) {
-		rc = ENOMEM;
-		goto unlock;
-	}
+	if (!node_portal)
+		return ENOMEM;
 
 	disc_portal = node_portal + PATH_MAX;
-	snprintf(node_portal, PATH_MAX, "%s/%s/%s,%d", NODE_CONFIG_DIR,
-		 newrec->name, newrec->conn[0].address, newrec->conn[0].port);
+	snprintf(node_portal, PATH_MAX, "%s/%s/%s,%d,%d", NODE_CONFIG_DIR,
+		 newrec->name, newrec->conn[0].address, newrec->conn[0].port,
+		 newrec->tpgt);
 	rc = setup_disc_to_node_link(disc_portal, newrec);
 	if (rc)
-		goto done;
+		goto free_portal;
 
 	log_debug(7, "node addition making link from %s to %s", node_portal,
 		 disc_portal);
+
+	idbm_lock(db);
 	if (symlink(node_portal, disc_portal)) {
 		if (errno == EEXIST)
 			log_debug(7, "link from %s to %s exists", node_portal,
@@ -1492,38 +2101,56 @@ int idbm_add_node(idbm_t *db, node_rec_t *newrec, discovery_rec_t *drec)
 				 "node %s", disc_portal, node_portal);
 		}
 	}
-
-done:
-	free(node_portal);
-unlock:
 	idbm_unlock(db);
+free_portal:
+	free(node_portal);
 	return rc;
 }
 
 int idbm_add_nodes(idbm_t *db, node_rec_t *newrec, discovery_rec_t *drec,
 		   struct list_head *ifaces)
 {
-	struct iface_rec *iface;
-	int i, rc = 0;
+	struct iface_rec *iface, *tmp;
+	struct iscsi_transport *t;
+	int rc = 0, found = 0;
 
 	if (!ifaces || list_empty(ifaces)) {
-		for (i = 0; i < ISCSI_IFACE_MAX; i++) {
-			if (!strlen(db->irec_iface[i].hwaddress))
-				continue;
+		struct list_head def_ifaces;
 
-			strcpy(newrec->iface.hwaddress,
-			       db->irec_iface[i].hwaddress);
-			strcpy(newrec->iface.transport_name,
-			       db->irec_iface[i].transport_name);
+		INIT_LIST_HEAD(&def_ifaces);
+		idbm_lock(db);
+		idbm_read_def_ifaces(&def_ifaces);
+		idbm_unlock(db);
+
+		list_for_each_entry_safe(iface, tmp, &def_ifaces, list) {
+			list_del(&iface->list);
+			t = get_transport_by_name(iface->transport_name);
+			if (!t) {
+				free(iface);
+				continue;
+			}
+
+			if (t->caps & CAP_FW_DB) {
+				free(iface);
+				continue;
+			}
+
+			iface_copy(&newrec->iface, iface);
 			rc = idbm_add_node(db, newrec, drec);
+			free(iface);
 			if (rc)
 				return rc;
+			found = 1;
+		}
+
+		/* create default iface with old/default behavior */
+		if (!found) {
+			iface_init(&newrec->iface);
+			return idbm_add_node(db, newrec, drec);
 		}
 	} else {
 		list_for_each_entry(iface, ifaces, list) {
-			strcpy(newrec->iface.hwaddress, iface->hwaddress);
-			strcpy(newrec->iface.transport_name,
-			       iface->transport_name);
+			iface_copy(&newrec->iface, iface);
 			rc = idbm_add_node(db, newrec, drec);
 			if (rc)
 				return rc;
@@ -1541,8 +2168,8 @@ void idbm_new_discovery(idbm_t *db, discovery_rec_t *drec)
 
 static void idbm_rm_disc_node_links(idbm_t *db, char *disc_dir)
 {
-	char *driver = NULL, *target = NULL, *tpgt = NULL, *port = NULL;
-	char *address = NULL, *hwaddress= NULL;
+	char *target = NULL, *tpgt = NULL, *port = NULL;
+	char *address = NULL, *iface_id = NULL;
 	DIR *disc_dirfd;
 	struct dirent *disc_dent;
 	node_rec_t *rec;
@@ -1563,27 +2190,25 @@ static void idbm_rm_disc_node_links(idbm_t *db, char *disc_dir)
 
 
 		if (get_params_from_disc_link(disc_dent->d_name, &target, &tpgt,
-					      &address, &port, &hwaddress,
-					      &driver)) {
+					      &address, &port, &iface_id)) {
 			log_error("Improperly formed disc to node link");
 			continue;
 		}
 
-		log_debug(5, "disc removal removing link %s %s %s %s %s\n",
-			  target, address, port, hwaddress, driver);
+		log_debug(5, "disc removal removing link %s %s %s %s",
+			  target, address, port, iface_id);
 
 		memset(rec, 0, sizeof(*rec));	
 		strncpy(rec->name, target, TARGET_NAME_MAXLEN);
+		rec->tpgt = atoi(tpgt);
 		rec->conn[0].port = atoi(port);
 		strncpy(rec->conn[0].address, address, NI_MAXHOST);
-		strncpy(rec->iface.hwaddress, hwaddress, ISCSI_MAX_IFACE_LEN);
-		strncpy(rec->iface.transport_name, driver,
-			ISCSI_TRANSPORT_NAME_MAXLEN);
+		strncpy(rec->iface.name, iface_id, ISCSI_MAX_IFACE_LEN);
 
 		if (idbm_delete_node(db, NULL, rec))
 			log_error("Could not delete node %s/%s/%s,%s/%s",
 				  NODE_CONFIG_DIR, target, address, port,
-				  hwaddress);
+				  iface_id);
  	}
 
 	closedir(disc_dirfd);
@@ -1647,25 +2272,33 @@ static int idbm_remove_disc_to_node_link(idbm_t *db, node_rec_t *rec,
 {
 	int rc = 0;
 	struct stat statb;
-	node_rec_t *newrec;
+	node_rec_t *tmprec;
 
-	newrec = malloc(sizeof(*newrec));
-	if (!newrec)
+	tmprec = malloc(sizeof(*tmprec));
+	if (!tmprec)
 		return ENOMEM;
 
-	rc = idbm_node_read(db, newrec, rec->name, rec->conn[0].address,
-			    rec->conn[0].port, rec->iface.hwaddress);
-	if (rc)
-		goto done;
+	memset(portal, 0, PATH_MAX);
+	snprintf(portal, PATH_MAX, "%s/%s/%s,%d,%d/%s", NODE_CONFIG_DIR,
+		 rec->name, rec->conn[0].address, rec->conn[0].port, rec->tpgt,
+		 rec->iface.name);
 
-	log_debug(7, "found drec %s %d\n", newrec->disc_address,
-		 newrec->disc_port); 
+	rc = __idbm_rec_read(db, tmprec, portal);
+	if (rc) {
+		/* old style recs will not have tpgt or a link so skip */
+		rc = 0;
+		goto done;
+	}
+
+	log_debug(7, "found drec %s %d\n", tmprec->disc_address,
+		 tmprec->disc_port); 
 	/* rm link from discovery source to node */
 	memset(portal, 0, PATH_MAX);
-	rc = setup_disc_to_node_link(portal, newrec);
+	rc = setup_disc_to_node_link(portal, tmprec);
 	if (rc)
 		goto done;
 
+	idbm_lock(db);
 	if (!stat(portal, &statb)) {
 		if (unlink(portal)) {
 			log_error("Could not remove link %s err %d\n",
@@ -1675,9 +2308,10 @@ static int idbm_remove_disc_to_node_link(idbm_t *db, node_rec_t *rec,
 			log_debug(7, "rmd %s", portal);
 	} else
 		log_debug(7, "Could not stat %s", portal);
+	idbm_unlock(db);
 
 done:
-	free(newrec);
+	free(tmprec);
 	return rc;
 }
 
@@ -1698,35 +2332,45 @@ int idbm_delete_node(idbm_t *db, void *data, node_rec_t *rec)
 	memset(portal, 0, PATH_MAX);
 	snprintf(portal, PATH_MAX, "%s/%s/%s,%d", NODE_CONFIG_DIR,
 		 rec->name, rec->conn[0].address, rec->conn[0].port);
-	log_debug(5, "Removing config file %s hwaddress %s\n",
-		  portal, rec->iface.hwaddress);
+	log_debug(5, "Removing config file %s iface id %s\n",
+		  portal, rec->iface.name);
 
-	if (stat(portal, &statb)) {
-		log_error("Could not stat %s to delete node err %d\n",
-			  portal, errno);
-		rc = errno;
-		goto free_portal;
-	}
+	idbm_lock(db);
+	if (!stat(portal, &statb))
+		goto rm_conf;
 
-	if (S_ISDIR(statb.st_mode)) {
-		strncat(portal, "/", PATH_MAX);
-		strncat(portal, rec->iface.hwaddress, PATH_MAX);
-	}
+	snprintf(portal, PATH_MAX, "%s/%s/%s,%d,%d/%s", NODE_CONFIG_DIR,
+		 rec->name, rec->conn[0].address, rec->conn[0].port,
+		 rec->tpgt, rec->iface.name);
+	log_debug(5, "Removing config file %s", portal);
 
+	if (!stat(portal, &statb))
+		goto rm_conf;
+
+	log_error("Could not stat %s to delete node err %d\n",
+		  portal, errno);
+	rc = errno;
+	goto unlock;
+
+rm_conf:
 	if (unlink(portal)) {
 		log_error("Could not remove %s err %d\n", portal, errno);
 		rc = errno;
-		goto free_portal;
+		goto unlock;
 	}
 
-	/* rm portal dir */
-	if (S_ISDIR(statb.st_mode)) {
+	memset(portal, 0, PATH_MAX);
+	snprintf(portal, PATH_MAX, "%s/%s/%s,%d,%d", NODE_CONFIG_DIR,
+		 rec->name, rec->conn[0].address, rec->conn[0].port,
+		 rec->tpgt);
+	if (!stat(portal, &statb)) {
 		struct dirent **namelist;
 		int n, i;
 
 		memset(portal, 0, PATH_MAX);
-		snprintf(portal, PATH_MAX, "%s/%s/%s,%d", NODE_CONFIG_DIR,
-			 rec->name, rec->conn[0].address, rec->conn[0].port);
+		snprintf(portal, PATH_MAX, "%s/%s/%s,%d,%d", NODE_CONFIG_DIR,
+			 rec->name, rec->conn[0].address, rec->conn[0].port,
+			 rec->tpgt);
 		n = scandir(portal, &namelist, st_disc_filter, versionsort);
 		if (n < 0)
 			goto free_portal;
@@ -1743,7 +2387,8 @@ int idbm_delete_node(idbm_t *db, void *data, node_rec_t *rec)
 		snprintf(portal, PATH_MAX, "%s/%s", NODE_CONFIG_DIR, rec->name);
 		rmdir(portal);
 	}
-
+unlock:
+	idbm_unlock(db);
 free_portal:
 	free(portal);
 	return rc;
@@ -1781,7 +2426,7 @@ idbm_node_set_param(idbm_t *db, void *data, node_rec_t *rec)
 		return 1;
 	}
 
-	if (idbm_node_write(param->db, rec)) {
+	if (idbm_rec_write(param->db, rec)) {
 		free(info);
 		return 1;
 	}

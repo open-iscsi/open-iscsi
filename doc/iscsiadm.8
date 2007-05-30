@@ -2,10 +2,10 @@
 .SH NAME
 iscsiadm \- open-iscsi administration utility
 .SH SYNOPSIS
-\fBiscsiadm\fR -m discovery [ [ -dhV ] --print=[N] ] [ -I driver,hwaddress -t type -p ip:port [ -l ] ] | 
+\fBiscsiadm\fR -m discovery [ [ -dhV ] --print=[N] ] [ -I iface -t type -p ip:port [ -l ] ] | 
 [ -o operation ] [ -n name ] [ -v value ]
 
-\fBiscsiadm\fR -m node [ -dhV ] [ -P printlevel ] [ -L all,manual,automatic ] [ -U all,manual,automatic ] [ -S ] [ [ -T targetname -p ip:port -I driver,hwaddress ] [ -l | -u | -R | -s] ]
+\fBiscsiadm\fR -m node [ -dhV ] [ -P printlevel ] [ -L all,manual,automatic ] [ -U all,manual,automatic ] [ -S ] [ [ -T targetname -p ip:port -I iface ] [ -l | -u | -R | -s] ]
 [ [ -o operation ]  [ -n name ] [ -v value ] [ -p ip:port ] ]
 
 \fBiscsiadm\fR -m session [ -dhV ] [ -P printlevel ] [ -r sessionid | sysfsdir [ -R ] [ -u | -s ] ]
@@ -39,29 +39,35 @@ print debugging information
 display help text and exit
 
 .TP
-\fB\-I\fR, \fB\-\-interface\fI[driver,hwaddress]\fR
-The interface argument specifies the driver to use for the operation
-and the hwaddress of the HBA, Port, or NIC to use. The available drivers
-are tcp (software iSCSI over TCP/IP), iser (software iSCSI over infinniband),
-or qla4xxx (Qlogic 4XXXX HBAs). The hwaddress is the MAC address or for
-software iSCSI it may be the special value "default" which directs
-the initiator to not bind the session to a specific hardware resource and
-instead allow the network or infinniband layer to decide what to do.
+\fB\-I\fR, \fB\-\-interface\fI[iface]\fR
+The interface argument specifies the iSCSI interface to use for the operation.
+iSCSI interfaces (iface) are defined in /etc/iscsi/ifaces. For hardware
+or offload, the iface config must have the hardware address (iface.hwaddress)
+and the driver/transport_name (iface.transport_name). The iface's name is
+then the filename of the iface config. For software iSCSI, the iface config
+must have either the hardware address (iface.hwaddress), or the network
+layer's interface name (iface.net_ifacename), or the IP address of the
+NIC (iface.ipaddress), and it must have the driver/transport_name
+(iface.transport_name). Note that for software iSCSI using specifying the
+IP address does not bind the session through a specific NIC. We allow the
+network layer to decide which NIC to use, but packets from this host will
+use the address specific.
 
-You do you not have to pass in both values. If one is not passed
-in the initiator's default value will be used. The default driver
-is tcp and the default hwaddress value is "default". For example,
-"--interface=,00:0F:1F:92:6B:BF" will bind a session through the NIC
-with the MAC address 00:0F:1F:92:6B:BF using the tcp driver.
-"--interface=iser," will use the iser driver with the default behavior.
+The available drivers/iscsi_transports are tcp (software iSCSI over TCP/IP),
+iser (software iSCSI over infinniband), or qla4xxx (Qlogic 4XXXX HBAs). The
+hwaddress is the MAC address or for software iSCSI it may be the special
+value "default" which directs the initiator to not bind the session to a
+specific hardware resource and instead allow the network or infinniband layer
+to decide what to do. There is no need to create a iface config with the default
+behavior. If you do not specify a iface, then the default behavior is used.
 
 In discovery mode multiple interfaces can be specific by passing in multiple
 -I/--interface instances. For example, 
-"iscsiadm -m discovery -t st -p mytarget -I tcp,00:0F:1F:92:6B:BF
--I tcp,00:0F:1F:92:6B:BC -I qla4xxx,00:c0:dd:08:63:ea" will set up
-DB configs for 00:0F:1F:92:6B:BF and 00:0F:1F:92:6B:BC and will instruct
-the qla4xxx driver to set up a Flash record for the card with
-the MAC address, 00:c0:dd:08:63:ea.
+
+"iscsiadm -m discovery -t st -p mytarget -I iface0 -I iface2"
+
+Will direct iscsiadm to setup the node db to create records which will create
+sessions though the two intefaces passed in.
 
 In node mode, only a single interface is supported in each call to iscsiadm.
 .IP

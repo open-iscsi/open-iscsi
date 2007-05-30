@@ -15,6 +15,9 @@
 
 /* interface */
 #define UNKNOWN_VALUE		"unknown"
+#define DEFAULT_IFACENAME	"default"
+#define DEFAULT_NETDEV		"default"
+#define DEFAULT_IPADDRESS	"default"
 #define DEFAULT_HWADDRESS	"default"
 #define DEFAULT_TRANSPORT	"tcp"
 

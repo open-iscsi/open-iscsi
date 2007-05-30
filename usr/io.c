@@ -20,16 +20,20 @@
 #include <stdint.h>
 #include <unistd.h>
 #include <errno.h>
+#include <stdio.h>
 #include <signal.h>
 #include <unistd.h>
 #include <fcntl.h>
+#include <ifaddrs.h>
 #include <sys/uio.h>
 #include <sys/poll.h>
+#include <sys/ioctl.h>
+#include <sys/param.h>
+#include <sys/socket.h>
+#include <net/if.h>
 #include <netinet/in.h>
 #include <netinet/tcp.h>
 #include <arpa/inet.h>
-#include <sys/param.h>
-#include <sys/socket.h>
 
 #include "types.h"
 #include "iscsi_proto.h"
@@ -39,6 +43,7 @@
 #include "log.h"
 #include "transport.h"
 #include "iscsi_settings.h"
+#include "idbm.h"
 
 #define LOG_CONN_CLOSED(conn) \
 do { \
@@ -77,6 +82,238 @@ set_non_blocking(int fd)
 
 }
 
+static int get_hwaddress_from_netdev(char *netdev, char *hwaddress)
+{
+	struct ifaddrs *ifap, *ifa;
+	struct sockaddr_in *s4;
+	struct sockaddr_in6 *s6;
+	struct ifreq if_hwaddr;
+	int found = 0, sockfd;
+	unsigned char *hwaddr;
+	char buf[INET6_ADDRSTRLEN];
+
+	if (getifaddrs(&ifap)) {
+		log_error("Could not match hwaddress %s to netdev. "
+			  "getifaddrs failed %d", hwaddress, errno);
+		return 0;
+	}
+
+	/* Open a basic socket. */
+	sockfd = socket(AF_INET, SOCK_DGRAM, 0);
+	if (sockfd < 0) {
+		log_error("Could not open socket for ioctl.");
+		goto free_ifap;
+	}
+
+	for (ifa = ifap; ifa; ifa = ifa->ifa_next) {
+		if (!ifa->ifa_addr)
+			continue;
+
+		switch (ifa->ifa_addr->sa_family) {
+		case AF_INET:
+			s4 = (struct sockaddr_in *)(ifa->ifa_addr);
+			if (!inet_ntop(ifa->ifa_addr->sa_family,
+				      (void *)&(s4->sin_addr), buf,
+				      INET_ADDRSTRLEN))
+				continue;
+			log_debug(4, "name %s addr %s\n", ifa->ifa_name, buf);
+			break;
+		case AF_INET6:
+			s6 = (struct sockaddr_in6 *)(ifa->ifa_addr);
+			if (!inet_ntop(ifa->ifa_addr->sa_family,
+			    (void *)&(s6->sin6_addr), buf, INET6_ADDRSTRLEN))
+				continue;
+			log_debug(4, "name %s addr %s\n", ifa->ifa_name, buf);
+			break;
+		default:
+			continue;
+		}
+
+		if (strcmp(ifa->ifa_name, netdev))
+			continue;
+
+		strncpy(if_hwaddr.ifr_name, ifa->ifa_name, IFNAMSIZ);
+		if (ioctl(sockfd, SIOCGIFHWADDR, &if_hwaddr) < 0) {
+			log_error("Could not match %s to netdevice.",
+				  hwaddress);
+			continue;
+		}
+
+		/* check for ARPHRD_ETHER (ethernet) */
+		if (if_hwaddr.ifr_hwaddr.sa_family != 1)
+			continue;
+		hwaddr = (unsigned char *)if_hwaddr.ifr_hwaddr.sa_data;
+
+		memset(hwaddress, 0, ISCSI_MAX_IFACE_LEN);
+		/* TODO should look and covert so we do not need tmp buf */
+		sprintf(hwaddress, "%2.2x:%2.2x:%2.2x:%2.2x:%2.2x:%2.2x",
+			hwaddr[0], hwaddr[1], hwaddr[2], hwaddr[3],
+			hwaddr[4], hwaddr[5]);
+		log_debug(4, "Found hardware address %s", hwaddress);
+		found = 1;
+		break;
+	}
+
+	close(sockfd);
+free_ifap:
+	freeifaddrs(ifap);
+	return found;
+}
+
+/*
+ * In this mode we do not support interfaces like a bond or alias because
+ * multiple interfaces will have the same hwaddress.
+ */
+static int get_netdev_from_hwaddress(char *hwaddress, char *netdev)
+{
+	struct ifaddrs *ifap, *ifa;
+	struct sockaddr_in *s4;
+	struct sockaddr_in6 *s6;
+	struct ifreq if_hwaddr;
+	int found = 0, sockfd;
+	unsigned char *hwaddr;
+	char buf[INET6_ADDRSTRLEN], tmp_hwaddress[ISCSI_MAX_IFACE_LEN];
+
+	if (getifaddrs(&ifap)) {
+		log_error("Could not match hwaddress %s to netdev. "
+			  "getifaddrs failed %d", hwaddress, errno);
+		return 0;
+	}
+
+	/* Open a basic socket. */
+	sockfd = socket(AF_INET, SOCK_DGRAM, 0);
+	if (sockfd < 0) {
+		log_error("Could not open socket for ioctl.");
+		goto free_ifap;
+	}
+
+	for (ifa = ifap; ifa; ifa = ifa->ifa_next) {
+		if (!ifa->ifa_addr)
+			continue;
+
+		switch (ifa->ifa_addr->sa_family) {
+		case AF_INET:
+			s4 = (struct sockaddr_in *)(ifa->ifa_addr);
+			if (!inet_ntop(ifa->ifa_addr->sa_family,
+				      (void *)&(s4->sin_addr), buf,
+				      INET_ADDRSTRLEN))
+				continue;
+			log_debug(4, "name %s addr %s\n", ifa->ifa_name, buf);
+			break;
+		case AF_INET6:
+			s6 = (struct sockaddr_in6 *)(ifa->ifa_addr);
+			if (!inet_ntop(ifa->ifa_addr->sa_family,
+			    (void *)&(s6->sin6_addr), buf, INET6_ADDRSTRLEN))
+				continue;
+			log_debug(4, "name %s addr %s\n", ifa->ifa_name, buf);
+			break;
+		default:
+			continue;
+		}
+
+		strncpy(if_hwaddr.ifr_name, ifa->ifa_name, IFNAMSIZ);
+		if (ioctl(sockfd, SIOCGIFHWADDR, &if_hwaddr) < 0) {
+			log_error("Could not match %s to netdevice.",
+				  hwaddress);
+			continue;
+		}
+
+		/* check for ARPHRD_ETHER (ethernet) */
+		if (if_hwaddr.ifr_hwaddr.sa_family != 1)
+			continue;
+		hwaddr = (unsigned char *)if_hwaddr.ifr_hwaddr.sa_data;
+
+		memset(tmp_hwaddress, 0, ISCSI_MAX_IFACE_LEN);
+		/* TODO should look and covert so we do not need tmp buf */
+		sprintf(tmp_hwaddress, "%2.2x:%2.2x:%2.2x:%2.2x:%2.2x:%2.2x",
+			hwaddr[0], hwaddr[1], hwaddr[2], hwaddr[3],
+			hwaddr[4], hwaddr[5]);
+		log_debug(4, "Found hardware address %s", tmp_hwaddress);
+		if (!strcasecmp(tmp_hwaddress, hwaddress)) {
+			log_debug(4, "Matches %s to %s", hwaddress,
+				  ifa->ifa_name);
+			memset(netdev, 0, IFNAMSIZ); 
+			strncpy(netdev, ifa->ifa_name, IFNAMSIZ);
+			found = 1;
+			break;
+		}
+	}
+
+	close(sockfd);
+free_ifap:
+	freeifaddrs(ifap);
+	return found;
+}
+
+static int bind_src_by_address(int sockfd, char *address)
+{
+	int rc = 0;
+	char port[NI_MAXSERV];
+	struct sockaddr_storage saddr;
+
+	memset(&saddr, 0, sizeof(struct sockaddr_storage));
+	if (resolve_address(address, port, &saddr)) {
+		log_error("Could not bind %s to conn.", address);
+		return -1;
+	}
+
+	switch (saddr.ss_family) {
+	case AF_INET:
+		rc = bind(sockfd, (struct sockaddr *)&saddr,
+			  sizeof(struct sockaddr_in));
+		break;
+	case AF_INET6:
+		rc = bind(sockfd, (struct sockaddr *)&saddr,
+			  sizeof(struct sockaddr_in6));
+		break;
+	default:
+		rc = -1;
+	}
+	if (rc)
+		log_error("Could not bind %s to %d.", address, sockfd);
+	else
+		log_debug(4, "Bound %s to socket fd %d", address, sockfd);
+	return rc;
+}
+
+static int bind_conn_to_iface(iscsi_conn_t *conn, struct iface_rec *iface)
+{
+	struct iscsi_session *session = conn->session;
+
+	memset(session->netdev, 0, IFNAMSIZ);
+	if (iface_is_bound_by_hwaddr(iface) &&
+	    !get_netdev_from_hwaddress(iface->hwaddress, session->netdev)) {
+		log_error("Cannot match %s to net/scsi interface.",
+			  iface->hwaddress);
+                return -1;
+	} else if (iface_is_bound_by_ipaddr(iface) &&
+		   bind_src_by_address(conn->socket_fd, iface->ipaddress)) {
+		log_error("Cannot match %s to net/scsi interface.",
+			   iface->ipaddress);
+		return -1;
+	} else if (iface_is_bound_by_netdev(iface))
+		strcpy(session->netdev, iface->netdev);
+
+	if (strlen(session->netdev)) {
+		struct ifreq ifr;
+
+		log_debug(4, "Binding session %d to %s", session->id,
+			  session->netdev);
+		memset(&ifr, 0, sizeof(ifr));
+		strncpy(ifr.ifr_name, session->netdev, IFNAMSIZ);
+
+		if (setsockopt(conn->socket_fd, SOL_SOCKET, SO_BINDTODEVICE,
+			       session->netdev,
+			       strlen(session->netdev) + 1) < 0) {
+			log_error("Could not bind connection %d to %s\n",
+				  conn->id, session->netdev);
+			return -1;
+		}
+	}
+
+	return 0;
+}
+
 int
 iscsi_io_tcp_connect(iscsi_conn_t *conn, int non_blocking)
 {
@@ -95,27 +332,9 @@ iscsi_io_tcp_connect(iscsi_conn_t *conn, int non_blocking)
 		return -1;
 	}
 
-	if (conn->session &&
-	    strcmp(conn->session->nrec.iface.hwaddress, DEFAULT_HWADDRESS) &&
-	    get_netdev_from_mac(conn->session->nrec.iface.hwaddress,
-				conn->dev)) {
-		log_error("Cannot match %s to net/scsi interface.\n",
-			  conn->session->nrec.iface.hwaddress);
-                return -1;
-	}
-
-	if (strlen(conn->dev)) {
-		struct ifreq ifr;
-
-		memset(&ifr, 0, sizeof(ifr));
-		strncpy(ifr.ifr_name, conn->dev, IFNAMSIZ);
-
-		if (setsockopt(conn->socket_fd, SOL_SOCKET, SO_BINDTODEVICE,
-			      conn->dev, strlen(conn->dev) + 1) < 0) {
-			log_error("Could not bind connection %d to %s\n",
-				  conn->id, conn->dev);
+	if (conn->session) {
+		if (bind_conn_to_iface(conn, &conn->session->nrec.iface))
 			return -1;
-		}
 	}
 
 	onearg = 1;

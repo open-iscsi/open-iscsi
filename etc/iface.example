@@ -1,0 +1,34 @@
+#
+# Example iSCSI interface config
+#
+# There must be a seperate iscsi interface config file for each NIC, network
+# interface or port or iscsi HBA you want to bind sessions to.
+#
+# For hardware/offload iscsi, this is created for you when you run iscsiadm.
+# For software iscsi, you must define these files yourself.
+#
+
+# Set the iscsi transport/driver to use for the iface by setting
+# iface.transport_name
+# example:
+# iface.transport_name = tcp
+
+# This values is required and valid values for iface.transport_name are:
+# - tcp (Software iSCSI over TCP/IP)
+# - iser (Software iSCSI over infinniband
+# - qla4xxx (Qlogic QLA4XXX HBAs)
+
+
+# One of the following values are required for the binding.
+#
+# To bind by network interface name (example: eth0, eth2:2, eth1.3)
+# set iface.net_ifacename
+# example:
+# iface.net_ifacename = eth0
+
+# To bind by hardware address set the NIC's MAC address to iface.hwaddress
+# example:
+# iface.hwaddress = 00:0F:1F:92:6B:BF
+
+# Note you can only bind using one value. If you set multiple values
+# the bahavior is not defined.

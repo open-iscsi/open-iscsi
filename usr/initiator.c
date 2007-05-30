@@ -971,8 +971,37 @@ static void session_scan_host(int hostno, queue_task_t *qtask)
 		mgmt_ipc_write_rsp(qtask, MGMT_IPC_ERR_INTERNAL);
 }
 
+static int __iscsi_host_set_param(struct iscsi_transport *t,
+				  int host_no, int param, char *value,
+				  int type)
+{
+	int rc;
+
+	rc = ipc->set_host_param(t->handle, host_no, param, value, type);
+	/* 2.6.20 and below returns EINVAL */
+	if (rc && rc != -ENOSYS && rc != -EINVAL) {
+		log_error("can't set operational parameter %d for "
+			  "host %d, retcode %d (%d)", param, host_no,
+			  rc, errno);
+		return rc;
+	}
+	return 0;
+}
+
+mgmt_ipc_err_e iscsi_host_set_param(int host_no, int param, char *value)
+{
+	struct iscsi_transport *t;
+
+	t = get_transport_by_hba(host_no);
+	if (!t)
+		return MGMT_IPC_ERR_TRANS_FAILURE;
+	if (__iscsi_host_set_param(t, host_no, param, value, ISCSI_STRING))
+		return MGMT_IPC_ERR;
+        return MGMT_IPC_OK;
+}
+
 #define MAX_SESSION_PARAMS 24
-#define MAX_HOST_PARAMS 2
+#define MAX_HOST_PARAMS 3
 
 static void
 setup_full_feature_phase(iscsi_conn_t *conn)
@@ -987,12 +1016,16 @@ setup_full_feature_phase(iscsi_conn_t *conn)
 		void *value;
 	} hosttbl[MAX_HOST_PARAMS] = {
 		{
-			.param = ISCSI_HOST_PARAM_HWADDRESS,
-			.value = session->nrec.iface.hwaddress,
-			.type = ISCSI_STRING,
-		}, {
 			.param = ISCSI_HOST_PARAM_INITIATOR_NAME,
 			.value = session->initiator_name,
+			.type = ISCSI_STRING,
+		}, {
+			.param = ISCSI_HOST_PARAM_NETDEV_NAME,
+			.value = session->nrec.iface.netdev,
+			.type = ISCSI_STRING,
+		}, {
+			.param = ISCSI_HOST_PARAM_HWADDRESS,
+			.value = session->nrec.iface.hwaddress,
 			.type = ISCSI_STRING,
 		},
 	};
@@ -1172,23 +1205,16 @@ setup_full_feature_phase(iscsi_conn_t *conn)
 	}
 
 	for (i = 0; i < MAX_HOST_PARAMS; i++) {
-		rc = ipc->set_host_param(session->t->handle,
-					 session->hostno, hosttbl[i].param,
-					 hosttbl[i].value, hosttbl[i].type);
-		/* 2.6.20 and below returns EINVAL */
-		if (rc && rc != -ENOSYS && rc != -EINVAL) {
-			log_error("can't set operational parameter %d for "
-				  "host %d, retcode %d (%d)",
-				  conntbl[i].param, session->hostno,
-				  rc, errno);
-
+		if (__iscsi_host_set_param(session->t, session->hostno,
+					   hosttbl[i].param, hosttbl[i].value,
+					   hosttbl[i].type)) {
 			__session_conn_shutdown(conn, c->qtask,
 					       MGMT_IPC_ERR_LOGIN_FAILURE);
 			return;
 		}
 
-		print_param_value(conntbl[i].param, conntbl[i].value,
-				  conntbl[i].type);
+		print_param_value(hosttbl[i].param, hosttbl[i].value,
+				  hosttbl[i].type);
 	}
 
 	if (ipc->start_conn(session->t->handle, session->id, conn->id,
@@ -1799,8 +1825,7 @@ session_find_by_rec(node_rec_t *rec)
 			if (__iscsi_match_session(rec, session->nrec.name,
 					 session->nrec.conn[0].address,
 					 session->nrec.conn[0].port,
-					 session->nrec.iface.hwaddress,
-					 session->nrec.iface.transport_name))
+					 &session->nrec.iface))
 				return session;
 		}
 	}

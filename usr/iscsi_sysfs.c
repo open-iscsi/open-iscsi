@@ -28,6 +28,10 @@
 #include <sys/wait.h>
 #include <sys/stat.h>
 #include <sys/un.h>
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <arpa/inet.h>
+#include <ifaddrs.h>
 #include <linux/types.h>
 #include <linux/unistd.h>
 
@@ -43,7 +47,6 @@
 #define ISCSI_SESSION_DIR	"/sys/class/iscsi_session"
 #define ISCSI_CONN_DIR		"/sys/class/iscsi_connection"
 #define ISCSI_HOST_DIR		"/sys/class/iscsi_host"
-#define NETDEV_DIR		"/sys/class/net"
 
 #define ISCSI_MAX_SYSFS_BUFFER NI_MAXHOST
 
@@ -271,107 +274,95 @@ free_buf:
 	return host_no;
 }
 
-uint32_t get_host_no_from_mac(char *hwaddress, int *err)
+static int __get_host_no_from_hwaddress(void *data, struct host_info *info)
 {
-	DIR *dirfd;
-	struct dirent *dent;
-	char mac[ISCSI_MAX_IFACE_LEN];
-	int rc;
-	uint32_t host_no = -1;
+	struct host_info *ret_info = data;
 
-	*err = 0;
-
-	log_debug(2, "looking for hwaddress%s\n", hwaddress);
-	sprintf(sysfs_file, ISCSI_HOST_DIR); 
-	dirfd = opendir(sysfs_file);
-	if (!dirfd) {
-		*err = -EINVAL;
-		return -1;
+	if (!strcmp(ret_info->iface.hwaddress, info->iface.hwaddress)) {
+		ret_info->host_no = info->host_no;
+		return 1;
 	}
-
-	while ((dent = readdir(dirfd))) {
-		if (!strcmp(dent->d_name, ".") || !strcmp(dent->d_name, ".."))
-			continue;
-
-		sprintf(sysfs_file, "/sys/class/iscsi_host/%s/hwaddress",
-			dent->d_name);
-		rc = read_sysfs_file(sysfs_file, mac, "%s\n");
-		if (rc)
-			continue;
-
-		log_debug(2, "found %s\n", mac);
-		if (!strncasecmp(hwaddress, mac, strlen(hwaddress))) {
-			sscanf(sysfs_file,
-			       "/sys/class/iscsi_host/host%u/hwaddress",
-			       &host_no);
-			log_debug(2, "Found host %u\n", host_no);
-			closedir(dirfd);
-			return host_no;
-		}
-	}
-	closedir(dirfd);
-	*err = -EINVAL;
-	return -1;
+	return 0;
 }
 
-/**
- * get_netdev_from_mac - return netdev name of device with mac address
- * @address: hw address
- * @dev: netdev dev
- **/
-int get_netdev_from_mac(char *address, char *dev)
+static uint32_t get_host_no_from_hwaddress(char *address, int *rc)
 {
-	struct dirent **namelist;
-	int addr_len, ret = ENODEV, n, i;
-	char *tmpaddress;
+	uint32_t host_no = -1;
+	struct host_info *info;
+	int nr_found, local_rc;
 
-	if (!address || !strlen(address) || !dev)
-		return EINVAL;
+	*rc = 0;
 
-	n = scandir(NETDEV_DIR, &namelist, trans_filter,
-		versionsort);
-	if (n <= 0)
-		return ENODEV;
-
-	for (i = 0; i < n; i++) {
-		sprintf(sysfs_file, NETDEV_DIR"/%s/addr_len",
-			namelist[i]->d_name);
-		if (read_sysfs_file(sysfs_file, &addr_len, "%d\n")) {
-			log_error("Could not read address len for %s.",
-				   namelist[i]->d_name);
-			continue;
-		}
-
-		if (addr_len <= 0)
-			continue;
-
-		tmpaddress = malloc((addr_len * 2) + 6);
-		if (!tmpaddress) {
-			log_error("Could not allocate address buffer.");
-			break;
-		}
-
-		sprintf(sysfs_file, NETDEV_DIR"/%s/address",
-			namelist[i]->d_name);
-		if (!read_sysfs_file(sysfs_file, tmpaddress, "%s\n")) {
-			if (!strcasecmp(address, tmpaddress)) {
-				strcpy(dev, namelist[i]->d_name);
-				log_debug(4, "Matched %s to %s\n",
-					  address, dev);
-				ret = 0;
-			}
-		} else
-			log_error("Could not read address for %s.",
-				  namelist[i]->d_name);
-		free(tmpaddress);
-		if (!ret)
-			break;
+	info = calloc(1, sizeof(*info));
+	if (!info) {
+		*rc = ENOMEM;
+		return -1;
 	}
+	strcpy(info->iface.hwaddress, address);
 
-	for (i = 0; i < n; i++)
-		free(namelist[i]);
-	free(namelist);
-	return ret;
+	local_rc = sysfs_for_each_host(info, &nr_found,
+					__get_host_no_from_hwaddress);
+	if (local_rc == 1)
+		host_no = info->host_no;
+	else
+		*rc = ENODEV;
+	free(info);
+	return host_no;
+}
+
+static int __get_host_no_from_ipaddress(void *data, struct host_info *info)
+{
+	struct host_info *ret_info = data;
+
+	if (!strcmp(ret_info->iface.ipaddress, info->iface.ipaddress)) {
+		ret_info->host_no = info->host_no;
+		return 1;
+	}
+	return 0;
+}
+
+static uint32_t get_host_no_from_ipaddress(char *address, int *rc)
+{
+	uint32_t host_no = -1;
+	struct host_info *info;
+	int nr_found;
+	int local_rc;
+
+	*rc = 0;
+
+	info = calloc(1, sizeof(*info));
+	if (!info) {
+		*rc = ENOMEM;
+		return -1;
+	}
+	strcpy(info->iface.ipaddress, address);
+
+	local_rc = sysfs_for_each_host(info, &nr_found,
+					__get_host_no_from_ipaddress);
+	if (local_rc == 1)
+		host_no = info->host_no;
+	else
+		*rc = ENODEV;
+	free(info);
+	return host_no;
+}
+
+uint32_t get_host_no_from_iface(struct iface_rec *iface, int *rc)
+{
+	int tmp_rc;
+	uint32_t host_no = -1;
+
+	if (strlen(iface->hwaddress) &&
+	    strcasecmp(iface->hwaddress, DEFAULT_HWADDRESS))
+		host_no = get_host_no_from_hwaddress(iface->hwaddress, &tmp_rc);
+	else if (strlen(iface->ipaddress) &&
+		 strcasecmp(iface->ipaddress, DEFAULT_IPADDRESS))
+		host_no = get_host_no_from_ipaddress(iface->ipaddress, &tmp_rc);
+	else
+		tmp_rc = EINVAL;
+
+	*rc = tmp_rc;
+	return host_no;
 }
 
 int sysfs_for_each_host(void *data, int *nr_found, sysfs_host_op_fn *fn)
@@ -379,13 +370,13 @@ int sysfs_for_each_host(void *data, int *nr_found, sysfs_host_op_fn *fn)
 	struct dirent **namelist;
 	int rc = 0, i, n;
 	struct host_info *info;
+	struct iscsi_transport *t;
 
 	info = calloc(1, sizeof(*info));
 	if (!info)
 		return ENOMEM;
 
-	sprintf(sysfs_file, ISCSI_HOST_DIR);
-	n = scandir(sysfs_file, &namelist, trans_filter,
+	n = scandir(ISCSI_HOST_DIR, &namelist, trans_filter,
 		    versionsort);
 	if (n <= 0)
 		goto free_info;
@@ -402,31 +393,41 @@ int sysfs_for_each_host(void *data, int *nr_found, sysfs_host_op_fn *fn)
 		sprintf(sysfs_file, ISCSI_HOST_DIR"/%s/initiatorname",
 			namelist[i]->d_name);
 		rc = read_sysfs_file(sysfs_file, info->iname, "%s\n");
-		if (rc) {
-			log_error("Could not read initiatorname for host %u. "
-				  "Error %d\n", info->host_no, rc);
-			break;
-		}
+		if (rc)
+			log_debug(4, "Could not read initiatorname for host "
+				  "%u. Error %d\n", info->host_no, rc);
 
 		memset(sysfs_file, 0, PATH_MAX);
 		sprintf(sysfs_file, ISCSI_HOST_DIR"/%s/ipaddress",
 			namelist[i]->d_name);
-		rc = read_sysfs_file(sysfs_file, info->ipaddress, "%s\n");
-		if (rc) {
-			log_error("Could not read ipaddress for host %u. "
+		rc = read_sysfs_file(sysfs_file, info->iface.ipaddress, "%s\n");
+		if (rc)
+			log_debug(4, "Could not read ipaddress for host %u. "
 				  "Error %d\n", info->host_no, rc);
-			break;
-		}
 
 		memset(sysfs_file, 0, PATH_MAX);
 		sprintf(sysfs_file, ISCSI_HOST_DIR"/%s/hwaddress",
 			namelist[i]->d_name);
-		rc = read_sysfs_file(sysfs_file, info->hwaddress, "%s\n");
-		if (rc) {
-			log_error("Could not read hwaddress for host %u. "
+		rc = read_sysfs_file(sysfs_file, info->iface.hwaddress, "%s\n");
+		if (rc)
+			log_debug(4, "Could not read hwaddress for host %u. "
 				  "Error %d\n", info->host_no, rc);
-			break;
-		}
+
+		memset(sysfs_file, 0, PATH_MAX);
+		sprintf(sysfs_file, ISCSI_HOST_DIR"/%s/netdev",
+			namelist[i]->d_name);
+		rc = read_sysfs_file(sysfs_file, info->iface.netdev, "%s\n");
+		if (rc)
+			log_debug(4, "Could not read netdev for host %u. "
+				  "Error %d\n", info->host_no, rc);
+
+		t = get_transport_by_hba(info->host_no);
+		if (!t)
+			log_debug(4, "could not get transport name for host %d",
+				  info->host_no);
+		else
+			strcpy(info->iface.transport_name, t->name);
+
 		rc = fn(data, info);
 		if (rc != 0)
 			break;
@@ -446,6 +447,7 @@ int get_sessioninfo_by_sysfs_id(struct session_info *info, char *session)
 {
 	int ret, pers_failed = 0;
 	uint32_t host_no;
+	struct iscsi_transport *t;
 
 	if (sscanf(session, "session%d", &info->sid) != 1) {
 		log_error("invalid session '%s'", session);
@@ -505,7 +507,7 @@ int get_sessioninfo_by_sysfs_id(struct session_info *info, char *session)
 	ret = read_sysfs_file(sysfs_file, &info->persistent_port, "%u\n");
 	if (ret) {
 		pers_failed = 1;
-		log_debug(5, "Could not read pers conn port %d\n", ret);
+		log_debug(5, "Could not read pers conn port %d", ret);
 	}
 
 	memset(sysfs_file, 0, PATH_MAX);
@@ -517,7 +519,7 @@ int get_sessioninfo_by_sysfs_id(struct session_info *info, char *session)
 		/* iser did not export this */
 		if (!pers_failed)
 			info->port = info->persistent_port;
-		log_debug(5, "Could not read curr conn port %d\n", ret);
+		log_debug(5, "Could not read curr conn port %d", ret);
 	} else if (pers_failed)
 		/*
 		 * for qla if we could not get the persistent addr
@@ -539,25 +541,44 @@ int get_sessioninfo_by_sysfs_id(struct session_info *info, char *session)
 	 * If we cannot get the address we assume we are doing the old
 	 * style and use default.
 	 */
-	sprintf(info->hwaddress, DEFAULT_HWADDRESS);
-	ret = read_sysfs_file(sysfs_file, info->hwaddress, "%s\n");
+	sprintf(info->iface.hwaddress, DEFAULT_HWADDRESS);
+	ret = read_sysfs_file(sysfs_file, info->iface.hwaddress, "%s\n");
 	if (ret)
-		log_debug(7, "could not read hwaddress for %s\n", sysfs_file);
+		log_debug(7, "could not read hwaddress for %s", sysfs_file);
 
-	
+	t = get_transport_by_sid(info->sid);
+	if (!t)
+		log_debug(7, "could not get transport name for session %d",
+			  info->sid);
+	else
+		strcpy(info->iface.transport_name, t->name);
+
 	memset(sysfs_file, 0, PATH_MAX);
 	sprintf(sysfs_file, ISCSI_HOST_DIR"/host%u/ipaddress", host_no);
-	ret = read_sysfs_file(sysfs_file, info->local_address, "%s\n");
+	/* if not found just print out default */
+	sprintf(info->iface.ipaddress, DEFAULT_IPADDRESS);
+	ret = read_sysfs_file(sysfs_file, info->iface.ipaddress, "%s\n");
 	if (ret)
-		log_debug(7, "could not read local address for %s\n",
+		log_debug(7, "could not read local address for %s",
+			 sysfs_file);
+
+	memset(sysfs_file, 0, PATH_MAX);
+	sprintf(sysfs_file, ISCSI_HOST_DIR"/host%u/netdev", host_no);
+	/* if not found just print out default */
+	sprintf(info->iface.netdev, DEFAULT_NETDEV);
+	ret = read_sysfs_file(sysfs_file, info->iface.netdev, "%s\n");
+	if (ret)
+		log_debug(7, "could not read netdev for %s",
 			 sysfs_file);
 
 	log_debug(7, "found targetname %s address %s pers address %s port %d "
-		 "pers port %d hwaddress %s src address %s\n",
+		 "pers port %d driver %s iface ipaddress %s "
+		 "netdev %s hwaddress %s",
 		  info->targetname, info->address ? info->address : "NA",
 		  info->persistent_address ? info->persistent_address : "NA",
-		  info->port, info->persistent_port, info->hwaddress,
-		  info->local_address);
+		  info->port, info->persistent_port,
+		  info->iface.transport_name, info->iface.ipaddress,
+		  info->iface.netdev, info->iface.hwaddress);
 	return 0;
 }
  

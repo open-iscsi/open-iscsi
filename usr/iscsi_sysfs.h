@@ -41,8 +41,7 @@ extern int sysfs_for_each_session(void *data, int *nr_found,
 				  sysfs_session_op_fn *fn);
 extern int sysfs_for_each_host(void *data, int *nr_found, sysfs_host_op_fn *fn);
 extern uint32_t get_host_no_from_sid(uint32_t sid, int *err);
-extern int get_netdev_from_mac(char *mac, char *dev);
-extern uint32_t get_host_no_from_mac(char *hwaddress, int *err);
+extern uint32_t get_host_no_from_iface(struct iface_rec *iface, int *rc);
 extern char *get_blockdev_from_lun(int hostno, int target, int sid);
 extern int set_exp_statsn(struct iscsi_conn *conn);
 

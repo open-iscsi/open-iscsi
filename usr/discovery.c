@@ -40,7 +40,6 @@
 #include "log.h"
 #include "idbm.h"
 #include "iscsi_settings.h"
-#include "iscsi_proto.h"
 #include "util.h"
 
 #ifdef SLP_ENABLE
@@ -59,6 +58,9 @@ int discovery_offload_sendtargets(idbm_t *db, int host_no, int do_login,
 	iscsiadm_req_t req;
 	iscsiadm_rsp_t rsp;
 	int rc;
+
+	log_debug(4, "offload st though host %d to %s", host_no,
+		  drec->address);
 
 	memset(&req, 0, sizeof(req));
 	req.command = MGMT_IPC_SEND_TARGETS;
@@ -200,7 +202,7 @@ static int add_portal(idbm_t *db, discovery_rec_t *drec,
 	if (port && *port)
 		rec->conn[0].port = atoi(port);
 	else
-		rec->conn[0].port = DEF_ISCSI_PORT;
+		rec->conn[0].port = ISCSI_LISTEN_PORT;
 	strncpy(rec->conn[0].address, address, NI_MAXHOST);
 
 	if (idbm_add_nodes(db, rec, drec, ifaces))

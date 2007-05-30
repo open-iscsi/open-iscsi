@@ -167,29 +167,15 @@ For help, run:
 Usage: iscsiadm [OPTION]
 
   -m, --mode <op>         specify operational mode op = <discovery|node>
-  -m discovery --type=[type] --interface=[driver,HWaddress] \
+  -m discovery --type=[type] --interface=iscsi_ifacename \
 			--portal=[ip:port] --login --print=[N]
                           perform [type] discovery for target portal with
                           ip-address [ip] and port [port].
 
-			  The hwaddress is the MAC address to bind the session
-			  or operation to and must be formed as:
-			  XX:XX:XX:XX:XX:XX
+			  See below for how to setup iscsi ifaces for
+			  software iscsi or override the system defaults.
 
-			  Valid values for driver are, tcp (software  iSCSI 
-			  over  TCP/IP), iser (software  iSCSI  over
-			  infinniband), or  qla4xxx (Qlogic 4XXXX HBAs).
-			  For software iSCSI (iser or tcp) the driver
-			  may  be  the special value "default" which directs
-			  the initiator to not bind the session to a specific
-			  hardware resource and instead allow the network or
-			  infinniband layer to decide where to direct traffic.
-
-			  For tcp and iser, the interface argument will
-			  will result in DB configs being created for
-			  each portal discovered. Multiple interfaces
-			  can be specified by passing in --interrface
-			  multiple times. See the examples below.
+			  Multiple ifaces can be passed in during discovery.
   -m discovery --print=[N] display all discovery records from internal
                           persistent discovery database.
   -m discovery --interface --portal=[ip:port] --print=[N] --login
@@ -211,32 +197,19 @@ Usage: iscsiadm [OPTION]
   -m node                 display all discovered nodes from internal
                           persistent discovery database
   -m node --targetname=[name] --portal=[ip:port] \
-					--interface=[driver,HWaddress] \
+					--interface=iscsi_ifacename] \
 					[--login|--logout|--rescan|--stats]
   -m node --targetname=[name] --portal=[ip:port]
 				--interface=[driver,HWaddress] \
 				--op=[op] [--name=[name] --value=[value]]
   -m node --targetname=[name] --portal=[ip:port]
-				--interface=[driver,HWaddress] \
+				--interface=iscsi_ifacename] \
 				--print=[level]
                           perform specific DB operation [op] for specific
                           interface on host that will connect to portal on
 			  target. targetname, portal and interface are optional.
-
-			  Valid values for driver are, tcp (software  iSCSI 
-			  over  TCP/IP), iser (software  iSCSI  over
-			  infinniband), or  qla4xxx (Qlogic 4XXXX HBAs).
-
-			  Valid values for driver are, tcp (software  iSCSI 
-			  over  TCP/IP), iser (software  iSCSI  over
-			  infinniband), or  qla4xxx (Qlogic 4XXXX HBAs).
-			  For software iSCSI (iser or tcp) the driver
-			  may  be  the special value "default" which directs
-			  the initiator to not bind the session to a specific
-			  hardware resource and instead allow the network or
-			  infinniband layer to decide where to direct traffic.
-			  A single interface is supported in each iscsiadm
-			  call in node mode. See the examples below.
+			  See below for how to setup iscsi ifaces for
+			  software iscsi or override the system defaults.
 
 			  op could be one of:
                           [new], [delete], [update] or [show]. In case of
@@ -279,6 +252,111 @@ Usage: iscsiadm [OPTION]
   -h, --help              display this help and exit
 
 
+
+5.1 How to setup iSCSI interfaces (iface) for binding
+=====================================================
+
+If you wish to allow the network susbsystem to figure out
+the best path/NIC to use then you can skip this section. For example
+if you have setup your portals and NICs on different subnets then
+this the following is not needed for software iscsi.
+
+Warning!!!!!!
+This feature is experimental. The interface may change. When reporting
+bugs, if you cannot do a "ping -I ethX target_portal", then check your
+network settings first. If you cannot ping the portal, then you will
+not be able to bind a session to a NIC.
+
+What is a scsi_host and iface for software, hardware and partial
+offload iscsi?
+
+Software iscsi, like iscsi_tcp and iser, allocate a scsi_host per session
+and does a single connection per session. As a result
+/sys/class_scsi_host and /proc/scsi will report a scsi_host for
+each connection/session you have logged into. Hardware iscsi, like
+Qlogic's qla4xxx, allocates a scsi_host for each PCI device (each
+port on a HBA will show up as a different PCI device so you get
+a scsi_host per HBA port).
+
+To manage both types of initiator stacks, iscsiadm uses the interface (iface)
+structure. For each HBA port or for software iscsi for each network
+device (ethX) or NIC, that you wish to bind sessions to you must create
+a iface config /etc/iscsi/ifaces.
+
+When you run iscsiadm the first time a hardware iscsi driver like qla4xxx is
+loaded, iscsiadm will create default iface configs for you. The config created
+by iscsiadm for qlogic should be ok for most uses and users should not have
+to modify them.
+
+Running:
+
+# iscsiadm -m iface
+iface0 iqn.2000-04.com.qlogic:qla4052c.gs10629a15170.1,qla4xxx,00:c0:dd:08:63:e8,0.0.0.0 4
+iface1 iqn.2000-04.com.qlogic:qla4052c.gs10629a15170.2,qla4xxx,00:c0:dd:08:63:ea,20.15.0.9 5
+
+Will report HBA port to iface bindings (note that the iface format may change).
+
+For software iscsi, you must currently create the iface configs by hand.
+In the future iscsiadm may help with this task. To help with this task
+there is a iface.example in /etc/iscsi/ifaces which can be used as a template.
+For each network object you wish to bind a session to you must create
+a seperate iface config in /etc/iscsi/ifaces and each iface config file
+must have a unique name which is less than or equal to 64 characters.
+
+Example:
+
+If you have NIC1 with MAC address 00:0F:1F:92:6B:BF and NIC2 with
+MAC address 00:C0:DD:08:63:E7 and you wanted to do software iscsi over
+TCP/IP. Then in /etc/iscsi/ifaces/iface0 you would enter:
+
+iface.transport_name = tcp
+iface.hwaddress = 00:0F:1F:92:6B:BF
+
+and in /etc/iscsi/ifaces1 you would enter:
+
+iface.transport_name = tcp
+iface.hwaddress = 00:C0:DD:08:63:E7
+
+When you then run iscsiadm to do discovery, it will check for interfaces
+in /etc/iscsi/ifaces and setup each portal that is discovered to be logged
+in through each iface. This behavior can also be overriden by passing in
+the interfaces you want to use. For example if you had defined two
+interface but only wanted to use one you can use the --interface/-I argument:
+
+iscsiadm -m discovery -t st -p ip:port -I iface1 -P 1
+
+If you had defined interfaces but wanted the old behavior, where 
+we do not bind a session to a iface, then you can use the special iface
+"default":
+
+iscsiadm -m discovery -t st -p ip:port -I default -P 1
+
+And if you did not define any interfaces in /etc/iscsi/ifaces and do
+not pass anything into iscsiadm, running iscsiadm will do the default
+behavior, where we allow the network subsystem to decide which
+device to use.
+
+If you later want to remove the bindings for a specific target and
+iface then  you can run:
+
+iscsiadm -m node -T my_target -I iface0 --op=delete
+
+To do this for a specific portal on a target run:
+
+iscsiadm -m node -T my_target -p ip:port -I iface0 --op=delete
+
+If you wanted to delete all bindinds for iface0 then you can run
+
+iscsiadm -m node -I iface0 --op=delete
+
+And for equalogic targets it is sometimes useful to remove by just portal
+
+iscsiadm -m node -p ip:port -I iface0 --op=delete
+
+
+
+5.2 iscsiadm examples
+=====================
     Usage examples using the one-letter options (see iscsiadm man page
     for long options):
 
@@ -288,23 +366,25 @@ Usage: iscsiadm [OPTION]
 
 	    ./iscsiadm -m discovery -t sendtargets -p 192.168.1.1:3260
 
-    - SendTargets iSCSI Discovery using the the tcp driver (software iSCSI
-	over TCP/IP) and bind the resulting DB records to the two NICs:
+	This will first search /etc/iscsi/ifaces for interfaces
+	using software iscsi. If any are found then nodes found during
+	discovery will be setup so that they can logged in through
+	those interfaces.
+
+    - SendTargets iSCSI Discovery with a specific interface. If you
+	wish to only use a subset of the interfaces in /etc/iscsi/ifaces
+	then you can pass them in during discovery:
 
 	     ./iscsiadm -m discovery -t sendtargets -p 192.168.1.1:3260 \
-	      --inerface=tcp,00:0F:1F:92:6B:BF --interface=tcp,00:0F:1F:92:6B:BC
+	      --inerface=iface0 --interface=iface1
 
-    - SendTargets iSCSI Discovery using the the qla4xxx driver:
+	Note that for software iscsi, we let the network layer select
+	which NIC to use for discovery, but for later logins iscsiadm
+	will use the NIC defined in the iface config.
 
-	     ./iscsiadm -m discovery -t sendtargets -p 192.168.1.1:3260 \
-	      --inerface=qla4xxx,00:c0:dd:08:63:ea
-
-	qla4xxx support is very basic and experimental. Currently, this command
-	will have the driver store the discovery address in the HBA's flash,
-	have the driver log into every portal returned by doing send targets,
-	and for future reloads of the driver will have it read the discovery
-	address from flash and log into all the portals returned at that
-	time.
+	qla4xxx support is very basic and experimental. It does not store
+	the record info in the card's FLASH or the node DB, so you must
+	rerun discovery every time the driver is reloaded.
 
     Node mode. In node mode you can specify which records you want to log
     into by specifying the targetname, ip address, port or interface
@@ -337,11 +417,10 @@ Usage: iscsiadm [OPTION]
 
 	    ./iscsiadm -m node -T -p [2001:c90::211:9ff:feb8:a9e9]:3260 -l
 
-    - iSCSI Login to a specific portal through the NIC with MAC/HW
-	address 00:0F:1F:92:6B:BF set in the db:
+    - iSCSI Login to a specific portal through the NIC setup as iface0:
 
 	    ./iscsiadm -m node -T iqn.2005-03.com.max -p 192.168.0.4:3260 \
-				-I tcp,00:0F:1F:92:6B:BF -l
+				-I iface0  -l
 
     - iSCSI Logout to all portals on every node/starget through each interface
 	set in the db:
@@ -360,11 +439,10 @@ Usage: iscsiadm [OPTION]
 
 	    ./iscsiadm -m node -T iqn.2005-03.com.max -p 192.168.0.4:3260 -u
 
-    - iSCSI Logout to a specific portal through the NIC with MAC/HW
-	address 00:0F:1F:92:6B:BF set in the db:
+    - iSCSI Logout to a specific portal through the NIC setup as iface0:
 
 	    ./iscsiadm -m node -T iqn.2005-03.com.max -p 192.168.0.4:3260 \
-				-I tcp,00:0F:1F:92:6B:BF -u
+				-I iface0
 
     - Changing iSCSI parameter:
 
@@ -378,15 +456,22 @@ Usage: iscsiadm [OPTION]
     - Adding custom iSCSI portal:
 
 	    ./iscsiadm -m node -o new -T iqn.2005-03.com.max \
-			-p 192.168.0.1:3260 -I tcp,00:0F:1F:92:6B:BF
+			-p 192.168.0.1:3260,2 -I iface4
 
 	The -I/--interface is optional. If not passed in, "default" is used.
-	For iscsi_tcp, this would allow the network layer to decide what is
+	For tcp or iser, this would allow the network layer to decide what is
 	best.
+
+	Note that for this command the target portal group tag (TPGT) should
+	be passed in. If it is not passed in on the initial creation command
+	then the user must run iscsiadm again to set the value. Also
+	if the TPGT is not initially passed in, the old behavior of not
+	tracking whether the record was statically or dynamically created
+	is used.
 
     - Adding custom NIC config to multiple targets:
 
-	    ./iscsiadm -m node -o new -I tcp,00:0F:1F:92:6B:BF
+	    ./iscsiadm -m node -o new -I iface4
 
 	This command will add a interface config using the iSCSI and SCSI
 	settings from iscsid.conf to every target that is in the node db.
@@ -530,7 +615,7 @@ after that start iSCSI daemon process:
 or alternatively, start it with debug enabled and with output
 redirected to the current console:
 
-	./iscsid -d8 -f &
+	./iscsid -d 8 -f &
 
 7.1.2.2 Logging into Targets:
 ---------------------------
@@ -549,30 +634,31 @@ The format is:
 
 ip:port,target_portal_group_tag targetname
 
-If you are using the iface.name argument or want to see the driver
+If you are using the iface argument or want to see the driver
 info use the following:
 
 	./iscsiadm -m node -P 1
 
-target: iqn.2001-04.com.home:max2
-        portal: 20.15.0.5:3260
-                driver: tcp hwaddress: 00:0F:1F:92:6B:BF
-                driver: tcp hwaddress: 00:C0:DD:08:63:E7
+Target: iqn.1992-08.com.netapp:sn.33615311
+        Portal: 10.15.84.19:3260,2
+                Iface Name: iface2
+        Portal: 10.15.85.19:3260,3
+                Iface Name: iface2
 
 The format is:
 
-target: targetname
-	portal ip_address:port
-		driver: driver hwaddress: hwaddress
+Target: targetname
+	Portal ip_address:port,tpgt
+		Iface: iface
 
 where targetname is the name of the target and ip_address:port is the address
-and port of the portal. target_portal_group_tag, is the portal group tag of
-the portal, and is not used in iscsiadm commands. Driver is the iscsi
-transport/interconnect driver that will be used to access the portal
-and HWaddress is the address of the NIC/HBA which the session will go through.
-For tcp/iscsi_tcp "default" means that we will create one session to the
-portal and that the network layer will decide how to best route it through
-the NICs on the system.
+and port of the portal. tpgt, is the portal group tag of
+the portal, and is not used in iscsiadm commands except for static
+record creation. And iface name is the name of the iscsi interface
+defined in /etc/iscsi/ifaces. If no interface was defined in
+/etc/iscsi/ifaces or passed in, the default behavior is used.
+Default here is iscsi_tcp/tcp to be used over which ever NIC the
+network layer decides is best.
 
 To login, take the ip, port and targetname from above and run:
 
@@ -608,31 +694,27 @@ portals:
 
 The format for the output is:
 
-ip:port,target_portal_group_tag targetname
+ip:port,tpgt targetname
 
 In this example, for the first target the ip address is 10.15.85.19.
 The port is 3260. The target portal group is 3. The target name
 is iqn.1992-08.com.netapp:sn.33615311.
 
-If you would also like to see the driver that will be used and
-the network interface for each session then use the --print[N] option.
+If you would also like to see the iscsi inteface which will be used
+for each session then use the --print[N] option.
 
 iscsiadm -m discovery -t sendtargets -p ip:port -P 1
 
 will print:
     Target: iqn.1992-08.com.netapp:sn.33615311
-        Portal: 10.15.84.19:3260
-           Driver: tcp
-           HWaddress: default
-        Portal: 10.15.85.19:3260
-           Driver: tcp
-           HWaddress: default
+        Portal: 10.15.84.19:3260,2
+           Iface Name: iface2
+        Portal: 10.15.85.19:3260,3
+           Iface Name: iface2
 
-In this example, for the first target the ip address is 10.15.85.19.
+In this example, The IP address of the first portal is 10.15.84.19.
 The port is 3260. The target portal group is 3. The target name
-is iqn.1992-08.com.netapp:sn.33615311. The driver that will be used
-is iscsi_tcp, and "default" means that we will allow the network
-layer to decide which interface to use.
+is iqn.1992-08.com.netapp:sn.33615311. The iface being used is iface2.
 
 While discovery targets are kept in the discovery db, they are
 usefull only for re-discovery. The discovered targets (a.k.a. nodes)
@@ -700,22 +782,31 @@ To print the hw address info use the -P option with "1":
        iscsiadm -m session -P 1
 
 This will print the sessions with the following format:
+Target: targetname
+	Current Portal: portal currently logged into
+	Persistent Portal: portal we would fall back to if we had got redirected				during login
+                Iface Transport: driver/transport_name
+                Iface IPaddress: IP address of iface being used
+                Iface HWaddress: HW address used to bind session
+		Iface Netdev: netdev value used to bind session
+                SID: iscsi sysfs session id
+                iSCSI Connection State: iscsi state
 
-target: targetname
-	portal: ip_address:port,tpgt
-		driver: driver
-		hwaddress: hwaddress
-		sid: sid
+Note: if a older kernel is being used or if the session is not bound
+then the keyword "default" is print to indicate that the default
+network behavior is being used.
 
-[root@madmax usr]# ./iscsiadm -m session -P 1
+Example:
+#iscsiadm -m session -P 1
 Target: iqn.1992-08.com.netapp:sn.33615311
-        Portal: 10.15.84.19:3260,2
-                Driver: tcp
-		HWaddress: 00:C0:DD:08:63:E7 sid: 20
-		Driver: tcp
-		HWaddress: 00:C0:DD:08:63:E7 sid: 21
-	Portal: 10.15.85.19:3260,3
-		Driver: tcp
-		HWaddress: 00:C0:DD:08:63:E7 sid: 20
-		Driver: tcp
-		HWaddress: 00:C0:DD:08:63:E7 sid: 21
+        Current Portal: 10.15.85.19:3260,3
+        Persistent Portal: 10.15.85.19:3260,3
+                Iface Transport: tcp
+                Iface IPaddress: 10.11.14.37
+                Iface HWaddress: default
+                Iface Netdev: default
+                SID: 7
+                iSCSI Connection State: LOGGED IN
+                Internal iscsid Session State: NO CHANGE
+
+The connection state is currently not available for qla4xxx.
