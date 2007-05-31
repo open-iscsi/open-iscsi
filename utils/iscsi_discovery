@@ -72,7 +72,7 @@ discover()
 	while read portal target
 	do
 		portal=${portal%,*}
-		select_transport  > /dev/tty
+		select_transport
 	done < ${df}
 
 	discovered=$(cat ${df} | wc -l)
