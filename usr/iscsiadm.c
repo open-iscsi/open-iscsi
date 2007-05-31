@@ -1769,7 +1769,8 @@ main(int argc, char **argv)
 			if (!t)
 				goto free_info;
 
-			if (!do_logout && !do_rescan && !do_stats && op < 0) {
+			if (!do_logout && !do_rescan && !do_stats && op < 0 &&
+			    info_level > 0) {
 				rc = print_session(info_level, info);
 				if (rc)
 					rc = -1;
