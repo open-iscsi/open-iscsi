@@ -1372,6 +1372,11 @@ idbm_rec_read(idbm_t *db, node_rec_t *out_rec, char *targetname, int tpgt,
 	snprintf(portal, PATH_MAX, "%s/%s/%s,%d,%d/%s", NODE_CONFIG_DIR,
 		 targetname, ip, port, tpgt, iface->name);
 	log_debug(5, "rec read looking for config file %s.", portal);
+	if (!strlen(iface->name)) {
+		rc = EINVAL;
+		goto free_portal;
+	}
+
 	if (stat(portal, &statb)) {
 		log_debug(5, "Could not stat %s err %d.", portal, errno);
 		free(portal);
@@ -1380,6 +1385,7 @@ idbm_rec_read(idbm_t *db, node_rec_t *out_rec, char *targetname, int tpgt,
 
 read:
 	rc = __idbm_rec_read(db, out_rec, portal);
+free_portal:
 	free(portal);
 	return rc;
 }

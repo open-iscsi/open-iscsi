@@ -216,14 +216,21 @@ static int sync_session(void *data, struct session_info *info)
 	}
 
 	memset(&rec, 0, sizeof(node_rec_t));
-	iface_get_by_bind_info(db, &info->iface, &rec.iface);
-	if (idbm_rec_read(db, &rec, info->targetname, info->tpgt,
+	if (iface_get_by_bind_info(db, &info->iface, &rec.iface)) {
+		log_warning("Could not read data from db. Using default and "
+			    "currently negotiated values\n");
+		setup_rec_from_negotiated_values(db, &rec, info);
+	} else if (idbm_rec_read(db, &rec, info->targetname, info->tpgt,
 			  info->persistent_address, info->persistent_port,
 			  &rec.iface)) {
 		log_warning("Could not read data from db. Using default and "
 			    "currently negotiated values\n");
 		setup_rec_from_negotiated_values(db, &rec, info);
 	}
+
+	/* multiple drivers could be connected to the same portal */
+	if (!iscsi_match_session(&rec, info))
+		return 0;
 
 	memset(&req, 0, sizeof(req));
 	req.command = MGMT_IPC_SESSION_SYNC;

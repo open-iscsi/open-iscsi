@@ -307,9 +307,16 @@ __logout_by_startup(void *data, struct session_info *info)
 	node_rec_t rec;
 	int rc = 0;
 
+	if (iface_get_by_bind_info(db, &info->iface, &rec.iface)) {
+		log_debug(7, "could not read data for [%s,%s.%d]\n",
+			  info->targetname, info->persistent_address,
+			  info->persistent_port);
+		return 0;
+	}
+
 	if (idbm_rec_read(db, &rec, info->targetname, info->tpgt,
 			  info->persistent_address,
-			  info->persistent_port, &info->iface)) {
+			  info->persistent_port, &rec.iface)) {
 		/*
 		 * this is due to a HW driver or some other driver
 		 * not hooked in
