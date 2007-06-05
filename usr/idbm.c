@@ -1046,8 +1046,7 @@ int iface_get_by_bind_info(idbm_t *db, struct iface_rec *pattern,
 	/*
 	 * compat for default behavior
 	 */
-	if (!iface_is_bound(pattern) ||
-	    strcmp(pattern->name, DEFAULT_IFACENAME)) {
+	if (!iface_is_bound(pattern)) {
 		strcpy(out_rec->name, pattern->name);
 		iface_init(out_rec);
 		return 0;

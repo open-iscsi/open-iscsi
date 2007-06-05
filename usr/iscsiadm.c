@@ -809,10 +809,12 @@ static int print_scsi_state(int sid)
 	return 0;
 }
 
-static void print_sessions_tree(struct list_head *list, int level)
+static void print_sessions_tree(idbm_t *db, struct list_head *list, int level)
 {
 	struct session_info *curr, *prev = NULL, *tmp;
 	struct iscsi_transport *t;
+	struct iface_rec iface;
+	int rc;
 
 	list_for_each_entry(curr, list, list) {
 		if (!prev || strcmp(prev->targetname, curr->targetname)) {
@@ -841,9 +843,18 @@ static void print_sessions_tree(struct list_head *list, int level)
 			printf("\n");
 
 		t = get_transport_by_sid(curr->sid);
+		rc = iface_get_by_bind_info(db, &curr->iface, &iface);
+
 		printf("\t\t**********\n");
 		printf("\t\tInterface:\n");
 		printf("\t\t**********\n");
+		if (iface_is_bound(&curr->iface)) {
+			if (iface_get_by_bind_info(db, &curr->iface, &iface))
+				printf("\t\tIface Name: %s\n", UNKNOWN_VALUE);
+			else
+				printf("\t\tIface Name: %s\n", iface.name);
+		} else
+			printf("\t\tIface Name: %s\n", DEFAULT_IFACENAME);
 		printf("\t\tIface Transport: %s\n",
 		       t ? t->name : UNKNOWN_VALUE);
 		printf("\t\tIface IPaddress: %s\n", curr->iface.ipaddress);
@@ -869,7 +880,7 @@ next:
 	}
 }
 
-static int print_session(int info_level, struct session_info *info)
+static int print_session(idbm_t *db, int info_level, struct session_info *info)
 {
 	struct list_head list;
 	int err;
@@ -887,7 +898,7 @@ static int print_session(int info_level, struct session_info *info)
 		err = link_sessions(&list, info);
 		if (err)
 			break;
-		print_sessions_tree(&list, info_level);
+		print_sessions_tree(db, &list, info_level);
 		break;
 	default:
 		log_error("Invalid info level %d. Try 0 - 3.", info_level);
@@ -899,7 +910,7 @@ static int print_session(int info_level, struct session_info *info)
 	return 0;
 }
 
-static int print_sessions(int info_level)
+static int print_sessions(idbm_t *db, int info_level)
 {
 	struct list_head list;
 	int num_found = 0, err = 0;
@@ -928,7 +939,7 @@ static int print_sessions(int info_level)
 		if (err || !num_found)
 			break;
 
-		print_sessions_tree(&list, info_level);
+		print_sessions_tree(db, &list, info_level);
 		break;
 	default:
 		log_error("Invalid info level %d. Try 0 - 3.", info_level);
@@ -1781,7 +1792,7 @@ main(int argc, char **argv)
 
 			if (!do_logout && !do_rescan && !do_stats && op < 0 &&
 			    info_level > 0) {
-				rc = print_session(info_level, info);
+				rc = print_session(db, info_level, info);
 				if (rc)
 					rc = -1;
 				goto free_info;
@@ -1812,7 +1823,7 @@ free_info:
 				goto out;
 			}
 
-			rc = print_sessions(info_level);
+			rc = print_sessions(db, info_level);
 		}
 		break;
 	default:
