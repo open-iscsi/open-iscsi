@@ -317,6 +317,10 @@ and in /etc/iscsi/ifaces1 you would enter:
 iface.transport_name = tcp
 iface.hwaddress = 00:C0:DD:08:63:E7
 
+Warning: Do not name a iface config file  "default". default is a special
+value/file that is used by the iscsi tools for backward compatibility.
+If you name a config default, then the behavior is not defined.
+
 When you then run iscsiadm to do discovery, it will check for interfaces
 in /etc/iscsi/ifaces and setup each portal that is discovered to be logged
 in through each iface. This behavior can also be overriden by passing in
