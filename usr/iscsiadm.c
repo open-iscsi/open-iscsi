@@ -667,7 +667,7 @@ static int link_sessions(void *data, struct session_info *info)
 		}
 	}
 
-	list_add_tail(&new->list, match ? &match->list : list);
+	list_add_tail(&new->list, match ? match->list.next : list);
 	return 0;
 }
 
@@ -834,6 +834,9 @@ static void print_sessions_tree(struct list_head *list, int level)
 			printf("\n");
 
 		t = get_transport_by_sid(curr->sid);
+		printf("\t\t**********\n");
+		printf("\t\tInterface:\n");
+		printf("\t\t**********\n");
 		printf("\t\tIface Transport: %s\n",
 		       t ? t->name : UNKNOWN_VALUE);
 		printf("\t\tIface IPaddress: %s\n", curr->iface.ipaddress);
