@@ -1778,7 +1778,8 @@ int idbm_for_each_node(idbm_t *db, int *found, void *data, idbm_node_op_fn *fn)
 
 	node_dirfd = opendir(NODE_CONFIG_DIR);
 	if (!node_dirfd)
-		return errno;
+		/* on start up node dir may not be created */
+		return 0;
 
 	while ((node_dent = readdir(node_dirfd))) {
 		if (!strcmp(node_dent->d_name, ".") ||
