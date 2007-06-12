@@ -874,7 +874,23 @@ free_conf:
 	return rc;
 }
 
-static int iface_conf_write(struct iface_rec *iface)
+int iface_conf_delete(struct iface_rec *iface)
+{
+	char *iface_conf;
+	int rc = 0;
+
+	iface_conf = calloc(1, PATH_MAX);
+	if (!iface_conf)
+		return ENOMEM;
+
+	sprintf(iface_conf, "%s/%s", IFACE_CONFIG_DIR, iface->name);
+	if (unlink(iface_conf))
+		rc = errno;
+	free(iface_conf);
+	return rc;
+}
+
+int iface_conf_write(struct iface_rec *iface)
 {
 	char *iface_conf;
 	FILE *f;
@@ -895,6 +911,28 @@ static int iface_conf_write(struct iface_rec *iface)
 	fclose(f);
 free_conf:
 	free(iface_conf);
+	return rc;
+}
+
+int iface_conf_update(struct db_set_param *param, struct iface_rec *iface)
+{
+	recinfo_t *info;
+	int rc = 0;
+
+	info = idbm_recinfo_alloc(MAX_KEYS);
+	if (!info)
+		return ENOMEM;
+
+	idbm_recinfo_iface(iface, info);
+	rc = idbm_node_update_param(info, param->name, param->value, 0);
+	if (rc) {
+		rc = EIO;
+		goto free_info;
+	}
+
+	rc = iface_conf_write(iface);
+free_info:
+	free(info);
 	return rc;
 }
 

@@ -10,6 +10,8 @@ iscsiadm \- open-iscsi administration utility
 
 \fBiscsiadm\fR -m session [ -dhV ] [ -P printlevel ] [ -r sessionid | sysfsdir [ -R ] [ -u | -s ] ]
 
+\fBiscsiadm\fR -m iface [ -dhV ] [ -P printlevel ] [ -I ifacename ] [ [ -o  operation  ] [ -n name ] [ -v value ] ]
+
 .SH "DESCRIPTION"
 The iscsiadm utility is a command-line tool allowing discovery and login
 to iSCSI targets, as well as access and management of the open-iscsi
@@ -71,7 +73,7 @@ sessions though the two intefaces passed in.
 
 In node mode, only a single interface is supported in each call to iscsiadm.
 .IP
-This option is only valid for discovery and node modes.
+This option is valid for discovery, node and iface mode.
 
 
 .TP
@@ -112,16 +114,16 @@ Specifies a database operator \fIop\fR. \fIop\fR must be one of
 .IP
 This option is only valid for all modes, but delete should not be used on a running session.
 .IP
-\fInew\fR is currently valid only for node and session mode. It creates a new
-database record for a given \fIportal\fR (IP address and port number).
+\fInew\fR is currently valid only for node, session and iface mode. It creates
+a new database record for a given \fIportal\fR (IP address and port number).
 .IP
 \fIdelete\fR deletes a specified \fIrecid\fR.
 .IP
-\fIupdate\fR is currently valid only for node and session mode. It updates a
-specified
+\fIupdate\fR is currently valid only for node, session, and iface mode.
+It updates a specified
 \fIrecid\fR with \fIname\fR to the specified \fIvalue\fR.
 .IP
-\fIshow\fR is the default behaviour for node and discovery mode. It is
+\fIshow\fR is the default behaviour for node, discovery and iface mode. It is
 also used when there are no commands passed into session mode and a running
 sid is passed in.
 \fIname\fR and \fIvalue\fR are currently ignored when used with \fIshow\fR.

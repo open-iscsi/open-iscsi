@@ -104,9 +104,9 @@ static void usage(int status)
 iscsiadm -m discovery [ -dhV ] [-P printlevel] [ -t type -p ip:port -I ifaceN ... [ -l ] ] | [ -p ip:port ] \
 [ -o operation ] [ -n name ] [ -v value ]\n\
 iscsiadm -m node [ -dhV ] [ -P printlevel ] [ -L all,manual,automatic ] [ -U all,manual,automatic ] [ -S ] [ [ -T targetname -p ip:port -I ifaceN ] [ -l | -u | -R | -s] ] \
-[ [ -o  operation  ] [ -n name ] [ -v value ] [ -p ip:port ] ]\n\
+[ [ -o  operation  ] [ -n name ] [ -v value ] ]\n\
 iscsiadm -m session [ -dhV ] [ -P  printlevel] [ -r sessionid | sysfsdir [ -R | -u | -s ] [ -o operation ] [ -n name ] [ -v value ] ]\n\
-iscsiadm -m iface [ -dhV ] [ -P printlevel ]\n");
+iscsiadm -m iface [ -dhV ] [ -P printlevel ] [ -I ifacename ] [ [ -o  operation  ] [ -n name ] [ -v value ] ]\n");
 	}
 	exit(status == 0 ? 0 : -1);
 }
@@ -538,8 +538,8 @@ static int iface_fn(idbm_t *db, void *data, node_rec_t *rec)
 	return op_data->fn(db, op_data->data, rec);
 }
 
-static int for_each_rec(idbm_t *db, struct node_rec *rec, void *data,
-			idbm_iface_op_fn *fn)
+static int __for_each_rec(idbm_t *db, int verbose, struct node_rec *rec,
+			  void *data, idbm_iface_op_fn *fn)
 {
 	struct rec_op_data op_data;
 	int nr_found = 0, rc;
@@ -550,15 +550,23 @@ static int for_each_rec(idbm_t *db, struct node_rec *rec, void *data,
 	op_data.fn = fn;
 
 	rc = idbm_for_each_rec(db, &nr_found, &op_data, iface_fn);
-	if (rc)
-		log_error("Could not execute operation on all records. Err %d.",
-			  rc);
-	else if (!nr_found) {
-		log_error("no records found!");
+	if (rc) {
+		if (verbose)
+			log_error("Could not execute operation on all "
+				  "records. Err %d.", rc);
+	} else if (!nr_found) {
+		if (verbose)
+			log_error("no records found!");
 		rc = ENODEV;
 	}
 
 	return rc;
+}
+
+static int for_each_rec(idbm_t *db, struct node_rec *rec, void *data,
+			idbm_iface_op_fn *fn)
+{
+	return __for_each_rec(db, 1, rec, data, fn);
 }
 
 static int print_nodes(idbm_t *db, int info_level, struct node_rec *rec)
@@ -1317,6 +1325,180 @@ static void catch_sigint( int signo ) {
 	exit(1);
 }
 
+static int check_for_session_through_iface(struct node_rec *rec)
+{
+	int nr_found = 0;
+	if (sysfs_for_each_session(rec, &nr_found, iscsi_match_session))
+		return 1;
+	return 0;
+}
+
+static struct node_rec *setup_rec_from_iface(struct iface_rec *iface)
+{
+	struct node_rec *rec;
+
+	rec = calloc(1, sizeof(*rec));
+	if (!rec) {
+		log_error("Could not not allocate memory to create node "
+			  "record.");
+		return NULL;
+	}
+
+	rec->tpgt = -1;
+	rec->conn[0].port = -1;
+	iface_copy(&rec->iface, iface);
+	if (iface_conf_read(&rec->iface)) {
+		free(rec);
+		rec = NULL;
+	}
+	return rec;
+}
+
+static int exec_iface_op(idbm_t *db, int op, int do_show, int info_level,
+			 struct iface_rec *iface, char *name, char *value)
+{
+	struct db_set_param set_param;
+	struct node_rec *rec = NULL;
+	int rc = 0;
+
+	switch (op) {
+	case OP_NEW:
+		if (!iface) {
+			log_error("Could not add interface. No interface "
+				  "passed in.");
+			return EINVAL;
+		}
+
+		rec = setup_rec_from_iface(iface);
+		if (rec) {
+			if (check_for_session_through_iface(rec)) {
+				rc = EBUSY;
+				goto new_fail;
+			}
+			log_warning("Overwriting existing %s.", iface->name);
+		}
+
+		iface_init(iface);
+		rc = iface_conf_write(iface);
+		if (rc)
+			goto new_fail;
+		printf("New interface %s added\n", iface->name);
+		break;
+new_fail:
+		log_error("Could not create new interface %s.", iface->name);
+		break;
+	case OP_DELETE:
+		if (!iface) {
+			log_error("Could not delete interface. No interface "
+				  "passed in.");
+			return EINVAL;
+		}
+
+		rec = setup_rec_from_iface(iface);
+		if (!rec) {
+			rc = EINVAL;
+			goto delete_fail;
+		}
+
+		if (check_for_session_through_iface(rec)) {
+			rc = EBUSY;
+			goto delete_fail;
+		}
+
+		/* delete node records using it first */
+		rc = __for_each_rec(db, 0, rec, NULL, idbm_delete_node);
+		if (rc && rc != ENODEV)
+			goto delete_fail;
+
+		rc = iface_conf_delete(iface);
+		if (rc)
+			goto delete_fail;
+
+		printf("%s unbound and deleted.\n", iface->name);
+		break;
+delete_fail:
+		log_error("Could not delete iface %s. A session is "
+			  "is using it or it could not be found.",
+			   iface->name);
+		break;
+	case OP_UPDATE:
+		if (!iface || !name || !value) {
+			log_error("Update requires name, value, and iface.");
+			rc = EINVAL;
+			break;
+		}
+
+		rec = setup_rec_from_iface(iface);
+		if (!rec) {
+			rc = EINVAL;
+			goto update_fail;
+		}
+
+		if (check_for_session_through_iface(rec)) {
+			rc = EINVAL;
+			goto update_fail;
+		}
+
+		if (!strcmp(name, "iface.iscsi_ifacename")) {
+			log_error("Can not update iface.iscsi_ifacename. "
+				  "Delete it, and then create a new one.");
+			rc = EINVAL;
+			break;
+		}
+
+		if (iface_is_bound_by_hwaddr(&rec->iface) &&
+		    !strcmp(name, "iface.net_ifacename")) {
+			log_error("Can not update interface binding from "
+				  "hwaddress to net_ifacename. ");
+			log_error("You must delete the interface and create "
+				  "a new one");
+			rc = EINVAL;
+			break;
+		}
+
+		if (iface_is_bound_by_netdev(&rec->iface) &&
+		    !strcmp(name, "iface.hwaddress")) {
+			log_error("Can not update interface binding from "
+				  "net_ifacename to hwaddress. ");
+			log_error("You must delete the interface and create "
+				  "a new one");
+			rc = EINVAL;
+			break;
+		}
+
+		set_param.db = db;
+		set_param.name = name;
+		set_param.value = value;
+
+		rc = __for_each_rec(db, 0, rec, &set_param,
+				    idbm_node_set_param);
+		if (rc && rc != ENODEV)
+			goto update_fail;
+
+		/* pass rec's iface because it has the db values */
+		rc = iface_conf_update(&set_param, &rec->iface);
+		if (rc)
+			goto update_fail;
+
+		printf("%s updated.\n", iface->name);
+		break;
+update_fail:
+		log_error("Could not update iface %s. A session is "
+			  "is using it or it could not be found.",
+			  iface->name);
+		break;
+	default:
+		if (op < 0 || op == OP_SHOW)
+			rc = print_ifaces(db, info_level);
+		else
+			rc = EINVAL;
+	}
+
+	if (rec)
+		free(rec);
+	return rc;
+}
+
 /* TODO cleanup arguments */
 static int exec_node_op(idbm_t *db, int op, int do_login, int do_logout,
 			int do_show, int do_rescan, int do_stats,
@@ -1611,15 +1793,23 @@ main(int argc, char **argv)
 
 	switch (mode) {
 	case MODE_IFACE:
-		if ((rc = verify_mode_params(argc, argv, "dmP", 0))) {
+		if ((rc = verify_mode_params(argc, argv, "IdnvmPo", 0))) {
 			log_error("iface mode: option '-%c' is not "
 				  "allowed/supported", rc);
 			rc = -1;
 			goto out;
 		}
 
-		if (print_ifaces(db, info_level))
-			rc = -1;
+		if (!list_empty(&ifaces)) {
+			iface = list_entry(ifaces.next, struct iface_rec,
+					   list);
+			if (num_ifaces > 1)
+				log_error("iface mode only accepts one "
+					  "interface. Using the first one "
+					  "%s.", iface->name);
+		}
+		rc = exec_iface_op(db, op, do_show, info_level, iface,
+				   name, value);
 		break;
 	case MODE_DISCOVERY:
 		if ((rc = verify_mode_params(argc, argv, "IPdmtplo", 0))) {

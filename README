@@ -247,6 +247,12 @@ Usage: iscsiadm [OPTION]
 			  3 = Print SCSI info like LUNs, device state.
 			  If no sid and no operation is given print out the
 			  running sessions.
+  -m iface --interface=iscsi_ifacename --op=[op] [--name=[name] --value=[value]]
+				--print=level
+			  perform operation on fiven interface with name
+			  iscsi_ifacename.
+
+			  See below for examples.
   -d, --debug debuglevel  print debugging information
   -V, --version           display version and exit
   -h, --help              display this help and exit
@@ -299,9 +305,10 @@ The format is:
 
 iface_name transport_name,hwaddress,net_ifacename
 
-For software iscsi, you must currently create the iface configs by hand.
-In the future iscsiadm may help with this task. To help with this task
-there is a iface.example in /etc/iscsi/ifaces which can be used as a template.
+For software iscsi, you can create the iface configs by hand, but it is
+reccomended that you use iscsiadm's iface mode. There is a iface.example in
+/etc/iscsi/ifaces which can be used as a template for the daring.
+
 For each network object you wish to bind a session to you must create
 a seperate iface config in /etc/iscsi/ifaces and each iface config file
 must have a unique name which is less than or equal to 64 characters.
@@ -324,11 +331,26 @@ Warning: Do not name a iface config file  "default". default is a special
 value/file that is used by the iscsi tools for backward compatibility.
 If you name a config default, then the behavior is not defined.
 
+To use iscsiadm to create iface0 above for you run:
+
+(This will create a new empty iface config. If there was already a iface
+with the name "iface0" this command will overwrite it.)
+# iscsiadm -m iface -I iface0 --op=new
+
+(This will set the hwaddress.)
+# iscsiadm -m iface -I iface0 --op=update -n iface.hwaddress -v 00:0F:1F:92:6B:BF
+
+If you had sessions logged in iscsiadm will not update, delete or overwrite
+a iface. You must log out first. If you have a iface bound to a node/portal
+but you have not logged in then, iscsiadm will update the config and
+all existing bindings.
+
 When you then run iscsiadm to do discovery, it will check for interfaces
-in /etc/iscsi/ifaces and setup each portal that is discovered to be logged
-in through each iface. This behavior can also be overriden by passing in
-the interfaces you want to use. For example if you had defined two
-interface but only wanted to use one you can use the --interface/-I argument:
+in /etc/iscsi/ifaces and bind the portals that are discovered so that
+they will be logged in through each iface. This behavior can also be overriden
+by passing in the interfaces you want to use. For example if you had defined
+two interface but only wanted to use one you can use the
+--interface/-I argument:
 
 iscsiadm -m discovery -t st -p ip:port -I iface1 -P 1
 

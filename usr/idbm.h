@@ -142,6 +142,11 @@ extern int iface_print_flat(void *data, struct iface_rec *iface);
 extern void iface_setup_host_bindings(idbm_t *db);
 extern int iface_get_by_bind_info(idbm_t *db, struct iface_rec *pattern,
 				 struct iface_rec *out_rec);
+extern int iface_conf_update(struct db_set_param *set_param,
+			     struct iface_rec *iface);
+extern int iface_conf_write(struct iface_rec *iface);
+extern int iface_conf_delete(struct iface_rec *iface);
+extern int iface_conf_read(struct iface_rec *iface);
 
 #define iface_fmt "[hw=%s,ip=%s,net_if=%s,iscsi_if=%s]"
 #define iface_str(_iface) \
