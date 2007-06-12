@@ -167,28 +167,6 @@ str_to_type(char *str)
 	return type;
 }
 
-/* flat P0 style for now */
-static int print_iface(void *data, struct host_info *info)
-{
-	idbm_t *db = data;
-	struct iscsi_transport *t;
-	struct iface_rec iface;
-
-	memset(&iface, 0, sizeof(struct iface_rec));
-	iface_get_by_bind_info(db, &info->iface, &iface);
-	t = get_transport_by_hba(info->host_no);
-	printf("%s %s,%s,%s,%s %u\n",
-	      strlen(iface.name) ? iface.name : UNKNOWN_VALUE,
-	      strlen(info->iname) ? info->iname : UNKNOWN_VALUE,
-	      t ? t->name : UNKNOWN_VALUE,
-	      strlen(info->iface.hwaddress) ? info->iface.hwaddress :
-							UNKNOWN_VALUE,
-	      strlen(info->iface.ipaddress) ? info->iface.ipaddress :
-							UNKNOWN_VALUE,
-	      info->host_no);
-	return 0;
-}
-
 /*
  * TODO: when we get more time we can make add what sessions
  * are connected to the host. For now you can see this in session
@@ -204,9 +182,9 @@ static int print_ifaces(idbm_t *db, int info_level)
 		return EINVAL;
 	}
 
-	err = sysfs_for_each_host(db, &num_found, print_iface);
+	err = iface_for_each_iface(db, NULL, &num_found, iface_print_flat);
 	if (!num_found) {
-		log_error("No hosts found.");
+		log_error("No interfaces found.");
 		err = ENODEV;
 	}
 	return err;
@@ -399,7 +377,7 @@ logout_portal(void *data, struct session_info *info)
 	/* we do not support this yet */
 	if (t->caps & CAP_FW_DB) {
 		log_error("Could not logout session [sid: %d, "
-			  "target: %s, portal: %s,%d]\n", info->sid,
+			  "target: %s, portal: %s,%d]", info->sid,
 			  info->targetname, info->persistent_address,
 			  info->port);
 		log_error("Logout not supported for driver: %s.", t->name);
@@ -973,7 +951,7 @@ static int print_sessions(idbm_t *db, int info_level)
 		log_error("Can not get list of active sessions (%d)", err);
 		return err;
 	} else if (!num_found)
-		log_error("no active sessions.");
+		log_error("No active sessions.");
 	return 0;
 }
 

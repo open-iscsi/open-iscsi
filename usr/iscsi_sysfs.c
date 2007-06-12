@@ -143,6 +143,14 @@ static int read_transports(void)
 		if (err)
 			continue;
 
+		/*
+		 * tmp hack for qla4xx compat
+		 */
+		if (!strcmp(t->name, "qla4xxx")) {
+			t->caps |= CAP_DATA_PATH_OFFLOAD;
+			t->caps |= CAP_FW_DB;
+		}
+
 		list_add_tail(&t->list, &transports);
 	}
 

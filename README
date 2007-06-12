@@ -291,10 +291,13 @@ to modify them.
 Running:
 
 # iscsiadm -m iface
-iface0 iqn.2000-04.com.qlogic:qla4052c.gs10629a15170.1,qla4xxx,00:c0:dd:08:63:e8,0.0.0.0 4
-iface1 iqn.2000-04.com.qlogic:qla4052c.gs10629a15170.2,qla4xxx,00:c0:dd:08:63:ea,20.15.0.9 5
+iface0 qla4xxx,00:c0:dd:08:63:e8,default
+iface1 qla4xxx,00:c0:dd:08:63:ea,default
 
-Will report HBA port to iface bindings (note that the iface format may change).
+Will report iface configurations that are setup in /etc/iscsi/ifaces.
+The format is:
+
+iface_name transport_name,hwaddress,net_ifacename
 
 For software iscsi, you must currently create the iface configs by hand.
 In the future iscsiadm may help with this task. To help with this task

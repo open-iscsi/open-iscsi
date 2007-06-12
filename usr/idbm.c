@@ -1125,18 +1125,6 @@ void iface_setup_host_bindings(idbm_t *db)
 			  "operations may not be supported.");
 }
 
-int iface_print_flat(void *data, struct iface_rec *iface)
-{
-	printf("%s:%s %s,%s\n",
-	       strlen(iface->name) ? iface->name : UNKNOWN_VALUE,
-	       strlen(iface->transport_name) ? iface->transport_name :
-								UNKNOWN_VALUE,
-	       strlen(iface->hwaddress) ? iface->hwaddress : UNKNOWN_VALUE,
-//	       strlen(iface->ipaddress) ? iface->ipaddress : UNKNOWN_VALUE,
-	       strlen(iface->netdev) ? iface->netdev : UNKNOWN_VALUE);
-	return 0;
-}
-
 void iface_copy(struct iface_rec *dst, struct iface_rec *src)
 {
 	if (strlen(src->name))
@@ -1238,6 +1226,17 @@ int iface_is_bound_by_ipaddr(struct iface_rec *iface)
 */
 }
 
+int iface_print_flat(void *data, struct iface_rec *iface)
+{
+	printf("%s %s,%s,%s\n",
+		strlen(iface->name) ? iface->name : UNKNOWN_VALUE,
+		strlen(iface->transport_name) ? iface->transport_name :
+							UNKNOWN_VALUE,
+		strlen(iface->hwaddress) ? iface->hwaddress : UNKNOWN_VALUE,
+		strlen(iface->netdev) ? iface->netdev : UNKNOWN_VALUE);
+	return 0;
+}
+
 static int iface_filter(const struct dirent *dir)
 {
 	return strcmp(dir->d_name, ".") && strcmp(dir->d_name, "..");
@@ -1281,7 +1280,7 @@ int iface_for_each_iface(idbm_t *db, void *data, int *nr_found, iface_op_fn *fn)
 		}
 
 		if (!iface_is_bound(iface)) {
-			log_debug(5, "Default iface is not bound "
+			log_debug(5, "iface is not bound "
 				  "Iface settings " iface_fmt,
 				  iface_str(iface));
 			free(iface);
