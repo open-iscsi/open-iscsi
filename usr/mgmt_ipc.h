@@ -45,6 +45,7 @@ typedef enum mgmt_ipc_err {
 	MGMT_IPC_ERR_EXISTS		= 15,
 	MGMT_IPC_ERR_INVALID_REQ	= 16,
 	MGMT_IPC_ERR_ISNS_UNAVAILABLE	= 17,
+	MGMT_IPC_ERR_ISCSID_COMM_ERR	= 18,
 } mgmt_ipc_err_e;
 
 typedef enum iscsiadm_cmd {

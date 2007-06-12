@@ -1045,11 +1045,14 @@ int iface_get_by_bind_info(idbm_t *db, struct iface_rec *pattern,
 	if (rc == 1)
 		return 0;
 
+	if (iface_is_bound(pattern))
+		return ENODEV;
+
 	/*
 	 * compat for default behavior
 	 */
-	if (!iface_is_bound(pattern)) {
-		strcpy(out_rec->name, pattern->name);
+	if (!strlen(pattern->name) ||
+	    !strcmp(pattern->name, DEFAULT_IFACENAME)) {
 		iface_init(out_rec);
 		return 0;
 	}
@@ -1597,19 +1600,24 @@ int idbm_print_all_discovery(idbm_t *db, int info_level)
 	return found;
 }
 
-int idbm_for_each_iface(idbm_t *db, void *data, idbm_iface_op_fn *fn,
-			char *targetname, int tpgt, char *ip, int port)
+/*
+ * This iterates over the ifaces in use in the nodes dir.
+ * It does not iterate over the ifaces setup in /etc/iscsi/ifaces.
+ */
+static int idbm_for_each_iface(idbm_t *db, int *found, void *data,
+				idbm_iface_op_fn *fn,
+				char *targetname, int tpgt, char *ip, int port)
 {
 	DIR *iface_dirfd;
 	struct dirent *iface_dent;
 	struct stat statb;
 	node_rec_t rec;
-	int found = 0;
+	int rc = 0;
 	char *portal;
 
 	portal = calloc(1, PATH_MAX);
 	if (!portal)
-		return 0;
+		return ENOMEM;
 
 	if (tpgt >= 0)
 		goto read_iface;
@@ -1619,14 +1627,19 @@ int idbm_for_each_iface(idbm_t *db, void *data, idbm_iface_op_fn *fn,
 		 ip, port);
 	if (stat(portal, &statb)) {
 		log_error("iface iter could not stat %s.", portal);
+		rc = ENODEV;
 		goto free_portal;
 	}
 
-	if (__idbm_rec_read(db, &rec, portal))
+	rc = __idbm_rec_read(db, &rec, portal);
+	if (rc)
 		goto free_portal;
 
-	fn(db, data, &rec);
-	found = 1;
+	rc = fn(db, data, &rec);
+	if (!rc)
+		(*found)++;
+	else if (rc == -1)
+		rc = 0;
 	goto free_portal;
 
 read_iface:
@@ -1634,8 +1647,10 @@ read_iface:
 		 targetname, ip, port, tpgt);
 
 	iface_dirfd = opendir(portal);
-	if (!iface_dirfd)
+	if (!iface_dirfd) {
+		rc = errno;
 		goto free_portal;
+	}
 
 	while ((iface_dent = readdir(iface_dirfd))) {
 		if (!strcmp(iface_dent->d_name, ".") ||
@@ -1649,36 +1664,44 @@ read_iface:
 		if (__idbm_rec_read(db, &rec, portal))
 			continue;
 
-		fn(db, data, &rec);
-		found++;
+		/* less than zero means it was not a match */
+		rc = fn(db, data, &rec);
+		if (rc > 0)
+			break;
+		else if (rc == 0)
+			(*found)++;
+		else 
+			rc = 0;
 	}
 
 	closedir(iface_dirfd);
 free_portal:
 	free(portal);
-	return found;
+	return rc;
 }
 
 /*
  * backwards compat
  * The portal could be a file or dir with interfaces
  */
-int idbm_for_each_portal(idbm_t *db, void *data, idbm_portal_op_fn *fn,
-			 char *targetname)
+int idbm_for_each_portal(idbm_t *db, int *found, void *data,
+			 idbm_portal_op_fn *fn, char *targetname)
 {
 	DIR *portal_dirfd;
 	struct dirent *portal_dent;
-	int found = 0;
+	int rc = 0;
 	char *portal;
 
 	portal = calloc(1, PATH_MAX);
 	if (!portal)
-		return 0;
+		return ENOMEM;
 
 	snprintf(portal, PATH_MAX, "%s/%s", NODE_CONFIG_DIR, targetname);
 	portal_dirfd = opendir(portal);
-	if (!portal_dirfd)
+	if (!portal_dirfd) {
+		rc = errno;
 		goto done;
+	}
 
 	while ((portal_dent = readdir(portal_dirfd))) {
 		char *tmp_port, *tmp_tpgt;
@@ -1696,25 +1719,29 @@ int idbm_for_each_portal(idbm_t *db, void *data, idbm_portal_op_fn *fn,
 		if (tmp_tpgt)
 			*tmp_tpgt++ = '\0';
 
-		found += fn(db, data, targetname,
-			    tmp_tpgt ? atoi(tmp_tpgt) : -1,
-			    portal_dent->d_name, atoi(tmp_port));
+		rc = fn(db, found, data, targetname,
+			tmp_tpgt ? atoi(tmp_tpgt) : -1,
+			portal_dent->d_name, atoi(tmp_port));
+		if (rc)
+			break;
 	}
 	closedir(portal_dirfd);
 done:
 	free(portal);
-	return found;
+	return rc;
 }
 
-int idbm_for_each_node(idbm_t *db, void *data, idbm_node_op_fn *fn)
+int idbm_for_each_node(idbm_t *db, int *found, void *data, idbm_node_op_fn *fn)
 {
 	DIR *node_dirfd;
 	struct dirent *node_dent;
-	int found = 0;
+	int rc = 0;
+
+	*found = 0;
 
 	node_dirfd = opendir(NODE_CONFIG_DIR);
 	if (!node_dirfd)
-		return 0;
+		return errno;
 
 	while ((node_dent = readdir(node_dirfd))) {
 		if (!strcmp(node_dent->d_name, ".") ||
@@ -1722,11 +1749,13 @@ int idbm_for_each_node(idbm_t *db, void *data, idbm_node_op_fn *fn)
 			continue;
 
 		log_debug(5, "searching %s\n", node_dent->d_name);
-		found += fn(db, data, node_dent->d_name);
+		rc = fn(db, found, data, node_dent->d_name);
+		if (rc)
+			break;
 	}
 
 	closedir(node_dirfd);
-	return found;
+	return rc;
 }
 
 static int iface_fn(idbm_t *db, void *data, node_rec_t *rec)
@@ -1736,19 +1765,19 @@ static int iface_fn(idbm_t *db, void *data, node_rec_t *rec)
 	return op_data->fn(db, op_data->data, rec);
 }
 
-static int portal_fn(idbm_t *db, void *data, char *targetname, int tpgt,
-		     char *ip, int port)
+static int portal_fn(idbm_t *db, int *found, void *data, char *targetname,
+		     int tpgt, char *ip, int port)
 {
-	return idbm_for_each_iface(db, data, iface_fn, targetname, tpgt, ip,
-				   port);
+	return idbm_for_each_iface(db, found, data, iface_fn, targetname,
+				   tpgt, ip, port);
 }
 
-static int node_fn(idbm_t *db, void *data, char *targetname)
+static int node_fn(idbm_t *db, int *found, void *data, char *targetname)
 {
-	return idbm_for_each_portal(db, data, portal_fn, targetname);
+	return idbm_for_each_portal(db, found, data, portal_fn, targetname);
 }
 
-int idbm_for_each_rec(idbm_t *db, void *data, idbm_iface_op_fn *fn)
+int idbm_for_each_rec(idbm_t *db, int *found, void *data, idbm_iface_op_fn *fn)
 {
 	struct rec_op_data op_data;
 
@@ -1756,7 +1785,7 @@ int idbm_for_each_rec(idbm_t *db, void *data, idbm_iface_op_fn *fn)
 	op_data.data = data;
 	op_data.fn = fn;
 
-	return idbm_for_each_node(db, &op_data, node_fn);
+	return idbm_for_each_node(db, found, &op_data, node_fn);
 }
 
 int
@@ -2421,21 +2450,23 @@ idbm_node_set_param(idbm_t *db, void *data, node_rec_t *rec)
 {
 	struct db_set_param *param = data;
 	recinfo_t *info;
+	int rc = 0;
 
 	info = idbm_recinfo_alloc(MAX_KEYS);
 	if (!info)
-		return 1;
+		return ENOMEM;
 
 	idbm_recinfo_node(rec, info);
 
 	if (idbm_node_update_param(info, param->name, param->value, 0)) {
 		free(info);
-		return 1;
+		return EIO;
 	}
 
-	if (idbm_rec_write(param->db, rec)) {
+	rc = idbm_rec_write(param->db, rec);
+	if (rc) {
 		free(info);
-		return 1;
+		return rc;
 	}
 
 	free(info);

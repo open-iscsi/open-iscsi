@@ -71,7 +71,7 @@ int discovery_offload_sendtargets(idbm_t *db, int host_no, int do_login,
 	sprintf(default_port, "%d", drec->port);
 	if (resolve_address(drec->address, default_port, &ss)) {
 		log_error("Cannot resolve host name %s.", drec->address);
-		return -EIO;
+		return EIO;
 	}       
 	req.u.st.ss = ss;
 
@@ -85,12 +85,14 @@ int discovery_offload_sendtargets(idbm_t *db, int host_no, int do_login,
 	 * allows us to then process the results like software iscsi.
 	 */
 	rc = do_iscsid(&req, &rsp);
-	if (rc > 0)
+	if (rc) {
+		log_error("Could not offload sendtargets to %s.\n",
+			  drec->address);
 		iscsid_handle_error(rc);
-	else if (rc < 0)
-		log_error("Could not offload sendtargets to %s. Error %d.\n",
-			  drec->address, rc);
-	return rc;
+		return EIO;
+	}
+
+	return 0;
 }
 
 static int

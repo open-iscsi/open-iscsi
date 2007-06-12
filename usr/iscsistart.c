@@ -108,7 +108,7 @@ static int stop_event_loop(void)
 	memset(&req, 0, sizeof(req));
 	req.command = MGMT_IPC_IMMEDIATE_STOP;
 	rc = do_iscsid(&req, &rsp);
-	if (rc > 0)
+	if (rc)
 		iscsid_handle_error(rc);
 	if (rc)
 		log_error("Could not stop event_loop\n");
@@ -130,7 +130,7 @@ static int setup_session(void)
 	req.command = MGMT_IPC_SESSION_LOGIN;
 	memcpy(&req.u.session.rec, &config_rec, sizeof(node_rec_t));
 	rc = do_iscsid(&req, &rsp);
-	if (rc > 0)
+	if (rc)
 		iscsid_handle_error(rc);
 
 	return rc;

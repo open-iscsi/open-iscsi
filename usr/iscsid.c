@@ -230,7 +230,7 @@ static int sync_session(void *data, struct session_info *info)
 
 	/* multiple drivers could be connected to the same portal */
 	if (!iscsi_match_session(&rec, info))
-		return 0;
+		return -1;
 
 	memset(&req, 0, sizeof(req));
 	req.command = MGMT_IPC_SESSION_SYNC;

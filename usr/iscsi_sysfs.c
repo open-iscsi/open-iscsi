@@ -607,9 +607,13 @@ int sysfs_for_each_session(void *data, int *nr_found, sysfs_session_op_fn *fn)
 		}
 
 		rc = fn(data, info);
-		if (rc != 0)
+		if (rc > 0)
 			break;
-		(*nr_found)++;
+		else if (rc == 0)
+			(*nr_found)++;
+		else
+			/* if less than zero it means it was not a match */
+			rc = 0;
 	}
 
 	for (i = 0; i < n; i++)

@@ -94,15 +94,15 @@ str_to_ipport(char *str, int *port, int *tpgt)
 
 #define MAXSLEEP 128
 
-static int iscsid_connect(void)
+static mgmt_ipc_err_e iscsid_connect(int *fd)
 {
-	int fd, nsec;
+	int nsec;
 	struct sockaddr_un addr;
 
-	fd = socket(AF_LOCAL, SOCK_STREAM, 0);
-	if (fd < 0) {
+	*fd = socket(AF_LOCAL, SOCK_STREAM, 0);
+	if (*fd < 0) {
 		log_error("can not create IPC socket (%d)!", errno);
-		return fd;
+		return MGMT_IPC_ERR_ISCSID_COMM_ERR;
 	}
 
 	memset(&addr, 0, sizeof(addr));
@@ -113,10 +113,9 @@ static int iscsid_connect(void)
 	 * Trying to connect with exponential backoff
 	 */
 	for (nsec = 1; nsec <= MAXSLEEP; nsec <<= 1) {
-		if (connect(fd, (struct sockaddr *) &addr, sizeof(addr)) == 0) {
+		if (connect(*fd, (struct sockaddr *) &addr, sizeof(addr)) == 0)
 			/* Connection established */
-			return fd;
-		}
+			return MGMT_IPC_OK;
 
 		/*
 		 * Delay before trying again
@@ -125,52 +124,51 @@ static int iscsid_connect(void)
 			sleep(nsec);
 	}
 	log_error("can not connect to iSCSI daemon (%d)!", errno);
-	return -1;
+	return MGMT_IPC_ERR_ISCSID_COMM_ERR;
 }
 
-static int iscsid_request(int fd, iscsiadm_req_t *req)
+static mgmt_ipc_err_e iscsid_request(int fd, iscsiadm_req_t *req)
 {
 	int err;
 
 	if ((err = write(fd, req, sizeof(*req))) != sizeof(*req)) {
 		log_error("got write error (%d/%d) on cmd %d, daemon died?",
 			err, errno, req->command);
-		if (err >= 0)
-			err = -EIO;
+		return MGMT_IPC_ERR_ISCSID_COMM_ERR;
 	}
-	return err;
+	return MGMT_IPC_OK;
 }
 
-static int iscsid_response(int fd, iscsiadm_rsp_t *rsp)
+static mgmt_ipc_err_e iscsid_response(int fd, iscsiadm_rsp_t *rsp)
 {
 	int err;
 
 	if ((err = recv(fd, rsp, sizeof(*rsp), MSG_WAITALL)) != sizeof(*rsp)) {
 		log_error("got read error (%d/%d), daemon died?", err, errno);
-		if (err >= 0)
-			err = -EIO;
+		return MGMT_IPC_ERR_ISCSID_COMM_ERR;
 	} else
-		err = rsp->err;
-
-	return err;
+		return rsp->err;
 }
 
-int do_iscsid(iscsiadm_req_t *req, iscsiadm_rsp_t *rsp)
+mgmt_ipc_err_e do_iscsid(iscsiadm_req_t *req, iscsiadm_rsp_t *rsp)
 {
-	int err;
 	int fd;
+	mgmt_ipc_err_e err;
 
-	if ((fd = iscsid_connect()) < 0) {
-		err = fd;
+	err = iscsid_connect(&fd);
+	if (err)
 		goto out;
-	}
 
-	if ((err = iscsid_request(fd, req)) < 0)
+	err = iscsid_request(fd, req);
+	if (err)
 		goto out;
 
 	err = iscsid_response(fd, rsp);
+	if (err)
+		goto out;
+
 	if (!err && req->command != rsp->command)
-		err = -EIO;
+		err = MGMT_IPC_ERR_ISCSID_COMM_ERR;
 out:
 	if (fd >= 0)
 		close(fd);
@@ -232,7 +230,7 @@ void idbm_node_setup_defaults(node_rec_t *rec)
 	iface_init(&rec->iface);
 }
 
-void iscsid_handle_error(int err)
+void iscsid_handle_error(mgmt_ipc_err_e err)
 {
 	static char *err_msgs[] = {
 		/* 0 */ "",
@@ -253,6 +251,7 @@ void iscsid_handle_error(int err)
 		/* 15 */ "already exists",
 		/* 16 */ "Unknown request",
 		/* 17 */ "encountered iSNS failure",
+		/* 18 */ "could not communicate to iscsid",
 	};
 	log_error("initiator reported error (%d - %s)", err, err_msgs[err]);
 }
@@ -265,14 +264,14 @@ int __iscsi_match_session(node_rec_t *rec, char *targetname,
 		return 1;
 	}
 
-	log_debug(6, "match session [%s,%s,%d][%s,%s,%s]",
+	log_debug(6, "match session [%s,%s,%d][%s %s,%s,%s]",
 		  rec->name, rec->conn[0].address, rec->conn[0].port,
-		  rec->iface.transport_name, rec->iface.hwaddress,
-		  rec->iface.ipaddress);
+		  rec->iface.name, rec->iface.transport_name,
+		  rec->iface.hwaddress, rec->iface.ipaddress);
 
 	if (iface)
-		log_debug(6, "to [%s,%s,%d][%s,%s,%s]",
-			  targetname, address, port,
+		log_debug(6, "to [%s,%s,%d][%s %s,%s,%s]",
+			  targetname, address, port, iface->name,
 			  iface->transport_name, iface->hwaddress,
 			  iface->ipaddress);
 

@@ -239,11 +239,11 @@ __delete_target(void *data, struct session_info *info)
 		host_no = get_host_no_from_sid(info->sid, &err);
 		if (err) {
 			log_error("Could not properly delete target\n");
-			return 1;
+			return EIO;
 		}
 
 		sysfs_for_each_device(host_no, info->sid, delete_device);
-		return 1;
+		return 0;
 	}
 
 	/* keep on looking */
@@ -308,10 +308,17 @@ __logout_by_startup(void *data, struct session_info *info)
 	int rc = 0;
 
 	if (iface_get_by_bind_info(db, &info->iface, &rec.iface)) {
+		/*
+		 * If someone removed the /etc/iscsi/ifaces file
+		 * between logins then this will fail.
+		 *
+		 * To support that, we would have to throw our ifacename
+		 * into the kernel.
+		 */
 		log_debug(7, "could not read data for [%s,%s.%d]\n",
 			  info->targetname, info->persistent_address,
 			  info->persistent_port);
-		return 0;
+		return -1;
 	}
 
 	if (idbm_rec_read(db, &rec, info->targetname, info->tpgt,
@@ -324,19 +331,19 @@ __logout_by_startup(void *data, struct session_info *info)
 		log_debug(7, "could not read data for [%s,%s.%d]\n",
 			  info->targetname, info->persistent_address,
 			  info->persistent_port);
-		return 0;
+		return -1;
 	}
 
 	/* multiple drivers could be connected to the same portal */
 	if (!iscsi_match_session(&rec, info))
-		return 0;
+		return -1;
 
 	/*
 	 * we always skip on boot because if the user killed this on
 	 * they would not be able to do anything
 	 */
 	if (rec.startup == ISCSI_STARTUP_ONBOOT)
-		return 0;
+		return -1;
 
 	if (!match_startup_mode(&rec, mode)) {
 		printf("Logout session [sid: %d, target: %s, portal: "
@@ -347,12 +354,9 @@ __logout_by_startup(void *data, struct session_info *info)
 		/* we raced with another app or instance of iscsiadm */
 		if (rc == MGMT_IPC_ERR_NOT_FOUND)
 			rc = 0;
-		if (rc)
-			log_error("Could not logout session (err %d).", rc);
-		if (rc > 0) {
+		if (rc) {
 			iscsid_handle_error(rc);
-			/* continue trying to logout the rest of them */
-			rc = 0;
+			rc = EIO;
 		}
 	}
 
@@ -369,7 +373,7 @@ logout_by_startup(idbm_t *db, char *mode)
 	    !strcmp(mode,"manual"))) {
 		log_error("Invalid logoutall option %s.", mode);
 		usage(0);
-		return -EINVAL;
+		return EINVAL;
 	}
 
 	mgmt.mode = mode;
@@ -387,10 +391,10 @@ logout_portal(void *data, struct session_info *info)
 
 	t = get_transport_by_sid(info->sid);
 	if (!t)
-		return 0;
+		return -1;
 
 	if (!iscsi_match_session(rec, info))
-		return 0;
+		return -1;
 
 	/* we do not support this yet */
 	if (t->caps & CAP_FW_DB) {
@@ -399,7 +403,7 @@ logout_portal(void *data, struct session_info *info)
 			  info->targetname, info->persistent_address,
 			  info->port);
 		log_error("Logout not supported for driver: %s.", t->name);
-		return 0;
+		return -1;
 	}
 
 	/* TODO: add fn to add session prefix info like dev_printk */
@@ -417,12 +421,9 @@ logout_portal(void *data, struct session_info *info)
 	/* we raced with another app or instance of iscsiadm */
 	if (rc == MGMT_IPC_ERR_NOT_FOUND)
 		rc = 0;
-	if (rc)
-		log_error("Could not logout session (err %d).", rc);
-	if (rc > 0) {
+	if (rc) {
 		iscsid_handle_error(rc);
-		/* continue trying to logout the rest of them */
-		rc = 0;
+		rc = EIO;
 	}
 
 	return rc;
@@ -468,7 +469,10 @@ for_each_session(struct node_rec *rec, sysfs_session_op_fn *fn)
 	int err, num_found = 0;
 
 	err = sysfs_for_each_session(rec, &num_found, fn);
-	if (!num_found) {
+	if (err)
+		log_error("Could not execute operation on all sessions. Err "
+			  "%d.", err);
+	else if (!num_found) {
 		log_error("No portal found.");
 		err = ENODEV;
 	}
@@ -494,33 +498,29 @@ static int login_portal(idbm_t *db, void *data, node_rec_t *rec)
 			break;
 		}
 
-		if (rc)
-			log_error("Could not login session (err %d).", rc);
-		if (rc > 0) {
-			iscsid_handle_error(rc);
-			/* continue trying to login the rest of them */
-			rc = 0;
-		}
-
 		if (i + 1 != rec->session.initial_login_retry_max)
 			sleep(1);
 	}
 
-	return rc;
+	if (rc) {
+		iscsid_handle_error(rc);
+		return ENOTCONN;
+	} else
+		return 0;
 }
 
 static int
 __login_by_startup(idbm_t *db, void *data, node_rec_t *rec)
 {
 	char *mode = data;
-	int rc = 0;
+	int rc = -1;
 
 	/*
 	 * we always skip onboot because this should be handled by
 	 * something else
 	 */
 	if (rec->startup == ISCSI_STARTUP_ONBOOT)
-		return 0;
+		return -1;
 
 	if (!match_startup_mode(rec, mode))
 		rc = login_portal(NULL, NULL, rec);
@@ -530,15 +530,23 @@ __login_by_startup(idbm_t *db, void *data, node_rec_t *rec)
 static int
 login_by_startup(idbm_t *db, char *mode)
 {
+	int nr_found = 0, rc;
+
 	if (!mode || !(!strcmp(mode, "automatic") || !strcmp(mode, "all") ||
 	    !strcmp(mode,"manual"))) {
 		log_error("Invalid loginall option %s.", mode);
 		usage(0);
-		return -EINVAL;
+		return EINVAL;
 	}
 
-	idbm_for_each_rec(db, mode, __login_by_startup);
-	return 0;
+	rc = idbm_for_each_rec(db, &nr_found, mode, __login_by_startup);
+	if (rc)
+		log_error("Could not log into all portals. Err %d.", rc);
+	else if (!nr_found) {
+		log_error("No records found!");
+		rc = ENODEV;
+	}
+	return rc;
 }
 
 static int iface_fn(idbm_t *db, void *data, node_rec_t *rec)
@@ -548,7 +556,7 @@ static int iface_fn(idbm_t *db, void *data, node_rec_t *rec)
 	if (!__iscsi_match_session(op_data->match_rec, rec->name,
 				   rec->conn[0].address, rec->conn[0].port,
 				   &rec->iface))
-		return 0;
+		return -1;
 	return op_data->fn(db, op_data->data, rec);
 }
 
@@ -556,18 +564,23 @@ static int for_each_rec(idbm_t *db, struct node_rec *rec, void *data,
 			idbm_iface_op_fn *fn)
 {
 	struct rec_op_data op_data;
+	int nr_found = 0, rc;
 
 	memset(&op_data, 0, sizeof(struct rec_op_data));
 	op_data.data = data;
 	op_data.match_rec = rec;
 	op_data.fn = fn;
 
-	if (!idbm_for_each_rec(db, &op_data, iface_fn))
-		goto nodev;
-	return 0;
-nodev:
-	log_error("no records found!");
-	return ENODEV;
+	rc = idbm_for_each_rec(db, &nr_found, &op_data, iface_fn);
+	if (rc)
+		log_error("Could not execute operation on all records. Err %d.",
+			  rc);
+	else if (!nr_found) {
+		log_error("no records found!");
+		rc = ENODEV;
+	}
+
+	return rc;
 }
 
 static int print_nodes(idbm_t *db, int info_level, struct node_rec *rec)
@@ -606,7 +619,7 @@ config_init(void)
 
 	rc = do_iscsid(&req, &rsp);
 	if (rc)
-		return rc;
+		return EIO;
 
 	if (rsp.u.config.var[0] != '\0') {
 		strcpy(initiator_name, rsp.u.config.var);
@@ -617,7 +630,7 @@ config_init(void)
 
 	rc = do_iscsid(&req, &rsp);
 	if (rc)
-		return rc;
+		return EIO;
 
 	if (rsp.u.config.var[0] != '\0') {
 		strcpy(initiator_alias, rsp.u.config.var);
@@ -628,7 +641,7 @@ config_init(void)
 
 	rc = do_iscsid(&req, &rsp);
 	if (rc)
-		return rc;
+		return EIO;
 
 	if (rsp.u.config.var[0] != '\0') {
 		strcpy(config_file, rsp.u.config.var);
@@ -969,7 +982,7 @@ static int rescan_portal(void *data, struct session_info *info)
 	int host_no, err;
 
 	if (!iscsi_match_session(data, info))
-		return 0;
+		return -1;
 
 	printf("Rescanning session [sid: %d, iface: %s, target: %s, portal: "
 		"%s,%d]\n", info->sid, info->iface.name,
@@ -994,7 +1007,7 @@ session_stats(void *data, struct session_info *info)
 	iscsiadm_rsp_t rsp;
 
 	if (!iscsi_match_session(data, info))
-		return 0;
+		return -1;
 
 	memset(&req, 0, sizeof(req));
 	req.command = MGMT_IPC_SESSION_STATS;
@@ -1071,8 +1084,8 @@ session_stats(void *data, struct session_info *info)
 	return 0;
 }
 
-static int add_static_rec(idbm_t *db, char *targetname, int tpgt, char *ip,
-			  int port, struct iface_rec *iface)
+static int add_static_rec(idbm_t *db, int *found, char *targetname, int tpgt,
+			  char *ip, int port, struct iface_rec *iface)
 {
 	node_rec_t *rec;
 	discovery_rec_t *drec;
@@ -1111,12 +1124,12 @@ static int add_static_rec(idbm_t *db, char *targetname, int tpgt, char *ip,
 	}
 
 	rc = idbm_add_node(db, rec, drec);
-	if (rc)
-		log_error("Could not add new record.");
-	else
+	if (!rc) {
+		(*found)++;
 		printf("New iSCSI node [%s:" iface_fmt " %s,%d,%d %s] added\n",
 			rec->iface.transport_name, iface_str(&rec->iface),
 			ip, port, tpgt, targetname);
+	}
 	free(drec);
 free_rec:
 	free(rec);
@@ -1124,8 +1137,8 @@ done:
 	return rc;
 }
 
-static int add_static_portal(idbm_t *db, void *data, char *targetname,
-			     int tpgt, char *ip, int port)
+static int add_static_portal(idbm_t *db, int *found, void *data,
+			     char *targetname, int tpgt, char *ip, int port)
 {
 	node_rec_t *rec = data;
 
@@ -1136,12 +1149,12 @@ static int add_static_portal(idbm_t *db, void *data, char *targetname,
 	if (rec->conn[0].port != -1 && rec->conn[0].port != port)
 		return 0;
 
-	if (add_static_rec(db, targetname, tpgt, ip, port, &rec->iface))
-		return 0;
-	return 1;
+	return add_static_rec(db, found, targetname, tpgt, ip, port,
+			      &rec->iface);
 }
 
-static int add_static_node(idbm_t *db, void *data, char *targetname)
+static int add_static_node(idbm_t *db, int *found, void *data,
+			  char *targetname)
 {
 	node_rec_t *rec = data;
 
@@ -1154,35 +1167,40 @@ static int add_static_node(idbm_t *db, void *data, char *targetname)
 	if (!strlen(rec->conn[0].address))
 		goto search;
 
-	if (add_static_rec(db, targetname, rec->tpgt, rec->conn[0].address,
-			   rec->conn[0].port, &rec->iface))
-		return 0;
-	return 1;
-
+	return add_static_rec(db, found, targetname, rec->tpgt,
+			      rec->conn[0].address,
+			      rec->conn[0].port, &rec->iface);
 search:
-	return idbm_for_each_portal(db, data, add_static_portal, targetname);
+	return idbm_for_each_portal(db, found, data, add_static_portal,
+				    targetname);
 }
 
 static int add_static_recs(idbm_t *db, struct node_rec *rec)
 {
-	int rc;
+	int rc, nr_found = 0;
 
-	rc = idbm_for_each_node(db, rec, add_static_node);
-	if (rc)
-		goto done;
+	rc = idbm_for_each_node(db, &nr_found, rec, add_static_node);
+	if (rc) {
+		log_error("Error while adding records. DB may be in an "
+			  "inconsistent state. Err %d", rc);
+		return rc;
+	}
+	/* success */
+	if (nr_found > 0)
+		return 0;
 
 	/* brand new target */
 	if (strlen(rec->name) && strlen(rec->conn[0].address)) {
-		rc = add_static_rec(db, rec->name, rec->tpgt,
+		rc = add_static_rec(db, &nr_found, rec->name, rec->tpgt,
 				    rec->conn[0].address, rec->conn[0].port,
 				    &rec->iface);
-		if (!rc)
+		if (rc)
 			goto done;
+		return 0;
 	}
-	printf("No records added.\n");
-	rc = ENODEV;
 done:
-	return rc;
+	printf("No records added.\n");
+	return ENODEV;
 }
 
 /*
@@ -1215,7 +1233,7 @@ do_sendtargets(idbm_t *db, discovery_rec_t *drec, struct list_head *ifaces,
 	       int info_level, int do_login)
 {
 	struct iface_rec *tmp, *iface;
-	int rc, host_no, err = 0;
+	int rc, host_no;
 	struct iscsi_transport *t;
 
 	if (list_empty(ifaces)) {
@@ -1261,23 +1279,18 @@ do_sendtargets(idbm_t *db, discovery_rec_t *drec, struct list_head *ifaces,
 		}
 
 		if (t->caps & CAP_SENDTARGETS_OFFLOAD) {
-			rc = do_offload_sendtargets(db, drec, host_no,
-						    do_login);
-			if (rc)
-				err = rc;
+			do_offload_sendtargets(db, drec, host_no,
+					       do_login);
 			list_del(&iface->list);
 			free(iface);
 		}
 	}
 
 	if (list_empty(ifaces))
-		return err;
+		return ENODEV;
 
 sw_st:
-	rc = do_sofware_sendtargets(db, drec, ifaces, info_level, do_login);
-	if (rc)
-		err = rc;
-	return err;
+	return do_sofware_sendtargets(db, drec, ifaces, info_level, do_login);
 }
 
 static int isns_dev_attr_query(idbm_t *db, discovery_rec_t *drec,
@@ -1291,9 +1304,13 @@ static int isns_dev_attr_query(idbm_t *db, discovery_rec_t *drec,
 	req.command = MGMT_IPC_ISNS_DEV_ATTR_QUERY;
 
 	err = do_iscsid(&req, &rsp);
-	if (!err)
+	if (err) {
+		iscsid_handle_error(err);
+		return EIO;
+	} else {
 		idbm_print_discovered(db, drec, info_level);
-	return err;
+		return 0;
+	}
 }
 
 static int
@@ -1661,11 +1678,8 @@ main(int argc, char **argv)
 		case DISCOVERY_TYPE_ISNS:
 			drec.type = DISCOVERY_TYPE_ISNS;
 
-			rc = isns_dev_attr_query(db, &drec, info_level);
-			if (rc > 0) {
-				iscsid_handle_error(rc);
+			if (isns_dev_attr_query(db, &drec, info_level))
 				rc = -1;
-			}
 			break;
 		default:
 			if (ip) {

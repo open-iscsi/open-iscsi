@@ -12,7 +12,7 @@ struct session_info;
 extern int oom_adjust(void);
 extern void daemon_init(void);
 
-extern int do_iscsid(struct iscsiadm_req *req, struct iscsiadm_rsp *rsp);
+extern int do_iscsid(struct iscsiadm_req *req,  struct iscsiadm_rsp *rsp);
 extern void iscsid_handle_error(int err);
 
 extern char *str_to_ipport(char *str, int *port, int *tgpt);

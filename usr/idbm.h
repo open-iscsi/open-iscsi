@@ -74,21 +74,22 @@ struct db_set_param {
 };
 
 typedef int (idbm_iface_op_fn)(idbm_t *db, void *data, node_rec_t *rec);
-typedef int (idbm_portal_op_fn)(idbm_t *db, void *data, char *targetname,
-				int tpgt, char *ip, int port);
-typedef int (idbm_node_op_fn)(idbm_t *db, void *data, char *targetname);
+typedef int (idbm_portal_op_fn)(idbm_t *db,int *found,  void *data,
+				char *targetname, int tpgt, char *ip, int port);
+typedef int (idbm_node_op_fn)(idbm_t *db, int *found, void *data,
+			      char *targetname);
 
 struct rec_op_data {
 	void *data;
 	node_rec_t *match_rec;
 	idbm_iface_op_fn *fn;
 };
-extern int idbm_for_each_iface(idbm_t *db, void *data, idbm_iface_op_fn *fn,
-				char *targetname, int tpgt, char *ip, int port);
-extern int idbm_for_each_portal(idbm_t *db, void *data, idbm_portal_op_fn *fn,
-				char *targetname);
-extern int idbm_for_each_node(idbm_t *db, void *data, idbm_node_op_fn *fn);
-extern int idbm_for_each_rec(idbm_t *db, void *data, idbm_iface_op_fn *fn);
+extern int idbm_for_each_portal(idbm_t *db, int *found, void *data,
+				idbm_portal_op_fn *fn, char *targetname);
+extern int idbm_for_each_node(idbm_t *db, int *found, void *data,
+			      idbm_node_op_fn *fn);
+extern int idbm_for_each_rec(idbm_t *db, int *found, void *data,
+			     idbm_iface_op_fn *fn);
 
 extern char* get_iscsi_initiatorname(char *pathname);
 extern char* get_iscsi_initiatoralias(char *pathname);
