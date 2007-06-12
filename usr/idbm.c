@@ -2457,7 +2457,19 @@ idbm_node_set_param(idbm_t *db, void *data, node_rec_t *rec)
 
 	idbm_recinfo_node(rec, info);
 
-	if (idbm_node_update_param(info, param->name, param->value, 0)) {
+	/*
+	 * Another compat hack!!!!: in the future we will have a common
+	 * way to define node wide vs iface wide values and it will
+	 * nicely obey some hierd, but for now this one sits between both
+	 * and if someone tries to set it using the old values then
+	 * we update it for them.
+	 */
+	if (!strcmp("node.transport_name", param->name))
+		rc = idbm_node_update_param(info, "iface.transport_name",
+					    param->value, 0);
+	else
+		rc = idbm_node_update_param(info, param->name, param->value, 0);
+	if (rc) {
 		free(info);
 		return EIO;
 	}
