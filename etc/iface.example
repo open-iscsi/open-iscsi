@@ -19,7 +19,7 @@
 # - qla4xxx (Qlogic QLA4XXX HBAs)
 
 
-# One of the following values are required for the binding.
+# __One__ of the following values are required for the binding.
 #
 # To bind by network interface name (example: eth0, eth2:2, eth1.3)
 # set iface.net_ifacename
