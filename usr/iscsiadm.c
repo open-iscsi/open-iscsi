@@ -478,22 +478,32 @@ for_each_session(struct node_rec *rec, sysfs_session_op_fn *fn)
 
 static int login_portal(idbm_t *db, void *data, node_rec_t *rec)
 {
-	int rc;
+	int rc = 0, i;
 
 	printf("Login session [iface: %s, target: %s, portal: %s,%d]\n",
 		rec->iface.name, rec->name, rec->conn[0].address,
 		rec->conn[0].port);
 
-	rc = session_login(rec);
-	/* we raced with another app or instance of iscsiadm */
-	if (rc == MGMT_IPC_ERR_EXISTS)
-		rc = 0;
-	if (rc)
-		log_error("Could not login session (err %d).", rc);
-	if (rc > 0) {
-		iscsid_handle_error(rc);
-		/* continue trying to login the rest of them */
-		rc = 0;
+	for (i = 0; i < rec->session.initial_login_retry_max; i++) {
+		rc = session_login(rec);
+		if (!rc)
+			break;
+		/* we raced with another app or instance of iscsiadm */
+		if (rc == MGMT_IPC_ERR_EXISTS) {
+			rc = 0;
+			break;
+		}
+
+		if (rc)
+			log_error("Could not login session (err %d).", rc);
+		if (rc > 0) {
+			iscsid_handle_error(rc);
+			/* continue trying to login the rest of them */
+			rc = 0;
+		}
+
+		if (i + 1 != rec->session.initial_login_retry_max)
+			sleep(1);
 	}
 
 	return rc;

@@ -244,6 +244,8 @@ idbm_recinfo_node(node_rec_t *r, recinfo_t *ri)
 			 "slp", "isns", "static", num);
 	__recinfo_int("node.session.initial_cmdsn", ri, r,
 		      session.initial_cmdsn, IDBM_SHOW, num);
+	__recinfo_int("node.session.initial_login_retry_max", ri, r,
+		      session.initial_login_retry_max, IDBM_SHOW, num);
 	__recinfo_int("node.session.cmds_max", ri, r,
 		      session.cmds_max, IDBM_SHOW, num);
 	__recinfo_int("node.session.queue_depth", ri, r,

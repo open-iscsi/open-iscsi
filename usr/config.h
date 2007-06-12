@@ -174,6 +174,7 @@ typedef struct session_rec {
 	int					reopen_max;
 	int					cmds_max;
 	int					queue_depth;
+	int					initial_login_retry_max;
 	struct iscsi_auth_config		auth;
 	struct iscsi_session_timeout_config	timeo;
 	struct iscsi_error_timeout_config	err_timeo;

@@ -188,6 +188,7 @@ void idbm_node_setup_defaults(node_rec_t *rec)
 	rec->session.initial_cmdsn = 0;
 	rec->session.cmds_max = CMDS_MAX;
 	rec->session.queue_depth = QUEUE_DEPTH;
+	rec->session.initial_login_retry_max = DEF_INITIAL_LOGIN_RETRIES_MAX;
 	rec->session.reopen_max = 32;
 	rec->session.auth.authmethod = 0;
 	rec->session.auth.password_length = 0;
