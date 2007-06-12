@@ -1447,22 +1447,6 @@ __session_conn_recv_pdu(queue_item_t *item)
 	}
 }
 
-static int
-__session_node_established(char *node_name)
-{
-	struct iscsi_transport *t;
-	iscsi_session_t *session;
-
-	list_for_each_entry(t, &transports, list) {
-		list_for_each_entry(session, &t->sessions, list) {
-			if (!strncmp(session->nrec.name, node_name,
-				     TARGET_NAME_MAXLEN))
-				return 1;
-		}
-	}
-	return 0;
-}
-
 static void
 setup_kernel_io_callouts(iscsi_conn_t *conn)
 {
@@ -1514,14 +1498,6 @@ __session_conn_poll(queue_item_t *item)
 			log_debug(3, "created new iSCSI session %d",
 				  session->id);
 
-			/* unique identifier for OUI */
-			if (__session_node_established(session->nrec.name)) {
-				log_warning("picking unique OUI for "
-					    "the same target node name %s",
-					    session->nrec.name);
-				session->isid[3] = session->id;
-			}
-
 			if (ipc->create_conn(session->t->handle,
 					session->id, conn->id, &conn->id)) {
 				log_error("can't create connection (%d)",
@@ -1532,6 +1508,12 @@ __session_conn_poll(queue_item_t *item)
 			log_debug(3, "created new iSCSI connection "
 				  "%d:%d", session->id, conn->id);
 		}
+
+		/*
+		 * TODO: use the iface number or some other value
+		 * so this will be persistent
+		 */
+		session->isid[3] = session->id;
 
 		if (ipc->bind_conn(session->t->handle, session->id,
 				   conn->id, conn->transport_ep_handle,
