@@ -84,7 +84,7 @@ static int logarea_init (int size)
 		return 1;
 	}
 
-	if ((la->semid = semget(SEMKEY, 1, 0666 | IPC_CREAT)) < 0) {
+	if ((la->semid = semget(SEMKEY, 1, 0600 | IPC_CREAT)) < 0) {
 		shmdt(la->buff);
 		shmdt(la->start);
 		shmdt(la);
