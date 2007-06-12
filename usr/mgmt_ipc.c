@@ -325,8 +325,7 @@ mgmt_ipc_handle(int accept_fd)
 		return rc;
 	}
 
-	if (!mgmt_peeruser(accept_fd, user) ||
-	    strncmp(user, "root", PEERUSER_MAX)) {
+	if (!mgmt_peeruser(fd, user) || strncmp(user, "root", PEERUSER_MAX)) {
 		rsp.err = MGMT_IPC_ERR_ACCESS;
 		rc = EINVAL;
 		goto err;
