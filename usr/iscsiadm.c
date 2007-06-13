@@ -852,7 +852,6 @@ static void print_sessions_tree(idbm_t *db, struct list_head *list, int level)
 			printf("\n");
 
 		t = get_transport_by_sid(curr->sid);
-		rc = iface_get_by_bind_info(db, &curr->iface, &iface);
 
 		printf("\t\t**********\n");
 		printf("\t\tInterface:\n");
