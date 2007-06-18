@@ -361,13 +361,32 @@ mgmt_ipc_write_rsp(queue_task_t *qtask, mgmt_ipc_err_e err)
 		free(qtask);
 }
 
+static mgmt_ipc_fn_t *	mgmt_ipc_functions[__MGMT_IPC_MAX_COMMAND] = {
+[MGMT_IPC_SESSION_LOGIN]	= mgmt_ipc_session_login,
+[MGMT_IPC_SESSION_LOGOUT]	= mgmt_ipc_session_logout,
+[MGMT_IPC_SESSION_SYNC]		= mgmt_ipc_session_sync,
+[MGMT_IPC_SESSION_STATS]	= mgmt_ipc_session_getstats,
+[MGMT_IPC_SEND_TARGETS]		= mgmt_ipc_send_targets,
+[MGMT_IPC_SESSION_INFO]		= mgmt_ipc_session_info,
+[MGMT_IPC_CONN_ADD]		= mgmt_ipc_conn_add,
+[MGMT_IPC_CONN_REMOVE]		= mgmt_ipc_conn_remove,
+[MGMT_IPC_CONFIG_INAME]		= mgmt_ipc_cfg_initiatorname,
+[MGMT_IPC_CONFIG_IALIAS]	= mgmt_ipc_cfg_initiatoralias,
+[MGMT_IPC_CONFIG_FILE]		= mgmt_ipc_cfg_filename,
+[MGMT_IPC_IMMEDIATE_STOP]	= mgmt_ipc_immediate_stop,
+[MGMT_IPC_ISNS_DEV_ATTR_QUERY]	= mgmt_ipc_isns_dev_attr_query,
+[MGMT_IPC_SET_HOST_PARAM]	= mgmt_ipc_host_set_param,
+};
+
 static void
 mgmt_ipc_handle(int accept_fd)
 {
 	struct sockaddr addr;
+	unsigned int command;
 	int fd, err;
 	iscsiadm_req_t *req;
 	queue_task_t *qtask = NULL;
+	mgmt_ipc_fn_t *handler = NULL;
 	char user[PEERUSER_MAX];
 	socklen_t len;
 
@@ -396,60 +415,22 @@ mgmt_ipc_handle(int accept_fd)
 		return;
 	}
 
-	qtask->rsp.command = req->command;
+	command = qtask->req.command;
+	qtask->rsp.command = command;
 
-	switch(req->command) {
-	case MGMT_IPC_SESSION_LOGIN:
-		err = mgmt_ipc_session_login(qtask);
-		break;
-	case MGMT_IPC_SESSION_LOGOUT:
-		err = mgmt_ipc_session_logout(qtask);
-		break;
-	case MGMT_IPC_SESSION_SYNC:
-		err = mgmt_ipc_session_sync(qtask);
-		break;
-	case MGMT_IPC_SESSION_STATS:
-		err = mgmt_ipc_session_getstats(qtask);
-		break;
-	case MGMT_IPC_SEND_TARGETS:
-		err = mgmt_ipc_send_targets(qtask);
-		break;
-	case MGMT_IPC_SESSION_INFO:
-		err = mgmt_ipc_session_info(qtask);
-		break;
-	case MGMT_IPC_CONN_ADD:
-		err = mgmt_ipc_conn_add(qtask);
-		break;
-	case MGMT_IPC_CONN_REMOVE:
-		err = mgmt_ipc_conn_remove(qtask);
-		break;
-	case MGMT_IPC_CONFIG_INAME:
-		err = mgmt_ipc_cfg_initiatorname(qtask);
-		break;
-	case MGMT_IPC_CONFIG_IALIAS:
-		err = mgmt_ipc_cfg_initiatoralias(qtask);
-		break;
-	case MGMT_IPC_CONFIG_FILE:
-		err = mgmt_ipc_cfg_filename(qtask);
-		break;
-	case MGMT_IPC_IMMEDIATE_STOP:
-		err = mgmt_ipc_immediate_stop(qtask);
-		break;
-	case MGMT_IPC_ISNS_DEV_ATTR_QUERY:
-		err = mgmt_ipc_isns_dev_attr_query(qtask);
-		break;
-	case MGMT_IPC_SET_HOST_PARAM:
-		err = mgmt_ipc_host_set_param(qtask);
-		break;
-	default:
+	if (0 <= command && command < __MGMT_IPC_MAX_COMMAND)
+		handler = mgmt_ipc_functions[command];
+	if (handler != NULL) {
+		/* If the handler returns OK, this means it
+		 * already sent the reply. */
+		err = handler(qtask);
+		if (err == MGMT_IPC_OK)
+			return;
+	} else {
 		log_error("unknown request: %s(%d) %u",
-			  __FUNCTION__, __LINE__, req->command);
+			  __FUNCTION__, __LINE__, command);
 		err = MGMT_IPC_ERR_INVALID_REQ;
-		break;
 	}
-
-	if (err == MGMT_IPC_OK)
-		return;
 
 err:
 	/* This will send the response, close the

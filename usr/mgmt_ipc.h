@@ -65,6 +65,8 @@ typedef enum iscsiadm_cmd {
 	MGMT_IPC_ISNS_DEV_ATTR_QUERY	= 14,
 	MGMT_IPC_SEND_TARGETS		= 15,
 	MGMT_IPC_SET_HOST_PARAM		= 16,
+
+	__MGMT_IPC_MAX_COMMAND
 } iscsiadm_cmd_e;
 
 typedef enum iscsi_conn_state_e {
@@ -138,6 +140,9 @@ typedef struct iscsiadm_rsp {
 		} session_state;
 	} u;
 } iscsiadm_rsp_t;
+
+struct queue_task;
+typedef mgmt_ipc_err_e	mgmt_ipc_fn_t(struct queue_task *);
 
 struct iscsi_ipc *ipc;
 
