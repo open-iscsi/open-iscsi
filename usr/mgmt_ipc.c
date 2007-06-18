@@ -86,8 +86,10 @@ mgmt_ipc_close(int fd)
 }
 
 static mgmt_ipc_err_e
-mgmt_ipc_session_login(queue_task_t *qtask, node_rec_t *rec)
+mgmt_ipc_session_login(queue_task_t *qtask)
 {
+	node_rec_t *rec = &qtask->req.u.session.rec;
+
 	if (session_is_running(rec)) {
 		log_error("session [%s,%s,%d] already running.", rec->name,
 			  rec->conn[0].address, rec->conn[0].port);
@@ -98,15 +100,16 @@ mgmt_ipc_session_login(queue_task_t *qtask, node_rec_t *rec)
 }
 
 static mgmt_ipc_err_e
-mgmt_ipc_session_getstats(queue_task_t *qtask, int sid,
-			  iscsiadm_rsp_t *rsp)
+mgmt_ipc_session_getstats(queue_task_t *qtask)
 {
+	int sid = qtask->req.u.session.sid;
 	struct iscsi_transport *t;
 	iscsi_session_t *session;
 
 	list_for_each_entry(t, &transports, list) {
 		list_for_each_entry(session, &t->sessions, list) {
 			if (session->id == sid) {
+				iscsiadm_rsp_t *rsp = &qtask->rsp;
 				int rc;
 
 				rc = ipc->get_stats(session->t->handle,
@@ -118,6 +121,8 @@ mgmt_ipc_session_getstats(queue_task_t *qtask, int sid,
 						"session [%02d]", rc, sid);
 					return MGMT_IPC_ERR_INTERNAL;
 				}
+
+				mgmt_ipc_write_rsp(qtask, MGMT_IPC_OK);
 				return MGMT_IPC_OK;
 			}
 		}
@@ -127,8 +132,22 @@ mgmt_ipc_session_getstats(queue_task_t *qtask, int sid,
 }
 
 static mgmt_ipc_err_e
-mgmt_ipc_session_logout(queue_task_t *qtask, node_rec_t *rec)
+mgmt_ipc_send_targets(queue_task_t *qtask)
 {
+	iscsiadm_req_t *req = &qtask->req;
+	mgmt_ipc_err_e err;
+
+	err = iscsi_host_send_targets(qtask, req->u.st.host_no,
+					  req->u.st.do_login,
+					  &req->u.st.ss);
+	mgmt_ipc_write_rsp(qtask, err);
+	return MGMT_IPC_OK;
+}
+
+static mgmt_ipc_err_e
+mgmt_ipc_session_logout(queue_task_t *qtask)
+{
+	node_rec_t *rec = &qtask->req.u.session.rec;
 	iscsi_session_t *session;
 
 	if (!(session = session_find_by_rec(rec))) {
@@ -141,22 +160,25 @@ mgmt_ipc_session_logout(queue_task_t *qtask, node_rec_t *rec)
 }
 
 static mgmt_ipc_err_e
-mgmt_ipc_session_sync(queue_task_t *qtask, node_rec_t *rec, int sid)
+mgmt_ipc_session_sync(queue_task_t *qtask)
 {
-	return iscsi_sync_session(rec, qtask, sid);
+	struct ipc_msg_session *session= &qtask->req.u.session;
+
+	return iscsi_sync_session(&session->rec, qtask, session->sid);
 }
 
 static mgmt_ipc_err_e
-mgmt_ipc_cfg_initiatorname(queue_task_t *qtask, iscsiadm_rsp_t *rsp)
+mgmt_ipc_cfg_initiatorname(queue_task_t *qtask)
 {
-	strcpy(rsp->u.config.var, dconfig->initiator_name);
-
+	strcpy(qtask->rsp.u.config.var, dconfig->initiator_name);
+	mgmt_ipc_write_rsp(qtask, MGMT_IPC_OK);
 	return MGMT_IPC_OK;
 }
 
 static mgmt_ipc_err_e
-mgmt_ipc_session_info(queue_task_t *qtask, int sid, iscsiadm_rsp_t *rsp)
+mgmt_ipc_session_info(queue_task_t *qtask)
 {
+	int sid = qtask->req.u.session.sid;
 	iscsi_session_t *session;
 	struct ipc_msg_session_state *info;
 
@@ -165,36 +187,46 @@ mgmt_ipc_session_info(queue_task_t *qtask, int sid, iscsiadm_rsp_t *rsp)
 		return MGMT_IPC_ERR_NOT_FOUND;
 	}
 
-	info = &rsp->u.session_state;
+	info = &qtask->rsp.u.session_state;
 	info->conn_state = session->conn[0].state;
 	info->session_state = session->r_stage;
+
+	mgmt_ipc_write_rsp(qtask, MGMT_IPC_OK);
 	return MGMT_IPC_OK;
 }
 
 static mgmt_ipc_err_e
-mgmt_ipc_cfg_initiatoralias(queue_task_t *qtask, iscsiadm_rsp_t *rsp)
+mgmt_ipc_cfg_initiatoralias(queue_task_t *qtask)
 {
-	strcpy(rsp->u.config.var, dconfig->initiator_alias);
-
+	strcpy(qtask->rsp.u.config.var, dconfig->initiator_alias);
+	mgmt_ipc_write_rsp(qtask, MGMT_IPC_OK);
 	return MGMT_IPC_OK;
 }
 
 static mgmt_ipc_err_e
-mgmt_ipc_cfg_filename(queue_task_t *qtask, iscsiadm_rsp_t *rsp)
+mgmt_ipc_cfg_filename(queue_task_t *qtask)
 {
-	strcpy(rsp->u.config.var, dconfig->config_file);
-
+	strcpy(qtask->rsp.u.config.var, dconfig->config_file);
+	mgmt_ipc_write_rsp(qtask, MGMT_IPC_OK);
 	return MGMT_IPC_OK;
 }
 
 static mgmt_ipc_err_e
-mgmt_ipc_conn_add(queue_task_t *qtask, int cid)
+mgmt_ipc_conn_add(queue_task_t *qtask)
 {
 	return MGMT_IPC_ERR;
 }
 
 static mgmt_ipc_err_e
-mgmt_ipc_conn_remove(queue_task_t *qtask, int cid)
+mgmt_ipc_immediate_stop(queue_task_t *qtask)
+{
+	leave_event_loop = 1;
+	mgmt_ipc_write_rsp(qtask, MGMT_IPC_OK);
+	return MGMT_IPC_OK;
+}
+
+static mgmt_ipc_err_e
+mgmt_ipc_conn_remove(queue_task_t *qtask)
 {
 	return MGMT_IPC_ERR;
 }
@@ -203,6 +235,18 @@ static mgmt_ipc_err_e
 mgmt_ipc_isns_dev_attr_query(queue_task_t *qtask)
 {
 	return isns_dev_attr_query_task(qtask);
+}
+
+
+static mgmt_ipc_err_e
+mgmt_ipc_host_set_param(queue_task_t *qtask)
+{
+	struct ipc_msg_set_host_param *hp = &qtask->req.u.set_host_param;
+	int err;
+
+	err = iscsi_host_set_param(hp->host_no, hp->param, hp->value);
+	mgmt_ipc_write_rsp(qtask, err);
+	return MGMT_IPC_OK;
 }
 
 static int
@@ -321,7 +365,7 @@ static void
 mgmt_ipc_handle(int accept_fd)
 {
 	struct sockaddr addr;
-	int fd, immrsp = 0, err;
+	int fd, err;
 	iscsiadm_req_t *req;
 	queue_task_t *qtask = NULL;
 	char user[PEERUSER_MAX];
@@ -356,72 +400,55 @@ mgmt_ipc_handle(int accept_fd)
 
 	switch(req->command) {
 	case MGMT_IPC_SESSION_LOGIN:
-		err = mgmt_ipc_session_login(qtask, &req->u.session.rec);
+		err = mgmt_ipc_session_login(qtask);
 		break;
 	case MGMT_IPC_SESSION_LOGOUT:
-		err = mgmt_ipc_session_logout(qtask, &req->u.session.rec);
+		err = mgmt_ipc_session_logout(qtask);
 		break;
 	case MGMT_IPC_SESSION_SYNC:
-		err = mgmt_ipc_session_sync(qtask, &req->u.session.rec,
-						req->u.session.sid);
+		err = mgmt_ipc_session_sync(qtask);
 		break;
 	case MGMT_IPC_SESSION_STATS:
-		err = mgmt_ipc_session_getstats(qtask, req->u.session.sid,
-						    &qtask->rsp);
-		immrsp = 1;
+		err = mgmt_ipc_session_getstats(qtask);
 		break;
 	case MGMT_IPC_SEND_TARGETS:
-		err = iscsi_host_send_targets(qtask, req->u.st.host_no,
-						  req->u.st.do_login,
-						  &req->u.st.ss);
-		immrsp = 1;
+		err = mgmt_ipc_send_targets(qtask);
 		break;
 	case MGMT_IPC_SESSION_INFO:
-		err = mgmt_ipc_session_info(qtask, req->u.session.sid,
-						&qtask->rsp);
-		immrsp = 1;
+		err = mgmt_ipc_session_info(qtask);
 		break;
 	case MGMT_IPC_CONN_ADD:
-		err = mgmt_ipc_conn_add(qtask, req->u.conn.cid);
+		err = mgmt_ipc_conn_add(qtask);
 		break;
 	case MGMT_IPC_CONN_REMOVE:
-		err = mgmt_ipc_conn_remove(qtask, req->u.conn.cid);
+		err = mgmt_ipc_conn_remove(qtask);
 		break;
 	case MGMT_IPC_CONFIG_INAME:
-		err = mgmt_ipc_cfg_initiatorname(qtask, &qtask->rsp);
-		immrsp = 1;
+		err = mgmt_ipc_cfg_initiatorname(qtask);
 		break;
 	case MGMT_IPC_CONFIG_IALIAS:
-		err = mgmt_ipc_cfg_initiatoralias(qtask, &qtask->rsp);
-		immrsp = 1;
+		err = mgmt_ipc_cfg_initiatoralias(qtask);
 		break;
 	case MGMT_IPC_CONFIG_FILE:
-		err = mgmt_ipc_cfg_filename(qtask, &qtask->rsp);
-		immrsp = 1;
+		err = mgmt_ipc_cfg_filename(qtask);
 		break;
 	case MGMT_IPC_IMMEDIATE_STOP:
-		err = MGMT_IPC_OK;
-		immrsp = 1;
-		leave_event_loop = 1;
+		err = mgmt_ipc_immediate_stop(qtask);
 		break;
 	case MGMT_IPC_ISNS_DEV_ATTR_QUERY:
 		err = mgmt_ipc_isns_dev_attr_query(qtask);
 		break;
 	case MGMT_IPC_SET_HOST_PARAM:
-		err = iscsi_host_set_param(qtask->req.u.set_host_param.host_no,
-						qtask->req.u.set_host_param.param,
-						qtask->req.u.set_host_param.value);
-		immrsp = 1;
+		err = mgmt_ipc_host_set_param(qtask);
 		break;
 	default:
 		log_error("unknown request: %s(%d) %u",
 			  __FUNCTION__, __LINE__, req->command);
 		err = MGMT_IPC_ERR_INVALID_REQ;
-		immrsp = 1;
 		break;
 	}
 
-	if (err == MGMT_IPC_OK && !immrsp)
+	if (err == MGMT_IPC_OK)
 		return;
 
 err:
