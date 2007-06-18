@@ -44,6 +44,8 @@
 #include "transport.h"
 #include "iscsi_sysfs.h"
 
+static int	leave_event_loop = 0;
+
 #define PEERUSER_MAX	64
 
 int
@@ -395,7 +397,7 @@ mgmt_ipc_handle(int accept_fd)
 	case MGMT_IPC_IMMEDIATE_STOP:
 		rsp.err = MGMT_IPC_OK;
 		immrsp = 1;
-		rc = 1;
+		leave_event_loop = 1;
 		break;
 	case MGMT_IPC_ISNS_DEV_ATTR_QUERY:
 		rsp.err = mgmt_ipc_isns_dev_attr_query(qtask);
@@ -477,7 +479,8 @@ void event_loop(struct iscsi_ipc *ipc, int control_fd, int mgmt_ipc_fd,
 		poll_array[POLL_ISNS].events = POLLIN;
 	}
 
-	while (1) {
+	leave_event_loop = 0;
+	while (!leave_event_loop) {
 		res = poll(poll_array, POLL_MAX, ACTOR_RESOLUTION);
 		if (res > 0) {
 			log_debug(6, "poll result %d", res);
@@ -485,8 +488,7 @@ void event_loop(struct iscsi_ipc *ipc, int control_fd, int mgmt_ipc_fd,
 				ipc->ctldev_handle();
 
 			if (poll_array[POLL_IPC].revents)
-				if (mgmt_ipc_handle(mgmt_ipc_fd) == 1)
-					break;
+				mgmt_ipc_handle(mgmt_ipc_fd);
 			if (poll_array[POLL_ISNS].revents)
 				isns_handle(isns_fd);
 
