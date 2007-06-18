@@ -322,7 +322,7 @@ mgmt_ipc_handle(int accept_fd)
 {
 	struct sockaddr addr;
 	int fd, immrsp = 0, err;
-	iscsiadm_req_t req;
+	iscsiadm_req_t *req;
 	queue_task_t *qtask = NULL;
 	char user[PEERUSER_MAX];
 	socklen_t len;
@@ -345,47 +345,47 @@ mgmt_ipc_handle(int accept_fd)
 		goto err;
 	}
 
-	if (read(fd, &req, sizeof(req)) != sizeof(req)) {
+	req = &qtask->req;
+	if (read(fd, req, sizeof(*req)) != sizeof(*req)) {
 		close(fd);
 		free(qtask);
 		return;
 	}
 
-	memcpy(&qtask->req, &req, sizeof(iscsiadm_req_t));
-	qtask->rsp.command = req.command;
+	qtask->rsp.command = req->command;
 
-	switch(req.command) {
+	switch(req->command) {
 	case MGMT_IPC_SESSION_LOGIN:
-		err = mgmt_ipc_session_login(qtask, &req.u.session.rec);
+		err = mgmt_ipc_session_login(qtask, &req->u.session.rec);
 		break;
 	case MGMT_IPC_SESSION_LOGOUT:
-		err = mgmt_ipc_session_logout(qtask, &req.u.session.rec);
+		err = mgmt_ipc_session_logout(qtask, &req->u.session.rec);
 		break;
 	case MGMT_IPC_SESSION_SYNC:
-		err = mgmt_ipc_session_sync(qtask, &req.u.session.rec,
-						req.u.session.sid);
+		err = mgmt_ipc_session_sync(qtask, &req->u.session.rec,
+						req->u.session.sid);
 		break;
 	case MGMT_IPC_SESSION_STATS:
-		err = mgmt_ipc_session_getstats(qtask, req.u.session.sid,
+		err = mgmt_ipc_session_getstats(qtask, req->u.session.sid,
 						    &qtask->rsp);
 		immrsp = 1;
 		break;
 	case MGMT_IPC_SEND_TARGETS:
-		err = iscsi_host_send_targets(qtask, req.u.st.host_no,
-						  req.u.st.do_login,
-						  &req.u.st.ss);
+		err = iscsi_host_send_targets(qtask, req->u.st.host_no,
+						  req->u.st.do_login,
+						  &req->u.st.ss);
 		immrsp = 1;
 		break;
 	case MGMT_IPC_SESSION_INFO:
-		err = mgmt_ipc_session_info(qtask, req.u.session.sid,
+		err = mgmt_ipc_session_info(qtask, req->u.session.sid,
 						&qtask->rsp);
 		immrsp = 1;
 		break;
 	case MGMT_IPC_CONN_ADD:
-		err = mgmt_ipc_conn_add(qtask, req.u.conn.cid);
+		err = mgmt_ipc_conn_add(qtask, req->u.conn.cid);
 		break;
 	case MGMT_IPC_CONN_REMOVE:
-		err = mgmt_ipc_conn_remove(qtask, req.u.conn.cid);
+		err = mgmt_ipc_conn_remove(qtask, req->u.conn.cid);
 		break;
 	case MGMT_IPC_CONFIG_INAME:
 		err = mgmt_ipc_cfg_initiatorname(qtask, &qtask->rsp);
@@ -408,14 +408,14 @@ mgmt_ipc_handle(int accept_fd)
 		err = mgmt_ipc_isns_dev_attr_query(qtask);
 		break;
 	case MGMT_IPC_SET_HOST_PARAM:
-		err = iscsi_host_set_param(req.u.set_host_param.host_no,
-						req.u.set_host_param.param,
-						req.u.set_host_param.value);
+		err = iscsi_host_set_param(qtask->req.u.set_host_param.host_no,
+						qtask->req.u.set_host_param.param,
+						qtask->req.u.set_host_param.value);
 		immrsp = 1;
 		break;
 	default:
 		log_error("unknown request: %s(%d) %u",
-			  __FUNCTION__, __LINE__, req.command);
+			  __FUNCTION__, __LINE__, req->command);
 		err = MGMT_IPC_ERR_INVALID_REQ;
 		immrsp = 1;
 		break;
