@@ -42,7 +42,7 @@ diff -Naurp open-iscsi.diffbase/kernel/iscsi_compat.h open-iscsi.test/kernel/isc
 +
 +#if LINUX_VERSION_CODE <= KERNEL_VERSION(2,6,13)
 +
-+#define netlink_kernel_create(uint, groups, input, mod) \
++#define netlink_kernel_create(uint, groups, input, cb_mutex, mod) \
 +	netlink_kernel_create(uint, input)
 +
 +#define gfp_t unsigned
