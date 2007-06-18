@@ -165,13 +165,13 @@ int
 append_sprintf(struct string_buffer *s, const char *format, ...)
 {
 	va_list args;
-	size_t appended;
-	size_t available = s->allocated_length - s->data_length - 1;
+	size_t appended, available;
 	int ret = 0;
 
 	va_start(args, format);
 
 	for (;;) {
+		available = s->allocated_length - s->data_length - 1;
 		appended = vsnprintf(s->buffer + s->data_length, available,
 				     format, args);
 
