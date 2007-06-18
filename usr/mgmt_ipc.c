@@ -103,32 +103,24 @@ static mgmt_ipc_err_e
 mgmt_ipc_session_getstats(queue_task_t *qtask)
 {
 	int sid = qtask->req.u.session.sid;
-	struct iscsi_transport *t;
 	iscsi_session_t *session;
+	int rc;
 
-	list_for_each_entry(t, &transports, list) {
-		list_for_each_entry(session, &t->sessions, list) {
-			if (session->id == sid) {
-				iscsiadm_rsp_t *rsp = &qtask->rsp;
-				int rc;
+	if (!(session = session_find_by_sid(sid)))
+		return MGMT_IPC_ERR_NOT_FOUND;
 
-				rc = ipc->get_stats(session->t->handle,
-					session->id, session->conn[0].id,
-					(void*)&rsp->u.getstats,
-					MGMT_IPC_GETSTATS_BUF_MAX);
-				if (rc) {
-					log_error("get_stats(): IPC error %d "
-						"session [%02d]", rc, sid);
-					return MGMT_IPC_ERR_INTERNAL;
-				}
-
-				mgmt_ipc_write_rsp(qtask, MGMT_IPC_OK);
-				return MGMT_IPC_OK;
-			}
-		}
+	rc = ipc->get_stats(session->t->handle,
+		session->id, session->conn[0].id,
+		(void *)&qtask->rsp.u.getstats,
+		MGMT_IPC_GETSTATS_BUF_MAX);
+	if (rc) {
+		log_error("get_stats(): IPC error %d "
+			"session [%02d]", rc, sid);
+		return MGMT_IPC_ERR_INTERNAL;
 	}
 
-	return MGMT_IPC_ERR_NOT_FOUND;
+	mgmt_ipc_write_rsp(qtask, MGMT_IPC_OK);
+	return MGMT_IPC_OK;
 }
 
 static mgmt_ipc_err_e
