@@ -306,7 +306,7 @@ mgmt_ipc_write_rsp(queue_task_t *qtask, mgmt_ipc_err_e err)
 	free(qtask);
 }
 
-static int
+static void
 mgmt_ipc_handle(int accept_fd)
 {
 	struct sockaddr addr;
@@ -319,24 +319,17 @@ mgmt_ipc_handle(int accept_fd)
 
 	memset(&rsp, 0, sizeof(rsp));
 	len = sizeof(addr);
-	if ((fd = accept(accept_fd, (struct sockaddr *) &addr, &len)) < 0) {
-		if (errno == EINTR)
-			rc = -EINTR;
-		else
-			rc = -EIO;
-		return rc;
-	}
+	if ((fd = accept(accept_fd, (struct sockaddr *) &addr, &len)) < 0)
+		return;
 
 	if (!mgmt_peeruser(fd, user) || strncmp(user, "root", PEERUSER_MAX)) {
 		rsp.err = MGMT_IPC_ERR_ACCESS;
-		rc = EINVAL;
 		goto err;
 	}
 
 	if (read(fd, &req, sizeof(req)) != sizeof(req)) {
-		rc = -EIO;
 		close(fd);
-		return rc;
+		return;
 	}
 	rsp.command = req.command;
 
@@ -417,7 +410,7 @@ mgmt_ipc_handle(int accept_fd)
 	}
 
 	if (rsp.err == MGMT_IPC_OK && !immrsp)
-		return 0;
+		return;
 
 err:
 	if (write(fd, &rsp, sizeof(rsp)) != sizeof(rsp))
@@ -425,7 +418,6 @@ err:
 	close(fd);
 	if (qtask)
 		free(qtask);
-	return rc;
 }
 
 static int reap_count;
