@@ -321,92 +321,94 @@ static void
 mgmt_ipc_handle(int accept_fd)
 {
 	struct sockaddr addr;
-	int fd, immrsp = 0;
+	int fd, immrsp = 0, err;
 	iscsiadm_req_t req;
-	iscsiadm_rsp_t rsp;
 	queue_task_t *qtask = NULL;
 	char user[PEERUSER_MAX];
 	socklen_t len;
 
-	memset(&rsp, 0, sizeof(rsp));
-	len = sizeof(addr);
-	if ((fd = accept(accept_fd, (struct sockaddr *) &addr, &len)) < 0)
+	qtask = calloc(1, sizeof(queue_task_t));
+	if (!qtask)
 		return;
 
+	len = sizeof(addr);
+	if ((fd = accept(accept_fd, (struct sockaddr *) &addr, &len)) < 0) {
+		free(qtask);
+		return;
+	}
+
+	qtask->allocated = 1;
+	qtask->mgmt_ipc_fd = fd;
+
 	if (!mgmt_peeruser(fd, user) || strncmp(user, "root", PEERUSER_MAX)) {
-		rsp.err = MGMT_IPC_ERR_ACCESS;
+		err = MGMT_IPC_ERR_ACCESS;
 		goto err;
 	}
 
 	if (read(fd, &req, sizeof(req)) != sizeof(req)) {
 		close(fd);
+		free(qtask);
 		return;
 	}
-	rsp.command = req.command;
 
-	qtask = calloc(1, sizeof(queue_task_t));
-	if (!qtask) {
-		rsp.err = MGMT_IPC_ERR_NOMEM;
-		goto err;
-	}
 	memcpy(&qtask->req, &req, sizeof(iscsiadm_req_t));
-	qtask->mgmt_ipc_fd = fd;
+	qtask->rsp.command = req.command;
 
 	switch(req.command) {
 	case MGMT_IPC_SESSION_LOGIN:
-		rsp.err = mgmt_ipc_session_login(qtask, &req.u.session.rec);
+		err = mgmt_ipc_session_login(qtask, &req.u.session.rec);
 		break;
 	case MGMT_IPC_SESSION_LOGOUT:
-		rsp.err = mgmt_ipc_session_logout(qtask, &req.u.session.rec);
+		err = mgmt_ipc_session_logout(qtask, &req.u.session.rec);
 		break;
 	case MGMT_IPC_SESSION_SYNC:
-		rsp.err = mgmt_ipc_session_sync(qtask, &req.u.session.rec,
+		err = mgmt_ipc_session_sync(qtask, &req.u.session.rec,
 						req.u.session.sid);
 		break;
 	case MGMT_IPC_SESSION_STATS:
-		rsp.err = mgmt_ipc_session_getstats(qtask, req.u.session.sid,
-						    &rsp);
+		err = mgmt_ipc_session_getstats(qtask, req.u.session.sid,
+						    &qtask->rsp);
 		immrsp = 1;
 		break;
 	case MGMT_IPC_SEND_TARGETS:
-		rsp.err = iscsi_host_send_targets(qtask, req.u.st.host_no,
+		err = iscsi_host_send_targets(qtask, req.u.st.host_no,
 						  req.u.st.do_login,
 						  &req.u.st.ss);
 		immrsp = 1;
 		break;
 	case MGMT_IPC_SESSION_INFO:
-		rsp.err = mgmt_ipc_session_info(qtask, req.u.session.sid,
-						&rsp);
+		err = mgmt_ipc_session_info(qtask, req.u.session.sid,
+						&qtask->rsp);
 		immrsp = 1;
 		break;
 	case MGMT_IPC_CONN_ADD:
-		rsp.err = mgmt_ipc_conn_add(qtask, req.u.conn.cid);
+		err = mgmt_ipc_conn_add(qtask, req.u.conn.cid);
 		break;
 	case MGMT_IPC_CONN_REMOVE:
-		rsp.err = mgmt_ipc_conn_remove(qtask, req.u.conn.cid);
+		err = mgmt_ipc_conn_remove(qtask, req.u.conn.cid);
 		break;
 	case MGMT_IPC_CONFIG_INAME:
-		rsp.err = mgmt_ipc_cfg_initiatorname(qtask, &rsp);
+		err = mgmt_ipc_cfg_initiatorname(qtask, &qtask->rsp);
 		immrsp = 1;
 		break;
 	case MGMT_IPC_CONFIG_IALIAS:
-		rsp.err = mgmt_ipc_cfg_initiatoralias(qtask, &rsp);
+		err = mgmt_ipc_cfg_initiatoralias(qtask, &qtask->rsp);
 		immrsp = 1;
 		break;
 	case MGMT_IPC_CONFIG_FILE:
-		rsp.err = mgmt_ipc_cfg_filename(qtask, &rsp);
+		err = mgmt_ipc_cfg_filename(qtask, &qtask->rsp);
 		immrsp = 1;
 		break;
 	case MGMT_IPC_IMMEDIATE_STOP:
-		rsp.err = MGMT_IPC_OK;
+		err = MGMT_IPC_OK;
 		immrsp = 1;
 		leave_event_loop = 1;
 		break;
 	case MGMT_IPC_ISNS_DEV_ATTR_QUERY:
-		rsp.err = mgmt_ipc_isns_dev_attr_query(qtask);
+		err = mgmt_ipc_isns_dev_attr_query(qtask);
 		break;
 	case MGMT_IPC_SET_HOST_PARAM:
-		rsp.err = iscsi_host_set_param(req.u.set_host_param.host_no,
+		err = iscsi_host_set_param(req.u.set_host_param.host_no,
 						req.u.set_host_param.param,
 						req.u.set_host_param.value);
 		immrsp = 1;
@@ -414,18 +416,18 @@ mgmt_ipc_handle(int accept_fd)
 	default:
 		log_error("unknown request: %s(%d) %u",
 			  __FUNCTION__, __LINE__, req.command);
-		rsp.err = MGMT_IPC_ERR_INVALID_REQ;
+		err = MGMT_IPC_ERR_INVALID_REQ;
 		immrsp = 1;
 		break;
 	}
 
-	if (rsp.err == MGMT_IPC_OK && !immrsp)
+	if (err == MGMT_IPC_OK && !immrsp)
 		return;
 
 err:
 	/* This will send the response, close the
 	 * connection and free the qtask */
-	mgmt_ipc_write_rsp(qtask, rsp.err);
+	mgmt_ipc_write_rsp(qtask, err);
 }
 
 static int reap_count;
