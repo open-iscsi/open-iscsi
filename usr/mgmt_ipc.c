@@ -289,6 +289,13 @@ mgmt_peeruser(int sock, char *user)
 #endif
 }
 
+/*
+ * Send the IPC response and destroy the queue_task.
+ * The recovery code uses a qtask which is allocated as
+ * part of a larger structure, and we don't want it to
+ * get freed when we come here. This is what qtask->allocated
+ * is for.
+ */
 void
 mgmt_ipc_write_rsp(queue_task_t *qtask, mgmt_ipc_err_e err)
 {
@@ -297,13 +304,17 @@ mgmt_ipc_write_rsp(queue_task_t *qtask, mgmt_ipc_err_e err)
 	log_debug(4, "%s: rsp to fd %d", __FUNCTION__,
 		 qtask->mgmt_ipc_fd);
 
-	if (qtask->mgmt_ipc_fd < 0)
+	if (qtask->mgmt_ipc_fd < 0) {
+		if (qtask->allocated)
+			free(qtask);
 		return;
+	}
 
 	qtask->rsp.err = err;
 	write(qtask->mgmt_ipc_fd, &qtask->rsp, sizeof(qtask->rsp));
 	close(qtask->mgmt_ipc_fd);
-	free(qtask);
+	if (qtask->allocated)
+		free(qtask);
 }
 
 static void
@@ -414,7 +425,7 @@ mgmt_ipc_handle(int accept_fd)
 err:
 	/* This will send the response, close the
 	 * connection and free the qtask */
-	return mgmt_ipc_write_rsp(qtask, rsp.err);
+	mgmt_ipc_write_rsp(qtask, rsp.err);
 }
 
 static int reap_count;
