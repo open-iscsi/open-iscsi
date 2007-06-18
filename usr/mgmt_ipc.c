@@ -310,7 +310,7 @@ static void
 mgmt_ipc_handle(int accept_fd)
 {
 	struct sockaddr addr;
-	int fd, rc = 0, immrsp = 0;
+	int fd, immrsp = 0;
 	iscsiadm_req_t req;
 	iscsiadm_rsp_t rsp;
 	queue_task_t *qtask = NULL;
@@ -336,7 +336,6 @@ mgmt_ipc_handle(int accept_fd)
 	qtask = calloc(1, sizeof(queue_task_t));
 	if (!qtask) {
 		rsp.err = MGMT_IPC_ERR_NOMEM;
-		rc = -ENOMEM;
 		goto err;
 	}
 	memcpy(&qtask->req, &req, sizeof(iscsiadm_req_t));
@@ -413,11 +412,9 @@ mgmt_ipc_handle(int accept_fd)
 		return;
 
 err:
-	if (write(fd, &rsp, sizeof(rsp)) != sizeof(rsp))
-		rc = -EIO;
-	close(fd);
-	if (qtask)
-		free(qtask);
+	/* This will send the response, close the
+	 * connection and free the qtask */
+	return mgmt_ipc_write_rsp(qtask, rsp.err);
 }
 
 static int reap_count;
