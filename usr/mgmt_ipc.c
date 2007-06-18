@@ -242,6 +242,125 @@ mgmt_ipc_host_set_param(queue_task_t *qtask)
 	return MGMT_IPC_OK;
 }
 
+/*
+ * Parse a list of strings, encoded as a 32bit
+ * length followed by the string itself (not necessarily
+ * NUL-terminated).
+ */
+static int
+mgmt_ipc_parse_strings(queue_task_t *qtask, char ***result)
+{
+	char		*data, *endp, **argv = NULL;
+	unsigned int	left, argc;
+
+again:
+	data = qtask->payload;
+	left = qtask->req.payload_len;
+	endp = NULL;
+	argc = 0;
+
+	while (left) {
+		uint32_t len;
+
+		if (left < 4)
+			return -1;
+		memcpy(&len, data, 4);
+		data += 4;
+
+		if (endp)
+			*endp = '\0';
+
+		if (len > left)
+			return -1;
+
+		if (argv) {
+			argv[argc] = (char *) data;
+			endp = data + len;
+		}
+		data += len;
+		argc++;
+	}
+
+	if (endp)
+		*endp = '\0';
+
+	if (argv == NULL) {
+		argv = malloc((argc + 1) * sizeof(char *));
+		*result = argv;
+		goto again;
+	}
+
+	argv[argc] = NULL;
+	return argc;
+}
+
+static mgmt_ipc_err_e
+mgmt_ipc_notify_common(queue_task_t *qtask,
+		mgmt_ipc_err_e (*handler)(int, char **))
+{
+	char	**argv = NULL;
+	int	argc, err = MGMT_IPC_ERR;
+
+	argc = mgmt_ipc_parse_strings(qtask, &argv);
+	if (argc > 0)
+		err = handler(argc, argv);
+
+	if (argv)
+		free(argv);
+	mgmt_ipc_write_rsp(qtask, err);
+	return MGMT_IPC_OK;
+}
+
+/* Replace these dummies as you implement them
+   elsewhere */
+static mgmt_ipc_err_e
+iscsi_discovery_add_node(int argc, char **argv)
+{
+	return MGMT_IPC_OK;
+}
+
+static mgmt_ipc_err_e
+iscsi_discovery_del_node(int argc, char **argv)
+{
+	return MGMT_IPC_OK;
+}
+
+static mgmt_ipc_err_e
+iscsi_discovery_add_portal(int argc, char **argv)
+{
+	return MGMT_IPC_OK;
+}
+
+static mgmt_ipc_err_e
+iscsi_discovery_del_portal(int argc, char **argv)
+{
+	return MGMT_IPC_OK;
+}
+
+static mgmt_ipc_err_e
+mgmt_ipc_notify_add_node(queue_task_t *qtask)
+{
+	return mgmt_ipc_notify_common(qtask, iscsi_discovery_add_node);
+}
+
+static mgmt_ipc_err_e
+mgmt_ipc_notify_del_node(queue_task_t *qtask)
+{
+	return mgmt_ipc_notify_common(qtask, iscsi_discovery_del_node);
+}
+
+static mgmt_ipc_err_e
+mgmt_ipc_notify_add_portal(queue_task_t *qtask)
+{
+	return mgmt_ipc_notify_common(qtask, iscsi_discovery_add_portal);
+}
+
+static mgmt_ipc_err_e
+mgmt_ipc_notify_del_portal(queue_task_t *qtask)
+{
+	return mgmt_ipc_notify_common(qtask, iscsi_discovery_del_portal);
+}
+
 static int
 mgmt_peeruser(int sock, char *user)
 {
@@ -398,8 +517,10 @@ mgmt_ipc_read_req(queue_task_t *qtask)
 			return -EIO;
 
 		/* Remember the allocated pointer in the
-		   qtask - it will be freed by write_rsp */
-		qtask->payload = malloc(req->payload_len);
+		 * qtask - it will be freed by write_rsp.
+		 * Note: we allocate one byte in excess
+		 * so we can append a NUL byte. */
+		qtask->payload = malloc(req->payload_len + 1);
 		rc = mgmt_ipc_read_data(qtask->mgmt_ipc_fd,
 				qtask->payload,
 				req->payload_len);
@@ -422,6 +543,10 @@ static mgmt_ipc_fn_t *	mgmt_ipc_functions[__MGMT_IPC_MAX_COMMAND] = {
 [MGMT_IPC_IMMEDIATE_STOP]	= mgmt_ipc_immediate_stop,
 [MGMT_IPC_ISNS_DEV_ATTR_QUERY]	= mgmt_ipc_isns_dev_attr_query,
 [MGMT_IPC_SET_HOST_PARAM]	= mgmt_ipc_host_set_param,
+[MGMT_IPC_NOTIFY_ADD_NODE]	= mgmt_ipc_notify_add_node,
+[MGMT_IPC_NOTIFY_DEL_NODE]	= mgmt_ipc_notify_del_node,
+[MGMT_IPC_NOTIFY_ADD_PORTAL]	= mgmt_ipc_notify_add_portal,
+[MGMT_IPC_NOTIFY_DEL_PORTAL]	= mgmt_ipc_notify_del_portal,
 };
 
 static void
