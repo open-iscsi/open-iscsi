@@ -381,21 +381,18 @@ static mgmt_ipc_fn_t *	mgmt_ipc_functions[__MGMT_IPC_MAX_COMMAND] = {
 static void
 mgmt_ipc_handle(int accept_fd)
 {
-	struct sockaddr addr;
 	unsigned int command;
 	int fd, err;
 	iscsiadm_req_t *req;
 	queue_task_t *qtask = NULL;
 	mgmt_ipc_fn_t *handler = NULL;
 	char user[PEERUSER_MAX];
-	socklen_t len;
 
 	qtask = calloc(1, sizeof(queue_task_t));
 	if (!qtask)
 		return;
 
-	len = sizeof(addr);
-	if ((fd = accept(accept_fd, (struct sockaddr *) &addr, &len)) < 0) {
+	if ((fd = accept(accept_fd, NULL, NULL)) < 0) {
 		free(qtask);
 		return;
 	}
