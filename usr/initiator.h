@@ -191,6 +191,9 @@ typedef struct queue_task {
 	iscsiadm_rsp_t rsp;
 	int mgmt_ipc_fd;
 	int allocated : 1;
+	/* Newer request types include a
+	 * variable-length payload */
+	void *payload;
 } queue_task_t;
 
 struct iscsi_transport_template;

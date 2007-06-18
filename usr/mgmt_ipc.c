@@ -47,6 +47,7 @@
 static int	leave_event_loop = 0;
 
 #define PEERUSER_MAX	64
+#define EXTMSG_MAX	(64 * 1024)
 
 int
 mgmt_ipc_listen(void)
@@ -325,6 +326,17 @@ mgmt_peeruser(int sock, char *user)
 #endif
 }
 
+static void
+mgmt_ipc_destroy_queue_task(queue_task_t *qtask)
+{
+	if (qtask->mgmt_ipc_fd >= 0)
+		close(qtask->mgmt_ipc_fd);
+	if (qtask->payload)
+		free(qtask->payload);
+	if (qtask->allocated)
+		free(qtask);
+}
+
 /*
  * Send the IPC response and destroy the queue_task.
  * The recovery code uses a qtask which is allocated as
@@ -341,16 +353,58 @@ mgmt_ipc_write_rsp(queue_task_t *qtask, mgmt_ipc_err_e err)
 		 qtask->mgmt_ipc_fd);
 
 	if (qtask->mgmt_ipc_fd < 0) {
-		if (qtask->allocated)
-			free(qtask);
+		mgmt_ipc_destroy_queue_task(qtask);
 		return;
 	}
 
 	qtask->rsp.err = err;
 	write(qtask->mgmt_ipc_fd, &qtask->rsp, sizeof(qtask->rsp));
 	close(qtask->mgmt_ipc_fd);
-	if (qtask->allocated)
-		free(qtask);
+	mgmt_ipc_destroy_queue_task(qtask);
+}
+
+static int
+mgmt_ipc_read_data(int fd, void *ptr, size_t len)
+{
+	int	n;
+
+	while (len) {
+		n = read(fd, ptr, len);
+		if (n < 0) {
+			if (errno == EINTR)
+				continue;
+			return -EIO;
+		}
+		if (n == 0) {
+			/* Client closed connection */
+			return -EIO;
+		}
+		ptr += n;
+		len -= n;
+	}
+	return 0;
+}
+
+static int
+mgmt_ipc_read_req(queue_task_t *qtask)
+{
+	iscsiadm_req_t *req = &qtask->req;
+	int	rc;
+
+	rc = mgmt_ipc_read_data(qtask->mgmt_ipc_fd, req, sizeof(*req));
+	if (rc >= 0 && req->payload_len > 0) {
+		/* Limit what we accept */
+		if (req->payload_len > EXTMSG_MAX)
+			return -EIO;
+
+		/* Remember the allocated pointer in the
+		   qtask - it will be freed by write_rsp */
+		qtask->payload = malloc(req->payload_len);
+		rc = mgmt_ipc_read_data(qtask->mgmt_ipc_fd,
+				qtask->payload,
+				req->payload_len);
+	}
+	return rc;
 }
 
 static mgmt_ipc_fn_t *	mgmt_ipc_functions[__MGMT_IPC_MAX_COMMAND] = {
@@ -375,7 +429,6 @@ mgmt_ipc_handle(int accept_fd)
 {
 	unsigned int command;
 	int fd, err;
-	iscsiadm_req_t *req;
 	queue_task_t *qtask = NULL;
 	mgmt_ipc_fn_t *handler = NULL;
 	char user[PEERUSER_MAX];
@@ -397,10 +450,8 @@ mgmt_ipc_handle(int accept_fd)
 		goto err;
 	}
 
-	req = &qtask->req;
-	if (read(fd, req, sizeof(*req)) != sizeof(*req)) {
-		close(fd);
-		free(qtask);
+	if (mgmt_ipc_read_req(qtask) < 0) {
+		mgmt_ipc_destroy_queue_task(qtask);
 		return;
 	}
 

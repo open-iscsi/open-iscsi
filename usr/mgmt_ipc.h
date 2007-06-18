@@ -89,6 +89,7 @@ typedef enum iscsi_session_r_stage_e {
 /* IPC Request */
 typedef struct iscsiadm_req {
 	iscsiadm_cmd_e command;
+	uint32_t payload_len;
 
 	union {
 		/* messages */
