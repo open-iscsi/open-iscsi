@@ -52,7 +52,8 @@ all: kernel_check
 14to15_patch=2.6.14-and-2.6.15-compat.patch
 16to18_patch=2.6.16-18_compat.patch
 19_patch=2.6.19_compat.patch
-all_patches=13_patch 14to15_patch 16to18_patch 19_patch
+20to21_patch=2.6.20-21_compat.patch
+all_patches=13_patch 14to15_patch 16to18_patch 19_patch 20to21_patch
 cur_patched=cur_patched
 
 ## fun stuff for maintaining multiple versions
@@ -81,9 +82,9 @@ linux_2_6_18: has_16to18_patch
 
 linux_2_6_19: has_19_patch
 
-linux_2_6_20: $(unpatch_code)
+linux_2_6_20: has_20to21_patch
 
-linux_2_6_21: $(unpatch_code)
+linux_2_6_21: has_20to21_patch
 
 linux_2_6_22: $(unpatch_code)
 
@@ -129,6 +130,15 @@ has_19_patch: $(19_patch)
 	fi
 	patch -p1 < $(19_patch)
 	cp $(19_patch) $@
+	ln -s $@ $(cur_patched)
+
+has_20to21_patch: $(20to21_patch)
+	echo "Patching source code for linux-2.6.20-21 ..."
+	if [ -e $(cur_patched) ]; then \
+		make -C . clean; \
+	fi
+	patch -p1 < $(20to21_patch)
+	cp $(20to21_patch) $@
 	ln -s $@ $(cur_patched)
 
 # ============ END code for kernel_check and source patching =================
