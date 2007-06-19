@@ -1,0 +1,41 @@
+---
+ kernel/iscsi_2.6.22_compat.h  |    6 ++++++
+ kernel/iscsi_tcp.h            |    1 +
+ kernel/scsi_transport_iscsi.c |    1 +
+ 3 files changed, 8 insertions(+)
+
+Index: kernel/iscsi_2.6.22_compat.h
+===================================================================
+--- /dev/null
++++ kernel/iscsi_2.6.22_compat.h
+@@ -0,0 +1,6 @@
++#include <linux/version.h>
++
++#if LINUX_VERSION_CODE <= KERNEL_VERSION(2,6,21)
++#define netlink_kernel_create(uint, groups, input, cb_mutex, mod) \
++	netlink_kernel_create(uint, groups, input, mod)
++#endif
+Index: kernel/iscsi_tcp.h
+===================================================================
+--- kernel/iscsi_tcp.h
++++ kernel/iscsi_tcp.h
+@@ -52,6 +52,7 @@
+ #define ISCSI_SG_TABLESIZE		SG_ALL
+ #define ISCSI_TCP_MAX_CMD_LEN		16
+ 
++#include "iscsi_2.6.22_compat.h"
+ struct crypto_hash;
+ struct socket;
+ 
+Index: kernel/scsi_transport_iscsi.c
+===================================================================
+--- kernel/scsi_transport_iscsi.c
++++ kernel/scsi_transport_iscsi.c
+@@ -29,6 +29,7 @@
+ #include <scsi/scsi_transport.h>
+ #include "scsi_transport_iscsi.h"
+ #include "iscsi_if.h"
++#include "iscsi_2.6.22_compat.h"
+ 
+ #define ISCSI_SESSION_ATTRS 15
+ #define ISCSI_CONN_ATTRS 11
