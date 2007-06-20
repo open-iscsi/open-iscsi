@@ -827,7 +827,7 @@ struct iface_rec *iface_alloc(char *ifname, int *err)
 	return iface;
 }
 
-int iface_conf_read(struct iface_rec *iface)
+static int __iface_conf_read(struct iface_rec *iface)
 {
 	char *iface_conf;
 	recinfo_t *info;
@@ -874,7 +874,17 @@ free_conf:
 	return rc;
 }
 
-int iface_conf_delete(struct iface_rec *iface)
+int iface_conf_read(idbm_t *db, struct iface_rec *iface)
+{
+	int rc;
+
+	idbm_lock(db);
+	rc = __iface_conf_read(iface);
+	idbm_unlock(db);
+	return rc;
+}
+
+int iface_conf_delete(idbm_t *db, struct iface_rec *iface)
 {
 	char *iface_conf;
 	int rc = 0;
@@ -884,13 +894,16 @@ int iface_conf_delete(struct iface_rec *iface)
 		return ENOMEM;
 
 	sprintf(iface_conf, "%s/%s", IFACE_CONFIG_DIR, iface->name);
+	idbm_lock(db);
 	if (unlink(iface_conf))
 		rc = errno;
+	idbm_unlock(db);
+
 	free(iface_conf);
 	return rc;
 }
 
-int iface_conf_write(struct iface_rec *iface)
+int iface_conf_write(idbm_t *db, struct iface_rec *iface)
 {
 	char *iface_conf;
 	FILE *f;
@@ -907,14 +920,18 @@ int iface_conf_write(struct iface_rec *iface)
 		goto free_conf;
 	}
 
+	idbm_lock(db);
 	idbm_print(PRINT_TYPE_IFACE, iface, 1, f);
+	idbm_unlock(db);
+
 	fclose(f);
 free_conf:
 	free(iface_conf);
 	return rc;
 }
 
-int iface_conf_update(struct db_set_param *param, struct iface_rec *iface)
+int iface_conf_update(idbm_t *db, struct db_set_param *param,
+		       struct iface_rec *iface)
 {
 	recinfo_t *info;
 	int rc = 0;
@@ -930,7 +947,7 @@ int iface_conf_update(struct db_set_param *param, struct iface_rec *iface)
 		goto free_info;
 	}
 
-	rc = iface_conf_write(iface);
+	rc = iface_conf_write(db, iface);
 free_info:
 	free(info);
 	return rc;
@@ -968,7 +985,7 @@ static void idbm_read_def_ifaces(struct list_head *ifaces)
 			continue;
 		}
 
-		err = iface_conf_read(iface);
+		err = __iface_conf_read(iface);
 		if (err) {
 			log_error("Could not read def iface %s (err %d)",
 				  iface->name, err);
@@ -1131,7 +1148,7 @@ static int __iface_setup_host_bindings(void *data, struct host_info *info)
 		strcpy(iface.hwaddress, info->iface.hwaddress);
 		strcpy(iface.transport_name, info->iface.transport_name);
 		sprintf(iface.name, "iface%d", id);
-		if (iface_conf_write(&iface))
+		if (iface_conf_write(db, &iface))
 			log_error("Could not write iface conf for %s %s",
 				  iface.name, iface.hwaddress);
 			/* fall through - will not be persistent */
@@ -1308,7 +1325,7 @@ int iface_for_each_iface(idbm_t *db, void *data, int *nr_found, iface_op_fn *fn)
 		}
 
 		idbm_lock(db);
-		err = iface_conf_read(iface);
+		err = __iface_conf_read(iface);
 		idbm_unlock(db);
 		if (err) {
 			log_error("Could not read def iface %s (err %d)",

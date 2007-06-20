@@ -823,7 +823,6 @@ static void print_sessions_tree(idbm_t *db, struct list_head *list, int level)
 	struct session_info *curr, *prev = NULL, *tmp;
 	struct iscsi_transport *t;
 	struct iface_rec iface;
-	int rc;
 
 	list_for_each_entry(curr, list, list) {
 		if (!prev || strcmp(prev->targetname, curr->targetname)) {
@@ -1098,7 +1097,7 @@ static int add_static_rec(idbm_t *db, int *found, char *targetname, int tpgt,
 	strncpy(rec->conn[0].address, ip, NI_MAXHOST);
 
 	if (iface) {
-		rc = iface_conf_read(iface);
+		rc = iface_conf_read(db, iface);
 		if (rc) {
 			log_error("Could not read iface %s. Error %d",
 				  iface->name, rc);
@@ -1228,7 +1227,7 @@ do_sendtargets(idbm_t *db, discovery_rec_t *drec, struct list_head *ifaces,
 
 	/* we allow users to mix hw and sw iscsi so we have to sort it out */
 	list_for_each_entry_safe(iface, tmp, ifaces, list) {
-		rc = iface_conf_read(iface);
+		rc = iface_conf_read(db, iface);
 		if (rc) {
 			log_error("Could not read iface info for %s. "
 				  "Make sure a iface config with the file "
@@ -1324,6 +1323,7 @@ static void catch_sigint( int signo ) {
 	exit(1);
 }
 
+/* TODO merge with initiator.c implementation */
 static int check_for_session_through_iface(struct node_rec *rec)
 {
 	int nr_found = 0;
@@ -1332,7 +1332,8 @@ static int check_for_session_through_iface(struct node_rec *rec)
 	return 0;
 }
 
-static struct node_rec *setup_rec_from_iface(struct iface_rec *iface)
+static struct node_rec *setup_rec_from_iface(idbm_t *db,
+					     struct iface_rec *iface)
 {
 	struct node_rec *rec;
 
@@ -1346,7 +1347,7 @@ static struct node_rec *setup_rec_from_iface(struct iface_rec *iface)
 	rec->tpgt = -1;
 	rec->conn[0].port = -1;
 	iface_copy(&rec->iface, iface);
-	if (iface_conf_read(&rec->iface)) {
+	if (iface_conf_read(db, &rec->iface)) {
 		free(rec);
 		rec = NULL;
 	}
@@ -1368,7 +1369,7 @@ static int exec_iface_op(idbm_t *db, int op, int do_show, int info_level,
 			return EINVAL;
 		}
 
-		rec = setup_rec_from_iface(iface);
+		rec = setup_rec_from_iface(db, iface);
 		if (rec) {
 			if (check_for_session_through_iface(rec)) {
 				rc = EBUSY;
@@ -1378,7 +1379,7 @@ static int exec_iface_op(idbm_t *db, int op, int do_show, int info_level,
 		}
 
 		iface_init(iface);
-		rc = iface_conf_write(iface);
+		rc = iface_conf_write(db, iface);
 		if (rc)
 			goto new_fail;
 		printf("New interface %s added\n", iface->name);
@@ -1393,7 +1394,7 @@ new_fail:
 			return EINVAL;
 		}
 
-		rec = setup_rec_from_iface(iface);
+		rec = setup_rec_from_iface(db, iface);
 		if (!rec) {
 			rc = EINVAL;
 			goto delete_fail;
@@ -1409,7 +1410,7 @@ new_fail:
 		if (rc && rc != ENODEV)
 			goto delete_fail;
 
-		rc = iface_conf_delete(iface);
+		rc = iface_conf_delete(db, iface);
 		if (rc)
 			goto delete_fail;
 
@@ -1427,7 +1428,7 @@ delete_fail:
 			break;
 		}
 
-		rec = setup_rec_from_iface(iface);
+		rec = setup_rec_from_iface(db, iface);
 		if (!rec) {
 			rc = EINVAL;
 			goto update_fail;
@@ -1475,7 +1476,7 @@ delete_fail:
 			goto update_fail;
 
 		/* pass rec's iface because it has the db values */
-		rc = iface_conf_update(&set_param, &rec->iface);
+		rc = iface_conf_update(db, &set_param, &rec->iface);
 		if (rc)
 			goto update_fail;
 
