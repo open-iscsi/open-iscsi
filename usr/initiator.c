@@ -1010,6 +1010,7 @@ setup_full_feature_phase(iscsi_conn_t *conn)
 	iscsi_login_context_t *c = &conn->login_context;
 	int i, rc;
 	uint32_t one = 1, zero = 0;
+	conn_login_status_e login_status;
 	struct hostparam {
 		int param;
 		int type;
@@ -1165,18 +1166,31 @@ setup_full_feature_phase(iscsi_conn_t *conn)
 	};
 
 	/* almost! entered full-feature phase */
-	if (__login_response_status(conn, c->ret) != CONN_LOGIN_SUCCESS) {
-		__session_conn_shutdown(conn, c->qtask,
-				        MGMT_IPC_ERR_LOGIN_FAILURE);
-		return;
+	login_status = __login_response_status(conn, c->ret);
+	switch (login_status) {
+	case CONN_LOGIN_FAILED:
+		goto failed;
+	case CONN_LOGIN_RETRY:
+		goto retry;
+	default:
+		; /* success - fall through */
 	}
 
 	/* check the login status */
-	if (__check_iscsi_status_class(session, conn->id, c->status_class,
-				      c->status_detail) != CONN_LOGIN_SUCCESS) {
-		__session_conn_shutdown(conn, c->qtask,
-				        MGMT_IPC_ERR_LOGIN_FAILURE);
+	login_status = __check_iscsi_status_class(session, conn->id,
+						  c->status_class,
+						  c->status_detail);
+	switch (login_status) {
+	case CONN_LOGIN_FAILED:
+		goto failed;
+	case CONN_LOGIN_IMM_REDIRECT_RETRY:
+		iscsi_login_redirect(conn);
 		return;
+	case CONN_LOGIN_IMM_RETRY:
+	case CONN_LOGIN_RETRY:
+		goto retry;
+	default:
+		; /* success - fall through */
 	}
 
 	/* Entered full-feature phase! */
@@ -1263,6 +1277,16 @@ setup_full_feature_phase(iscsi_conn_t *conn)
 		log_debug(3, "noop out timer %p start\n",
 			  &conn->noop_out_timer);
 	}
+	return;
+
+retry:
+	session->r_stage = R_STAGE_SESSION_REOPEN;
+	session_conn_reopen(conn, c->qtask, STOP_CONN_RECOVER);
+	return;
+
+failed:
+	__session_conn_shutdown(conn, c->qtask, MGMT_IPC_ERR_LOGIN_FAILURE);
+	return;	
 }
 
 static void iscsi_logout_timeout(void *data)
