@@ -2546,8 +2546,8 @@ idbm_init(char *configfile)
 	idbm_t *db;
 
 	/* make sure root db dir is there */
-	if (access(ISCSIVAR, F_OK) != 0) {
-		if (mkdir(ISCSIVAR, 0660) != 0) {
+	if (access(ISCSI_CONFIG_ROOT, F_OK) != 0) {
+		if (mkdir(ISCSI_CONFIG_ROOT, 0660) != 0) {
 			log_error("Could not make %s %d\n", ISCSI_CONFIG_ROOT,
 				   errno);
 			return NULL;
