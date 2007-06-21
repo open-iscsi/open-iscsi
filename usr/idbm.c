@@ -2545,11 +2545,21 @@ idbm_init(char *configfile)
 {
 	idbm_t *db;
 
+	/* make sure root db dir is there */
+	if (access(ISCSIVAR, F_OK) != 0) {
+		if (mkdir(ISCSIVAR, 0660) != 0) {
+			log_error("Could not make %s %d\n", ISCSI_CONFIG_ROOT,
+				   errno);
+			return NULL;
+		}
+	}
+
 	db = malloc(sizeof(idbm_t));
 	if (!db) {
 		log_error("out of memory on idbm allocation");
 		return NULL;
 	}
+
 	memset(db, 0, sizeof(idbm_t));
 	db->configfile = strdup(configfile);
 	return db;
