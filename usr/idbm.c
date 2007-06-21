@@ -2123,8 +2123,8 @@ static int setup_disc_to_node_link(char *disc_portal, node_rec_t *rec)
 			}
 		}
 
-		snprintf(disc_portal, PATH_MAX, "%s/%s,%d/%s,%s,%d,%d,%s",
-			 ISNS_CONFIG_DIR, rec->disc_address, rec->disc_port,
+		snprintf(disc_portal, PATH_MAX, "%s/%s,%s,%d,%d,%s",
+			 ISNS_CONFIG_DIR,
 			 rec->name, rec->conn[0].address,
 			 rec->conn[0].port, rec->tpgt, rec->iface.name);
 		break;
