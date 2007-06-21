@@ -714,6 +714,9 @@ running:
 
 iscsiadm -m discovery -t isns
 
+*** Warning *** iSNS support is experimental in this release. The command
+line options for it will change in future releases.
+
 Both commands will print out the list of all discovered targets and their
 portals:
 
