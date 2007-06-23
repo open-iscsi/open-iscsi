@@ -1501,7 +1501,6 @@ iscsi_login(iscsi_session_t *session, int cid, char *buffer, size_t bufsize,
 	iscsi_login_context_t *c = &conn->login_context;
 	int ret;
 
-	conn->kernel_io = 0;
 	/*
 	 * assume iscsi_login is only called from discovery, so it is
 	 * safe to always set to zero

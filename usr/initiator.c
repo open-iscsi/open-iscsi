@@ -1425,16 +1425,6 @@ void session_conn_recv_pdu(void *data)
 	}
 }
 
-static void
-setup_kernel_io_callouts(iscsi_conn_t *conn)
-{
-	conn->kernel_io = 1;
-	conn->send_pdu_begin = ipc->send_pdu_begin;
-	conn->send_pdu_end = ipc->send_pdu_end;
-	conn->recv_pdu_begin = ipc->recv_pdu_begin;
-	conn->recv_pdu_end = ipc->recv_pdu_end;
-}
-
 static void session_conn_poll(void *data)
 {
 	struct iscsi_conn_context *conn_context = data;
@@ -1509,8 +1499,6 @@ static void session_conn_poll(void *data)
 		}
 		log_debug(3, "bound iSCSI connection %d:%d to session %d",
 			  session->id, conn->id, session->id);
-
-		setup_kernel_io_callouts(conn);
 
 		c->qtask = qtask;
 		c->cid = conn->id;
@@ -1945,7 +1933,6 @@ sync_conn(iscsi_session_t *session, uint32_t cid)
 		return ENOMEM;
 	conn = &session->conn[cid];
 
-	setup_kernel_io_callouts(conn);
 	/* TODO: must export via sysfs so we can pick this up */
 	conn->state = STATE_CLEANUP_WAIT;
 	return 0;

@@ -569,7 +569,7 @@ iscsi_io_send_pdu(iscsi_conn_t *conn, struct iscsi_hdr *hdr,
 	/* set a timeout, since the socket calls may take a long time
 	 * to timeout on their own
 	 */
-	if (!conn->kernel_io) {
+	if (!ipc) {
 		memset(&action, 0, sizeof (struct sigaction));
 		memset(&old, 0, sizeof (struct sigaction));
 		action.sa_sigaction = NULL;
@@ -632,16 +632,16 @@ iscsi_io_send_pdu(iscsi_conn_t *conn, struct iscsi_hdr *hdr,
 	else
 		pad_bytes = 0;
 
-	if (conn->kernel_io)
-		conn->send_pdu_begin(session->t->handle, session->id,
-			conn->id, end - header,
-			ntoh24(hdr->dlength) + pad_bytes);
+	if (ipc)
+		ipc->send_pdu_begin(session->t->handle, session->id,
+				    conn->id, end - header,
+				    ntoh24(hdr->dlength) + pad_bytes);
 
 	while (header < end) {
 		vec[0].iov_base = header;
 		vec[0].iov_len = end - header;
 
-		if (!conn->kernel_io)
+		if (!ipc)
 			rc = writev(session->ctrl_fd, vec, 1);
 		else
 			rc = ipc->writev(0, vec, 1);
@@ -669,7 +669,7 @@ iscsi_io_send_pdu(iscsi_conn_t *conn, struct iscsi_hdr *hdr,
 		vec[1].iov_base = (void *) &pad;
 		vec[1].iov_len = pad_bytes;
 
-		if (!conn->kernel_io)
+		if (!ipc)
 			rc = writev(session->ctrl_fd, vec, 2);
 		else
 			rc = ipc->writev(0, vec, 2);
@@ -693,9 +693,9 @@ iscsi_io_send_pdu(iscsi_conn_t *conn, struct iscsi_hdr *hdr,
 		}
 	}
 
-	if (conn->kernel_io) {
-		if (conn->send_pdu_end(session->t->handle, session->id,
-				       conn->id, &rc)) {
+	if (ipc) {
+		if (ipc->send_pdu_end(session->t->handle, session->id,
+				      conn->id, &rc)) {
 			ret = 0;
 			goto done;
 		}
@@ -704,7 +704,7 @@ iscsi_io_send_pdu(iscsi_conn_t *conn, struct iscsi_hdr *hdr,
 	ret = 1;
 
       done:
-	if (!conn->kernel_io) {
+	if (!ipc) {
 		alarm(0);
 		sigaction(SIGALRM, &old, NULL);
 		timedout = 0;
@@ -736,7 +736,7 @@ iscsi_io_recv_pdu(iscsi_conn_t *conn, struct iscsi_hdr *hdr,
 	/* set a timeout, since the socket calls may take a long
 	 * time to timeout on their own
 	 */
-	if (!conn->kernel_io) {
+	if (!ipc) {
 		memset(&action, 0, sizeof (struct sigaction));
 		memset(&old, 0, sizeof (struct sigaction));
 		action.sa_sigaction = NULL;
@@ -746,7 +746,7 @@ iscsi_io_recv_pdu(iscsi_conn_t *conn, struct iscsi_hdr *hdr,
 		timedout = 0;
 		alarm(timeout);
 	} else {
-		if (conn->recv_pdu_begin(conn)) {
+		if (ipc->recv_pdu_begin(conn)) {
 			failed = 1;
 			goto done;
 		}
@@ -754,7 +754,7 @@ iscsi_io_recv_pdu(iscsi_conn_t *conn, struct iscsi_hdr *hdr,
 
 	/* read a response header */
 	do {
-		if (!conn->kernel_io)
+		if (!ipc)
 			rlen = read(session->ctrl_fd, header,
 					sizeof (*hdr) - h_bytes);
 		else
@@ -811,7 +811,7 @@ iscsi_io_recv_pdu(iscsi_conn_t *conn, struct iscsi_hdr *hdr,
 	/* read the rest into our buffer */
 	d_bytes = 0;
 	while (d_bytes < dlength) {
-		if (!conn->kernel_io)
+		if (!ipc)
 			rlen = read(session->ctrl_fd, data + d_bytes,
 					dlength - d_bytes);
 		else
@@ -838,7 +838,7 @@ iscsi_io_recv_pdu(iscsi_conn_t *conn, struct iscsi_hdr *hdr,
 	/* handle PDU data padding.
 	 * data is padded in case of kernel_io */
 	pad = dlength % PAD_WORD_LEN;
-	if (pad && !conn->kernel_io) {
+	if (pad && !ipc) {
 		int pad_bytes = pad = PAD_WORD_LEN - pad;
 		char bytes[PAD_WORD_LEN];
 
@@ -894,12 +894,12 @@ iscsi_io_recv_pdu(iscsi_conn_t *conn, struct iscsi_hdr *hdr,
 	}
 
 done:
-	if (!conn->kernel_io) {
+	if (!ipc) {
 		alarm(0);
 		sigaction(SIGALRM, &old, NULL);
 	} else {
 		/* finalyze receive transaction */
-		if (conn->recv_pdu_end(conn)) {
+		if (ipc->recv_pdu_end(conn)) {
 			failed = 1;
 		}
 	}

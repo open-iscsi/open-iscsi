@@ -97,13 +97,6 @@ struct iscsi_session;
 struct iscsi_conn;
 struct iscsi_conn_context;
 
-typedef void (*send_pdu_begin_f) (uint64_t transport_handle, uint32_t sid,
-                                  uint32_t cid, int hdr_size, int data_size);
-typedef int (*send_pdu_end_f) (uint64_t transport_handle, uint32_t sid,
-			       uint32_t cid, int *retcode);
-typedef int (*recv_pdu_begin_f) (struct iscsi_conn *conn);
-typedef int (*recv_pdu_end_f) (struct iscsi_conn *conn);
-
 /* daemon's connection structure */
 typedef struct iscsi_conn {
 	uint32_t id;
@@ -117,12 +110,6 @@ typedef struct iscsi_conn {
 
 	actor_t noop_out_timer;
 	actor_t noop_out_timeout_timer;
-
-	int kernel_io;
-	send_pdu_begin_f send_pdu_begin;
-	send_pdu_end_f send_pdu_end;
-	recv_pdu_begin_f recv_pdu_begin;
-	recv_pdu_end_f recv_pdu_end;
 
 #define CONTEXT_POOL_MAX 32
 	struct iscsi_conn_context *context_pool[CONTEXT_POOL_MAX];
