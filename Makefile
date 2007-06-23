@@ -58,6 +58,9 @@ clean:
 install: install_kernel install_programs install_doc install_etc \
 	install_initd install_iname install_iface
 
+install_usr: install_programs install_doc install_etc \
+	install_initd install_iname install_iface
+
 install_programs:  $(PROGRAMS)
 	$(INSTALL) -d $(DESTDIR)$(sbindir)
 	$(INSTALL) -m 755 $^ $(DESTDIR)$(sbindir)
