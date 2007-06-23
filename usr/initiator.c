@@ -81,7 +81,7 @@ static int iscsi_conn_context_alloc(iscsi_conn_t *conn)
 			int j;
 			for (j = 0; j < i; j++)
 				free(conn->context_pool[j]);
-			return -ENOMEM;
+			return ENOMEM;
 		}
 		conn->context_pool[i]->conn = conn;
 	}
@@ -336,7 +336,7 @@ setup_portal(iscsi_conn_t *conn, conn_rec_t *conn_rec)
 	if (resolve_address(conn_rec->address, port, &conn->saddr)) {
 		log_error("cannot resolve host name %s",
 			  conn_rec->address);
-		return -EINVAL;
+		return EINVAL;
 	}
 	conn->failback_saddr = conn->saddr;
 
@@ -355,7 +355,7 @@ __session_conn_create(iscsi_session_t *session, int cid)
 
 	if (iscsi_conn_context_alloc(conn)) {
 		log_error("cannot allocate context_pool for conn cid %d", cid);
-		return -ENOMEM;
+		return ENOMEM;
 	}
 
 	conn->socket_fd = -1;
@@ -1252,7 +1252,7 @@ static int iscsi_send_logout(iscsi_conn_t *conn)
 
 	if (conn->state == STATE_IN_LOGOUT ||
 	    conn->state != STATE_LOGGED_IN)
-		return -EINVAL;
+		return EINVAL;
 
 	memset(&hdr, 0, sizeof(struct iscsi_logout));
 	hdr.opcode = ISCSI_OP_LOGOUT | ISCSI_OP_IMMEDIATE;
@@ -1262,7 +1262,7 @@ static int iscsi_send_logout(iscsi_conn_t *conn)
 
 	if (!iscsi_io_send_pdu(conn, (struct iscsi_hdr*)&hdr,
 			       ISCSI_DIGEST_NONE, NULL, ISCSI_DIGEST_NONE, 0))
-		return -EIO;
+		return EIO;
 	conn->state = STATE_IN_LOGOUT;
 
 	conn_context = iscsi_conn_context_get(conn, 0);
@@ -1942,7 +1942,7 @@ sync_conn(iscsi_session_t *session, uint32_t cid)
 	iscsi_conn_t *conn;
 
 	if (__session_conn_create(session, cid))
-		return -ENOMEM;
+		return ENOMEM;
 	conn = &session->conn[cid];
 
 	setup_kernel_io_callouts(conn);
@@ -1980,10 +1980,8 @@ iscsi_sync_session(node_rec_t *rec, queue_task_t *qtask, uint32_t sid)
 
 	err = sync_conn(session, 0);
 	if (err) {
-		if (err == -ENOMEM)
+		if (err == ENOMEM)
 			err = MGMT_IPC_ERR_NOMEM;
-		else if (err == -ENODEV)
-			err = MGMT_IPC_ERR_NOT_FOUND;
 		else
 			err = MGMT_IPC_ERR_INVAL;
 		goto destroy_session;
