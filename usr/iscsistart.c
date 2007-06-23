@@ -145,22 +145,22 @@ static int check_params(char *initiatorname)
 {
 	if (!initiatorname) {
 		log_error("InitiatorName not set. Exiting %s\n", program_name);
-		return -EINVAL;
+		return EINVAL;
 	}
 
 	if (config_rec.tpgt == PORTAL_GROUP_TAG_UNKNOWN) {
 		log_error("Portal Group not set. Exiting %s\n", program_name);
-		return -EINVAL;
+		return EINVAL;
 	}
 
 	if (!strlen(config_rec.name)) {
 		log_error("TargetName not set. Exiting %s\n", program_name);
-		return -EINVAL;
+		return EINVAL;
 	}
 
 	if (!strlen(config_rec.conn[0].address)) {
 		log_error("IP Address not set. Exiting %s\n", program_name);
-		return -EINVAL;
+		return EINVAL;
 	}
 
 	return 0;

@@ -2037,7 +2037,7 @@ idbm_discovery_write(idbm_t *db, discovery_rec_t *rec)
 	portal = malloc(PATH_MAX);
 	if (!portal) {
 		log_error("Could not alloc portal\n");
-		return -ENOMEM;
+		return ENOMEM;
 	}
 
 	idbm_lock(db);

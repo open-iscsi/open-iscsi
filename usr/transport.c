@@ -70,5 +70,5 @@ int set_transport_template(struct iscsi_transport *t)
 	}
 
 	log_error("Could not fund uspace transport for %s\n", t->name);
-	return -ENOSYS;
+	return ENOSYS;
 }
