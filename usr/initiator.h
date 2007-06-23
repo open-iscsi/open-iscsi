@@ -108,8 +108,7 @@ typedef struct iscsi_conn {
 	char host[NI_MAXHOST];	/* scratch */
 	iscsi_conn_state_e state;
 
-	actor_t noop_out_timer;
-	actor_t noop_out_timeout_timer;
+	actor_t nop_out_timer;
 
 #define CONTEXT_POOL_MAX 32
 	struct iscsi_conn_context *context_pool[CONTEXT_POOL_MAX];
