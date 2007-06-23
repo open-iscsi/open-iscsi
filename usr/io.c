@@ -25,13 +25,8 @@
 #include <unistd.h>
 #include <fcntl.h>
 #include <ifaddrs.h>
-#include <sys/uio.h>
 #include <sys/poll.h>
 #include <sys/ioctl.h>
-#include <sys/param.h>
-#include <sys/socket.h>
-#include <net/if.h>
-#include <netinet/in.h>
 #include <netinet/tcp.h>
 #include <arpa/inet.h>
 
@@ -39,10 +34,8 @@
 #include "iscsi_proto.h"
 #include "initiator.h"
 #include "iscsi_ipc.h"
-#include "iscsi_sysfs.h"
 #include "log.h"
 #include "transport.h"
-#include "iscsi_settings.h"
 #include "idbm.h"
 
 #define LOG_CONN_CLOSED(conn) \

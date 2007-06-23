@@ -2,15 +2,9 @@
 #include <unistd.h>
 #include <stdlib.h>
 #include <stdio.h>
-#include <ctype.h>
 #include <string.h>
 #include <errno.h>
-#include <pwd.h>
-#include <sys/types.h>
-#include <sys/stat.h>
 #include <sys/un.h>
-#include <linux/types.h>
-#include <linux/unistd.h>
 
 #include "log.h"
 #include "actor.h"

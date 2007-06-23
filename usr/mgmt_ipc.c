@@ -21,20 +21,13 @@
  *
  * See the file COPYING included with this distribution for more details.
  */
+#include <stdlib.h>
 #include <errno.h>
 #include <unistd.h>
-
-#include <string.h>
-#include <sys/socket.h>
-#include <netinet/in.h>
-#include <arpa/inet.h>
-#include <stdlib.h>
+#include <pwd.h>
 #include <sys/poll.h>
-#include <sys/socket.h>
-#include <sys/types.h>
 #include <sys/un.h>
 #include <sys/wait.h>
-#include <pwd.h>
 
 #include "iscsid.h"
 #include "idbm.h"
@@ -42,7 +35,6 @@
 #include "iscsi_ipc.h"
 #include "log.h"
 #include "transport.h"
-#include "iscsi_sysfs.h"
 
 static int	leave_event_loop = 0;
 

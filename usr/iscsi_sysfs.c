@@ -22,24 +22,12 @@
 #include <string.h>
 #include <errno.h>
 #include <dirent.h>
-#include <pwd.h>
-#include <sys/types.h>
-#include <sys/wait.h>
-#include <sys/stat.h>
-#include <sys/un.h>
-#include <sys/types.h>
-#include <sys/socket.h>
-#include <arpa/inet.h>
-#include <ifaddrs.h>
-#include <linux/types.h>
-#include <linux/unistd.h>
 
 #include "log.h"
 #include "initiator.h"
 #include "transport.h"
 #include "version.h"
 #include "iscsi_sysfs.h"
-#include "list.h"
 #include "iscsi_settings.h"
 
 #define ISCSI_TRANSPORT_DIR	"/sys/class/iscsi_transport"

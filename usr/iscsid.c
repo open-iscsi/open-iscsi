@@ -19,7 +19,6 @@
  *
  * See the file COPYING included with this distribution for more details.
  */
-#include <ctype.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <getopt.h>
@@ -28,13 +27,8 @@
 #include <unistd.h>
 #include <string.h>
 #include <signal.h>
-#include <dirent.h>
-#include <sys/types.h>
-#include <sys/stat.h>
 #include <sys/mman.h>
-#include <sys/poll.h>
 #include <sys/utsname.h>
-#include <sys/signal.h>
 
 #include "iscsid.h"
 #include "mgmt_ipc.h"
@@ -46,7 +40,6 @@
 #include "idbm.h"
 #include "version.h"
 #include "iscsi_sysfs.h"
-#include "iscsi_settings.h"
 
 /* global config info */
 struct iscsi_daemon_config daemon_config;
