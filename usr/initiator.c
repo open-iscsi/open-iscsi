@@ -47,8 +47,9 @@
 #include "iscsi_sysfs.h"
 #include "iscsi_settings.h"
 
-static void __session_mainloop(void *data);
 static void __conn_error_handle(iscsi_session_t*, iscsi_conn_t*);
+static void iscsi_login_timedout(void *data);
+static void session_conn_poll(void *data);
 
 #define DEFAULT_TIME2WAIT 2
 
@@ -69,65 +70,75 @@ __padding(unsigned int param)
 	return param + pad;
 }
 
-static int
-__recvpool_alloc(iscsi_conn_t *conn)
+static int iscsi_conn_context_alloc(iscsi_conn_t *conn)
 {
 	int i;
 
-	for (i = 0; i < RECVPOOL_MAX; i++) {
-		conn->recvpool[i] = calloc(1, ipc->ctldev_bufmax);
-		if (!conn->recvpool[i]) {
+	for (i = 0; i < CONTEXT_POOL_MAX; i++) {
+		conn->context_pool[i] = calloc(1,
+					   sizeof(struct iscsi_conn_context) +
+					   ipc->ctldev_bufmax);
+		if (!conn->context_pool[i]) {
 			int j;
 			for (j = 0; j < i; j++)
-				free(conn->recvpool[j]);
+				free(conn->context_pool[j]);
 			return -ENOMEM;
 		}
+		conn->context_pool[i]->conn = conn;
 	}
 
 	return 0;
 }
 
-static void
-__recvpool_free(iscsi_conn_t *conn)
+static void iscsi_conn_context_free(iscsi_conn_t *conn)
 {
 	int i;
 
-	for (i = 0; i < RECVPOOL_MAX; i++) {
-		if (!conn->recvpool[i]) {
-			log_error("recvpool leak: %d bytes",
-				  ipc->ctldev_bufmax);
-		} else
-			free(conn->recvpool[i]);
+	for (i = 0; i < CONTEXT_POOL_MAX; i++) {
+		if (!conn->context_pool[i])
+			continue;
+
+		if (conn->context_pool[i]->allocated)
+			/* missing flush on shutdown */
+			log_error("BUG: context_pool leak");
+		free(conn->context_pool[i]);
 	}
 }
 
-void* recvpool_get(iscsi_conn_t *conn, int ev_size)
+struct iscsi_conn_context *iscsi_conn_context_get(iscsi_conn_t *conn,
+						  int ev_size)
 {
+	struct iscsi_conn_context *conn_context;
 	int i;
 
 	if (ev_size > ipc->ctldev_bufmax)
 		return NULL;
 
-	for (i = 0; i < RECVPOOL_MAX; i++) {
-		if (conn->recvpool[i]) {
-			void *handle = conn->recvpool[i];
-			conn->recvpool[i] = NULL;
-			return handle;
+	for (i = 0; i < CONTEXT_POOL_MAX; i++) {
+		if (!conn->context_pool[i])
+			continue;
+
+		if (!conn->context_pool[i]->allocated) {
+			conn_context = conn->context_pool[i];
+
+			memset(&conn_context->actor, 0,
+				sizeof(struct actor));
+			conn_context->allocated = 1;
+			/* some callers abuse this pointer */
+			conn_context->data = conn_context +
+					sizeof(struct iscsi_conn_context);
+			log_debug(7, "get conn context %p",
+				  &conn_context->actor);
+			return conn_context;
 		}
 	}
 	return NULL;
 }
 
-void recvpool_put(iscsi_conn_t *conn, void *handle)
+void iscsi_conn_context_put(struct iscsi_conn_context *conn_context)
 {
-	int i;
-
-	for (i = 0; i < RECVPOOL_MAX; i++) {
-		if (!conn->recvpool[i]) {
-			conn->recvpool[i] = handle;
-			break;
-		}
-	}
+	log_debug(7, "put conn context %p", &conn_context->actor);
+	conn_context->allocated = 0;
 }
 
 static void session_online_devs(int host_no, int sid)
@@ -343,8 +354,8 @@ __session_conn_create(iscsi_session_t *session, int cid)
 	conn_rec_t *conn_rec = &session->nrec.conn[cid];
 	int err;
 
-	if (__recvpool_alloc(conn)) {
-		log_error("cannot allocate recvpool for conn cid %d", cid);
+	if (iscsi_conn_context_alloc(conn)) {
+		log_error("cannot allocate context_pool for conn cid %d", cid);
 		return -ENOMEM;
 	}
 
@@ -430,79 +441,14 @@ __session_conn_create(iscsi_session_t *session, int cid)
 }
 
 static void
-__send_pdu_timedout(void *data)
-{
-	queue_task_t *qtask = data;
-	iscsi_conn_t *conn = qtask->conn;
-	iscsi_session_t *session = conn->session;
-
-	if (conn->send_pdu_in_progress) {
-		/*
-		 * redirect timeout processing to __session_conn_timer()
-		 */
-		queue_produce(session->queue, EV_CONN_TIMER, qtask, 0, NULL);
-		actor_schedule(&session->mainloop);
-		log_debug(7, "send_pdu timer timedout!");
-	}
-}
-
-static void
-__send_pdu_timer_add(struct iscsi_conn *conn, int timeout)
-{
-	if (conn->state == STATE_IN_LOGIN) {
-		iscsi_login_context_t *c = &conn->login_context;
-		conn->send_pdu_in_progress = 1;
-		actor_timer(&conn->send_pdu_timer, timeout*1000,
-			    __send_pdu_timedout, c->qtask);
-		log_debug(7, "send_pdu timer added %d secs", timeout);
-	}
-}
-
-static void
-__send_pdu_timer_remove(struct iscsi_conn *conn)
-{
-	if (conn->send_pdu_in_progress) {
-		actor_delete(&conn->send_pdu_timer);
-		conn->send_pdu_in_progress = 0;
-		log_debug(7, "send_pdu timer removed");
-	}
-}
-
-
-static void
-session_stop_conn_timers(iscsi_session_t *session, int cid)
-{
-	iscsi_conn_t *conn = &session->conn[cid];
-
-	__send_pdu_timer_remove(conn);
-	actor_delete(&conn->connect_timer);
-}
-
-static void
 session_release(iscsi_session_t *session)
 {
 	log_debug(2, "Releasing session %p", session);
 
 	if (session->target_alias)
 		free(session->target_alias);
-	__recvpool_free(&session->conn[0]);
-	actor_delete(&session->mainloop);
-	queue_destroy(session->queue);
+	iscsi_conn_context_free(&session->conn[0]);
 	free(session);
-}
-
-static void
-session_put(iscsi_session_t *session)
-{
-	session->refcount--;
-	if (session->refcount == 0)
-		session_release(session);
-}
-
-static void
-session_get(iscsi_session_t *session)
-{
-	session->refcount++;
 }
 
 static iscsi_session_t*
@@ -518,7 +464,6 @@ __session_create(node_rec_t *rec, struct iscsi_transport *t)
 	log_debug(2, "Allocted session %p", session);
 
 	INIT_LIST_HEAD(&session->list);
-	session_get(session);
 	/* opened at daemon load time (iscsid.c) */
 	session->ctrl_fd = control_fd;
 	session->t = t;
@@ -526,18 +471,6 @@ __session_create(node_rec_t *rec, struct iscsi_transport *t)
 
 	/* save node record. we might need it for redirection */
 	memcpy(&session->nrec, rec, sizeof(node_rec_t));
-
-	/* initalize per-session queue */
-	session->queue = queue_create(4, 4, NULL, session);
-	if (session->queue == NULL) {
-		log_error("can not create session's queue");
-		free(session);
-		return NULL;
-	}
-
-	/* initalize per-session event processor */
-	actor_new(&session->mainloop, __session_mainloop, session);
-	actor_schedule(&session->mainloop);
 
 	/* session's operational parameters */
 	session->initial_r2t_en = rec->session.iscsi.InitialR2T;
@@ -610,20 +543,21 @@ __session_create(node_rec_t *rec, struct iscsi_transport *t)
 	return session;
 }
 
-static void iscsi_queue_flush(queue_t *queue)
+static void iscsi_flush_context_pool(struct iscsi_session *session)
 {
-	unsigned char item_buf[sizeof(queue_item_t) + EVENT_PAYLOAD_MAX];
-	queue_item_t *item = (queue_item_t *)(void *)item_buf;
+	struct iscsi_conn_context *conn_context;
+	struct iscsi_conn *conn = &session->conn[0];
+	int i;
 
-	/* flush queue by consuming all enqueued items */
-	while (queue_consume(queue, EVENT_PAYLOAD_MAX,
-			     item) != QUEUE_IS_EMPTY) {
-		uintptr_t recv_handle = *(uintptr_t *)queue_item_data(item);
+	for (i = 0; i < CONTEXT_POOL_MAX; i++) {
+		conn_context = conn->context_pool[i];
+		if (!conn_context)
+			continue;
 
-		log_debug(7, "item %p(%d) data size %d flushed", item,
-			  item->event_type, item->data_size);
-		if (item->data_size)
-			recvpool_put(item->context, (void*)recv_handle);
+		if (conn_context->allocated) {
+			actor_delete(&(conn->context_pool[i]->actor));
+			iscsi_conn_context_put(conn_context);
+		}
 	}
 }
 
@@ -632,8 +566,8 @@ __session_destroy(iscsi_session_t *session)
 {
 	log_debug(1, "destroying session\n");
 	list_del(&session->list);
-	iscsi_queue_flush(session->queue);
-	session_put(session);
+	iscsi_flush_context_pool(session);
+	session_release(session);
 }
 
 static void
@@ -654,7 +588,6 @@ session_conn_cleanup(queue_task_t *qtask, mgmt_ipc_err_e err)
 	iscsi_session_t *session = conn->session;
 
 	mgmt_ipc_write_rsp(qtask, err);
-	session_stop_conn_timers(session, conn->id);
 	__session_destroy(session);
 }
 
@@ -665,8 +598,7 @@ __session_conn_shutdown(iscsi_conn_t *conn, queue_task_t *qtask,
 	iscsi_session_t *session = conn->session;
 
 	__conn_noop_out_delete(conn);
-	actor_delete(&conn->connect_timer);
-	iscsi_queue_flush(session->queue);
+	iscsi_flush_context_pool(session);
 
 	if (ipc->destroy_conn(session->t->handle, session->id,
 		conn->id)) {
@@ -764,30 +696,26 @@ __conn_noop_out(void *data)
 }
 
 static void
-__connect_timedout(void *data)
-{
-	queue_task_t *qtask = data;
-	iscsi_conn_t *conn = qtask->conn;
-	iscsi_session_t *session = conn->session;
-
-	if (conn->state == STATE_XPT_WAIT) {
-		/* flush any polls or other events queued */
-		iscsi_queue_flush(session->queue);
-		log_debug(3, "__connect_timedout queue EV_CONN_TIMER\n");
-		queue_produce(session->queue, EV_CONN_TIMER, qtask, 0, NULL);
-		actor_schedule(&session->mainloop);
-	}
-}
-
-static void
 queue_delayed_reopen(queue_task_t *qtask, int delay)
 {
 	iscsi_conn_t *conn = qtask->conn;
+	struct iscsi_conn_context *conn_context;
 
 	log_debug(4, "Requeue reopen attempt in %d secs\n", delay);
-	actor_delete(&conn->connect_timer);
-	actor_timer(&conn->connect_timer, delay * 1000,
-		    __connect_timedout, qtask);
+
+	conn_context = iscsi_conn_context_get(conn, 0);
+	if (!conn_context) {
+		/* the queue should be full here */
+		log_error("BUG: queue_delayed_reopen could not get conn "
+			  "context for delayed reopen.");
+	}
+	conn_context->data = qtask;
+	/*
+ 	 * The EV_CONN_LOGIN_TIMER can handle the login resched as
+ 	 * if it were login time out
+ 	 */
+	iscsi_sched_conn_context(conn_context, conn, delay,
+				 EV_CONN_LOGIN_TIMER);
 }
 
 static void
@@ -823,6 +751,7 @@ __session_conn_reopen(iscsi_conn_t *conn, queue_task_t *qtask, int do_stop)
 {
 	int rc, delay;
 	iscsi_session_t *session = conn->session;
+	struct iscsi_conn_context *conn_context;
 
 	log_debug(1, "re-opening session %d (reopen_cnt %d)", session->id,
 			session->reopen_cnt);
@@ -831,11 +760,8 @@ __session_conn_reopen(iscsi_conn_t *conn, queue_task_t *qtask, int do_stop)
 	qtask->conn = conn;
 
 	/* flush stale polls or errors queued */
-	iscsi_queue_flush(session->queue);
-	actor_delete(&conn->connect_timer);
+	iscsi_flush_context_pool(session);
 	__conn_noop_out_delete(conn);
-
-	__send_pdu_timer_remove(conn);
 	conn->state = STATE_XPT_WAIT;
 
 	if (do_stop) {
@@ -868,12 +794,26 @@ __session_conn_reopen(iscsi_conn_t *conn, queue_task_t *qtask, int do_stop)
 		goto queue_reopen;
 	}
 
-	queue_produce(session->queue, EV_CONN_POLL, qtask, 0, NULL);
-	actor_schedule(&session->mainloop);
+	conn_context = iscsi_conn_context_get(conn, 0);
+	if (!conn_context) {
+		/* while reopening the recv pool should be full */
+		log_error("BUG: __session_conn_reopen could not get conn "
+			  "context for poll.");
+		return ENOMEM;
+	}
+	conn_context->data = qtask;
+	iscsi_sched_conn_context(conn_context, conn, 0, EV_CONN_POLL);
 
-	actor_timer(&conn->connect_timer, conn->login_timeout*1000,
-		    __connect_timedout, qtask);
-
+	conn_context = iscsi_conn_context_get(conn, 0);
+	if (!conn_context) {
+		/* while reopening the recv pool should be full */
+		log_error("BUG: __session_conn_reopen could not get conn "
+			  "context for timer.");
+		return ENOMEM;
+	}
+	conn_context->data = qtask;
+	iscsi_sched_conn_context(conn_context, conn, conn->login_timeout,
+				 EV_CONN_LOGIN_TIMER);
 	return 0;
 
 queue_reopen:
@@ -913,8 +853,6 @@ iscsi_login_redirect(iscsi_conn_t *conn)
 	iscsi_login_context_t *c = &conn->login_context;
 
 	log_debug(3, "login redirect ...\n");
-
-	iscsi_queue_flush(session->queue);
 
 	if (session->r_stage == R_STAGE_NO_CHANGE)
 		session->r_stage = R_STAGE_SESSION_REDIRECT;
@@ -1193,6 +1131,11 @@ setup_full_feature_phase(iscsi_conn_t *conn)
 		; /* success - fall through */
 	}
 
+	/*
+	 * Remove login timer.
+	 */ 
+	iscsi_flush_context_pool(session);
+
 	/* Entered full-feature phase! */
 	for (i = 0; i < MAX_SESSION_PARAMS; i++) {
 		if (conn->id != 0 && !conntbl[i].conn_only)
@@ -1289,10 +1232,12 @@ failed:
 	return;	
 }
 
-static void iscsi_logout_timeout(void *data)
+static void iscsi_logout_timedout(void *data)
 {
-	iscsi_conn_t *conn = data;
+	struct iscsi_conn_context *conn_context = data;
+	struct iscsi_conn *conn = conn_context->conn;
 
+	iscsi_conn_context_put(conn_context); 
 	/*
 	 * assume we were in STATE_IN_LOGOUT or there
 	 * was some nasty error
@@ -1304,6 +1249,7 @@ static void iscsi_logout_timeout(void *data)
 static int iscsi_send_logout(iscsi_conn_t *conn)
 {
 	struct iscsi_logout hdr;
+	struct iscsi_conn_context *conn_context;
 
 	if (conn->state == STATE_IN_LOGOUT ||
 	    conn->state != STATE_LOGGED_IN)
@@ -1320,9 +1266,18 @@ static int iscsi_send_logout(iscsi_conn_t *conn)
 		return -EIO;
 	conn->state = STATE_IN_LOGOUT;
 
-	actor_timer(&conn->logout_timer, conn->logout_timeout * 1000,
-		    iscsi_logout_timeout, conn);
-	log_debug(3, "logout timeout timer %p start\n", &conn->logout_timer);
+	conn_context = iscsi_conn_context_get(conn, 0);
+	if (!conn_context)
+		/* unbounded logout */
+		log_warning("Could not allocate conn context for logout.");
+	else {
+		iscsi_sched_conn_context(conn_context, conn,
+					 conn->logout_timeout,
+					 EV_CONN_LOGOUT_TIMER);
+		log_debug(3, "logout timeout timer %u\n",
+			  conn->logout_timeout * 1000);
+	}
+
 	return 0;
 }
 
@@ -1396,15 +1351,15 @@ static void iscsi_recv_async_msg(iscsi_conn_t *conn, struct iscsi_hdr *hdr)
 	}
 }
 
-static void
-__session_conn_recv_pdu(queue_item_t *item)
+void session_conn_recv_pdu(void *data)
 {
-	iscsi_conn_t *conn = item->context;
+	struct iscsi_conn_context *conn_context = data;
+	iscsi_conn_t *conn = conn_context->conn;
 	iscsi_session_t *session = conn->session;
 	iscsi_login_context_t *c;
 	struct iscsi_hdr hdr;
 
-	conn->recv_handle = *(uintptr_t*)queue_item_data(item);
+	conn->recv_context = conn_context;
 
 	switch (conn->state) {
 	case STATE_IN_LOGIN:
@@ -1456,17 +1411,17 @@ __session_conn_recv_pdu(queue_item_t *item)
 		}
 		break;
 	case STATE_XPT_WAIT:
-		recvpool_put(conn, (void *)conn->recv_handle);
+		iscsi_conn_context_put(conn_context);
 		log_debug(1, "ignoring incomming PDU in XPT_WAIT. "
 			  "let connection re-establish or fail");
 		break;
 	case STATE_CLEANUP_WAIT:
-		recvpool_put(conn, (void *)conn->recv_handle);
+		iscsi_conn_context_put(conn_context);
 		log_debug(1, "ignoring incomming PDU in XPT_WAIT. "
 			  "let connection cleanup");
 		break;
 	default:
-		recvpool_put(conn, (void *)conn->recv_handle);
+		iscsi_conn_context_put(conn_context);
 		log_error("Invalid state. Dropping PDU.\n");
 	}
 }
@@ -1479,19 +1434,19 @@ setup_kernel_io_callouts(iscsi_conn_t *conn)
 	conn->send_pdu_end = ipc->send_pdu_end;
 	conn->recv_pdu_begin = ipc->recv_pdu_begin;
 	conn->recv_pdu_end = ipc->recv_pdu_end;
-	conn->send_pdu_timer_add = __send_pdu_timer_add;
-	conn->send_pdu_timer_remove = __send_pdu_timer_remove;
 }
 
-static void
-__session_conn_poll(queue_item_t *item)
+static void session_conn_poll(void *data)
 {
+	struct iscsi_conn_context *conn_context = data;
+	iscsi_conn_t *conn = conn_context->conn;
+	struct iscsi_session *session = conn->session;
 	mgmt_ipc_err_e err = MGMT_IPC_OK;
-	queue_task_t *qtask = item->context;
-	iscsi_conn_t *conn = qtask->conn;
+	queue_task_t *qtask = conn_context->data;
 	iscsi_login_context_t *c = &conn->login_context;
-	iscsi_session_t *session = conn->session;
 	int rc;
+
+	iscsi_conn_context_put(conn_context);
 
 	if (conn->state != STATE_XPT_WAIT)
 		return;
@@ -1499,13 +1454,18 @@ __session_conn_poll(queue_item_t *item)
 	rc = session->t->template->ep_poll(conn, 1);
 	if (rc == 0) {
 		/* timedout: Poll again. */
-		queue_produce(session->queue, EV_CONN_POLL, qtask, 0, NULL);
-		actor_schedule(&session->mainloop);
+		conn_context = iscsi_conn_context_get(conn, 0);
+		if (!conn_context) {
+			/* while polling the recv pool should be full */
+			log_error("BUG: session_conn_poll could not get conn "
+				  "context.");
+			return;
+		}
+		conn_context->data = qtask;
+		iscsi_sched_conn_context(conn_context, conn, 0, EV_CONN_POLL);
 	} else if (rc > 0) {
 		/* connected! */
 		memset(c, 0, sizeof(iscsi_login_context_t));
-
-		actor_delete(&conn->connect_timer);
 
 		/* do not allocate new connection in case of reopen */
 		if (session->r_stage == R_STAGE_NO_CHANGE) {
@@ -1599,12 +1559,20 @@ cleanup:
 	session_conn_cleanup(qtask, err);
 }
 
-static void
-__session_conn_timer(queue_item_t *item)
+static void iscsi_login_timedout(void *data)
 {
-	queue_task_t *qtask = item->context;
-	iscsi_conn_t *conn = qtask->conn;
-	iscsi_session_t *session = conn->session;
+	struct iscsi_conn_context *conn_context = data;
+	queue_task_t *qtask = conn_context->data;
+	iscsi_conn_t *conn = conn_context->conn;
+	struct iscsi_session *session = conn->session;
+
+	iscsi_conn_context_put(conn_context);
+
+	log_debug(3, "session_conn_login_timedout");
+	/*
+	 * Flush polls and other events
+	 */
+	iscsi_flush_context_pool(conn->session);
 
 	switch (conn->state) {
 	case STATE_XPT_WAIT:
@@ -1679,7 +1647,6 @@ __conn_error_handle(iscsi_session_t *session, iscsi_conn_t *conn)
 
 	switch (conn->state) {
 	case STATE_IN_LOGOUT:
-		actor_delete(&conn->logout_timer);
 		/* logout was requested by user */
 		if (conn->logout_qtask) {
 			session_conn_shutdown(conn, conn->logout_qtask,
@@ -1749,60 +1716,56 @@ __conn_error_handle(iscsi_session_t *session, iscsi_conn_t *conn)
 	}
 }
 
-static void
-__session_conn_error(queue_item_t *item)
+static void session_conn_error(void *data)
 {
-	uintptr_t recv_handle = *(uintptr_t *)queue_item_data(item);
-	enum iscsi_err error = *(enum iscsi_err *)recv_handle;
-	iscsi_conn_t *conn = item->context;
+	struct iscsi_conn_context *conn_context = data;
+	enum iscsi_err error = *(enum iscsi_err *)conn_context->data;
+	iscsi_conn_t *conn = conn_context->conn;
 	iscsi_session_t *session = conn->session;
 
 	log_warning("Kernel reported iSCSI connection %d:%d error (%d) "
 		    "state (%d)", session->id, conn->id, error,
 		    conn->state);
+	iscsi_conn_context_put(conn_context);
 	__conn_error_handle(session, conn);
-	recvpool_put(conn, (void*)recv_handle);
 }
 
-static void
-__session_mainloop(void *data)
+void iscsi_sched_conn_context(struct iscsi_conn_context *conn_context,
+			      struct iscsi_conn *conn, unsigned long tmo,
+			      int event)
 {
-	iscsi_session_t *session = data;
-	unsigned char item_buf[sizeof(queue_item_t) + EVENT_PAYLOAD_MAX];
-	queue_item_t *item = (queue_item_t *)(void *)item_buf;
-	int count = session->queue->count, i;
+	log_debug(7, "sched conn context %p event %d, tmo %lu",
+		  &conn_context->actor, event, tmo);
 
-	/*
-	 * grab a reference in case one of these events destroys
-	 * the session
-	 */
-	session_get(session);
-	for (i = 0; i < count; i++) {
-		if (queue_consume(session->queue, EVENT_PAYLOAD_MAX,
-				  item) == QUEUE_IS_EMPTY) {
-			log_debug(4, "%d items flushed while mainloop "
-				  "was processing", count - i);
-			break;
-		}
-
-		switch (item->event_type) {
-		case EV_CONN_RECV_PDU:
-			__session_conn_recv_pdu(item);
-			break;
-		case EV_CONN_POLL:
-			__session_conn_poll(item);
-			break;
-		case EV_CONN_TIMER:
-			__session_conn_timer(item);
-			break;
-		case EV_CONN_ERROR:
-			__session_conn_error(item);
-			break;
-		default:
-			break;
-		}
+	conn_context->conn = conn;
+	switch (event) {
+	case EV_CONN_RECV_PDU:
+		actor_new(&conn_context->actor, session_conn_recv_pdu,
+			  conn_context);
+		actor_schedule(&conn_context->actor);
+		break;
+	case EV_CONN_ERROR:
+		actor_new(&conn_context->actor, session_conn_error,
+			  conn_context);
+		actor_schedule(&conn_context->actor);
+		break;
+	case EV_CONN_POLL:
+		actor_new(&conn_context->actor, session_conn_poll,
+			  conn_context);
+		actor_schedule(&conn_context->actor);
+		break;
+	case EV_CONN_LOGIN_TIMER:
+		actor_timer(&conn_context->actor, tmo * 1000,
+			    iscsi_login_timedout, conn_context);
+		break;
+	case EV_CONN_LOGOUT_TIMER:
+		actor_timer(&conn_context->actor, tmo * 1000,
+			    iscsi_logout_timedout, conn_context);
+		break;
+	default:
+		log_error("Invalid event type %d.", event);
+		return;
 	}
-	session_put(session);
 }
 
 iscsi_session_t*
@@ -1862,6 +1825,7 @@ session_login_task(node_rec_t *rec, queue_task_t *qtask)
 	iscsi_session_t *session;
 	iscsi_conn_t *conn;
 	struct iscsi_transport *t;
+	struct iscsi_conn_context *conn_context;
 
 	t = get_transport_by_name(rec->iface.transport_name);
 	if (!t)
@@ -1928,6 +1892,29 @@ session_login_task(node_rec_t *rec, queue_task_t *qtask)
 	conn = &session->conn[0];
 	qtask->conn = conn;
 
+	conn_context = iscsi_conn_context_get(conn, 0);
+	if (!conn_context) {
+		/* while logging the recv pool should be full */
+		log_error("BUG: session_login_task could not get conn "
+			  "context for poll.");
+		__session_destroy(session);
+		return MGMT_IPC_ERR_INTERNAL;
+	}
+	conn_context->data = qtask;
+	iscsi_sched_conn_context(conn_context, conn, 0, EV_CONN_POLL);
+
+	conn_context = iscsi_conn_context_get(conn, 0);
+	if (!conn_context) {
+		/* while logging the recv pool should be full - 1 */
+		log_error("BUG: session_login_task could not get conn "
+			  "context for poll.");
+		__session_destroy(session);
+		return MGMT_IPC_ERR_INTERNAL;
+	}
+	conn_context->data = qtask;
+	iscsi_sched_conn_context(conn_context, conn, conn->login_timeout,
+				 EV_CONN_LOGIN_TIMER);
+
 	rc = session->t->template->ep_connect(conn, 1);
 	if (rc < 0 && errno != EINPROGRESS) {
 		char serv[NI_MAXSERV];
@@ -1939,17 +1926,10 @@ session_login_task(node_rec_t *rec, queue_task_t *qtask)
 
 		log_error("cannot make a connection to %s:%s (%d)",
 			 conn->host, serv, errno);
-		session_stop_conn_timers(session, 0);
 		__session_destroy(session);
 		return MGMT_IPC_ERR_TRANS_FAILURE;
 	}
-
 	conn->state = STATE_XPT_WAIT;
-	queue_produce(session->queue, EV_CONN_POLL, qtask, 0, NULL);
-	actor_schedule(&session->mainloop);
-
-	actor_timer(&conn->connect_timer, conn->login_timeout*1000,
-		    __connect_timedout, qtask);
 
 	qtask->rsp.command = MGMT_IPC_SESSION_LOGIN;
 	qtask->rsp.err = MGMT_IPC_OK;

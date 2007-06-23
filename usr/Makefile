@@ -38,7 +38,7 @@ ISCSI_LIB_SRCS = util.o io.o auth.o login.o log.o md5.o sha1.o iscsi_sysfs.o idb
 # sources shared between iscsid and iscsiadm
 COMMON_SRCS =  $(ISCSI_LIB_SRCS)
 # core initiator files
-INITIATOR_SRCS = initiator.o queue.o actor.o mgmt_ipc.o isns.o transport.o
+INITIATOR_SRCS = initiator.o actor.o mgmt_ipc.o isns.o transport.o
 
 all: $(PROGRAMS)
 

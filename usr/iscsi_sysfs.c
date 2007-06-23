@@ -21,7 +21,6 @@
 #include <ctype.h>
 #include <string.h>
 #include <errno.h>
-#include <search.h>
 #include <dirent.h>
 #include <pwd.h>
 #include <sys/types.h>

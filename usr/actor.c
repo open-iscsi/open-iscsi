@@ -115,6 +115,7 @@ actor_schedule_private(actor_t *thread, uint32_t ttschedule)
 	switch(thread->state) {
 	case ACTOR_WAITING:
 		log_error("rescheduling a waiting thread!");
+		remque(&thread->item);
 	case ACTOR_NOTSCHEDULED:
 		/* if ttschedule is 0, put in scheduled queue and change
 		 * state to scheduled, else add current time to ttschedule and
@@ -151,6 +152,10 @@ actor_schedule_private(actor_t *thread, uint32_t ttschedule)
 	case ACTOR_POLL_WAITING:
 	case ACTOR_SCHEDULED:
 		// don't do anything
+		break;
+	case ACTOR_INVALID:
+		log_error("BUG: Trying to schedule a thread that has not been "
+			  "setup. Ignoring sched.");
 		break;
 	}
 

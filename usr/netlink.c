@@ -668,8 +668,7 @@ kstart_conn(uint64_t transport_handle, uint32_t sid, uint32_t cid,
 }
 
 static int
-krecv_pdu_begin(uint64_t transport_handle, uintptr_t recv_handle,
-		uintptr_t *pdu_handle, int *pdu_size)
+krecv_pdu_begin(struct iscsi_conn *conn)
 {
 	log_debug(7, "in %s", __FUNCTION__);
 
@@ -677,19 +676,17 @@ krecv_pdu_begin(uint64_t transport_handle, uintptr_t recv_handle,
 		log_error("recv's begin state machine bug?");
 		return -EIO;
 	}
-	recvbuf = (void*)recv_handle + sizeof(struct iscsi_uevent);
+	recvbuf = conn->recv_context->data + sizeof(struct iscsi_uevent);
 	recvlen = 0;
-	*pdu_handle = recv_handle;
 
 	log_debug(3, "recv PDU began, pdu handle 0x%p",
-		  (void*)*pdu_handle);
+		  recvbuf);
 
 	return 0;
 }
 
 static int
-krecv_pdu_end(uint64_t transport_handle, uintptr_t conn_handle,
-	      uintptr_t pdu_handle)
+krecv_pdu_end(struct iscsi_conn *conn)
 {
 	log_debug(7, "in %s", __FUNCTION__);
 
@@ -699,9 +696,10 @@ krecv_pdu_end(uint64_t transport_handle, uintptr_t conn_handle,
 	}
 
 	log_debug(3, "recv PDU finished for pdu handle 0x%p",
-		  (void*)pdu_handle);
+		  recvbuf);
 
-	recvpool_put((void*)conn_handle, (void*)pdu_handle);
+	iscsi_conn_context_put(conn->recv_context);
+	conn->recv_context = NULL;
 	recvbuf = NULL;
 	return 0;
 }
@@ -852,9 +850,9 @@ static int ctldev_handle(void)
 	struct iscsi_transport *t;
 	iscsi_session_t *session = NULL;
 	iscsi_conn_t *conn = NULL;
-	uintptr_t recv_handle;
 	char nlm_ev[NLMSG_SPACE(sizeof(struct iscsi_uevent))];
 	struct nlmsghdr *nlh;
+	struct iscsi_conn_context *conn_context;
 	int ev_size;
 
 	log_debug(7, "in %s", __FUNCTION__);
@@ -915,41 +913,41 @@ verify_conn:
 	}
 
 	ev_size = nlh->nlmsg_len - NLMSG_ALIGN(sizeof(struct nlmsghdr));
-	recv_handle = (uintptr_t)recvpool_get(conn, ev_size);
-	if (!recv_handle) {
+	conn_context = iscsi_conn_context_get(conn, ev_size);
+	if (!conn_context) {
 		/* retry later */
-		log_error("Can not allocate memory for receive handle.");
+		log_error("Can not allocate memory for receive context.");
 		return -ENOMEM;
 	}
 
 	log_debug(6, "message real length is %d bytes, recv_handle %p",
-		nlh->nlmsg_len, (void*)recv_handle);
+		nlh->nlmsg_len, conn_context->data);
 
-	if ((rc = nlpayload_read(ctrl_fd, (void*)recv_handle,
+	if ((rc = nlpayload_read(ctrl_fd, conn_context->data,
 				ev_size, 0)) < 0) {
-		recvpool_put(conn, (void*)recv_handle);
+		iscsi_conn_context_put(conn_context);
 		log_error("can not read from NL socket, error %d", rc);
 		/* retry later */
 		return rc;
 	}
 
+	/*
+	 * we sched these events because the handlers could call back
+	 * into ctldev_handle
+	 */
 	switch (ev->type) {
 	case ISCSI_KEVENT_RECV_PDU:
-		/* produce an event, so session manager will handle */
-		queue_produce(session->queue, EV_CONN_RECV_PDU, conn,
-			sizeof(uintptr_t), &recv_handle);
-		actor_schedule(&session->mainloop);
+		iscsi_sched_conn_context(conn_context, conn, 0,
+					 EV_CONN_RECV_PDU);
 		break;
 	case ISCSI_KEVENT_CONN_ERROR:
-		/* produce an event, so session manager will handle */
-		memcpy((void *)recv_handle, &ev->r.connerror.error,
+		memcpy(conn_context->data, &ev->r.connerror.error,
 			sizeof(ev->r.connerror.error));
-		queue_produce(session->queue, EV_CONN_ERROR, conn,
-			sizeof(uintptr_t), &recv_handle);
-		actor_schedule(&session->mainloop);
+		iscsi_sched_conn_context(conn_context, conn, 0,
+					 EV_CONN_ERROR);
 		break;
 	default:
-		recvpool_put(conn, (void*)recv_handle);
+		iscsi_conn_context_put(conn_context);
 		log_error("unknown kernel event %d", ev->type);
 		return -EEXIST;
 	}

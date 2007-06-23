@@ -50,15 +50,16 @@ struct isns_task {
 	int done;
 	int retry;
 	queue_task_t *qtask;
+	struct actor actor;
 };
 
-static actor_t isns_actor;
-static queue_t *isns_queue = NULL;
 static struct sockaddr_storage ss;
 static uint16_t transaction;
 
 static char isns_address[NI_MAXHOST];
 static int isns_port = 3205, isns_listen_port, max_retry = 10000;
+
+static void isns_poll(void *data);
 
 #define ARRAY_SIZE(x) (sizeof(x) / sizeof((x)[0]))
 
@@ -432,8 +433,8 @@ static int isns_task_done(struct isns_task *task)
 		task->len = length + sizeof(*hdr);
 		task->done = 0;
 
-		queue_produce(isns_queue, EV_CONN_POLL, task, 0, NULL);
-		actor_schedule(&isns_actor);
+		actor_new(&task->actor, isns_poll, task);
+		actor_schedule(&task->actor);
 		finished = 0;
 		break;
 	default:
@@ -502,8 +503,8 @@ int isns_dev_attr_query_task(queue_task_t *qtask)
 
 	qtask->rsp.command = MGMT_IPC_ISNS_DEV_ATTR_QUERY;
 
-	queue_produce(isns_queue, EV_CONN_POLL, task, 0, NULL);
-	actor_schedule(&isns_actor);
+	actor_new(&task->actor, isns_poll, task);
+	actor_schedule(&task->actor);
 
 	return MGMT_IPC_OK;
 }
@@ -532,15 +533,15 @@ void isns_handle(int listen_fd)
 	task->state = ISNS_TASK_RECV_PDU;
 	task->fd = fd;
 
-	queue_produce(isns_queue, EV_CONN_POLL, task, 0, NULL);
-	actor_schedule(&isns_actor);
+	actor_new(&task->actor, isns_poll, task);
+	actor_schedule(&task->actor);
 }
 
-static void isns_poll(queue_item_t *item)
+static void isns_poll(void *data)
 {
 	int err, finished;
 	struct pollfd pfd;
-	struct isns_task *task = item->context;
+	struct isns_task *task = data;
 	struct isns_hdr *hdr = (struct isns_hdr *) task->data;
 	uint16_t function = ntohs(hdr->function);
 
@@ -573,9 +574,8 @@ static void isns_poll(queue_item_t *item)
 						goto free_task;
 				}
 
-				queue_produce(isns_queue, EV_CONN_POLL, task, 0,
-					      NULL);
-				actor_schedule(&isns_actor);
+				actor_new(&task->actor, isns_poll, task);
+				actor_schedule(&task->actor);
 			}
 			break;
 		case ISNS_TASK_RECV_PDU:
@@ -590,9 +590,9 @@ static void isns_poll(queue_item_t *item)
 						goto free_task;
 				} else {
 					/* need to read more */
-					queue_produce(isns_queue, EV_CONN_POLL,
-						      task, 0, NULL);
-					actor_schedule(&isns_actor);
+					actor_new(&task->actor, isns_poll,
+						  task);
+					actor_schedule(&task->actor);
 				}
 			}
 		}
@@ -602,8 +602,8 @@ static void isns_poll(queue_item_t *item)
 			log_error("abort task");
 			goto abort_task;
 		} else {
-			queue_produce(isns_queue, EV_CONN_POLL, task, 0, NULL);
-			actor_schedule(&isns_actor);
+			actor_new(&task->actor, isns_poll, task);
+			actor_schedule(&task->actor);
 		}
 	}
 
@@ -613,32 +613,6 @@ abort_task:
 		send_mgmt_rsp(task, 1);
 free_task:
 	isns_free_task(task);
-}
-
-static void isns_control(void *data)
-{
-	int count = isns_queue->count, i;
-	int err;
-	unsigned char item_buf[sizeof(queue_item_t) + EVENT_PAYLOAD_MAX];
-	queue_item_t *item = (queue_item_t *)(void *)item_buf;
-
-	for (i = 0; i < count; i++) {
-		err = queue_consume(isns_queue, EVENT_PAYLOAD_MAX, item);
-		if (err == QUEUE_IS_EMPTY) {
-			log_debug(4, "%d items flushed while mainloop "
-				  "was processing", count - i);
-			break;
-		}
-
-		switch (item->event_type) {
-		case EV_CONN_POLL:
-			isns_poll(item);
-			break;
-		default:
-			log_error("%d unknown event type", item->event_type);
-			break;
-		}
-	}
 }
 
 static int isns_dev_register(void)
@@ -658,10 +632,9 @@ static int isns_dev_register(void)
 
 	task->state = ISNS_TASK_WAIT_CONN;
 	build_dev_reg_req(task);
-	queue_produce(isns_queue, EV_CONN_POLL, task, 0, NULL);
 
-	actor_new(&isns_actor, isns_control, NULL);
-	actor_schedule(&isns_actor);
+	actor_new(&task->actor, isns_poll, task);
+	actor_schedule(&task->actor);
 
 	return 0;
 }
@@ -741,62 +714,23 @@ int isns_init(void)
 	if (!strlen(isns_address))
 		return -1;
 
-	isns_queue = queue_create(4, 4, NULL, NULL);
-	if (!isns_queue) {
-		log_error("can't create queue %m");
-		return -ENOMEM;
-	}
-
 	snprintf(port, sizeof(port), "%d", isns_port);
 	err = resolve_address(isns_address, port, &ss);
 	if (err) {
 		log_error("can't resolve address %m, %s", isns_address);
-		goto free_queue;
+		return err;
 	}
 
 	err = isns_listen_init(&fd);
 	if (err)
-		goto free_queue;
+		return err;
 
 	isns_dev_register();
 	return fd;
-
-free_queue:
-	queue_destroy(isns_queue);
-	return err;
 }
 
 void isns_exit(void)
 {
-	int err, count, i;
-	unsigned char item_buf[sizeof(queue_item_t) + EVENT_PAYLOAD_MAX];
-	queue_item_t *item = (queue_item_t *)(void *)item_buf;
-
-	if (!isns_queue)
-		return;
-
-	count = isns_queue->count;
-	/*
-	 * TODO: Add some code to gracefully shutdown.
-	 */
-	for (i = 0; i < count; i++) {
-		err = queue_consume(isns_queue, EVENT_PAYLOAD_MAX, item);
-		if (err == QUEUE_IS_EMPTY) {
-			log_debug(4, "%d items flushed while mainloop "
-				  "was processing", count - i);
-			break;
-		}
-
-		log_debug(4, "Dropping event type %d\n", item->event_type);
-		switch (item->event_type) {
-		case EV_CONN_POLL:
-			isns_free_task(item->context);
-			continue;
-		default:
-			log_error("%d unknown event type", item->event_type);
-			continue;
-		}
-	}
-
-	queue_destroy(isns_queue);
+	/* do nothing for now */
+	;
 }

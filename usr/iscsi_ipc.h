@@ -33,6 +33,8 @@ enum {
 	ISCSI_STRING,
 };
 
+struct iscsi_conn;
+
 /**
  * struct iscsi_ipc - Open-iSCSI Interface for Kernel IPC
  *
@@ -102,11 +104,9 @@ struct iscsi_ipc {
 
 	int (*writev) (enum iscsi_uevent_e type, struct iovec *iovp, int count);
 
-	int (*recv_pdu_begin) (uint64_t transport_handle, uintptr_t recv_handle,
-			       uintptr_t *pdu_handle, int *pdu_size);
+	int (*recv_pdu_begin) (struct iscsi_conn *conn);
 
-	int (*recv_pdu_end) (uint64_t transport_handle, uintptr_t conn_handle,
-			     uintptr_t pdu_handle);
+	int (*recv_pdu_end) (struct iscsi_conn *conn);
 };
 
 #endif /* ISCSI_IPC_H */

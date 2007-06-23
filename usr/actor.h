@@ -25,6 +25,7 @@
 #define ACTOR_MAX_LOOPS		1
 
 typedef enum actor_state_e {
+    ACTOR_INVALID,
     ACTOR_WAITING,
     ACTOR_SCHEDULED,
     ACTOR_NOTSCHEDULED,

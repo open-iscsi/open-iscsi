@@ -632,12 +632,10 @@ iscsi_io_send_pdu(iscsi_conn_t *conn, struct iscsi_hdr *hdr,
 	else
 		pad_bytes = 0;
 
-	if (conn->kernel_io) {
+	if (conn->kernel_io)
 		conn->send_pdu_begin(session->t->handle, session->id,
 			conn->id, end - header,
 			ntoh24(hdr->dlength) + pad_bytes);
-		conn->send_pdu_timer_add(conn, timeout);
-	}
 
 	while (header < end) {
 		vec[0].iov_base = header;
@@ -698,7 +696,6 @@ iscsi_io_send_pdu(iscsi_conn_t *conn, struct iscsi_hdr *hdr,
 	if (conn->kernel_io) {
 		if (conn->send_pdu_end(session->t->handle, session->id,
 				       conn->id, &rc)) {
-			conn->send_pdu_timer_remove(conn);
 			ret = 0;
 			goto done;
 		}
@@ -732,8 +729,6 @@ iscsi_io_recv_pdu(iscsi_conn_t *conn, struct iscsi_hdr *hdr,
 	char *end = data + max_data_length;
 	struct sigaction action;
 	struct sigaction old;
-	uintptr_t pdu_handle;
-	int pdu_size;
 	iscsi_session_t *session = conn->session;
 
 	memset(data, 0, max_data_length);
@@ -751,8 +746,7 @@ iscsi_io_recv_pdu(iscsi_conn_t *conn, struct iscsi_hdr *hdr,
 		timedout = 0;
 		alarm(timeout);
 	} else {
-		if (conn->recv_pdu_begin(session->ctrl_fd,
-				conn->recv_handle, &pdu_handle, &pdu_size)) {
+		if (conn->recv_pdu_begin(conn)) {
 			failed = 1;
 			goto done;
 		}
@@ -905,11 +899,9 @@ done:
 		sigaction(SIGALRM, &old, NULL);
 	} else {
 		/* finalyze receive transaction */
-		if (conn->recv_pdu_end(session->ctrl_fd, (uintptr_t)conn,
-				pdu_handle)) {
+		if (conn->recv_pdu_end(conn)) {
 			failed = 1;
 		}
-		conn->send_pdu_timer_remove(conn);
 	}
 
 	if (timedout || failed) {

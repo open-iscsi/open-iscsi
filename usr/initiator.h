@@ -30,7 +30,6 @@
 #include "mgmt_ipc.h"
 #include "config.h"
 #include "actor.h"
-#include "queue.h"
 #include "list.h"
 
 #define ISCSI_CONFIG_ROOT	"/etc/iscsi/"
@@ -66,17 +65,13 @@ enum iscsi_login_status {
 };
 
 typedef enum iscsi_event_e {
-	EV_UNKNOWN			= 0,
-	EV_CONN_RECV_PDU		= 1,
-	EV_CONN_POLL			= 2,
-	EV_CONN_TIMER			= 3,
-	EV_CONN_ERROR			= 4,
+	EV_UNKNOWN,
+	EV_CONN_RECV_PDU,
+	EV_CONN_POLL,
+	EV_CONN_ERROR,
+	EV_CONN_LOGIN_TIMER,
+	EV_CONN_LOGOUT_TIMER,
 } iscsi_event_e;
-
-typedef struct iscsi_event {
-	queue_item_t item;
-	char payload[EVENT_PAYLOAD_MAX];
-} iscsi_event_t;
 
 struct queue_task;
 
@@ -100,49 +95,37 @@ typedef struct iscsi_login_context {
 
 struct iscsi_session;
 struct iscsi_conn;
+struct iscsi_conn_context;
 
 typedef void (*send_pdu_begin_f) (uint64_t transport_handle, uint32_t sid,
                                   uint32_t cid, int hdr_size, int data_size);
 typedef int (*send_pdu_end_f) (uint64_t transport_handle, uint32_t sid,
 			       uint32_t cid, int *retcode);
-typedef int (*recv_pdu_begin_f) (uint64_t transport_handle,
-				 uintptr_t recv_handle, uintptr_t *pdu_handle,
-				 int *pdu_size);
-typedef int (*recv_pdu_end_f) (uint64_t transport_handle, uintptr_t conn_handle,
-                             uintptr_t pdu_handle);
-typedef void (*send_pdu_timer_add_f)(struct iscsi_conn *conn, int timeout);
-typedef void (*send_pdu_timer_remove_f)(struct iscsi_conn *conn);
+typedef int (*recv_pdu_begin_f) (struct iscsi_conn *conn);
+typedef int (*recv_pdu_end_f) (struct iscsi_conn *conn);
 
 /* daemon's connection structure */
 typedef struct iscsi_conn {
-	struct qelem item; /* must stay at the top */
 	uint32_t id;
-	uintptr_t recv_handle;
 	struct iscsi_session *session;
 	iscsi_login_context_t login_context;
+	struct iscsi_conn_context *recv_context;
 	struct queue_task *logout_qtask;
 	char data[ISCSI_DEF_MAX_RECV_SEG_LEN];
 	char host[NI_MAXHOST];	/* scratch */
 	iscsi_conn_state_e state;
-	actor_t connect_timer;
-	actor_t send_pdu_timer;
-	actor_t logout_timer;
 
 	actor_t noop_out_timer;
 	actor_t noop_out_timeout_timer;
-
-	int send_pdu_in_progress;
 
 	int kernel_io;
 	send_pdu_begin_f send_pdu_begin;
 	send_pdu_end_f send_pdu_end;
 	recv_pdu_begin_f recv_pdu_begin;
 	recv_pdu_end_f recv_pdu_end;
-	send_pdu_timer_add_f send_pdu_timer_add;
-	send_pdu_timer_remove_f send_pdu_timer_remove;
 
-#define RECVPOOL_MAX	32
-	void* recvpool[RECVPOOL_MAX];
+#define CONTEXT_POOL_MAX 32
+	struct iscsi_conn_context *context_pool[CONTEXT_POOL_MAX];
 
 	/* login state machine */
 	int current_stage;
@@ -185,6 +168,13 @@ typedef struct iscsi_conn {
 	uint32_t max_xmit_dlength;	/* the value declared by the target */
 } iscsi_conn_t;
 
+struct iscsi_conn_context {
+	struct actor actor;
+	struct iscsi_conn *conn;
+	int allocated;
+	void *data;
+};
+
 typedef struct queue_task {
 	iscsi_conn_t *conn;
 	iscsiadm_req_t req;
@@ -204,7 +194,6 @@ typedef struct iscsi_session {
 	struct list_head list;
 	uint32_t id;
 	uint32_t hostno;
-	int refcount;
 	char netdev[IFNAMSIZ];
 	struct iscsi_transport *t;
 	node_rec_t nrec; /* copy of original Node record in database */
@@ -261,12 +250,6 @@ typedef struct iscsi_session {
 
 	/* sync up fields */
 	queue_task_t *sync_qtask;
-
-	/* session's processing */
-	actor_t mainloop;
-	queue_t *queue;
-	queue_t *splice_queue;
-
 } iscsi_session_t;
 
 /*
@@ -367,8 +350,12 @@ extern int session_logout_task(iscsi_session_t *session, queue_task_t *qtask);
 extern iscsi_session_t *session_find_by_sid(int sid);
 extern iscsi_session_t *session_find_by_rec(node_rec_t *rec);
 extern int session_is_running(node_rec_t *rec);
-extern void* recvpool_get(iscsi_conn_t *conn, int ev_size);
-extern void recvpool_put(iscsi_conn_t *conn, void *handle);
+extern struct iscsi_conn_context *iscsi_conn_context_get(iscsi_conn_t *conn,
+						   int ev_size);
+extern void iscsi_conn_context_put(struct iscsi_conn_context *conn_context);
+extern void iscsi_sched_conn_context(struct iscsi_conn_context *context,
+				     struct iscsi_conn *conn, unsigned long tmo,
+				     int event);
 extern mgmt_ipc_err_e iscsi_sync_session(node_rec_t *rec, queue_task_t
 					 *tsk, uint32_t sid);
 extern mgmt_ipc_err_e iscsi_host_send_targets(queue_task_t *qtask,

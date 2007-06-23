@@ -3,7 +3,7 @@
  * in the RFC. See iscsi_proto.h for those.
  */
 /* timeouts in seconds */
-#define DEF_LOGIN_TIMEO		15
+#define DEF_LOGIN_TIMEO		30
 #define DEF_LOGOUT_TIMEO	15
 #define DEF_NOOP_OUT_INTERVAL	10
 #define DEF_NOOP_OUT_TIMEO	15
