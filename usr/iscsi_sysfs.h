@@ -17,7 +17,6 @@
 #ifndef ISCSI_SYSFS_H
 #define ISCSI_SYSFS_H
 
-#include <search.h>
 #include <sys/types.h>
 
 struct iscsi_session;

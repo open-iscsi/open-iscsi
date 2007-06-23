@@ -20,7 +20,6 @@
  */
 
 #include <unistd.h>
-#include <search.h>
 #include <string.h>
 #include <stdio.h>
 #include <stdlib.h>

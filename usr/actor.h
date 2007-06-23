@@ -20,6 +20,7 @@
 #define ACTOR_H
 
 #include "types.h"
+#include "list.h"
 
 #define ACTOR_RESOLUTION	250	/* in millis */
 #define ACTOR_MAX_LOOPS		1
@@ -33,12 +34,12 @@ typedef enum actor_state_e {
 } actor_state_e;
 
 typedef struct actor {
-    struct qelem item; /* must be first element in the struct */
-    actor_state_e state;
-    void *data;
-    void (*callback)(void * );
-    uint64_t scheduled_at;
-    uint64_t ttschedule;
+	struct list_head list;
+	actor_state_e state;
+	void *data;
+	void (*callback)(void * );
+	uint64_t scheduled_at;
+	uint64_t ttschedule;
 } actor_t;
 
 extern void actor_new(actor_t *thread, void (*callback)(void *), void * data);

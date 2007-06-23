@@ -10,10 +10,6 @@
 #include <netinet/in.h>
 #include <stdint.h>
 #include <sys/types.h>
-#include <search.h>
-
-#define DATASEG_MAX	8192
-#define HDRSEG_MAX	48+4
 
 /*
  * using the __be types allows stricter static

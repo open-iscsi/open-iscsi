@@ -16,15 +16,14 @@
  *
  * See the file COPYING included with this distribution for more details.
  */
-
-#include <search.h>
 #include <inttypes.h>
 #include "actor.h"
 #include "log.h"
+#include "list.h"
 
-static struct qelem pend_list;
-static struct qelem poll_list;
-static struct qelem actor_list;
+static LIST_HEAD(pend_list);
+static LIST_HEAD(poll_list);
+static LIST_HEAD(actor_list);
 static volatile uint32_t previous_time;
 static volatile uint32_t scheduler_loops;
 static volatile int poll_in_progress;
@@ -35,7 +34,7 @@ static volatile uint64_t actor_jiffies = 0;
         if ((_time2) >= (_time1)) \
            __ret = (_time2) - (_time1); \
         else \
-           __ret = (0xffffffff - (_time1)) + (_time2); \
+           __ret = (0xffffffffffffffff - (_time1)) + (_time2); \
         __ret; \
 })
 
@@ -61,19 +60,12 @@ actor_init(void)
 	poll_in_progress = 0;
 	previous_time = 0;
 	scheduler_loops = 0;
-	pend_list.q_forw = &pend_list;
-	pend_list.q_back = &pend_list;
-	actor_list.q_forw = &actor_list;
-	actor_list.q_back = &actor_list;
-	poll_list.q_forw = &poll_list;
-	poll_list.q_back = &poll_list;
 }
 
 void
 actor_new(actor_t *thread, void (*callback)(void *), void *data)
 {
-	thread->item.q_forw = &thread->item;
-	thread->item.q_back = &thread->item;
+	INIT_LIST_HEAD(&thread->list);
 	thread->state = ACTOR_NOTSCHEDULED;
 	thread->callback = callback;
 	thread->data = data;
@@ -89,7 +81,7 @@ actor_delete(actor_t *thread)
 	case ACTOR_WAITING:
 	case ACTOR_POLL_WAITING:
 		log_debug(1, "deleting a scheduled/waiting thread!");
-		remque(&thread->item);
+		list_del_init(&thread->list);
 		break;
 	default:
 		break;
@@ -101,53 +93,57 @@ static void
 actor_schedule_private(actor_t *thread, uint32_t ttschedule)
 {
 	uint64_t delay_time, current_time;
-	struct qelem *next_item;
 	actor_t *next_thread;
 
 	delay_time = ACTOR_MS_TO_TICKS(ttschedule);
 	current_time = ACTOR_TICKS;
 
-	log_debug(7, "thread %08lx schedule: delay %" PRIu64 " state %d",
-		(long)thread, delay_time, thread->state);
+	log_debug(7, "thread %p schedule: delay %" PRIu64 " state %d",
+		thread, delay_time, thread->state);
 
 	/* convert ttscheduled msecs in 10s of msecs by dividing for now.
 	 * later we will change param to 10s of msecs */
 	switch(thread->state) {
 	case ACTOR_WAITING:
 		log_error("rescheduling a waiting thread!");
-		remque(&thread->item);
+		list_del(&thread->list);
 	case ACTOR_NOTSCHEDULED:
+		INIT_LIST_HEAD(&thread->list);
 		/* if ttschedule is 0, put in scheduled queue and change
 		 * state to scheduled, else add current time to ttschedule and
 		 * insert in the queue at the correct point */
 		if (delay_time == 0) {
 			if (poll_in_progress) {
 				thread->state = ACTOR_POLL_WAITING;
-				insque(&thread->item, poll_list.q_back);
+				list_add_tail(&thread->list, &poll_list);
 			} else {
 				thread->state = ACTOR_SCHEDULED;
-				insque(&thread->item, actor_list.q_back);
+				list_add_tail(&thread->list, &actor_list);
 			}
-		}
-		else {
+		} else {
 			thread->state = ACTOR_WAITING;
 			thread->ttschedule = delay_time;
 			thread->scheduled_at = current_time;
 
 			/* insert new entry in sort order */
-			next_item = pend_list.q_forw;
-			while (next_item != &pend_list) {
-				next_thread = (actor_t *)next_item;
+			list_for_each_entry(next_thread, &pend_list, list) {
+				log_debug(7, "thread %p %lu %lu", next_thread,
+					next_thread->scheduled_at +
+					next_thread->ttschedule,
+					current_time + delay_time);
 
 				if (time_after(next_thread->scheduled_at +
 						       next_thread->ttschedule,
-						current_time + delay_time))
-					break;
-				next_item = next_item->q_forw;
+						current_time + delay_time)) {
+					list_add(&thread->list,
+						 &next_thread->list);
+					goto done;
+				}
 			}
 
-			insque(&thread->item, next_item->q_back);
+			list_add_tail(&thread->list, &pend_list);
 		}
+done:
 		break;
 	case ACTOR_POLL_WAITING:
 	case ACTOR_SCHEDULED:
@@ -179,7 +175,7 @@ int
 actor_timer_mod(actor_t *thread, uint32_t timeout, void *data)
 {
 	if (thread->state == ACTOR_WAITING) {
-		remque(&thread->item);
+		list_del_init(&thread->list);
 		thread->data = data;
 		actor_schedule_private(thread, timeout);
 		return 1;
@@ -190,9 +186,9 @@ actor_timer_mod(actor_t *thread, uint32_t timeout, void *data)
 void
 actor_check(uint64_t current_time)
 {
-	while (pend_list.q_forw != &pend_list) {
-		actor_t *thread = (actor_t *)pend_list.q_forw;
+	struct actor *thread, *tmp;
 
+	list_for_each_entry_safe(thread, tmp, &pend_list, list) {
 		if (actor_diff_time(thread, current_time)) {
 			log_debug(7, "thread %08lx wait some more",
 				(long)thread);
@@ -201,22 +197,22 @@ actor_check(uint64_t current_time)
 		}
 
 		/* it is time to schedule this entry */
-		remque(&thread->item);
+		list_del_init(&thread->list);
 
 		log_debug(2, "thread %08lx was scheduled at %" PRIu64 ":"
 			"%" PRIu64 ", curtime %" PRIu64 " q_forw %p "
 			"&pend_list %p",
 			(long)thread, thread->scheduled_at, thread->ttschedule,
-			current_time, pend_list.q_forw, &pend_list);
+			current_time, pend_list.next, &pend_list);
 
 		if (poll_in_progress) {
 			thread->state = ACTOR_POLL_WAITING;
-			insque(&thread->item, poll_list.q_back);
+			list_add_tail(&thread->list, &poll_list);
 			log_debug(7, "thread %08lx now in poll_list",
 				(long)thread);
 		} else {
 			thread->state = ACTOR_SCHEDULED;
-			insque(&thread->item, actor_list.q_back);
+			list_add_tail(&thread->list, &actor_list);
 			log_debug(7, "thread %08lx now in actor_list",
 				(long)thread);
 		}
@@ -227,6 +223,7 @@ void
 actor_poll(void)
 {
 	uint64_t current_time;
+	struct actor *thread, *tmp;
 
 	/* check that there are no any concurrency */
 	if (poll_in_progress) {
@@ -250,11 +247,10 @@ actor_poll(void)
 
 	/* the following code to check in the main data path */
 	poll_in_progress = 1;
-	while (actor_list.q_forw != &actor_list) {
-		actor_t *thread = (actor_t *)actor_list.q_forw;
+	list_for_each_entry_safe(thread, tmp, &actor_list, list) {
 		if (thread->state != ACTOR_SCHEDULED)
 			log_debug(1, "actor_list: thread state corrupted!");
-		remque(&thread->item);
+		list_del_init(&thread->list);
 		thread->state = ACTOR_NOTSCHEDULED;
 		log_debug(7, "exec thread %08lx callback", (long)thread);
 		thread->callback(thread->data);
@@ -262,13 +258,12 @@ actor_poll(void)
 	}
 	poll_in_progress = 0;
 
-	while (poll_list.q_forw != &poll_list) {
-		actor_t *thread = (actor_t *)poll_list.q_forw;
+	list_for_each_entry_safe(thread, tmp, &poll_list, list) {
 		if (thread->state != ACTOR_POLL_WAITING)
 			log_debug(1, "poll_list: thread state corrupted!");
-		remque(&thread->item);
+		list_del_init(&thread->list);
 		thread->state = ACTOR_SCHEDULED;
-		insque(&thread->item, actor_list.q_back);
+		list_add_tail(&thread->list, &actor_list);
 		log_debug(7, "thread %08lx removed from poll_list",
 			(long)thread);
 	}
