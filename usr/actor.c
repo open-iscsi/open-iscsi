@@ -249,7 +249,9 @@ actor_poll(void)
 	poll_in_progress = 1;
 	list_for_each_entry_safe(thread, tmp, &actor_list, list) {
 		if (thread->state != ACTOR_SCHEDULED)
-			log_debug(1, "actor_list: thread state corrupted!");
+			log_error("actor_list: thread state corrupted! "
+				  "Thread with state %s in actor list.",
+				  thread->state);
 		list_del_init(&thread->list);
 		thread->state = ACTOR_NOTSCHEDULED;
 		log_debug(7, "exec thread %08lx callback", (long)thread);
@@ -260,7 +262,9 @@ actor_poll(void)
 
 	list_for_each_entry_safe(thread, tmp, &poll_list, list) {
 		if (thread->state != ACTOR_POLL_WAITING)
-			log_debug(1, "poll_list: thread state corrupted!");
+			log_error("poll_list: thread state corrupted!"
+				  "Thread with state %s in poll list.",
+				  thread->state);
 		list_del_init(&thread->list);
 		thread->state = ACTOR_SCHEDULED;
 		list_add_tail(&thread->list, &actor_list);

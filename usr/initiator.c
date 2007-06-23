@@ -561,11 +561,10 @@ __session_destroy(iscsi_session_t *session)
 }
 
 static void
-conn_nop_out_delete(iscsi_conn_t *conn)
+conn_delete_timers(iscsi_conn_t *conn)
 {
+	actor_delete(&conn->login_timer);
 	actor_delete(&conn->nop_out_timer);
-	log_debug(3, "conn noop out timer %p stopped\n",
-		  &conn->nop_out_timer);
 }
 
 static void
@@ -575,6 +574,7 @@ session_conn_cleanup(queue_task_t *qtask, mgmt_ipc_err_e err)
 	iscsi_session_t *session = conn->session;
 
 	mgmt_ipc_write_rsp(qtask, err);
+	conn_delete_timers(conn);
 	__session_destroy(session);
 }
 
@@ -583,9 +583,6 @@ __session_conn_shutdown(iscsi_conn_t *conn, queue_task_t *qtask,
 			mgmt_ipc_err_e err)
 {
 	iscsi_session_t *session = conn->session;
-
-	conn_nop_out_delete(conn);
-	iscsi_flush_context_pool(session);
 
 	if (ipc->destroy_conn(session->t->handle, session->id,
 		conn->id)) {
@@ -681,23 +678,16 @@ static void
 queue_delayed_reopen(queue_task_t *qtask, int delay)
 {
 	iscsi_conn_t *conn = qtask->conn;
-	struct iscsi_conn_context *conn_context;
 
 	log_debug(4, "Requeue reopen attempt in %d secs\n", delay);
 
-	conn_context = iscsi_conn_context_get(conn, 0);
-	if (!conn_context) {
-		/* the queue should be full here */
-		log_error("BUG: queue_delayed_reopen could not get conn "
-			  "context for delayed reopen.");
-	}
-	conn_context->data = qtask;
 	/*
- 	 * The EV_CONN_LOGIN_TIMER can handle the login resched as
+ 	 * iscsi_login_timedout can handle the login resched as
  	 * if it were login time out
  	 */
-	iscsi_sched_conn_context(conn_context, conn, delay,
-				 EV_CONN_LOGIN_TIMER);
+	actor_delete(&conn->login_timer);
+	actor_timer(&conn->login_timer, delay * 1000,
+		    iscsi_login_timedout, qtask);
 }
 
 static void
@@ -743,7 +733,7 @@ __session_conn_reopen(iscsi_conn_t *conn, queue_task_t *qtask, int do_stop)
 
 	/* flush stale polls or errors queued */
 	iscsi_flush_context_pool(session);
-	conn_nop_out_delete(conn);
+	conn_delete_timers(conn);
 	conn->state = STATE_XPT_WAIT;
 
 	if (do_stop) {
@@ -786,16 +776,10 @@ __session_conn_reopen(iscsi_conn_t *conn, queue_task_t *qtask, int do_stop)
 	conn_context->data = qtask;
 	iscsi_sched_conn_context(conn_context, conn, 0, EV_CONN_POLL);
 
-	conn_context = iscsi_conn_context_get(conn, 0);
-	if (!conn_context) {
-		/* while reopening the recv pool should be full */
-		log_error("BUG: __session_conn_reopen could not get conn "
-			  "context for timer.");
-		return ENOMEM;
-	}
-	conn_context->data = qtask;
-	iscsi_sched_conn_context(conn_context, conn, conn->login_timeout,
-				 EV_CONN_LOGIN_TIMER);
+	log_debug(3, "Setting login timer %p timeout %d", &conn->login_timer,
+		  conn->login_timeout);
+	actor_timer(&conn->login_timer, conn->login_timeout * 1000,
+		    iscsi_login_timedout, qtask);
 	return 0;
 
 queue_reopen:
@@ -1113,11 +1097,7 @@ setup_full_feature_phase(iscsi_conn_t *conn)
 		; /* success - fall through */
 	}
 
-	/*
-	 * Remove login timer.
-	 */ 
-	iscsi_flush_context_pool(session);
-
+	actor_delete(&conn->login_timer);
 	/* Entered full-feature phase! */
 	for (i = 0; i < MAX_SESSION_PARAMS; i++) {
 		if (conn->id != 0 && !conntbl[i].conn_only)
@@ -1529,12 +1509,9 @@ cleanup:
 
 static void iscsi_login_timedout(void *data)
 {
-	struct iscsi_conn_context *conn_context = data;
-	queue_task_t *qtask = conn_context->data;
-	iscsi_conn_t *conn = conn_context->conn;
+	struct queue_task *qtask = data;
+	struct iscsi_conn *conn = qtask->conn;
 	struct iscsi_session *session = conn->session;
-
-	iscsi_conn_context_put(conn_context);
 
 	log_debug(3, "session_conn_login_timedout");
 	/*
@@ -1722,10 +1699,6 @@ void iscsi_sched_conn_context(struct iscsi_conn_context *conn_context,
 			  conn_context);
 		actor_schedule(&conn_context->actor);
 		break;
-	case EV_CONN_LOGIN_TIMER:
-		actor_timer(&conn_context->actor, tmo * 1000,
-			    iscsi_login_timedout, conn_context);
-		break;
 	case EV_CONN_LOGOUT_TIMER:
 		actor_timer(&conn_context->actor, tmo * 1000,
 			    iscsi_logout_timedout, conn_context);
@@ -1871,17 +1844,10 @@ session_login_task(node_rec_t *rec, queue_task_t *qtask)
 	conn_context->data = qtask;
 	iscsi_sched_conn_context(conn_context, conn, 0, EV_CONN_POLL);
 
-	conn_context = iscsi_conn_context_get(conn, 0);
-	if (!conn_context) {
-		/* while logging the recv pool should be full - 1 */
-		log_error("BUG: session_login_task could not get conn "
-			  "context for poll.");
-		__session_destroy(session);
-		return MGMT_IPC_ERR_INTERNAL;
-	}
-	conn_context->data = qtask;
-	iscsi_sched_conn_context(conn_context, conn, conn->login_timeout,
-				 EV_CONN_LOGIN_TIMER);
+	log_debug(3, "Setting login timer %p timeout %d", &conn->login_timer,
+		 conn->login_timeout);
+	actor_timer(&conn->login_timer, conn->login_timeout * 1000,
+		    iscsi_login_timedout, qtask);
 
 	rc = session->t->template->ep_connect(conn, 1);
 	if (rc < 0 && errno != EINPROGRESS) {

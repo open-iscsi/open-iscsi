@@ -69,7 +69,6 @@ typedef enum iscsi_event_e {
 	EV_CONN_RECV_PDU,
 	EV_CONN_POLL,
 	EV_CONN_ERROR,
-	EV_CONN_LOGIN_TIMER,
 	EV_CONN_LOGOUT_TIMER,
 } iscsi_event_e;
 
@@ -108,6 +107,7 @@ typedef struct iscsi_conn {
 	char host[NI_MAXHOST];	/* scratch */
 	iscsi_conn_state_e state;
 
+	actor_t login_timer;
 	actor_t nop_out_timer;
 
 #define CONTEXT_POOL_MAX 32
