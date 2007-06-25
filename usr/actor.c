@@ -24,7 +24,7 @@
 static LIST_HEAD(pend_list);
 static LIST_HEAD(poll_list);
 static LIST_HEAD(actor_list);
-static volatile uint32_t previous_time;
+static volatile uint64_t previous_time;
 static volatile uint32_t scheduler_loops;
 static volatile int poll_in_progress;
 static volatile uint64_t actor_jiffies = 0;
@@ -34,7 +34,7 @@ static volatile uint64_t actor_jiffies = 0;
         if ((_time2) >= (_time1)) \
            __ret = (_time2) - (_time1); \
         else \
-           __ret = (0xffffffffffffffff - (_time1)) + (_time2); \
+           __ret = (0xffffffff - (_time1)) + (_time2); \
         __ret; \
 })
 
@@ -127,7 +127,8 @@ actor_schedule_private(actor_t *thread, uint32_t ttschedule)
 
 			/* insert new entry in sort order */
 			list_for_each_entry(next_thread, &pend_list, list) {
-				log_debug(7, "thread %p %lu %lu", next_thread,
+				log_debug(7, "thread %p %" PRIu64 " %"PRIu64,
+					next_thread,
 					next_thread->scheduled_at +
 					next_thread->ttschedule,
 					current_time + delay_time);
