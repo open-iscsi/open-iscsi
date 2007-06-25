@@ -279,6 +279,7 @@ __logout_by_startup(void *data, struct session_info *info)
 	node_rec_t rec;
 	int rc = 0;
 
+	memset(&rec, 0, sizeof(node_rec_t));
 	if (iface_get_by_bind_info(db, &info->iface, &rec.iface)) {
 		/*
 		 * If someone removed the /etc/iscsi/ifaces file
@@ -850,6 +851,7 @@ static void print_sessions_tree(idbm_t *db, struct list_head *list, int level)
 		printf("\t\tInterface:\n");
 		printf("\t\t**********\n");
 		if (iface_is_bound(&curr->iface)) {
+			memset(&iface, 0, sizeof(struct iface_rec));
 			if (iface_get_by_bind_info(db, &curr->iface, &iface))
 				printf("\t\tIface Name: %s\n", UNKNOWN_VALUE);
 			else
