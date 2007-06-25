@@ -73,7 +73,7 @@ case "$1" in
 			RETVAL=$?
 			;;
 	condrestart)
-			[ -f /var/lock/subsys/iscsi ] && restart
+			[ -f /var/lock/subsys/open-iscsi ] && restart
 			;;
 	*)
 			echo $"Usage: $0 {start|stop|restart|status|condrestart}"
