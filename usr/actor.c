@@ -30,11 +30,11 @@ static volatile int poll_in_progress;
 static volatile uint64_t actor_jiffies = 0;
 
 #define actor_diff(_time1, _time2) ({ \
-        uint32_t __ret; \
+        uint64_t __ret; \
         if ((_time2) >= (_time1)) \
            __ret = (_time2) - (_time1); \
         else \
-           __ret = (0xffffffff - (_time1)) + (_time2); \
+           __ret = ((~0ULL) - (_time1)) + (_time2); \
         __ret; \
 })
 
