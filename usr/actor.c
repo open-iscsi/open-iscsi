@@ -250,7 +250,7 @@ actor_poll(void)
 	list_for_each_entry_safe(thread, tmp, &actor_list, list) {
 		if (thread->state != ACTOR_SCHEDULED)
 			log_error("actor_list: thread state corrupted! "
-				  "Thread with state %s in actor list.",
+				  "Thread with state %d in actor list.",
 				  thread->state);
 		list_del_init(&thread->list);
 		thread->state = ACTOR_NOTSCHEDULED;
@@ -263,7 +263,7 @@ actor_poll(void)
 	list_for_each_entry_safe(thread, tmp, &poll_list, list) {
 		if (thread->state != ACTOR_POLL_WAITING)
 			log_error("poll_list: thread state corrupted!"
-				  "Thread with state %s in poll list.",
+				  "Thread with state %d in poll list.",
 				  thread->state);
 		list_del_init(&thread->list);
 		thread->state = ACTOR_SCHEDULED;
