@@ -404,7 +404,7 @@ logout_portal(void *data, struct session_info *info)
 
 static struct node_rec *
 create_node_record(idbm_t *db, char *targetname, int tpgt, char *ip, int port,
-		   struct iface_rec *iface)
+		   struct iface_rec *iface, int verbose)
 {
 	struct node_rec *rec;
 
@@ -424,10 +424,31 @@ create_node_record(idbm_t *db, char *targetname, int tpgt, char *ip, int port,
 		strncpy(rec->conn[0].address, ip, NI_MAXHOST);
 	memset(&rec->iface, 0, sizeof(struct iface_rec));
 	if (iface) {
-		if (iface_get_by_bind_info(db, iface, &rec->iface)) {
-			log_error("Could not find iface info for %s.",
-				  iface->name);
-			goto free_rec;
+		if (!strlen(iface->name)) {
+			if (iface_get_by_bind_info(db, iface, &rec->iface)) {
+				if (verbose)
+					log_error("Could not find iface info.",
+						  iface->name);
+				goto free_rec;
+			}
+		} else if (!strcmp(iface->name, DEFAULT_IFACENAME))
+			/*
+ 			 * default is a special name and should not be used by
+			 * a real iface
+			 */
+			iface_init(&rec->iface);
+		else {
+			/*
+			 * the initial iface update will not be able to find
+			 * by bind info because there is none.
+			 */
+			iface_copy(&rec->iface, iface);
+			if (iface_conf_read(db, &rec->iface)) {
+				if (verbose)
+					log_error("Could not read iface info "
+						  "for %s.", iface->name);
+				goto free_rec;
+			}
 		}
 	}
 	return rec;
@@ -1320,34 +1341,13 @@ static void catch_sigint( int signo ) {
 }
 
 /* TODO merge with initiator.c implementation */
+/* And add locking */
 static int check_for_session_through_iface(struct node_rec *rec)
 {
 	int nr_found = 0;
 	if (sysfs_for_each_session(rec, &nr_found, iscsi_match_session))
 		return 1;
 	return 0;
-}
-
-static struct node_rec *setup_rec_from_iface(idbm_t *db,
-					     struct iface_rec *iface)
-{
-	struct node_rec *rec;
-
-	rec = calloc(1, sizeof(*rec));
-	if (!rec) {
-		log_error("Could not not allocate memory to create node "
-			  "record.");
-		return NULL;
-	}
-
-	rec->tpgt = -1;
-	rec->conn[0].port = -1;
-	iface_copy(&rec->iface, iface);
-	if (iface_conf_read(db, &rec->iface)) {
-		free(rec);
-		rec = NULL;
-	}
-	return rec;
 }
 
 static int exec_iface_op(idbm_t *db, int op, int do_show, int info_level,
@@ -1365,7 +1365,7 @@ static int exec_iface_op(idbm_t *db, int op, int do_show, int info_level,
 			return EINVAL;
 		}
 
-		rec = setup_rec_from_iface(db, iface);
+		rec = create_node_record(db, NULL, -1, NULL, -1, iface, 0);
 		if (rec) {
 			if (check_for_session_through_iface(rec)) {
 				rc = EBUSY;
@@ -1390,7 +1390,7 @@ new_fail:
 			return EINVAL;
 		}
 
-		rec = setup_rec_from_iface(db, iface);
+		rec = create_node_record(db, NULL, -1, NULL, -1, iface, 1);
 		if (!rec) {
 			rc = EINVAL;
 			goto delete_fail;
@@ -1424,7 +1424,7 @@ delete_fail:
 			break;
 		}
 
-		rec = setup_rec_from_iface(db, iface);
+		rec = create_node_record(db, NULL, -1, NULL, -1, iface, 1);
 		if (!rec) {
 			rc = EINVAL;
 			goto update_fail;
@@ -1466,14 +1466,14 @@ delete_fail:
 		set_param.name = name;
 		set_param.value = value;
 
-		rc = __for_each_rec(db, 0, rec, &set_param,
-				    idbm_node_set_param);
-		if (rc && rc != ENODEV)
-			goto update_fail;
-
 		/* pass rec's iface because it has the db values */
 		rc = iface_conf_update(db, &set_param, &rec->iface);
 		if (rc)
+			goto update_fail;
+
+		rc = __for_each_rec(db, 0, rec, &set_param,
+				    idbm_node_set_param);
+		if (rc && rc != ENODEV)
 			goto update_fail;
 
 		printf("%s updated.\n", iface->name);
@@ -1935,7 +1935,8 @@ main(int argc, char **argv)
 					  iface->hwaddress, iface->ipaddress);
 		}
 
-		rec = create_node_record(db, targetname, tpgt, ip, port, iface);
+		rec = create_node_record(db, targetname, tpgt, ip, port,
+					 iface, 1);
 		if (!rec) {
 			rc = -1;
 			goto out;
@@ -1990,7 +1991,7 @@ main(int argc, char **argv)
 						 info->tpgt,
 						 info->persistent_address,
 						 info->persistent_port,
-						 &info->iface);
+						 &info->iface, 1);
 			if (!rec) {
 				rc = -1;
 				goto free_info;
