@@ -1365,7 +1365,7 @@ static int exec_iface_op(idbm_t *db, int op, int do_show, int info_level,
 		}
 
 		rec = create_node_record(db, NULL, -1, NULL, -1, iface, 0);
-		if (rec) {
+		if (rec && iface_is_bound(&rec->iface)) {
 			if (check_for_session_through_iface(rec)) {
 				rc = EBUSY;
 				goto new_fail;
@@ -1395,15 +1395,17 @@ new_fail:
 			goto delete_fail;
 		}
 
-		if (check_for_session_through_iface(rec)) {
-			rc = EBUSY;
-			goto delete_fail;
-		}
+		if (iface_is_bound(&rec->iface)) {
+			if (check_for_session_through_iface(rec)) {
+				rc = EBUSY;
+				goto delete_fail;
+			}
 
-		/* delete node records using it first */
-		rc = __for_each_rec(db, 0, rec, NULL, idbm_delete_node);
-		if (rc && rc != ENODEV)
-			goto delete_fail;
+			/* delete node records using it first */
+			rc = __for_each_rec(db, 0, rec, NULL, idbm_delete_node);
+			if (rc && rc != ENODEV)
+				goto delete_fail;
+		}
 
 		rc = iface_conf_delete(db, iface);
 		if (rc)
@@ -1429,38 +1431,40 @@ delete_fail:
 			goto update_fail;
 		}
 
-		if (check_for_session_through_iface(rec)) {
-			rc = EINVAL;
-			goto update_fail;
-		}
+		if (iface_is_bound(&rec->iface)) {
+			if (check_for_session_through_iface(rec)) {
+				rc = EINVAL;
+				goto update_fail;
+			}
 
-		if (!strcmp(name, "iface.iscsi_ifacename")) {
-			log_error("Can not update iface.iscsi_ifacename. "
-				  "Delete it, and then create a new one.");
-			rc = EINVAL;
-			break;
-		}
+			if (!strcmp(name, "iface.iscsi_ifacename")) {
+				log_error("Can not update "
+					  "iface.iscsi_ifacename. Delete it, "
+					  "and then create a new one.");
+				rc = EINVAL;
+				break;
+			}
 
-		if (iface_is_bound_by_hwaddr(&rec->iface) &&
-		    !strcmp(name, "iface.net_ifacename")) {
-			log_error("Can not update interface binding from "
-				  "hwaddress to net_ifacename. ");
-			log_error("You must delete the interface and create "
-				  "a new one");
-			rc = EINVAL;
-			break;
-		}
+			if (iface_is_bound_by_hwaddr(&rec->iface) &&
+			    !strcmp(name, "iface.net_ifacename")) {
+				log_error("Can not update interface binding "
+					  "from hwaddress to net_ifacename. ");
+				log_error("You must delete the interface and "
+					  "create a new one");
+				rc = EINVAL;
+				break;
+			}
 
-		if (iface_is_bound_by_netdev(&rec->iface) &&
-		    !strcmp(name, "iface.hwaddress")) {
-			log_error("Can not update interface binding from "
-				  "net_ifacename to hwaddress. ");
-			log_error("You must delete the interface and create "
-				  "a new one");
-			rc = EINVAL;
-			break;
+			if (iface_is_bound_by_netdev(&rec->iface) &&
+			    !strcmp(name, "iface.hwaddress")) {
+				log_error("Can not update interface binding "
+					  "from net_ifacename to hwaddress. ");
+				log_error("You must delete the interface and "
+					  "create a new one");
+				rc = EINVAL;
+				break;
+			}
 		}
-
 		set_param.db = db;
 		set_param.name = name;
 		set_param.value = value;

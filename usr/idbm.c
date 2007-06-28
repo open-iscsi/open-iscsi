@@ -2238,6 +2238,15 @@ int idbm_add_nodes(idbm_t *db, node_rec_t *newrec, discovery_rec_t *drec,
 		}
 	} else {
 		list_for_each_entry(iface, ifaces, list) {
+			if (strcmp(iface->name, DEFAULT_IFACENAME) &&
+			    !iface_is_bound(iface)) {
+				log_error("iface %s is not bound. Will not "
+					  "bind node to it. Iface settings "
+					  iface_fmt, iface->name,
+					  iface_str(iface));
+				continue;
+			}
+
 			iface_copy(&newrec->iface, iface);
 			rc = idbm_add_node(db, newrec, drec);
 			if (rc)
