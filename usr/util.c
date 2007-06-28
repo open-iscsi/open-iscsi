@@ -111,6 +111,11 @@ static mgmt_ipc_err_e iscsid_connect(int *fd)
 			/* Connection established */
 			return MGMT_IPC_OK;
 
+		/* If iscsid isn't there, there's no sense
+		 * in retrying. */
+		if (errno == ECONNREFUSED)
+			break;
+
 		/*
 		 * Delay before trying again
 		 */
