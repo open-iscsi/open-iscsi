@@ -37,11 +37,7 @@
 #include "iscsi_sysfs.h"
 #include "iscsi_settings.h"
 
-static void iscsi_login_eh(struct iscsi_conn *conn, struct queue_task *qtask,
-			    mgmt_ipc_err_e err);
 static void iscsi_login_timedout(void *data);
-static void __conn_error_handle(iscsi_session_t*, iscsi_conn_t*);
-static void session_conn_poll(void *data);
 
 #define DEFAULT_TIME2WAIT 2
 
@@ -618,80 +614,6 @@ session_conn_shutdown(iscsi_conn_t *conn, queue_task_t *qtask,
 	return __session_conn_shutdown(conn, qtask, err);
 }
 
-static int
-__send_nopin_rsp(iscsi_conn_t *conn, struct iscsi_nopin *rhdr, char *data)
-{
-	struct iscsi_nopout hdr;
-
-	memset(&hdr, 0, sizeof(struct iscsi_nopout));
-	hdr.opcode = ISCSI_OP_NOOP_OUT | ISCSI_OP_IMMEDIATE;
-	hdr.flags = ISCSI_FLAG_CMD_FINAL;
-	hdr.dlength[0] = rhdr->dlength[0];
-	hdr.dlength[1] = rhdr->dlength[1];
-	hdr.dlength[2] = rhdr->dlength[2];
-	memcpy(hdr.lun, rhdr->lun, 8);
-	hdr.ttt = rhdr->ttt;
-	hdr.itt = ISCSI_RESERVED_TAG;
-
-	return iscsi_io_send_pdu(conn, (struct iscsi_hdr*)&hdr,
-	       ISCSI_DIGEST_NONE, data, ISCSI_DIGEST_NONE, 0);
-}
-
-static int
-__send_nopout(iscsi_conn_t *conn)
-{
-	struct iscsi_nopout hdr;
-
-	memset(&hdr, 0, sizeof(struct iscsi_nopout));
-	hdr.opcode = ISCSI_OP_NOOP_OUT | ISCSI_OP_IMMEDIATE;
-	hdr.flags = ISCSI_FLAG_CMD_FINAL;
-	hdr.itt = 0;  /* XXX: let kernel send_pdu set for us*/
-	hdr.ttt = ISCSI_RESERVED_TAG;
-	/* we have hdr.lun reserved, and no data */
-	return iscsi_io_send_pdu(conn, (struct iscsi_hdr*)&hdr,
-		ISCSI_DIGEST_NONE, NULL, ISCSI_DIGEST_NONE, 0);
-}
-
-static void conn_nop_out_timeout(void *data)
-{
-	iscsi_conn_t *conn = (iscsi_conn_t*)data;
-	iscsi_session_t *session = conn->session;
-
-	log_warning("Nop-out timedout after %d seconds on connection %d:%d "
-		    "state (%d). Dropping session.", conn->noop_out_timeout,
-		    session->id, conn->id, conn->state);
-	/* XXX: error handle */
-	__conn_error_handle(session, conn);
-}
-
-static void conn_send_nop_out(void *data)
-{
-	iscsi_conn_t *conn = (iscsi_conn_t*)data;
-
-	__send_nopout(conn);
-
-	actor_timer(&conn->nop_out_timer, conn->noop_out_timeout*1000,
-		    conn_nop_out_timeout, conn);
-	log_debug(3, "noop out timeout timer %p start, timeout %d\n",
-		 &conn->nop_out_timer, conn->noop_out_timeout);
-}
-
-static void
-queue_delayed_reopen(queue_task_t *qtask, int delay)
-{
-	iscsi_conn_t *conn = qtask->conn;
-
-	log_debug(4, "Requeue reopen attempt in %d secs\n", delay);
-
-	/*
- 	 * iscsi_login_eh can handle the login resched as
- 	 * if it were login time out
- 	 */
-	actor_delete(&conn->login_timer);
-	actor_timer(&conn->login_timer, delay * 1000,
-		    iscsi_login_timedout, qtask);
-}
-
 static void
 reset_iscsi_params(iscsi_conn_t *conn)
 {
@@ -718,6 +640,22 @@ reset_iscsi_params(iscsi_conn_t *conn)
 	session->def_time2wait = rec->session.iscsi.DefaultTime2Wait;
 	session->def_time2retain = rec->session.iscsi.DefaultTime2Retain;
 	session->erl = rec->session.iscsi.ERL;
+}
+
+static void
+queue_delayed_reopen(queue_task_t *qtask, int delay)
+{
+	iscsi_conn_t *conn = qtask->conn;
+
+	log_debug(4, "Requeue reopen attempt in %d secs\n", delay);
+
+	/*
+ 	 * iscsi_login_eh can handle the login resched as
+ 	 * if it were login time out
+ 	 */
+	actor_delete(&conn->login_timer);
+	actor_timer(&conn->login_timer, delay * 1000,
+		    iscsi_login_timedout, qtask);
 }
 
 static void
@@ -811,6 +749,187 @@ session_conn_reopen(iscsi_conn_t *conn, queue_task_t *qtask, int do_stop)
 	__session_conn_reopen(conn, qtask, do_stop);
 }
 
+static void
+__conn_error_handle(iscsi_session_t *session, iscsi_conn_t *conn)
+{
+	int i;
+
+	switch (conn->state) {
+	case STATE_IN_LOGOUT:
+		/* logout was requested by user */
+		if (conn->logout_qtask) {
+			session_conn_shutdown(conn, conn->logout_qtask,
+					      MGMT_IPC_OK);
+			return;
+		}
+		/* logout was from eh - fall down to cleanup */
+	case STATE_LOGGED_IN:
+		/* mark failed connection */
+		conn->state = STATE_CLEANUP_WAIT;
+
+		if (session->erl > 0) {
+			/* check if we still have some logged in connections */
+			for (i=0; i<ISCSI_CONN_MAX; i++) {
+				if (session->conn[i].state == STATE_LOGGED_IN) {
+					break;
+				}
+			}
+			if (i != ISCSI_CONN_MAX) {
+				/* FIXME: re-assign leading connection
+				 *        for ERL>0 */
+			}
+
+			break;
+		}
+
+		/* mark all connections as failed */
+		for (i=0; i<ISCSI_CONN_MAX; i++) {
+			if (session->conn[i].state == STATE_LOGGED_IN)
+				session->conn[i].state = STATE_CLEANUP_WAIT;
+		}
+		session->r_stage = R_STAGE_SESSION_REOPEN;
+		break;
+	case STATE_IN_LOGIN:
+		if (session->r_stage == R_STAGE_SESSION_REOPEN) {
+			queue_task_t *qtask;
+
+			if (session->sync_qtask)
+				qtask = session->sync_qtask;
+			else
+				qtask = &session->reopen_qtask;
+
+			session_conn_reopen(conn, qtask, STOP_CONN_RECOVER);
+			return;
+		}
+
+		log_debug(1, "ignoring conn error in login. "
+			  "let it timeout");
+		return;
+	case STATE_XPT_WAIT:
+		log_debug(1, "ignoring conn error in XPT_WAIT. "
+			  "let connection fail on its own");
+		return;
+	case STATE_CLEANUP_WAIT:
+		log_debug(1, "ignoring conn error in CLEANUP_WAIT. "
+			  "let connection stop");
+		return;
+	default:
+		log_debug(8, "invalid state %d\n", conn->state);
+		return;
+	}
+
+	if (session->r_stage == R_STAGE_SESSION_REOPEN) {
+		session_conn_reopen(conn, &session->reopen_qtask,
+				    STOP_CONN_RECOVER);
+		return;
+	}
+}
+
+static void session_conn_error(void *data)
+{
+	struct iscsi_conn_context *conn_context = data;
+	enum iscsi_err error = *(enum iscsi_err *)conn_context->data;
+	iscsi_conn_t *conn = conn_context->conn;
+	iscsi_session_t *session = conn->session;
+
+	log_warning("Kernel reported iSCSI connection %d:%d error (%d) "
+		    "state (%d)", session->id, conn->id, error,
+		    conn->state);
+	iscsi_conn_context_put(conn_context);
+	__conn_error_handle(session, conn);
+}
+
+static void iscsi_login_eh(struct iscsi_conn *conn, struct queue_task *qtask,
+			   mgmt_ipc_err_e err)
+{
+	struct iscsi_session *session = conn->session;
+
+	log_debug(3, "iscsi_login_eh");
+	/*
+	 * Flush polls and other events
+	 */
+	iscsi_flush_context_pool(conn->session);
+
+	switch (conn->state) {
+	case STATE_XPT_WAIT:
+		switch (session->r_stage) {
+		case R_STAGE_NO_CHANGE:
+			session->t->template->ep_disconnect(conn);
+			log_debug(6, "conn_timer popped at XPT_WAIT: login");
+			/* timeout during initial connect.
+			 * clean connection. write ipc rsp */
+			session_conn_cleanup(qtask, err);
+			break;
+		case R_STAGE_SESSION_REDIRECT:
+			log_debug(6, "conn_timer popped at XPT_WAIT: "
+				  "login redirect");
+			/* timeout during initial redirect connect
+			 * clean connection. write ipc rsp */
+			__session_conn_shutdown(conn, qtask, err);
+			break;
+		case R_STAGE_SESSION_REOPEN:
+			log_debug(6, "conn_timer popped at XPT_WAIT: reopen");
+			/* timeout during reopen connect. try again */
+			session_conn_reopen(conn, qtask, 0);
+			break;
+		case R_STAGE_SESSION_CLEANUP:
+			__session_conn_shutdown(conn, qtask, err);
+			break;
+		default:
+			break;
+		}
+
+		break;
+	case STATE_IN_LOGIN:
+		switch (session->r_stage) {
+		case R_STAGE_NO_CHANGE:
+		case R_STAGE_SESSION_REDIRECT:
+			log_debug(6, "conn_timer popped at IN_LOGIN: cleanup");
+			/*
+			 * send pdu timeout during initial connect or
+			 * initial redirected connect. Clean connection
+			 * and write rsp.
+			 */
+			session_conn_shutdown(conn, qtask, err);
+			break;
+		case R_STAGE_SESSION_REOPEN:
+			log_debug(6, "conn_timer popped at IN_LOGIN: reopen");
+			session_conn_reopen(conn, qtask, STOP_CONN_RECOVER);
+			break;
+		case R_STAGE_SESSION_CLEANUP:
+			session_conn_shutdown(conn, qtask,
+					      MGMT_IPC_ERR_PDU_TIMEOUT);
+			break;
+		default:
+			break;
+		}
+
+		break;
+	default:
+		log_error("Ignoring login error %d in conn state %d.\n",
+			  err, conn->state);
+		break;
+	}
+}
+
+static void iscsi_login_timedout(void *data)
+{
+	struct queue_task *qtask = data;
+	struct iscsi_conn *conn = qtask->conn;
+
+	switch (conn->state) {
+	case STATE_XPT_WAIT:
+		iscsi_login_eh(conn, qtask, MGMT_IPC_ERR_TRANS_TIMEOUT);
+		break;
+	case STATE_IN_LOGIN:
+		iscsi_login_eh(conn, qtask, MGMT_IPC_ERR_PDU_TIMEOUT);
+		break;
+	default:
+		iscsi_login_eh(conn, qtask, MGMT_IPC_ERR_INTERNAL);
+		break;
+	}
+}
+
 static void iscsi_login_redirect(iscsi_conn_t *conn)
 {
 	iscsi_session_t *session = conn->session;
@@ -822,6 +941,64 @@ static void iscsi_login_redirect(iscsi_conn_t *conn)
 		session->r_stage = R_STAGE_SESSION_REDIRECT;
 
 	__session_conn_reopen(conn, c->qtask, STOP_CONN_RECOVER);
+}
+
+static int
+__send_nopin_rsp(iscsi_conn_t *conn, struct iscsi_nopin *rhdr, char *data)
+{
+	struct iscsi_nopout hdr;
+
+	memset(&hdr, 0, sizeof(struct iscsi_nopout));
+	hdr.opcode = ISCSI_OP_NOOP_OUT | ISCSI_OP_IMMEDIATE;
+	hdr.flags = ISCSI_FLAG_CMD_FINAL;
+	hdr.dlength[0] = rhdr->dlength[0];
+	hdr.dlength[1] = rhdr->dlength[1];
+	hdr.dlength[2] = rhdr->dlength[2];
+	memcpy(hdr.lun, rhdr->lun, 8);
+	hdr.ttt = rhdr->ttt;
+	hdr.itt = ISCSI_RESERVED_TAG;
+
+	return iscsi_io_send_pdu(conn, (struct iscsi_hdr*)&hdr,
+	       ISCSI_DIGEST_NONE, data, ISCSI_DIGEST_NONE, 0);
+}
+
+static int
+__send_nopout(iscsi_conn_t *conn)
+{
+	struct iscsi_nopout hdr;
+
+	memset(&hdr, 0, sizeof(struct iscsi_nopout));
+	hdr.opcode = ISCSI_OP_NOOP_OUT | ISCSI_OP_IMMEDIATE;
+	hdr.flags = ISCSI_FLAG_CMD_FINAL;
+	hdr.itt = 0;  /* XXX: let kernel send_pdu set for us*/
+	hdr.ttt = ISCSI_RESERVED_TAG;
+	/* we have hdr.lun reserved, and no data */
+	return iscsi_io_send_pdu(conn, (struct iscsi_hdr*)&hdr,
+		ISCSI_DIGEST_NONE, NULL, ISCSI_DIGEST_NONE, 0);
+}
+
+static void conn_nop_out_timeout(void *data)
+{
+	iscsi_conn_t *conn = (iscsi_conn_t*)data;
+	iscsi_session_t *session = conn->session;
+
+	log_warning("Nop-out timedout after %d seconds on connection %d:%d "
+		    "state (%d). Dropping session.", conn->noop_out_timeout,
+		    session->id, conn->id, conn->state);
+	/* XXX: error handle */
+	__conn_error_handle(session, conn);
+}
+
+static void conn_send_nop_out(void *data)
+{
+	iscsi_conn_t *conn = (iscsi_conn_t*)data;
+
+	__send_nopout(conn);
+
+	actor_timer(&conn->nop_out_timer, conn->noop_out_timeout*1000,
+		    conn_nop_out_timeout, conn);
+	log_debug(3, "noop out timeout timer %p start, timeout %d\n",
+		 &conn->nop_out_timer, conn->noop_out_timeout);
 }
 
 static void
@@ -1487,187 +1664,6 @@ s_cleanup:
 cleanup:
 	session->t->template->ep_disconnect(conn);
 	session_conn_cleanup(qtask, err);
-}
-
-static void iscsi_login_eh(struct iscsi_conn *conn, struct queue_task *qtask,
-			   mgmt_ipc_err_e err)
-{
-	struct iscsi_session *session = conn->session;
-
-	log_debug(3, "iscsi_login_eh");
-	/*
-	 * Flush polls and other events
-	 */
-	iscsi_flush_context_pool(conn->session);
-
-	switch (conn->state) {
-	case STATE_XPT_WAIT:
-		switch (session->r_stage) {
-		case R_STAGE_NO_CHANGE:
-			session->t->template->ep_disconnect(conn);
-			log_debug(6, "conn_timer popped at XPT_WAIT: login");
-			/* timeout during initial connect.
-			 * clean connection. write ipc rsp */
-			session_conn_cleanup(qtask, err);
-			break;
-		case R_STAGE_SESSION_REDIRECT:
-			log_debug(6, "conn_timer popped at XPT_WAIT: "
-				  "login redirect");
-			/* timeout during initial redirect connect
-			 * clean connection. write ipc rsp */
-			__session_conn_shutdown(conn, qtask, err);
-			break;
-		case R_STAGE_SESSION_REOPEN:
-			log_debug(6, "conn_timer popped at XPT_WAIT: reopen");
-			/* timeout during reopen connect. try again */
-			session_conn_reopen(conn, qtask, 0);
-			break;
-		case R_STAGE_SESSION_CLEANUP:
-			__session_conn_shutdown(conn, qtask, err);
-			break;
-		default:
-			break;
-		}
-
-		break;
-	case STATE_IN_LOGIN:
-		switch (session->r_stage) {
-		case R_STAGE_NO_CHANGE:
-		case R_STAGE_SESSION_REDIRECT:
-			log_debug(6, "conn_timer popped at IN_LOGIN: cleanup");
-			/*
-			 * send pdu timeout during initial connect or
-			 * initial redirected connect. Clean connection
-			 * and write rsp.
-			 */
-			session_conn_shutdown(conn, qtask, err);
-			break;
-		case R_STAGE_SESSION_REOPEN:
-			log_debug(6, "conn_timer popped at IN_LOGIN: reopen");
-			session_conn_reopen(conn, qtask, STOP_CONN_RECOVER);
-			break;
-		case R_STAGE_SESSION_CLEANUP:
-			session_conn_shutdown(conn, qtask,
-					      MGMT_IPC_ERR_PDU_TIMEOUT);
-			break;
-		default:
-			break;
-		}
-
-		break;
-	default:
-		log_error("Ignoring login error %d in conn state %d.\n",
-			  err, conn->state);
-		break;
-	}
-}
-
-static void iscsi_login_timedout(void *data)
-{
-	struct queue_task *qtask = data;
-	struct iscsi_conn *conn = qtask->conn;
-
-	switch (conn->state) {
-	case STATE_XPT_WAIT:
-		iscsi_login_eh(conn, qtask, MGMT_IPC_ERR_TRANS_TIMEOUT);
-		break;
-	case STATE_IN_LOGIN:
-		iscsi_login_eh(conn, qtask, MGMT_IPC_ERR_PDU_TIMEOUT);
-		break;
-	default:
-		iscsi_login_eh(conn, qtask, MGMT_IPC_ERR_INTERNAL);
-		break;
-	}
-}
-
-static void
-__conn_error_handle(iscsi_session_t *session, iscsi_conn_t *conn)
-{
-	int i;
-
-	switch (conn->state) {
-	case STATE_IN_LOGOUT:
-		/* logout was requested by user */
-		if (conn->logout_qtask) {
-			session_conn_shutdown(conn, conn->logout_qtask,
-					      MGMT_IPC_OK);
-			return;
-		}
-		/* logout was from eh - fall down to cleanup */
-	case STATE_LOGGED_IN:
-		/* mark failed connection */
-		conn->state = STATE_CLEANUP_WAIT;
-
-		if (session->erl > 0) {
-			/* check if we still have some logged in connections */
-			for (i=0; i<ISCSI_CONN_MAX; i++) {
-				if (session->conn[i].state == STATE_LOGGED_IN) {
-					break;
-				}
-			}
-			if (i != ISCSI_CONN_MAX) {
-				/* FIXME: re-assign leading connection
-				 *        for ERL>0 */
-			}
-
-			break;
-		}
-
-		/* mark all connections as failed */
-		for (i=0; i<ISCSI_CONN_MAX; i++) {
-			if (session->conn[i].state == STATE_LOGGED_IN)
-				session->conn[i].state = STATE_CLEANUP_WAIT;
-		}
-		session->r_stage = R_STAGE_SESSION_REOPEN;
-		break;
-	case STATE_IN_LOGIN:
-		if (session->r_stage == R_STAGE_SESSION_REOPEN) {
-			queue_task_t *qtask;
-
-			if (session->sync_qtask)
-				qtask = session->sync_qtask;
-			else
-				qtask = &session->reopen_qtask;
-
-			session_conn_reopen(conn, qtask, STOP_CONN_RECOVER);
-			return;
-		}
-
-		log_debug(1, "ignoring conn error in login. "
-			  "let it timeout");
-		return;
-	case STATE_XPT_WAIT:
-		log_debug(1, "ignoring conn error in XPT_WAIT. "
-			  "let connection fail on its own");
-		return;
-	case STATE_CLEANUP_WAIT:
-		log_debug(1, "ignoring conn error in CLEANUP_WAIT. "
-			  "let connection stop");
-		return;
-	default:
-		log_debug(8, "invalid state %d\n", conn->state);
-		return;
-	}
-
-	if (session->r_stage == R_STAGE_SESSION_REOPEN) {
-		session_conn_reopen(conn, &session->reopen_qtask,
-				    STOP_CONN_RECOVER);
-		return;
-	}
-}
-
-static void session_conn_error(void *data)
-{
-	struct iscsi_conn_context *conn_context = data;
-	enum iscsi_err error = *(enum iscsi_err *)conn_context->data;
-	iscsi_conn_t *conn = conn_context->conn;
-	iscsi_session_t *session = conn->session;
-
-	log_warning("Kernel reported iSCSI connection %d:%d error (%d) "
-		    "state (%d)", session->id, conn->id, error,
-		    conn->state);
-	iscsi_conn_context_put(conn_context);
-	__conn_error_handle(session, conn);
 }
 
 void iscsi_sched_conn_context(struct iscsi_conn_context *conn_context,
