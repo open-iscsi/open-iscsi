@@ -427,8 +427,7 @@ create_node_record(idbm_t *db, char *targetname, int tpgt, char *ip, int port,
 		if (!strlen(iface->name)) {
 			if (iface_get_by_bind_info(db, iface, &rec->iface)) {
 				if (verbose)
-					log_error("Could not find iface info.",
-						  iface->name);
+					log_error("Could not find iface info.");
 				goto free_rec;
 			}
 		} else if (!strcmp(iface->name, DEFAULT_IFACENAME))
