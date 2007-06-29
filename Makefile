@@ -116,4 +116,9 @@ install_iname:
 		echo "***************************************************" ; \
 	fi
 
+depend:
+	for dir in usr utils utils/fwparam_ibft; do \
+		$(MAKE) -C $$dir $@; \
+	done
+
 # vim: ft=make tw=72 sw=4 ts=4:

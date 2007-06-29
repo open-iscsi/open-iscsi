@@ -5,7 +5,13 @@ PROGRAMS = fwparam_ibft
 
 all: $(PROGRAMS)
 
-fwparam_ibft: fwparam_ibft.c fwparam_ibft.h
-	$(CC) $(CFLAGS) $^ -o $@
+fwparam_ibft: fwparam_ibft.o
+	$(CC) $(CFLAGS) $< -o $@
+
 clean:
-	rm -f *.o $(PROGRAMS)
+	rm -f *.o $(PROGRAMS) .depend
+
+depend:
+	gcc $(CFLAGS) -M `ls *.c` > .depend
+
+-include .depend

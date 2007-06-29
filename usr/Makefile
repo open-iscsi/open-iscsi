@@ -53,4 +53,9 @@ iscsistart: $(IPC_OBJ) $(ISCSI_LIB_SRCS) $(INITIATOR_SRCS) iscsistart.o \
 	$(CC) $(CFLAGS) -static $^ -o $@
 
 clean:
-	rm -f *.o $(PROGRAMS)
+	rm -f *.o $(PROGRAMS) .depend
+
+depend:
+	gcc $(CFLAGS) -M `ls *.c` > .depend
+
+-include .depend
