@@ -136,10 +136,7 @@ static char *get_global_string_param(char *pathname, const char *key)
 			}
 		}
 		fclose(f);
-		if (!name)
-			log_error("an %s is required, but was not found in %s",
-				  key, pathname);
-		else
+		if (name)
 			log_debug(5, "%s=%s", key, name);
 	} else
 		log_error("can't open %s configuration file %s", key, pathname);
@@ -149,7 +146,13 @@ static char *get_global_string_param(char *pathname, const char *key)
 
 char *get_iscsi_initiatorname(char *pathname)
 {
-	return get_global_string_param(pathname, "InitiatorName=");
+	char *name;
+
+	name = get_global_string_param(pathname, "InitiatorName=");
+	if (!name)
+		log_error("An InitiatorName= is required, but was not "
+			  "found in %s", pathname);
+	return name;
 }
 
 char *get_iscsi_initiatoralias(char *pathname)
