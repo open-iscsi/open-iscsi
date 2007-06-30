@@ -224,7 +224,7 @@ void
 actor_poll(void)
 {
 	uint64_t current_time;
-	struct actor *thread, *tmp;
+	struct actor *thread;
 
 	/* check that there are no any concurrency */
 	if (poll_in_progress) {
@@ -248,12 +248,14 @@ actor_poll(void)
 
 	/* the following code to check in the main data path */
 	poll_in_progress = 1;
-	list_for_each_entry_safe(thread, tmp, &actor_list, list) {
+	while (!list_empty(&actor_list)) {
+		thread = list_entry(actor_list.next, struct actor, list);
+		list_del_init(&thread->list);
+
 		if (thread->state != ACTOR_SCHEDULED)
 			log_error("actor_list: thread state corrupted! "
 				  "Thread with state %d in actor list.",
 				  thread->state);
-		list_del_init(&thread->list);
 		thread->state = ACTOR_NOTSCHEDULED;
 		log_debug(7, "exec thread %08lx callback", (long)thread);
 		thread->callback(thread->data);
@@ -261,12 +263,14 @@ actor_poll(void)
 	}
 	poll_in_progress = 0;
 
-	list_for_each_entry_safe(thread, tmp, &poll_list, list) {
+	while (!list_empty(&poll_list)) {
+		thread = list_entry(poll_list.next, struct actor, list);
+		list_del_init(&thread->list);
+
 		if (thread->state != ACTOR_POLL_WAITING)
 			log_error("poll_list: thread state corrupted!"
 				  "Thread with state %d in poll list.",
 				  thread->state);
-		list_del_init(&thread->list);
 		thread->state = ACTOR_SCHEDULED;
 		list_add_tail(&thread->list, &actor_list);
 		log_debug(7, "thread %08lx removed from poll_list",
