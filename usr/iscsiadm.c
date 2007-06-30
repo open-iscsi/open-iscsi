@@ -1664,6 +1664,9 @@ main(int argc, char **argv)
 
 	INIT_LIST_HEAD(&ifaces);
 	/* do not allow ctrl-c for now... */
+	memset(&sa_old, 0, sizeof(struct sigaction));
+	memset(&sa_new, 0, sizeof(struct sigaction));
+
 	sa_new.sa_handler = catch_sigint;
 	sigemptyset(&sa_new.sa_mask);
 	sa_new.sa_flags = 0;
@@ -1777,6 +1780,7 @@ main(int argc, char **argv)
 		usage(0);
 
 	config_init();
+
 	if (initiator_name[0] == '\0') {
 		log_warning("exiting due to configuration error");
 		return -1;

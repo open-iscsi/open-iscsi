@@ -100,6 +100,29 @@
 	_n++; \
 } while(0)
 
+/*
+ * from linux kernel
+ */
+static char *strstrip(char *s)
+{
+	size_t size;
+	char *end;
+
+	size = strlen(s);
+	if (!size)
+		return s;
+
+	end = s + size - 1;
+	while (end >= s && isspace(*end))
+		end--;
+	*(end + 1) = '\0';
+
+	while (*s && isspace(*s))
+		s++;
+
+	return s;
+}
+
 static char *get_global_string_param(char *pathname, const char *key)
 {
 	FILE *f = NULL;
@@ -116,8 +139,7 @@ static char *get_global_string_param(char *pathname, const char *key)
 	if ((f = fopen(pathname, "r"))) {
 		while ((line = fgets(buffer, sizeof (buffer), f))) {
 
-			while (line && isspace(c = *line))
-				line++;
+			line = strstrip(line);
 
 			if (strncmp(line, key, len) == 0) {
 				char *end = line + len;
@@ -538,7 +560,7 @@ idbm_recinfo_config(recinfo_t *info, FILE *f)
 	char value[VALUE_MAXVAL];
 	char *line, *nl, buffer[2048];
 	int line_number = 0;
-	int c, i;
+	int c = 0, i;
 
 	fseek(f, 0, SEEK_SET);
 
@@ -549,27 +571,16 @@ idbm_recinfo_config(recinfo_t *info, FILE *f)
 		if (!line)
 			continue;
 
-		/* skip leading whitespace */
-		while (isspace(c = *line))
-			line++;
-
-		/* strip trailing whitespace, including the newline.
-		 * anything that needs the whitespace must be quoted.
-		 */
 		nl = line + strlen(line) - 1;
-		if (*nl == '\n') {
-			do {
-				*nl = '\0';
-				nl--;
-			} while (isspace(c = *nl));
-		} else {
-			log_warning("config file line %d too long",
+		if (*nl != '\n') {
+			log_warning("Config file line %d too long.",
 			       line_number);
 			continue;
 		}
 
+		line = strstrip(line);
 		/* process any non-empty, non-comment lines */
-		if (!*line || *line == '#')
+		if (!*line || *line == '\0' || *line ==  '\n' || *line == '#')
 			continue;
 
 		/* parse name */
