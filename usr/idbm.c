@@ -144,16 +144,11 @@ static char *get_global_string_param(char *pathname, const char *key)
 			if (strncmp(line, key, len) == 0) {
 				char *end = line + len;
 
-				/* the name is everything up to the first
-				 * bit of whitespace
+				/*
+				 * make sure ther is something after the
+				 * key.
 				 */
-				while (*end && (!isspace(c = *end)))
-					end++;
-
-				if (isspace(c = *end))
-					*end = '\0';
-
-				if (end > line + len)
+				if (strlen(end))
 					name = strdup(line + len);
 			}
 		}
