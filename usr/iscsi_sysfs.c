@@ -51,7 +51,7 @@ int read_sysfs_file(char *filename, void *value, char *format)
 	file = fopen(filename, "r");
 	if (file) {
 		line = fgets(buffer, sizeof(buffer), file);
-		if (line && strcmp(line, "<NULL>"))
+		if (line && strncmp(line, "<NULL>", 6))
 			sscanf(buffer, format, value);
 		else {
 			log_debug(5, "Could not read %s.\n", filename);
