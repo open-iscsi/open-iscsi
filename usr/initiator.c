@@ -34,6 +34,7 @@
 #include "idbm.h"
 #include "log.h"
 #include "util.h"
+#include "scsi.h"
 #include "iscsi_sysfs.h"
 #include "iscsi_settings.h"
 
@@ -1438,6 +1439,7 @@ static void iscsi_recv_async_msg(iscsi_conn_t *conn, struct iscsi_hdr *hdr)
 	struct iscsi_async *async_hdr = (struct iscsi_async *)hdr;
 	char *buf = conn->data;
 	unsigned int senselen;
+	struct scsi_sense_hdr sshdr;
 
 	log_debug(3, "Read AEN %d\n", async_hdr->async_event);
 
@@ -1446,7 +1448,14 @@ static void iscsi_recv_async_msg(iscsi_conn_t *conn, struct iscsi_hdr *hdr)
 		senselen = (buf[0] << 8) | buf[1];
 		buf += 2;
 
-		/* TODO: do something with it */
+		if (!scsi_normalize_sense((uint8_t *)buf, senselen, &sshdr)) {
+			log_error("Could not handle AEN %d. Invalid sense.",
+				  async_hdr->async_event);
+			break;
+		}
+
+		if (sshdr.asc == 0x3f && sshdr.ascq == 0x0e)
+			session_scan_host(session->hostno, NULL);
 		break;
 	case ISCSI_ASYNC_MSG_REQUEST_LOGOUT:
 		log_warning("Target requests logout within %u seconds for "
