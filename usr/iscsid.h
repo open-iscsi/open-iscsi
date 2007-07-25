@@ -27,7 +27,6 @@ extern struct iscsi_ipc *ipc;
 struct iscsi_daemon_config {
 	char *config_file;
 	char *pid_file;
-	char *initiator_name_file;
 	char *initiator_name;
 	char *initiator_alias;
 };

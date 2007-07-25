@@ -197,6 +197,12 @@ typedef struct iface_rec {
 	 */
 	char			hwaddress[ISCSI_MAX_IFACE_LEN];
 	char			transport_name[ISCSI_TRANSPORT_NAME_MAXLEN];
+	/*
+	 * This is only used for boot now, but the iser guys
+	 * can use this for their virtualization idea.
+	 */ 
+	char			alias[TARGET_NAME_MAXLEN + 1];
+	char			iname[TARGET_NAME_MAXLEN + 1];
 } iface_rec_t;
 
 typedef struct node_rec {

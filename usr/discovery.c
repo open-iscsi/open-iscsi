@@ -577,6 +577,12 @@ init_new_session(struct iscsi_sendtargets_config *config)
 	session->isid[5] = 0;
 
 	/* initialize the session */
+	if (initiator_name[0] == '\0') {
+		log_error("Cannot perform discovery. Initiatorname required.");
+		free(session);
+		return NULL;
+	}
+
 	session->initiator_name = initiator_name;
 	session->initiator_alias = initiator_alias;
 	session->portal_group_tag = PORTAL_GROUP_TAG_UNKNOWN;
@@ -845,8 +851,9 @@ int discovery_sendtargets(idbm_t *db, discovery_rec_t *drec,
 	/* allocate a new session, and initialize default values */
 	session = init_new_session(config);
 	if (session == NULL) {
-		log_error("discovery process to %s:%d failed to "
-			  "allocate a session", drec->address, drec->port);
+		log_error("Discovery process to %s:%d failed to "
+			  "create a discovery session.",
+			  drec->address, drec->port);
 		return 1;
 	}
 

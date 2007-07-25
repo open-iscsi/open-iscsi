@@ -492,10 +492,22 @@ __session_create(node_rec_t *rec, struct iscsi_transport *t)
 	session->portal_group_tag = rec->tpgt;
 	session->type = ISCSI_SESSION_TYPE_NORMAL;
 	session->r_stage = R_STAGE_NO_CHANGE;
-	session->initiator_name = dconfig->initiator_name;
-	session->initiator_alias = dconfig->initiator_alias;
 	strncpy(session->target_name, rec->name, TARGET_NAME_MAXLEN);
 
+	if (strlen(session->nrec.iface.iname))
+		session->initiator_name = session->nrec.iface.iname;
+	else if (dconfig->initiator_name)
+		session->initiator_name = dconfig->initiator_name;
+	else {
+		log_error("No initiator name set. Cannot create session.");
+		free(session);
+		return NULL;
+	}
+
+	if (strlen(session->nrec.iface.alias))
+		session->initiator_alias = session->nrec.iface.alias;
+	else
+		session->initiator_alias = dconfig->initiator_alias;
 
 	/* session's eh parameters */
 	session->replacement_timeout = rec->session.timeo.replacement_timeout;
@@ -1900,7 +1912,7 @@ iscsi_sync_session(node_rec_t *rec, queue_task_t *qtask, uint32_t sid)
 
 	session = __session_create(rec, t);
 	if (!session)
-		return MGMT_IPC_ERR_NOMEM;
+		return MGMT_IPC_ERR_LOGIN_FAILURE;
 
 	session->id = sid;
 	session->hostno = get_host_no_from_sid(sid, &err);

@@ -530,6 +530,13 @@ int get_sessioninfo_by_sysfs_id(struct session_info *info, char *session)
 	}
 
 	memset(sysfs_file, 0, PATH_MAX);
+	sprintf(sysfs_file, ISCSI_HOST_DIR"/host%d/initiatorname", host_no);
+	ret = read_sysfs_file(sysfs_file, info->iface.iname, "%s\n");
+	if (ret)
+		log_debug(7, "Could not read initiatorname for %s",
+			 sysfs_file);
+
+	memset(sysfs_file, 0, PATH_MAX);
 	sprintf(sysfs_file, ISCSI_HOST_DIR"/host%u/hwaddress", host_no);
 	/*
 	 * backward compat
@@ -568,12 +575,13 @@ int get_sessioninfo_by_sysfs_id(struct session_info *info, char *session)
 
 	log_debug(7, "found targetname %s address %s pers address %s port %d "
 		 "pers port %d driver %s iface ipaddress %s "
-		 "netdev %s hwaddress %s",
+		 "netdev %s hwaddress %s iname %s",
 		  info->targetname, info->address ? info->address : "NA",
 		  info->persistent_address ? info->persistent_address : "NA",
 		  info->port, info->persistent_port,
 		  info->iface.transport_name, info->iface.ipaddress,
-		  info->iface.netdev, info->iface.hwaddress);
+		  info->iface.netdev, info->iface.hwaddress,
+		  info->iface.iname);
 	return 0;
 }
  

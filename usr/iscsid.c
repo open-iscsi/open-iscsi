@@ -224,6 +224,12 @@ static int sync_session(void *data, struct session_info *info)
 	/* multiple drivers could be connected to the same portal */
 	if (!iscsi_match_session(&rec, info))
 		return -1;
+	/*
+	 * We use the initiator name from sysfs because
+	 * the session could have come from our db or ibft or some other
+	 * app.
+	 */
+	strcpy(rec.iface.iname, info->iface.iname);
 
 	memset(&req, 0, sizeof(req));
 	req.command = MGMT_IPC_SESSION_SYNC;
@@ -261,6 +267,19 @@ static void iscsid_exit(void)
 	free_initiator();
 	mgmt_ipc_close(mgmt_ipc_fd);
 	ipc->ctldev_close();
+}
+
+static void missing_iname_warn(char *initiatorname_file)
+{
+	fprintf(stderr, "Warning: initiatorname file %s doesn't "
+		"exist. If using software iscsi (iscsi_tcp or ib_iser) or "
+		"partial offload (bnx iscsi), you may not be able to log "
+		"into or discovery targets. Please create a file %s that "
+		"contains a sting with the format: InitiatorName="
+		"iqn.yyyy-mm.<reversed domain name>[:identifier].\n\n"
+		"Example: InitiatorName=iqn.2001-04.com.redhat:fc6.\n"
+		"If using hardware iscsi like qla4xxx this message can be "
+		"ignored.\n", initiatorname_file, initiatorname_file);
 }
 
 int main(int argc, char *argv[])
@@ -320,19 +339,6 @@ int main(int argc, char *argv[])
 			usage(1);
 			break;
 		}
-	}
-
-	/* make sure we have initiatorname config file first */
-	if (access(initiatorname_file, R_OK)) {
-		fprintf(stderr, "Error: initiatorname file %s doesn't exist.\n",
-			initiatorname_file);
-		fprintf(stderr, "Please create a file %s that contains\n",
-			initiatorname_file);
-		fprintf(stderr, "a sting with the format: InitiatorName="
-			"iqn.yyyy-mm.<reversed domain name>[:identifier].\n");
-		fprintf(stderr, "Example: InitiatorName=iqn.2001-04.com.redhat:"
-			"fc6\n");
-		usage(0);
 	}
 
 	/* initialize logger */
@@ -400,17 +406,14 @@ int main(int argc, char *argv[])
 	memset(&daemon_config, 0, sizeof (daemon_config));
 	daemon_config.pid_file = pid_file;
 	daemon_config.config_file = config_file;
-	daemon_config.initiator_name_file = initiatorname_file;
 	daemon_config.initiator_name =
-	    get_iscsi_initiatorname(daemon_config.initiator_name_file);
-	if (daemon_config.initiator_name == NULL) {
-		log_warning("exiting due to configuration error");
-		exit(1);
-	}
+				get_iscsi_initiatorname(initiatorname_file);
+	if (daemon_config.initiator_name == NULL)
+		missing_iname_warn(initiatorname_file);
 
 	/* optional InitiatorAlias */
 	daemon_config.initiator_alias =
-	    get_iscsi_initiatoralias(daemon_config.initiator_name_file);
+				get_iscsi_initiatoralias(initiatorname_file);
 	if (!daemon_config.initiator_alias) {
 		memset(&host_info, 0, sizeof (host_info));
 		if (uname(&host_info) >= 0) {
@@ -419,7 +422,8 @@ int main(int argc, char *argv[])
 		}
 	}
 
-	log_debug(1, "InitiatorName=%s", daemon_config.initiator_name);
+	log_debug(1, "InitiatorName=%s", daemon_config.initiator_name ?
+		 daemon_config.initiator_name : "NOT SET");
 	log_debug(1, "InitiatorAlias=%s", daemon_config.initiator_alias);
 
 	pid = fork();

@@ -155,7 +155,8 @@ mgmt_ipc_session_sync(queue_task_t *qtask)
 static mgmt_ipc_err_e
 mgmt_ipc_cfg_initiatorname(queue_task_t *qtask)
 {
-	strcpy(qtask->rsp.u.config.var, dconfig->initiator_name);
+	if (dconfig->initiator_name)
+		strcpy(qtask->rsp.u.config.var, dconfig->initiator_name);
 	mgmt_ipc_write_rsp(qtask, MGMT_IPC_OK);
 	return MGMT_IPC_OK;
 }

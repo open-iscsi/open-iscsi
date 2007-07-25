@@ -883,6 +883,9 @@ static void print_sessions_tree(idbm_t *db, struct list_head *list, int level)
 			printf("\t\tIface Name: %s\n", DEFAULT_IFACENAME);
 		printf("\t\tIface Transport: %s\n",
 		       t ? t->name : UNKNOWN_VALUE);
+		printf("\t\tIface Initiatorname: %s\n",
+		       strlen(curr->iface.iname) ? curr->iface.iname :
+								UNKNOWN_VALUE);
 		printf("\t\tIface IPaddress: %s\n", curr->iface.ipaddress);
 		printf("\t\tIface HWaddress: %s\n", curr->iface.hwaddress);
 		printf("\t\tIface Netdev: %s\n", curr->iface.netdev);
@@ -1354,11 +1357,8 @@ static int do_fwboot(idbm_t *db, discovery_rec_t *drec, int do_login)
 		return ENOMEM;
 	}
 
-	/*
-	 * For now initiator name is the default value. When Erez
-	 * does his iname virtualization we can set that on a per iface
-	 * basis.
-	 */
+	strncpy(rec->iface.iname, context.initiatorname,
+		sizeof(context.initiatorname));
 	strncpy(rec->session.auth.username, context.chap_name,
 		sizeof(context.chap_name));
 	strncpy((char *)rec->session.auth.password, context.chap_password,
@@ -1864,11 +1864,6 @@ main(int argc, char **argv)
 		usage(0);
 
 	config_init();
-
-	if (initiator_name[0] == '\0') {
-		log_warning("exiting due to configuration error");
-		return -1;
-	}
 
 	db = idbm_init(config_file);
 	if (!db) {
