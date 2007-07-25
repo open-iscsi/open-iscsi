@@ -1,7 +1,32 @@
-diff -Nurp a/libiscsi.c b/libiscsi.c
---- a/libiscsi.c	2007-02-21 11:57:49.000000000 +0200
-+++ b/libiscsi.c	2007-02-21 11:57:49.000000000 +0200
-@@ -716,10 +716,9 @@ again:
+diff --git a/iscsi_2.6.22_compat.h b/iscsi_2.6.22_compat.h
+new file mode 100644
+index 0000000..6627292
+--- /dev/null
++++ b/iscsi_2.6.22_compat.h
+@@ -0,0 +1,6 @@
++#include <linux/version.h>
++
++#if LINUX_VERSION_CODE <= KERNEL_VERSION(2,6,21)
++#define netlink_kernel_create(uint, groups, input, cb_mutex, mod) \
++	netlink_kernel_create(uint, groups, input, mod)
++#endif
+diff --git a/iscsi_tcp.h b/iscsi_tcp.h
+index 4b86fe4..0e468c6 100644
+--- a/iscsi_tcp.h
++++ b/iscsi_tcp.h
+@@ -52,6 +52,7 @@
+ #define ISCSI_SG_TABLESIZE		SG_ALL
+ #define ISCSI_TCP_MAX_CMD_LEN		16
+ 
++#include "iscsi_2.6.22_compat.h"
+ struct crypto_hash;
+ struct socket;
+ 
+diff --git a/libiscsi.c b/libiscsi.c
+index f2ef4c7..fd241ca 100644
+--- a/libiscsi.c
++++ b/libiscsi.c
+@@ -760,10 +760,9 @@ again:
  	return rc;
  }
  
@@ -14,7 +39,7 @@ diff -Nurp a/libiscsi.c b/libiscsi.c
  	int rc;
  	/*
  	 * serialize Xmit worker on a per-connection basis.
-@@ -1509,7 +1508,7 @@ iscsi_conn_setup(struct iscsi_cls_sessio
+@@ -1528,7 +1527,7 @@ iscsi_conn_setup(struct iscsi_cls_session *cls_session, uint32_t conn_idx)
  	if (conn->mgmtqueue == ERR_PTR(-ENOMEM))
  		goto mgmtqueue_alloc_fail;
  
@@ -23,9 +48,10 @@ diff -Nurp a/libiscsi.c b/libiscsi.c
  
  	/* allocate login_mtask used for the login/text sequences */
  	spin_lock_bh(&session->lock);
-diff -Nurp a/libiscsi.h b/libiscsi.h
---- a/libiscsi.h	2007-01-10 12:38:25.000000000 +0200
-+++ b/libiscsi.h	2007-01-10 12:38:25.000000000 +0200
+diff --git a/libiscsi.h b/libiscsi.h
+index 3ee0f4f..24fb7d5 100644
+--- a/libiscsi.h
++++ b/libiscsi.h
 @@ -25,8 +25,6 @@
  
  #include <linux/types.h>
@@ -35,10 +61,19 @@ diff -Nurp a/libiscsi.h b/libiscsi.h
  #include "iscsi_proto.h"
  #include "iscsi_if.h"
  
-diff -Nurp a/scsi_transport_iscsi.c b/scsi_transport_iscsi.c
---- a/scsi_transport_iscsi.c	2007-01-10 12:38:25.000000000 +0200
-+++ b/scsi_transport_iscsi.c	2007-01-10 12:38:25.000000000 +0200
-@@ -234,11 +234,9 @@ static int iscsi_user_scan(struct Scsi_H
+diff --git a/scsi_transport_iscsi.c b/scsi_transport_iscsi.c
+index 5bca8a9..59e7ea9 100644
+--- a/scsi_transport_iscsi.c
++++ b/scsi_transport_iscsi.c
+@@ -29,6 +29,7 @@
+ #include <scsi/scsi_transport.h>
+ #include "scsi_transport_iscsi.h"
+ #include "iscsi_if.h"
++#include "iscsi_2.6.22_compat.h"
+ 
+ #define ISCSI_SESSION_ATTRS 15
+ #define ISCSI_CONN_ATTRS 11
+@@ -234,11 +235,9 @@ static int iscsi_user_scan(struct Scsi_Host *shost, uint channel,
  	return 0;
  }
  
@@ -52,7 +87,7 @@ diff -Nurp a/scsi_transport_iscsi.c b/scsi_transport_iscsi.c
  
  	dev_printk(KERN_INFO, &session->dev, "iscsi: session recovery timed "
  		  "out after %d secs\n", session->recovery_tmo);
-@@ -278,7 +276,7 @@ iscsi_alloc_session(struct Scsi_Host *sh
+@@ -278,7 +277,7 @@ iscsi_alloc_session(struct Scsi_Host *shost,
  
  	session->transport = transport;
  	session->recovery_tmo = 120;
@@ -61,10 +96,11 @@ diff -Nurp a/scsi_transport_iscsi.c b/scsi_transport_iscsi.c
  	INIT_LIST_HEAD(&session->host_list);
  	INIT_LIST_HEAD(&session->sess_list);
  
-diff -Nurp a/scsi_transport_iscsi.h b/scsi_transport_iscsi.h
---- a/scsi_transport_iscsi.h	2007-01-10 12:38:26.000000000 +0200
-+++ b/scsi_transport_iscsi.h	2007-01-10 12:38:25.000000000 +0200
-@@ -176,7 +176,7 @@ struct iscsi_cls_session {
+diff --git a/scsi_transport_iscsi.h b/scsi_transport_iscsi.h
+index 05e2554..562f63d 100644
+--- a/scsi_transport_iscsi.h
++++ b/scsi_transport_iscsi.h
+@@ -182,7 +182,7 @@ struct iscsi_cls_session {
  
  	/* recovery fields */
  	int recovery_tmo;
@@ -72,3 +108,7 @@ diff -Nurp a/scsi_transport_iscsi.h b/scsi_transport_iscsi.h
 +	struct work_struct recovery_work;
  
  	int target_id;
+ 
+-- 
+1.5.1.2
+
