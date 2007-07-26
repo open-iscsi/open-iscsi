@@ -283,7 +283,7 @@ int main(int argc, char *argv[])
 		case 'f':
 			ret = fw_get_entry(&context, NULL);
 			if (ret) {
-				printf("Could not setup fw entries.\n");
+				printf("Could not read fw values.\n");
 				exit(-1);
 			}
 

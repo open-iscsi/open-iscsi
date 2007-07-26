@@ -54,6 +54,7 @@ enum iscsiadm_mode {
 	MODE_SESSION,
 	MODE_HOST,
 	MODE_IFACE,
+	MODE_FW,
 };
 
 enum iscsiadm_op {
@@ -138,6 +139,8 @@ str_to_mode(char *str)
 		mode = MODE_SESSION;
 	else if (!strcmp("iface", str))
 		mode = MODE_IFACE;
+	else if (!strcmp("fw", str))
+		mode = MODE_FW;
 	else
 		mode = -1;
 
@@ -156,7 +159,7 @@ str_to_type(char *str)
 		type = DISCOVERY_TYPE_SLP;
 	else if (!strcmp("isns", str))
 		type = DISCOVERY_TYPE_ISNS;
-	else if (!strcmp("fwboot", str))
+	else if (!strcmp("fw", str))
 		type = DISCOVERY_TYPE_FWBOOT;
 	else
 		type = -1;
@@ -1322,7 +1325,24 @@ sw_st:
 	return do_sofware_sendtargets(db, drec, ifaces, info_level, do_login);
 }
 
-static int do_fwboot(idbm_t *db, discovery_rec_t *drec, int do_login)
+/* TODO: merge this with the idbm code */
+static void print_fw_nodes(struct node_rec *rec, int info_level)
+{
+	switch (info_level) {
+	case -1:
+	case 0:
+		idbm_print_node_flat(NULL, NULL, rec);
+		break;
+	case 1:
+		idbm_print_node_tree(NULL, NULL, rec);
+		break;
+	default:
+		log_error("Invalid print level %d. Try 0 or 1.", info_level);
+	}
+}
+
+static int do_fw_discovery(idbm_t *db, discovery_rec_t *drec, int do_login,
+			   int info_level)
 {
 	struct boot_context context;
 	struct node_rec *rec;
@@ -1334,24 +1354,12 @@ static int do_fwboot(idbm_t *db, discovery_rec_t *drec, int do_login)
 		log_error("Could not read fw values.");
 		return ret;
 	}
-
-	if (!do_login) {
-		/*
-		 * This output is a little different. Because we do not store
-		 * the ibft data in the node/discovery db, and as a result
-		 * nornmal iscsiadm command to dump params will not work, we
-		 * dump the params here.
-		 */
-		fw_print_entry(&context);
-		return 0;
-	}
-
 	/* tpgt hard coded to 1 */
 	rec = create_node_record(db, context.targetname, 1,
 				 context.target_ipaddr, context.target_port,
 				 NULL, 1);
 	if (!rec) {
-		log_error("Could not setup rec for fwboot login.");
+		log_error("Could not setup rec for fw discovery login.");
 		return ENOMEM;
 	}
 
@@ -1371,7 +1379,10 @@ static int do_fwboot(idbm_t *db, discovery_rec_t *drec, int do_login)
 				strlen((char *)context.chap_password);
 	rec->session.auth.password_in_length =
 				strlen((char *)context.chap_password_in);
-	ret = login_portal(db, NULL, rec);
+
+	print_fw_nodes(rec, info_level);
+	if (do_login)
+		ret = login_portal(db, NULL, rec);
 	free(rec);
 	return ret;
 }
@@ -1679,6 +1690,22 @@ out:
 	return rc;
 }
 
+static int exec_fw_op(void)
+{
+	struct boot_context context;
+	int ret;
+
+	memset(&context, 0, sizeof(struct boot_context));
+	ret = fw_get_entry(&context, NULL);
+	if (ret) {
+		log_error("Could not read fw values.");
+		return ret;
+	}
+
+	fw_print_entry(&context);
+	return 0;
+}
+
 static int parse_sid(char *session)
 {
 	struct stat statb;
@@ -1738,7 +1765,7 @@ main(int argc, char **argv)
 	int rc=0, sid=-1, op=-1, type=-1, do_logout=0, do_stats=0, do_show=0;
 	int do_login_all=0, do_logout_all=0, info_level=-1, num_ifaces = 0;
 	int tpgt = PORTAL_GROUP_TAG_UNKNOWN;
-	idbm_t *db;
+	idbm_t *db = NULL;
 	struct sigaction sa_old;
 	struct sigaction sa_new;
 	discovery_rec_t drec;
@@ -1863,6 +1890,19 @@ main(int argc, char **argv)
 	if (mode < 0)
 		usage(0);
 
+	if (mode == MODE_FW) {
+		if ((rc = verify_mode_params(argc, argv, "m", 0))) {
+			log_error("fw mode: option '-%c' is not "
+				  "allowed/supported", rc);
+			rc = -1;
+			goto out;
+		}
+
+		rc = exec_fw_op();
+		goto out;
+	}
+
+
 	config_init();
 
 	db = idbm_init(config_file);
@@ -1933,7 +1973,7 @@ main(int argc, char **argv)
 			break;
 		case DISCOVERY_TYPE_FWBOOT:
 			drec.type = DISCOVERY_TYPE_FWBOOT;
-			if (do_fwboot(db, &drec, do_login))
+			if (do_fw_discovery(db, &drec, do_login, info_level))
 				rc = -1;
 			break;
 		default:

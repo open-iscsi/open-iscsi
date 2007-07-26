@@ -722,13 +722,15 @@ int idbm_print_node_tree(idbm_t *db, void *data, node_rec_t *rec)
 {
 	node_rec_t *last_rec = data;
 
-	if (strcmp(last_rec->name, rec->name)) {
+	if (!last_rec || strcmp(last_rec->name, rec->name)) {
 		printf("Target: %s\n", rec->name);
-		memset(last_rec, 0, sizeof(node_rec_t));
+		if (last_rec)
+			memset(last_rec, 0, sizeof(node_rec_t));
 	}
 
-	if ((strcmp(last_rec->conn[0].address, rec->conn[0].address) ||
-	     last_rec->conn[0].port != rec->conn[0].port)) {
+	if (!last_rec ||
+	     ((strcmp(last_rec->conn[0].address, rec->conn[0].address) ||
+	     last_rec->conn[0].port != rec->conn[0].port))) {
 		if (strchr(rec->conn[0].address, '.'))
 			printf("\tPortal: %s:%d,%d\n", rec->conn[0].address,
 			       rec->conn[0].port, rec->tpgt);
@@ -739,7 +741,8 @@ int idbm_print_node_tree(idbm_t *db, void *data, node_rec_t *rec)
 
 	printf("\t\tIface Name: %s\n", rec->iface.name);
 
-	memcpy(last_rec, rec, sizeof(node_rec_t));
+	if (last_rec)
+		memcpy(last_rec, rec, sizeof(node_rec_t));
 	return 0;
 }
 
@@ -2594,6 +2597,9 @@ idbm_init(char *configfile)
 void
 idbm_terminate(idbm_t *db)
 {
+	if (!db)
+		return;
+
 	free(db->configfile);
 	free(db);
 }

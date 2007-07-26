@@ -12,6 +12,8 @@ iscsiadm \- open-iscsi administration utility
 
 \fBiscsiadm\fR -m iface [ -dhV ] [ -P printlevel ] [ -I ifacename ] [ [ -o  operation  ] [ -n name ] [ -v value ] ]
 
+\fBiscsiadm\fR -m fw
+
 .SH "DESCRIPTION"
 The iscsiadm utility is a command-line tool allowing discovery and login
 to iSCSI targets, as well as access and management of the open-iscsi
@@ -95,11 +97,12 @@ for session mode).
 .TP
 \fB\-m, \-\-mode \fIop\fR
 specify the mode. \fIop\fR
-must be one of \fIdiscovery\fR, \fInode\fR, or \fIsession\fR.
+must be one of \fIdiscovery\fR, \fInode\fR, \fIfw\fR or \fIsession\fR.
 .IP
 If no other options are specified: for \fIdiscovery\fR and \fInode\fR, all
 of their respective records are displayed; for \fIsession\fR, all active
-sessions and connections are displayed.
+sessions and connections are displayed; for \fIfw\fR, all boot firmware
+values are displayed.
 
 .TP
 \fB\-n\fR, \fB\-\-name=\fIname\fR
@@ -181,8 +184,8 @@ This option is only valid for node and session mode.
 .TP
 \fB\-t\fR, \fB\-\-type=\fItype\fR
 \fItype\fR must be \fIsendtargets\fR (or abbreviated as \fIst\fR),
-\fIslp\fR, or \fIisns\fR. Currently only sendtargets and iSNS is supported,
-see the DISCOVERY TYPES section.
+\fIslp\fR, \fIisns\fR or \fIfw\fR. Currently only sendtargets, fw, and
+iSNS is supported, see the DISCOVERY TYPES section.
 .IP
 This option is only valid for discovery mode.
 
@@ -237,6 +240,22 @@ and iscsiadm must be run in discovery mode with the "isns" discovery type.
 
 iSNS support in open-iscsi is experimental. The iscsid.conf settings,
 iscsiadm syntax and node DB layout may change.
+
+.TP
+.B
+fw
+Several NICs and systems contain a mini iSCSI initiator which can be used
+for boot. To get the values used for boot the fw option can be used.
+Doing fw discovery, does not store persistent records in the node or
+discovery DB, because the values are stored in the system's or NIC's
+resource.
+
+Performing fw discovery will print the portals, like with other discovery
+methods. To see other settings like CHAP values and initiator settings,
+like you would in node mode, run "iscsiadm -m fw".
+
+fw support in open-iscsi is experimental. The settings and iscsiadm
+syntax and output format may change.
 
 .P
 iscsiadm supports the
