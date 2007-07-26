@@ -39,21 +39,23 @@ ISCSI_LIB_SRCS = util.o io.o auth.o login.o log.o md5.o sha1.o iscsi_sysfs.o idb
 COMMON_SRCS =  $(ISCSI_LIB_SRCS)
 # core initiator files
 INITIATOR_SRCS = initiator.o scsi.o actor.o mgmt_ipc.o isns.o transport.o
+# fw boot files
+FW_BOOT_SRCS = $(addprefix ../utils/fwparam_ibft/, fw_entry.o fwparam_ibft.o)
 
 all: $(PROGRAMS)
 
 iscsid: $(COMMON_SRCS) $(IPC_OBJ) $(INITIATOR_SRCS) iscsid.o
 	$(CC) $(CFLAGS) $^ -o $@
 
-iscsiadm: $(COMMON_SRCS) strings.o discovery.o iscsiadm.o
+iscsiadm: $(COMMON_SRCS) $(FW_BOOT_SRCS) strings.o discovery.o iscsiadm.o
 	$(CC) $(CFLAGS) $^ -o $@
 
-iscsistart: $(IPC_OBJ) $(ISCSI_LIB_SRCS) $(INITIATOR_SRCS) iscsistart.o \
-		statics.o
+iscsistart: $(IPC_OBJ) $(ISCSI_LIB_SRCS) $(INITIATOR_SRCS) $(FW_BOOT_SRCS) \
+		iscsistart.o statics.o
 	$(CC) $(CFLAGS) -static $^ -o $@
 
 clean:
-	rm -f *.o $(PROGRAMS) .depend
+	rm -f *.o $(PROGRAMS) ../utils/fwparam_ibft/*.o .depend
 
 depend:
 	gcc $(CFLAGS) -M `ls *.c` > .depend

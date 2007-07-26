@@ -39,6 +39,7 @@
 #include "iscsi_sysfs.h"
 #include "list.h"
 #include "iscsi_settings.h"
+#include "fw_context.h"
 
 struct iscsi_ipc *ipc = NULL; /* dummy */
 static char program_name[] = "iscsiadm";
@@ -155,6 +156,8 @@ str_to_type(char *str)
 		type = DISCOVERY_TYPE_SLP;
 	else if (!strcmp("isns", str))
 		type = DISCOVERY_TYPE_ISNS;
+	else if (!strcmp("fwboot", str))
+		type = DISCOVERY_TYPE_FWBOOT;
 	else
 		type = -1;
 
@@ -1215,17 +1218,40 @@ do_offload_sendtargets(idbm_t *db, discovery_rec_t *drec,
 	return discovery_offload_sendtargets(db, host_no, do_login, drec);
 }
 
+static int login_discovered_portals(idbm_t *db, void *data, node_rec_t *rec)
+{
+	discovery_rec_t *drec = data;
+
+	if (rec->disc_type != drec->type ||
+	    rec->disc_port != drec->port ||
+	    strcmp(rec->disc_address, drec->address))
+		return -1;
+
+	login_portal(db, NULL, rec);
+	/*
+	 * This is used during the initial setup, so we want to see
+	 * what portals we can or cannot log into and we will just continue
+	 */
+	return 0;
+}
+
 static int
 do_sofware_sendtargets(idbm_t *db, discovery_rec_t *drec,
 			struct list_head *ifaces, int info_level, int do_login)
 {
-	int rc;
+	int rc, nr_found = 0;
 
 	drec->type = DISCOVERY_TYPE_SENDTARGETS;
 	rc = discovery_sendtargets(db, drec, ifaces);
-	if (!rc)
-		idbm_print_discovered(db, drec, info_level);
-	return rc;
+	if (rc)
+		return rc;
+
+	idbm_print_discovered(db, drec, info_level);
+
+	if (!do_login)
+		return 0;
+
+	return idbm_for_each_rec(db, &nr_found, drec, login_discovered_portals);
 }
 
 static int
@@ -1292,6 +1318,64 @@ do_sendtargets(idbm_t *db, discovery_rec_t *drec, struct list_head *ifaces,
 sw_st:
 	return do_sofware_sendtargets(db, drec, ifaces, info_level, do_login);
 }
+
+static int do_fwboot(idbm_t *db, discovery_rec_t *drec, int do_login)
+{
+	struct boot_context context;
+	struct node_rec *rec;
+	int ret;
+
+	memset(&context, 0, sizeof(struct boot_context));
+	/*
+	 * Should we print this iscsiadm style or the ibft tool style
+	 */
+	ret = fw_entry_init(&context, FW_PRINT);
+	if (ret) {
+		log_error("Could not print fw values.");
+		return ret;
+	}
+
+	if (!do_login)
+		return 0;
+
+	memset(&context, 0, sizeof(struct boot_context));
+	ret = fw_entry_init(&context, FW_CONNECT);
+	if (ret) {
+		log_error("Could not read fw values.");
+		return ret;
+	}
+
+	/* tpgt hard coded to 1 */
+	rec = create_node_record(db, context.targetname, 1,
+				 context.target_ipaddr, context.target_port,
+				 NULL, 1);
+	if (!rec) {
+		log_error("Could not setup rec for fwboot login.");
+		return ENOMEM;
+	}
+
+	/*
+	 * For now initiator name is the default value. When Erez
+	 * does his iname virtualization we can set that on a per iface
+	 * basis.
+	 */
+	strncpy(rec->session.auth.username, context.chap_name,
+		sizeof(context.chap_name));
+	strncpy((char *)rec->session.auth.password, context.chap_password,
+		sizeof(context.chap_password));
+	strncpy(rec->session.auth.username_in, context.chap_name_in,
+		sizeof(context.chap_name_in));
+	strncpy((char *)rec->session.auth.password_in, context.chap_password_in,
+		sizeof(context.chap_password_in));
+	rec->session.auth.password_length =
+				strlen((char *)context.chap_password);
+	rec->session.auth.password_in_length =
+				strlen((char *)context.chap_password_in);
+	ret = login_portal(db, NULL, rec);
+	free(rec);
+	return ret;
+}
+
 
 static int isns_dev_attr_query(idbm_t *db, discovery_rec_t *drec,
 			       int info_level)
@@ -1850,6 +1934,11 @@ main(int argc, char **argv)
 			drec.type = DISCOVERY_TYPE_ISNS;
 
 			if (isns_dev_attr_query(db, &drec, info_level))
+				rc = -1;
+			break;
+		case DISCOVERY_TYPE_FWBOOT:
+			drec.type = DISCOVERY_TYPE_FWBOOT;
+			if (do_fwboot(db, &drec, do_login))
 				rc = -1;
 			break;
 		default:

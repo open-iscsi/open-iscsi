@@ -26,6 +26,7 @@
 
 /* #include <sys/types.h> */
 #include <stdint.h>
+#include "fw_context.h"
 
 /*
  * Structures here are is based on Doug's original code, and Patrick's
@@ -135,5 +136,22 @@ struct ibft_tgt {
 	uint16_t rev_chap_secret_len;
 	uint16_t rev_chap_secret_off;
 } __attribute__((__packed__));
+
+/* Common variables */
+#define FILENAMESZ (42)
+extern char filename[FILENAMESZ];
+#define X86_DEFAULT_FILENAME "/dev/mem"
+
+/*
+ * Prefix strings, for the "prefixN:NAME=value".
+ */
+#define NETWORK		"network"
+#define INITIATOR	"iscsi-initiator"
+#define TARGET		"target"
+
+
+/* func decls */
+extern int fwparam_ibft(struct boot_context *context, int option);
+extern int fwparam_ppc(struct boot_context *context, int option);
 
 #endif /* FWPARAM_IBFT_H_ */

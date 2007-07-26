@@ -158,6 +158,7 @@ typedef enum discovery_type {
 	DISCOVERY_TYPE_SLP,
 	DISCOVERY_TYPE_ISNS,
 	DISCOVERY_TYPE_STATIC,
+	DISCOVERY_TYPE_FWBOOT,
 } discovery_type_e;
 
 typedef struct conn_rec {

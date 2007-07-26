@@ -100,6 +100,17 @@
 	_n++; \
 } while(0)
 
+#define __recinfo_int_o6(_key,_info,_rec,_name,_show,_op0,_op1,_op2,\
+			 _op3,_op4,_op5,_n)\
+do{\
+	__recinfo_int_o5(_key,_info,_rec,_name,_show,_op0,_op1,_op2,_op3,\
+			 _op4,_n); _n--; \
+	if (_rec->_name == 5) strncpy(_info[_n].value, _op5, VALUE_MAXVAL); \
+	_info[_n].opts[5] = _op5; \
+	_info[_n].numopts = 6; \
+	_n++; \
+} while(0)
+
 /*
  * from linux kernel
  */
@@ -126,7 +137,7 @@ static char *strstrip(char *s)
 static char *get_global_string_param(char *pathname, const char *key)
 {
 	FILE *f = NULL;
-	int c, len;
+	int len;
 	char *line, buffer[1024];
 	char *name = NULL;
 
@@ -184,9 +195,9 @@ idbm_recinfo_discovery(discovery_rec_t *r, recinfo_t *ri)
 
 	__recinfo_int_o2("discovery.startup", ri, r, startup, IDBM_SHOW,
 			"manual", "automatic", num);
-	__recinfo_int_o5("discovery.type", ri, r, type, IDBM_SHOW,
+	__recinfo_int_o6("discovery.type", ri, r, type, IDBM_SHOW,
 			"sendtargets", "offload_send_targets", "slp", "isns",
-			"static", num);
+			"static", "fwboot", num);
 	if (r->type == DISCOVERY_TYPE_SENDTARGETS) {
 		__recinfo_str("discovery.sendtargets.address", ri, r,
 			address, IDBM_SHOW, num);
@@ -256,9 +267,9 @@ idbm_recinfo_node(node_rec_t *r, recinfo_t *ri)
 	__recinfo_str("node.discovery_address", ri, r, disc_address, IDBM_SHOW,
 		      num);
 	__recinfo_int("node.discovery_port", ri, r, disc_port, IDBM_SHOW, num);
-	__recinfo_int_o5("node.discovery_type", ri, r, disc_type,
+	__recinfo_int_o6("node.discovery_type", ri, r, disc_type,
 			 IDBM_SHOW, "send_targets", "offload_send_targets",
-			 "slp", "isns", "static", num);
+			 "slp", "isns", "static", "fwboot", num);
 	__recinfo_int("node.session.initial_cmdsn", ri, r,
 		      session.initial_cmdsn, IDBM_SHOW, num);
 	__recinfo_int("node.session.initial_login_retry_max", ri, r,

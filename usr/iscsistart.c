@@ -42,6 +42,7 @@
 #include "version.h"
 #include "iscsi_sysfs.h"
 #include "iscsi_settings.h"
+#include "fw_context.h"
 
 /* global config info */
 /* initiator needs initiator name/alias */
@@ -68,6 +69,8 @@ static struct option const long_options[] = {
 	{"username_in", required_argument, NULL, 'U'},
 	{"password_in", required_argument, NULL, 'W'},
 	{"debug", required_argument, NULL, 'd'},
+	{"fwparam_connect", no_argument, NULL, 'b'},
+	{"fwparam_print", no_argument, NULL, 'f'},
 	{"help", no_argument, NULL, 'h'},
 	{"version", no_argument, NULL, 'v'},
 	{NULL, 0, NULL, 0},
@@ -92,6 +95,8 @@ Open-iSCSI initiator.\n\
   -U, --username_in=N      set incoming username to N (optional)\n\
   -W, --password_in=N      set incoming password to N (optional\n\
   -d, --debug debuglevel   print debugging information \n\
+  -b, --fwparam_connect    create a session to the target\n\
+  -f, --fwparam_print      print the iBFT to STDOUT \n\
   -h, --help               display this help and exit\n\
   -v, --version            display version and exit\n\
 ");
@@ -175,15 +180,15 @@ do {									\
 	}								\
 } while (0);
 
-/* TODO fix leaks */
 int main(int argc, char *argv[])
 {
 	struct utsname host_info; /* will use to compound initiator alias */
 	struct iscsi_auth_config *auth;
 	char *initiatorname = NULL;
-	int ch, longindex;
+	int ch, longindex, ret;
 	struct sigaction sa_old;
 	struct sigaction sa_new;
+	struct boot_context context;
 	pid_t pid;
 
 	idbm_node_setup_defaults(&config_rec);
@@ -197,7 +202,7 @@ int main(int argc, char *argv[])
 	sa_new.sa_flags = 0;
 	sigaction(SIGINT, &sa_new, &sa_old );
 
-	while ((ch = getopt_long(argc, argv, "i:t:g:a:p:d:u:w:U:W:vh",
+	while ((ch = getopt_long(argc, argv, "i:t:g:a:p:d:u:w:U:W:bfvh",
 				 long_options, &longindex)) >= 0) {
 		switch (ch) {
 		case 'i':
@@ -246,6 +251,41 @@ int main(int argc, char *argv[])
 		case 'd':
 			log_level = atoi(optarg);
 			break;
+		case 'b':
+			ret = fw_entry_init(&context, FW_CONNECT);
+			if (ret) {
+				printf("Could not setup fw entries.");
+				exit(0);
+			}
+
+			initiatorname = context.initiatorname;
+			strncpy(config_rec.name, context.targetname,
+				sizeof(context.targetname));
+			strncpy(config_rec.conn[0].address,
+				context.target_ipaddr,
+				sizeof(context.target_ipaddr));
+			config_rec.conn[0].port = context.target_port;
+			/* this seems broken ??? */
+			config_rec.tpgt = 1;
+			strncpy(auth->username, context.chap_name,
+				sizeof(context.chap_name));
+			strncpy((char *)auth->password, context.chap_password,
+				sizeof(context.chap_password));
+			auth->password_length = strlen((char *)auth->password);
+			strncpy(auth->username_in, context.chap_name_in,
+				sizeof(context.chap_name_in));
+			strncpy((char *)auth->password_in,
+				context.chap_password_in,
+				sizeof(context.chap_password_in));
+			auth->password_in_length =
+					strlen((char *)auth->password_in);
+			break;
+		case 'f':
+			if (fw_entry_init(&context, FW_PRINT)) {
+				printf("Could not print fw values.");
+				exit(1);
+			} else
+				exit(0);
 		case 'v':
 			printf("%s version %s\n", program_name,
 				ISCSI_VERSION_STR);

@@ -32,24 +32,15 @@
 #include <errno.h>
 
 #include "fwparam_ibft.h"
+#include "fw_context.h"
 
-char *progname;
+char *progname = "fwparam_ibft";
 int debug;
-char default_file_name[] = "/dev/mem";
-char *filename = default_file_name;
-int boot_selected_only;
+char filename[FILENAMESZ];
 
 const char nulls[16]; /* defaults to zero */
 
-/*
- * Prefix strings, for the "prefixN:NAME=value".
- */
-#define NETWORK		"network"
-#define INITIATOR	"iscsi-initiator"
-#define TGT		"target"
-
-
-void
+int
 verify_hdr(char *name, struct ibft_hdr *hdr, int id, int version, int length)
 {
 #define VERIFY_HDR_FIELD(val) \
@@ -58,7 +49,7 @@ verify_hdr(char *name, struct ibft_hdr *hdr, int id, int version, int length)
 			"%s: error, %s structure expected %s %d but" \
 			" got %d\n", \
 			progname, name, #val, hdr->val, val); \
-		exit(1); \
+		return -1; \
 	}
 
 	if (debug > 1)
@@ -70,6 +61,7 @@ verify_hdr(char *name, struct ibft_hdr *hdr, int id, int version, int length)
 	VERIFY_HDR_FIELD(length);
 
 #undef VERIFY_HDR_FIELD
+	return 0;
 }
 
 #define CHECK_HDR(ident, name) \
@@ -314,7 +306,7 @@ dump_tgt_prefix(void *ibft_loc, struct ibft_tgt *tgt, char *prefix)
  * Read in and dump ASCII output for ibft starting at ibft_loc.
  */
 int
-dump_ibft(void *ibft_loc)
+dump_ibft(void *ibft_loc, struct boot_context *context, int option)
 {
 	struct ibft_table_hdr *ibft_hdr = ibft_loc;
 	struct ibft_control *control;
@@ -322,6 +314,7 @@ dump_ibft(void *ibft_loc)
 	struct ibft_nic *nic0 = NULL, *nic1 = NULL;
 	struct ibft_tgt *tgt0 = NULL, *tgt1 = NULL;
 	char sum = 0, *buf = ibft_loc;
+	char ipbuf[32];
 	char prefix[32];
 
 	for (; buf <= (char *) (ibft_loc + ibft_hdr->length);)
@@ -367,8 +360,7 @@ dump_ibft(void *ibft_loc)
 		CHECK_HDR(tgt1, target);
 	}
 
-	if (boot_selected_only) {
-
+	if (option == FW_PRINT) {
 		snprintf(prefix, sizeof(prefix), "iSCSI_INITIATOR_");
 
 		if (initiator && (initiator->hdr.flags &
@@ -386,20 +378,55 @@ dump_ibft(void *ibft_loc)
 		else if (tgt1 && (tgt1->hdr.flags & INIT_FLAG_FW_SEL_BOOT))
 			dump_tgt_prefix(ibft_loc, tgt1, prefix);
 
-	} else {
+	} else if (option == FW_CONNECT) {
+		strncpy(context->initiatorname,
+			(char *)ibft_loc+initiator->initiator_name_off,
+			initiator->initiator_name_len + 1);
 
-		snprintf(prefix, sizeof(prefix), "%s%d:", INITIATOR, 0);
-		dump_initiator_prefix(ibft_loc, initiator, prefix);
-
-		snprintf(prefix, sizeof(prefix), "%s%d:", NETWORK, 0);
-		dump_nic_prefix(ibft_loc, nic0, prefix);
-		snprintf(prefix, sizeof(prefix), "%s%d:", TGT, 0);
-		dump_tgt_prefix(ibft_loc, tgt0, prefix);
-
-		snprintf(prefix, sizeof(prefix), "%s%d:", NETWORK, 1);
-		dump_nic_prefix(ibft_loc, nic1, prefix);
-		snprintf(prefix, sizeof(prefix), "%s%d:", TGT, 1);
-		dump_tgt_prefix(ibft_loc, tgt1, prefix);
+		if (tgt0 && (tgt0->hdr.flags & INIT_FLAG_FW_SEL_BOOT)) {
+			strncpy((char *)context->targetname,
+				(char *)(ibft_loc+tgt0->tgt_name_off),
+				tgt0->tgt_name_len);
+			format_ipaddr(ipbuf, sizeof(ipbuf),
+				      tgt0->ip_addr);
+			strncpy((char *)context->target_ipaddr, ipbuf,
+				sizeof(ipbuf));
+			context->target_port = tgt0->port;
+			strncpy(context->chap_name,
+			       (char *)(ibft_loc + tgt0->chap_name_off),
+			       tgt0->chap_name_len);
+			strncpy(context->chap_password,
+				(char*)(ibft_loc + tgt0->chap_secret_off),
+				tgt0->chap_secret_len);
+			strncpy(context->chap_name_in,
+				(char *)(ibft_loc + tgt0->rev_chap_name_off),
+				tgt0->rev_chap_name_len);
+			strncpy(context->chap_password_in,
+				(char *)(ibft_loc + tgt0->rev_chap_secret_off),
+				tgt0->rev_chap_secret_len);
+		} else if (tgt1 &&
+			   (tgt1->hdr.flags & INIT_FLAG_FW_SEL_BOOT)) {
+			strncpy((char *)context->targetname,
+				(char *)(ibft_loc+tgt1->tgt_name_off),
+				tgt1->tgt_name_len);
+			format_ipaddr(ipbuf, sizeof(ipbuf),
+				      tgt1->ip_addr);
+			strncpy((char *)context->target_ipaddr,ipbuf,
+				sizeof(ipbuf));
+			context->target_port = tgt1->port;
+			strncpy(context->chap_name,
+				(char *)(ibft_loc + tgt1->chap_name_off),
+				tgt1->chap_name_len);
+			strncpy(context->chap_password,
+				(char*)(ibft_loc + tgt1->chap_secret_off),
+				tgt1->chap_secret_len);
+			strncpy(context->chap_name_in,
+				(char *)(ibft_loc + tgt1->rev_chap_name_off),
+				tgt1->rev_chap_name_len);
+			strncpy(context->chap_password_in,
+				(char *)(ibft_loc + tgt1->rev_chap_secret_off),
+				tgt1->rev_chap_secret_len);
+		}
 	}
 
 	return 0;
@@ -436,57 +463,19 @@ search_file(char *filebuf, char *string, int len, int max)
 }
 
 int
-main (int argc, char **argv)
+fwparam_ibft(struct boot_context *context, int option)
 {
-	int fd, option, ret;
+	int fd, ret;
 	char *filebuf, *ibft_loc;
 	int start = 512 * 1024; /* 512k */
 	int end_search = (1024 * 1024) - start; /* 512k */
 
-	progname = argv[0];
-
-	while (1) {
-		option = getopt(argc, argv, "f:m:s:e:vhb");
-		if (option == -1)
-			break;
-		switch (option) {
-		case 'b':
-			boot_selected_only = 1;
-			break;
-		case 'e':
-			end_search = strtoul(optarg, NULL, 0);
-			break;
-		case 'f':
-			filename = optarg;
-			break;
-		case 's':
-			start = strtoul(optarg, NULL, 0);
-			break;
-		case 'v':
-			debug++;
-			break;
-		default:
-			fprintf(stderr, "Unknown or bad option '%c'\n", option);
-		case 'h':
-			printf("Usage: %s OPTIONS\n"
-			       "-b print only fw boot selected sections\n"
-			       "-f file_to_search (default /dev/mem)\n"
-			       "-s offset to start search\n"
-			       "-e length of search\n"
-			       "-v verbose\n",
-			       progname);
-			exit(1);
-		}
-	}
-
-	if (debug)
-		fprintf(stderr, "file: %s; start %d, end_search %d, debug %d\n",
-			filename, start, end_search, debug);
+	strncpy(filename, X86_DEFAULT_FILENAME, FILENAMESZ);
 	fd = open(filename, O_RDONLY);
 	if (fd < 0) {
 		fprintf(stderr, "Could not open %s: %s (%d)\n",
 			filename, strerror(errno), errno);
-		exit(1);
+		return -1;
 	}
 
 	/*
@@ -499,18 +488,17 @@ main (int argc, char **argv)
 	if (filebuf == MAP_FAILED) {
 		fprintf(stderr, "Could not mmap %s: %s (%d)\n",
 			filename, strerror(errno), errno);
-		exit(1);
+		ret = -1;
+		goto done;
 	}
 
 	ibft_loc = search_file(filebuf, iBFTSTR, strlen(iBFTSTR), end_search);
-	if (ibft_loc) {
-		if (dump_ibft(ibft_loc))
-			ret = 0;
-		else
-			ret = 1;
-	} else
-		ret = 1;
+	if (ibft_loc)
+		ret = dump_ibft(ibft_loc, context, option);
+	else
+		ret = -1;
 	munmap(filebuf, end_search);
+done:
 	close(fd);
-	exit(ret);
+	return ret;
 }
