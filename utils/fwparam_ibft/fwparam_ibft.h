@@ -14,7 +14,7 @@
  * Foundation, 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301,
  * USA.
  *
- * Copyright (C) IBM Corporation, 2006
+ * Copyright (C) IBM Corporation, 2006,2007
  *
  * Authors: 	Doug Maxey <dwm@austin.ibm.com>
  * 		Patrick Mansfield <patmans@us.ibm.com>
@@ -138,9 +138,11 @@ struct ibft_tgt {
 } __attribute__((__packed__));
 
 /* Common variables */
-#define FILENAMESZ (42)
+#define FILENAMESZ (256)
 extern char filename[FILENAMESZ];
 #define X86_DEFAULT_FILENAME "/dev/mem"
+extern int debug;
+extern int dev_count;
 
 /*
  * Prefix strings, for the "prefixN:NAME=value".
@@ -149,9 +151,7 @@ extern char filename[FILENAMESZ];
 #define INITIATOR	"iscsi-initiator"
 #define TARGET		"target"
 
-
-/* func decls */
-extern int fwparam_ibft(struct boot_context *context, int option);
-extern int fwparam_ppc(struct boot_context *context, int option);
+extern int fwparam_ibft(struct boot_context *context, const char *filepath);
+extern int fwparam_ppc(struct boot_context *context, const char *filepath);
 
 #endif /* FWPARAM_IBFT_H_ */

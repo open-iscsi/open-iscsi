@@ -1329,23 +1329,21 @@ static int do_fwboot(idbm_t *db, discovery_rec_t *drec, int do_login)
 	int ret;
 
 	memset(&context, 0, sizeof(struct boot_context));
-	/*
-	 * Should we print this iscsiadm style or the ibft tool style
-	 */
-	ret = fw_entry_init(&context, FW_PRINT);
-	if (ret) {
-		log_error("Could not print fw values.");
-		return ret;
-	}
-
-	if (!do_login)
-		return 0;
-
-	memset(&context, 0, sizeof(struct boot_context));
-	ret = fw_entry_init(&context, FW_CONNECT);
+	ret = fw_get_entry(&context, NULL);
 	if (ret) {
 		log_error("Could not read fw values.");
 		return ret;
+	}
+
+	if (!do_login) {
+		/*
+		 * This output is a little different. Because we do not store
+		 * the ibft data in the node/discovery db, and as a result
+		 * nornmal iscsiadm command to dump params will not work, we
+		 * dump the params here.
+		 */
+		fw_print_entry(&context);
+		return 0;
 	}
 
 	/* tpgt hard coded to 1 */
@@ -1357,6 +1355,8 @@ static int do_fwboot(idbm_t *db, discovery_rec_t *drec, int do_login)
 		return ENOMEM;
 	}
 
+	/* todo - grab mac and set that here */
+	iface_init(&rec->iface);
 	strncpy(rec->iface.iname, context.initiatorname,
 		sizeof(context.initiatorname));
 	strncpy(rec->session.auth.username, context.chap_name,

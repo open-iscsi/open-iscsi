@@ -36,6 +36,7 @@
 
 char *progname = "fwparam_ibft";
 int debug;
+int dev_count;
 char filename[FILENAMESZ];
 
 const char nulls[16]; /* defaults to zero */
@@ -306,7 +307,7 @@ dump_tgt_prefix(void *ibft_loc, struct ibft_tgt *tgt, char *prefix)
  * Read in and dump ASCII output for ibft starting at ibft_loc.
  */
 int
-dump_ibft(void *ibft_loc, struct boot_context *context, int option)
+dump_ibft(void *ibft_loc, struct boot_context *context)
 {
 	struct ibft_table_hdr *ibft_hdr = ibft_loc;
 	struct ibft_control *control;
@@ -315,7 +316,6 @@ dump_ibft(void *ibft_loc, struct boot_context *context, int option)
 	struct ibft_tgt *tgt0 = NULL, *tgt1 = NULL;
 	char sum = 0, *buf = ibft_loc;
 	char ipbuf[32];
-	char prefix[32];
 
 	for (; buf <= (char *) (ibft_loc + ibft_hdr->length);)
 		sum += *buf++;
@@ -360,73 +360,53 @@ dump_ibft(void *ibft_loc, struct boot_context *context, int option)
 		CHECK_HDR(tgt1, target);
 	}
 
-	if (option == FW_PRINT) {
-		snprintf(prefix, sizeof(prefix), "iSCSI_INITIATOR_");
+	strncpy(context->initiatorname,
+		(char *)ibft_loc+initiator->initiator_name_off,
+		initiator->initiator_name_len + 1);
 
-		if (initiator && (initiator->hdr.flags &
-				   INIT_FLAG_FW_SEL_BOOT))
-			dump_initiator_prefix(ibft_loc, initiator, prefix);
-
-		if (nic0 && (nic0->hdr.flags & INIT_FLAG_FW_SEL_BOOT))
-			dump_nic_prefix(ibft_loc, nic0, prefix);
-		else if (nic1 && (nic1->hdr.flags & INIT_FLAG_FW_SEL_BOOT))
-			dump_nic_prefix(ibft_loc, nic1, prefix);
-
-		snprintf(prefix, sizeof(prefix), "iSCSI_TARGET_");
-		if (tgt0 && (tgt0->hdr.flags & INIT_FLAG_FW_SEL_BOOT))
-			dump_tgt_prefix(ibft_loc, tgt0, prefix);
-		else if (tgt1 && (tgt1->hdr.flags & INIT_FLAG_FW_SEL_BOOT))
-			dump_tgt_prefix(ibft_loc, tgt1, prefix);
-
-	} else if (option == FW_CONNECT) {
-		strncpy(context->initiatorname,
-			(char *)ibft_loc+initiator->initiator_name_off,
-			initiator->initiator_name_len + 1);
-
-		if (tgt0 && (tgt0->hdr.flags & INIT_FLAG_FW_SEL_BOOT)) {
-			strncpy((char *)context->targetname,
-				(char *)(ibft_loc+tgt0->tgt_name_off),
-				tgt0->tgt_name_len);
-			format_ipaddr(ipbuf, sizeof(ipbuf),
-				      tgt0->ip_addr);
-			strncpy((char *)context->target_ipaddr, ipbuf,
-				sizeof(ipbuf));
-			context->target_port = tgt0->port;
-			strncpy(context->chap_name,
-			       (char *)(ibft_loc + tgt0->chap_name_off),
-			       tgt0->chap_name_len);
-			strncpy(context->chap_password,
-				(char*)(ibft_loc + tgt0->chap_secret_off),
-				tgt0->chap_secret_len);
-			strncpy(context->chap_name_in,
-				(char *)(ibft_loc + tgt0->rev_chap_name_off),
-				tgt0->rev_chap_name_len);
-			strncpy(context->chap_password_in,
-				(char *)(ibft_loc + tgt0->rev_chap_secret_off),
-				tgt0->rev_chap_secret_len);
-		} else if (tgt1 &&
-			   (tgt1->hdr.flags & INIT_FLAG_FW_SEL_BOOT)) {
-			strncpy((char *)context->targetname,
-				(char *)(ibft_loc+tgt1->tgt_name_off),
-				tgt1->tgt_name_len);
-			format_ipaddr(ipbuf, sizeof(ipbuf),
-				      tgt1->ip_addr);
-			strncpy((char *)context->target_ipaddr,ipbuf,
-				sizeof(ipbuf));
-			context->target_port = tgt1->port;
-			strncpy(context->chap_name,
-				(char *)(ibft_loc + tgt1->chap_name_off),
-				tgt1->chap_name_len);
-			strncpy(context->chap_password,
-				(char*)(ibft_loc + tgt1->chap_secret_off),
-				tgt1->chap_secret_len);
-			strncpy(context->chap_name_in,
-				(char *)(ibft_loc + tgt1->rev_chap_name_off),
-				tgt1->rev_chap_name_len);
-			strncpy(context->chap_password_in,
-				(char *)(ibft_loc + tgt1->rev_chap_secret_off),
-				tgt1->rev_chap_secret_len);
-		}
+	if (tgt0 && (tgt0->hdr.flags & INIT_FLAG_FW_SEL_BOOT)) {
+		strncpy((char *)context->targetname,
+			(char *)(ibft_loc+tgt0->tgt_name_off),
+			tgt0->tgt_name_len);
+		format_ipaddr(ipbuf, sizeof(ipbuf),
+			      tgt0->ip_addr);
+		strncpy((char *)context->target_ipaddr, ipbuf,
+			sizeof(ipbuf));
+		context->target_port = tgt0->port;
+		strncpy(context->chap_name,
+		       (char *)(ibft_loc + tgt0->chap_name_off),
+		       tgt0->chap_name_len);
+		strncpy(context->chap_password,
+			(char*)(ibft_loc + tgt0->chap_secret_off),
+			tgt0->chap_secret_len);
+		strncpy(context->chap_name_in,
+			(char *)(ibft_loc + tgt0->rev_chap_name_off),
+			tgt0->rev_chap_name_len);
+		strncpy(context->chap_password_in,
+			(char *)(ibft_loc + tgt0->rev_chap_secret_off),
+			tgt0->rev_chap_secret_len);
+	} else if (tgt1 &&
+		   (tgt1->hdr.flags & INIT_FLAG_FW_SEL_BOOT)) {
+		strncpy((char *)context->targetname,
+			(char *)(ibft_loc+tgt1->tgt_name_off),
+			tgt1->tgt_name_len);
+		format_ipaddr(ipbuf, sizeof(ipbuf),
+			      tgt1->ip_addr);
+		strncpy((char *)context->target_ipaddr,ipbuf,
+			sizeof(ipbuf));
+		context->target_port = tgt1->port;
+		strncpy(context->chap_name,
+			(char *)(ibft_loc + tgt1->chap_name_off),
+			tgt1->chap_name_len);
+		strncpy(context->chap_password,
+			(char*)(ibft_loc + tgt1->chap_secret_off),
+			tgt1->chap_secret_len);
+		strncpy(context->chap_name_in,
+			(char *)(ibft_loc + tgt1->rev_chap_name_off),
+			tgt1->rev_chap_name_len);
+		strncpy(context->chap_password_in,
+			(char *)(ibft_loc + tgt1->rev_chap_secret_off),
+			tgt1->rev_chap_secret_len);
 	}
 
 	return 0;
@@ -463,14 +443,18 @@ search_file(char *filebuf, char *string, int len, int max)
 }
 
 int
-fwparam_ibft(struct boot_context *context, int option)
+fwparam_ibft(struct boot_context *context, const char *filepath)
 {
 	int fd, ret;
 	char *filebuf, *ibft_loc;
 	int start = 512 * 1024; /* 512k */
 	int end_search = (1024 * 1024) - start; /* 512k */
 
-	strncpy(filename, X86_DEFAULT_FILENAME, FILENAMESZ);
+	if (filepath)
+		strncpy(filename, filepath, FILENAMESZ);
+	else
+		strncpy(filename, X86_DEFAULT_FILENAME, FILENAMESZ);
+	
 	fd = open(filename, O_RDONLY);
 	if (fd < 0) {
 		fprintf(stderr, "Could not open %s: %s (%d)\n",
@@ -494,7 +478,7 @@ fwparam_ibft(struct boot_context *context, int option)
 
 	ibft_loc = search_file(filebuf, iBFTSTR, strlen(iBFTSTR), end_search);
 	if (ibft_loc)
-		ret = dump_ibft(ibft_loc, context, option);
+		ret = dump_ibft(ibft_loc, context);
 	else
 		ret = -1;
 	munmap(filebuf, end_search);

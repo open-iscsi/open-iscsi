@@ -22,7 +22,7 @@
 #define FWPARAM_CONTEXT_H_
 
 struct boot_context {
-#define IQNSZ (223)
+#define IQNSZ (223+1)
 	int target_port;
 	char initiatorname[IQNSZ];
 	char targetname[IQNSZ];
@@ -31,16 +31,16 @@ struct boot_context {
 	char chap_password[16];
 	char chap_name_in[127];
 	char chap_password_in[16];
-	char mac[16];
 	char iface[42];
+	char mac[18];
+	char ipaddr[18];
+	char mask[18];
 	char lun[17];
 	char vlan[15];
 	char isid[10];
 };
 
-int fw_entry_init(struct boot_context *context, int option);
-
-#define FW_CONNECT 0
-#define FW_PRINT 1
+extern int fw_get_entry(struct boot_context *context, const char *filepath);
+extern void fw_print_entry(struct boot_context *context);
 
 #endif /* FWPARAM_CONTEXT_H_ */

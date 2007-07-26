@@ -252,10 +252,10 @@ int main(int argc, char *argv[])
 			log_level = atoi(optarg);
 			break;
 		case 'b':
-			ret = fw_entry_init(&context, FW_CONNECT);
+			ret = fw_get_entry(&context, NULL);
 			if (ret) {
 				printf("Could not setup fw entries.");
-				exit(0);
+				exit(-1);
 			}
 
 			initiatorname = context.initiatorname;
@@ -281,11 +281,14 @@ int main(int argc, char *argv[])
 					strlen((char *)auth->password_in);
 			break;
 		case 'f':
-			if (fw_entry_init(&context, FW_PRINT)) {
-				printf("Could not print fw values.");
-				exit(1);
-			} else
-				exit(0);
+			ret = fw_get_entry(&context, NULL);
+			if (ret) {
+				printf("Could not setup fw entries.\n");
+				exit(-1);
+			}
+
+			fw_print_entry(&context);
+			exit(0);
 		case 'v':
 			printf("%s version %s\n", program_name,
 				ISCSI_VERSION_STR);
