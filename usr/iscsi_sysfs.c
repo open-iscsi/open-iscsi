@@ -34,6 +34,7 @@
 #define ISCSI_SESSION_DIR	"/sys/class/iscsi_session"
 #define ISCSI_CONN_DIR		"/sys/class/iscsi_connection"
 #define ISCSI_HOST_DIR		"/sys/class/iscsi_host"
+#define SCSI_DEVICE_DIR		"/sys/bus/scsi/devices"
 
 #define ISCSI_MAX_SYSFS_BUFFER NI_MAXHOST
 
@@ -638,7 +639,7 @@ int get_host_state(char *state, int host_no)
 int get_device_state(char *state, int host_no, int target, int lun)
 {
 	memset(sysfs_file, 0, PATH_MAX);
-	sprintf(sysfs_file, "/sys/bus/scsi/devices/%d:0:%d:%d/state",
+	sprintf(sysfs_file, SCSI_DEVICE_DIR"/%d:0:%d:%d/state",
 		host_no, target, lun);
 	return read_sysfs_file(sysfs_file, state, "%s\n");
 }
@@ -649,7 +650,7 @@ char *get_blockdev_from_lun(int host_no, int target, int lun)
 	struct dirent *dent;
 	char *blockdev, *blockdup = NULL;
 
-	sprintf(sysfs_file, "/sys/bus/scsi/devices/%d:0:%d:%d",
+	sprintf(sysfs_file, SCSI_DEVICE_DIR"/%d:0:%d:%d",
 		host_no, target, lun);
 	dirfd = opendir(sysfs_file);
 	if (!dirfd)
@@ -819,7 +820,7 @@ void set_device_online(int hostno, int target, int lun)
 {
 	int fd;
 
-	sprintf(sysfs_file, "/sys/bus/scsi/devices/%d:0:%d:%d/state",
+	sprintf(sysfs_file, SCSI_DEVICE_DIR"/%d:0:%d:%d/state",
 		hostno, target, lun);
 	fd = open(sysfs_file, O_WRONLY);
 	if (fd < 0)
@@ -836,12 +837,26 @@ void delete_device(int hostno, int target, int lun)
 {
 	int fd;
 
-	sprintf(sysfs_file, "/sys/bus/scsi/devices/%d:0:%d:%d/delete",
+	sprintf(sysfs_file, SCSI_DEVICE_DIR"/%d:0:%d:%d/delete",
 		hostno, target, lun);
 	fd = open(sysfs_file, O_WRONLY);
 	if (fd < 0)
 		return;
 	log_debug(4, "deleting device using %s", sysfs_file);
+	write(fd, "1", 1);
+	close(fd);
+}
+
+void rescan_device(int hostno, int target, int lun)
+{
+	int fd;
+
+	sprintf(sysfs_file, SCSI_DEVICE_DIR"/%d:0:%d:%d/rescan",
+		hostno, target, lun);
+	fd = open(sysfs_file, O_WRONLY);
+	if (fd < 0)
+		return;
+	log_debug(4, "rescanning device using %s", sysfs_file);
 	write(fd, "1", 1);
 	close(fd);
 }

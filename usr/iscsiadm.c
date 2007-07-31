@@ -993,17 +993,18 @@ static int rescan_portal(void *data, struct session_info *info)
 	if (!iscsi_match_session(data, info))
 		return -1;
 
-	printf("Rescanning session [sid: %d, iface: %s, target: %s, portal: "
-		"%s,%d]\n", info->sid, info->iface.name,
-		info->targetname, info->persistent_address,
-		info->port);
+	printf("Rescanning session [sid: %d, target: %s, portal: "
+		"%s,%d]\n", info->sid, info->targetname,
+		info->persistent_address, info->port);
 
 	host_no = get_host_no_from_sid(info->sid, &err);
 	if (err) {
 		log_error("Could not rescan session sid %d.", info->sid);
 		return err;
 	}
-
+	/* rescan each device to pick up size changes */
+	sysfs_for_each_device(host_no, info->sid, rescan_device);
+	/* now scan for new devices */
 	scan_host(host_no, 0);
 	return 0;
 }
@@ -1026,10 +1027,10 @@ session_stats(void *data, struct session_info *info)
 	if (rc)
 		return EIO;
 
-	printf("Stats for session [sid: %d, iface: %s, target: %s, portal: "
+	printf("Stats for session [sid: %d, target: %s, portal: "
 		"%s,%d]\n",
-		info->sid, info->iface.name, info->targetname,
-		info->persistent_address, info->port);
+		info->sid, info->targetname, info->persistent_address,
+		info->port);
 
 	printf( "iSCSI SNMP:\n"
 

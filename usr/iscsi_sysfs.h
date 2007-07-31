@@ -59,6 +59,7 @@ extern int get_host_state(char *state, int host_no);
 extern int get_device_state(char *state, int host_no, int target, int lun);
 extern void set_device_online(int hostno, int target, int lun);
 extern void delete_device(int hostno, int target, int lun);
+extern void rescan_device(int hostno, int target, int lun);
 extern int sysfs_for_each_device(int host_no, uint32_t sid,
 				 void (* fn)(int host_no, int target, int lun));
 extern struct iscsi_transport *get_transport_by_hba(long host_no);
