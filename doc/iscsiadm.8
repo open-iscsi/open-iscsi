@@ -2,15 +2,15 @@
 .SH NAME
 iscsiadm \- open-iscsi administration utility
 .SH SYNOPSIS
-\fBiscsiadm\fR -m discovery [ [ -dhV ] --print=[N] ] [ -I iface -t type -p ip:port [ -l ] ] | 
+\fBiscsiadm\fR -m discovery [ -hV ] [ -d debug_level ] [ -P printlevel ] [ -I iface -t type -p ip:port [ -l ] ] | 
 [ -o operation ] [ -n name ] [ -v value ]
 
-\fBiscsiadm\fR -m node [ -dhV ] [ -P printlevel ] [ -L all,manual,automatic ] [ -U all,manual,automatic ] [ -S ] [ [ -T targetname -p ip:port -I iface ] [ -l | -u | -R | -s] ]
+\fBiscsiadm\fR -m node [ -hV ] [ -d debug_level ] [ -P printlevel ] [ -L all,manual,automatic ] [ -U all,manual,automatic ] [ -S ] [ [ -T targetname -p ip:port -I iface ] [ -l | -u | -R | -s] ]
 [ [ -o operation ]  [ -n name ] [ -v value ] [ -p ip:port ] ]
 
-\fBiscsiadm\fR -m session [ -dhV ] [ -P printlevel ] [ -r sessionid | sysfsdir [ -R ] [ -u | -s ] ]
+\fBiscsiadm\fR -m session [ -hV ] [ -d debug_level ] [ -P printlevel ] [ -r sessionid | sysfsdir [ -R ] [ -u | -s ] ]
 
-\fBiscsiadm\fR -m iface [ -dhV ] [ -P printlevel ] [ -I ifacename ] [ [ -o  operation  ] [ -n name ] [ -v value ] ]
+\fBiscsiadm\fR -m iface [ -hV ] [ -d debug_level ] [ -P printlevel ] [ -I ifacename ] [ [ -o  operation  ] [ -n name ] [ -v value ] ]
 
 \fBiscsiadm\fR -m fw
 
@@ -35,8 +35,8 @@ daemon (iscsid) be running.
 .SH OPTIONS
 
 .TP
-\fB\-d\fR, \fB\-\-debug\fR
-print debugging information
+\fB\-d\fR, \fB\-\-debug=\fIdebug_level\fP
+print debugging information. Valid values for debug_level are 0 to 8.
 
 .TP
 \fB\-h\fR, \fB\-\-help\fR
