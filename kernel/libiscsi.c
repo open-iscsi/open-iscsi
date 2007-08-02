@@ -1160,28 +1160,27 @@ static void fail_command(struct iscsi_conn *conn, struct iscsi_cmd_task *ctask,
 
 int iscsi_eh_abort(struct scsi_cmnd *sc)
 {
-	struct iscsi_cmd_task *ctask;
+	struct Scsi_Host *host = sc->device->host;
+	struct iscsi_session *session = iscsi_hostdata(host->hostdata);
 	struct iscsi_conn *conn;
-	struct iscsi_session *session;
+	struct iscsi_cmd_task *ctask;
 	int rc;
 
+	spin_lock_bh(&session->lock);
 	/*
 	 * if session was ISCSI_STATE_IN_RECOVERY then we may not have
 	 * got the command.
 	 */
 	if (!sc->SCp.ptr) {
 		debug_scsi("sc never reached iscsi layer or it completed.\n");
+		spin_unlock_bh(&session->lock);
 		return SUCCESS;
 	}
 
 	ctask = (struct iscsi_cmd_task *)sc->SCp.ptr;
-	conn = ctask->conn;
-	session = conn->session;
-
+	conn = session->leadconn;
 	conn->eh_abort_cnt++;
 	debug_scsi("aborting [sc %p itt 0x%x]\n", sc, ctask->itt);
-
-	spin_lock_bh(&session->lock);
 
 	/*
 	 * If we are not logged in or we have started a new session
