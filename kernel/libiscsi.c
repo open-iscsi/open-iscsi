@@ -1746,8 +1746,10 @@ static void iscsi_start_session_recovery(struct iscsi_session *session,
 	 * stop but did not create a proper connection (connection was never
 	 * bound or it was unbound then stop was called).
 	 */
-	if (!conn->recv_lock)
+	if (!conn->recv_lock) {
+		spin_unlock_bh(&session->lock);
 		return;
+	}
 
 	/*
 	 * When this is called for the in_login state, we only want to clean
