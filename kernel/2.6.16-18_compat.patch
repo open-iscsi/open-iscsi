@@ -22,7 +22,7 @@ index 0000000..4128fdd
 +				     struct scatterlist *sg,
 +				     unsigned int nbytes, u8 *out)
 +{
-+	crypto_digest_digest(desc->tfm, sg, (nbytes+(PAGE_SIZE-1)) / PAGE_SIZE, out);
++	crypto_digest_digest(desc->tfm, sg, 1, out);
 +	return nbytes;
 +}
 +
@@ -30,7 +30,7 @@ index 0000000..4128fdd
 +				     struct scatterlist *sg,
 +				     unsigned int nbytes)
 +{
-+	crypto_digest_update(desc->tfm, sg, (nbytes+(PAGE_SIZE-1)) / PAGE_SIZE);
++	crypto_digest_update(desc->tfm, sg, 1);
 +	return nbytes;
 +}
 +
