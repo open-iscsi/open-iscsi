@@ -358,6 +358,8 @@ iscsi_copy_operational_params(iscsi_conn_t *conn)
 			  ISCSI_MIN_MAX_RECV_SEG_LEN,
 			  ISCSI_MAX_MAX_RECV_SEG_LEN,
 			  DEF_INI_MAX_RECV_SEG_LEN);
+		conn_rec->iscsi.MaxRecvDataSegmentLength =
+						DEF_INI_MAX_RECV_SEG_LEN;
 		conn->max_recv_dlength = DEF_INI_MAX_RECV_SEG_LEN;
 	}
 
@@ -373,6 +375,7 @@ iscsi_copy_operational_params(iscsi_conn_t *conn)
 			  ISCSI_MIN_FIRST_BURST_LEN,
 			  ISCSI_MAX_FIRST_BURST_LEN,
 			  DEF_INI_FIRST_BURST_LEN);
+		rec->session.iscsi.FirstBurstLength = DEF_INI_FIRST_BURST_LEN;
 		session->first_burst = DEF_INI_FIRST_BURST_LEN;
 	}
 
@@ -383,6 +386,7 @@ iscsi_copy_operational_params(iscsi_conn_t *conn)
 			  "within %u and %u. Setting to %u\n",
 			   session->max_burst, ISCSI_MIN_MAX_BURST_LEN,
 			   ISCSI_MAX_MAX_BURST_LEN, DEF_INI_MAX_BURST_LEN);
+		rec->session.iscsi.MaxBurstLength = DEF_INI_MAX_BURST_LEN;
 		session->max_burst = DEF_INI_MAX_BURST_LEN;
 	}
 
