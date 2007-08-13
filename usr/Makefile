@@ -40,7 +40,7 @@ COMMON_SRCS =  $(ISCSI_LIB_SRCS)
 # core initiator files
 INITIATOR_SRCS = initiator.o scsi.o actor.o mgmt_ipc.o isns.o transport.o
 # fw boot files
-FW_BOOT_SRCS = $(addprefix ../utils/fwparam_ibft/, fw_entry.o fwparam_ibft.o)
+FW_BOOT_SRCS = $(wildcard ../utils/fwparam_ibft/*.o)
 
 all: $(PROGRAMS)
 
@@ -55,7 +55,7 @@ iscsistart: $(IPC_OBJ) $(ISCSI_LIB_SRCS) $(INITIATOR_SRCS) $(FW_BOOT_SRCS) \
 	$(CC) $(CFLAGS) -static $^ -o $@
 
 clean:
-	rm -f *.o $(PROGRAMS) ../utils/fwparam_ibft/*.o .depend
+	rm -f *.o $(PROGRAMS) .depend
 
 depend:
 	gcc $(CFLAGS) -M `ls *.c` > .depend

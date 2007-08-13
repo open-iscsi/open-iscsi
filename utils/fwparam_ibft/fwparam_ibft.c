@@ -368,8 +368,8 @@ dump_ibft(void *ibft_loc, struct boot_context *context)
 			sizeof(ipbuf));
 		context->target_port = tgt0->port;
 		strncpy(context->chap_name,
-		       (char *)(ibft_loc + tgt0->chap_name_off),
-		       tgt0->chap_name_len);
+			(char *)(ibft_loc + tgt0->chap_name_off),
+			tgt0->chap_name_len);
 		strncpy(context->chap_password,
 			(char*)(ibft_loc + tgt0->chap_secret_off),
 			tgt0->chap_secret_len);

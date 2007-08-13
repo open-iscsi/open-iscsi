@@ -25,6 +25,7 @@ IFACEFILES = etc/iface.example
 # over multiple makefile.
 
 all:
+	$(MAKE) -C utils/fwparam_ibft
 	$(MAKE) -C usr
 	$(MAKE) -C kernel
 	$(MAKE) -C utils
@@ -40,6 +41,7 @@ all:
 	@echo Read README file for detailed information.
 
 clean:
+	$(MAKE) -C utils/fwparam_ibft clean
 	$(MAKE) -C utils clean
 	$(MAKE) -C usr clean
 	$(MAKE) -C kernel clean
