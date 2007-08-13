@@ -40,8 +40,6 @@
 
 static void iscsi_login_timedout(void *data);
 
-#define DEFAULT_TIME2WAIT 2
-
 /*
  * calculate parameter's padding
  */
@@ -336,6 +334,63 @@ setup_portal(iscsi_conn_t *conn, conn_rec_t *conn_rec)
 	return 0;
 }
 
+static void
+iscsi_copy_operational_params(iscsi_conn_t *conn)
+{
+	iscsi_session_t *session = conn->session;
+	conn_rec_t *conn_rec = &session->nrec.conn[conn->id];
+	node_rec_t *rec = &session->nrec;
+
+	/*
+	 * iSCSI default, unless declared otherwise by the
+	 * target during login
+	 */
+	conn->max_xmit_dlength = ISCSI_DEF_MAX_RECV_SEG_LEN;
+	conn->hdrdgst_en = conn_rec->iscsi.HeaderDigest;
+	conn->datadgst_en = conn_rec->iscsi.DataDigest;
+
+	conn->max_recv_dlength =
+			__padding(conn_rec->iscsi.MaxRecvDataSegmentLength);
+	if (conn->max_recv_dlength < ISCSI_MIN_MAX_RECV_SEG_LEN ||
+	    conn->max_recv_dlength > ISCSI_MAX_MAX_RECV_SEG_LEN) {
+		log_error("Invalid iscsi.MaxRecvDataSegmentLength. Must be "
+			 "within %u and %u. Setting to %u\n",
+			  ISCSI_MIN_MAX_RECV_SEG_LEN,
+			  ISCSI_MAX_MAX_RECV_SEG_LEN,
+			  DEF_INI_MAX_RECV_SEG_LEN);
+		conn->max_recv_dlength = DEF_INI_MAX_RECV_SEG_LEN;
+	}
+
+	/* session's operational parameters */
+	session->initial_r2t_en = rec->session.iscsi.InitialR2T;
+	session->imm_data_en = rec->session.iscsi.ImmediateData;
+	session->first_burst = __padding(rec->session.iscsi.FirstBurstLength);
+	if (session->first_burst < ISCSI_MIN_FIRST_BURST_LEN ||
+	    session->first_burst > ISCSI_MAX_FIRST_BURST_LEN) {
+		log_error("Invalid iscsi.FirstBurstLength of %u. Must be "
+			 "within %u and %u. Setting to %u\n",
+			  session->first_burst,
+			  ISCSI_MIN_FIRST_BURST_LEN,
+			  ISCSI_MAX_FIRST_BURST_LEN,
+			  DEF_INI_FIRST_BURST_LEN);
+		session->first_burst = DEF_INI_FIRST_BURST_LEN;
+	}
+
+	session->max_burst = __padding(rec->session.iscsi.MaxBurstLength);
+	if (session->max_burst < ISCSI_MIN_MAX_BURST_LEN ||
+	    session->max_burst > ISCSI_MAX_MAX_BURST_LEN) {
+		log_error("Invalid iscsi.MaxBurstLength of %u. Must be "
+			  "within %u and %u. Setting to %u\n",
+			   session->max_burst, ISCSI_MIN_MAX_BURST_LEN,
+			   ISCSI_MAX_MAX_BURST_LEN, DEF_INI_MAX_BURST_LEN);
+		session->max_burst = DEF_INI_MAX_BURST_LEN;
+	}
+
+	session->def_time2wait = rec->session.iscsi.DefaultTime2Wait;
+	session->def_time2retain = rec->session.iscsi.DefaultTime2Retain;
+	session->erl = rec->session.iscsi.ERL;
+}
+
 static int
 __session_conn_create(iscsi_session_t *session, int cid)
 {
@@ -348,6 +403,8 @@ __session_conn_create(iscsi_session_t *session, int cid)
 		return ENOMEM;
 	}
 
+	conn->state = STATE_FREE;
+	conn->session = session;
 	conn->socket_fd = -1;
 	/* connection's timeouts */
 	conn->id = cid;
@@ -393,26 +450,7 @@ __session_conn_create(iscsi_session_t *session, int cid)
 	conn->idle_timeout = conn_rec->timeo.idle_timeout;
 	conn->ping_timeout = conn_rec->timeo.ping_timeout;
 
-	/* operational parameters */
-	conn->max_recv_dlength =
-			__padding(conn_rec->iscsi.MaxRecvDataSegmentLength);
-	if (conn->max_recv_dlength < ISCSI_MIN_MAX_RECV_SEG_LEN ||
-	    conn->max_recv_dlength > ISCSI_MAX_MAX_RECV_SEG_LEN) {
-		log_error("Invalid iscsi.MaxRecvDataSegmentLength. Must be "
-			 "within %u and %u. Setting to %u\n",
-			  ISCSI_MIN_MAX_RECV_SEG_LEN,
-			  ISCSI_MAX_MAX_RECV_SEG_LEN,
-			  DEF_INI_MAX_RECV_SEG_LEN);
-		conn->max_recv_dlength = DEF_INI_MAX_RECV_SEG_LEN;
-	}
-
-	/*
-	 * iSCSI default, unless declared otherwise by the
-	 * target during login
-	 */
-	conn->max_xmit_dlength = ISCSI_DEF_MAX_RECV_SEG_LEN;
-	conn->hdrdgst_en = conn_rec->iscsi.HeaderDigest;
-	conn->datadgst_en = conn_rec->iscsi.DataDigest;
+	iscsi_copy_operational_params(conn);
 
 	/* TCP options */
 	conn->tcp_window_size = conn_rec->tcp.window_size;
@@ -422,10 +460,6 @@ __session_conn_create(iscsi_session_t *session, int cid)
 	err = setup_portal(conn, conn_rec);
 	if (err)
 		return err;
-
-	conn->state = STATE_FREE;
-	conn->session = session;
-
 	return 0;
 }
 
@@ -461,34 +495,6 @@ __session_create(node_rec_t *rec, struct iscsi_transport *t)
 	/* save node record. we might need it for redirection */
 	memcpy(&session->nrec, rec, sizeof(node_rec_t));
 
-	/* session's operational parameters */
-	session->initial_r2t_en = rec->session.iscsi.InitialR2T;
-	session->imm_data_en = rec->session.iscsi.ImmediateData;
-	session->first_burst = __padding(rec->session.iscsi.FirstBurstLength);
-	if (session->first_burst < ISCSI_MIN_FIRST_BURST_LEN ||
-	    session->first_burst > ISCSI_MAX_FIRST_BURST_LEN) {
-		log_error("Invalid iscsi.FirstBurstLength of %u. Must be "
-			 "within %u and %u. Setting to %u\n",
-			  session->first_burst,
-			  ISCSI_MIN_FIRST_BURST_LEN,
-			  ISCSI_MAX_FIRST_BURST_LEN,
-			  DEF_INI_FIRST_BURST_LEN);
-		session->first_burst = DEF_INI_FIRST_BURST_LEN;
-	}
-
-	session->max_burst = __padding(rec->session.iscsi.MaxBurstLength);
-	if (session->max_burst < ISCSI_MIN_MAX_BURST_LEN ||
-	    session->max_burst > ISCSI_MAX_MAX_BURST_LEN) {
-		log_error("Invalid iscsi.MaxBurstLength of %u. Must be "
-			  "within %u and %u. Setting to %u\n",
-			   session->max_burst, ISCSI_MIN_MAX_BURST_LEN,
-			   ISCSI_MAX_MAX_BURST_LEN, DEF_INI_MAX_BURST_LEN);
-		session->max_burst = DEF_INI_MAX_BURST_LEN;
-	}
-
-	session->def_time2wait = rec->session.iscsi.DefaultTime2Wait;
-	session->def_time2retain = rec->session.iscsi.DefaultTime2Retain;
-	session->erl = rec->session.iscsi.ERL;
 	session->portal_group_tag = rec->tpgt;
 	session->type = ISCSI_SESSION_TYPE_NORMAL;
 	session->r_stage = R_STAGE_NO_CHANGE;
@@ -628,34 +634,6 @@ session_conn_shutdown(iscsi_conn_t *conn, queue_task_t *qtask,
 }
 
 static void
-reset_iscsi_params(iscsi_conn_t *conn)
-{
-	iscsi_session_t *session = conn->session;
-	conn_rec_t *conn_rec = &session->nrec.conn[conn->id];
-	node_rec_t *rec = &session->nrec;
-
-	/* operational parameters */
-	conn->max_recv_dlength =
-			__padding(conn_rec->iscsi.MaxRecvDataSegmentLength);
-	/*
-	 * iSCSI default, unless declared otherwise by the
-	 * target during login
-	 */
-	conn->max_xmit_dlength = ISCSI_DEF_MAX_RECV_SEG_LEN;
-	conn->hdrdgst_en = conn_rec->iscsi.HeaderDigest;
-	conn->datadgst_en = conn_rec->iscsi.DataDigest;
-
-	/* session's operational parameters */
-	session->initial_r2t_en = rec->session.iscsi.InitialR2T;
-	session->imm_data_en = rec->session.iscsi.ImmediateData;
-	session->first_burst = __padding(rec->session.iscsi.FirstBurstLength);
-	session->max_burst = __padding(rec->session.iscsi.MaxBurstLength);
-	session->def_time2wait = rec->session.iscsi.DefaultTime2Wait;
-	session->def_time2retain = rec->session.iscsi.DefaultTime2Retain;
-	session->erl = rec->session.iscsi.ERL;
-}
-
-static void
 queue_delayed_reopen(queue_task_t *qtask, int delay)
 {
 	iscsi_conn_t *conn = qtask->conn;
@@ -674,14 +652,14 @@ queue_delayed_reopen(queue_task_t *qtask, int delay)
 static void
 __session_conn_reopen(iscsi_conn_t *conn, queue_task_t *qtask, int do_stop)
 {
-	int rc, delay;
 	iscsi_session_t *session = conn->session;
 	struct iscsi_conn_context *conn_context;
+	uint32_t delay;
+	int rc;
 
 	log_debug(1, "re-opening session %d (reopen_cnt %d)", session->id,
 			session->reopen_cnt);
 
-	reset_iscsi_params(conn);
 	qtask->conn = conn;
 
 	/* flush stale polls or errors queued */
@@ -695,6 +673,7 @@ __session_conn_reopen(iscsi_conn_t *conn, queue_task_t *qtask, int do_stop)
 				   conn->id, do_stop)) {
 			log_error("can't stop connection %d:%d (%d)",
 				  session->id, conn->id, errno);
+			delay = 5;
 			goto queue_reopen;
 		}
 		log_debug(3, "connection %d:%d is stopped for recovery",
@@ -702,7 +681,9 @@ __session_conn_reopen(iscsi_conn_t *conn, queue_task_t *qtask, int do_stop)
 	}
 	conn->session->t->template->ep_disconnect(conn);
 
-	if (session->time2wait)
+	delay = session->def_time2wait;
+	session->def_time2wait = 0;
+	if (delay)
 		goto queue_reopen;
 
 	conn_context = iscsi_conn_context_get(conn, 0);
@@ -710,6 +691,7 @@ __session_conn_reopen(iscsi_conn_t *conn, queue_task_t *qtask, int do_stop)
 		/* while reopening the recv pool should be full */
 		log_error("BUG: __session_conn_reopen could not get conn "
 			  "context for recv.");
+		delay = 2;
 		goto queue_reopen;
 	}
 	conn_context->data = qtask;
@@ -725,6 +707,7 @@ __session_conn_reopen(iscsi_conn_t *conn, queue_task_t *qtask, int do_stop)
 
 		log_error("cannot make a connection to %s:%s (%d)",
 			  conn->host, serv, errno);
+		delay = 3;
 		iscsi_conn_context_put(conn_context);
 		goto queue_reopen;
 	}
@@ -737,11 +720,7 @@ __session_conn_reopen(iscsi_conn_t *conn, queue_task_t *qtask, int do_stop)
 	return; 
 
 queue_reopen:
-	if (session->time2wait)
-		delay = session->time2wait;
-	else
-		delay = DEFAULT_TIME2WAIT;
-	session->time2wait = 0;
+	log_debug(4, "Waiting %u seconds before trying to reconnect.\n", delay);
 	queue_delayed_reopen(qtask, delay);
 }
 
@@ -1480,14 +1459,14 @@ static void iscsi_recv_async_msg(iscsi_conn_t *conn, struct iscsi_hdr *hdr)
 		log_warning("Target dropping connection %u, reconnect min %u "
 			    "max %u\n", ntohs(async_hdr->param1),
 			    ntohs(async_hdr->param2), ntohs(async_hdr->param3));
-		session->time2wait =
+		session->def_time2wait =
 			(uint32_t)ntohs(async_hdr->param2) & 0x0000FFFFFL;
 		break;
 	case ISCSI_ASYNC_MSG_DROPPING_ALL_CONNECTIONS:
 		log_warning("Target dropping all connections, reconnect min %u "
 			    "max %u\n", ntohs(async_hdr->param2),
 			     ntohs(async_hdr->param3));
-		session->time2wait =
+		session->def_time2wait =
 			(uint32_t)ntohs(async_hdr->param2) & 0x0000FFFFFL;
 		break;
 	case ISCSI_ASYNC_MSG_PARAM_NEGOTIATION:
@@ -1636,6 +1615,7 @@ static void session_conn_poll(void *data)
 				  "%d:%d", session->id, conn->id);
 		}
 
+		iscsi_copy_operational_params(conn);
 		/*
 		 * TODO: use the iface number or some other value
 		 * so this will be persistent

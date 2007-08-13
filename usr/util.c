@@ -197,7 +197,7 @@ void idbm_node_setup_defaults(node_rec_t *rec)
 	rec->session.iscsi.ImmediateData = 1;
 	rec->session.iscsi.FirstBurstLength = DEF_INI_FIRST_BURST_LEN;
 	rec->session.iscsi.MaxBurstLength = DEF_INI_MAX_BURST_LEN;
-	rec->session.iscsi.DefaultTime2Wait = 0;
+	rec->session.iscsi.DefaultTime2Wait = ISCSI_DEF_TIME2WAIT;
 	rec->session.iscsi.DefaultTime2Retain = 0;
 	rec->session.iscsi.MaxConnections = 1;
 	rec->session.iscsi.MaxOutstandingR2T = 1;

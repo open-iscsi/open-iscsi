@@ -196,7 +196,6 @@ typedef struct iscsi_session {
 	uint32_t max_burst;
 	uint32_t pdu_inorder_en;
 	uint32_t dataseq_inorder_en;
-	uint32_t time2wait;
 	uint32_t def_time2wait;
 	uint32_t def_time2retain;
 	int type;

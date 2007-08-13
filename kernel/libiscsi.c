@@ -1742,6 +1742,14 @@ static void iscsi_start_session_recovery(struct iscsi_session *session,
 	}
 
 	/*
+	 * The LLD either freed/unset the lock on us, or userspace called
+	 * stop but did not create a proper connection (connection was never
+	 * bound or it was unbound then stop was called).
+	 */
+	if (!conn->recv_lock)
+		return;
+
+	/*
 	 * When this is called for the in_login state, we only want to clean
 	 * up the login task and connection. We do not need to block and set
 	 * the recovery state again
