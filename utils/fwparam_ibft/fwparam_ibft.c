@@ -314,13 +314,7 @@ dump_ibft(void *ibft_loc, struct boot_context *context)
 	struct ibft_initiator *initiator = NULL;
 	struct ibft_nic *nic0 = NULL, *nic1 = NULL;
 	struct ibft_tgt *tgt0 = NULL, *tgt1 = NULL;
-	char sum = 0, *buf = ibft_loc;
 	char ipbuf[32];
-
-	for (; buf <= (char *) (ibft_loc + ibft_hdr->length);)
-		sum += *buf++;
-	if (sum)
-		fprintf(stderr, "Checksum not zero 0x%x \n", sum);
 
 	control = ibft_loc + sizeof(*ibft_hdr);
 	CHECK_HDR(control, control);
@@ -412,34 +406,36 @@ dump_ibft(void *ibft_loc, struct boot_context *context)
 	return 0;
 }
 
-/*
- * return the address of the location of string in filebuf, search up to
- * max bytes of *filebuf, if not found returns NULL.
- */
-char *
-search_file(char *filebuf, char *string, int len, int max)
+char *search_ibft(unsigned char *start, int length)
 {
-	char *cur = filebuf;
-	char *end = filebuf + max;
-	int i = 0;
+	unsigned char *cur_ptr;
+	struct ibft_table_hdr *ibft_hdr;
+	unsigned char check_sum;
+	uint32_t i;
 
-	if (debug > 1) {
-		fprintf(stderr,
-			"%s: cur 0x%p, end 0x%p, string '%.4s', len %d\n",
-			__FUNCTION__, cur, end, string, len);
-	}
-	while ((cur < end) && memcmp(cur, string, len)) {
-		if (debug > 2) {
-			fprintf(stderr, "i %d, cur 0x%p: 0x%x ('%c')\n",
-				i, cur, cur[0], cur[0]);
-			i++;
+	cur_ptr = (unsigned char *)start;
+	for (cur_ptr = (unsigned char *)start;
+	     cur_ptr < (start + length);
+	     cur_ptr++) {
+		if (memcmp(cur_ptr, iBFTSTR,strlen(iBFTSTR)))
+			continue;
+
+		ibft_hdr = (struct ibft_table_hdr *)cur_ptr;
+		/* Make sure it's correct version. */
+		if (ibft_hdr->revision != iBFT_REV)
+			continue;
+
+		/* Make sure that length is valid. */
+		if ((cur_ptr + ibft_hdr->length) < (start + length)) {
+			/* Let verify the checksum */
+			for (i = 0, check_sum = 0; i < ibft_hdr->length; i++)
+				check_sum += cur_ptr[i];
+
+			if (check_sum == 0)
+				return (char *)cur_ptr;
 		}
-		cur++;
 	}
-	if (cur < end)
-		return cur;
-	else
-		return NULL;
+	return NULL;
 }
 
 int
@@ -476,11 +472,13 @@ fwparam_ibft(struct boot_context *context, const char *filepath)
 		goto done;
 	}
 
-	ibft_loc = search_file(filebuf, iBFTSTR, strlen(iBFTSTR), end_search);
+	ibft_loc = search_ibft((unsigned char *)filebuf, end_search);
 	if (ibft_loc)
 		ret = dump_ibft(ibft_loc, context);
-	else
+	else {
+		printf("could not fine\n");
 		ret = -1;
+	}
 	munmap(filebuf, end_search);
 done:
 	close(fd);

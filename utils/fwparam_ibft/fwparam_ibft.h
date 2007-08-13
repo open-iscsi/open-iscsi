@@ -36,6 +36,7 @@
 #define iBFTSTR "iBFT"
 #define iBFT_SIG { 'i','B','F','T' }
 
+#define iBFT_REV 1
 
 /*
  * These macros are lower case to make the verify_hdr macro easier.
