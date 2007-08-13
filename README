@@ -16,7 +16,8 @@ Contents
 - 5. Open-iSCSI Configuration Utility
 - 6. Configuration
 - 7. Getting Started
-- 8. iSCSI System Info
+- 8. Advanced Configuration
+- 9. iSCSI System Info
 
 
 1. In This Release
@@ -787,7 +788,130 @@ e.g /etc/init.d/open-iscsi restart. On your next startup the nodes will
 be logged into autmotically.
 
 
-8. iSCSI System Info
+8. Advanced Configuration
+=========================
+
+8.1 iSCSI settings for dm-multipath
+-----------------------------------
+
+When using dm-multipath, the iSCSI timers should be set so that commands
+are quickly failed to the dm-multipath layer. For dm-multipath you should
+then set values like queue if no path, so that IO errors are retried and
+queued if all paths are failed in the multipath layer.
+
+
+8.1.1 iSCSI ping/Nop-Out settings
+---------------------------------
+To quickly detect problems in the network, the iSCSI layer will send iSCSI
+pings (iSCSI NOP-Out requests) to the target. If a NOP-Out times out the
+iSCSI layer will respond by failing running commands and asking the SCSI
+layer to requeue them if possible (SCSI disk commands get 5 retries if not
+using multipath). If dm-multipath is being used the SCSI layer will fail
+the command to the multipath layer instead of retrying. The multipath layer
+will then retry the command on another path.
+
+To control how often a NOP-Out is sent the following value can be set:
+
+node.conn[0].timeo.noop_out_interval = X
+
+Where X is in seconds and the default is 10 seconds. To control the
+timeout for the NOP-Out the noop_out_timeout value can be used:
+
+node.conn[0].timeo.noop_out_timeout = X
+
+Again X is in seconds and the default is 15 seconds.
+
+Normally for these values you can use:
+
+node.conn[0].timeo.noop_out_interval = 5
+node.conn[0].timeo.noop_out_timeout = 10
+
+If there are a lot of IO error messages, then the above values may be too
+aggresive and you may need to increase the values for your network conditions
+and workload, or you may need to check your network for possible problems.
+
+
+8.1.2 replacement_timeout
+-------------------------
+The next iSCSI timer that will need to be tweaked is:
+
+node.session.timeo.replacement_timeout = X
+
+Here X is in seconds.
+
+replacement_timeout will control how long to wait for session re-establishment
+before failing pending SCSI commands and commands that are being operated on by
+the SCSI layer's error handler up to a higher level like multipath or to
+an application if multipath is not being used.
+
+
+8.1.2.1 Running Commands, the SCSI Error Handler, and replacement_timeout
+-------------------------------------------------------------------------
+Remember, from the Nop-out discussion that if a network problem is detected,
+the running commands are failed immediately. There is one exception to this
+and that is when the SCSI layer's error handler is running. To check if
+the SCSI error handler is running iscsiadm can be run as:
+
+iscsiadm -m session -P 3
+
+You will then see:
+
+Host Number: X State: Recovery
+
+When the SCSI EH is running, commands will not be failed until
+node.session.timeo.replacement_timeout seconds.
+
+
+8.1.2.2 Pending Commands and replacement_timeout
+------------------------------------------------
+Commonly, the SCSI/BLOCK layer will queue 256 commands, but the path can
+only take 32. When a network problem is detected, the 32 commands
+in flight will be sent back to the SCSI layer immediately and because
+multipath is being used this will cause the commands to be sent to the multipath
+layer for execution on another path. However the other 96 commands that were
+still in the SCSI/BLOCK queue, will remain here until the session is
+re-established or until node.session.timeo.replacement_timeout seconds has
+gone by. After replacement_timeout seconds, the pending commands will be
+failed to the multipath layer, and all new incoming commands will be
+immediately failed back to the multipath layer. If a session is later
+re-established, then new commands will be queued and executed. Normally,
+multipathd's path tester mechanism will detect that the session has been
+re-established and the path is accessable again, and it will inform
+dm-multipath.
+
+
+8.1.3 Optimal replacement_timeout Value
+---------------------------------------
+
+The default value for replacement_timeout is 120 seconds, but because
+multipath's queue if no path setting can prevent IO errors from being propogated
+to the application, replacement_timeout can be set to a shorter value like
+15 to 30 seconds. By setting it lower pending IO is quickly sent to a new path
+and executed while the iSCSI layer attempts to re-establishment the session.
+If all paths end up being failed, then the multipath and device mapper layer
+will internally queue IO based on the multipath.conf settings, instead of the
+iSCSI layer.
+
+
+8.2 iSCSI settings for iSCSI root
+---------------------------------
+
+When accessing the root parition directly through a iSCSI disk, the
+iSCSI timers should be set so that iSCSI layer has several chances to try to
+re-establish a session and so that commands are not quickly requeued to
+the SCSI layer. Basically you want the opposite of when using dm-multipath.
+
+For this setup, you can turn off iSCSI pings by setting:
+
+node.conn[0].timeo.noop_out_interval = 0
+node.conn[0].timeo.noop_out_timeout = 0
+
+And you can turn the replacement_timer to a very long value:
+
+node.session.timeo.replacement_timeout = 86400
+
+
+9. iSCSI System Info
 ====================
 
 To get information about the running sessions: including the session and
