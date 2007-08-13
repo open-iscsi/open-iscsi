@@ -38,6 +38,9 @@
 #include "iscsi_sysfs.h"
 #include "iscsi_settings.h"
 
+#define ISCSI_CONN_ERR_REOPEN_DELAY	3
+#define ISCSI_INTERNAL_ERR_REOPEN_DELAY	5
+
 static void iscsi_login_timedout(void *data);
 
 /*
@@ -677,7 +680,7 @@ __session_conn_reopen(iscsi_conn_t *conn, queue_task_t *qtask, int do_stop)
 				   conn->id, do_stop)) {
 			log_error("can't stop connection %d:%d (%d)",
 				  session->id, conn->id, errno);
-			delay = 5;
+			delay = ISCSI_INTERNAL_ERR_REOPEN_DELAY;
 			goto queue_reopen;
 		}
 		log_debug(3, "connection %d:%d is stopped for recovery",
@@ -695,7 +698,7 @@ __session_conn_reopen(iscsi_conn_t *conn, queue_task_t *qtask, int do_stop)
 		/* while reopening the recv pool should be full */
 		log_error("BUG: __session_conn_reopen could not get conn "
 			  "context for recv.");
-		delay = 2;
+		delay = ISCSI_INTERNAL_ERR_REOPEN_DELAY;
 		goto queue_reopen;
 	}
 	conn_context->data = qtask;
@@ -711,7 +714,7 @@ __session_conn_reopen(iscsi_conn_t *conn, queue_task_t *qtask, int do_stop)
 
 		log_error("cannot make a connection to %s:%s (%d)",
 			  conn->host, serv, errno);
-		delay = 3;
+		delay = ISCSI_CONN_ERR_REOPEN_DELAY;
 		iscsi_conn_context_put(conn_context);
 		goto queue_reopen;
 	}
@@ -1657,7 +1660,7 @@ static void session_conn_poll(void *data)
 		}
 	} else {
 		log_debug(4, "poll error %d", rc);
-		iscsi_login_eh(conn, qtask, MGMT_IPC_ERR_LOGIN_FAILURE);
+		queue_delayed_reopen(qtask, ISCSI_CONN_ERR_REOPEN_DELAY);
 	}
 
 	return;
