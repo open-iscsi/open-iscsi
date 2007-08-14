@@ -379,8 +379,7 @@ iscsi_r2t_rsp(struct iscsi_conn *conn, struct iscsi_cmd_task *ctask)
 	spin_lock(&session->lock);
 	iscsi_update_cmdsn(session, (struct iscsi_nopin*)rhdr);
 
-	if (!ctask->sc || ctask->mtask ||
-	     session->state != ISCSI_STATE_LOGGED_IN) {
+	if (!ctask->sc || session->state != ISCSI_STATE_LOGGED_IN) {
 		printk(KERN_INFO "iscsi_tcp: dropping R2T itt %d in "
 		       "recovery...\n", ctask->itt);
 		spin_unlock(&session->lock);
@@ -420,10 +419,9 @@ iscsi_r2t_rsp(struct iscsi_conn *conn, struct iscsi_cmd_task *ctask)
 	tcp_ctask->exp_datasn = r2tsn + 1;
 	__kfifo_put(tcp_ctask->r2tqueue, (void*)&r2t, sizeof(void*));
 	tcp_ctask->xmstate |= XMSTATE_SOL_HDR_INIT;
-	list_move_tail(&ctask->running, &conn->xmitqueue);
-
-	scsi_queue_work(session->host, &conn->xmitwork);
 	conn->r2t_pdus_cnt++;
+
+	iscsi_requeue_ctask(ctask);
 	spin_unlock(&session->lock);
 
 	return 0;
@@ -2272,6 +2270,7 @@ static struct scsi_host_template iscsi_sht = {
 	.max_sectors		= 0xFFFF,
 	.cmd_per_lun		= ISCSI_DEF_CMD_PER_LUN,
 	.eh_abort_handler       = iscsi_eh_abort,
+	.eh_device_reset_handler= iscsi_eh_device_reset,
 	.eh_host_reset_handler	= iscsi_eh_host_reset,
 	.use_clustering         = DISABLE_CLUSTERING,
 	.slave_configure        = iscsi_tcp_slave_configure,
@@ -2303,7 +2302,8 @@ static struct iscsi_transport iscsi_tcp_transport = {
 				  ISCSI_PERSISTENT_ADDRESS |
 				  ISCSI_TARGET_NAME | ISCSI_TPGT |
 				  ISCSI_USERNAME | ISCSI_PASSWORD |
-				  ISCSI_USERNAME_IN | ISCSI_PASSWORD_IN,
+				  ISCSI_USERNAME_IN | ISCSI_PASSWORD_IN |
+				  ISCSI_FAST_ABORT,
 	.host_param_mask	= ISCSI_HOST_HWADDRESS | ISCSI_HOST_IPADDRESS |
 				  ISCSI_HOST_INITIATOR_NAME |
 				  ISCSI_HOST_NETDEV_NAME,

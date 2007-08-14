@@ -124,6 +124,7 @@ struct iscsi_session_operational_config {
 	int MaxConnections;
 	int MaxOutstandingR2T;
 	int ERL;
+	int FastAbort;
 };
 
 #define CONFIG_DIGEST_NEVER  0

@@ -529,6 +529,7 @@ __session_create(node_rec_t *rec, struct iscsi_transport *t)
 			  "120 seconds\n");
 		session->replacement_timeout = DEF_REPLACEMENT_TIMEO;
 	}
+	session->fast_abort = rec->session.iscsi.FastAbort;
 
 	/* OUI and uniqifying number */
 	session->isid[0] = DRIVER_ISID_0;
@@ -1073,7 +1074,7 @@ mgmt_ipc_err_e iscsi_host_set_param(int host_no, int param, char *value)
         return MGMT_IPC_OK;
 }
 
-#define MAX_SESSION_PARAMS 24
+#define MAX_SESSION_PARAMS 25
 #define MAX_HOST_PARAMS 3
 
 static void
@@ -1228,6 +1229,11 @@ setup_full_feature_phase(iscsi_conn_t *conn)
 			.param = ISCSI_PARAM_PASSWORD_IN,
 			.value = session->password_in,
 			.type = ISCSI_STRING,
+			.conn_only = 0,
+		}, {
+			.param = ISCSI_PARAM_FAST_ABORT,
+			.value = &session->fast_abort,
+			.type = ISCSI_INT,
 			.conn_only = 0,
 		},
 		/*

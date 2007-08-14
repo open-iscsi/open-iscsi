@@ -301,6 +301,8 @@ idbm_recinfo_node(node_rec_t *r, recinfo_t *ri)
 	__recinfo_int("node.session.err_timeo.reset_timeout", ri, r,
 		      session.err_timeo.reset_timeout,
 		      IDBM_SHOW, num);
+	__recinfo_int_o2("node.session.iscsi.FastAbort", ri, r,
+			 session.iscsi.FastAbort, IDBM_SHOW, "No", "Yes", num);
 	__recinfo_int_o2("node.session.iscsi.InitialR2T", ri, r,
 			 session.iscsi.InitialR2T, IDBM_SHOW,
 			"No", "Yes", num);
