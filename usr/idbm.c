@@ -197,7 +197,7 @@ idbm_recinfo_discovery(discovery_rec_t *r, recinfo_t *ri)
 			"manual", "automatic", num);
 	__recinfo_int_o6("discovery.type", ri, r, type, IDBM_SHOW,
 			"sendtargets", "offload_send_targets", "slp", "isns",
-			"static", "fwboot", num);
+			"static", "fw", num);
 	if (r->type == DISCOVERY_TYPE_SENDTARGETS) {
 		__recinfo_str("discovery.sendtargets.address", ri, r,
 			address, IDBM_SHOW, num);
@@ -269,7 +269,7 @@ idbm_recinfo_node(node_rec_t *r, recinfo_t *ri)
 	__recinfo_int("node.discovery_port", ri, r, disc_port, IDBM_SHOW, num);
 	__recinfo_int_o6("node.discovery_type", ri, r, disc_type,
 			 IDBM_SHOW, "send_targets", "offload_send_targets",
-			 "slp", "isns", "static", "fwboot", num);
+			 "slp", "isns", "static", "fw", num);
 	__recinfo_int("node.session.initial_cmdsn", ri, r,
 		      session.initial_cmdsn, IDBM_SHOW, num);
 	__recinfo_int("node.session.initial_login_retry_max", ri, r,
