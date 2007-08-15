@@ -970,13 +970,12 @@ EXPORT_SYMBOL_GPL(iscsi_conn_send_pdu);
 void iscsi_session_recovery_timedout(struct iscsi_cls_session *cls_session)
 {
 	struct iscsi_session *session = class_to_transport_session(cls_session);
-	struct iscsi_conn *conn = session->leadconn;
 
 	spin_lock_bh(&session->lock);
 	if (session->state != ISCSI_STATE_LOGGED_IN) {
 		session->state = ISCSI_STATE_RECOVERY_FAILED;
-		if (conn)
-			wake_up(&conn->ehwait);
+		if (session->leadconn)
+			wake_up(&session->leadconn->ehwait);
 	}
 	spin_unlock_bh(&session->lock);
 }
