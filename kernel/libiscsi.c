@@ -1214,6 +1214,7 @@ int iscsi_eh_abort(struct scsi_cmnd *sc)
 	if (!session->leadconn || session->state != ISCSI_STATE_LOGGED_IN ||
 	    sc->SCp.phase != session->age) {
 		spin_unlock_bh(&session->lock);
+		mutex_unlock(&session->eh_mutex);
 		return FAILED;
 	}
 
