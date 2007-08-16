@@ -488,6 +488,7 @@ int __iscsi_complete_pdu(struct iscsi_conn *conn, struct iscsi_hdr *hdr,
 			}
 
 			iscsi_tmf_rsp(conn, hdr);
+			iscsi_free_mgmt_task(conn, mtask);
 			break;
 		case ISCSI_OP_NOOP_IN:
 			if (hdr->ttt != cpu_to_be32(ISCSI_RESERVED_TAG) || datalen) {
