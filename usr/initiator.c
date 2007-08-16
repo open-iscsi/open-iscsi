@@ -991,7 +991,14 @@ static void conn_nop_out_timeout(void *data)
 
 static void conn_send_nop_out(void *data)
 {
-	iscsi_conn_t *conn = (iscsi_conn_t*)data;
+	iscsi_conn_t *conn = data;
+
+	/*
+	 * we cannot start new request during logout and the logout timer
+	 * will figure things out.
+	 */
+	if (conn->state == STATE_IN_LOGOUT)
+		return;
 
 	__send_nopout(conn);
 

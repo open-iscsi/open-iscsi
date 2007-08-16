@@ -241,6 +241,53 @@ static void __iscsi_put_ctask(struct iscsi_cmd_task *ctask)
 		iscsi_complete_command(ctask);
 }
 
+/*
+ * session lock must be held
+ */
+static void fail_command(struct iscsi_conn *conn, struct iscsi_cmd_task *ctask,
+			 int err)
+{
+	struct scsi_cmnd *sc;
+
+	sc = ctask->sc;
+	if (!sc)
+		return;
+
+	if (ctask->state == ISCSI_TASK_PENDING)
+		/*
+		 * cmd never made it to the xmit thread, so we should not count
+		 * the cmd in the sequencing
+		 */
+		conn->session->queued_cmdsn--;
+	else
+		conn->session->tt->cleanup_cmd_task(conn, ctask);
+
+	sc->result = err;
+	sc->resid = sc->request_bufflen;
+	if (conn->ctask == ctask)
+		conn->ctask = NULL;
+	/* release ref from queuecommand */
+	__iscsi_put_ctask(ctask);
+}
+
+/**
+ * iscsi_free_mgmt_task - return mgmt task back to pool
+ * @conn: iscsi connection
+ * @mtask: mtask
+ *
+ * Must be called with session lock.
+ */
+void iscsi_free_mgmt_task(struct iscsi_conn *conn,
+			  struct iscsi_mgmt_task *mtask)  
+{
+	list_del_init(&mtask->running);
+	if (conn->login_mtask == mtask)
+		return;
+	__kfifo_put(conn->session->mgmtpool.queue,
+		    (void*)&mtask, sizeof(void*));
+}
+EXPORT_SYMBOL_GPL(iscsi_free_mgmt_task);
+
 /**
  * iscsi_cmd_rsp - SCSI Command Response processing
  * @conn: iscsi connection
@@ -432,10 +479,7 @@ int __iscsi_complete_pdu(struct iscsi_conn *conn, struct iscsi_hdr *hdr,
 			 */
 			if (iscsi_recv_pdu(conn->cls_conn, hdr, data, datalen))
 				rc = ISCSI_ERR_CONN_FAILED;
-			list_del_init(&mtask->running);
-			if (conn->login_mtask != mtask)
-				__kfifo_put(session->mgmtpool.queue,
-					    (void*)&mtask, sizeof(void*));
+			iscsi_free_mgmt_task(conn, mtask);
 			break;
 		case ISCSI_OP_SCSI_TMFUNC_RSP:
 			if (datalen) {
@@ -454,9 +498,7 @@ int __iscsi_complete_pdu(struct iscsi_conn *conn, struct iscsi_hdr *hdr,
 
 			if (iscsi_recv_pdu(conn->cls_conn, hdr, data, datalen))
 				rc = ISCSI_ERR_CONN_FAILED;
-			list_del_init(&mtask->running);
-			__kfifo_put(session->mgmtpool.queue,
-				    (void*)&mtask, sizeof(void*));
+			iscsi_free_mgmt_task(conn, mtask);
 			break;
 		default:
 			rc = ISCSI_ERR_BAD_OPCODE;
@@ -618,14 +660,12 @@ static void iscsi_prep_mtask(struct iscsi_conn *conn,
 static int iscsi_xmit_mtask(struct iscsi_conn *conn)
 {
 	struct iscsi_hdr *hdr = conn->mtask->hdr;
-	int rc, was_logout = 0;
+	int rc;
 
+	if ((hdr->opcode & ISCSI_OPCODE_MASK) == ISCSI_OP_LOGOUT)
+		conn->session->state = ISCSI_STATE_TERMINATE;
 	spin_unlock_bh(&conn->session->lock);
-	if ((hdr->opcode & ISCSI_OPCODE_MASK) == ISCSI_OP_LOGOUT) {
-		conn->session->state = ISCSI_STATE_IN_RECOVERY;
-		iscsi_block_session(session_to_cls(conn->session));
-		was_logout = 1;
-	}
+
 	rc = conn->session->tt->xmit_mgmt_task(conn, conn->mtask);
 	spin_lock_bh(&conn->session->lock);
 	if (rc)
@@ -633,11 +673,6 @@ static int iscsi_xmit_mtask(struct iscsi_conn *conn)
 
 	/* done with this in-progress mtask */
 	conn->mtask = NULL;
-
-	if (was_logout) {
-		set_bit(ISCSI_SUSPEND_BIT, &conn->suspend_tx);
-		return -ENODATA;
-	}
 	return 0;
 }
 
@@ -731,6 +766,12 @@ check_mgmt:
 	while (!list_empty(&conn->mgmtqueue)) {
 		conn->mtask = list_entry(conn->mgmtqueue.next,
 					 struct iscsi_mgmt_task, running);
+		if (conn->session->state == ISCSI_STATE_TERMINATE) {
+			iscsi_free_mgmt_task(conn, conn->mtask);
+			conn->mtask = NULL;
+			continue;
+		}
+
 		iscsi_prep_mtask(conn, conn->mtask);
 		list_move_tail(conn->mgmtqueue.next, &conn->mgmt_run_list);
 		rc = iscsi_xmit_mtask(conn);
@@ -742,9 +783,13 @@ check_mgmt:
 	while (!list_empty(&conn->xmitqueue)) {
 		if (conn->tmf_state == TMF_QUEUED)
 			break;
-
 		conn->ctask = list_entry(conn->xmitqueue.next,
 					 struct iscsi_cmd_task, running);
+		if (conn->session->state == ISCSI_STATE_TERMINATE) {
+			fail_command(conn, conn->ctask, DID_NO_CONNECT);
+			continue;
+		}
+
 		iscsi_prep_scsi_cmd_pdu(conn->ctask);
 		conn->session->tt->init_cmd_task(conn->ctask);
 		conn->ctask->state = ISCSI_TASK_RUNNING;
@@ -763,6 +808,12 @@ check_mgmt:
 
 	while (!list_empty(&conn->requeue)) {
 		if (conn->session->fast_abort && conn->tmf_state != TMF_INITIAL)
+			break;
+
+		/*
+		 * we always do fastlogout - conn stop code will clean up.
+		 */
+		if (conn->session->state == ISCSI_STATE_TERMINATE)
 			break;
 
 		conn->ctask = list_entry(conn->requeue.next,
@@ -1085,42 +1136,7 @@ static int iscsi_exec_task_mgmt_fn(struct iscsi_conn *conn,
 	if (age != session->age ||
 	    session->state != ISCSI_STATE_LOGGED_IN)
 		return -ENOTCONN;
-
-	if (!list_empty(&mtask->running)) {
-		list_del_init(&mtask->running);
-		__kfifo_put(session->mgmtpool.queue, (void*)&mtask,
-			    sizeof(void*));
-	}
 	return 0;
-}
-
-/*
- * session lock must be held
- */
-static void fail_command(struct iscsi_conn *conn, struct iscsi_cmd_task *ctask,
-			 int err)
-{
-	struct scsi_cmnd *sc;
-
-	sc = ctask->sc;
-	if (!sc)
-		return;
-
-	if (ctask->state == ISCSI_TASK_PENDING)
-		/*
-		 * cmd never made it to the xmit thread, so we should not count
-		 * the cmd in the sequencing
-		 */
-		conn->session->queued_cmdsn--;
-	else
-		conn->session->tt->cleanup_cmd_task(conn, ctask);
-
-	sc->result = err;
-	sc->resid = sc->request_bufflen;
-	if (conn->ctask == ctask)
-		conn->ctask = NULL;
-	/* release ref from queuecommand */
-	__iscsi_put_ctask(ctask);
 }
 
 /*
@@ -1797,22 +1813,13 @@ flush_control_queues(struct iscsi_session *session, struct iscsi_conn *conn)
 	/* handle pending */
 	list_for_each_entry_safe(mtask, tmp, &conn->mgmtqueue, running) {
 		debug_scsi("flushing pending mgmt task itt 0x%x\n", mtask->itt);
-		list_del_init(&mtask->running);
-		if (mtask == conn->login_mtask)
-			continue;
-		__kfifo_put(session->mgmtpool.queue, (void*)&mtask,
-			    sizeof(void*));
+		iscsi_free_mgmt_task(conn, mtask);
 	}
 
 	/* handle running */
 	list_for_each_entry_safe(mtask, tmp, &conn->mgmt_run_list, running) {
 		debug_scsi("flushing running mgmt task itt 0x%x\n", mtask->itt);
-		list_del_init(&mtask->running);
-
-		if (mtask == conn->login_mtask)
-			continue;
-		__kfifo_put(session->mgmtpool.queue, (void*)&mtask,
-			   sizeof(void*));
+		iscsi_free_mgmt_task(conn, mtask);
 	}
 
 	conn->mtask = NULL;
