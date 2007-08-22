@@ -126,27 +126,38 @@ static mgmt_ipc_err_e iscsid_connect(int *fd)
 	return MGMT_IPC_ERR_ISCSID_COMM_ERR;
 }
 
-static mgmt_ipc_err_e iscsid_request(int fd, iscsiadm_req_t *req)
+mgmt_ipc_err_e iscsid_request(int *fd, iscsiadm_req_t *req)
 {
 	int err;
 
-	if ((err = write(fd, req, sizeof(*req))) != sizeof(*req)) {
+	err = iscsid_connect(fd);
+	if (err)
+		return err;
+
+	if ((err = write(*fd, req, sizeof(*req))) != sizeof(*req)) {
 		log_error("got write error (%d/%d) on cmd %d, daemon died?",
 			err, errno, req->command);
+		close(*fd);
 		return MGMT_IPC_ERR_ISCSID_COMM_ERR;
 	}
 	return MGMT_IPC_OK;
 }
 
-static mgmt_ipc_err_e iscsid_response(int fd, iscsiadm_rsp_t *rsp)
+mgmt_ipc_err_e iscsid_response(int fd, iscsiadm_cmd_e cmd, iscsiadm_rsp_t *rsp)
 {
+	mgmt_ipc_err_e iscsi_err;
 	int err;
 
 	if ((err = recv(fd, rsp, sizeof(*rsp), MSG_WAITALL)) != sizeof(*rsp)) {
 		log_error("got read error (%d/%d), daemon died?", err, errno);
-		return MGMT_IPC_ERR_ISCSID_COMM_ERR;
+		iscsi_err = MGMT_IPC_ERR_ISCSID_COMM_ERR;
 	} else
-		return rsp->err;
+		iscsi_err = rsp->err;
+	close(fd);
+
+	if (!iscsi_err && cmd != rsp->command)
+		iscsi_err = MGMT_IPC_ERR_ISCSID_COMM_ERR;
+	return iscsi_err;
 }
 
 mgmt_ipc_err_e do_iscsid(iscsiadm_req_t *req, iscsiadm_rsp_t *rsp)
@@ -154,24 +165,11 @@ mgmt_ipc_err_e do_iscsid(iscsiadm_req_t *req, iscsiadm_rsp_t *rsp)
 	int fd;
 	mgmt_ipc_err_e err;
 
-	err = iscsid_connect(&fd);
+	err = iscsid_request(&fd, req);
 	if (err)
-		goto out;
+		return err;
 
-	err = iscsid_request(fd, req);
-	if (err)
-		goto out;
-
-	err = iscsid_response(fd, rsp);
-	if (err)
-		goto out;
-
-	if (!err && req->command != rsp->command)
-		err = MGMT_IPC_ERR_ISCSID_COMM_ERR;
-out:
-	if (fd >= 0)
-		close(fd);
-	return err;
+	return iscsid_response(fd, req->command, rsp);
 }
 
 void idbm_node_setup_defaults(node_rec_t *rec)

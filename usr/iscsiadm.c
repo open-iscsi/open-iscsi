@@ -190,17 +190,33 @@ static int print_ifaces(idbm_t *db, int info_level)
 	return err;
 }
 
-static int
-session_login(node_rec_t *rec)
+static int session_login_async(node_rec_t *rec, int *fd)
 {
 	iscsiadm_req_t req;
-	iscsiadm_rsp_t rsp;
 
 	memset(&req, 0, sizeof(iscsiadm_req_t));
 	req.command = MGMT_IPC_SESSION_LOGIN;
 	memcpy(&req.u.session.rec, rec, sizeof(node_rec_t));
 
-	return do_iscsid(&req, &rsp);
+	return iscsid_request(fd, &req);
+}
+
+static int session_login_wait(int fd)
+{
+	iscsiadm_rsp_t rsp;
+
+	memset(&rsp, 0, sizeof(iscsiadm_rsp_t));
+	return iscsid_response(fd, MGMT_IPC_SESSION_LOGIN, &rsp);
+}
+
+static int session_login(node_rec_t *rec)
+{
+	int err, fd;
+
+	err = session_login_async(rec, &fd);
+	if (err)
+		return err;
+	return session_login_wait(fd);
 }
 
 static int
@@ -271,16 +287,17 @@ match_startup_mode(node_rec_t *rec, char *mode)
 	return -1;
 }
 
-struct session_mgmt_fn {
+struct session_mgmt_data {
 	idbm_t *db;
-	char *mode;
+	void *data;
+	struct list_head *session_list;
 };
 
 static int
 __logout_by_startup(void *data, struct session_info *info)
 {
-	struct session_mgmt_fn *mgmt = data;
-	char *mode = mgmt->mode;
+	struct session_mgmt_data *mgmt = data;
+	char *mode = mgmt->data;
 	idbm_t *db = mgmt->db;
 	node_rec_t rec;
 	int rc = 0;
@@ -346,7 +363,7 @@ static int
 logout_by_startup(idbm_t *db, char *mode)
 {
 	int num_found;
-	struct session_mgmt_fn mgmt;
+	struct session_mgmt_data mgmt;
 
 	if (!mode || !(!strcmp(mode, "automatic") || !strcmp(mode, "all") ||
 	    !strcmp(mode,"manual"))) {
@@ -355,7 +372,7 @@ logout_by_startup(idbm_t *db, char *mode)
 		return EINVAL;
 	}
 
-	mgmt.mode = mode;
+	mgmt.data = mode;
 	mgmt.db = db;
 
 	return sysfs_for_each_session(&mgmt, &num_found, __logout_by_startup);
@@ -479,39 +496,74 @@ for_each_session(struct node_rec *rec, sysfs_session_op_fn *fn)
 	return err;
 }
 
+struct iscsid_async_req {
+	struct list_head list;
+	int fd;
+};
+
 static int login_portal(idbm_t *db, void *data, node_rec_t *rec)
 {
-	int rc = 0, i;
+	struct list_head *list = data;
+	struct iscsid_async_req *async_req = NULL;
+	int rc = 0, i = 0, fd;
 
 	printf("Login session [iface: %s, target: %s, portal: %s,%d]\n",
 		rec->iface.name, rec->name, rec->conn[0].address,
 		rec->conn[0].port);
 
-	for (i = 0; i < rec->session.initial_login_retry_max; i++) {
-		rc = session_login(rec);
+	if (list) {
+		async_req = calloc(1, sizeof(*async_req));
+		if (!async_req)
+			log_error("Could not allocate memory for async login "
+				  "handling. Using sync login instead.");
+		INIT_LIST_HEAD(&async_req->list);
+	}
+
+	do {
+		if (async_req)
+			rc = session_login_async(rec, &fd);
+		else
+			rc = session_login(rec);
 		if (!rc)
 			break;
 		/* we raced with another app or instance of iscsiadm */
 		if (rc == MGMT_IPC_ERR_EXISTS) {
+			if (async_req) {
+				free(async_req);
+				async_req = NULL;
+			}
 			rc = 0;
 			break;
 		}
 
-		if (i + 1 != rec->session.initial_login_retry_max)
+		i++;
+		if (i <= rec->session.initial_login_retry_max)
 			sleep(1);
-	}
+	} while (i < rec->session.initial_login_retry_max);
 
 	if (rc) {
 		iscsid_handle_error(rc);
+		if (async_req)
+			free(async_req);
 		return ENOTCONN;
-	} else
-		return 0;
+	}
+
+	if (async_req) {
+		list_add_tail(&async_req->list, list);
+		async_req->fd = fd;
+	}
+	return 0;
 }
 
+/*
+ * TODO: merged this and logout into the common for_each_rec by making
+ * the matching more generic
+ */
 static int
 __login_by_startup(idbm_t *db, void *data, node_rec_t *rec)
 {
-	char *mode = data;
+	struct session_mgmt_data *mgmt = data;
+	char *mode = mgmt->data;
 	int rc = -1;
 
 	/*
@@ -522,14 +574,37 @@ __login_by_startup(idbm_t *db, void *data, node_rec_t *rec)
 		return -1;
 
 	if (!match_startup_mode(rec, mode))
-		rc = login_portal(NULL, NULL, rec);
+		rc = login_portal(db, mgmt->session_list, rec);
 	return rc;
+}
+
+static int login_portals_wait(struct list_head *list)
+{
+	struct iscsid_async_req *tmp, *curr;
+	int ret = 0;
+
+	list_for_each_entry_safe(curr, tmp, list, list) {
+		int err = session_login_wait(curr->fd);
+		if (err) {
+			iscsid_handle_error(err);
+			ret = err;
+		}
+
+		list_del(&curr->list);
+		free(curr);
+	}
+	return ret;
 }
 
 static int
 login_by_startup(idbm_t *db, char *mode)
 {
-	int nr_found = 0, rc;
+	int nr_found = 0, rc, err;
+	struct session_mgmt_data mgmt;
+	struct list_head list;
+
+	memset(&mgmt, 0, sizeof(struct session_mgmt_data));
+	INIT_LIST_HEAD(&list);
 
 	if (!mode || !(!strcmp(mode, "automatic") || !strcmp(mode, "all") ||
 	    !strcmp(mode,"manual"))) {
@@ -538,7 +613,14 @@ login_by_startup(idbm_t *db, char *mode)
 		return EINVAL;
 	}
 
-	rc = idbm_for_each_rec(db, &nr_found, mode, __login_by_startup);
+	mgmt.data = mode;
+	mgmt.db = db;
+	mgmt.session_list = &list;
+
+	rc = idbm_for_each_rec(db, &nr_found, &mgmt, __login_by_startup);
+	err = login_portals_wait(&list);
+	if (err)
+		rc = err;
 	if (rc)
 		log_error("Could not log into all portals. Err %d.", rc);
 	else if (!nr_found) {
@@ -588,6 +670,20 @@ static int for_each_rec(idbm_t *db, struct node_rec *rec, void *data,
 			idbm_iface_op_fn *fn)
 {
 	return __for_each_rec(db, 1, rec, data, fn);
+}
+
+static int login_portals(idbm_t *db, struct node_rec *rec)
+{
+	struct list_head list;
+	int ret, err;
+
+	INIT_LIST_HEAD(&list);
+	ret = for_each_rec(db, rec, &list, login_portal);
+
+	err = login_portals_wait(&list);
+	if (err)
+		ret = err;
+	return ret;
 }
 
 static int print_nodes(idbm_t *db, int info_level, struct node_rec *rec)
@@ -1227,14 +1323,15 @@ do_offload_sendtargets(idbm_t *db, discovery_rec_t *drec,
 
 static int login_discovered_portals(idbm_t *db, void *data, node_rec_t *rec)
 {
-	discovery_rec_t *drec = data;
+	struct session_mgmt_data *mgmt = data;
+	discovery_rec_t *drec = mgmt->data;
 
 	if (rec->disc_type != drec->type ||
 	    rec->disc_port != drec->port ||
 	    strcmp(rec->disc_address, drec->address))
 		return -1;
 
-	login_portal(db, NULL, rec);
+	login_portal(db, mgmt->session_list, rec);
 	/*
 	 * This is used during the initial setup, so we want to see
 	 * what portals we can or cannot log into and we will just continue
@@ -1246,7 +1343,12 @@ static int
 do_sofware_sendtargets(idbm_t *db, discovery_rec_t *drec,
 			struct list_head *ifaces, int info_level, int do_login)
 {
-	int rc, nr_found = 0;
+	int rc, err, nr_found = 0;
+	struct session_mgmt_data mgmt;
+	struct list_head list;
+
+	memset(&mgmt, 0, sizeof(struct session_mgmt_data));
+	INIT_LIST_HEAD(&list);
 
 	drec->type = DISCOVERY_TYPE_SENDTARGETS;
 	rc = discovery_sendtargets(db, drec, ifaces);
@@ -1258,7 +1360,13 @@ do_sofware_sendtargets(idbm_t *db, discovery_rec_t *drec,
 	if (!do_login)
 		return 0;
 
-	return idbm_for_each_rec(db, &nr_found, drec, login_discovered_portals);
+	mgmt.data = drec;
+	mgmt.session_list = &list;
+	rc = idbm_for_each_rec(db, &nr_found, &mgmt, login_discovered_portals);
+	err = login_portals_wait(&list);
+	if (err)
+		rc = err;
+	return err;
 }
 
 static int
@@ -1647,7 +1755,7 @@ static int exec_node_op(idbm_t *db, int op, int do_login, int do_logout,
 	}
 
 	if (do_login) {
-		if (for_each_rec(db, rec, NULL, login_portal))
+		if (login_portals(db, rec))
 			rc = -1;
 		goto out;
 	}
