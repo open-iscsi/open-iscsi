@@ -1533,7 +1533,7 @@ static __init int iscsi_transport_init(void)
 		goto unregister_session_class;
 	}
 
-	iscsi_eh_timer_workq = create_workqueue("iscsi_eh");
+	iscsi_eh_timer_workq = create_singlethread_workqueue("iscsi_eh");
 	if (!iscsi_eh_timer_workq)
 		goto release_nls;
 
