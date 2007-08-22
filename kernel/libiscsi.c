@@ -664,7 +664,7 @@ static int iscsi_xmit_mtask(struct iscsi_conn *conn)
 	int rc;
 
 	if ((hdr->opcode & ISCSI_OPCODE_MASK) == ISCSI_OP_LOGOUT)
-		conn->session->state = ISCSI_STATE_TERMINATE;
+		conn->session->state = ISCSI_STATE_LOGGING_OUT;
 	spin_unlock_bh(&conn->session->lock);
 
 	rc = conn->session->tt->xmit_mgmt_task(conn, conn->mtask);
@@ -767,7 +767,7 @@ check_mgmt:
 	while (!list_empty(&conn->mgmtqueue)) {
 		conn->mtask = list_entry(conn->mgmtqueue.next,
 					 struct iscsi_mgmt_task, running);
-		if (conn->session->state == ISCSI_STATE_TERMINATE) {
+		if (conn->session->state == ISCSI_STATE_LOGGING_OUT) {
 			iscsi_free_mgmt_task(conn, conn->mtask);
 			conn->mtask = NULL;
 			continue;
@@ -786,7 +786,7 @@ check_mgmt:
 			break;
 		conn->ctask = list_entry(conn->xmitqueue.next,
 					 struct iscsi_cmd_task, running);
-		if (conn->session->state == ISCSI_STATE_TERMINATE) {
+		if (conn->session->state == ISCSI_STATE_LOGGING_OUT) {
 			fail_command(conn, conn->ctask, DID_NO_CONNECT);
 			continue;
 		}
@@ -814,7 +814,7 @@ check_mgmt:
 		/*
 		 * we always do fastlogout - conn stop code will clean up.
 		 */
-		if (conn->session->state == ISCSI_STATE_TERMINATE)
+		if (conn->session->state == ISCSI_STATE_LOGGING_OUT)
 			break;
 
 		conn->ctask = list_entry(conn->requeue.next,
@@ -859,6 +859,7 @@ enum {
 	FAILURE_SESSION_TERMINATE,
 	FAILURE_SESSION_IN_RECOVERY,
 	FAILURE_SESSION_RECOVERY_TIMEOUT,
+	FAILURE_SESSION_LOGGING_OUT,
 };
 
 int iscsi_queuecommand(struct scsi_cmnd *sc, void (*done)(struct scsi_cmnd *))
@@ -896,12 +897,19 @@ int iscsi_queuecommand(struct scsi_cmnd *sc, void (*done)(struct scsi_cmnd *))
 			goto reject;
 		}
 
-		if (session->state == ISCSI_STATE_RECOVERY_FAILED)
+		switch (session->state) {
+		case ISCSI_STATE_RECOVERY_FAILED:
 			reason = FAILURE_SESSION_RECOVERY_TIMEOUT;
-		else if (session->state == ISCSI_STATE_TERMINATE)
+			break;
+		case ISCSI_STATE_TERMINATE:
 			reason = FAILURE_SESSION_TERMINATE;
-		else
+			break;
+		case ISCSI_STATE_LOGGING_OUT:
+			reason = FAILURE_SESSION_LOGGING_OUT;
+			break;
+		default:
 			reason = FAILURE_SESSION_FREED;
+		}
 		goto fault;
 	}
 
