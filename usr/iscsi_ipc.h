@@ -62,6 +62,8 @@ struct iscsi_ipc {
 
 	int (*destroy_session) (uint64_t transport_handle, uint32_t sid);
 
+	int (*unbind_session) (uint64_t transport_handle, uint32_t sid);
+
 	int (*create_conn) (uint64_t transport_handle,
 			    uint32_t sid, uint32_t cid, uint32_t *out_cid);
 

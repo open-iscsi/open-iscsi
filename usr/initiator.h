@@ -70,6 +70,7 @@ typedef enum iscsi_event_e {
 	EV_CONN_POLL,
 	EV_CONN_ERROR,
 	EV_CONN_LOGOUT_TIMER,
+	EV_CONN_LOGOUT,
 } iscsi_event_e;
 
 struct queue_task;
@@ -203,8 +204,6 @@ typedef struct iscsi_session {
 	int portal_group_tag;
 	uint8_t isid[6];
 	uint16_t tsih;
-	int channel;
-	int target_id;
 	char target_name[TARGET_NAME_MAXLEN + 1];
 	char *target_alias;
 	char *initiator_name;
@@ -233,6 +232,8 @@ typedef struct iscsi_session {
 	queue_task_t reopen_qtask;
 	iscsi_session_r_stage_e r_stage;
 	uint32_t replacement_timeout;
+
+	int unbinding;
 
 	/* sync up fields */
 	queue_task_t *sync_qtask;

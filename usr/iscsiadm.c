@@ -239,7 +239,7 @@ session_logout(node_rec_t *rec)
 	req.command = MGMT_IPC_SESSION_LOGOUT;
 	memcpy(&req.u.session.rec, rec, sizeof(node_rec_t));
 
-	sysfs_for_each_session(rec, &num_found, __delete_target);
+	//sysfs_for_each_session(rec, &num_found, __delete_target);
 	return do_iscsid(&req, &rsp);
 }
 

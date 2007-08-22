@@ -1425,6 +1425,34 @@ static int iscsi_send_logout(iscsi_conn_t *conn)
 	return 0;
 }
 
+static void iscsi_logout(void *data)
+{
+	struct iscsi_conn_context *conn_context = data;
+	struct iscsi_conn *conn = conn_context->conn;
+	int rc = 0;
+
+	iscsi_conn_context_put(conn_context);
+
+	if (!iscsi_send_logout(conn))
+		return;
+
+	switch (conn->state) {
+	case STATE_IN_LOGIN:
+	case STATE_IN_LOGOUT:
+	case STATE_LOGGED_IN:
+		/* we have pdus in flight clean them up */
+		rc = session_conn_shutdown(conn, conn->logout_qtask,
+					   MGMT_IPC_OK);
+		break;
+	default:
+		rc = __session_conn_shutdown(conn, conn->logout_qtask,
+					     MGMT_IPC_OK);
+		break;
+	}
+	if (rc)
+		log_error("BUG: Could not shutdown session.");
+}
+
 static void iscsi_recv_nop_in(iscsi_conn_t *conn, struct iscsi_hdr *hdr)
 {
 	if (hdr->ttt == ISCSI_RESERVED_TAG) {
@@ -1718,6 +1746,11 @@ void iscsi_sched_conn_context(struct iscsi_conn_context *conn_context,
 		actor_timer(&conn_context->actor, tmo * 1000,
 			    iscsi_logout_timedout, conn_context);
 		break;
+	case EV_CONN_LOGOUT:
+		actor_new(&conn_context->actor, iscsi_logout,
+			  conn_context);
+		actor_schedule(&conn_context->actor);
+		break;
 	default:
 		log_error("Invalid event type %d.", event);
 		return;
@@ -1949,6 +1982,17 @@ destroy_session:
 	return err;
 }
 
+static int session_unbind(struct iscsi_session *session)
+{
+	int err;
+
+	err = ipc->unbind_session(session->t->handle, session->id);
+	if (err)
+		/* older kernels did not support unbind */
+		log_debug(2, "Could not unbind session %d.\n", err);
+	return err;
+}
+
 int
 session_logout_task(iscsi_session_t *session, queue_task_t *qtask)
 {
@@ -1960,6 +2004,7 @@ session_logout_task(iscsi_session_t *session, queue_task_t *qtask)
 	    (conn->state == STATE_XPT_WAIT &&
 	    (session->r_stage == R_STAGE_NO_CHANGE ||
 	     session->r_stage == R_STAGE_SESSION_REDIRECT))) {
+invalid_state:
 		log_error("session in invalid state for logout. "
 			   "Try again later\n");
 		return MGMT_IPC_ERR_INTERNAL;
@@ -1968,6 +2013,8 @@ session_logout_task(iscsi_session_t *session, queue_task_t *qtask)
 	/* FIXME: logout all active connections */
 	conn = &session->conn[0];
 	/* FIXME: implement Logout Request */
+	if (conn->logout_qtask)
+		goto invalid_state;
 
 	qtask->conn = conn;
 	qtask->rsp.command = MGMT_IPC_SESSION_LOGOUT;
@@ -1975,15 +2022,17 @@ session_logout_task(iscsi_session_t *session, queue_task_t *qtask)
 
 	switch (conn->state) {
 	case STATE_LOGGED_IN:
+		if (!session_unbind(session))
+			return MGMT_IPC_OK;
+
+		/* unbind is not supported so just do old logout */
 		if (!iscsi_send_logout(conn))
 			return MGMT_IPC_OK;
 		log_error("Could not send logout pdu. Dropping session\n");
 		/* fallthrough */
 	case STATE_IN_LOGIN:
-		rc = session_conn_shutdown(conn, qtask, MGMT_IPC_OK);
-		break;
 	case STATE_IN_LOGOUT:
-		rc = MGMT_IPC_ERR_LOGOUT_FAILURE;
+		rc = session_conn_shutdown(conn, qtask, MGMT_IPC_OK);
 		break;
 	default:
 		rc = __session_conn_shutdown(conn, qtask, MGMT_IPC_OK);
@@ -2022,6 +2071,15 @@ iscsi_host_send_targets(queue_task_t *qtask, int host_no, int do_login,
  */
 void iscsi_async_session_creation(uint32_t host_no, uint32_t sid)
 {
+	struct iscsi_transport *transport;
+
+	transport = get_transport_by_hba(host_no);
+	if (!transport)
+		return;
+
+	if (!(transport->caps & CAP_FW_DB))
+		return;
+
 	log_debug(3, "session created sid %u host no %d", sid, host_no);
 	session_online_devs(host_no, sid);
 	session_scan_host(host_no, NULL);

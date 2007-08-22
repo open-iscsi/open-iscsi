@@ -388,6 +388,27 @@ kdestroy_session(uint64_t transport_handle, uint32_t sid)
 }
 
 static int
+kunbind_session(uint64_t transport_handle, uint32_t sid)
+{
+	int rc;
+	struct iscsi_uevent ev;
+
+	log_debug(7, "in %s", __FUNCTION__);
+
+	memset(&ev, 0, sizeof(struct iscsi_uevent));
+
+	ev.type = ISCSI_UEVENT_UNBIND_SESSION;
+	ev.transport_handle = transport_handle;
+	ev.u.d_session.sid = sid;
+
+	if ((rc = __kipc_call(&ev, sizeof(ev))) < 0) {
+		return rc;
+	}
+
+	return 0;
+}
+
+static int
 kcreate_conn(uint64_t transport_handle, uint32_t sid,
 	    uint32_t cid, uint32_t *out_cid)
 {
@@ -845,7 +866,7 @@ static void drop_data(struct nlmsghdr *nlh)
 
 static int ctldev_handle(void)
 {
-	int rc;
+	int rc, ev_size;
 	struct iscsi_uevent *ev;
 	struct iscsi_transport *t;
 	iscsi_session_t *session = NULL;
@@ -853,7 +874,7 @@ static int ctldev_handle(void)
 	char nlm_ev[NLMSG_SPACE(sizeof(struct iscsi_uevent))];
 	struct nlmsghdr *nlh;
 	struct iscsi_conn_context *conn_context;
-	int ev_size;
+	uint32_t sid = 0, cid = 0;
 
 	log_debug(7, "in %s", __FUNCTION__);
 
@@ -868,6 +889,8 @@ static int ctldev_handle(void)
 	log_debug(7, "%s got event type %u\n", __FUNCTION__, ev->type);
 	/* drivers like qla4xxx can be inserted after iscsid is started */
 	switch (ev->type) {
+	case ISCSI_KEVENT_CREATE_SESSION:
+	/* old kernels sent ISCSI_UEVENT_CREATE_SESSION on creation */
 	case ISCSI_UEVENT_CREATE_SESSION:
 		drop_data(nlh);
 		iscsi_async_session_creation(ev->r.c_session_ret.host_no,
@@ -878,39 +901,31 @@ static int ctldev_handle(void)
 		iscsi_async_session_destruction(ev->r.d_session.host_no,
 						ev->r.d_session.sid);
 		return 0;
+	case ISCSI_KEVENT_RECV_PDU:
+		sid = ev->r.recv_req.sid;
+		cid = ev->r.recv_req.cid;
+		break;
+	case ISCSI_KEVENT_CONN_ERROR:
+		sid = ev->r.connerror.sid;
+		cid = ev->r.connerror.cid;
+	case ISCSI_KEVENT_UNBIND_SESSION:
+		sid = ev->r.unbind_session.sid;
+		/* session wide event so cid is 0 */
+		cid = 0;
+		break;
 	default:
 		; /* fall through */
 	}
 
 	/* verify connection */
-	list_for_each_entry(t, &transports, list) {
-		list_for_each_entry(session, &t->sessions, list) {
-			int i;
-
-			for (i=0; i<ISCSI_CONN_MAX; i++) {
-				if (ev->type == ISCSI_KEVENT_RECV_PDU &&
-				    session->id == ev->r.recv_req.sid &&
-				    session->conn[i].id == ev->r.recv_req.cid) {
-					conn = &session->conn[i];
-					goto verify_conn;
-				}
-				if (ev->type == ISCSI_KEVENT_CONN_ERROR &&
-				    session->id == ev->r.connerror.sid &&
-				    session->conn[i].id == ev->r.connerror.cid) {
-					conn = &session->conn[i];
-					goto verify_conn;
-				}
-			}
-		}
-	}
-
-verify_conn:
-	if (conn == NULL) {
+	session = session_find_by_sid(sid);
+	if (!session) {
 		log_error("Could not verify connection %d:%d. Dropping "
-			   "event.\n", ev->r.recv_req.sid, ev->r.recv_req.cid);
+			   "event.\n", sid, cid);
 		drop_data(nlh);
 		return -ENXIO;
 	}
+	conn = &session->conn[0];
 
 	ev_size = nlh->nlmsg_len - NLMSG_ALIGN(sizeof(struct nlmsghdr));
 	conn_context = iscsi_conn_context_get(conn, ev_size);
@@ -945,6 +960,10 @@ verify_conn:
 			sizeof(ev->r.connerror.error));
 		iscsi_sched_conn_context(conn_context, conn, 0,
 					 EV_CONN_ERROR);
+		break;
+	case ISCSI_KEVENT_UNBIND_SESSION:
+		iscsi_sched_conn_context(conn_context, conn, 0,
+					 EV_CONN_LOGOUT);
 		break;
 	default:
 		iscsi_conn_context_put(conn_context);
@@ -1043,6 +1062,7 @@ struct iscsi_ipc nl_ipc = {
 	.sendtargets		= ksendtargets,
 	.create_session         = kcreate_session,
 	.destroy_session        = kdestroy_session,
+	.unbind_session		= kunbind_session,
 	.create_conn            = kcreate_conn,
 	.destroy_conn           = kdestroy_conn,
 	.bind_conn              = kbind_conn,
