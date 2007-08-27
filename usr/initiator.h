@@ -107,6 +107,7 @@ typedef struct iscsi_conn {
 	char data[ISCSI_DEF_MAX_RECV_SEG_LEN];
 	char host[NI_MAXHOST];	/* scratch */
 	iscsi_conn_state_e state;
+	int userspace_nop;
 
 	actor_t login_timer;
 	actor_t nop_out_timer;
@@ -139,8 +140,6 @@ typedef struct iscsi_conn {
 	int logout_timeout;
 	int auth_timeout;
 	int active_timeout;
-	int idle_timeout;
-	int ping_timeout;
 
 	int noop_out_interval;
 	int noop_out_timeout;
@@ -233,7 +232,9 @@ typedef struct iscsi_session {
 	iscsi_session_r_stage_e r_stage;
 	uint32_t replacement_timeout;
 
-	int unbinding;
+	int host_reset_timeout;
+	int lu_reset_timeout;
+	int abort_timeout;
 
 	/* sync up fields */
 	queue_task_t *sync_qtask;

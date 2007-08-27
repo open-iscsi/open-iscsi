@@ -66,8 +66,6 @@ struct iscsi_connection_timeout_config {
 	int logout_timeout;
 	int auth_timeout;
 	int active_timeout;
-	int idle_timeout;
-	int ping_timeout;
 	int noop_out_interval;
 	int noop_out_timeout;
 };
@@ -86,7 +84,8 @@ struct iscsi_session_timeout_config {
  */
 struct iscsi_error_timeout_config {
 	int abort_timeout;
-	int reset_timeout;
+	int host_reset_timeout;
+	int lu_reset_timeout;
 };
 
 /* all TCP options go in this structure.

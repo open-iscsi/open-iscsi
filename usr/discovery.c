@@ -548,7 +548,6 @@ init_new_session(struct iscsi_sendtargets_config *config)
 	session->conn[0].login_timeout = config->conn_timeo.login_timeout;
 	session->conn[0].auth_timeout = config->conn_timeo.auth_timeout;
 	session->conn[0].active_timeout = config->conn_timeo.active_timeout;
-	session->conn[0].idle_timeout = config->conn_timeo.idle_timeout;
 	session->conn[0].hdrdgst_en = ISCSI_DIGEST_NONE;
 	session->conn[0].datadgst_en = ISCSI_DIGEST_NONE;
 
@@ -879,11 +878,9 @@ int discovery_sendtargets(idbm_t *db, discovery_rec_t *drec,
 		goto free_sendtargets;
 	}
 
-	log_debug(4, "discovery timeouts: login %d, reopen_cnt %d, auth %d, "
-		 "active %d, idle %d, ping %d",
+	log_debug(4, "discovery timeouts: login %d, reopen_cnt %d, auth %d.",
 		 session->conn[0].login_timeout, session->reopen_cnt,
-		 session->conn[0].auth_timeout, session->conn[0].active_timeout,
-		 session->conn[0].idle_timeout, session->conn[0].ping_timeout);
+		 session->conn[0].auth_timeout);
 
 	/* setup authentication variables for the session*/
 	rc = setup_authentication(session, drec, config);

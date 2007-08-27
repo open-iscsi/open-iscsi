@@ -9,6 +9,10 @@
 #define DEF_NOOP_OUT_TIMEO	15
 #define DEF_REPLACEMENT_TIMEO	120
 
+#define DEF_ABORT_TIMEO		15
+#define DEF_LU_RESET_TIMEO	30
+#define DEF_HOST_RESET_TIMEO	60
+
 /* q depths */
 #define CMDS_MAX	128
 #define QUEUE_DEPTH	32

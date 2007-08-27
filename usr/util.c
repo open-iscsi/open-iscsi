@@ -190,8 +190,9 @@ void idbm_node_setup_defaults(node_rec_t *rec)
 	rec->session.auth.authmethod = 0;
 	rec->session.auth.password_length = 0;
 	rec->session.auth.password_in_length = 0;
-	rec->session.err_timeo.abort_timeout = 10;
-	rec->session.err_timeo.reset_timeout = 30;
+	rec->session.err_timeo.abort_timeout = DEF_ABORT_TIMEO;
+	rec->session.err_timeo.lu_reset_timeout = DEF_LU_RESET_TIMEO;
+	rec->session.err_timeo.host_reset_timeout = DEF_HOST_RESET_TIMEO;
 	rec->session.timeo.replacement_timeout = DEF_REPLACEMENT_TIMEO;
 	rec->session.iscsi.InitialR2T = 0;
 	rec->session.iscsi.ImmediateData = 1;
@@ -202,6 +203,7 @@ void idbm_node_setup_defaults(node_rec_t *rec)
 	rec->session.iscsi.MaxConnections = 1;
 	rec->session.iscsi.MaxOutstandingR2T = 1;
 	rec->session.iscsi.ERL = 0;
+	rec->session.iscsi.FastAbort = 1;
 
 	for (i=0; i<ISCSI_CONN_MAX; i++) {
 		rec->conn[i].startup = 0;
@@ -211,9 +213,6 @@ void idbm_node_setup_defaults(node_rec_t *rec)
 		rec->conn[i].timeo.login_timeout= DEF_LOGIN_TIMEO;
 		rec->conn[i].timeo.logout_timeout= DEF_LOGOUT_TIMEO;
 		rec->conn[i].timeo.auth_timeout = 45;
-		rec->conn[i].timeo.active_timeout=5;
-		rec->conn[i].timeo.idle_timeout = 60;
-		rec->conn[i].timeo.ping_timeout = 5;
 
 		rec->conn[i].timeo.noop_out_interval = DEF_NOOP_OUT_INTERVAL;
 		rec->conn[i].timeo.noop_out_timeout = DEF_NOOP_OUT_TIMEO;

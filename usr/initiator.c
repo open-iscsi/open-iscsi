@@ -431,6 +431,8 @@ __session_conn_create(iscsi_session_t *session, int cid)
 		conn->login_timeout = DEF_LOGIN_TIMEO;
 	}
 
+	conn->auth_timeout = conn_rec->timeo.auth_timeout;
+
 	/* noop-out setting */
 	conn->noop_out_interval = conn_rec->timeo.noop_out_interval;
 	conn->noop_out_timeout = conn_rec->timeo.noop_out_timeout;
@@ -445,17 +447,8 @@ __session_conn_create(iscsi_session_t *session, int cid)
 		log_error("Invalid timeo.noop_out_interval. Must be greater "
 			  "than zero. Using default %d.\n",
 			  DEF_NOOP_OUT_INTERVAL);
-		conn->noop_out_timeout = DEF_NOOP_OUT_INTERVAL;
+		conn->noop_out_interval = DEF_NOOP_OUT_INTERVAL;
 	}
-
-	/*
-	 * currently not used (leftover from linux-iscsi which we
-	 * may do one day)
-	 */
-	conn->auth_timeout = conn_rec->timeo.auth_timeout;
-	conn->active_timeout = conn_rec->timeo.active_timeout;
-	conn->idle_timeout = conn_rec->timeo.idle_timeout;
-	conn->ping_timeout = conn_rec->timeo.ping_timeout;
 
 	iscsi_copy_operational_params(conn);
 
@@ -1084,7 +1077,7 @@ mgmt_ipc_err_e iscsi_host_set_param(int host_no, int param, char *value)
         return MGMT_IPC_OK;
 }
 
-#define MAX_SESSION_PARAMS 25
+#define MAX_SESSION_PARAMS 30
 #define MAX_HOST_PARAMS 3
 
 static void
@@ -1245,13 +1238,32 @@ setup_full_feature_phase(iscsi_conn_t *conn)
 			.value = &session->fast_abort,
 			.type = ISCSI_INT,
 			.conn_only = 0,
+		}, {
+			.param = ISCSI_PARAM_ABORT_TMO,
+			.value = &session->abort_timeout,
+			.type = ISCSI_INT,
+			.conn_only = 0,
+		}, {
+			.param = ISCSI_PARAM_LU_RESET_TMO,
+			.value = &session->lu_reset_timeout,
+			.type = ISCSI_INT,
+			.conn_only = 0,
+		}, {
+			.param = ISCSI_PARAM_HOST_RESET_TMO,
+			.value = &session->host_reset_timeout,
+			.type = ISCSI_INT,
+			.conn_only = 0,
+		}, {
+			.param = ISCSI_PARAM_PING_TMO,
+			.value = &conn->noop_out_timeout,
+			.type = ISCSI_INT,
+			.conn_only = 1,
+		}, {
+			.param = ISCSI_PARAM_RECV_TMO,
+			.value = &conn->noop_out_interval,
+			.type = ISCSI_INT,
+			.conn_only = 1,
 		},
-		/*
-		 * FIXME: set these timeouts via set_param() API
-		 *
-		 * rec->session.timeo
-		 * rec->session.err_timeo
-		 */
 	};
 
 	/* almost! entered full-feature phase */
@@ -1303,6 +1315,11 @@ setup_full_feature_phase(iscsi_conn_t *conn)
 				       MGMT_IPC_ERR_LOGIN_FAILURE);
 			return;
 		}
+
+		/* older kernels may not support nop handling in kernel */
+		if (rc == -ENOSYS &&
+		    conntbl[i].param == ISCSI_PARAM_PING_TMO)
+			conn->userspace_nop = 1;
 
 		print_param_value(conntbl[i].param, conntbl[i].value,
 				  conntbl[i].type);
@@ -1358,7 +1375,7 @@ setup_full_feature_phase(iscsi_conn_t *conn)
 	session->r_stage = R_STAGE_NO_CHANGE;
 
 	/* noop_out */
-	if (conn->noop_out_interval) {
+	if (conn->userspace_nop && conn->noop_out_interval) {
 		actor_timer(&conn->nop_out_timer, conn->noop_out_interval*1000,
 			   conn_send_nop_out, conn);
 		log_debug(3, "noop out timer %p start\n",
@@ -1455,6 +1472,11 @@ static void iscsi_logout(void *data)
 
 static void iscsi_recv_nop_in(iscsi_conn_t *conn, struct iscsi_hdr *hdr)
 {
+	if (!conn->userspace_nop) {
+		log_error("Got nop in, but kernel supports nop handling.");
+		return;
+	}
+
 	if (hdr->ttt == ISCSI_RESERVED_TAG) {
 		/* noop out rsp */
 		actor_delete(&conn->nop_out_timer);

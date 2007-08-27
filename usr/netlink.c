@@ -868,7 +868,6 @@ static int ctldev_handle(void)
 {
 	int rc, ev_size;
 	struct iscsi_uevent *ev;
-	struct iscsi_transport *t;
 	iscsi_session_t *session = NULL;
 	iscsi_conn_t *conn = NULL;
 	char nlm_ev[NLMSG_SPACE(sizeof(struct iscsi_uevent))];

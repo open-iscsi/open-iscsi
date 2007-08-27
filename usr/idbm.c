@@ -230,11 +230,8 @@ idbm_recinfo_discovery(discovery_rec_t *r, recinfo_t *ri)
 			u.sendtargets.conn_timeo.auth_timeout,
 			IDBM_SHOW, num);
 		__recinfo_int("discovery.sendtargets.timeo.active_timeout",ri,r,
-			u.sendtargets.conn_timeo.active_timeout,
-			IDBM_SHOW, num);
-		__recinfo_int("discovery.sendtargets.timeo.idle_timeout", ri, r,
-			u.sendtargets.conn_timeo.idle_timeout,
-			IDBM_SHOW, num);
+			      u.sendtargets.conn_timeo.active_timeout,
+			      IDBM_SHOW, num);
 		__recinfo_int("discovery.sendtargets.iscsi.MaxRecvDataSegmentLength",
 			ri, r, u.sendtargets.iscsi.MaxRecvDataSegmentLength,
 			IDBM_SHOW, num);
@@ -298,8 +295,11 @@ idbm_recinfo_node(node_rec_t *r, recinfo_t *ri)
 	__recinfo_int("node.session.err_timeo.abort_timeout", ri, r,
 		      session.err_timeo.abort_timeout,
 		      IDBM_SHOW, num);
-	__recinfo_int("node.session.err_timeo.reset_timeout", ri, r,
-		      session.err_timeo.reset_timeout,
+	__recinfo_int("node.session.err_timeo.lu_reset_timeout", ri, r,
+		      session.err_timeo.lu_reset_timeout,
+		      IDBM_SHOW, num);
+	__recinfo_int("node.session.err_timeo.host_reset_timeout", ri, r,
+		      session.err_timeo.host_reset_timeout,
 		      IDBM_SHOW, num);
 	__recinfo_int_o2("node.session.iscsi.FastAbort", ri, r,
 			 session.iscsi.FastAbort, IDBM_SHOW, "No", "Yes", num);
@@ -348,15 +348,6 @@ idbm_recinfo_node(node_rec_t *r, recinfo_t *ri)
 				IDBM_SHOW, num);
 		sprintf(key, "node.conn[%d].timeo.auth_timeout", i);
 		__recinfo_int(key, ri, r, conn[i].timeo.auth_timeout,
-				IDBM_SHOW, num);
-		sprintf(key, "node.conn[%d].timeo.active_timeout", i);
-		__recinfo_int(key, ri, r, conn[i].timeo.active_timeout,
-				IDBM_SHOW, num);
-		sprintf(key, "node.conn[%d].timeo.idle_timeout", i);
-		__recinfo_int(key, ri, r, conn[i].timeo.idle_timeout,
-				IDBM_SHOW, num);
-		sprintf(key, "node.conn[%d].timeo.ping_timeout", i);
-		__recinfo_int(key, ri, r, conn[i].timeo.ping_timeout,
 				IDBM_SHOW, num);
 
 		sprintf(key, "node.conn[%d].timeo.noop_out_interval", i);
@@ -474,7 +465,6 @@ idbm_discovery_setup_defaults(discovery_rec_t *rec, discovery_type_e type)
 		rec->u.sendtargets.conn_timeo.login_timeout=15;
 		rec->u.sendtargets.conn_timeo.auth_timeout = 45;
 		rec->u.sendtargets.conn_timeo.active_timeout=30;
-		rec->u.sendtargets.conn_timeo.idle_timeout = 60;	
 		rec->u.sendtargets.iscsi.MaxRecvDataSegmentLength =
 						DEF_INI_DISC_MAX_RECV_SEG_LEN;
 	} else if (type == DISCOVERY_TYPE_SLP) {
