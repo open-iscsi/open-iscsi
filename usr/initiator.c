@@ -689,10 +689,12 @@ __session_conn_reopen(iscsi_conn_t *conn, queue_task_t *qtask, int do_stop)
 	}
 	conn->session->t->template->ep_disconnect(conn);
 
-	delay = session->def_time2wait;
-	session->def_time2wait = 0;
-	if (delay)
-		goto queue_reopen;
+	if (session->r_stage != R_STAGE_SESSION_REDIRECT) {
+		delay = session->def_time2wait;
+		session->def_time2wait = 0;
+		if (delay)
+			goto queue_reopen;
+	}
 
 	conn_context = iscsi_conn_context_get(conn, 0);
 	if (!conn_context) {
