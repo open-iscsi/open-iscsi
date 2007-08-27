@@ -658,7 +658,8 @@ queue_delayed_reopen(queue_task_t *qtask, int delay)
 }
 
 static void
-__session_conn_reopen(iscsi_conn_t *conn, queue_task_t *qtask, int do_stop)
+__session_conn_reopen(iscsi_conn_t *conn, queue_task_t *qtask, int do_stop,
+		      int redirected)
 {
 	iscsi_session_t *session = conn->session;
 	struct iscsi_conn_context *conn_context;
@@ -689,7 +690,7 @@ __session_conn_reopen(iscsi_conn_t *conn, queue_task_t *qtask, int do_stop)
 	}
 	conn->session->t->template->ep_disconnect(conn);
 
-	if (session->r_stage != R_STAGE_SESSION_REDIRECT) {
+	if (!redirected) {
 		delay = session->def_time2wait;
 		session->def_time2wait = 0;
 		if (delay)
@@ -748,7 +749,7 @@ session_conn_reopen(iscsi_conn_t *conn, queue_task_t *qtask, int do_stop)
 	memset(&conn->saddr, 0, sizeof(struct sockaddr_storage));
 	conn->saddr = conn->failback_saddr;
 
-	__session_conn_reopen(conn, qtask, do_stop);
+	__session_conn_reopen(conn, qtask, do_stop, 0);
 }
 
 static void
@@ -942,7 +943,7 @@ static void iscsi_login_redirect(iscsi_conn_t *conn)
 	if (session->r_stage == R_STAGE_NO_CHANGE)
 		session->r_stage = R_STAGE_SESSION_REDIRECT;
 
-	__session_conn_reopen(conn, c->qtask, STOP_CONN_RECOVER);
+	__session_conn_reopen(conn, c->qtask, STOP_CONN_RECOVER, 1);
 }
 
 static int
