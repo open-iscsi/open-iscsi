@@ -42,6 +42,23 @@
 #define LOCK_FILE		"/var/lock/iscsi/lock"
 #define LOCK_WRITE_FILE		"/var/lock/iscsi/lock.write"
 
+typedef enum iscsi_conn_state_e {
+	STATE_FREE,
+	STATE_XPT_WAIT,
+	STATE_IN_LOGIN,
+	STATE_LOGGED_IN,
+	STATE_IN_LOGOUT,
+	STATE_LOGOUT_REQUESTED,
+	STATE_CLEANUP_WAIT,
+} iscsi_conn_state_e;
+
+typedef enum iscsi_session_r_stage_e {
+	R_STAGE_NO_CHANGE,
+	R_STAGE_SESSION_CLEANUP,
+	R_STAGE_SESSION_REOPEN,
+	R_STAGE_SESSION_REDIRECT,
+} iscsi_session_r_stage_e;
+
 typedef enum conn_login_status_e {
 	CONN_LOGIN_SUCCESS		= 0,
 	CONN_LOGIN_FAILED		= 1,
