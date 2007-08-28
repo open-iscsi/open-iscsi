@@ -427,8 +427,8 @@ static int __logout_portal(struct session_info *info, struct list_head *list)
 }
 
 static int
-__logout_portals(idbm_t *db, void *data, int *num_found,
-		 int (*logout_fn)(idbm_t *db, void *, struct list_head *,
+__logout_portals(idbm_t *db, void *data, int *nr_found,
+		 int (*logout_fn)(idbm_t *, void *, struct list_head *,
 				   struct session_info *))
 {
 	struct session_info *curr_info, *tmp;
@@ -437,19 +437,20 @@ __logout_portals(idbm_t *db, void *data, int *num_found,
 
 	INIT_LIST_HEAD(&session_list);
 	INIT_LIST_HEAD(&logout_list);
+	*nr_found = 0;
 
-	err = sysfs_for_each_session(&session_list, num_found,
+	err = sysfs_for_each_session(&session_list, nr_found,
 				    link_sessions);
-	if (err || !*num_found)
+	if (err || !*nr_found)
 		return err;
 
-	num_found = 0;
+	*nr_found = 0;
 	list_for_each_entry(curr_info, &session_list, list) {
 		err = logout_fn(db, data, &logout_list, curr_info);
 		if (err > 0 && !ret)
 			ret = err;
 		if (!err)
-			(*num_found)++;
+			(*nr_found)++;
 	}
 
 	err = iscsid_logout_reqs_wait(&logout_list);
@@ -621,7 +622,7 @@ static int login_portal(void *data, struct list_head *list,
 			struct node_rec *rec)
 {
 	struct iscsid_async_req *async_req = NULL;
-	int rc = 0, i = 0, fd;
+	int rc = 0, fd;
 
 	printf("Logging in to [iface: %s, target: %s, portal: %s,%d]\n",
 		rec->iface.name, rec->name, rec->conn[0].address,
@@ -636,30 +637,17 @@ static int login_portal(void *data, struct list_head *list,
 			INIT_LIST_HEAD(&async_req->list);
 	}
 
-	do {
+	if (async_req)
+		rc = iscsid_req_async(MGMT_IPC_SESSION_LOGIN,
+				      rec, &fd);
+	else
+		rc = iscsid_req(MGMT_IPC_SESSION_LOGIN, rec);
+	/* we raced with another app or instance of iscsiadm */
+	if (rc == MGMT_IPC_ERR_EXISTS) {
 		if (async_req)
-			rc = iscsid_req_async(MGMT_IPC_SESSION_LOGIN,
-					      rec, &fd);
-		else
-			rc = iscsid_req(MGMT_IPC_SESSION_LOGIN, rec);
-		if (!rc)
-			break;
-		/* we raced with another app or instance of iscsiadm */
-		if (rc == MGMT_IPC_ERR_EXISTS) {
-			if (async_req) {
-				free(async_req);
-				async_req = NULL;
-			}
-			rc = 0;
-			break;
-		}
-
-		i++;
-		if (i <= rec->session.initial_login_retry_max)
-			sleep(1);
-	} while (i < rec->session.initial_login_retry_max);
-
-	if (rc) {
+			free(async_req);
+		return 0;
+	} else if (rc) {
 		iscsid_handle_error(rc);
 		if (async_req)
 			free(async_req);

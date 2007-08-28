@@ -492,6 +492,7 @@ __session_create(node_rec_t *rec, struct iscsi_transport *t)
 	session->ctrl_fd = control_fd;
 	session->t = t;
 	session->reopen_qtask.mgmt_ipc_fd = -1;
+	session->id = -1;
 
 	/* save node record. we might need it for redirection */
 	memcpy(&session->nrec, rec, sizeof(node_rec_t));
@@ -651,14 +652,49 @@ queue_delayed_reopen(queue_task_t *qtask, int delay)
 		    iscsi_login_timedout, qtask);
 }
 
+static int iscsi_conn_connect(struct iscsi_conn *conn, queue_task_t *qtask)
+{
+	struct iscsi_conn_context *conn_context;
+	int rc;
+
+	conn_context = iscsi_conn_context_get(conn, 0);
+	if (!conn_context) {
+		/* while reopening the recv pool should be full */
+		log_error("BUG: __session_conn_reopen could not get conn "
+			  "context for recv.");
+		return ENOMEM;
+	}
+	conn_context->data = qtask;
+
+	rc = conn->session->t->template->ep_connect(conn, 1);
+	if (rc < 0 && errno != EINPROGRESS) {
+		char serv[NI_MAXSERV];
+
+		getnameinfo((struct sockaddr *) &conn->saddr,
+			    sizeof(conn->saddr),
+			    conn->host, sizeof(conn->host), serv, sizeof(serv),
+			    NI_NUMERICHOST|NI_NUMERICSERV);
+
+		log_error("cannot make a connection to %s:%s (%d)",
+			  conn->host, serv, errno);
+		iscsi_conn_context_put(conn_context);
+		return ENOTCONN;
+	}
+
+	iscsi_sched_conn_context(conn_context, conn, 0, EV_CONN_POLL);
+	log_debug(3, "Setting login timer %p timeout %d", &conn->login_timer,
+		  conn->login_timeout);
+	actor_timer(&conn->login_timer, conn->login_timeout * 1000,
+		    iscsi_login_timedout, qtask);
+	return 0;
+}
+
 static void
 __session_conn_reopen(iscsi_conn_t *conn, queue_task_t *qtask, int do_stop,
 		      int redirected)
 {
 	iscsi_session_t *session = conn->session;
-	struct iscsi_conn_context *conn_context;
 	uint32_t delay;
-	int rc;
 
 	log_debug(1, "re-opening session %d (reopen_cnt %d)", session->id,
 			session->reopen_cnt);
@@ -691,38 +727,14 @@ __session_conn_reopen(iscsi_conn_t *conn, queue_task_t *qtask, int do_stop,
 			goto queue_reopen;
 	}
 
-	conn_context = iscsi_conn_context_get(conn, 0);
-	if (!conn_context) {
-		/* while reopening the recv pool should be full */
-		log_error("BUG: __session_conn_reopen could not get conn "
-			  "context for recv.");
-		delay = ISCSI_INTERNAL_ERR_REOPEN_DELAY;
-		goto queue_reopen;
-	}
-	conn_context->data = qtask;
+	if (!redirected)
+		session->reopen_cnt++;
 
-	rc = conn->session->t->template->ep_connect(conn, 1);
-	if (rc < 0 && errno != EINPROGRESS) {
-		char serv[NI_MAXSERV];
-
-		getnameinfo((struct sockaddr *) &conn->saddr,
-			    sizeof(conn->saddr),
-			    conn->host, sizeof(conn->host), serv, sizeof(serv),
-			    NI_NUMERICHOST|NI_NUMERICSERV);
-
-		log_error("cannot make a connection to %s:%s (%d)",
-			  conn->host, serv, errno);
+	if (iscsi_conn_connect(conn, qtask)) {
 		delay = ISCSI_CONN_ERR_REOPEN_DELAY;
-		iscsi_conn_context_put(conn_context);
 		goto queue_reopen;
 	}
-
-	iscsi_sched_conn_context(conn_context, conn, 0, EV_CONN_POLL);
-	log_debug(3, "Setting login timer %p timeout %d", &conn->login_timer,
-		  conn->login_timeout);
-	actor_timer(&conn->login_timer, conn->login_timeout * 1000,
-		    iscsi_login_timedout, qtask);
-	return; 
+	return;
 
 queue_reopen:
 	log_debug(4, "Waiting %u seconds before trying to reconnect.\n", delay);
@@ -732,9 +744,6 @@ queue_reopen:
 static void
 session_conn_reopen(iscsi_conn_t *conn, queue_task_t *qtask, int do_stop)
 {
-	iscsi_session_t *session = conn->session;
-
-	session->reopen_cnt++;
 	/*
 	 * If we were temporarily redirected, we need to fall back to
 	 * the original address to see where the target will send us
@@ -744,6 +753,111 @@ session_conn_reopen(iscsi_conn_t *conn, queue_task_t *qtask, int do_stop)
 	conn->saddr = conn->failback_saddr;
 
 	__session_conn_reopen(conn, qtask, do_stop, 0);
+}
+
+static void iscsi_login_eh(struct iscsi_conn *conn, struct queue_task *qtask,
+			   mgmt_ipc_err_e err)
+{
+	struct iscsi_session *session = conn->session;
+	int initial_login_retry_max;
+
+	initial_login_retry_max = session->nrec.session.initial_login_retry_max;
+	log_debug(3, "iscsi_login_eh");
+	/*
+	 * Flush polls and other events
+	 */
+	iscsi_flush_context_pool(conn->session);
+
+	switch (conn->state) {
+	case STATE_XPT_WAIT:
+		switch (session->r_stage) {
+		case R_STAGE_NO_CHANGE:
+			session->t->template->ep_disconnect(conn);
+			log_debug(6, "login failed STATE_XPT_WAIT/"
+				  "R_STAGE_NO_CHANGE (%d/%d)",
+				  session->reopen_cnt,
+				  initial_login_retry_max);
+			/* timeout during initial connect.
+			 * clean connection. write ipc rsp or retry */
+			if (initial_login_retry_max < session->reopen_cnt + 1)
+				session_conn_cleanup(qtask, err);
+			else {
+				session->reopen_cnt++;
+				if (iscsi_conn_connect(conn, qtask))
+					queue_delayed_reopen(qtask,
+						ISCSI_CONN_ERR_REOPEN_DELAY);
+			}
+			break;
+		case R_STAGE_SESSION_REDIRECT:
+			log_debug(6, "login failed STATE_XPT_WAIT/"
+				  "R_STAGE_SESSION_REDIRECT (%d/%d)",
+				  session->reopen_cnt,
+				  initial_login_retry_max);
+			/* timeout during initial redirect connect
+			 * clean connection. write ipc rsp or retry */
+			if (initial_login_retry_max < session->reopen_cnt + 1)
+				__session_conn_shutdown(conn, qtask, err);
+			else
+				session_conn_reopen(conn, qtask, 0);
+			break;
+		case R_STAGE_SESSION_REOPEN:
+			log_debug(6, "login failed STATE_XPT_WAIT/"
+				  "R_STAGE_SESSION_REOPEN %d",
+				  session->reopen_cnt);
+			/* timeout during reopen connect. try again */
+			session_conn_reopen(conn, qtask, 0);
+			break;
+		case R_STAGE_SESSION_CLEANUP:
+			__session_conn_shutdown(conn, qtask, err);
+			break;
+		default:
+			break;
+		}
+
+		break;
+	case STATE_IN_LOGIN:
+		switch (session->r_stage) {
+		case R_STAGE_NO_CHANGE:
+		case R_STAGE_SESSION_REDIRECT:
+			log_debug(6, "login failed STATE_IN_LOGIN/"
+				  "R_STAGE_NO_CHANGE %d",
+				  session->reopen_cnt);
+			/*
+			 * send pdu timeout during initial connect or
+			 * initial redirected connect. Clean connection
+			 * and write rsp or retry.
+			 */
+			if (initial_login_retry_max < session->reopen_cnt + 1)
+				session_conn_shutdown(conn, qtask, err);
+			else
+				session_conn_reopen(conn, qtask,
+						    STOP_CONN_RECOVER);
+			break;
+		case R_STAGE_SESSION_REOPEN:
+			log_debug(6, "login failed STATE_IN_LOGIN/"
+				  "R_STAGE_SESSION_REOPEN %d",
+				  session->reopen_cnt);
+			/*
+			 * If we get a retryable error during the initial
+			 * login then we will hit this path and
+			 * initial_login_retry_max is ignored.
+			 */
+			session_conn_reopen(conn, qtask, STOP_CONN_RECOVER);
+			break;
+		case R_STAGE_SESSION_CLEANUP:
+			session_conn_shutdown(conn, qtask,
+					      MGMT_IPC_ERR_PDU_TIMEOUT);
+			break;
+		default:
+			break;
+		}
+
+		break;
+	default:
+		log_error("Ignoring login error %d in conn state %d.\n",
+			  err, conn->state);
+		break;
+	}
 }
 
 static void
@@ -794,11 +908,9 @@ __conn_error_handle(iscsi_session_t *session, iscsi_conn_t *conn)
 				qtask = session->sync_qtask;
 			else
 				qtask = &session->reopen_qtask;
-
-			session_conn_reopen(conn, qtask, STOP_CONN_RECOVER);
+			iscsi_login_eh(conn, qtask, STOP_CONN_RECOVER);
 			return;
 		}
-
 		log_debug(1, "ignoring conn error in login. "
 			  "let it timeout");
 		return;
@@ -834,79 +946,6 @@ static void session_conn_error(void *data)
 		    conn->state);
 	iscsi_conn_context_put(conn_context);
 	__conn_error_handle(session, conn);
-}
-
-static void iscsi_login_eh(struct iscsi_conn *conn, struct queue_task *qtask,
-			   mgmt_ipc_err_e err)
-{
-	struct iscsi_session *session = conn->session;
-
-	log_debug(3, "iscsi_login_eh");
-	/*
-	 * Flush polls and other events
-	 */
-	iscsi_flush_context_pool(conn->session);
-
-	switch (conn->state) {
-	case STATE_XPT_WAIT:
-		switch (session->r_stage) {
-		case R_STAGE_NO_CHANGE:
-			session->t->template->ep_disconnect(conn);
-			log_debug(6, "conn_timer popped at XPT_WAIT: login");
-			/* timeout during initial connect.
-			 * clean connection. write ipc rsp */
-			session_conn_cleanup(qtask, err);
-			break;
-		case R_STAGE_SESSION_REDIRECT:
-			log_debug(6, "conn_timer popped at XPT_WAIT: "
-				  "login redirect");
-			/* timeout during initial redirect connect
-			 * clean connection. write ipc rsp */
-			__session_conn_shutdown(conn, qtask, err);
-			break;
-		case R_STAGE_SESSION_REOPEN:
-			log_debug(6, "conn_timer popped at XPT_WAIT: reopen");
-			/* timeout during reopen connect. try again */
-			session_conn_reopen(conn, qtask, 0);
-			break;
-		case R_STAGE_SESSION_CLEANUP:
-			__session_conn_shutdown(conn, qtask, err);
-			break;
-		default:
-			break;
-		}
-
-		break;
-	case STATE_IN_LOGIN:
-		switch (session->r_stage) {
-		case R_STAGE_NO_CHANGE:
-		case R_STAGE_SESSION_REDIRECT:
-			log_debug(6, "conn_timer popped at IN_LOGIN: cleanup");
-			/*
-			 * send pdu timeout during initial connect or
-			 * initial redirected connect. Clean connection
-			 * and write rsp.
-			 */
-			session_conn_shutdown(conn, qtask, err);
-			break;
-		case R_STAGE_SESSION_REOPEN:
-			log_debug(6, "conn_timer popped at IN_LOGIN: reopen");
-			session_conn_reopen(conn, qtask, STOP_CONN_RECOVER);
-			break;
-		case R_STAGE_SESSION_CLEANUP:
-			session_conn_shutdown(conn, qtask,
-					      MGMT_IPC_ERR_PDU_TIMEOUT);
-			break;
-		default:
-			break;
-		}
-
-		break;
-	default:
-		log_error("Ignoring login error %d in conn state %d.\n",
-			  err, conn->state);
-		break;
-	}
 }
 
 static void iscsi_login_timedout(void *data)
@@ -1387,9 +1426,6 @@ setup_full_feature_phase(iscsi_conn_t *conn)
 
 retry:
 	session->r_stage = R_STAGE_SESSION_REOPEN;
-	session_conn_reopen(conn, c->qtask, STOP_CONN_RECOVER);
-	return;
-
 failed:
 	iscsi_login_eh(conn, c->qtask, MGMT_IPC_ERR_LOGIN_FAILURE);
 	return;	
@@ -1665,7 +1701,7 @@ static void session_conn_poll(void *data)
 		memset(c, 0, sizeof(iscsi_login_context_t));
 
 		/* do not allocate new connection in case of reopen */
-		if (session->r_stage == R_STAGE_NO_CHANGE) {
+		if (session->id == -1) {
 			if (conn->id == 0 &&
 			    ipc->create_session(session->t->handle,
 					session->nrec.session.initial_cmdsn,
@@ -1834,11 +1870,9 @@ int session_is_running(node_rec_t *rec)
 int
 session_login_task(node_rec_t *rec, queue_task_t *qtask)
 {
-	int rc;
 	iscsi_session_t *session;
 	iscsi_conn_t *conn;
 	struct iscsi_transport *t;
-	struct iscsi_conn_context *conn_context;
 
 	t = get_transport_by_name(rec->iface.transport_name);
 	if (!t)
@@ -1905,41 +1939,14 @@ session_login_task(node_rec_t *rec, queue_task_t *qtask)
 	conn = &session->conn[0];
 	qtask->conn = conn;
 
-	conn_context = iscsi_conn_context_get(conn, 0);
-	if (!conn_context) {
-		/* while logging the recv pool should be full */
-		log_error("BUG: session_login_task could not get conn "
-			  "context for poll.");
-		__session_destroy(session);
-		return MGMT_IPC_ERR_INTERNAL;
-	}
-	conn_context->data = qtask;
-
-	rc = session->t->template->ep_connect(conn, 1);
-	if (rc < 0 && errno != EINPROGRESS) {
-		char serv[NI_MAXSERV];
-
-		getnameinfo((struct sockaddr *) &conn->saddr,
-			    sizeof(conn->saddr),
-			    conn->host, sizeof(conn->host), serv, sizeof(serv),
-			    NI_NUMERICHOST|NI_NUMERICSERV);
-
-		log_error("cannot make a connection to %s:%s (%d)",
-			 conn->host, serv, errno);
+	conn->state = STATE_XPT_WAIT;
+	if (iscsi_conn_connect(conn, qtask)) {
 		__session_destroy(session);
 		return MGMT_IPC_ERR_TRANS_FAILURE;
 	}
-	conn->state = STATE_XPT_WAIT;
-
-	iscsi_sched_conn_context(conn_context, conn, 0, EV_CONN_POLL);
-	log_debug(3, "Setting login timer %p timeout %d", &conn->login_timer,
-		 conn->login_timeout);
-	actor_timer(&conn->login_timer, conn->login_timeout * 1000,
-		    iscsi_login_timedout, qtask);
 
 	qtask->rsp.command = MGMT_IPC_SESSION_LOGIN;
 	qtask->rsp.err = MGMT_IPC_OK;
-
 	return MGMT_IPC_OK;
 }
 
