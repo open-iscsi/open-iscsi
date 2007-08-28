@@ -1,9 +1,12 @@
 diff --git a/iscsi_2.6.20_compat.h b/iscsi_2.6.20_compat.h
 new file mode 100644
-index 0000000..4128fdd
+index 0000000..133b485
 --- /dev/null
 +++ b/iscsi_2.6.20_compat.h
-@@ -0,0 +1,59 @@
+@@ -0,0 +1,64 @@
++#include <linux/version.h>
++
++#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,19)
 +
 +#define CRYPTO_ALG_ASYNC		0x00000080
 +struct hash_desc
@@ -63,6 +66,8 @@ index 0000000..4128fdd
 +{
 +	return sock->ops->getname(sock, addr, addrlen, 1);
 +}
++
++#endif
 diff --git a/iscsi_2.6.22_compat.h b/iscsi_2.6.22_compat.h
 new file mode 100644
 index 0000000..6627292
@@ -89,10 +94,18 @@ index 4b86fe4..1b4336d 100644
  struct socket;
  
 diff --git a/libiscsi.c b/libiscsi.c
-index c7994d9..feca101 100644
+index 5f695b6..8ddb777 100644
 --- a/libiscsi.c
 +++ b/libiscsi.c
-@@ -782,10 +782,9 @@ again:
+@@ -24,6 +24,7 @@
+ #include <linux/types.h>
+ #include <linux/kfifo.h>
+ #include <linux/delay.h>
++#include <linux/version.h>
+ #include <asm/unaligned.h>
+ #include <net/tcp.h>
+ #include <scsi/scsi_cmnd.h>
+@@ -937,10 +938,9 @@ again:
  	return rc;
  }
  
@@ -105,7 +118,17 @@ index c7994d9..feca101 100644
  	int rc;
  	/*
  	 * serialize Xmit worker on a per-connection basis.
-@@ -1634,7 +1633,7 @@ iscsi_conn_setup(struct iscsi_cls_session *cls_session, uint32_t conn_idx)
+@@ -1681,7 +1681,9 @@ iscsi_session_setup(struct iscsi_transport *iscsit,
+ 	shost->max_cmd_len = iscsit->max_cmd_len;
+ 	shost->transportt = scsit;
+ 	shost->transportt->create_work_queue = 1;
++#if LINUX_VERSION_CODE > KERNEL_VERSION(2,6,16)
+ 	shost->transportt->eh_timed_out = iscsi_eh_cmd_timed_out;
++#endif
+ 	*hostno = shost->host_no;
+ 
+ 	session = iscsi_hostdata(shost->hostdata);
+@@ -1829,7 +1831,7 @@ iscsi_conn_setup(struct iscsi_cls_session *cls_session, uint32_t conn_idx)
  	INIT_LIST_HEAD(&conn->mgmtqueue);
  	INIT_LIST_HEAD(&conn->xmitqueue);
  	INIT_LIST_HEAD(&conn->requeue);
@@ -115,7 +138,7 @@ index c7994d9..feca101 100644
  	/* allocate login_mtask used for the login/text sequences */
  	spin_lock_bh(&session->lock);
 diff --git a/libiscsi.h b/libiscsi.h
-index e3e7ba0..f8493b4 100644
+index d02c55f..603a25a 100644
 --- a/libiscsi.h
 +++ b/libiscsi.h
 @@ -25,8 +25,6 @@
@@ -128,7 +151,7 @@ index e3e7ba0..f8493b4 100644
  #include "iscsi_if.h"
  
 diff --git a/scsi_transport_iscsi.c b/scsi_transport_iscsi.c
-index 5bca8a9..59e7ea9 100644
+index 56ba5c2..fe0820c 100644
 --- a/scsi_transport_iscsi.c
 +++ b/scsi_transport_iscsi.c
 @@ -29,6 +29,7 @@
@@ -137,9 +160,9 @@ index 5bca8a9..59e7ea9 100644
  #include "iscsi_if.h"
 +#include "iscsi_2.6.22_compat.h"
  
- #define ISCSI_SESSION_ATTRS 15
+ #define ISCSI_SESSION_ATTRS 16
  #define ISCSI_CONN_ATTRS 11
-@@ -234,11 +235,9 @@ static int iscsi_user_scan(struct Scsi_Host *shost, uint channel,
+@@ -254,11 +255,9 @@ static int iscsi_user_scan(struct Scsi_Host *shost, uint channel,
  	return 0;
  }
  
@@ -153,7 +176,21 @@ index 5bca8a9..59e7ea9 100644
  
  	dev_printk(KERN_INFO, &session->dev, "iscsi: session recovery timed "
  		  "out after %d secs\n", session->recovery_tmo);
-@@ -278,7 +277,7 @@ iscsi_alloc_session(struct Scsi_Host *shost,
+@@ -285,11 +284,9 @@ void iscsi_block_session(struct iscsi_cls_session *session)
+ }
+ EXPORT_SYMBOL_GPL(iscsi_block_session);
+ 
+-static void __iscsi_unbind_session(struct work_struct *work)
++static void __iscsi_unbind_session(void *data)
+ {
+-	struct iscsi_cls_session *session =
+-			container_of(work, struct iscsi_cls_session,
+-				     unbind_work);
++	struct iscsi_cls_session *session = data;
+ 	struct Scsi_Host *shost = iscsi_session_to_shost(session);
+ 	struct iscsi_host *ihost = shost->shost_data;
+ 
+@@ -327,10 +324,10 @@ iscsi_alloc_session(struct Scsi_Host *shost,
  
  	session->transport = transport;
  	session->recovery_tmo = 120;
@@ -161,20 +198,24 @@ index 5bca8a9..59e7ea9 100644
 +	INIT_WORK(&session->recovery_work, session_recovery_timedout, session);
  	INIT_LIST_HEAD(&session->host_list);
  	INIT_LIST_HEAD(&session->sess_list);
+-	INIT_WORK(&session->unbind_work, __iscsi_unbind_session);
++	INIT_WORK(&session->unbind_work, __iscsi_unbind_session, session);
  
+ 	/* this is released in the dev's release function */
+ 	scsi_host_get(shost);
 diff --git a/scsi_transport_iscsi.h b/scsi_transport_iscsi.h
-index 05e2554..562f63d 100644
+index bc1ce21..546a8c8 100644
 --- a/scsi_transport_iscsi.h
 +++ b/scsi_transport_iscsi.h
-@@ -182,7 +182,7 @@ struct iscsi_cls_session {
+@@ -183,7 +183,7 @@ struct iscsi_cls_session {
  
  	/* recovery fields */
  	int recovery_tmo;
 -	struct delayed_work recovery_work;
 +	struct work_struct recovery_work;
+ 	struct work_struct unbind_work;
  
  	int target_id;
- 
 -- 
 1.5.1.2
 
