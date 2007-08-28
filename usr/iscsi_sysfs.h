@@ -27,6 +27,27 @@ struct iscsi_auth_config;
 
 #define SCSI_MAX_STATE_VALUE 32
 
+struct session_info {
+	struct list_head list;
+	/* local info */
+	struct iface_rec iface;
+	int sid;
+
+	/* remote info */
+	char targetname[TARGET_NAME_MAXLEN + 1];
+	int tpgt;
+	char address[NI_MAXHOST + 1];
+	int port;
+	char persistent_address[NI_MAXHOST + 1];
+	int persistent_port;
+};
+
+struct host_info {
+	char iname[TARGET_NAME_MAXLEN + 1];
+	struct iface_rec iface;
+	int host_no;
+};
+
 extern void free_transports(void);
 extern int get_iscsi_kernel_version(char *buf);
 extern void check_class_version(void);

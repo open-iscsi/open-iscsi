@@ -257,31 +257,6 @@ typedef struct iscsi_session {
 	queue_task_t *sync_qtask;
 } iscsi_session_t;
 
-/*
- * TODO: replace session_info and host_info with
- * node_rec and iface_rec
- */
-struct session_info {
-	struct list_head list;
-	/* local info */
-	struct iface_rec iface;
-	int sid;
-
-	/* remote info */	
-	char targetname[TARGET_NAME_MAXLEN + 1];
-	int tpgt;
-	char address[NI_MAXHOST + 1];
-	int port;
-	char persistent_address[NI_MAXHOST + 1];
-	int persistent_port;
-};
-
-struct host_info {
-	char iname[TARGET_NAME_MAXLEN + 1];
-	struct iface_rec iface;
-	int host_no;
-};
-
 /* login.c */
 
 #define ISCSI_SESSION_TYPE_NORMAL 0
