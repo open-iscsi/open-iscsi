@@ -90,7 +90,8 @@ static void iscsi_conn_context_free(iscsi_conn_t *conn)
 
 		if (conn->context_pool[i]->allocated)
 			/* missing flush on shutdown */
-			log_error("BUG: context_pool leak");
+			log_error("BUG: context_pool leak %p",
+				  conn->context_pool[i]);
 		free(conn->context_pool[i]);
 	}
 }
@@ -1023,6 +1024,7 @@ void free_initiator(void)
 	list_for_each_entry(t, &transports, list) {
 		list_for_each_entry_safe(session, tmp, &t->sessions, list) {
 			list_del(&session->list);
+			iscsi_flush_context_pool(session);
 			session_release(session);
 		}
 	}
