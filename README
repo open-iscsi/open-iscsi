@@ -70,9 +70,14 @@ iscsid, and a management utility iscsiadm.
 ===============
 
 As of today, the Open-iSCSI Initiator requires a host running the
-Linux operating system with kernel version 2.6.16, or later. See
-http://www.open-iscsi.org/cgi-bin/wiki.pl/Supported_Kernels
-for a more information about which kernels Open-iSCSI supports.
+Linux operating system with kernel version 2.6.16, or later. 2.6.14 and
+2.6.15 are partially supported. Known issues with 2.6.14 - .15 support:
+
+- If the device is using a write back cache, during session logout
+the cache sync command will fail.
+- iscsiadm's -P 3 option will not print out scsi devices.
+- iscsid will not automatically online devices.
+
 You need to enable "Cryptographic API" under "Cryptographic options" in the
 kernel config. And you must enable "CRC32c CRC algorithm" even if
 you do not use header or data digests. They are the kernel options,
