@@ -1118,7 +1118,7 @@ mgmt_ipc_err_e iscsi_host_set_param(int host_no, int param, char *value)
         return MGMT_IPC_OK;
 }
 
-#define MAX_SESSION_PARAMS 30
+#define MAX_SESSION_PARAMS 29
 #define MAX_HOST_PARAMS 3
 
 static void
@@ -1287,11 +1287,6 @@ setup_full_feature_phase(iscsi_conn_t *conn)
 		}, {
 			.param = ISCSI_PARAM_LU_RESET_TMO,
 			.value = &session->lu_reset_timeout,
-			.type = ISCSI_INT,
-			.conn_only = 0,
-		}, {
-			.param = ISCSI_PARAM_HOST_RESET_TMO,
-			.value = &session->host_reset_timeout,
 			.type = ISCSI_INT,
 			.conn_only = 0,
 		}, {
