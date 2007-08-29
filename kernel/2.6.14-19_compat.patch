@@ -1,12 +1,77 @@
-diff --git a/iscsi_2.6.20_compat.h b/iscsi_2.6.20_compat.h
+diff --git a/iscsi_compat.h b/iscsi_compat.h
 new file mode 100644
-index 0000000..133b485
+index 0000000..5c33330
 --- /dev/null
-+++ b/iscsi_2.6.20_compat.h
-@@ -0,0 +1,64 @@
++++ b/iscsi_compat.h
+@@ -0,0 +1,136 @@
 +#include <linux/version.h>
++#include <linux/kernel.h>
++#include <scsi/scsi.h>
++
++#ifndef ISCSI_COMPAT
++#define ISCSI_COMPAT
++
++#ifndef SCAN_WILD_CARD
++#define SCAN_WILD_CARD  ~0
++#endif
++
++#ifndef NIPQUAD_FMT
++#define NIPQUAD_FMT "%u.%u.%u.%u"
++#endif
++
++#ifndef NIP6_FMT
++#define NIP6_FMT "%04x:%04x:%04x:%04x:%04x:%04x:%04x:%04x"
++#endif
++
++#ifndef DEFINE_MUTEX
++
++/* mutex changes from 2.6.16-rc1 and up */
++#define DEFINE_MUTEX DECLARE_MUTEX
++#define mutex_lock down
++#define mutex_unlock up
++#define mutex semaphore
++#define mutex_init init_MUTEX
++#endif
++
++#if LINUX_VERSION_CODE <= KERNEL_VERSION(2,6,12)
++
++void int_to_scsilun(unsigned int lun, struct scsi_lun *scsilun)
++{
++	int i;
++
++	memset(scsilun->scsi_lun, 0, sizeof(scsilun->scsi_lun));
++
++	for (i = 0; i < sizeof(lun); i += 2) {
++		scsilun->scsi_lun[i] = (lun >> 8) & 0xFF;
++		scsilun->scsi_lun[i+1] = lun & 0xFF;
++		lun = lun >> 16;
++	}
++}
++
++#define __nlmsg_put(skb, daemon_pid, seq, type, len, flags) \
++	__nlmsg_put(skb, daemon_pid, 0, 0, len)
++
++#endif
++
++#if LINUX_VERSION_CODE <= KERNEL_VERSION(2,6,13)
++
++#define netlink_kernel_create(uint, groups, input, cb_mutex, mod) \
++	netlink_kernel_create(uint, input)
++
++#define gfp_t unsigned
++
++void *kzalloc(size_t size, gfp_t flags)
++{
++	void *ret = kmalloc(size, flags);
++	if (ret)
++		memset(ret, 0, size);
++}
++
++#endif
 +
 +#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,19)
++
++#include "linux/crypto.h"
 +
 +#define CRYPTO_ALG_ASYNC		0x00000080
 +struct hash_desc
@@ -68,28 +133,34 @@ index 0000000..133b485
 +}
 +
 +#endif
-diff --git a/iscsi_2.6.22_compat.h b/iscsi_2.6.22_compat.h
-new file mode 100644
-index 0000000..6627292
---- /dev/null
-+++ b/iscsi_2.6.22_compat.h
-@@ -0,0 +1,6 @@
-+#include <linux/version.h>
 +
 +#if LINUX_VERSION_CODE <= KERNEL_VERSION(2,6,21)
 +#define netlink_kernel_create(uint, groups, input, cb_mutex, mod) \
 +	netlink_kernel_create(uint, groups, input, mod)
 +#endif
++
++#endif
+diff --git a/iscsi_tcp.c b/iscsi_tcp.c
+index a51c564..5c23cfb 100644
+--- a/iscsi_tcp.c
++++ b/iscsi_tcp.c
+@@ -43,6 +43,7 @@
+ #include "scsi_transport_iscsi.h"
+ 
+ #include "iscsi_tcp.h"
++#include "iscsi_compat.h"
+ 
+ MODULE_AUTHOR("Dmitry Yusupov <dmitry_yus@yahoo.com>, "
+ 	      "Alex Aizman <itn780@yahoo.com>");
 diff --git a/iscsi_tcp.h b/iscsi_tcp.h
-index 4b86fe4..1b4336d 100644
+index 4b86fe4..86ca6fd 100644
 --- a/iscsi_tcp.h
 +++ b/iscsi_tcp.h
-@@ -52,6 +52,8 @@
+@@ -52,6 +52,7 @@
  #define ISCSI_SG_TABLESIZE		SG_ALL
  #define ISCSI_TCP_MAX_CMD_LEN		16
  
-+#include "iscsi_2.6.20_compat.h"
-+#include "iscsi_2.6.22_compat.h"
++#include "iscsi_compat.h"
  struct crypto_hash;
  struct socket;
  
@@ -138,31 +209,50 @@ index 5f695b6..8ddb777 100644
  	/* allocate login_mtask used for the login/text sequences */
  	spin_lock_bh(&session->lock);
 diff --git a/libiscsi.h b/libiscsi.h
-index d02c55f..603a25a 100644
+index d02c55f..995db87 100644
 --- a/libiscsi.h
 +++ b/libiscsi.h
-@@ -25,8 +25,6 @@
+@@ -24,12 +24,14 @@
+ #define LIBISCSI_H
  
  #include <linux/types.h>
++#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,16)
  #include <linux/mutex.h>
 -#include <linux/timer.h>
 -#include <linux/workqueue.h>
++#endif
  #include "iscsi_proto.h"
  #include "iscsi_if.h"
  
++#include "iscsi_compat.h"
++
+ struct scsi_transport_template;
+ struct scsi_device;
+ struct Scsi_Host;
 diff --git a/scsi_transport_iscsi.c b/scsi_transport_iscsi.c
-index 56ba5c2..fe0820c 100644
+index 56ba5c2..66a0a69 100644
 --- a/scsi_transport_iscsi.c
 +++ b/scsi_transport_iscsi.c
-@@ -29,6 +29,7 @@
+@@ -21,7 +21,10 @@
+  * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
+  */
+ #include <linux/module.h>
++#include <linux/version.h>
++#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,16)
+ #include <linux/mutex.h>
++#endif
+ #include <net/tcp.h>
+ #include <scsi/scsi.h>
+ #include <scsi/scsi_host.h>
+@@ -29,6 +32,7 @@
  #include <scsi/scsi_transport.h>
  #include "scsi_transport_iscsi.h"
  #include "iscsi_if.h"
-+#include "iscsi_2.6.22_compat.h"
++#include "iscsi_compat.h"
  
  #define ISCSI_SESSION_ATTRS 16
  #define ISCSI_CONN_ATTRS 11
-@@ -254,11 +255,9 @@ static int iscsi_user_scan(struct Scsi_Host *shost, uint channel,
+@@ -254,11 +258,9 @@ static int iscsi_user_scan(struct Scsi_Host *shost, uint channel,
  	return 0;
  }
  
@@ -176,7 +266,7 @@ index 56ba5c2..fe0820c 100644
  
  	dev_printk(KERN_INFO, &session->dev, "iscsi: session recovery timed "
  		  "out after %d secs\n", session->recovery_tmo);
-@@ -285,11 +284,9 @@ void iscsi_block_session(struct iscsi_cls_session *session)
+@@ -285,11 +287,9 @@ void iscsi_block_session(struct iscsi_cls_session *session)
  }
  EXPORT_SYMBOL_GPL(iscsi_block_session);
  
@@ -190,7 +280,7 @@ index 56ba5c2..fe0820c 100644
  	struct Scsi_Host *shost = iscsi_session_to_shost(session);
  	struct iscsi_host *ihost = shost->shost_data;
  
-@@ -327,10 +324,10 @@ iscsi_alloc_session(struct Scsi_Host *shost,
+@@ -327,10 +327,10 @@ iscsi_alloc_session(struct Scsi_Host *shost,
  
  	session->transport = transport;
  	session->recovery_tmo = 120;
@@ -203,11 +293,35 @@ index 56ba5c2..fe0820c 100644
  
  	/* this is released in the dev's release function */
  	scsi_host_get(shost);
+@@ -1404,7 +1404,10 @@ iscsi_register_transport(struct iscsi_transport *tt)
+ 	INIT_LIST_HEAD(&priv->list);
+ 	priv->daemon_pid = -1;
+ 	priv->iscsi_transport = tt;
++
++#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,16)
+ 	priv->t.user_scan = iscsi_user_scan;
++#endif
+ 
+ 	priv->cdev.class = &iscsi_transport_class;
+ 	snprintf(priv->cdev.class_id, BUS_ID_SIZE, "%s", tt->name);
 diff --git a/scsi_transport_iscsi.h b/scsi_transport_iscsi.h
-index bc1ce21..546a8c8 100644
+index bc1ce21..4d8dfc1 100644
 --- a/scsi_transport_iscsi.h
 +++ b/scsi_transport_iscsi.h
-@@ -183,7 +183,7 @@ struct iscsi_cls_session {
+@@ -24,7 +24,12 @@
+ #define SCSI_TRANSPORT_ISCSI_H
+ 
+ #include <linux/device.h>
++#include <linux/version.h>
++#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,16)
++#include <linux/mutex.h>
++#endif
+ #include "iscsi_if.h"
++#include "iscsi_compat.h"
+ 
+ struct scsi_transport_template;
+ struct iscsi_transport;
+@@ -183,7 +188,7 @@ struct iscsi_cls_session {
  
  	/* recovery fields */
  	int recovery_tmo;

@@ -48,11 +48,9 @@ all: kernel_check
 #            form.
 
 #some constants
-13_patch=2.6.13_compat.patch
-14to15_patch=2.6.14-and-2.6.15-compat.patch
-16to19_patch=2.6.16-19_compat.patch
+14to19_patch=2.6.14-19_compat.patch
 20to21_patch=2.6.20-21_compat.patch
-all_patches=13_patch 14to15_patch 16to19_patch 20to21_patch
+all_patches=14to21_patch 20to21_patch
 cur_patched=cur_patched
 
 ## fun stuff for maintaining multiple versions
@@ -66,20 +64,17 @@ KSUBLEVEL = $(shell cat $(KSRC)/Makefile | awk -F= '/^SUBLEVEL =/ {print $$2}' |
 KERNEL_TARGET=linux_2_6_$(KSUBLEVEL)
 kernel_check: $(KERNEL_TARGET)
 
+linux_2_6_14: has_14to19_patch
 
-linux_2_6_13: has_13_patch
+linux_2_6_15: has_14to19_patch
 
-linux_2_6_14: has_14to15_patch
+linux_2_6_16: has_14to19_patch
 
-linux_2_6_15: has_14to15_patch
+linux_2_6_17: has_14to19_patch
 
-linux_2_6_16: has_16to19_patch
+linux_2_6_18: has_14to19_patch
 
-linux_2_6_17: has_16to19_patch
-
-linux_2_6_18: has_16to19_patch
-
-linux_2_6_19: has_16to19_patch
+linux_2_6_19: has_14to19_patch
 
 linux_2_6_20: has_20to21_patch
 
@@ -90,38 +85,20 @@ linux_2_6_22: $(unpatch_code)
 linux_2_6_23: $(unpatch_code)
 
 do_unpatch_code:
-	echo "Un-patching source code for use with linux-2.6.20 and up ..."
+	echo "Un-patching source code for use with linux-2.6.14 and up ..."
 	patch -R -E -p1 < $(cur_patched)
 	rm -f `readlink $(cur_patched)`
 	rm -f $(cur_patched)
 
 # these below targets must be the same as the variable name prefixed by has_
 # otherwise below compat_patch: target will not work
-has_13_patch: $(13_patch)
-	echo "Patching source code for linux-2.6.13 ..."
+has_14to19_patch: $(14to19_patch)
+	echo "Patching source code for linux-2.6.14-19 ..."
 	if [ -e $(cur_patched) ]; then \
 		make -C . clean; \
 	fi
-	patch -p1 < $(13_patch)
-	cp $(13_patch) $@
-	ln -s $@ $(cur_patched)
-
-has_14to15_patch: $(14to15_patch)
-	echo "Patching source code for linux-2.6.14-15 ..."
-	if [ -e $(cur_patched) ]; then \
-		make -C . clean; \
-	fi
-	patch -p1 < $(14to15_patch)
-	cp $(14to15_patch) $@
-	ln -s $@ $(cur_patched)
-
-has_16to19_patch: $(16to19_patch)
-	echo "Patching source code for linux-2.6.16-19 ..."
-	if [ -e $(cur_patched) ]; then \
-		make -C . clean; \
-	fi
-	patch -p1 < $(16to19_patch)
-	cp $(16to19_patch) $@
+	patch -p1 < $(14to19_patch)
+	cp $(14to19_patch) $@
 	ln -s $@ $(cur_patched)
 
 has_20to21_patch: $(20to21_patch)
