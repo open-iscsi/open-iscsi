@@ -407,8 +407,24 @@ iscsi_create_session(struct Scsi_Host *shost,
 }
 EXPORT_SYMBOL_GPL(iscsi_create_session);
 
+static void iscsi_conn_release(struct device *dev)
+{
+	struct iscsi_cls_conn *conn = iscsi_dev_to_conn(dev);
+	struct device *parent = conn->dev.parent;
+
+	kfree(conn);
+	put_device(parent);
+}
+
+static int iscsi_is_conn_dev(const struct device *dev)
+{
+	return dev->release == iscsi_conn_release;
+}
+
 static int iscsi_iter_destroy_conn_fn(struct device *dev, void *data)
 {
+	if (!iscsi_is_conn_dev(dev))
+		return 0;
 	return iscsi_destroy_conn(iscsi_dev_to_conn(dev));
 }
 
@@ -470,20 +486,6 @@ int iscsi_destroy_session(struct iscsi_cls_session *session)
 	return 0;
 }
 EXPORT_SYMBOL_GPL(iscsi_destroy_session);
-
-static void iscsi_conn_release(struct device *dev)
-{
-	struct iscsi_cls_conn *conn = iscsi_dev_to_conn(dev);
-	struct device *parent = conn->dev.parent;
-
-	kfree(conn);
-	put_device(parent);
-}
-
-static int iscsi_is_conn_dev(const struct device *dev)
-{
-	return dev->release == iscsi_conn_release;
-}
 
 /**
  * iscsi_create_conn - create iscsi class connection
