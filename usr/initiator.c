@@ -865,14 +865,17 @@ __conn_error_handle(iscsi_session_t *session, iscsi_conn_t *conn)
 {
 	int i;
 
+	/*
+	 * if we got an error while trying to logout for the user then
+	 * just cleanup and return to the user.
+	 */
+	if (conn->logout_qtask) {
+		session_conn_shutdown(conn, conn->logout_qtask, MGMT_IPC_OK);
+		return;
+	}
+
 	switch (conn->state) {
 	case STATE_IN_LOGOUT:
-		/* logout was requested by user */
-		if (conn->logout_qtask) {
-			session_conn_shutdown(conn, conn->logout_qtask,
-					      MGMT_IPC_OK);
-			return;
-		}
 		/* logout was from eh - fall down to cleanup */
 	case STATE_LOGGED_IN:
 		/* mark failed connection */
@@ -1445,8 +1448,7 @@ static int iscsi_send_logout(iscsi_conn_t *conn)
 	struct iscsi_logout hdr;
 	struct iscsi_conn_context *conn_context;
 
-	if (conn->state == STATE_IN_LOGOUT ||
-	    conn->state != STATE_LOGGED_IN)
+	if (conn->state != STATE_LOGGED_IN)
 		return EINVAL;
 
 	memset(&hdr, 0, sizeof(struct iscsi_logout));
@@ -1475,7 +1477,7 @@ static int iscsi_send_logout(iscsi_conn_t *conn)
 	return 0;
 }
 
-static void iscsi_logout(void *data)
+static void iscsi_stop(void *data)
 {
 	struct iscsi_conn_context *conn_context = data;
 	struct iscsi_conn *conn = conn_context->conn;
@@ -1801,8 +1803,8 @@ void iscsi_sched_conn_context(struct iscsi_conn_context *conn_context,
 		actor_timer(&conn_context->actor, tmo * 1000,
 			    iscsi_logout_timedout, conn_context);
 		break;
-	case EV_CONN_LOGOUT:
-		actor_new(&conn_context->actor, iscsi_logout,
+	case EV_CONN_STOP:
+		actor_new(&conn_context->actor, iscsi_stop,
 			  conn_context);
 		actor_schedule(&conn_context->actor);
 		break;
@@ -2026,8 +2028,13 @@ session_logout_task(iscsi_session_t *session, queue_task_t *qtask)
 	mgmt_ipc_err_e rc = MGMT_IPC_OK;
 
 	conn = &session->conn[0];
+	/*
+	 * If syncing up or if this is the initial login and mgmt_ipc
+	 * has not been notified of that result fail the logout request
+	 */
 	if (session->sync_qtask ||
-	    (conn->state == STATE_XPT_WAIT &&
+	    ((conn->state == STATE_XPT_WAIT ||
+	      conn->state == STATE_IN_LOGIN) &&
 	    (session->r_stage == R_STAGE_NO_CHANGE ||
 	     session->r_stage == R_STAGE_SESSION_REDIRECT))) {
 invalid_state:

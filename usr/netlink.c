@@ -962,7 +962,7 @@ static int ctldev_handle(void)
 		break;
 	case ISCSI_KEVENT_UNBIND_SESSION:
 		iscsi_sched_conn_context(conn_context, conn, 0,
-					 EV_CONN_LOGOUT);
+					 EV_CONN_STOP);
 		break;
 	default:
 		iscsi_conn_context_put(conn_context);

@@ -87,7 +87,7 @@ typedef enum iscsi_event_e {
 	EV_CONN_POLL,
 	EV_CONN_ERROR,
 	EV_CONN_LOGOUT_TIMER,
-	EV_CONN_LOGOUT,
+	EV_CONN_STOP,
 } iscsi_event_e;
 
 struct queue_task;
