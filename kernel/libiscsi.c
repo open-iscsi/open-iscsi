@@ -887,7 +887,7 @@ check_mgmt:
 		conn->ctask = list_entry(conn->xmitqueue.next,
 					 struct iscsi_cmd_task, running);
 		if (conn->session->state == ISCSI_STATE_LOGGING_OUT) {
-			fail_command(conn, conn->ctask, DID_NO_CONNECT);
+			fail_command(conn, conn->ctask, DID_IMM_RETRY);
 			continue;
 		}
 
@@ -992,20 +992,18 @@ int iscsi_queuecommand(struct scsi_cmnd *sc, void (*done)(struct scsi_cmnd *))
 		 * be entering our queuecommand while a block is starting
 		 * up because the block code is not locked)
 		 */
-		if (session->state == ISCSI_STATE_IN_RECOVERY) {
+		switch (session->state) {
+		case ISCSI_STATE_IN_RECOVERY:
 			reason = FAILURE_SESSION_IN_RECOVERY;
 			goto reject;
-		}
-
-		switch (session->state) {
+		case ISCSI_STATE_LOGGING_OUT:
+			reason = FAILURE_SESSION_LOGGING_OUT;
+			goto reject;
 		case ISCSI_STATE_RECOVERY_FAILED:
 			reason = FAILURE_SESSION_RECOVERY_TIMEOUT;
 			break;
 		case ISCSI_STATE_TERMINATE:
 			reason = FAILURE_SESSION_TERMINATE;
-			break;
-		case ISCSI_STATE_LOGGING_OUT:
-			reason = FAILURE_SESSION_LOGGING_OUT;
 			break;
 		default:
 			reason = FAILURE_SESSION_FREED;
