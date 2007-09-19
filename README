@@ -328,7 +328,7 @@ TCP/IP. Then in /etc/iscsi/ifaces/iface0 you would enter:
 iface.transport_name = tcp
 iface.hwaddress = 00:0F:1F:92:6B:BF
 
-and in /etc/iscsi/ifaces1 you would enter:
+and in /etc/iscsi/ifaces/iface1 you would enter:
 
 iface.transport_name = tcp
 iface.hwaddress = 00:C0:DD:08:63:E7
