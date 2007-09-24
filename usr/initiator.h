@@ -117,6 +117,7 @@ struct iscsi_conn_context;
 /* daemon's connection structure */
 typedef struct iscsi_conn {
 	uint32_t id;
+	int ksetup;
 	struct iscsi_session *session;
 	iscsi_login_context_t login_context;
 	struct iscsi_conn_context *recv_context;

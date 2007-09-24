@@ -146,6 +146,8 @@ __login_response_status(iscsi_conn_t *conn,
 	case LOGIN_OK:
 		/* check the status class and detail */
 		return CONN_LOGIN_SUCCESS;
+	case LOGIN_REDIRECT:
+		return CONN_LOGIN_IMM_REDIRECT_RETRY;
 	case LOGIN_IO_ERROR:
 	case LOGIN_WRONG_PORTAL_GROUP:
 	case LOGIN_REDIRECTION_FAILED:
@@ -189,18 +191,10 @@ __check_iscsi_status_class(iscsi_session_t *session, int cid,
 	case ISCSI_STATUS_CLS_INITIATOR_ERR:
 		switch (status_detail) {
 		case ISCSI_LOGIN_STATUS_AUTH_FAILED:
-			log_error("conn %d login rejected: Initiator "
-			       "failed authentication with target", conn->id);
-			if ((session->num_auth_buffers < 5) &&
-			    (session->username || session->password_length ||
-			    session->bidirectional_auth))
-				/*
-				 * retry, and hope we can allocate the auth
-				 * structures next time.
-				 */
-				return CONN_LOGIN_RETRY;
-			else
-				return CONN_LOGIN_FAILED;
+			log_error("session %d login rejected: Initiator "
+			       "failed authentication with target",
+				session->id);
+			return CONN_LOGIN_FAILED;
 		case ISCSI_LOGIN_STATUS_TGT_FORBIDDEN:
 			log_error("conn %d login rejected: initiator "
 			       "failed authorization with target", conn->id);
@@ -587,53 +581,53 @@ conn_delete_timers(iscsi_conn_t *conn)
 	actor_delete(&conn->nop_out_timer);
 }
 
-static void
-session_conn_cleanup(queue_task_t *qtask, mgmt_ipc_err_e err)
-{
-	iscsi_conn_t *conn = qtask->conn;
-	iscsi_session_t *session = conn->session;
-
-	mgmt_ipc_write_rsp(qtask, err);
-	conn_delete_timers(conn);
-	__session_destroy(session);
-}
-
-static mgmt_ipc_err_e
-__session_conn_shutdown(iscsi_conn_t *conn, queue_task_t *qtask,
-			mgmt_ipc_err_e err)
-{
-	iscsi_session_t *session = conn->session;
-
-	if (ipc->destroy_conn(session->t->handle, session->id,
-		conn->id)) {
-		log_error("can not safely destroy connection %d", conn->id);
-		return MGMT_IPC_ERR_INTERNAL;
-	}
-	conn->session->t->template->ep_disconnect(conn);
-
-	if (ipc->destroy_session(session->t->handle, session->id)) {
-		log_error("can not safely destroy session %d", session->id);
-		return MGMT_IPC_ERR_INTERNAL;
-	}
-
-	session_conn_cleanup(qtask, err);
-	return MGMT_IPC_OK;
-}
-
 static mgmt_ipc_err_e
 session_conn_shutdown(iscsi_conn_t *conn, queue_task_t *qtask,
 		      mgmt_ipc_err_e err)
 {
 	iscsi_session_t *session = conn->session;
 
-	if (ipc->stop_conn(session->t->handle, session->id,
-			   conn->id, STOP_CONN_TERM)) {
-		log_error("can't stop connection %d:%d (%d)",
-			  session->id, conn->id, errno);
-		return MGMT_IPC_ERR_INTERNAL;
+	if (!conn->ksetup)
+		goto disconnect_conn;
+
+	if (conn->state == STATE_IN_LOGIN ||
+	    conn->state == STATE_IN_LOGOUT ||
+	    conn->state == STATE_LOGGED_IN) {
+		log_debug(2, "stop conn (conn state %d)", conn->state);
+		if (ipc->stop_conn(session->t->handle, session->id,
+				   conn->id, STOP_CONN_TERM)) {
+			log_error("can't stop connection %d:%d (%d)",
+				  session->id, conn->id, errno);
+			return MGMT_IPC_ERR_INTERNAL;
+		}
 	}
 
-	return __session_conn_shutdown(conn, qtask, err);
+	log_debug(2, "kdestroy conn");
+	if (ipc->destroy_conn(session->t->handle, session->id,
+		conn->id)) {
+		log_error("can not safely destroy connection %d", conn->id);
+		return MGMT_IPC_ERR_INTERNAL;
+	}
+	conn->ksetup = 0;
+
+disconnect_conn:
+	log_debug(2, "disconnect conn");
+	/* this will check for a valid interconnect connection */
+	conn->session->t->template->ep_disconnect(conn);
+
+	if (session->id != -1) {
+		log_debug(2, "kdestroy session %u", session->id);
+		if (ipc->destroy_session(session->t->handle, session->id)) {
+			log_error("can not safely destroy session %d",
+				  session->id);
+			return MGMT_IPC_ERR_INTERNAL;
+		}
+	}
+
+	mgmt_ipc_write_rsp(qtask, err);
+	conn_delete_timers(conn);
+	__session_destroy(session);
+	return MGMT_IPC_OK;
 }
 
 static void
@@ -772,7 +766,6 @@ static void iscsi_login_eh(struct iscsi_conn *conn, struct queue_task *qtask,
 	case STATE_XPT_WAIT:
 		switch (session->r_stage) {
 		case R_STAGE_NO_CHANGE:
-			session->t->template->ep_disconnect(conn);
 			log_debug(6, "login failed STATE_XPT_WAIT/"
 				  "R_STAGE_NO_CHANGE (%d/%d)",
 				  session->reopen_cnt,
@@ -780,9 +773,10 @@ static void iscsi_login_eh(struct iscsi_conn *conn, struct queue_task *qtask,
 			/* timeout during initial connect.
 			 * clean connection. write ipc rsp or retry */
 			if (initial_login_retry_max < session->reopen_cnt + 1)
-				session_conn_cleanup(qtask, err);
+				session_conn_shutdown(conn, qtask, err);
 			else {
 				session->reopen_cnt++;
+				session->t->template->ep_disconnect(conn);
 				if (iscsi_conn_connect(conn, qtask))
 					queue_delayed_reopen(qtask,
 						ISCSI_CONN_ERR_REOPEN_DELAY);
@@ -796,7 +790,7 @@ static void iscsi_login_eh(struct iscsi_conn *conn, struct queue_task *qtask,
 			/* timeout during initial redirect connect
 			 * clean connection. write ipc rsp or retry */
 			if (initial_login_retry_max < session->reopen_cnt + 1)
-				__session_conn_shutdown(conn, qtask, err);
+				session_conn_shutdown(conn, qtask, err);
 			else
 				session_conn_reopen(conn, qtask, 0);
 			break;
@@ -808,7 +802,7 @@ static void iscsi_login_eh(struct iscsi_conn *conn, struct queue_task *qtask,
 			session_conn_reopen(conn, qtask, 0);
 			break;
 		case R_STAGE_SESSION_CLEANUP:
-			__session_conn_shutdown(conn, qtask, err);
+			session_conn_shutdown(conn, qtask, err);
 			break;
 		default:
 			break;
@@ -1131,7 +1125,6 @@ setup_full_feature_phase(iscsi_conn_t *conn)
 	iscsi_login_context_t *c = &conn->login_context;
 	int i, rc;
 	uint32_t one = 1, zero = 0;
-	conn_login_status_e login_status;
 	struct hostparam {
 		int param;
 		int type;
@@ -1305,34 +1298,6 @@ setup_full_feature_phase(iscsi_conn_t *conn)
 		},
 	};
 
-	/* almost! entered full-feature phase */
-	login_status = __login_response_status(conn, c->ret);
-	switch (login_status) {
-	case CONN_LOGIN_FAILED:
-		goto failed;
-	case CONN_LOGIN_RETRY:
-		goto retry;
-	default:
-		; /* success - fall through */
-	}
-
-	/* check the login status */
-	login_status = __check_iscsi_status_class(session, conn->id,
-						  c->status_class,
-						  c->status_detail);
-	switch (login_status) {
-	case CONN_LOGIN_FAILED:
-		goto failed;
-	case CONN_LOGIN_IMM_REDIRECT_RETRY:
-		iscsi_login_redirect(conn);
-		return;
-	case CONN_LOGIN_IMM_RETRY:
-	case CONN_LOGIN_RETRY:
-		goto retry;
-	default:
-		; /* success - fall through */
-	}
-
 	actor_delete(&conn->login_timer);
 	/* Entered full-feature phase! */
 	for (i = 0; i < MAX_SESSION_PARAMS; i++) {
@@ -1420,13 +1385,6 @@ setup_full_feature_phase(iscsi_conn_t *conn)
 		log_debug(3, "noop out timer %p start\n",
 			  &conn->nop_out_timer);
 	}
-	return;
-
-retry:
-	session->r_stage = R_STAGE_SESSION_REOPEN;
-failed:
-	iscsi_login_eh(conn, c->qtask, MGMT_IPC_ERR_LOGIN_FAILURE);
-	return;	
 }
 
 static void iscsi_logout_timedout(void *data)
@@ -1488,19 +1446,7 @@ static void iscsi_stop(void *data)
 	if (!iscsi_send_logout(conn))
 		return;
 
-	switch (conn->state) {
-	case STATE_IN_LOGIN:
-	case STATE_IN_LOGOUT:
-	case STATE_LOGGED_IN:
-		/* we have pdus in flight clean them up */
-		rc = session_conn_shutdown(conn, conn->logout_qtask,
-					   MGMT_IPC_OK);
-		break;
-	default:
-		rc = __session_conn_shutdown(conn, conn->logout_qtask,
-					     MGMT_IPC_OK);
-		break;
-	}
+	rc = session_conn_shutdown(conn, conn->logout_qtask, MGMT_IPC_OK);
 	if (rc)
 		log_error("BUG: Could not shutdown session.");
 }
@@ -1527,7 +1473,13 @@ static void iscsi_recv_nop_in(iscsi_conn_t *conn, struct iscsi_hdr *hdr)
 
 static void iscsi_recv_logout_rsp(iscsi_conn_t *conn, struct iscsi_hdr *hdr)
 {
+	struct iscsi_logout_rsp *logout_rsp = (struct iscsi_logout_rsp *)hdr;
 	log_debug(3, "Recv: logout response\n");
+
+
+	conn->session->def_time2wait = ntohl(logout_rsp->t2wait);
+	log_debug(4, "logout rsp returned time2wait %u",
+		  conn->session->def_time2wait);
 	/* TODO process the hdr */
 	__conn_error_handle(conn->session, conn);
 }
@@ -1588,40 +1540,74 @@ static void iscsi_recv_async_msg(iscsi_conn_t *conn, struct iscsi_hdr *hdr)
 	}
 }
 
-void session_conn_recv_pdu(void *data)
+static void iscsi_recv_login_rsp(struct iscsi_conn *conn)
+{ 
+	struct iscsi_session *session = conn->session;
+	iscsi_login_context_t *c = &conn->login_context;
+
+	if (iscsi_login_rsp(session, c)) {
+		log_debug(1, "login_rsp ret (%d)", c->ret);
+
+		switch (__login_response_status(conn, c->ret)) {
+		case CONN_LOGIN_FAILED:
+			goto failed;
+		case CONN_LOGIN_RETRY:
+			goto retry;
+		case CONN_LOGIN_IMM_REDIRECT_RETRY:
+			iscsi_login_redirect(conn);
+			return;
+		default:
+			; /* success - fall through */
+		}
+
+		/* check the login status */
+		switch (__check_iscsi_status_class(session, conn->id,
+						   c->status_class,
+						   c->status_detail)) {
+		case CONN_LOGIN_FAILED:
+			goto failed;
+		case CONN_LOGIN_IMM_REDIRECT_RETRY:
+			iscsi_login_redirect(conn);
+			return;
+		case CONN_LOGIN_IMM_RETRY:
+		case CONN_LOGIN_RETRY:
+			goto retry;
+		default:
+			; /* success - fall through */
+		}
+	}
+
+	if (conn->current_stage != ISCSI_FULL_FEATURE_PHASE) {
+		/* more nego. needed! */
+		conn->state = STATE_IN_LOGIN;
+		if (iscsi_login_req(session, c)) {
+			iscsi_login_eh(conn, c->qtask,
+				       MGMT_IPC_ERR_LOGIN_FAILURE);
+			return;
+		}
+	} else
+		setup_full_feature_phase(conn);
+
+	return;
+retry:
+	/* force retry */
+	session->r_stage = R_STAGE_SESSION_REOPEN;
+failed:
+	iscsi_login_eh(conn, c->qtask, MGMT_IPC_ERR_LOGIN_FAILURE);
+	return;
+}
+
+static void session_conn_recv_pdu(void *data)
 {
 	struct iscsi_conn_context *conn_context = data;
 	iscsi_conn_t *conn = conn_context->conn;
-	iscsi_session_t *session = conn->session;
-	iscsi_login_context_t *c;
 	struct iscsi_hdr hdr;
 
 	conn->recv_context = conn_context;
 
 	switch (conn->state) {
 	case STATE_IN_LOGIN:
-		c = &conn->login_context;
-
-		if (iscsi_login_rsp(session, c)) {
-			log_debug(1, "login_rsp ret (%d)", c->ret);
-			if (c->ret == LOGIN_REDIRECT)
-				iscsi_login_redirect(conn);
-			else
-				iscsi_login_eh(conn, c->qtask,
-					       MGMT_IPC_ERR_LOGIN_FAILURE);
-			return;
-		}
-
-		if (conn->current_stage != ISCSI_FULL_FEATURE_PHASE) {
-			/* more nego. needed! */
-			conn->state = STATE_IN_LOGIN;
-			if (iscsi_login_req(session, c)) {
-				iscsi_login_eh(conn, c->qtask,
-					       MGMT_IPC_ERR_LOGIN_FAILURE);
-				return;
-			}
-		} else
-			setup_full_feature_phase(conn);
+		iscsi_recv_login_rsp(conn);
 		break;
 	case STATE_LOGGED_IN:
 	case STATE_IN_LOGOUT:
@@ -1717,8 +1703,9 @@ static void session_conn_poll(void *data)
 				log_error("can't create connection (%d)",
 					   errno);
 				err = MGMT_IPC_ERR_INTERNAL;
-				goto s_cleanup;
+				goto cleanup;
 			}
+			conn->ksetup = 1;
 			log_debug(3, "created new iSCSI connection "
 				  "%d:%d", session->id, conn->id);
 		}
@@ -1766,13 +1753,8 @@ static void session_conn_poll(void *data)
 
 	return;
 
-s_cleanup:
-	if (ipc->destroy_session(session->t->handle, session->id)) {
-		log_error("can not safely destroy session %d", session->id);
-	}
 cleanup:
-	session->t->template->ep_disconnect(conn);
-	session_conn_cleanup(qtask, err);
+	session_conn_shutdown(conn, qtask, err);
 }
 
 void iscsi_sched_conn_context(struct iscsi_conn_context *conn_context,
@@ -2063,12 +2045,8 @@ invalid_state:
 			return MGMT_IPC_OK;
 		log_error("Could not send logout pdu. Dropping session\n");
 		/* fallthrough */
-	case STATE_IN_LOGIN:
-	case STATE_IN_LOGOUT:
-		rc = session_conn_shutdown(conn, qtask, MGMT_IPC_OK);
-		break;
 	default:
-		rc = __session_conn_shutdown(conn, qtask, MGMT_IPC_OK);
+		rc = session_conn_shutdown(conn, qtask, MGMT_IPC_OK);
 		break;
 	}
 
