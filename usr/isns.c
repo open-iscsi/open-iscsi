@@ -302,6 +302,7 @@ static void add_new_target_node(char *targetname, uint8_t *ip, int port,
 	strncpy(rec.conn[0].address, dst, NI_MAXHOST);
 
 	/* TODO?: shoudl we set the address and port of the server ? */
+	memset(&drec, 0, sizeof(discovery_rec_t));
 	drec.type = DISCOVERY_TYPE_ISNS;
 	err = idbm_add_nodes(db, &rec, &drec, NULL);
 	if (err)
