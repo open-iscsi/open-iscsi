@@ -620,8 +620,8 @@ iscsi_io_send_pdu(iscsi_conn_t *conn, struct iscsi_hdr *hdr,
 	end = header + sizeof (*hdr) + hdr->hlength;
 
 	/* send all the data and any padding */
-	if (pdu_length % PAD_WORD_LEN)
-		pad_bytes = PAD_WORD_LEN - (pdu_length % PAD_WORD_LEN);
+	if (pdu_length % ISCSI_PAD_LEN)
+		pad_bytes = ISCSI_PAD_LEN - (pdu_length % ISCSI_PAD_LEN);
 	else
 		pad_bytes = 0;
 
@@ -830,10 +830,10 @@ iscsi_io_recv_pdu(iscsi_conn_t *conn, struct iscsi_hdr *hdr,
 
 	/* handle PDU data padding.
 	 * data is padded in case of kernel_io */
-	pad = dlength % PAD_WORD_LEN;
+	pad = dlength % ISCSI_PAD_LEN;
 	if (pad && !ipc) {
-		int pad_bytes = pad = PAD_WORD_LEN - pad;
-		char bytes[PAD_WORD_LEN];
+		int pad_bytes = pad = ISCSI_PAD_LEN - pad;
+		char bytes[ISCSI_PAD_LEN];
 
 		while (pad_bytes > 0) {
 			rlen = read(conn->socket_fd, &bytes, pad_bytes);
