@@ -33,6 +33,7 @@
 #include <scsi/scsi_host.h>
 #include <scsi/scsi.h>
 #include <scsi/scsi_transport.h>
+
 #include "iscsi_proto.h"
 #include "scsi_transport_iscsi.h"
 #include "libiscsi.h"
@@ -122,6 +123,20 @@ void iscsi_prep_unsolicit_data_pdu(struct iscsi_cmd_task *ctask,
 }
 EXPORT_SYMBOL_GPL(iscsi_prep_unsolicit_data_pdu);
 
+static int iscsi_add_hdr(struct iscsi_cmd_task *ctask, unsigned len)
+{
+	unsigned exp_len = ctask->hdr_len + len;
+
+	if (exp_len > ctask->hdr_max) {
+		WARN_ON(1);
+		return -EINVAL;
+	}
+
+	WARN_ON(len & (ISCSI_PAD_LEN - 1)); /* caller must pad the AHS */
+	ctask->hdr_len = exp_len;
+	return 0;
+}
+
 /**
  * iscsi_prep_scsi_cmd_pdu - prep iscsi scsi cmd pdu
  * @ctask: iscsi cmd task
@@ -129,27 +144,32 @@ EXPORT_SYMBOL_GPL(iscsi_prep_unsolicit_data_pdu);
  * Prep basic iSCSI PDU fields for a scsi cmd pdu. The LLD should set
  * fields like dlength or final based on how much data it sends
  */
-static void iscsi_prep_scsi_cmd_pdu(struct iscsi_cmd_task *ctask)
+static int iscsi_prep_scsi_cmd_pdu(struct iscsi_cmd_task *ctask)
 {
 	struct iscsi_conn *conn = ctask->conn;
 	struct iscsi_session *session = conn->session;
 	struct iscsi_cmd *hdr = ctask->hdr;
 	struct scsi_cmnd *sc = ctask->sc;
+	unsigned hdrlength;
+	int rc;
 
-        hdr->opcode = ISCSI_OP_SCSI_CMD;
-        hdr->flags = ISCSI_ATTR_SIMPLE;
-        int_to_scsilun(sc->device->lun, (struct scsi_lun *)hdr->lun);
-        hdr->itt = build_itt(ctask->itt, conn->id, session->age);
-        hdr->data_length = cpu_to_be32(sc->request_bufflen);
-        hdr->cmdsn = cpu_to_be32(session->cmdsn);
-        session->cmdsn++;
-        hdr->exp_statsn = cpu_to_be32(conn->exp_statsn);
-        memcpy(hdr->cdb, sc->cmnd, sc->cmd_len);
+	ctask->hdr_len = 0;
+	rc = iscsi_add_hdr(ctask, sizeof(*hdr));
+	if (rc)
+		return rc;
+	hdr->opcode = ISCSI_OP_SCSI_CMD;
+	hdr->flags = ISCSI_ATTR_SIMPLE;
+	int_to_scsilun(sc->device->lun, (struct scsi_lun *)hdr->lun);
+	hdr->itt = build_itt(ctask->itt, conn->id, session->age);
+	hdr->data_length = cpu_to_be32(scsi_bufflen(sc));
+	hdr->cmdsn = cpu_to_be32(session->cmdsn);
+	session->cmdsn++;
+	hdr->exp_statsn = cpu_to_be32(conn->exp_statsn);
+	memcpy(hdr->cdb, sc->cmnd, sc->cmd_len);
 	if (sc->cmd_len < MAX_COMMAND_SIZE)
 		memset(&hdr->cdb[sc->cmd_len], 0,
 			MAX_COMMAND_SIZE - sc->cmd_len);
 
-	ctask->data_count = 0;
 	ctask->imm_count = 0;
 	if (sc->sc_data_direction == DMA_TO_DEVICE) {
 		hdr->flags |= ISCSI_FLAG_CMD_WRITE;
@@ -172,25 +192,25 @@ static void iscsi_prep_scsi_cmd_pdu(struct iscsi_cmd_task *ctask)
 		ctask->unsol_datasn = 0;
 
 		if (session->imm_data_en) {
-			if (sc->request_bufflen >= session->first_burst)
+			if (scsi_bufflen(sc) >= session->first_burst)
 				ctask->imm_count = min(session->first_burst,
 							conn->max_xmit_dlength);
 			else
-				ctask->imm_count = min(sc->request_bufflen,
+				ctask->imm_count = min(scsi_bufflen(sc),
 							conn->max_xmit_dlength);
-			hton24(ctask->hdr->dlength, ctask->imm_count);
+			hton24(hdr->dlength, ctask->imm_count);
 		} else
-			zero_data(ctask->hdr->dlength);
+			zero_data(hdr->dlength);
 
 		if (!session->initial_r2t_en) {
 			ctask->unsol_count = min((session->first_burst),
-				(sc->request_bufflen)) - ctask->imm_count;
+				(scsi_bufflen(sc))) - ctask->imm_count;
 			ctask->unsol_offset = ctask->imm_count;
 		}
 
 		if (!ctask->unsol_count)
 			/* No unsolicit Data-Out's */
-			ctask->hdr->flags |= ISCSI_FLAG_CMD_FINAL;
+			hdr->flags |= ISCSI_FLAG_CMD_FINAL;
 	} else {
 		hdr->flags |= ISCSI_FLAG_CMD_FINAL;
 		zero_data(hdr->dlength);
@@ -199,13 +219,25 @@ static void iscsi_prep_scsi_cmd_pdu(struct iscsi_cmd_task *ctask)
 			hdr->flags |= ISCSI_FLAG_CMD_READ;
 	}
 
-	conn->scsicmd_pdus_cnt++;
+	/* calculate size of additional header segments (AHSs) */
+	hdrlength = ctask->hdr_len - sizeof(*hdr);
 
-        debug_scsi("iscsi prep [%s cid %d sc %p cdb 0x%x itt 0x%x len %d "
+	WARN_ON(hdrlength & (ISCSI_PAD_LEN-1));
+	hdrlength /= ISCSI_PAD_LEN;
+
+	WARN_ON(hdrlength >= 256);
+	hdr->hlength = hdrlength & 0xFF;
+
+	if (conn->session->tt->init_cmd_task(conn->ctask))
+		return EIO;
+
+	conn->scsicmd_pdus_cnt++;
+	debug_scsi("iscsi prep [%s cid %d sc %p cdb 0x%x itt 0x%x len %d "
 		"cmdsn %d win %d]\n",
-                sc->sc_data_direction == DMA_TO_DEVICE ? "write" : "read",
-                conn->id, sc, sc->cmnd[0], ctask->itt, sc->request_bufflen,
-                session->cmdsn, session->max_cmdsn - session->exp_cmdsn + 1);
+		sc->sc_data_direction == DMA_TO_DEVICE ? "write" : "read",
+		conn->id, sc, sc->cmnd[0], ctask->itt, scsi_bufflen(sc),
+		session->cmdsn, session->max_cmdsn - session->exp_cmdsn + 1);
+	return 0;
 }
 
 /**
@@ -266,7 +298,7 @@ static void fail_command(struct iscsi_conn *conn, struct iscsi_cmd_task *ctask,
 		conn->session->tt->cleanup_cmd_task(conn, ctask);
 
 	sc->result = err;
-	sc->resid = sc->request_bufflen;
+	scsi_set_resid(sc, scsi_bufflen(sc));
 	if (conn->ctask == ctask)
 		conn->ctask = NULL;
 	/* release ref from queuecommand */
@@ -281,7 +313,7 @@ static void fail_command(struct iscsi_conn *conn, struct iscsi_cmd_task *ctask,
  * Must be called with session lock.
  */
 void iscsi_free_mgmt_task(struct iscsi_conn *conn,
-			  struct iscsi_mgmt_task *mtask)  
+			  struct iscsi_mgmt_task *mtask)
 {
 	list_del_init(&mtask->running);
 	if (conn->login_mtask == mtask)
@@ -403,17 +435,19 @@ invalid_datalen:
 	if (sc->sc_data_direction == DMA_TO_DEVICE)
 		goto out;
 
-	if (rhdr->flags & ISCSI_FLAG_CMD_UNDERFLOW) {
+	if (rhdr->flags & (ISCSI_FLAG_CMD_UNDERFLOW |
+	                   ISCSI_FLAG_CMD_OVERFLOW)) {
 		int res_count = be32_to_cpu(rhdr->residual_count);
 
-		if (res_count > 0 && res_count <= sc->request_bufflen)
-			sc->resid = res_count;
+		if (res_count > 0 &&
+		    (rhdr->flags & ISCSI_FLAG_CMD_OVERFLOW ||
+		     res_count <= scsi_bufflen(sc)))
+			scsi_set_resid(sc, res_count);
 		else
 			sc->result = (DID_BAD_TARGET << 16) | rhdr->cmd_status;
-	} else if (rhdr->flags & ISCSI_FLAG_CMD_BIDI_UNDERFLOW)
+	} else if (rhdr->flags & (ISCSI_FLAG_CMD_BIDI_UNDERFLOW |
+	                          ISCSI_FLAG_CMD_BIDI_OVERFLOW))
 		sc->result = (DID_BAD_TARGET << 16) | rhdr->cmd_status;
-	else if (rhdr->flags & ISCSI_FLAG_CMD_OVERFLOW)
-		sc->resid = be32_to_cpu(rhdr->residual_count);
 
 out:
 	debug_scsi("done [sc %lx res %d itt 0x%x]\n",
@@ -887,15 +921,18 @@ check_mgmt:
 	while (!list_empty(&conn->xmitqueue)) {
 		if (conn->tmf_state == TMF_QUEUED)
 			break;
+
 		conn->ctask = list_entry(conn->xmitqueue.next,
 					 struct iscsi_cmd_task, running);
 		if (conn->session->state == ISCSI_STATE_LOGGING_OUT) {
-			fail_command(conn, conn->ctask, DID_IMM_RETRY);
+			fail_command(conn, conn->ctask, DID_IMM_RETRY << 16);
+			continue;
+		}
+		if (iscsi_prep_scsi_cmd_pdu(conn->ctask)) {
+			fail_command(conn, conn->ctask, DID_ABORT << 16);
 			continue;
 		}
 
-		iscsi_prep_scsi_cmd_pdu(conn->ctask);
-		conn->session->tt->init_cmd_task(conn->ctask);
 		conn->ctask->state = ISCSI_TASK_RUNNING;
 		list_move_tail(conn->xmitqueue.next, &conn->run_list);
 		rc = iscsi_xmit_ctask(conn);
@@ -978,8 +1015,9 @@ int iscsi_queuecommand(struct scsi_cmnd *sc, void (*done)(struct scsi_cmnd *))
 	sc->SCp.ptr = NULL;
 
 	host = sc->device->host;
-	session = iscsi_hostdata(host->hostdata);
+	spin_unlock(host->host_lock);
 
+	session = iscsi_hostdata(host->hostdata);
 	spin_lock(&session->lock);
 
 	/*
@@ -1045,11 +1083,13 @@ int iscsi_queuecommand(struct scsi_cmnd *sc, void (*done)(struct scsi_cmnd *))
 	spin_unlock(&session->lock);
 
 	scsi_queue_work(host, &conn->xmitwork);
+	spin_lock(host->host_lock);
 	return 0;
 
 reject:
 	spin_unlock(&session->lock);
 	debug_scsi("cmd 0x%x rejected (%d)\n", sc->cmnd[0], reason);
+	spin_lock(host->host_lock);
 	return SCSI_MLQUEUE_HOST_BUSY;
 
 fault:
@@ -1057,8 +1097,9 @@ fault:
 	printk(KERN_ERR "iscsi: cmd 0x%x is not queued (%d)\n",
 	       sc->cmnd[0], reason);
 	sc->result = (DID_NO_CONNECT << 16);
-	sc->resid = sc->request_bufflen;
+	scsi_set_resid(sc, scsi_bufflen(sc));
 	sc->scsi_done(sc);
+	spin_lock(host->host_lock);
 	return 0;
 }
 EXPORT_SYMBOL_GPL(iscsi_queuecommand);
@@ -1553,59 +1594,64 @@ done:
 }
 EXPORT_SYMBOL_GPL(iscsi_eh_device_reset);
 
+/*
+ * Pre-allocate a pool of @max items of @item_size. By default, the pool
+ * should be accessed via kfifo_{get,put} on q->queue.
+ * Optionally, the caller can obtain the array of object pointers
+ * by passing in a non-NULL @items pointer
+ */
 int
-iscsi_pool_init(struct iscsi_queue *q, int max, void ***items, int item_size)
+iscsi_pool_init(struct iscsi_pool *q, int max, void ***items, int item_size)
 {
-	int i;
+	int i, num_arrays = 1;
 
-	*items = kmalloc(max * sizeof(void*), GFP_KERNEL);
-	if (*items == NULL)
-		return -ENOMEM;
+	memset(q, 0, sizeof(*q));
 
 	q->max = max;
-	q->pool = kmalloc(max * sizeof(void*), GFP_KERNEL);
-	if (q->pool == NULL) {
-		kfree(*items);
-		return -ENOMEM;
-	}
+
+	/* If the user passed an items pointer, he wants a copy of
+	 * the array. */
+	if (items)
+		num_arrays++;
+	q->pool = kzalloc(num_arrays * max * sizeof(void*), GFP_KERNEL);
+	if (q->pool == NULL)
+		goto enomem;
 
 	q->queue = kfifo_init((void*)q->pool, max * sizeof(void*),
 			      GFP_KERNEL, NULL);
-	if (q->queue == ERR_PTR(-ENOMEM)) {
-		kfree(q->pool);
-		kfree(*items);
-		return -ENOMEM;
-	}
+	if (q->queue == ERR_PTR(-ENOMEM))
+		goto enomem;
 
 	for (i = 0; i < max; i++) {
-		q->pool[i] = kmalloc(item_size, GFP_KERNEL);
+		q->pool[i] = kzalloc(item_size, GFP_KERNEL);
 		if (q->pool[i] == NULL) {
-			int j;
-
-			for (j = 0; j < i; j++)
-				kfree(q->pool[j]);
-
-			kfifo_free(q->queue);
-			kfree(q->pool);
-			kfree(*items);
-			return -ENOMEM;
+			q->max = i;
+			goto enomem;
 		}
-		memset(q->pool[i], 0, item_size);
-		(*items)[i] = q->pool[i];
 		__kfifo_put(q->queue, (void*)&q->pool[i], sizeof(void*));
 	}
+
+	if (items) {
+		*items = q->pool + max;
+		memcpy(*items, q->pool, max * sizeof(void *));
+	}
+
 	return 0;
+
+enomem:
+	iscsi_pool_free(q);
+	return -ENOMEM;
 }
 EXPORT_SYMBOL_GPL(iscsi_pool_init);
 
-void iscsi_pool_free(struct iscsi_queue *q, void **items)
+void iscsi_pool_free(struct iscsi_pool *q)
 {
 	int i;
 
 	for (i = 0; i < q->max; i++)
-		kfree(items[i]);
-	kfree(q->pool);
-	kfree(items);
+		kfree(q->pool[i]);
+	if (q->pool)
+		kfree(q->pool);
 }
 EXPORT_SYMBOL_GPL(iscsi_pool_free);
 
@@ -1655,7 +1701,7 @@ iscsi_session_setup(struct iscsi_transport *iscsit,
 			printk(KERN_ERR "iscsi: invalid queue depth of %d. "
 			      "Queue depth must be between 1 and %d.\n",
 			      qdepth, ISCSI_MAX_CMD_PER_LUN);
-		qdepth = ISCSI_DEF_CMD_PER_LUN; 
+		qdepth = ISCSI_DEF_CMD_PER_LUN;
 	}
 
 	if (cmds_max < 2 || (cmds_max & (cmds_max - 1)) ||
@@ -1752,9 +1798,9 @@ module_put:
 cls_session_fail:
 	scsi_remove_host(shost);
 add_host_fail:
-	iscsi_pool_free(&session->mgmtpool, (void**)session->mgmt_cmds);
+	iscsi_pool_free(&session->mgmtpool);
 mgmtpool_alloc_fail:
-	iscsi_pool_free(&session->cmdpool, (void**)session->cmds);
+	iscsi_pool_free(&session->cmdpool);
 cmdpool_alloc_fail:
 	scsi_host_put(shost);
 	return NULL;
@@ -1777,8 +1823,8 @@ void iscsi_session_teardown(struct iscsi_cls_session *cls_session)
 	iscsi_remove_session(cls_session);
 	scsi_remove_host(shost);
 
-	iscsi_pool_free(&session->mgmtpool, (void**)session->mgmt_cmds);
-	iscsi_pool_free(&session->cmdpool, (void**)session->cmds);
+	iscsi_pool_free(&session->mgmtpool);
+	iscsi_pool_free(&session->cmdpool);
 
 	kfree(session->password);
 	kfree(session->password_in);

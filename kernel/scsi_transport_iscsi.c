@@ -33,7 +33,7 @@
 #define ISCSI_SESSION_ATTRS 16
 #define ISCSI_CONN_ATTRS 11
 #define ISCSI_HOST_ATTRS 4
-#define ISCSI_TRANSPORT_VERSION "2.0-865"
+#define ISCSI_TRANSPORT_VERSION "2.0-724"
 
 struct iscsi_internal {
 	int daemon_pid;
@@ -1141,7 +1141,7 @@ iscsi_if_rx(struct sock *sk, int len)
 			struct nlmsghdr	*nlh;
 			struct iscsi_uevent *ev;
 
-			nlh = (struct nlmsghdr *)skb->data;
+			nlh = nlmsg_hdr(skb);
 			if (nlh->nlmsg_len < sizeof(*nlh) ||
 			    skb->len < nlh->nlmsg_len) {
 				break;
@@ -1551,8 +1551,8 @@ static __init int iscsi_transport_init(void)
 	if (err)
 		goto unregister_conn_class;
 
-	nls = netlink_kernel_create(NETLINK_ISCSI, 1, iscsi_if_rx,
-			NULL, THIS_MODULE);
+	nls = netlink_kernel_create(NETLINK_ISCSI, 1, iscsi_if_rx, NULL,
+			THIS_MODULE);
 	if (!nls) {
 		err = -ENOBUFS;
 		goto unregister_session_class;

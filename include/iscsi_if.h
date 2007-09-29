@@ -21,7 +21,7 @@
 #ifndef ISCSI_IF_H
 #define ISCSI_IF_H
 
-#include <iscsi_proto.h>
+#include "iscsi_proto.h"
 
 #define UEVENT_BASE			10
 #define KEVENT_BASE			100
@@ -331,6 +331,7 @@ enum iscsi_host_param {
  * These flags describes reason of stop_conn() call
  */
 #define STOP_CONN_TERM		0x1
+#define STOP_CONN_SUSPEND	0x2
 #define STOP_CONN_RECOVER	0x3
 
 #define ISCSI_STATS_CUSTOM_MAX		32
