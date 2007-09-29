@@ -1,12 +1,13 @@
 diff --git a/iscsi_compat.h b/iscsi_compat.h
 new file mode 100644
-index 0000000..5c33330
+index 0000000..065c9dc
 --- /dev/null
 +++ b/iscsi_compat.h
-@@ -0,0 +1,136 @@
+@@ -0,0 +1,156 @@
 +#include <linux/version.h>
 +#include <linux/kernel.h>
 +#include <scsi/scsi.h>
++#include <scsi/scsi_cmnd.h>
 +
 +#ifndef ISCSI_COMPAT
 +#define ISCSI_COMPAT
@@ -139,9 +140,28 @@ index 0000000..5c33330
 +	netlink_kernel_create(uint, groups, input, mod)
 +#endif
 +
++#define scsi_sg_count(cmd) ((cmd)->use_sg)
++#define scsi_sglist(cmd) ((struct scatterlist *)(cmd)->request_buffer)
++#define scsi_bufflen(cmd) ((cmd)->request_bufflen)
++
++static inline void scsi_set_resid(struct scsi_cmnd *cmd, int resid)
++{
++	cmd->resid = resid;
++}
++
++static inline int scsi_get_resid(struct scsi_cmnd *cmd)
++{
++	return cmd->resid;
++}
++
++static inline struct nlmsghdr *nlmsg_hdr(const struct sk_buff *skb)
++{
++	return (struct nlmsghdr *)skb->data;
++}
++
 +#endif
 diff --git a/iscsi_tcp.c b/iscsi_tcp.c
-index a51c564..5c23cfb 100644
+index bfd8ffe..6317005 100644
 --- a/iscsi_tcp.c
 +++ b/iscsi_tcp.c
 @@ -43,6 +43,7 @@
@@ -153,19 +173,19 @@ index a51c564..5c23cfb 100644
  MODULE_AUTHOR("Dmitry Yusupov <dmitry_yus@yahoo.com>, "
  	      "Alex Aizman <itn780@yahoo.com>");
 diff --git a/iscsi_tcp.h b/iscsi_tcp.h
-index 4b86fe4..86ca6fd 100644
+index 57c2317..783e448 100644
 --- a/iscsi_tcp.h
 +++ b/iscsi_tcp.h
-@@ -52,6 +52,7 @@
+@@ -27,6 +27,7 @@
  #define ISCSI_SG_TABLESIZE		SG_ALL
  #define ISCSI_TCP_MAX_CMD_LEN		16
  
 +#include "iscsi_compat.h"
  struct crypto_hash;
  struct socket;
- 
+ struct iscsi_tcp_conn;
 diff --git a/libiscsi.c b/libiscsi.c
-index 5f695b6..8ddb777 100644
+index dce6b4e..f54a099 100644
 --- a/libiscsi.c
 +++ b/libiscsi.c
 @@ -24,6 +24,7 @@
@@ -176,7 +196,7 @@ index 5f695b6..8ddb777 100644
  #include <asm/unaligned.h>
  #include <net/tcp.h>
  #include <scsi/scsi_cmnd.h>
-@@ -937,10 +938,9 @@ again:
+@@ -977,10 +978,9 @@ again:
  	return rc;
  }
  
@@ -189,7 +209,7 @@ index 5f695b6..8ddb777 100644
  	int rc;
  	/*
  	 * serialize Xmit worker on a per-connection basis.
-@@ -1681,7 +1681,9 @@ iscsi_session_setup(struct iscsi_transport *iscsit,
+@@ -1728,7 +1728,9 @@ iscsi_session_setup(struct iscsi_transport *iscsit,
  	shost->max_cmd_len = iscsit->max_cmd_len;
  	shost->transportt = scsit;
  	shost->transportt->create_work_queue = 1;
@@ -199,7 +219,7 @@ index 5f695b6..8ddb777 100644
  	*hostno = shost->host_no;
  
  	session = iscsi_hostdata(shost->hostdata);
-@@ -1829,7 +1831,7 @@ iscsi_conn_setup(struct iscsi_cls_session *cls_session, uint32_t conn_idx)
+@@ -1876,7 +1878,7 @@ iscsi_conn_setup(struct iscsi_cls_session *cls_session, uint32_t conn_idx)
  	INIT_LIST_HEAD(&conn->mgmtqueue);
  	INIT_LIST_HEAD(&conn->xmitqueue);
  	INIT_LIST_HEAD(&conn->requeue);
@@ -209,7 +229,7 @@ index 5f695b6..8ddb777 100644
  	/* allocate login_mtask used for the login/text sequences */
  	spin_lock_bh(&session->lock);
 diff --git a/libiscsi.h b/libiscsi.h
-index d02c55f..995db87 100644
+index 8328bc7..028b5df 100644
 --- a/libiscsi.h
 +++ b/libiscsi.h
 @@ -24,12 +24,14 @@
@@ -230,7 +250,7 @@ index d02c55f..995db87 100644
  struct scsi_device;
  struct Scsi_Host;
 diff --git a/scsi_transport_iscsi.c b/scsi_transport_iscsi.c
-index 56ba5c2..66a0a69 100644
+index 0dbcedd..2e1ba67 100644
 --- a/scsi_transport_iscsi.c
 +++ b/scsi_transport_iscsi.c
 @@ -21,7 +21,10 @@
@@ -293,7 +313,7 @@ index 56ba5c2..66a0a69 100644
  
  	/* this is released in the dev's release function */
  	scsi_host_get(shost);
-@@ -1404,7 +1404,10 @@ iscsi_register_transport(struct iscsi_transport *tt)
+@@ -1406,7 +1406,10 @@ iscsi_register_transport(struct iscsi_transport *tt)
  	INIT_LIST_HEAD(&priv->list);
  	priv->daemon_pid = -1;
  	priv->iscsi_transport = tt;
@@ -305,7 +325,7 @@ index 56ba5c2..66a0a69 100644
  	priv->cdev.class = &iscsi_transport_class;
  	snprintf(priv->cdev.class_id, BUS_ID_SIZE, "%s", tt->name);
 diff --git a/scsi_transport_iscsi.h b/scsi_transport_iscsi.h
-index bc1ce21..4d8dfc1 100644
+index 26717c5..a2dfb0f 100644
 --- a/scsi_transport_iscsi.h
 +++ b/scsi_transport_iscsi.h
 @@ -24,7 +24,12 @@
