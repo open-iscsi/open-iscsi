@@ -150,6 +150,8 @@ iscsi_tcp_segment_map(struct iscsi_segment *segment, int recv)
 	if (page_count(sg->page) >= 1 && !recv)
 		return;
 
+	debug_tcp("iscsi_tcp_segment_map %s %p\n", recv ? "recv" : "xmit",
+		  segment);
 	segment->sg_mapped = kmap_atomic(sg->page, KM_SOFTIRQ0);
 	segment->data = segment->sg_mapped + sg->offset + segment->sg_offset;
 }
@@ -157,7 +159,10 @@ iscsi_tcp_segment_map(struct iscsi_segment *segment, int recv)
 static inline void
 iscsi_tcp_segment_unmap(struct iscsi_segment *segment)
 {
+	debug_tcp("iscsi_tcp_segment_unmap %p\n", segment);
+
 	if (segment->sg_mapped) {
+		debug_tcp("iscsi_tcp_segment_unmap valid\n");
 		kunmap_atomic(segment->sg_mapped, KM_SOFTIRQ0);
 		segment->sg_mapped = NULL;
 		segment->data = NULL;
@@ -349,15 +354,17 @@ iscsi_tcp_segment_recv(struct iscsi_tcp_conn *tcp_conn,
 	unsigned int copy = 0, copied = 0;
 
 	while (!iscsi_tcp_segment_done(segment, 1, copy)) {
-		if (copied == len)
-			goto out;
+		if (copied == len) {
+			debug_tcp("iscsi_tcp_segment_recv copied %d bytes\n",
+				  len);
+			break;
+		}
 
 		copy = min(len - copied, segment->size - segment->copied);
+		debug_tcp("iscsi_tcp_segment_recv copying %d\n", copy);
 		memcpy(segment->data + segment->copied, ptr + copied, copy);
 		copied += copy;
 	}
-
-out:
 	return copied;
 }
 
@@ -946,8 +953,11 @@ iscsi_tcp_recv(read_descriptor_t *rd_desc, struct sk_buff *skb,
 		const u8 *ptr;
 
 		avail = skb_seq_read(consumed, &ptr, &seq);
-		if (avail == 0)
+		if (avail == 0) {
+			debug_tcp("no more data avail. Consumed %d\n",
+				  consumed);
 			break;
+		}
 		BUG_ON(segment->copied >= segment->size);
 
 		debug_tcp("skb %p ptr=%p avail=%u\n", skb, ptr, avail);
@@ -956,6 +966,7 @@ iscsi_tcp_recv(read_descriptor_t *rd_desc, struct sk_buff *skb,
 		consumed += rc;
 
 		if (segment->total_copied >= segment->total_size) {
+			debug_tcp("segment done\n");
 			rc = segment->done(tcp_conn, segment);
 			if (rc != 0) {
 				skb_abort_seq_read(&seq);
@@ -966,7 +977,7 @@ iscsi_tcp_recv(read_descriptor_t *rd_desc, struct sk_buff *skb,
 			 * next segment. */
 		}
 	}
-
+	skb_abort_seq_read(&seq);
 	conn->rxdata_octets += consumed;
 	return consumed;
 
