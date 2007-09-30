@@ -1435,7 +1435,6 @@ flush:
 		r2t = tcp_ctask->r2t;
 		if (r2t != NULL) {
 			/* Continue with this R2T? */
-setup_data_out_pdu:
 			if (!iscsi_solicit_data_cont(conn, ctask, r2t)) {
 				debug_scsi("  done with r2t %p\n", r2t);
 
@@ -1449,8 +1448,6 @@ setup_data_out_pdu:
 			__kfifo_get(tcp_ctask->r2tqueue, (void*)&tcp_ctask->r2t,
 				    sizeof(void*));
 			r2t = tcp_ctask->r2t;
-			if (r2t)
-				goto setup_data_out_pdu;
 		}
 		spin_unlock_bh(&session->lock);
 
@@ -1460,8 +1457,8 @@ setup_data_out_pdu:
 			return 0;
 		}
 
-		debug_scsi("sol dout [dsn %d itt 0x%x doff %d dlen %d]\n",
-			r2t->solicit_datasn - 1, ctask->itt,
+		debug_scsi("sol dout %p [dsn %d itt 0x%x doff %d dlen %d]\n",
+			r2t, r2t->solicit_datasn - 1, ctask->itt,
 			r2t->data_offset + r2t->sent, r2t->data_count);
 
 		iscsi_tcp_send_hdr_prep(conn, &r2t->dtask.hdr,
