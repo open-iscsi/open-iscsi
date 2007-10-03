@@ -209,6 +209,11 @@ iscsi_tcp_segment_done(struct iscsi_segment *segment, int recv, unsigned copied)
 	debug_tcp("copied %u %u size %u %s\n", segment->copied, copied,
 		  segment->size, recv ? "recv" : "xmit");
 	if (segment->hash && copied) {
+		/*
+		 * if a segment is mapped we must unmap it, because the
+		 * crypto layer will want to map it itself.
+		 */
+		iscsi_tcp_segment_unmap(segment);
 		if (!segment->data) {
 			sg = *(segment->sg);
 			sg.length = copied;
