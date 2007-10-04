@@ -38,6 +38,28 @@ index 0000000..614300d
 +#endif
 +
 +#endif
+diff --git a/iscsi_tcp.c b/iscsi_tcp.c
+index 8296274..eea493c 100644
+--- a/iscsi_tcp.c
++++ b/iscsi_tcp.c
+@@ -436,6 +436,17 @@ iscsi_segment_seek_sg(struct iscsi_segment *segment,
+ 
+ 	debug_scsi("iscsi_segment_seek_sg offset %u size %llu\n",
+ 		  offset, size);
++
++	/*
++	 * older kernels could send use_sg=0 for commands like sgio
++	 * or scsi-ml commands.
++	 */
++	if (!sg_count) {
++		iscsi_segment_init_linear(segment, (void *)sg + offset,
++					  size, done, hash);
++		return 0;
++	}
++
+ 	__iscsi_segment_init(segment, size, done, hash);
+ 	for (i = 0; i < sg_count; i++, sg = iscsi_sg_next(sg)) {
+ 		debug_scsi("sg %d, len %u offset %u\n", i, sg->length,
 diff --git a/iscsi_tcp.h b/iscsi_tcp.h
 index 57c2317..0b706a3 100644
 --- a/iscsi_tcp.h
