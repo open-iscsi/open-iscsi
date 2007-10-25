@@ -519,6 +519,9 @@ __session_create(node_rec_t *rec, struct iscsi_transport *t)
 		session->replacement_timeout = DEF_REPLACEMENT_TIMEO;
 	}
 	session->fast_abort = rec->session.iscsi.FastAbort;
+	session->abort_timeout = rec->session.err_timeo.abort_timeout;
+	session->lu_reset_timeout = rec->session.err_timeo.lu_reset_timeout;
+	session->host_reset_timeout = rec->session.err_timeo.host_reset_timeout;
 
 	/* OUI and uniqifying number */
 	session->isid[0] = DRIVER_ISID_0;
