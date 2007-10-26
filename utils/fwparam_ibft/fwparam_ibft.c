@@ -426,7 +426,7 @@ char *search_ibft(unsigned char *start, int length)
 			continue;
 
 		/* Make sure that length is valid. */
-		if ((cur_ptr + ibft_hdr->length) < (start + length)) {
+		if ((cur_ptr + ibft_hdr->length) <= (start + length)) {
 			/* Let verify the checksum */
 			for (i = 0, check_sum = 0; i < ibft_hdr->length; i++)
 				check_sum += cur_ptr[i];
@@ -445,12 +445,13 @@ fwparam_ibft(struct boot_context *context, const char *filepath)
 	char *filebuf, *ibft_loc;
 	int start = 512 * 1024; /* 512k */
 	int end_search = (1024 * 1024) - start; /* 512k */
+	struct stat buf;
 
 	if (filepath)
 		strncpy(filename, filepath, FILENAMESZ);
 	else
 		strncpy(filename, X86_DEFAULT_FILENAME, FILENAMESZ);
-	
+
 	fd = open(filename, O_RDONLY);
 	if (fd < 0) {
 		fprintf(stderr, "Could not open %s: %s (%d)\n",
@@ -458,6 +459,17 @@ fwparam_ibft(struct boot_context *context, const char *filepath)
 		return -1;
 	}
 
+	/* Find the size. */
+	if (stat(filename, &buf)!=0) {
+		fprintf(stderr, "Could not stat file %s: %s (%d)\n",
+			filename, strerror(errno), errno);
+		return -1;
+	}
+	/* And if not zero use that size */
+	if (buf.st_size > 0) {
+		start = 0;
+		end_search=buf.st_size;
+	}
 	/*
 	 * XXX Possibly warn and exit if start > filesize(fd), or if start +
 	 * end_search > filesize(fd). Else, we will get a bus error for
@@ -476,7 +488,7 @@ fwparam_ibft(struct boot_context *context, const char *filepath)
 	if (ibft_loc)
 		ret = dump_ibft(ibft_loc, context);
 	else {
-		printf("could not fine\n");
+		printf("Could not find iBFT.\n");
 		ret = -1;
 	}
 	munmap(filebuf, end_search);
