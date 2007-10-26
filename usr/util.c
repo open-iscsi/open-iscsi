@@ -5,6 +5,8 @@
 #include <string.h>
 #include <errno.h>
 #include <sys/un.h>
+#include <sys/time.h>
+#include <sys/resource.h>
 
 #include "log.h"
 #include "actor.h"
@@ -84,6 +86,35 @@ str_to_ipport(char *str, int *port, int *tpgt)
 
 	log_debug(2, "ip %s, port %d, tgpt %d", ip, *port, *tpgt);
 	return ip;
+}
+
+#define ISCSI_MAX_FILES 16384
+
+int increase_max_files(void)
+{
+	struct rlimit rl;
+	int err;
+
+	err = getrlimit(RLIMIT_NOFILE, &rl);
+	if (err) {
+		log_debug(1, "Could not get file limit (err %d)\n", errno);
+		return errno;
+	}
+	log_debug(1, "Max file limits %lu %lu\n", rl.rlim_cur, rl.rlim_max);
+
+	if (rl.rlim_cur < ISCSI_MAX_FILES)
+		rl.rlim_cur = ISCSI_MAX_FILES;
+	if (rl.rlim_max < ISCSI_MAX_FILES)
+		rl.rlim_max = ISCSI_MAX_FILES;
+
+	err = setrlimit(RLIMIT_NOFILE, &rl);
+	if (err) {
+		log_debug(1, "Could not set file limit to %lu/%lu (err %d)\n",
+			  rl.rlim_cur, rl.rlim_max, errno);
+		return errno;
+	}
+
+	return 0;
 }
 
 #define MAXSLEEP 128

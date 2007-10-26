@@ -452,6 +452,7 @@ int main(int argc, char *argv[])
 		exit(1);
 	}
 
+	increase_max_files();
 	actor_init();
 	isns_fd = isns_init();
 	event_loop(ipc, control_fd, mgmt_ipc_fd, isns_fd);

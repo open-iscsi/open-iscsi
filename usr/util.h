@@ -11,6 +11,7 @@ struct session_info;
 
 extern int oom_adjust(void);
 extern void daemon_init(void);
+extern int increase_max_files(void);
 
 extern int do_iscsid(struct iscsiadm_req *req,  struct iscsiadm_rsp *rsp);
 extern void iscsid_handle_error(int err);

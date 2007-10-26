@@ -2063,6 +2063,7 @@ main(int argc, char **argv)
 		goto out;
 	}
 
+	increase_max_files();
 	db = idbm_init(get_config_file);
 	if (!db) {
 		log_warning("exiting due to idbm configuration error");
