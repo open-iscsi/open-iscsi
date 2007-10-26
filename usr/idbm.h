@@ -52,11 +52,14 @@ typedef struct recinfo {
 	int		numopts;
 } recinfo_t;
 
+typedef char *(idbm_get_config_file_fn)(void);
+
 typedef struct idbm {
 	void		*discdb;
 	void		*nodedb;
 	char		*configfile;
 	int             refs;
+	idbm_get_config_file_fn *get_config_file;
 	node_rec_t	nrec;
 	recinfo_t	ninfo[MAX_KEYS];
 	discovery_rec_t	drec_st;
@@ -93,7 +96,8 @@ extern int idbm_for_each_rec(idbm_t *db, int *found, void *data,
 
 extern char* get_iscsi_initiatorname(char *pathname);
 extern char* get_iscsi_initiatoralias(char *pathname);
-extern idbm_t* idbm_init(char *configfile);
+extern idbm_t *idbm_init(idbm_get_config_file_fn *fn);
+
 extern void idbm_node_setup_from_conf(idbm_t *db, node_rec_t *rec);
 extern void idbm_terminate(idbm_t *db);
 extern int idbm_print_node_info(idbm_t *db, void *data, node_rec_t *rec);

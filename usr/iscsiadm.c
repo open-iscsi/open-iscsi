@@ -43,10 +43,7 @@
 
 struct iscsi_ipc *ipc = NULL; /* dummy */
 static char program_name[] = "iscsiadm";
-
-char initiator_name[TARGET_NAME_MAXLEN];
-char initiator_alias[TARGET_NAME_MAXLEN];
-char config_file[TARGET_NAME_MAXLEN];
+static char config_file[TARGET_NAME_MAXLEN];
 
 enum iscsiadm_mode {
 	MODE_DISCOVERY,
@@ -825,47 +822,25 @@ static int print_nodes(idbm_t *db, int info_level, struct node_rec *rec)
 	return rc;
 }
 
-static int
-config_init(void)
+static char *get_config_file(void)
 {
 	int rc;
 	iscsiadm_req_t req;
 	iscsiadm_rsp_t rsp;
 
 	memset(&req, 0, sizeof(req));
-	req.command = MGMT_IPC_CONFIG_INAME;
-
-	rc = do_iscsid(&req, &rsp);
-	if (rc)
-		return EIO;
-
-	if (rsp.u.config.var[0] != '\0') {
-		strcpy(initiator_name, rsp.u.config.var);
-	}
-
-	memset(&req, 0, sizeof(req));
-	req.command = MGMT_IPC_CONFIG_IALIAS;
-
-	rc = do_iscsid(&req, &rsp);
-	if (rc)
-		return EIO;
-
-	if (rsp.u.config.var[0] != '\0') {
-		strcpy(initiator_alias, rsp.u.config.var);
-	}
-
-	memset(&req, 0, sizeof(req));
 	req.command = MGMT_IPC_CONFIG_FILE;
 
 	rc = do_iscsid(&req, &rsp);
 	if (rc)
-		return EIO;
+		return NULL;
 
 	if (rsp.u.config.var[0] != '\0') {
 		strcpy(config_file, rsp.u.config.var);
+		return config_file;
 	}
 
-	return 0;
+	return NULL;
 }
 
 static int print_session_flat(void *data, struct session_info *info)
@@ -2088,10 +2063,7 @@ main(int argc, char **argv)
 		goto out;
 	}
 
-
-	config_init();
-
-	db = idbm_init(config_file);
+	db = idbm_init(get_config_file);
 	if (!db) {
 		log_warning("exiting due to idbm configuration error");
 		return -1;

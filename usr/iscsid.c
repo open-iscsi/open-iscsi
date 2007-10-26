@@ -240,12 +240,17 @@ static int sync_session(void *data, struct session_info *info)
 	return 0;
 }
 
+static char *iscsid_get_config_file(void)
+{
+	return daemon_config.config_file;
+}
+
 static void sync_sessions(void)
 {
 	idbm_t *db;
 	int nr_found = 0;
 
-	db = idbm_init(daemon_config.config_file);
+	db = idbm_init(iscsid_get_config_file);
 	if (!db)
 		return;
 	sysfs_for_each_session(db, &nr_found, sync_session);

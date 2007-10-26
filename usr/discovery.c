@@ -50,6 +50,9 @@
 
 static int rediscover = 0;
 
+static char initiator_name[TARGET_NAME_MAXLEN];
+static char initiator_alias[TARGET_NAME_MAXLEN];
+
 int discovery_offload_sendtargets(idbm_t *db, int host_no, int do_login,
 				  discovery_rec_t *drec)
 {
@@ -502,6 +505,40 @@ msecs_until(struct timeval *timer)
 	return msecs;
 }
 
+static int request_initiator_name(void)
+{
+	int rc;
+	iscsiadm_req_t req;
+	iscsiadm_rsp_t rsp;
+
+	memset(initiator_name, 0, TARGET_NAME_MAXLEN);
+	initiator_name[0] = '\0';
+	memset(initiator_alias, 0, TARGET_NAME_MAXLEN);
+	initiator_alias[0] = '\0';
+
+	memset(&req, 0, sizeof(req));
+	req.command = MGMT_IPC_CONFIG_INAME;
+
+	rc = do_iscsid(&req, &rsp);
+	if (rc)
+		return EIO;
+
+	if (rsp.u.config.var[0] != '\0')
+		strcpy(initiator_name, rsp.u.config.var);
+
+	memset(&req, 0, sizeof(req));
+	req.command = MGMT_IPC_CONFIG_IALIAS;
+
+	rc = do_iscsid(&req, &rsp);
+	if (rc)
+		/* alias is optional so return ok */
+		return 0;
+
+	if (rsp.u.config.var[0] != '\0')
+		strcpy(initiator_alias, rsp.u.config.var);
+	return 0;
+}
+
 static iscsi_session_t *
 init_new_session(struct iscsi_sendtargets_config *config)
 {
@@ -544,7 +581,7 @@ init_new_session(struct iscsi_sendtargets_config *config)
 	session->isid[5] = 0;
 
 	/* initialize the session */
-	if (initiator_name[0] == '\0') {
+	if (request_initiator_name() ||initiator_name[0] == '\0') {
 		log_error("Cannot perform discovery. Initiatorname required.");
 		free(session);
 		return NULL;

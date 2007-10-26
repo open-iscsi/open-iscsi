@@ -271,6 +271,11 @@ static int isns_recv_pdu(struct isns_task *task)
 	return 0;
 }
 
+static char *isns_get_config_file(void)
+{
+	return dconfig->config_file;
+}
+
 static void add_new_target_node(char *targetname, uint8_t *ip, int port,
 				int tag)
 {
@@ -289,7 +294,7 @@ static void add_new_target_node(char *targetname, uint8_t *ip, int port,
 	log_debug(1, "add a new target node:%s %s,%d %d",
 		  targetname, dst, port, tag);
 
-	db = idbm_init(dconfig->config_file);
+	db = idbm_init(isns_get_config_file);
 	if (!db) {
 		log_error("Could not add new target node:%s %s,%d",
 			  targetname, dst, port);
@@ -696,7 +701,7 @@ int isns_init(void)
 	int fd = -1, err;
 	FILE *f;
 
-	f = fopen(dconfig->config_file, "r");
+	f = fopen(isns_get_config_file(), "r");
 	if (!f)
 		return -EIO;
 

@@ -625,6 +625,7 @@ idbm_recinfo_config(recinfo_t *info, FILE *f)
 static void
 idbm_sync_config(idbm_t *db)
 {
+	char *config_file;
 	FILE *f;
 
 	/* in case of no configuration file found we just
@@ -640,15 +641,25 @@ idbm_sync_config(idbm_t *db)
 	idbm_recinfo_discovery(&db->drec_isns, db->dinfo_isns);
 	idbm_recinfo_node(&db->nrec, db->ninfo);
 
-	f = fopen(db->configfile, "r");
-	if (!f) {
-		log_debug(1, "cannot open configuration file %s. "
-			  "Default location is %s.\n",
-			  db->configfile, CONFIG_FILE);
+	if (!db->get_config_file) {
+		log_debug(1, "Could not get config file. No config file fn\n");
 		return;
 	}
 
-	log_debug(5, "updating defaults from '%s'", db->configfile);
+	config_file = db->get_config_file();
+	if (!config_file) {
+		log_debug(1, "Could not get config file for sync config\n");
+		return;
+	}
+
+	f = fopen(config_file, "r");
+	if (!f) {
+		log_debug(1, "cannot open configuration file %s. "
+			  "Default location is %s.\n",
+			  config_file, CONFIG_FILE);
+		return;
+	}
+	log_debug(5, "updating defaults from '%s'", config_file);
 
 	idbm_recinfo_config(db->dinfo_st, f);
 	idbm_recinfo_config(db->dinfo_slp, f);
@@ -2562,7 +2573,7 @@ idbm_node_set_param(idbm_t *db, void *data, node_rec_t *rec)
 }
 
 idbm_t*
-idbm_init(char *configfile)
+idbm_init(idbm_get_config_file_fn *fn)
 {
 	idbm_t *db;
 
@@ -2580,18 +2591,14 @@ idbm_init(char *configfile)
 		log_error("out of memory on idbm allocation");
 		return NULL;
 	}
-
 	memset(db, 0, sizeof(idbm_t));
-	db->configfile = strdup(configfile);
+	db->get_config_file = fn;
 	return db;
 }
 
 void
 idbm_terminate(idbm_t *db)
 {
-	if (!db)
-		return;
-
-	free(db->configfile);
-	free(db);
+	if (db)
+		free(db);
 }
