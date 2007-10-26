@@ -74,14 +74,27 @@ free_string_buffer(struct string_buffer *s)
 void
 enlarge_data(struct string_buffer *s, int length)
 {
+	void *new_buf;
+
 	if (s) {
 		s->data_length += length;
 		if (s->data_length >= s->allocated_length) {
-			/* too big */
-			log_error("enlarged buffer %p to %d data bytes, "
-			       "with only %d bytes of buffer space",
-			       s, (int)s->data_length,
-			       (int)s->allocated_length);
+			log_debug(7, "enlarge buffer from %lu to %lu\n",
+				  s->allocated_length,
+				  s->data_length - s->allocated_length);
+			new_buf = realloc(s->buffer,
+					  s->data_length - s->allocated_length);
+			if (!new_buf) {
+				/* too big */
+				log_error("enlarged buffer %p to %d data "
+					  "bytes, with only %d bytes of buffer "
+					  "space", s, (int)s->data_length,
+					   (int)s->allocated_length);
+				exit(1);
+			}
+			s->buffer = new_buf;
+			memset(s->buffer + s->allocated_length, 0, length);
+			s->allocated_length += length;
 		}
 	}
 }
@@ -99,29 +112,13 @@ remove_initial(struct string_buffer *s, int length)
 	}
 }
 
-static int
-realloc_buffer(struct string_buffer *s, size_t min_length)
-{
-	size_t length = MAX(min_length + 1, s->allocated_length + 1024);
-	char *buf = realloc(s->buffer, length);
-
-	if (buf) {
-		s->buffer = buf;
-		s->buffer[length - 1] = '\0';
-		s->allocated_length = length;
-		return 1;
-	} else {
-		log_error(
-		       "failed to allocate more space for string buffer %p", s);
-		return 0;
-	}
-}
-
 /* truncate the data length down */
 void
 truncate_buffer(struct string_buffer *s, size_t length)
 {
 	if (s) {
+		if (!s->data_length)
+			return;
 		if (length <= s->data_length) {
 			s->data_length = length;
 			s->buffer[s->data_length] = '\0';
@@ -139,100 +136,6 @@ truncate_buffer(struct string_buffer *s, size_t length)
 			       (int)length, (int)s->allocated_length);
 		}
 	}
-}
-
-/* append a string onto the buffer */
-int
-append_string(struct string_buffer *s, const char *str)
-{
-	size_t length = strlen(str);
-	size_t needed = s->data_length + length + 1;	/* existing + new +
-							 * trailing NUL
-							 */
-
-	if (needed >= s->allocated_length) {
-		/* need more space */
-		if (!realloc_buffer(s, needed))
-			return 0;
-	}
-
-	strcpy(s->buffer + s->data_length, str);
-	s->data_length += length;
-	return 1;
-}
-
-int
-append_sprintf(struct string_buffer *s, const char *format, ...)
-{
-	va_list args;
-	size_t appended, available;
-	int ret = 0;
-
-	va_start(args, format);
-
-	for (;;) {
-		available = s->allocated_length - s->data_length - 1;
-		appended = vsnprintf(s->buffer + s->data_length, available,
-				     format, args);
-
-		if (appended < 0) {
-			/* error, need more space, but don't know how much */
-			if (!realloc_buffer(s, s->data_length + 1024))
-				goto done;
-		} else if (appended >= available) {
-			/* what would have been output overflows the buffer,
-			 * need more space
-			 */
-			if (!realloc_buffer(s, s->data_length + appended))
-				goto done;
-		} else {
-			/* it fit */
-			s->data_length += appended;
-			ret = 1;
-			break;
-		}
-	}
-
- done:
-	va_end(args);
-
-	return ret;
-}
-
-/* append a string after the NUL at the end of any current data.  This
- * maintains NUL termination of all strings
- */
-int
-adjoin_string(struct string_buffer *s, const char *str)
-{
-	size_t length = strlen(str) + 1;
-	size_t needed;
-
-	if (s->buffer[s->data_length - 1] == '\0')
-		needed = s->data_length + length;	/* lengths include NULs
-							 */
-	else
-		needed = s->data_length + 1 + length;	/* existing + NUL +
-							 * new + NUL
-							 */
-	if (needed >= s->allocated_length) {
-		/* need more space */
-		if (!realloc_buffer(s, needed))
-			return 0;
-	}
-
-	if (s->buffer[s->data_length - 1] == '\0') {
-		memcpy(s->buffer + s->data_length, str, length);
-						/* lengths already include NULs
-						 */
-		s->data_length += length;	/* new string + NUL */
-	} else {
-		memcpy(s->buffer + s->data_length + 1, str, length);
-						/* NUL + new + NUL */
-		s->data_length += 1 + length;	/* NUL + new string + NUL */
-	}
-
-	return 1;
 }
 
 char *
@@ -260,28 +163,4 @@ unused_length(struct string_buffer * s)
 		return s->allocated_length - s->data_length;
 	else
 		return 0;
-}
-
-/* write the entire buffer to the fd, or exit */
-void
-write_buffer(struct string_buffer *s, int fd)
-{
-	const char *data = buffer_data(s);
-	const char *end = data + data_length(s);
-	int result;
-
-	/* write the target info to the pipe */
-	log_debug(7, "writing to pipe %d, data %p, size %d, text '%s'",
-		  fd, data, (int)(end - data), data);
-	while (data < end) {
-		result = write(fd, data, end - data);
-		if (result < 0) {
-			if (errno != EINTR) {
-				log_error("can't write to pipe %d", fd);
-				exit(1);
-			}
-		} else {
-			data += result;
-		}
-	}
 }

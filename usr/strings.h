@@ -35,12 +35,8 @@ extern void free_string_buffer(struct string_buffer *s);
 extern void enlarge_data(struct string_buffer *s, int length);
 extern void remove_initial(struct string_buffer *s, int length);
 extern void truncate_buffer(struct string_buffer *s, size_t length);
-extern int append_string(struct string_buffer *s, const char *str);
-extern int append_sprintf(struct string_buffer *s, const char *format, ...);
-extern int adjoin_string(struct string_buffer *s, const char *str);
 extern char *buffer_data(struct string_buffer *s);
 extern size_t data_length(struct string_buffer *s);
 extern size_t unused_length(struct string_buffer *s);
-extern void write_buffer(struct string_buffer *s, int fd);
 
 #endif /* STRINGS_H */

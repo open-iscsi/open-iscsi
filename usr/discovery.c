@@ -502,38 +502,6 @@ msecs_until(struct timeval *timer)
 	return msecs;
 }
 
-static int
-soonest_msecs(struct timeval *t1, struct timeval *t2, struct timeval *t3)
-{
-	int m1 = msecs_until(t1);
-	int m2 = msecs_until(t2);
-	int m3 = msecs_until(t3);
-
-	/* infinity is -1, handle it specically */
-	if ((m1 == -1) && (m2 == -1))
-		return m3;
-
-	if ((m1 == -1) && (m3 == -1))
-		return m2;
-
-	if ((m2 == -1) && (m3 == -1))
-		return m1;
-
-	if (m1 == -1)
-		return (m2 < m3) ? m2 : m3;
-
-	if (m2 == -1)
-		return (m1 < m3) ? m1 : m3;
-
-	if (m3 == -1)
-		return (m1 < m2) ? m1 : m2;
-
-	if (m1 < m2)
-		return (m1 < m3) ? m1 : m3;
-	else
-		return (m2 < m3) ? m2 : m3;
-}
-
 static iscsi_session_t *
 init_new_session(struct iscsi_sendtargets_config *config)
 {
@@ -685,7 +653,6 @@ process_recvd_pdu(idbm_t *db, struct iscsi_hdr *pdu,
 		  char *default_port,
 		  int *active,
 		  int *valid_text,
-		  struct timeval *async_timer,
 		  char *data)
 {
 	int rc=0;
@@ -698,6 +665,7 @@ process_recvd_pdu(idbm_t *db, struct iscsi_hdr *pdu,
 			int final =
 				(text_response->flags & ISCSI_FLAG_CMD_FINAL) ||
 				(text_response-> ttt == ISCSI_RESERVED_TAG);
+			size_t curr_data_length;
 
 			log_debug(4, "discovery session to %s:%d received text"
 				 " response, %d data bytes, ttt 0x%x, "
@@ -711,7 +679,10 @@ process_recvd_pdu(idbm_t *db, struct iscsi_hdr *pdu,
 			/* mark how much more data in the sendtargets
 			 * buffer is now valid
 			 */
-			enlarge_data (sendtargets, dlength);
+			curr_data_length = data_length(sendtargets);
+			enlarge_data(sendtargets, dlength);
+			memcpy(buffer_data(sendtargets) + curr_data_length,
+			       data, dlength);
 
 			/*
 			 * we got a response so clear out the current
@@ -827,14 +798,13 @@ int discovery_sendtargets(idbm_t *db, discovery_rec_t *drec,
 	struct iscsi_hdr pdu_buffer;
 	struct iscsi_hdr *pdu = &pdu_buffer;
 	char *data = NULL;
-	char *end_of_data;
 	int active = 0, valid_text = 0;
-	struct timeval connection_timer, async_timer;
+	struct timeval connection_timer;
 	int timeout;
 	int rc;
 	struct string_buffer sendtargets;
 	uint8_t status_class = 0, status_detail = 0;
-	unsigned int login_failures = 0;
+	unsigned int login_failures = 0, data_len;
 	int login_delay = 0;
 	struct sockaddr_storage ss;
 	char host[NI_MAXHOST], serv[NI_MAXSERV], default_port[NI_MAXSERV];
@@ -845,7 +815,6 @@ int discovery_sendtargets(idbm_t *db, discovery_rec_t *drec,
 		 drec->address, drec->port);
 	memset(&pdu_buffer, 0, sizeof (pdu_buffer));
 	clear_timer(&connection_timer);
-	clear_timer(&async_timer);
 
 	/* allocate a new session, and initialize default values */
 	session = init_new_session(config);
@@ -862,13 +831,15 @@ int discovery_sendtargets(idbm_t *db, discovery_rec_t *drec,
 		 session->isid[1], session->isid[2], session->isid[3],
 		 session->isid[4], session->isid[5]);
 
-	/* allocate data buffers for SendTargets data and discovery pipe info */
-	init_string_buffer(&sendtargets,
-			  session->conn[0].max_recv_dlength);
-	if (!sendtargets.buffer) {
+	/* allocate data buffers for SendTargets data */
+	data = malloc(session->conn[0].max_recv_dlength);
+	if (!data) {
 		rc = 1;
 		goto free_session;
 	}
+	data_len = session->conn[0].max_recv_dlength;
+
+	init_string_buffer(&sendtargets, 0);
 
 	sprintf(default_port, "%d", drec->port);
 	/* resolve the DiscoveryAddress to an IP address */
@@ -962,8 +933,9 @@ redirect_reconnect:
 
 	status_class = 0;
 	status_detail = 0;
-	rc = iscsi_login(session, 0, buffer_data(&sendtargets),
-			 unused_length(&sendtargets),
+
+	memset(data, 0, data_len);
+	rc = iscsi_login(session, 0, data, data_len,
 			 &status_class, &status_detail);
 
 	switch (rc) {
@@ -1051,12 +1023,8 @@ redirect_reconnect:
 		goto reconnect;
 	}
 
-      rediscover:
 	/* reinitialize */
 	truncate_buffer(&sendtargets, 0);
-
-	/* we're going to do a discovery regardless */
-	clear_timer(&async_timer);
 
 	/* ask for targets */
 	if (!request_targets(session)) {
@@ -1072,40 +1040,8 @@ redirect_reconnect:
 	pfd.fd = session->conn[0].socket_fd;
 	pfd.events = POLLIN | POLLPRI;
 
-	/* check timers before blocking */
-	if (timer_expired(&connection_timer)) {
-		log_warning("discovery session to %s:%d session "
-			    "logout, connection timer expired",
-			    drec->address, drec->port);
-			    iscsi_logout_and_disconnect(session);
-		rc = 1;
-		goto free_sendtargets;
-	}
-
-	if (active) {
-		/* ignore the async timer, we're in the middle
-		 * of a discovery
-		 */
-		timeout = msecs_until(&connection_timer);
-	} else {
-		/* to avoid doing LUN probing repeatedly, try to merge
-		 * multiple Async PDUs into one rediscovery by
-		 * deferring discovery until a timeout expires.
-		 */
-		if (timer_expired(&async_timer)) {
-			log_debug(4,
-				 "discovery session to %s:%d async "
-				 "timer expired, rediscovering",
-				 drec->address, drec->port);
-			clear_timer(&async_timer);
-			goto rediscover;
-		} else
-			timeout =
-				soonest_msecs(NULL,
-					  &connection_timer,
-					  &async_timer);
-	}
-
+repoll:
+	timeout = msecs_until(&connection_timer);
 	/* block until we receive a PDU, a TCP FIN, a TCP RST,
 	 * or a timeout
 	 */
@@ -1122,50 +1058,24 @@ redirect_reconnect:
 		 "discovery process to %s:%d returned from poll, rc %d",
 		 drec->address, drec->port, rc);
 
+	if (timer_expired(&connection_timer)) {
+		log_warning("discovery session to %s:%d session "
+			    "logout, connection timer expired",
+			    drec->address, drec->port);
+			    iscsi_logout_and_disconnect(session);
+		rc = 1;
+		goto free_sendtargets;
+	}
+
 	if (rc > 0) {
 		if (pfd.revents & (POLLIN | POLLPRI)) {
-			/* put any PDU data into the
-			 * sendtargets buffer for now
-			 */
-			data = buffer_data(&sendtargets) +
-			    data_length(&sendtargets);
-			end_of_data =
-			    data + unused_length(&sendtargets);
 			timeout = msecs_until(&connection_timer);
 
-			if (iscsi_io_recv_pdu(&session->conn[0],
-			     pdu, ISCSI_DIGEST_NONE, data,
-			     end_of_data - data, ISCSI_DIGEST_NONE,
-			     timeout)) {
-				/*
-				 * process iSCSI PDU received
-				 */
-				rc = process_recvd_pdu(
-					db,
-					pdu,
-					drec,
-					ifaces,
-					session,
-					&sendtargets,
-					default_port,
-					&active,
-					&valid_text,
-					&async_timer,
-					data);
-				if (rc == DISCOVERY_NEED_RECONNECT)
-					goto reconnect;
-
-				/* reset timers after receiving a PDU */
-				if (active)
-					set_timer(&connection_timer,
-					       session->conn[0].active_timeout);
-				else
-					/*
-					 * 3 minutes to try
-					 * to go long-lived
-					 */
-					set_timer(&connection_timer, 3 * 60);
-			} else {
+			memset(data, 0, data_len);
+			if (!iscsi_io_recv_pdu(&session->conn[0],
+					       pdu, ISCSI_DIGEST_NONE, data,
+			     		       data_len, ISCSI_DIGEST_NONE,
+					       timeout)) {
 				log_debug(1, "discovery session to "
 					  "%s:%d failed to recv a PDU "
 					  "response, terminating",
@@ -1175,7 +1085,25 @@ redirect_reconnect:
 				rc = 1;
 				goto free_sendtargets;
 			}
+
+			/*
+			 * process iSCSI PDU received
+			 */
+			rc = process_recvd_pdu(db, pdu, drec, ifaces,
+					       session, &sendtargets,
+					       default_port,
+					       &active, &valid_text, data);
+			if (rc == DISCOVERY_NEED_RECONNECT)
+				goto reconnect;
+
+			/* reset timers after receiving a PDU */
+			if (active) {
+				set_timer(&connection_timer,
+				       session->conn[0].active_timeout);
+				goto repoll;
+			}
 		}
+
 		if (pfd.revents & POLLHUP) {
 			log_warning("discovery session to %s:%d "
 				    "terminating after hangup",
@@ -1217,6 +1145,7 @@ redirect_reconnect:
 
 free_sendtargets:
 	free_string_buffer(&sendtargets);
+	free(data);
 free_session:
 	free(session);
 	return rc;
