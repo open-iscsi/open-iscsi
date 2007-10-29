@@ -1,9 +1,9 @@
 diff --git a/iscsi_2.6.22_compat.h b/iscsi_2.6.22_compat.h
 new file mode 100644
-index 0000000..614300d
+index 0000000..f2693f1
 --- /dev/null
 +++ b/iscsi_2.6.22_compat.h
-@@ -0,0 +1,34 @@
+@@ -0,0 +1,73 @@
 +#include <linux/version.h>
 +#include <scsi/scsi_cmnd.h>
 +
@@ -11,7 +11,8 @@ index 0000000..614300d
 +#define ISCSI_2622_COMPAT_H
 +
 +#if LINUX_VERSION_CODE <= KERNEL_VERSION(2,6,21)
-+#define netlink_kernel_create(uint, groups, input, cb_mutex, mod) \
++
++#define netlink_kernel_create(net, uint, groups, input, cb_mutex, mod) \
 +	netlink_kernel_create(uint, groups, input, mod)
 +
 +static inline struct nlmsghdr *nlmsg_hdr(const struct sk_buff *skb)
@@ -19,6 +20,44 @@ index 0000000..614300d
 +	return (struct nlmsghdr *)skb->data;
 +}
 +
++#elif LINUX_VERSION_CODE <= KERNEL_VERSION(2,6,22)
++
++#define netlink_kernel_create(net, uint, groups, input, cb_mutex, mod) \
++	netlink_kernel_create(uint, groups, input, cb_mutex, mod)
++
++#elif LINUX_VERSION_CODE <= KERNEL_VERSION(2,6,23)
++
++#define netlink_kernel_create(net, uint, groups, input, cb_mutex, mod) \
++	netlink_kernel_create(uint, groups, input, cb_mutex, mod)
++
++#endif
++
++
++#if LINUX_VERSION_CODE <= KERNEL_VERSION(2,6,23)
++
++static inline struct scatterlist *sg_next(struct scatterlist *sg)
++{
++	if (!sg) {
++		BUG();
++		return NULL;
++	}
++	return sg + 1;
++}
++
++#define sg_page(_sg) _sg->page
++
++static inline void sg_set_page(struct scatterlist *sg, struct page *page,
++				unsigned int len, unsigned int offset)
++{
++	sg->page = page;
++	sg->offset = offset;
++	sg->length = len;
++}
++
++static inline void sg_init_table(struct scatterlist *sgl, unsigned int nents)
++{
++	memset(sgl, 0, sizeof(*sgl) * nents);
++}
 +#endif
 +
 +#if LINUX_VERSION_CODE <= KERNEL_VERSION(2,6,22)
@@ -39,10 +78,10 @@ index 0000000..614300d
 +
 +#endif
 diff --git a/iscsi_tcp.c b/iscsi_tcp.c
-index 8296274..eea493c 100644
+index cc075bc..156f87e 100644
 --- a/iscsi_tcp.c
 +++ b/iscsi_tcp.c
-@@ -436,6 +436,17 @@ iscsi_segment_seek_sg(struct iscsi_segment *segment,
+@@ -421,6 +421,17 @@ iscsi_segment_seek_sg(struct iscsi_segment *segment,
  
  	debug_scsi("iscsi_segment_seek_sg offset %u size %llu\n",
  		  offset, size);
@@ -58,8 +97,18 @@ index 8296274..eea493c 100644
 +	}
 +
  	__iscsi_segment_init(segment, size, done, hash);
- 	for (i = 0; i < sg_count; i++, sg = iscsi_sg_next(sg)) {
+ 	for (i = 0; i < sg_count; i++, sg = sg_next(sg)) {
  		debug_scsi("sg %d, len %u offset %u\n", i, sg->length,
+@@ -1934,7 +1945,9 @@ static struct scsi_host_template iscsi_sht = {
+ 	.eh_device_reset_handler= iscsi_eh_device_reset,
+ 	.eh_host_reset_handler	= iscsi_eh_host_reset,
+ 	.use_clustering         = DISABLE_CLUSTERING,
++#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,24)
+ 	.use_sg_chaining	= ENABLE_SG_CHAINING,
++#endif
+ 	.slave_configure        = iscsi_tcp_slave_configure,
+ 	.proc_name		= "iscsi_tcp",
+ 	.this_id		= -1,
 diff --git a/iscsi_tcp.h b/iscsi_tcp.h
 index 57c2317..0b706a3 100644
 --- a/iscsi_tcp.h
@@ -86,7 +135,7 @@ index 8328bc7..fbe14c0 100644
  struct scsi_device;
  struct Scsi_Host;
 diff --git a/scsi_transport_iscsi.c b/scsi_transport_iscsi.c
-index 0dbcedd..c737b43 100644
+index 7e5e168..dbe94cc 100644
 --- a/scsi_transport_iscsi.c
 +++ b/scsi_transport_iscsi.c
 @@ -29,6 +29,7 @@
@@ -95,8 +144,105 @@ index 0dbcedd..c737b43 100644
  #include "iscsi_if.h"
 +#include "iscsi_2.6.22_compat.h"
  
- #define ISCSI_SESSION_ATTRS 16
+ #define ISCSI_SESSION_ATTRS 18
  #define ISCSI_CONN_ATTRS 11
+@@ -1119,49 +1120,61 @@ iscsi_if_recv_msg(struct sk_buff *skb, struct nlmsghdr *nlh)
+ }
+ 
+ /*
+- * Get message from skb.  Each message is processed by iscsi_if_recv_msg.
+- * Malformed skbs with wrong lengths or invalid creds are not processed.
++ * Get message from skb (based on rtnetlink_rcv_skb).  Each message is
++ * processed by iscsi_if_recv_msg.  Malformed skbs with wrong lengths or
++ * invalid creds are discarded silently.
+  */
+ static void
+-iscsi_if_rx(struct sk_buff *skb)
++iscsi_if_rx(struct sock *sk, int len)
+ {
++	struct sk_buff *skb;
++
+ 	mutex_lock(&rx_queue_mutex);
+-	while (skb->len >= NLMSG_SPACE(0)) {
+-		int err;
+-		uint32_t rlen;
+-		struct nlmsghdr	*nlh;
+-		struct iscsi_uevent *ev;
+-
+-		nlh = nlmsg_hdr(skb);
+-		if (nlh->nlmsg_len < sizeof(*nlh) ||
+-		    skb->len < nlh->nlmsg_len) {
+-			break;
++	while ((skb = skb_dequeue(&sk->sk_receive_queue)) != NULL) {
++		if (NETLINK_CREDS(skb)->uid) {
++			skb_pull(skb, skb->len);
++			goto free_skb;
+ 		}
+ 
+-		ev = NLMSG_DATA(nlh);
+-		rlen = NLMSG_ALIGN(nlh->nlmsg_len);
+-		if (rlen > skb->len)
+-			rlen = skb->len;
++		while (skb->len >= NLMSG_SPACE(0)) {
++			int err;
++			uint32_t rlen;
++			struct nlmsghdr	*nlh;
++			struct iscsi_uevent *ev;
+ 
+-		err = iscsi_if_recv_msg(skb, nlh);
+-		if (err) {
+-			ev->type = ISCSI_KEVENT_IF_ERROR;
+-			ev->iferror = err;
+-		}
+-		do {
+-			/*
+-			 * special case for GET_STATS:
+-			 * on success - sending reply and stats from
+-			 * inside of if_recv_msg(),
+-			 * on error - fall through.
+-			 */
+-			if (ev->type == ISCSI_UEVENT_GET_STATS && !err)
++			nlh = nlmsg_hdr(skb);
++			if (nlh->nlmsg_len < sizeof(*nlh) ||
++			    skb->len < nlh->nlmsg_len) {
+ 				break;
+-			err = iscsi_if_send_reply(
+-				NETLINK_CREDS(skb)->pid, nlh->nlmsg_seq,
+-				nlh->nlmsg_type, 0, 0, ev, sizeof(*ev));
+-		} while (err < 0 && err != -ECONNREFUSED);
+-		skb_pull(skb, rlen);
++			}
++
++			ev = NLMSG_DATA(nlh);
++			rlen = NLMSG_ALIGN(nlh->nlmsg_len);
++			if (rlen > skb->len)
++				rlen = skb->len;
++
++			err = iscsi_if_recv_msg(skb, nlh);
++			if (err) {
++				ev->type = ISCSI_KEVENT_IF_ERROR;
++				ev->iferror = err;
++			}
++			do {
++				/*
++				 * special case for GET_STATS:
++				 * on success - sending reply and stats from
++				 * inside of if_recv_msg(),
++				 * on error - fall through.
++				 */
++				if (ev->type == ISCSI_UEVENT_GET_STATS && !err)
++					break;
++				err = iscsi_if_send_reply(
++					NETLINK_CREDS(skb)->pid, nlh->nlmsg_seq,
++					nlh->nlmsg_type, 0, 0, ev, sizeof(*ev));
++			} while (err < 0 && err != -ECONNREFUSED);
++			skb_pull(skb, rlen);
++		}
++free_skb:
++		kfree_skb(skb);
+ 	}
+ 	mutex_unlock(&rx_queue_mutex);
+ }
 -- 
 1.5.1.2
 
