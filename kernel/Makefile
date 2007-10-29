@@ -82,7 +82,7 @@ linux_2_6_21: has_20to21_patch
 
 linux_2_6_22: has_20to21_patch
 
-linux_2_6_23: $(unpatch_code)
+linux_2_6_23: has_20to21_patch
 
 linux_2_6_24: $(unpatch_code)
 
