@@ -71,22 +71,6 @@ static int iscsi_tcp_hdr_recv_done(struct iscsi_tcp_conn *tcp_conn,
 				   struct iscsi_segment *segment);
 
 /*
- * This code is converted to use sg chaining, but scsi misc does
- * not yet have it or jen's tree may not have the currrent iscsi
- * driver and linus may have one or the other. When everyone is in
- * sync then remove this function, rename callers to sg_next and just
- * use scatterlist.h's definition.
- */
-static inline struct scatterlist *iscsi_sg_next(struct scatterlist *sg)
-{
-	if (!sg) {
-		BUG();
-		return NULL;
-	}
-	return sg + 1;
-}
-
-/*
  * Scatterlist handling: inside the iscsi_segment, we
  * remember an index into the scatterlist, and set data/size
  * to the current scatterlist entry. For highmem pages, we
@@ -147,12 +131,12 @@ iscsi_tcp_segment_map(struct iscsi_segment *segment, int recv)
 	 * have to go the slow sendmsg path. We always map for the
 	 * recv path.
 	 */
-	if (page_count(sg->page) >= 1 && !recv)
+	if (page_count(sg_page(sg)) >= 1 && !recv)
 		return;
 
 	debug_tcp("iscsi_tcp_segment_map %s %p\n", recv ? "recv" : "xmit",
 		  segment);
-	segment->sg_mapped = kmap_atomic(sg->page, KM_SOFTIRQ0);
+	segment->sg_mapped = kmap_atomic(sg_page(sg), KM_SOFTIRQ0);
 	segment->data = segment->sg_mapped + sg->offset + segment->sg_offset;
 }
 
@@ -210,15 +194,16 @@ iscsi_tcp_segment_done(struct iscsi_segment *segment, int recv, unsigned copied)
 		  segment->size, recv ? "recv" : "xmit");
 	if (segment->hash && copied) {
 		/*
-		 * if a segment is mapped we must unmap it, because the
-		 * crypto layer will want to map it itself.
+		 * If a segment is kmapd we must unmap it before sending
+		 * to the crypto layer since that will try to kmap it again.
 		 */
 		iscsi_tcp_segment_unmap(segment);
+
 		if (!segment->data) {
-			sg = *(segment->sg);
-			sg.length = copied;
-			sg.offset = segment->copied + segment->sg_offset +
-							segment->sg->offset;
+			sg_init_table(&sg, 1);
+			sg_set_page(&sg, sg_page(segment->sg), copied,
+				    segment->copied + segment->sg_offset +
+							segment->sg->offset);
 		} else
 			sg_init_one(&sg, segment->data + segment->copied,
 				    copied);
@@ -243,7 +228,7 @@ iscsi_tcp_segment_done(struct iscsi_segment *segment, int recv, unsigned copied)
 		   segment->total_size);
 	if (segment->total_copied < segment->total_size) {
 		/* Proceed to the next entry in the scatterlist. */
-		iscsi_tcp_segment_init_sg(segment, iscsi_sg_next(segment->sg),
+		iscsi_tcp_segment_init_sg(segment, sg_next(segment->sg),
 					  0);
 		iscsi_tcp_segment_map(segment, recv);
 		BUG_ON(segment->size == 0);
@@ -311,7 +296,7 @@ iscsi_tcp_xmit_segment(struct iscsi_tcp_conn *tcp_conn,
 		if (!segment->data) {
 			sg = segment->sg;
 			offset += segment->sg_offset + sg->offset;
-			r = tcp_conn->sendpage(sk, sg->page, offset, copy,
+			r = tcp_conn->sendpage(sk, sg_page(sg), offset, copy,
 					       flags);
 		} else {
 			struct msghdr msg = { .msg_flags = flags };
@@ -437,7 +422,7 @@ iscsi_segment_seek_sg(struct iscsi_segment *segment,
 	debug_scsi("iscsi_segment_seek_sg offset %u size %llu\n",
 		  offset, size);
 	__iscsi_segment_init(segment, size, done, hash);
-	for (i = 0; i < sg_count; i++, sg = iscsi_sg_next(sg)) {
+	for (i = 0; i < sg_count; i++, sg = sg_next(sg)) {
 		debug_scsi("sg %d, len %u offset %u\n", i, sg->length,
 			   sg->offset);
 		if (offset < sg->length) {
@@ -1949,6 +1934,7 @@ static struct scsi_host_template iscsi_sht = {
 	.eh_device_reset_handler= iscsi_eh_device_reset,
 	.eh_host_reset_handler	= iscsi_eh_host_reset,
 	.use_clustering         = DISABLE_CLUSTERING,
+	.use_sg_chaining	= ENABLE_SG_CHAINING,
 	.slave_configure        = iscsi_tcp_slave_configure,
 	.proc_name		= "iscsi_tcp",
 	.this_id		= -1,

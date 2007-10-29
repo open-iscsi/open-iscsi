@@ -33,7 +33,6 @@
 #include <scsi/scsi_host.h>
 #include <scsi/scsi.h>
 #include <scsi/scsi_transport.h>
-
 #include "iscsi_proto.h"
 #include "scsi_transport_iscsi.h"
 #include "libiscsi.h"
