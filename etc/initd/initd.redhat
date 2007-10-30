@@ -39,9 +39,8 @@ stop()
 	echo -n $"Stopping iSCSI initiator service: "
 	sync
 	iscsiadm -m node --logoutall=all
-	pkill -KILL iscsid
+	killproc iscsid
 	rm -f /var/run/iscsid.pid
-	#killproc iscsid
 	[ $RETVAL -eq 0 ] && rm -f /var/lock/subsys/open-iscsi
 	modprobe -r iscsi_tcp 2>/dev/null
 	modprobe -r ib_iser 2>/dev/null

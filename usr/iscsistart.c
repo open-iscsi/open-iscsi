@@ -113,11 +113,10 @@ static int stop_event_loop(void)
 	memset(&req, 0, sizeof(req));
 	req.command = MGMT_IPC_IMMEDIATE_STOP;
 	rc = do_iscsid(&req, &rsp);
-	if (rc)
+	if (rc) {
 		iscsid_handle_error(rc);
-	if (rc)
 		log_error("Could not stop event_loop\n");
-
+	}
 	return rc;
 }
 

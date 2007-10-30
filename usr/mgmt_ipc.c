@@ -76,6 +76,9 @@ mgmt_ipc_listen(void)
 void
 mgmt_ipc_close(int fd)
 {
+	leave_event_loop = 1;
+	if (fd >= 0)
+		close(fd);
 }
 
 static mgmt_ipc_err_e

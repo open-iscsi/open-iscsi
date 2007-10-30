@@ -14,6 +14,8 @@ iscsiadm \- open-iscsi administration utility
 
 \fBiscsiadm\fR -m fw
 
+\fBiscsiadm\fR -k priority
+
 .SH "DESCRIPTION"
 The iscsiadm utility is a command-line tool allowing discovery and login
 to iSCSI targets, as well as access and management of the open-iscsi
@@ -77,6 +79,14 @@ In node mode, only a single interface is supported in each call to iscsiadm.
 .IP
 This option is valid for discovery, node and iface mode.
 
+.TP
+\fB\-k\fR, \fB\-\-killiscsid=\fI[priority]\fR
+Currently priority must be zero. This will immediately stop all iscsid
+operations and shutdown iscsid. It does not logout any sessions. Running
+this command is the same as doing "killall iscsid". Neither should
+normally not be used, because if iscsid is doing error recovery or if there
+is an error while iscsid is not running, the system may not be able to recover.
+This command and iscsid's SIGTERM handling are experimental.
 
 .TP
 \fB\-l\fR, \fB\-\-login\fR

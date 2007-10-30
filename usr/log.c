@@ -12,6 +12,7 @@
 #include <unistd.h>
 #include <syslog.h>
 #include <signal.h>
+#include <errno.h>
 #include <sys/shm.h>
 #include <sys/ipc.h>
 #include <sys/types.h>
@@ -108,11 +109,10 @@ static int logarea_init (int size)
 
 static void free_logarea (void)
 {
-	semctl(la->semid, 0, IPC_RMID, la->semarg);
 	shmdt(la->buff);
 	shmdt(la->start);
 	shmdt(la);
-	return;
+	semctl(la->semid, 0, IPC_RMID, la->semarg);
 }
 
 #if LOGDBG
@@ -233,7 +233,7 @@ static void dolog(int prio, const char *fmt, va_list ap)
 	if (log_daemon) {
 		la->ops[0].sem_op = -1;
 		if (semop(la->semid, la->ops, 1) < 0) {
-			syslog(LOG_ERR, "semop up failed");
+			syslog(LOG_ERR, "semop up failed %d", errno);
 			return;
 		}
 
@@ -317,7 +317,7 @@ static void log_flush(void)
 	while (!la->empty) {
 		la->ops[0].sem_op = -1;
 		if (semop(la->semid, la->ops, 1) < 0) {
-			syslog(LOG_ERR, "semop up failed");
+			syslog(LOG_ERR, "semop up failed %d", errno);
 			exit(1);
 		}
 		log_dequeue(la->buff);
@@ -347,7 +347,6 @@ static void catch_signal(int signo)
 static void __log_close(void)
 {
 	if (log_daemon) {
-		fprintf(stderr, "close log\n");
 		log_flush();
 		closelog();
 		free_logarea();
@@ -403,7 +402,6 @@ int log_init(char *program_name, int size)
 
 	return 0;
 }
-
 void log_close(pid_t pid)
 {
 	int status;

@@ -1044,12 +1044,12 @@ ctldev_close(void)
 {
 	log_debug(7, "in %s", __FUNCTION__);
 
+	if (ctrl_fd >= 0)
+		close(ctrl_fd);
 	free(setparam_buf);
 	free(pdu_sendbuf);
 	free(nlm_recvbuf);
 	free(nlm_sendbuf);
-	if (ctrl_fd >= 0)
-		close(ctrl_fd);
 }
 
 struct iscsi_ipc nl_ipc = {
