@@ -43,10 +43,7 @@ static void dump_mac(struct boot_context *context)
 	if (!strlen(context->mac))
 		return;
 
-	printf("iface.hwaddress = ");
-	for (i = 0; i < 5; i++)
-		printf("%02x:", context->mac[i]);
-	printf("%02x\n", context->mac[i]);
+	printf("iface.hwaddress = %s\n", context->mac);
 }
 
 static void dump_initiator(struct boot_context *context)
