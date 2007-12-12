@@ -1,14 +1,23 @@
 diff --git a/iscsi_2.6.22_compat.h b/iscsi_2.6.22_compat.h
 new file mode 100644
-index 0000000..f2693f1
+index 0000000..2ba7deb
 --- /dev/null
 +++ b/iscsi_2.6.22_compat.h
-@@ -0,0 +1,73 @@
+@@ -0,0 +1,85 @@
 +#include <linux/version.h>
 +#include <scsi/scsi_cmnd.h>
 +
 +#ifndef ISCSI_2622_COMPAT_H
 +#define ISCSI_2622_COMPAT_H
++
++#if LINUX_VERSION_CODE <= KERNEL_VERSION(2,6,20)
++
++static inline __attribute__((const))
++bool is_power_of_2(unsigned long n)
++{
++        return (n != 0 && ((n & (n - 1)) == 0));
++}
++#endif
 +
 +#if LINUX_VERSION_CODE <= KERNEL_VERSION(2,6,21)
 +
@@ -44,6 +53,9 @@ index 0000000..f2693f1
 +	return sg + 1;
 +}
 +
++#define for_each_sg(sglist, sg, nr, __i)        \
++	for (__i = 0, sg = (sglist); __i < (nr); __i++, sg = sg_next(sg))
++
 +#define sg_page(_sg) _sg->page
 +
 +static inline void sg_set_page(struct scatterlist *sg, struct page *page,
@@ -78,10 +90,10 @@ index 0000000..f2693f1
 +
 +#endif
 diff --git a/iscsi_tcp.c b/iscsi_tcp.c
-index cc075bc..156f87e 100644
+index ce1fdf1..ad46009 100644
 --- a/iscsi_tcp.c
 +++ b/iscsi_tcp.c
-@@ -421,6 +421,17 @@ iscsi_segment_seek_sg(struct iscsi_segment *segment,
+@@ -422,6 +422,17 @@ iscsi_segment_seek_sg(struct iscsi_segment *segment,
  
  	debug_scsi("iscsi_segment_seek_sg offset %u size %llu\n",
  		  offset, size);
@@ -91,15 +103,15 @@ index cc075bc..156f87e 100644
 +	 * or scsi-ml commands.
 +	 */
 +	if (!sg_count) {
-+		iscsi_segment_init_linear(segment, (void *)sg + offset,
++		iscsi_segment_init_linear(segment, (void *)sg_list + offset,
 +					  size, done, hash);
 +		return 0;
 +	}
 +
  	__iscsi_segment_init(segment, size, done, hash);
- 	for (i = 0; i < sg_count; i++, sg = sg_next(sg)) {
+ 	for_each_sg(sg_list, sg, sg_count, i) {
  		debug_scsi("sg %d, len %u offset %u\n", i, sg->length,
-@@ -1934,7 +1945,9 @@ static struct scsi_host_template iscsi_sht = {
+@@ -1933,7 +1944,9 @@ static struct scsi_host_template iscsi_sht = {
  	.eh_device_reset_handler= iscsi_eh_device_reset,
  	.eh_host_reset_handler	= iscsi_eh_host_reset,
  	.use_clustering         = DISABLE_CLUSTERING,
@@ -110,19 +122,19 @@ index cc075bc..156f87e 100644
  	.proc_name		= "iscsi_tcp",
  	.this_id		= -1,
 diff --git a/iscsi_tcp.h b/iscsi_tcp.h
-index 57c2317..0b706a3 100644
+index 950d75f..a7bc56f 100644
 --- a/iscsi_tcp.h
 +++ b/iscsi_tcp.h
-@@ -27,6 +27,7 @@
- #define ISCSI_SG_TABLESIZE		SG_ALL
- #define ISCSI_TCP_MAX_CMD_LEN		16
+@@ -24,6 +24,7 @@
+ 
+ #include "libiscsi.h"
  
 +#include "iscsi_2.6.22_compat.h"
  struct crypto_hash;
  struct socket;
  struct iscsi_tcp_conn;
 diff --git a/libiscsi.h b/libiscsi.h
-index 8328bc7..fbe14c0 100644
+index 72f6fc6..fb98306 100644
 --- a/libiscsi.h
 +++ b/libiscsi.h
 @@ -30,6 +30,8 @@
@@ -135,7 +147,7 @@ index 8328bc7..fbe14c0 100644
  struct scsi_device;
  struct Scsi_Host;
 diff --git a/scsi_transport_iscsi.c b/scsi_transport_iscsi.c
-index 7e5e168..dbe94cc 100644
+index 4686f3a..0cd18a0 100644
 --- a/scsi_transport_iscsi.c
 +++ b/scsi_transport_iscsi.c
 @@ -29,6 +29,7 @@
@@ -144,9 +156,9 @@ index 7e5e168..dbe94cc 100644
  #include "iscsi_if.h"
 +#include "iscsi_2.6.22_compat.h"
  
- #define ISCSI_SESSION_ATTRS 18
+ #define ISCSI_SESSION_ATTRS 19
  #define ISCSI_CONN_ATTRS 11
-@@ -1119,49 +1120,61 @@ iscsi_if_recv_msg(struct sk_buff *skb, struct nlmsghdr *nlh)
+@@ -1265,49 +1266,61 @@ iscsi_if_recv_msg(struct sk_buff *skb, struct nlmsghdr *nlh)
  }
  
  /*
