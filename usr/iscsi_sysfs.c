@@ -629,6 +629,13 @@ free_info:
 	return rc;
 }
 
+int get_session_state(char *state, int sid)
+{
+	memset(sysfs_file, 0, PATH_MAX);
+	sprintf(sysfs_file, ISCSI_SESSION_DIR"/session%d/state", sid);
+	return read_sysfs_file(sysfs_file, state, "%s\n");
+}
+
 int get_host_state(char *state, int host_no)
 {
 	memset(sysfs_file, 0, PATH_MAX);

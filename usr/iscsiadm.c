@@ -896,7 +896,9 @@ static int print_iscsi_state(int sid)
 {
 	iscsiadm_req_t req;
 	iscsiadm_rsp_t rsp;
+	int err;
 	char *state = NULL;
+	char state_buff[SCSI_MAX_STATE_VALUE];
 	static char *conn_state[] = {
 		"FREE",
 		"TRANSPORT WAIT",
@@ -917,23 +919,24 @@ static int print_iscsi_state(int sid)
 	req.command = MGMT_IPC_SESSION_INFO;
 	req.u.session.sid = sid;
 
-	if (do_iscsid(&req, &rsp)) {
-		printf("\t\tiSCSI Connection State: Unknown\n");
-		printf("\t\tInternal iscsid Session State: Unknown\n");
-		return ENODEV;
-	}
-
+	err = do_iscsid(&req, &rsp);
 	/*
 	 * for drivers like qla4xxx, iscsid does not display
 	 * anything here since it does not know about it.
 	 */
-	if (rsp.u.session_state.conn_state >= 0 &&
+	if (!err && rsp.u.session_state.conn_state >= 0 &&
 	    rsp.u.session_state.conn_state <= STATE_CLEANUP_WAIT)
 		state = conn_state[rsp.u.session_state.conn_state];
 	printf("\t\tiSCSI Connection State: %s\n", state ? state : "Unknown");
 	state = NULL;
 
-	if (rsp.u.session_state.session_state >= 0 &&
+	memset(state_buff, 0, SCSI_MAX_STATE_VALUE);
+	if (!get_session_state(state_buff, sid))
+		printf("\t\tiSCSI Session State: %s\n", state_buff);
+	else
+		printf("\t\tiSCSI Session State: Unknown\n");
+
+	if (!err && rsp.u.session_state.session_state >= 0 &&
 	   rsp.u.session_state.session_state <= R_STAGE_SESSION_REDIRECT)
 		state = session_state[rsp.u.session_state.session_state];
 	printf("\t\tInternal iscsid Session State: %s\n",

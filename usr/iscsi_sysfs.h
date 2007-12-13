@@ -76,6 +76,7 @@ extern void get_negotiated_session_conf(int sid,
 extern void get_negotiated_conn_conf(int sid,
 				struct iscsi_conn_operational_config *conf);
 extern pid_t scan_host(int hostno, int async);
+extern int get_session_state(char *state, int sid);
 extern int get_host_state(char *state, int host_no);
 extern int get_device_state(char *state, int host_no, int target, int lun);
 extern void set_device_online(int hostno, int target, int lun);
