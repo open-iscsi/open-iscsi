@@ -1,9 +1,9 @@
 diff --git a/iscsi_compat.h b/iscsi_compat.h
 new file mode 100644
-index 0000000..22e7c44
+index 0000000..965157a
 --- /dev/null
 +++ b/iscsi_compat.h
-@@ -0,0 +1,181 @@
+@@ -0,0 +1,192 @@
 +#include <linux/version.h>
 +#include <linux/kernel.h>
 +#include <scsi/scsi.h>
@@ -135,6 +135,14 @@ index 0000000..22e7c44
 +
 +#endif
 +
++#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,20)
++
++static inline int is_power_of_2(unsigned long n)
++{
++	return (n != 0 && ((n & (n - 1)) == 0));
++}
++#endif
++
 +#if LINUX_VERSION_CODE <= KERNEL_VERSION(2,6,21)
 +#define netlink_kernel_create(net, uint, groups, input, cb_mutex, mod) \
 +	netlink_kernel_create(uint, groups, input, mod)
@@ -149,6 +157,9 @@ index 0000000..22e7c44
 +	}
 +	return sg + 1;
 +}
++
++#define for_each_sg(sglist, sg, nr, __i)        \
++	for (__i = 0, sg = (sglist); __i < (nr); __i++, sg = sg_next(sg))
 +
 +#define sg_page(_sg) _sg->page
 +
@@ -186,7 +197,7 @@ index 0000000..22e7c44
 +
 +#endif
 diff --git a/iscsi_tcp.c b/iscsi_tcp.c
-index cc075bc..af93a6c 100644
+index ce1fdf1..385d098 100644
 --- a/iscsi_tcp.c
 +++ b/iscsi_tcp.c
 @@ -43,6 +43,7 @@
@@ -197,7 +208,7 @@ index cc075bc..af93a6c 100644
  
  MODULE_AUTHOR("Dmitry Yusupov <dmitry_yus@yahoo.com>, "
  	      "Alex Aizman <itn780@yahoo.com>");
-@@ -421,6 +422,17 @@ iscsi_segment_seek_sg(struct iscsi_segment *segment,
+@@ -422,6 +423,17 @@ iscsi_segment_seek_sg(struct iscsi_segment *segment,
  
  	debug_scsi("iscsi_segment_seek_sg offset %u size %llu\n",
  		  offset, size);
@@ -207,15 +218,15 @@ index cc075bc..af93a6c 100644
 +	 * or scsi-ml commands.
 +	 */
 +	if (!sg_count) {
-+		iscsi_segment_init_linear(segment, (void *)sg + offset,
++		iscsi_segment_init_linear(segment, (void *)sg_list + offset,
 +					  size, done, hash);
 +		return 0;
 +	}
 +
  	__iscsi_segment_init(segment, size, done, hash);
- 	for (i = 0; i < sg_count; i++, sg = sg_next(sg)) {
+ 	for_each_sg(sg_list, sg, sg_count, i) {
  		debug_scsi("sg %d, len %u offset %u\n", i, sg->length,
-@@ -1934,7 +1946,9 @@ static struct scsi_host_template iscsi_sht = {
+@@ -1933,7 +1945,9 @@ static struct scsi_host_template iscsi_sht = {
  	.eh_device_reset_handler= iscsi_eh_device_reset,
  	.eh_host_reset_handler	= iscsi_eh_host_reset,
  	.use_clustering         = DISABLE_CLUSTERING,
@@ -226,30 +237,33 @@ index cc075bc..af93a6c 100644
  	.proc_name		= "iscsi_tcp",
  	.this_id		= -1,
 diff --git a/iscsi_tcp.h b/iscsi_tcp.h
-index 57c2317..783e448 100644
+index 950d75f..662ddab 100644
 --- a/iscsi_tcp.h
 +++ b/iscsi_tcp.h
-@@ -27,6 +27,7 @@
- #define ISCSI_SG_TABLESIZE		SG_ALL
- #define ISCSI_TCP_MAX_CMD_LEN		16
+@@ -24,6 +24,7 @@
+ 
+ #include "libiscsi.h"
  
 +#include "iscsi_compat.h"
  struct crypto_hash;
  struct socket;
  struct iscsi_tcp_conn;
-diff --git a/libiscsi.c b/libiscsi.c
-index d175f14..da0dd4e 100644
+diff --git a/ibiscsi.c b/libiscsi.c
+index 0c64d82..e88021f 100644
 --- a/libiscsi.c
 +++ b/libiscsi.c
-@@ -24,6 +24,7 @@
+@@ -24,7 +24,10 @@
  #include <linux/types.h>
  #include <linux/kfifo.h>
  #include <linux/delay.h>
 +#include <linux/version.h>
++#if LINUX_VERSION_CODE > KERNEL_VERSION(2,6,19)
+ #include <linux/log2.h>
++#endif
  #include <asm/unaligned.h>
  #include <net/tcp.h>
  #include <scsi/scsi_cmnd.h>
-@@ -976,10 +977,9 @@ again:
+@@ -974,10 +977,9 @@ again:
  	return rc;
  }
  
@@ -262,7 +276,7 @@ index d175f14..da0dd4e 100644
  	int rc;
  	/*
  	 * serialize Xmit worker on a per-connection basis.
-@@ -1727,7 +1727,9 @@ iscsi_session_setup(struct iscsi_transport *iscsit,
+@@ -1737,7 +1739,9 @@ iscsi_session_setup(struct iscsi_transport *iscsit,
  	shost->max_cmd_len = iscsit->max_cmd_len;
  	shost->transportt = scsit;
  	shost->transportt->create_work_queue = 1;
@@ -272,7 +286,7 @@ index d175f14..da0dd4e 100644
  	*hostno = shost->host_no;
  
  	session = iscsi_hostdata(shost->hostdata);
-@@ -1877,7 +1879,7 @@ iscsi_conn_setup(struct iscsi_cls_session *cls_session, uint32_t conn_idx)
+@@ -1887,7 +1891,7 @@ iscsi_conn_setup(struct iscsi_cls_session *cls_session, uint32_t conn_idx)
  	INIT_LIST_HEAD(&conn->mgmtqueue);
  	INIT_LIST_HEAD(&conn->xmitqueue);
  	INIT_LIST_HEAD(&conn->requeue);
@@ -282,7 +296,7 @@ index d175f14..da0dd4e 100644
  	/* allocate login_mtask used for the login/text sequences */
  	spin_lock_bh(&session->lock);
 diff --git a/libiscsi.h b/libiscsi.h
-index 8328bc7..028b5df 100644
+index 72f6fc6..d9161aa 100644
 --- a/libiscsi.h
 +++ b/libiscsi.h
 @@ -24,12 +24,14 @@
@@ -303,7 +317,7 @@ index 8328bc7..028b5df 100644
  struct scsi_device;
  struct Scsi_Host;
 diff --git a/scsi_transport_iscsi.c b/scsi_transport_iscsi.c
-index 7e5e168..65541bb 100644
+index 4686f3a..075473b 100644
 --- a/scsi_transport_iscsi.c
 +++ b/scsi_transport_iscsi.c
 @@ -21,7 +21,10 @@
@@ -323,10 +337,23 @@ index 7e5e168..65541bb 100644
  #include "iscsi_if.h"
 +#include "iscsi_compat.h"
  
- #define ISCSI_SESSION_ATTRS 18
+ #define ISCSI_SESSION_ATTRS 19
  #define ISCSI_CONN_ATTRS 11
-@@ -254,11 +258,9 @@ static int iscsi_user_scan(struct Scsi_Host *shost, uint channel,
+@@ -322,10 +326,9 @@ static int iscsi_user_scan(struct Scsi_Host *shost, uint channel,
  	return 0;
+ }
+ 
+-static void iscsi_scan_session(struct work_struct *work)
++static void iscsi_scan_session(void *data)
+ {
+-	struct iscsi_cls_session *session =
+-			container_of(work, struct iscsi_cls_session, scan_work);
++	struct iscsi_cls_session *session = data;
+ 	struct Scsi_Host *shost = iscsi_session_to_shost(session);
+ 	struct iscsi_host *ihost = shost->shost_data;
+ 	unsigned long flags;
+@@ -343,11 +346,9 @@ done:
+ 	atomic_dec(&ihost->nr_scans);
  }
  
 -static void session_recovery_timedout(struct work_struct *work)
@@ -336,10 +363,23 @@ index 7e5e168..65541bb 100644
 -		container_of(work, struct iscsi_cls_session,
 -			     recovery_work.work);
 +	struct iscsi_cls_session *session = data;
+ 	unsigned long flags;
  
  	dev_printk(KERN_INFO, &session->dev, "iscsi: session recovery timed "
- 		  "out after %d secs\n", session->recovery_tmo);
-@@ -285,11 +287,9 @@ void iscsi_block_session(struct iscsi_cls_session *session)
+@@ -395,10 +396,12 @@ void iscsi_unblock_session(struct iscsi_cls_session *session)
+ 	 * the async scanning code (drivers like iscsi_tcp do login and
+ 	 * scanning from userspace).
+ 	 */
++#if LINUX_VERSION_CODE > KERNEL_VERSION(2,6,19)
+ 	if (shost->hostt->scan_finished) {
+ 		if (queue_work(ihost->scan_workq, &session->scan_work))
+ 			atomic_inc(&ihost->nr_scans);
+ 	}
++#endif
+ }
+ EXPORT_SYMBOL_GPL(iscsi_unblock_session);
+ 
+@@ -416,11 +419,9 @@ void iscsi_block_session(struct iscsi_cls_session *session)
  }
  EXPORT_SYMBOL_GPL(iscsi_block_session);
  
@@ -353,20 +393,22 @@ index 7e5e168..65541bb 100644
  	struct Scsi_Host *shost = iscsi_session_to_shost(session);
  	struct iscsi_host *ihost = shost->shost_data;
  
-@@ -327,10 +327,10 @@ iscsi_alloc_session(struct Scsi_Host *shost,
- 
+@@ -459,11 +460,11 @@ iscsi_alloc_session(struct Scsi_Host *shost,
  	session->transport = transport;
  	session->recovery_tmo = 120;
+ 	session->state = ISCSI_SESSION_FREE;
 -	INIT_DELAYED_WORK(&session->recovery_work, session_recovery_timedout);
 +	INIT_WORK(&session->recovery_work, session_recovery_timedout, session);
  	INIT_LIST_HEAD(&session->host_list);
  	INIT_LIST_HEAD(&session->sess_list);
 -	INIT_WORK(&session->unbind_work, __iscsi_unbind_session);
+-	INIT_WORK(&session->scan_work, iscsi_scan_session);
 +	INIT_WORK(&session->unbind_work, __iscsi_unbind_session, session);
++	INIT_WORK(&session->scan_work, iscsi_scan_session, session);
+ 	spin_lock_init(&session->lock);
  
  	/* this is released in the dev's release function */
- 	scsi_host_get(shost);
-@@ -1123,45 +1123,56 @@ iscsi_if_recv_msg(struct sk_buff *skb, struct nlmsghdr *nlh)
+@@ -1269,45 +1270,56 @@ iscsi_if_recv_msg(struct sk_buff *skb, struct nlmsghdr *nlh)
   * Malformed skbs with wrong lengths or invalid creds are not processed.
   */
  static void
@@ -456,7 +498,7 @@ index 7e5e168..65541bb 100644
  	}
  	mutex_unlock(&rx_queue_mutex);
  }
-@@ -1396,7 +1407,10 @@ iscsi_register_transport(struct iscsi_transport *tt)
+@@ -1551,7 +1563,10 @@ iscsi_register_transport(struct iscsi_transport *tt)
  	INIT_LIST_HEAD(&priv->list);
  	priv->daemon_pid = -1;
  	priv->iscsi_transport = tt;
@@ -468,7 +510,7 @@ index 7e5e168..65541bb 100644
  	priv->cdev.class = &iscsi_transport_class;
  	snprintf(priv->cdev.class_id, BUS_ID_SIZE, "%s", tt->name);
 diff --git a/scsi_transport_iscsi.h b/scsi_transport_iscsi.h
-index 6bda9b9..deaa582 100644
+index 5cf5f54..eb1b1c4 100644
 --- a/scsi_transport_iscsi.h
 +++ b/scsi_transport_iscsi.h
 @@ -25,8 +25,12 @@
@@ -484,15 +526,15 @@ index 6bda9b9..deaa582 100644
  
  struct scsi_transport_template;
  struct iscsi_transport;
-@@ -185,7 +189,7 @@ struct iscsi_cls_session {
+@@ -182,7 +186,7 @@ struct iscsi_cls_session {
  
  	/* recovery fields */
  	int recovery_tmo;
 -	struct delayed_work recovery_work;
 +	struct work_struct recovery_work;
- 	struct work_struct unbind_work;
  
  	int target_id;
+ 
 -- 
 1.5.1.2
 
