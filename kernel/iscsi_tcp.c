@@ -413,16 +413,17 @@ iscsi_segment_init_linear(struct iscsi_segment *segment, void *data,
 
 static inline int
 iscsi_segment_seek_sg(struct iscsi_segment *segment,
-		      struct scatterlist *sg, unsigned int sg_count,
+		      struct scatterlist *sg_list, unsigned int sg_count,
 		      unsigned int offset, size_t size,
 		      iscsi_segment_done_fn_t *done, struct hash_desc *hash)
 {
+	struct scatterlist *sg;
 	unsigned int i;
 
 	debug_scsi("iscsi_segment_seek_sg offset %u size %llu\n",
 		  offset, size);
 	__iscsi_segment_init(segment, size, done, hash);
-	for (i = 0; i < sg_count; i++, sg = sg_next(sg)) {
+	for_each_sg(sg_list, sg, sg_count, i) {
 		debug_scsi("sg %d, len %u offset %u\n", i, sg->length,
 			   sg->offset);
 		if (offset < sg->length) {
@@ -640,13 +641,11 @@ iscsi_r2t_rsp(struct iscsi_conn *conn, struct iscsi_cmd_task *ctask)
 	}
 
 	/* fill-in new R2T associated with the task */
-	spin_lock(&session->lock);
 	iscsi_update_cmdsn(session, (struct iscsi_nopin*)rhdr);
 
 	if (!ctask->sc || session->state != ISCSI_STATE_LOGGED_IN) {
 		printk(KERN_INFO "iscsi_tcp: dropping R2T itt %d in "
 		       "recovery...\n", ctask->itt);
-		spin_unlock(&session->lock);
 		return 0;
 	}
 
@@ -659,7 +658,6 @@ iscsi_r2t_rsp(struct iscsi_conn *conn, struct iscsi_cmd_task *ctask)
 		printk(KERN_ERR "iscsi_tcp: invalid R2T with zero data len\n");
 		__kfifo_put(tcp_ctask->r2tpool.queue, (void*)&r2t,
 			    sizeof(void*));
-		spin_unlock(&session->lock);
 		return ISCSI_ERR_DATALEN;
 	}
 
@@ -675,7 +673,6 @@ iscsi_r2t_rsp(struct iscsi_conn *conn, struct iscsi_cmd_task *ctask)
 		       r2t->data_offset, scsi_bufflen(ctask->sc));
 		__kfifo_put(tcp_ctask->r2tpool.queue, (void*)&r2t,
 			    sizeof(void*));
-		spin_unlock(&session->lock);
 		return ISCSI_ERR_DATALEN;
 	}
 
@@ -689,8 +686,6 @@ iscsi_r2t_rsp(struct iscsi_conn *conn, struct iscsi_cmd_task *ctask)
 	conn->r2t_pdus_cnt++;
 
 	iscsi_requeue_ctask(ctask);
-	spin_unlock(&session->lock);
-
 	return 0;
 }
 
@@ -763,7 +758,9 @@ iscsi_tcp_hdr_dissect(struct iscsi_conn *conn, struct iscsi_hdr *hdr)
 	switch(opcode) {
 	case ISCSI_OP_SCSI_DATA_IN:
 		ctask = session->cmds[itt];
+		spin_lock(&conn->session->lock);
 		rc = iscsi_data_rsp(conn, ctask);
+		spin_unlock(&conn->session->lock);
 		if (rc)
 			return rc;
 		if (tcp_conn->in.datalen) {
@@ -805,9 +802,11 @@ iscsi_tcp_hdr_dissect(struct iscsi_conn *conn, struct iscsi_hdr *hdr)
 		ctask = session->cmds[itt];
 		if (ahslen)
 			rc = ISCSI_ERR_AHSLEN;
-		else if (ctask->sc->sc_data_direction == DMA_TO_DEVICE)
+		else if (ctask->sc->sc_data_direction == DMA_TO_DEVICE) {
+			spin_lock(&session->lock);
 			rc = iscsi_r2t_rsp(conn, ctask);
-		else
+			spin_unlock(&session->lock);
+		} else
 			rc = ISCSI_ERR_PROTO;
 		break;
 	case ISCSI_OP_LOGIN_RSP:
@@ -1775,12 +1774,12 @@ iscsi_conn_set_param(struct iscsi_cls_conn *cls_conn, enum iscsi_param param,
 		break;
 	case ISCSI_PARAM_MAX_R2T:
 		sscanf(buf, "%d", &value);
-		if (session->max_r2t == roundup_pow_of_two(value))
+		if (value <= 0 || !is_power_of_2(value))
+			return -EINVAL;
+		if (session->max_r2t == value)
 			break;
 		iscsi_r2tpool_free(session);
 		iscsi_set_param(cls_conn, param, buf, buflen);
-		if (session->max_r2t & (session->max_r2t - 1))
-			session->max_r2t = roundup_pow_of_two(session->max_r2t);
 		if (iscsi_r2tpool_alloc(session))
 			return -ENOMEM;
 		break;
@@ -1927,7 +1926,7 @@ static struct scsi_host_template iscsi_sht = {
 	.queuecommand           = iscsi_queuecommand,
 	.change_queue_depth	= iscsi_change_queue_depth,
 	.can_queue		= ISCSI_DEF_XMIT_CMDS_MAX - 1,
-	.sg_tablesize		= ISCSI_SG_TABLESIZE,
+	.sg_tablesize		= 4096,
 	.max_sectors		= 0xFFFF,
 	.cmd_per_lun		= ISCSI_DEF_CMD_PER_LUN,
 	.eh_abort_handler       = iscsi_eh_abort,
@@ -1974,7 +1973,7 @@ static struct iscsi_transport iscsi_tcp_transport = {
 	.host_template		= &iscsi_sht,
 	.conndata_size		= sizeof(struct iscsi_conn),
 	.max_conn		= 1,
-	.max_cmd_len		= ISCSI_TCP_MAX_CMD_LEN,
+	.max_cmd_len		= 16,
 	/* session management */
 	.create_session		= iscsi_tcp_session_create,
 	.destroy_session	= iscsi_tcp_session_destroy,
