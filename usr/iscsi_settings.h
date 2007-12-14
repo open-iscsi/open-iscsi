@@ -5,8 +5,8 @@
 /* timeouts in seconds */
 #define DEF_LOGIN_TIMEO		30
 #define DEF_LOGOUT_TIMEO	15
-#define DEF_NOOP_OUT_INTERVAL	10
-#define DEF_NOOP_OUT_TIMEO	15
+#define DEF_NOOP_OUT_INTERVAL	5
+#define DEF_NOOP_OUT_TIMEO	5
 #define DEF_REPLACEMENT_TIMEO	120
 
 #define DEF_ABORT_TIMEO		15
