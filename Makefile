@@ -95,8 +95,10 @@ install_iface: $(IFACEFILES)
 	$(INSTALL) -m 644 $^ $(DESTDIR)$(etcdir)/iscsi/ifaces
 
 install_etc: $(ETCFILES)
-	$(INSTALL) -d $(DESTDIR)$(etcdir)/iscsi
-	$(INSTALL) -m 644 $^ $(DESTDIR)$(etcdir)/iscsi
+	if [ ! -f /etc/iscsi/iscsid.conf ]; then \
+		$(INSTALL) -d $(DESTDIR)$(etcdir)/iscsi
+		$(INSTALL) -m 644 $^ $(DESTDIR)$(etcdir)/iscsi
+	fi
 
 install_doc: $(MANPAGES)
 	$(INSTALL) -d $(DESTDIR)$(mandir)/man8
