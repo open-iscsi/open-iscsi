@@ -157,7 +157,7 @@ index 4686f3a..0cd18a0 100644
 +#include "iscsi_2.6.22_compat.h"
  
  #define ISCSI_SESSION_ATTRS 19
- #define ISCSI_CONN_ATTRS 11
+ #define ISCSI_CONN_ATTRS 13
 @@ -1265,49 +1266,61 @@ iscsi_if_recv_msg(struct sk_buff *skb, struct nlmsghdr *nlh)
  }
  

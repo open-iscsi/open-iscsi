@@ -338,7 +338,7 @@ index 4686f3a..075473b 100644
 +#include "iscsi_compat.h"
  
  #define ISCSI_SESSION_ATTRS 19
- #define ISCSI_CONN_ATTRS 11
+ #define ISCSI_CONN_ATTRS 13
 @@ -322,10 +326,9 @@ static int iscsi_user_scan(struct Scsi_Host *shost, uint channel,
  	return 0;
  }
@@ -365,7 +365,7 @@ index 4686f3a..075473b 100644
 +	struct iscsi_cls_session *session = data;
  	unsigned long flags;
  
- 	dev_printk(KERN_INFO, &session->dev, "iscsi: session recovery timed "
+	iscsi_cls_session_printk(KERN_INFO, session,
 @@ -395,10 +396,12 @@ void iscsi_unblock_session(struct iscsi_cls_session *session)
  	 * the async scanning code (drivers like iscsi_tcp do login and
  	 * scanning from userspace).
