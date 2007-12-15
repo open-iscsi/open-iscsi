@@ -397,6 +397,7 @@ iscsi_copy_operational_params(iscsi_conn_t *conn)
 		log_error("Invalid iscsi.FirstBurstLength of %u. Must be "
 			  "less than iscsi.MaxBurstLength. Setting to %u\n",
 			   session->first_burst, session->max_burst);
+		rec->session.iscsi.FirstBurstLength = session->max_burst;
 		session->first_burst = session->max_burst;
 	}
 
