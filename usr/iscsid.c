@@ -369,7 +369,10 @@ int main(int argc, char *argv[])
 	log_pid = log_init(program_name, DEFAULT_AREA_SIZE);
 	if (log_pid < 0)
 		exit(1);
-	check_class_version();
+	if (check_class_version()) {
+		log_close(log_pid);
+		exit(1);
+	}
 
 	umask(0177);
 
@@ -379,11 +382,14 @@ int main(int argc, char *argv[])
 	daemon_config.initiator_alias = NULL;
 	if (atexit(iscsid_exit)) {
 		log_error("failed to set exit function\n");
+		log_close(log_pid);
 		exit(1);
 	}
 
-	if ((mgmt_ipc_fd = mgmt_ipc_listen()) < 0)
+	if ((mgmt_ipc_fd = mgmt_ipc_listen()) < 0) {
+		log_close(log_pid);
 		exit(-1);
+	}
 
 	if (log_daemon) {
 		char buf[64];
@@ -392,23 +398,28 @@ int main(int argc, char *argv[])
 		fd = open(pid_file, O_WRONLY|O_CREAT, 0644);
 		if (fd < 0) {
 			log_error("Unable to create pid file");
+			log_close(log_pid);
 			exit(1);
 		}
 		pid = fork();
 		if (pid < 0) {
 			log_error("Starting daemon failed");
+			log_close(log_pid);
 			exit(1);
 		} else if (pid) {
 			log_error("iSCSI daemon with pid=%d started!", pid);
 			exit(0);
 		}
 
-		if ((control_fd = ipc->ctldev_open()) < 0)
+		if ((control_fd = ipc->ctldev_open()) < 0) {
+			log_close(log_pid);
 			exit(-1);
+		}
 
 		chdir("/");
 		if (lockf(fd, F_TLOCK, 0) < 0) {
 			log_error("Unable to lock pid file");
+			log_close(log_pid);
 			exit(1);
 		}
 		ftruncate(fd, 0);
@@ -417,8 +428,10 @@ int main(int argc, char *argv[])
 
 		daemon_init();
 	} else {
-		if ((control_fd = ipc->ctldev_open()) < 0)
+		if ((control_fd = ipc->ctldev_open()) < 0) {
+			log_close(log_pid);
 			exit(-1);
+		}
 	}
 
 	if (uid && setuid(uid) < 0)
@@ -468,6 +481,7 @@ int main(int argc, char *argv[])
 	/* we don't want our active sessions to be paged out... */
 	if (mlockall(MCL_CURRENT | MCL_FUTURE)) {
 		log_error("failed to mlockall, exiting...");
+		log_close(log_pid);
 		exit(1);
 	}
 

@@ -50,7 +50,7 @@ struct host_info {
 
 extern void free_transports(void);
 extern int get_iscsi_kernel_version(char *buf);
-extern void check_class_version(void);
+extern int check_class_version(void);
 extern int get_sessioninfo_by_sysfs_id(struct session_info *info,
 				      char *sys_session);
 

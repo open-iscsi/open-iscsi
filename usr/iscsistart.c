@@ -305,7 +305,9 @@ int main(int argc, char *argv[])
 	log_daemon = 0;
 	log_init(program_name, DEFAULT_AREA_SIZE);
 
-	check_class_version();
+	if (check_class_version())
+		exit(1);
+
 	if (check_params(initiatorname))
 		exit(1);
 
