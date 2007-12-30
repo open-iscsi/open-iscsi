@@ -78,7 +78,7 @@ enlarge_data(struct string_buffer *s, int length)
 
 	if (s) {
 		s->data_length += length;
-		if (s->data_length >= s->allocated_length) {
+		if (s->data_length > s->allocated_length) {
 			log_debug(7, "enlarge buffer from %lu to %lu\n",
 				  s->allocated_length, s->data_length);
 			new_buf = realloc(s->buffer, s->data_length);
@@ -91,8 +91,9 @@ enlarge_data(struct string_buffer *s, int length)
 				exit(1);
 			}
 			s->buffer = new_buf;
-			memset(s->buffer + s->allocated_length, 0, length);
-			s->allocated_length += length;
+			memset(s->buffer + s->allocated_length, 0,
+			       s->data_length - s->allocated_length);
+			s->allocated_length = s->data_length;
 		}
 	}
 }
