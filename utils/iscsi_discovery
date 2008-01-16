@@ -86,7 +86,7 @@ discover()
 		echo "failed to discover targets at ${ip}"
 		exit 2
 	else 
-		echo "discovered ${discovered} targets at ${ip}, connected to ${connected}"
+		echo "discovered ${discovered} targets at ${ip}"
 	fi
 	/bin/rm -f ${df}
 }
