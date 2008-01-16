@@ -42,9 +42,20 @@ stop()
 	killproc iscsid
 	rm -f /var/run/iscsid.pid
 	[ $RETVAL -eq 0 ] && rm -f /var/lock/subsys/open-iscsi
+	status=0
 	modprobe -r iscsi_tcp 2>/dev/null
+	if [ "$?" -ne "0" -a "$?" -ne "1" ]; then
+		status=1
+	fi
 	modprobe -r ib_iser 2>/dev/null
-	success
+	if [ "$?" -ne "0" -a "$?" -ne "1" ]; then
+		status=1
+	fi
+	if [ "$status" -eq "0" ]; then
+		success
+	else
+		failure
+	fi
 	echo
 
 }

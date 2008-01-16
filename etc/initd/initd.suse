@@ -88,9 +88,16 @@ case "$1" in
 	echo -n "Stopping iSCSI initiator service: "
 	if [ "$RETVAL" == "0" ]; then
 	    rm -f $PID_FILE
+	    status=0
 	    modprobe -r iscsi_tcp
+	    if [ "$?" -ne "0" -a "$?" -ne "1" ]; then
+	    	status=1
+	    fi
 	    modprobe -q -r ib_iser
-	    rc_failed 0
+            if [ "$?" -ne "0" -a "$?" -ne "1" ]; then
+	        status=1 
+            fi
+	    rc_failed $status
 	else
 	    rc_failed 1
 	fi

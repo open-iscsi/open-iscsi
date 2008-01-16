@@ -54,9 +54,16 @@ stop() {
 	log_daemon_msg "Stopping iSCSI initiator service"
 	start-stop-daemon --stop --quiet --pidfile $PIDFILE --exec $DAEMON
 	rm -f $PIDFILE
+	status=0
 	modprobe -r ib_iser 2>/dev/null
+	if [ "$?" -ne "0" -a "$?" -ne "1" ]; then
+		status=1
+	fi
 	modprobe -r iscsi_tcp 2>/dev/null
-	log_end_msg 0
+	if [ "$?" -ne "0" -a "$?" -ne "1" ]; then
+		status=1
+	fi
+	log_end_msg $status
 }
 
 restart() {
