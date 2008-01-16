@@ -63,6 +63,12 @@ parse_cmdline()
 
 discover()
 {
+	# If open-iscsi is already logged in to the portal, exit
+	if [ $(iscsiadm -m session | grep -c ${ip}:${port}) -ne 0 ]; then
+		echo "Please logout from all targets on ${ip}:${port} before trying to run discovery on that portal"
+		exit 2
+	fi
+
 	connected=0
 	discovered=0
 	df=/tmp/discovered.$$
