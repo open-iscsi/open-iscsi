@@ -12,7 +12,7 @@ iscsiadm \- open-iscsi administration utility
 
 \fBiscsiadm\fR -m iface [ -hV ] [ -d debug_level ] [ -P printlevel ] [ -I ifacename ] [ [ -o  operation  ] [ -n name ] [ -v value ] ]
 
-\fBiscsiadm\fR -m fw
+\fBiscsiadm\fR -m fw [-l]
 
 \fBiscsiadm\fR -k priority
 
@@ -90,7 +90,7 @@ This command and iscsid's SIGTERM handling are experimental.
 
 .TP
 \fB\-l\fR, \fB\-\-login\fR
-For node mode, login to a specified record. For discovery mode, login to
+For node and fw mode, login to a specified record. For discovery mode, login to
 all discovered targets.
 .IP
 This option is only valid for discovery and node modes.

@@ -101,6 +101,7 @@ iscsiadm -m node [ -hV ] [ -d debug_level ] [ -P printlevel ] [ -L all,manual,au
 [ [ -o  operation  ] [ -n name ] [ -v value ] ]\n\
 iscsiadm -m session [ -hV ] [ -d debug_level ] [ -P  printlevel] [ -r sessionid | sysfsdir [ -R | -u | -s ] [ -o operation ] [ -n name ] [ -v value ] ]\n\
 iscsiadm -m iface [ -hV ] [ -d debug_level ] [ -P printlevel ] [ -I ifacename ] [ [ -o  operation  ] [ -n name ] [ -v value ] ]\n\
+iscsiadm -m fw [ -l ]\n\
 iscsiadm -k priority\n");
 	}
 	exit(status == 0 ? 0 : -1);
@@ -1537,53 +1538,6 @@ static void print_fw_nodes(struct node_rec *rec, int info_level)
 	}
 }
 
-static int do_fw_discovery(idbm_t *db, discovery_rec_t *drec, int do_login,
-			   int info_level)
-{
-	struct boot_context context;
-	struct node_rec *rec;
-	int ret;
-
-	memset(&context, 0, sizeof(struct boot_context));
-	ret = fw_get_entry(&context, NULL);
-	if (ret) {
-		log_error("Could not read fw values.");
-		return ret;
-	}
-	/* tpgt hard coded to 1 */
-	rec = create_node_record(db, context.targetname, 1,
-				 context.target_ipaddr, context.target_port,
-				 NULL, 1);
-	if (!rec) {
-		log_error("Could not setup rec for fw discovery login.");
-		return ENOMEM;
-	}
-
-	/* todo - grab mac and set that here */
-	iface_init(&rec->iface);
-	strncpy(rec->iface.iname, context.initiatorname,
-		sizeof(context.initiatorname));
-	strncpy(rec->session.auth.username, context.chap_name,
-		sizeof(context.chap_name));
-	strncpy((char *)rec->session.auth.password, context.chap_password,
-		sizeof(context.chap_password));
-	strncpy(rec->session.auth.username_in, context.chap_name_in,
-		sizeof(context.chap_name_in));
-	strncpy((char *)rec->session.auth.password_in, context.chap_password_in,
-		sizeof(context.chap_password_in));
-	rec->session.auth.password_length =
-				strlen((char *)context.chap_password);
-	rec->session.auth.password_in_length =
-				strlen((char *)context.chap_password_in);
-
-	print_fw_nodes(rec, info_level);
-	if (do_login)
-		ret = login_portal(db, NULL, rec);
-	free(rec);
-	return ret;
-}
-
-
 static int isns_dev_attr_query(idbm_t *db, discovery_rec_t *drec,
 			       int info_level)
 {
@@ -1886,10 +1840,46 @@ out:
 	return rc;
 }
 
-static int exec_fw_op(void)
+static struct node_rec *
+fw_create_rec_by_entry(idbm_t *db, struct boot_context *context)
+{
+	struct node_rec *rec;
+
+	/* tpgt hard coded to 1 ??? */
+	rec = create_node_record(db, context->targetname, 1,
+				 context->target_ipaddr, context->target_port,
+				 NULL, 1);
+	if (!rec) {
+		log_error("Could not setup rec for fw discovery login.");
+		return NULL;
+	}
+
+	/* todo - grab mac and set that here */
+	iface_init(&rec->iface);
+	strncpy(rec->iface.iname, context->initiatorname,
+		sizeof(context->initiatorname));
+	strncpy(rec->session.auth.username, context->chap_name,
+		sizeof(context->chap_name));
+	strncpy((char *)rec->session.auth.password, context->chap_password,
+		sizeof(context->chap_password));
+	strncpy(rec->session.auth.username_in, context->chap_name_in,
+		sizeof(context->chap_name_in));
+	strncpy((char *)rec->session.auth.password_in,
+		context->chap_password_in,
+		sizeof(context->chap_password_in));
+	rec->session.auth.password_length =
+				strlen((char *)context->chap_password);
+	rec->session.auth.password_in_length =
+				strlen((char *)context->chap_password_in);
+	return rec;
+}
+
+static int exec_fw_op(idbm_t *db, discovery_rec_t *drec, int do_login,
+		     int info_level)
 {
 	struct boot_context context;
-	int ret;
+	struct node_rec *rec;
+	int ret = 0;
 
 	memset(&context, 0, sizeof(struct boot_context));
 	ret = fw_get_entry(&context, NULL);
@@ -1898,8 +1888,22 @@ static int exec_fw_op(void)
 		return ret;
 	}
 
-	fw_print_entry(&context);
-	return 0;
+	rec = fw_create_rec_by_entry(db, &context);
+	if (!rec)
+		return ENODEV;
+
+	/* if discovery, print nodes that were found. */
+	if (drec)
+		print_fw_nodes(rec, info_level);
+
+	if (do_login)
+		ret = login_portal(db, NULL, rec);
+	free(rec);
+
+	/* print the fw node info if called in fw mode with no params */
+	if (!do_login && !drec)
+		fw_print_entry(&context);
+	return ret;
 }
 
 static int parse_sid(char *session)
@@ -2101,14 +2105,14 @@ main(int argc, char **argv)
 		usage(0);
 
 	if (mode == MODE_FW) {
-		if ((rc = verify_mode_params(argc, argv, "m", 0))) {
+		if ((rc = verify_mode_params(argc, argv, "ml", 0))) {
 			log_error("fw mode: option '-%c' is not "
 				  "allowed/supported", rc);
 			rc = -1;
 			goto out;
 		}
 
-		rc = exec_fw_op();
+		rc = exec_fw_op(db, NULL, do_login, info_level);
 		goto out;
 	}
 
@@ -2181,7 +2185,7 @@ main(int argc, char **argv)
 			break;
 		case DISCOVERY_TYPE_FWBOOT:
 			drec.type = DISCOVERY_TYPE_FWBOOT;
-			if (do_fw_discovery(db, &drec, do_login, info_level))
+			if (exec_fw_op(db, &drec, do_login, info_level))
 				rc = -1;
 			break;
 		default:
