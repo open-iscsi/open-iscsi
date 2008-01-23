@@ -149,7 +149,6 @@ __login_response_status(iscsi_conn_t *conn,
 	case LOGIN_REDIRECT:
 		return CONN_LOGIN_IMM_REDIRECT_RETRY;
 	case LOGIN_IO_ERROR:
-	case LOGIN_WRONG_PORTAL_GROUP:
 	case LOGIN_REDIRECTION_FAILED:
 		return CONN_LOGIN_RETRY;
 	default:

@@ -981,7 +981,6 @@ redirect_reconnect:
 		break;
 
 	case LOGIN_IO_ERROR:
-	case LOGIN_WRONG_PORTAL_GROUP:
 	case LOGIN_REDIRECTION_FAILED:
 		/* try again */
 		log_warning("retrying discovery login to %s", host);

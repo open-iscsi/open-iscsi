@@ -264,24 +264,20 @@ get_security_text_keys(iscsi_session_t *session, int cid, char **data,
 					 &value, &value_end)) {
 		/*
 		 * We should have already obtained this
-		 * via discovery.
-		 * We've already picked an isid, so the
-		 * most we can do is confirm we reached
-		 * the portal group we were expecting to
+		 * via discovery, but the value could be stale.
+		 * If the target was reconfigured it will send us
+		 * the updated tpgt.
 		 */
 		tag = strtoul(value, NULL, 0);
 		if (session->portal_group_tag >= 0) {
-			if (tag != session->portal_group_tag) {
-				log_error("Portal group tag "
+			if (tag != session->portal_group_tag)
+				log_debug(2, "Portal group tag "
 					  "mismatch, expected %u, "
-					  "received %u",
+					  "received %u. Updating",
 					  session->portal_group_tag, tag);
-				return LOGIN_WRONG_PORTAL_GROUP;
-			}
-		} else
-			/* we now know the tag */
-			session->portal_group_tag = tag;
-
+		}
+		/* we now know the tag */
+		session->portal_group_tag = tag;
 		text = value_end;
 	} else {
 		/*
@@ -339,21 +335,22 @@ get_op_params_text_keys(iscsi_session_t *session, int cid,
 		}
 	} else if (iscsi_find_key_value("TargetPortalGroupTag", text, end,
 					 &value, &value_end)) {
-		/*
-		 * confirm we reached the portal group we were expecting to
-		 */
 		int tag = strtoul(value, NULL, 0);
+		/*
+		 * We should have already obtained this
+		 * via discovery, but the value could be stale.
+		 * If the target was reconfigured it will send us
+		 * the updated tpgt.
+		 */
 		if (session->portal_group_tag >= 0) {
-			if (tag != session->portal_group_tag) {
-				log_error("Portal group tag mismatch, "
-					  "expected %u, received %u",
+			if (tag != session->portal_group_tag)
+				log_debug(2, "Portal group tag "
+					  "mismatch, expected %u, "
+					  "received %u. Updating",
 					  session->portal_group_tag, tag);
-				return LOGIN_WRONG_PORTAL_GROUP;
-			}
-		} else
-			/* we now know the tag */
-			session->portal_group_tag = tag;
-
+		}
+		/* we now know the tag */
+		session->portal_group_tag = tag;
 		text = value_end;
 	} else if (iscsi_find_key_value("InitialR2T", text, end, &value,
 					 &value_end)) {
