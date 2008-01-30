@@ -2094,14 +2094,16 @@ free_portal:
 	return rc;
 }
 
-static int
-idbm_add_discovery(idbm_t *db, discovery_rec_t *newrec)
+int
+idbm_add_discovery(idbm_t *db, discovery_rec_t *newrec, int overwrite)
 {
 	discovery_rec_t rec;
 	int rc;
 
 	if (!idbm_discovery_read(db, &rec, newrec->address,
 				newrec->port)) {
+		if (!overwrite)
+			return 0;
 		log_debug(7, "overwriting existing record");
 	} else
 		log_debug(7, "adding new DB record");
@@ -2159,7 +2161,8 @@ static int setup_disc_to_node_link(char *disc_portal, node_rec_t *rec)
 	return rc;
 }
 
-int idbm_add_node(idbm_t *db, node_rec_t *newrec, discovery_rec_t *drec)
+int idbm_add_node(idbm_t *db, node_rec_t *newrec, discovery_rec_t *drec,
+		  int overwrite)
 {
 	node_rec_t rec;
 	char *node_portal, *disc_portal;
@@ -2168,7 +2171,10 @@ int idbm_add_node(idbm_t *db, node_rec_t *newrec, discovery_rec_t *drec)
 	if (!idbm_rec_read(db, &rec, newrec->name, newrec->tpgt,
 			   newrec->conn[0].address, newrec->conn[0].port,
 			   &newrec->iface)) {
-		rc = idbm_delete_node(db, NULL, &rec);
+		if (!overwrite)
+			return 0;
+
+		rc = idbm_delete_node(db, &rec);
 		if (rc)
 			return rc;
 		log_debug(7, "overwriting existing record");
@@ -2221,8 +2227,26 @@ free_portal:
 	return rc;
 }
 
-int idbm_add_nodes(idbm_t *db, node_rec_t *newrec, discovery_rec_t *drec,
-		   struct list_head *ifaces)
+static int idbm_bind_iface_to_node(struct node_rec *new_rec,
+				   struct iface_rec *iface,
+				   struct list_head *bound_recs)
+{
+	struct node_rec *clone_rec;
+
+	clone_rec = calloc(1, sizeof(*clone_rec));
+	if (!clone_rec)
+		return ENOMEM;
+
+	memcpy(clone_rec, new_rec, sizeof(*clone_rec));
+	INIT_LIST_HEAD(&clone_rec->list);
+	iface_copy(&clone_rec->iface, iface);
+	list_add_tail(&clone_rec->list, bound_recs);
+	return 0;
+}
+
+int idbm_bind_ifaces_to_node(idbm_t *db, struct node_rec *new_rec,
+			     struct list_head *ifaces,
+			     struct list_head *bound_recs)
 {
 	struct iface_rec *iface, *tmp;
 	struct iscsi_transport *t;
@@ -2239,18 +2263,75 @@ int idbm_add_nodes(idbm_t *db, node_rec_t *newrec, discovery_rec_t *drec,
 		list_for_each_entry_safe(iface, tmp, &def_ifaces, list) {
 			list_del(&iface->list);
 			t = get_transport_by_name(iface->transport_name);
-			if (!t) {
+			if (!t || t->caps & CAP_FW_DB) {
 				free(iface);
 				continue;
 			}
 
-			if (t->caps & CAP_FW_DB) {
+			rc = idbm_bind_iface_to_node(new_rec, iface,
+						     bound_recs);
+			free(iface);
+			if (rc)
+				return rc;
+			found = 1;
+		}
+
+		/* create default iface with old/default behavior */
+		if (!found) {
+			struct iface_rec def_iface;
+
+			iface_init(&def_iface);
+			return idbm_bind_iface_to_node(new_rec, &def_iface,
+						       bound_recs);
+		}
+	} else {
+		list_for_each_entry(iface, ifaces, list) {
+			if (strcmp(iface->name, DEFAULT_IFACENAME) &&
+			    !iface_is_bound(iface)) {
+				log_error("iface %s is not bound. Will not "
+					  "bind node to it. Iface settings "
+					  iface_fmt, iface->name,
+					  iface_str(iface));
+				continue;
+			}
+
+			rc = idbm_bind_iface_to_node(new_rec, iface,
+						     bound_recs);
+			if (rc)
+				return rc;
+		}
+	}
+	return 0;
+}
+
+/*
+ * remove this when isns is converted
+ */
+int idbm_add_nodes(idbm_t *db, node_rec_t *newrec, discovery_rec_t *drec,
+		   struct list_head *ifaces, int update)
+{
+	struct iface_rec *iface, *tmp;
+	struct iscsi_transport *t;
+	int rc = 0, found = 0;
+
+	if (!ifaces || list_empty(ifaces)) {
+		struct list_head def_ifaces;
+
+		INIT_LIST_HEAD(&def_ifaces);
+		idbm_lock(db);
+		idbm_read_def_ifaces(&def_ifaces);
+		idbm_unlock(db);
+
+		list_for_each_entry_safe(iface, tmp, &def_ifaces, list) {
+			list_del(&iface->list);
+			t = get_transport_by_name(iface->transport_name);
+			if (!t || t->caps & CAP_FW_DB) {
 				free(iface);
 				continue;
 			}
 
 			iface_copy(&newrec->iface, iface);
-			rc = idbm_add_node(db, newrec, drec);
+			rc = idbm_add_node(db, newrec, drec, update);
 			free(iface);
 			if (rc)
 				return rc;
@@ -2260,7 +2341,7 @@ int idbm_add_nodes(idbm_t *db, node_rec_t *newrec, discovery_rec_t *drec,
 		/* create default iface with old/default behavior */
 		if (!found) {
 			iface_init(&newrec->iface);
-			return idbm_add_node(db, newrec, drec);
+			return idbm_add_node(db, newrec, drec, update);
 		}
 	} else {
 		list_for_each_entry(iface, ifaces, list) {
@@ -2274,19 +2355,12 @@ int idbm_add_nodes(idbm_t *db, node_rec_t *newrec, discovery_rec_t *drec,
 			}
 
 			iface_copy(&newrec->iface, iface);
-			rc = idbm_add_node(db, newrec, drec);
+			rc = idbm_add_node(db, newrec, drec, update);
 			if (rc)
 				return rc;
 		}
 	}
 	return 0;
-}
-
-void idbm_new_discovery(idbm_t *db, discovery_rec_t *drec)
-{
-	idbm_delete_discovery(db, drec);
-	if (idbm_add_discovery(db, drec))
-		log_error("can not update discovery record.");
 }
 
 static void idbm_rm_disc_node_links(idbm_t *db, char *disc_dir)
@@ -2328,7 +2402,7 @@ static void idbm_rm_disc_node_links(idbm_t *db, char *disc_dir)
 		strncpy(rec->conn[0].address, address, NI_MAXHOST);
 		strncpy(rec->iface.name, iface_id, ISCSI_MAX_IFACE_LEN);
 
-		if (idbm_delete_node(db, NULL, rec))
+		if (idbm_delete_node(db, rec))
 			log_error("Could not delete node %s/%s/%s,%s/%s",
 				  NODE_CONFIG_DIR, target, address, port,
 				  iface_id);
@@ -2438,7 +2512,7 @@ done:
 	return rc;
 }
 
-int idbm_delete_node(idbm_t *db, void *data, node_rec_t *rec)
+int idbm_delete_node(idbm_t *db, node_rec_t *rec)
 {
 	struct stat statb;
 	char *portal;

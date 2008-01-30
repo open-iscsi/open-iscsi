@@ -174,9 +174,35 @@ Usage: iscsiadm [OPTION]
 
   -m, --mode <op>         specify operational mode op = <discovery|node>
   -m discovery --type=[type] --interface=iscsi_ifacename \
-			--portal=[ip:port] --login --print=[N]
+			--portal=[ip:port] --login --print=[N] \
+			--op=[op]=[NEW | UPDATE | DELETE]
                           perform [type] discovery for target portal with
                           ip-address [ip] and port [port].
+
+			  By default this command will remove records
+			  for portals no longer returned. And, if a portal is
+			  returned by the target, then the discovery command
+			  will create a new record or modify an existing one
+			  with values from iscsi.conf and the command line.
+
+			  [op] can be passed in multiple times to this
+			  command, and it will alter the DB manipulation.
+
+			  If [op] is passed in and the value is
+			  "new", iscsiadm will add records for portals that do
+			  not yet have records in the db.
+
+			  If [op] is passed in and the value is
+			  "update", iscsiadm will update records using info
+			  from iscsi.conf and the command line for portals
+			  that are returned during discovery and have
+			  a record in the db.
+
+			  if [op] is passed in and the value is "delete",
+			  iscsiadm will delete records for portals that
+			  were not returned during discovery.
+
+			  See the example section for more info.
 
 			  See below for how to setup iscsi ifaces for
 			  software iscsi or override the system defaults.
@@ -346,7 +372,7 @@ with the name "iface0" this command will overwrite it.)
 (This will set the hwaddress.)
 # iscsiadm -m iface -I iface0 --op=update -n iface.hwaddress -v 00:0F:1F:92:6B:BF
 
-If you had sessions logged in iscsiadm will not update, delete or overwrite
+If you had sessions logged in iscsiadm will not update, overwrite
 a iface. You must log out first. If you have a iface bound to a node/portal
 but you have not logged in then, iscsiadm will update the config and
 all existing bindings.
@@ -406,7 +432,49 @@ iscsiadm -m node -p ip:port -I iface0 --op=delete
 	discovery will be setup so that they can logged in through
 	those interfaces.
 
-    - SendTargets iSCSI Discovery with a specific interface. If you
+    - SendTargets iSCSI Discovery updating existing records:
+
+	    ./iscsiadm -m discovery -t sendtargets -p 192.168.1.1:3260 \
+		-o update
+
+	If there a record for targetX and portalY exists in the DB, and
+	is returned during discovery, it will be updated with the info
+	from the iscsi.conf. No new portals will be added and stale
+	portals will not be removed.
+ 
+    - SendTargets iSCSI Discovery deleting existing records:
+
+	    ./iscsiadm -m discovery -t sendtargets -p 192.168.1.1:3260 \
+		-o delete
+
+	If there a record for targetX and portalY exists in the DB, but
+	is not returned during discovery it will be removed from the DB.
+	No new portals will be added and existing portal records will not
+	be changed.
+
+	Note: If a session is logged into portal we are going to delete
+	a record for, it will be logged out then the record will be
+	deleted.
+
+     - SendTargets iSCSI Discovery adding new records:
+
+	    ./iscsiadm -m discovery -t sendtargets -p 192.168.1.1:3260 \
+		-o new
+
+	If there targetX and portalY is returned during discovery and does
+	not have a record, it will be added. Existing records are not
+	modified.
+
+     - SendTargets iSCSI Discovery using multiple ops:
+
+	    ./iscsiadm -m discovery -t sendtargets -p 192.168.1.1:3260 \
+		-o new -o delete
+
+	This command will add new portals and delete records for portals
+	no longer returned. It will not change the record information for
+	existing portals.
+
+  - SendTargets iSCSI Discovery with a specific interface. If you
 	wish to only use a subset of the interfaces in /etc/iscsi/ifaces
 	then you can pass them in during discovery:
 

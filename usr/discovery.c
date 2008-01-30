@@ -183,12 +183,13 @@ iterate_targets(iscsi_session_t *session, uint32_t ttt)
 	return 1;
 }
 
-static int add_portal(idbm_t *db, discovery_rec_t *drec,
-		      struct list_head *ifaces, node_rec_t *rec,
-		      char *address, char *port, char *tag)
+static int add_portal(idbm_t *db, struct list_head *rec_list,
+		      discovery_rec_t *drec, char *targetname, char *address,
+		      char *port, char *tag)
 {
 	struct sockaddr_storage ss;
 	char host[NI_MAXHOST];
+	struct node_rec *rec;
 
 	/* resolve the address, in case it was a DNS name */
 	if (resolve_address(address, port, &ss)) {
@@ -200,6 +201,16 @@ static int add_portal(idbm_t *db, discovery_rec_t *drec,
 	getnameinfo((struct sockaddr *) &ss, sizeof(ss),
 		    host, sizeof(host), NULL, 0, NI_NUMERICHOST);
 
+	rec = calloc(1, sizeof(*rec));
+	if (!rec)
+		return 0;
+
+	idbm_node_setup_from_conf(db, rec);
+	rec->disc_type = drec->type;
+	rec->disc_port = drec->port;
+	strcpy(rec->disc_address, drec->address);
+
+	strncpy(rec->name, targetname, TARGET_NAME_MAXLEN);
 	if (tag && *tag)
 		rec->tpgt = atoi(tag);
 	else
@@ -210,21 +221,18 @@ static int add_portal(idbm_t *db, discovery_rec_t *drec,
 		rec->conn[0].port = ISCSI_LISTEN_PORT;
 	strncpy(rec->conn[0].address, address, NI_MAXHOST);
 
-	if (idbm_add_nodes(db, rec, drec, ifaces))
-		log_error("Could not add record for %s %s,%d,%d\n",
-			  rec->name, address, rec->conn[0].port, rec->tpgt);
+	list_add_tail(&rec->list, rec_list);
 	return 1;
 }
 
 static int
 add_target_record(idbm_t *db, char *name, char *end,
-		  discovery_rec_t *drec, struct list_head *ifaces,
+		  discovery_rec_t *drec, struct list_head *rec_list,
 		  char *default_port)
 {
 	char *text = NULL;
 	char *nul = name;
 	size_t length;
-	node_rec_t rec;
 
 	/* address = IPv4
 	 * address = [IPv6]
@@ -251,10 +259,6 @@ add_target_record(idbm_t *db, char *name, char *end,
 		log_error("TargetName %s too long, ignoring", name);
 		return 0;
 	}
-
-	idbm_node_setup_from_conf(db, &rec);
-	strncpy(rec.name, name, TARGET_NAME_MAXLEN);
-
 	text = name + length;
 
 	/* skip NULs after the name */
@@ -267,7 +271,7 @@ add_target_record(idbm_t *db, char *name, char *end,
 			log_error("no default address known for target %s",
 				  name);
 			return 0;
-		} else if (!add_portal(db, drec, ifaces, &rec, drec->address,
+		} else if (!add_portal(db, rec_list, drec, name, drec->address,
 				       default_port, NULL)) {
 			log_error("failed to add default portal, ignoring "
 				  "target %s", name);
@@ -305,7 +309,7 @@ add_target_record(idbm_t *db, char *name, char *end,
 					*temp = '\0';
 			}
 
-			if (!add_portal(db, drec, ifaces, &rec, address, port,
+			if (!add_portal(db, rec_list, drec, name, address, port,
 					tag)) {
 				log_error("failed to add default portal, "
 					 "ignoring target %s", name);
@@ -323,7 +327,7 @@ add_target_record(idbm_t *db, char *name, char *end,
 static int
 process_sendtargets_response(idbm_t *db, struct string_buffer *sendtargets,
 			     int final, discovery_rec_t *drec,
-			     struct list_head *ifaces,
+			     struct list_head *rec_list,
 			     char *default_port)
 {
 	char *start = buffer_data(sendtargets);
@@ -375,7 +379,7 @@ process_sendtargets_response(idbm_t *db, struct string_buffer *sendtargets,
 				 * "TargetName=" prefix.
 				 */
 				if (!add_target_record(db, record + 11, text,
-							drec, ifaces,
+							drec, rec_list,
 							default_port)) {
 					log_error(
 					       "failed to add target record");
@@ -404,7 +408,7 @@ process_sendtargets_response(idbm_t *db, struct string_buffer *sendtargets,
 				 "line %s",
 				 record, record);
 			if (add_target_record (db, record + 11, text,
-					       drec, ifaces, default_port)) {
+					       drec, rec_list, default_port)) {
 				num_targets++;
 				record = NULL;
 				truncate_buffer(sendtargets, 0);
@@ -684,7 +688,7 @@ setup_authentication(iscsi_session_t *session,
 static int
 process_recvd_pdu(idbm_t *db, struct iscsi_hdr *pdu,
 		  discovery_rec_t *drec,
-		  struct list_head *ifaces,
+		  struct list_head *rec_list,
 		  iscsi_session_t *session,
 		  struct string_buffer *sendtargets,
 		  char *default_port,
@@ -721,22 +725,12 @@ process_recvd_pdu(idbm_t *db, struct iscsi_hdr *pdu,
 			memcpy(buffer_data(sendtargets) + curr_data_length,
 			       data, dlength);
 
-			/*
-			 * we got a response so clear out the current
-			 * db values
-			 *
-			 * TODO: should we make whether rm the current
-			 * values configurable (maybe a --clear option)
-			 */
-			if (!*valid_text)
-				idbm_new_discovery(db, drec);
 			*valid_text = 1;
-
 			/* process as much as we can right now */
 			process_sendtargets_response(db, sendtargets,
 						     final,
 						     drec,
-						     ifaces,
+						     rec_list,
 						     default_port);
 
 			if (final) {
@@ -828,7 +822,7 @@ done:
 }
 
 int discovery_sendtargets(idbm_t *db, discovery_rec_t *drec,
-			  struct list_head *ifaces)
+			  struct list_head *rec_list)
 {
 	iscsi_session_t *session;
 	struct pollfd pfd;
@@ -1125,7 +1119,7 @@ repoll:
 			/*
 			 * process iSCSI PDU received
 			 */
-			rc = process_recvd_pdu(db, pdu, drec, ifaces,
+			rc = process_recvd_pdu(db, pdu, drec, rec_list,
 					       session, &sendtargets,
 					       default_port,
 					       &active, &valid_text, data);

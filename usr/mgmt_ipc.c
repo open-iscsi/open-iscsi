@@ -139,7 +139,7 @@ mgmt_ipc_session_logout(queue_task_t *qtask)
 	iscsi_session_t *session;
 
 	if (!(session = session_find_by_rec(rec))) {
-		log_error("session [%s,%s,%d] not found!", rec->name,
+		log_debug(1, "session [%s,%s,%d] not found!", rec->name,
 			  rec->conn[0].address, rec->conn[0].port);
 		return MGMT_IPC_ERR_NOT_FOUND;
 	}
@@ -172,7 +172,7 @@ mgmt_ipc_session_info(queue_task_t *qtask)
 	struct ipc_msg_session_state *info;
 
 	if (!(session = session_find_by_sid(sid))) {
-		log_error("session with sid %d not found!", sid);
+		log_debug(1, "session with sid %d not found!", sid);
 		return MGMT_IPC_ERR_NOT_FOUND;
 	}
 

@@ -55,10 +55,11 @@ enum iscsiadm_mode {
 };
 
 enum iscsiadm_op {
-	OP_NEW,
-	OP_DELETE,
-	OP_UPDATE,
-	OP_SHOW,
+	OP_NOOP		= 0x0,
+	OP_NEW		= 0x1,
+	OP_DELETE	= 0x2,
+	OP_UPDATE	= 0x4,
+	OP_SHOW		= 0x8,
 };
 
 static struct option const long_options[] =
@@ -121,7 +122,7 @@ str_to_op(char *str)
 	else if (!strcmp("show", str))
 		op = OP_SHOW;
 	else
-		op = -1;
+		op = OP_NOOP;
 
 	return op;
 }
@@ -1321,7 +1322,7 @@ static int add_static_rec(idbm_t *db, int *found, char *targetname, int tpgt,
 		iface_copy(&rec->iface, iface);
 	}
 
-	rc = idbm_add_node(db, rec, drec);
+	rc = idbm_add_node(db, rec, drec, 1);
 	if (!rc) {
 		(*found)++;
 		printf("New iSCSI node [%s:" iface_fmt " %s,%d,%d %s] added\n",
@@ -1431,35 +1432,196 @@ static int login_discovered_portal(void *data, struct list_head *list,
 	return 0;
 }
 
-static int
-do_sofware_sendtargets(idbm_t *db, discovery_rec_t *drec,
-			struct list_head *ifaces, int info_level, int do_login)
+/* TODO merge with initiator.c implementation */
+/* And add locking */
+static int check_for_session_through_iface(struct node_rec *rec)
 {
-	int rc, err, nr_found = 0;
-	struct list_head rec_list;
+	int nr_found = 0;
+	if (sysfs_for_each_session(rec, &nr_found, iscsi_match_session))
+		return 1;
+	return 0;
+}
 
-	drec->type = DISCOVERY_TYPE_SENDTARGETS;
-	rc = discovery_sendtargets(db, drec, ifaces);
-	if (rc)
-		return rc;
+static int delete_node(struct idbm *db, void *data, struct node_rec *rec)
+{
+	if (check_for_session_through_iface(rec)) {
+		/*
+		 * perf is not important in this path, so do not worry
+		 * about doing a async logout
+		 */
+		switch (iscsid_req(MGMT_IPC_SESSION_LOGOUT, rec)) {
+		case MGMT_IPC_ERR_NOT_FOUND:
+		case MGMT_IPC_OK:
+			break;
+		default:
+			log_error("Could not remove record, because there "
+				  "is a session to the portal that cannot "
+				  "stopped. Please log out session: "
+				  "[iface: %s, target: %s, portal: %s,%d]"
+				  "and then remove record.",
+				  rec->iface.name, rec->name,
+				  rec->conn[0].address, rec->conn[0].port);
+			return EINVAL;
+		}
+	}
+	return idbm_delete_node(db, rec);
+}
+
+static int delete_stale_recs(struct idbm *db, void *data, struct node_rec *rec)
+{
+	struct list_head *new_rec_list = data;
+	struct node_rec *new_rec;
+
+	list_for_each_entry(new_rec, new_rec_list, list) {
+		/*
+		 * We could also move this to idbm.c and instead of looping
+		 * over every node just loop over disc to node links.
+		 */
+		if (rec->disc_type != new_rec->disc_type ||
+		    rec->disc_port != new_rec->disc_port ||
+		    strcmp(rec->disc_address, new_rec->disc_address))
+			/*
+			 * if we are not from the same discovery source
+			 * ignore it
+			 */
+			return 0;
+
+		/*
+		 * we only care if the target endpoint matches, because
+		 * it is gone and we want to logout all sessions with
+		 * that endpoint, so we pass in null for the iface.
+ 		 */
+		if (__iscsi_match_session(rec,
+					  new_rec->name,
+					  new_rec->conn[0].address,
+					  new_rec->conn[0].port,
+					  &new_rec->iface))
+			return 0;
+	}
+	/* if there is a error we can continue on */
+	delete_node(db, NULL, rec);
+	return 0;
+}
+
+static int
+update_discovery_recs(idbm_t *db, discovery_rec_t *drec,
+		      struct list_head *new_rec_list, struct list_head *ifaces,
+		      int info_level, int do_login, int op)
+{
+	int rc, err, found = 0;
+	struct list_head bound_rec_list;
+	struct node_rec *new_rec, *tmp;
+
+	INIT_LIST_HEAD(&bound_rec_list);
+ 
+	/* bind ifaces to node recs so we know what we have */
+	list_for_each_entry(new_rec, new_rec_list, list) {
+		rc = idbm_bind_ifaces_to_node(db, new_rec, ifaces,
+					      &bound_rec_list);
+		if (rc)
+			goto free_bound_recs;
+	}
+
+
+	/* clean up node db */
+	if (op & OP_DELETE)
+		idbm_for_each_rec(db, &found, &bound_rec_list,
+				  delete_stale_recs);
+
+	if (op & OP_NEW || op & OP_UPDATE) {
+		/* now add/update records */
+		list_for_each_entry(new_rec, &bound_rec_list, list) {
+			int update = op & OP_UPDATE;
+
+			if (update &&
+			    check_for_session_through_iface(new_rec)) {
+				log_warning("Could not update record for "
+					    "[iface: %s, target: %s, portal: "
+					    "%s,%d], because session is "
+					    "logged in. Log out session "
+					    "then retry operation, or run "
+					    "discovery without the 'update' "
+					    "option.",
+					    new_rec->iface.name, new_rec->name,
+					    new_rec->conn[0].address,
+					    new_rec->conn[0].port);
+				continue;
+			}
+
+			rc = idbm_add_node(db, new_rec, drec, update);
+			if (rc)
+				log_error("Could not add/update "
+					  "[%s:" iface_fmt " %s,%d,%d %s]",
+					   new_rec->iface.transport_name,
+					   iface_str(&new_rec->iface),
+					   new_rec->conn[0].address,
+					   new_rec->conn[0].port,
+					   new_rec->tpgt, new_rec->name);
+		}
+	}
 
 	idbm_print_discovered(db, drec, info_level);
 
-	if (!do_login)
-		return 0;
+	if (!do_login) {
+		rc = 0;
+		goto free_bound_recs;
+	}
 
-	INIT_LIST_HEAD(&rec_list);
-	rc = idbm_for_each_rec(db, &nr_found, &rec_list, link_recs);
-	err = __login_portals(drec, &nr_found, &rec_list,
+	err = __login_portals(drec, &found, &bound_rec_list,
 			      login_discovered_portal);
 	if (err && !rc)
 		rc = err;
+
+free_bound_recs:
+	list_for_each_entry_safe(new_rec, tmp, &bound_rec_list, list) {
+		list_del(&new_rec->list);
+		free(new_rec);
+	}
+	return rc;
+}
+
+static int
+do_sofware_sendtargets(idbm_t *db, discovery_rec_t *drec,
+			struct list_head *ifaces, int info_level, int do_login,
+			int op)
+{
+	struct list_head new_rec_list;
+	struct node_rec *new_rec, *tmp;
+	int rc;
+
+	INIT_LIST_HEAD(&new_rec_list);
+	/*
+	 * compat: if the user did not pass any op then we do all
+	 * ops for them
+	 */
+	if (!op)
+		op = OP_NEW | OP_DELETE | OP_UPDATE;
+
+	drec->type = DISCOVERY_TYPE_SENDTARGETS;
+	rc = discovery_sendtargets(db, drec, &new_rec_list);
+	if (rc)
+		return rc;
+
+	rc = idbm_add_discovery(db, drec, op & OP_UPDATE);
+	if (rc) {
+		log_error("Could not add new discovery record.");
+		goto free_new_recs;
+	}
+
+	rc = update_discovery_recs(db, drec, &new_rec_list, ifaces,
+				   info_level, do_login, op);
+
+free_new_recs:
+	list_for_each_entry_safe(new_rec, tmp, &new_rec_list, list) {
+		list_del(&new_rec->list);
+		free(new_rec);
+	}
 	return rc;
 }
 
 static int
 do_sendtargets(idbm_t *db, discovery_rec_t *drec, struct list_head *ifaces,
-	       int info_level, int do_login)
+	       int info_level, int do_login, int op)
 {
 	struct iface_rec *tmp, *iface;
 	int rc, host_no;
@@ -1519,7 +1681,8 @@ do_sendtargets(idbm_t *db, discovery_rec_t *drec, struct list_head *ifaces,
 		return ENODEV;
 
 sw_st:
-	return do_sofware_sendtargets(db, drec, ifaces, info_level, do_login);
+	return do_sofware_sendtargets(db, drec, ifaces, info_level, do_login,
+				      op);
 }
 
 /* TODO: merge this with the idbm code */
@@ -1584,16 +1747,6 @@ static void catch_sigint( int signo ) {
 	exit(1);
 }
 
-/* TODO merge with initiator.c implementation */
-/* And add locking */
-static int check_for_session_through_iface(struct node_rec *rec)
-{
-	int nr_found = 0;
-	if (sysfs_for_each_session(rec, &nr_found, iscsi_match_session))
-		return 1;
-	return 0;
-}
-
 static int exec_iface_op(idbm_t *db, int op, int do_show, int info_level,
 			 struct iface_rec *iface, char *name, char *value)
 {
@@ -1641,13 +1794,8 @@ new_fail:
 		}
 
 		if (iface_is_bound(&rec->iface)) {
-			if (check_for_session_through_iface(rec)) {
-				rc = EBUSY;
-				goto delete_fail;
-			}
-
-			/* delete node records using it first */
-			rc = __for_each_rec(db, 0, rec, NULL, idbm_delete_node);
+			/* logout and delete records using it first */
+			rc = __for_each_rec(db, 0, rec, NULL, delete_node);
 			if (rc && rc != ENODEV)
 				goto delete_fail;
 		}
@@ -1732,7 +1880,7 @@ update_fail:
 			  iface->name);
 		break;
 	default:
-		if (op < 0 || op == OP_SHOW)
+		if (op == OP_NOOP || op == OP_SHOW)
 			rc = print_ifaces(db, info_level);
 		else
 			rc = EINVAL;
@@ -1781,14 +1929,14 @@ static int exec_node_op(idbm_t *db, int op, int do_login, int do_logout,
 		goto out;
 	}
 
-	if ((do_login || do_logout) && op >= 0) {
+	if ((do_login || do_logout) && op > OP_NOOP) {
 		log_error("either operation or login/logout "
 			  "at the time allowed!");
 		rc = -1;
 		goto out;
 	}
 
-	if ((!do_login && !do_logout && op < 0) &&
+	if ((!do_login && !do_logout && op == OP_NOOP) &&
 	    (!strlen(rec->name) && !strlen(rec->conn[0].address) &&
 	     !strlen(rec->iface.name))) {
 		rc = print_nodes(db, info_level, rec);
@@ -1807,7 +1955,7 @@ static int exec_node_op(idbm_t *db, int op, int do_login, int do_logout,
 		goto out;
 	}
 
-	if (op < 0 || (!do_login && !do_logout && op == OP_SHOW)) {
+	if (op == OP_NOOP || (!do_login && !do_logout && op == OP_SHOW)) {
 		if (for_each_rec(db, rec, &do_show, idbm_print_node_info))
 			rc = -1;
 		goto out;
@@ -1824,11 +1972,19 @@ static int exec_node_op(idbm_t *db, int op, int do_login, int do_logout,
 		set_param.name = name;
 		set_param.value = value;
 
+		if (check_for_session_through_iface(rec)) {
+			log_error("Could not update record, because a "
+				  "session is accessing it. Please log "
+				  "out session, then retry operation.");
+			rc = -1;
+			goto out;
+		}
+
 		if (for_each_rec(db, rec, &set_param, idbm_node_set_param))	
 			rc = -1;
 		goto out;
 	} else if (op == OP_DELETE) {
-		if (for_each_rec(db, rec, NULL, idbm_delete_node))
+		if (for_each_rec(db, rec, NULL, delete_node))
 			rc = -1;
 		goto out;
 	} else {
@@ -1962,9 +2118,9 @@ main(int argc, char **argv)
 	char *ip = NULL, *name = NULL, *value = NULL;
 	char *targetname = NULL, *group_session_mgmt_mode = NULL;
 	int ch, longindex, mode=-1, port=-1, do_login=0, do_rescan=0;
-	int rc=0, sid=-1, op=-1, type=-1, do_logout=0, do_stats=0, do_show=0;
+	int rc=0, sid=-1, op=OP_NOOP, type=-1, do_logout=0, do_stats=0;
 	int do_login_all=0, do_logout_all=0, info_level=-1, num_ifaces = 0;
-	int tpgt = PORTAL_GROUP_TAG_UNKNOWN, killiscsid=-1;
+	int tpgt = PORTAL_GROUP_TAG_UNKNOWN, killiscsid=-1, do_show=0;
 	idbm_t *db = NULL;
 	struct sigaction sa_old;
 	struct sigaction sa_new;
@@ -2006,8 +2162,8 @@ main(int argc, char **argv)
 			type = str_to_type(optarg);
 			break;
 		case 'o':
-			op = str_to_op(optarg);
-			if (op < 0) {
+			op |= str_to_op(optarg);
+			if (op == OP_NOOP) {
 				log_error("can not recognize operation: '%s'",
 					optarg);
 				return -1;
@@ -2167,7 +2323,7 @@ main(int argc, char **argv)
 			drec.port = port;
 
 			if (do_sendtargets(db, &drec, &ifaces, info_level,
-					   do_login)) {
+					   do_login, op)) {
 				rc = -1;
 				goto out;
 			}
@@ -2199,7 +2355,8 @@ main(int argc, char **argv)
 				if (do_login &&
 				    drec.type == DISCOVERY_TYPE_SENDTARGETS) {
 					do_sendtargets(db, &drec, &ifaces,
-							info_level, do_login);
+							info_level, do_login,
+							op);
 				} else if (do_login &&
 					   drec.type == DISCOVERY_TYPE_SLP) {
 					log_error("SLP discovery is not fully "
@@ -2212,7 +2369,7 @@ main(int argc, char **argv)
 						  "implemented yet.");
 					rc = -1;
 					goto out;
-				} else if (op < 0 || op == OP_SHOW) {
+				} else if (op == OP_NOOP || op == OP_SHOW) {
 					if (!idbm_print_discovery_info(db,
 							&drec, do_show)) {
 						log_error("no records found!");
@@ -2230,7 +2387,7 @@ main(int argc, char **argv)
 					goto out;
 				}
 
-			} else if (op < 0 || op == OP_SHOW) {
+			} else if (op == OP_NOOP || op == OP_SHOW) {
 				if (!idbm_print_all_discovery(db, info_level))
 					rc = -1;
 				goto out;

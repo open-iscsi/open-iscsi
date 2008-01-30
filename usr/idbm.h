@@ -110,13 +110,18 @@ extern int idbm_print_discovered(idbm_t *db, discovery_rec_t *drec,
 				 int info_level);
 extern int idbm_delete_discovery(idbm_t *db, discovery_rec_t *rec);
 extern void idbm_node_setup_defaults(node_rec_t *rec);
-extern int idbm_delete_node(idbm_t *db, void *data, node_rec_t *rec);
-extern int idbm_add_node(idbm_t *db, node_rec_t *newrec, discovery_rec_t *drec);
-
+extern int idbm_delete_node(idbm_t *db, node_rec_t *rec);
+extern int idbm_add_node(idbm_t *db, node_rec_t *newrec, discovery_rec_t *drec,
+			 int overwrite);
 struct list_head;
+extern int idbm_bind_ifaces_to_node(idbm_t *db, struct node_rec *new_rec,
+				    struct list_head *ifaces,
+				    struct list_head *bound_recs);
 extern int idbm_add_nodes(idbm_t *db, node_rec_t *newrec,
-			  discovery_rec_t *drec, struct list_head *ifaces);
-extern void idbm_new_discovery(idbm_t *db, discovery_rec_t *drec);
+			  discovery_rec_t *drec, struct list_head *ifaces,
+			  int overwrite);
+extern int idbm_add_discovery(idbm_t *db, discovery_rec_t *newrec,
+			      int overwrite);
 extern void idbm_sendtargets_defaults(idbm_t *db,
 		      struct iscsi_sendtargets_config *cfg);
 extern void idbm_slp_defaults(idbm_t *db, struct iscsi_slp_config *cfg);

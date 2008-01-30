@@ -313,7 +313,7 @@ int __iscsi_match_session(node_rec_t *rec, char *targetname,
 	if (rec->conn[0].port != -1 && port != rec->conn[0].port)
 		return 0;
 
-	if (strlen(rec->iface.transport_name) &&
+	if (iface && strlen(rec->iface.transport_name) &&
 	    strcmp(rec->iface.transport_name, iface->transport_name))
 		return 0;
 
