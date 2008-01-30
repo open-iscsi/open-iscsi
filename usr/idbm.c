@@ -976,59 +976,6 @@ free_info:
 	return rc;
 }
 
-static void idbm_read_def_ifaces(struct list_head *ifaces)
-{
-	DIR *iface_dirfd;
-	struct dirent *iface_dent;
-	struct iface_rec *iface;
-	int err = 0;
-
-	iface_dirfd = opendir(IFACE_CONFIG_DIR);
-	if (!iface_dirfd)
-		return;
-
-	while ((iface_dent = readdir(iface_dirfd))) {
-		if (!strcmp(iface_dent->d_name, ".") ||
-		    !strcmp(iface_dent->d_name, ".."))
-			continue;
-
-		log_debug(5, "idbm_read_def_ifaces found %s",
-			 iface_dent->d_name);
-		iface = iface_alloc(iface_dent->d_name, &err);
-		if (!iface || err) {
-			if (err == EINVAL)
-				log_error("Invalid iface name %s. Must be "
-					  "from 1 to %d characters.",
-					   iface_dent->d_name,
-					   ISCSI_MAX_IFACE_LEN - 1);
-			else
-				log_error("Could not add iface %s.",
-					  iface_dent->d_name);
-			free(iface);
-			continue;
-		}
-
-		err = __iface_conf_read(iface);
-		if (err) {
-			log_error("Could not read def iface %s (err %d)",
-				  iface->name, err);
-			free(iface);
-			continue;
-		}
-		if (!iface_is_bound(iface)) {
-			log_debug(5, "Default iface is not bound "
-				  "Iface settings " iface_fmt,
-				  iface_str(iface));
-			free(iface);
-			continue;
-		}
-
-		log_debug(5, "idbm_read_def_ifaces added %s", iface->name);
-		list_add_tail(&iface->list, ifaces);
-	}
-	closedir(iface_dirfd);
-}
-
 static int iface_get_next_id(void)
 {
 	struct stat statb;
@@ -1315,34 +1262,34 @@ int iface_print_flat(void *data, struct iface_rec *iface)
 	return 0;
 }
 
-static int iface_filter(const struct dirent *dir)
-{
-	return strcmp(dir->d_name, ".") && strcmp(dir->d_name, "..");
-}
-
 int iface_for_each_iface(idbm_t *db, void *data, int *nr_found, iface_op_fn *fn)
 {
-	struct dirent **namelist;
+	DIR *iface_dirfd;
+	struct dirent *iface_dent;
 	struct iface_rec *iface;
-	int err = 0, n, i;
+	int err = 0;
 
-	n = scandir(IFACE_CONFIG_DIR, &namelist, iface_filter, versionsort);
-	if (n <= 0)
-		return 0;
+	iface_dirfd = opendir(IFACE_CONFIG_DIR);
+	if (!iface_dirfd)
+		return errno;
 
-	for (i = 0; i < n; i++) {
+	while ((iface_dent = readdir(iface_dirfd))) {
+		if (!strcmp(iface_dent->d_name, ".") ||
+		    !strcmp(iface_dent->d_name, ".."))
+			continue;
+
 		log_debug(5, "iface_for_each_iface found %s",
-			 namelist[i]->d_name);
-		iface = iface_alloc(namelist[i]->d_name, &err);
+			 iface_dent->d_name);
+		iface = iface_alloc(iface_dent->d_name, &err);
 		if (!iface || err) {
 			if (err == EINVAL)
 				log_error("Invalid iface name %s. Must be "
 					  "from 1 to %d characters.",
-					   namelist[i]->d_name,
+					   iface_dent->d_name,
 					   ISCSI_MAX_IFACE_LEN - 1);
 			else
 				log_error("Could not add iface %s.",
-					  namelist[i]->d_name);
+					  iface_dent->d_name);
 			free(iface);
 			continue;
 		}
@@ -1372,10 +1319,30 @@ int iface_for_each_iface(idbm_t *db, void *data, int *nr_found, iface_op_fn *fn)
 		(*nr_found)++;
 	}
 
-	for (i = 0; i < n; i++)
-		free(namelist[i]);
-	free(namelist);
+	closedir(iface_dirfd);
 	return err;
+}
+
+static int iface_link(void *data, struct iface_rec *iface)
+{
+	struct list_head *ifaces = data;
+	struct iface_rec *iface_copy;
+
+	iface_copy = calloc(1, sizeof(*iface_copy));
+	if (!iface_copy)
+		return ENOMEM;
+
+	memcpy(iface_copy, iface, sizeof(*iface_copy));
+	INIT_LIST_HEAD(&iface_copy->list);
+	list_add_tail(&iface_copy->list, ifaces);
+	return 0;
+}
+
+static void iface_link_ifaces(idbm_t *db, struct list_head *ifaces)
+{
+	int nr_found = 0;
+
+	iface_for_each_iface(db, ifaces, &nr_found, iface_link);
 }
 
 /*
@@ -2256,9 +2223,7 @@ int idbm_bind_ifaces_to_node(idbm_t *db, struct node_rec *new_rec,
 		struct list_head def_ifaces;
 
 		INIT_LIST_HEAD(&def_ifaces);
-		idbm_lock(db);
-		idbm_read_def_ifaces(&def_ifaces);
-		idbm_unlock(db);
+		iface_link_ifaces(db, &def_ifaces);
 
 		list_for_each_entry_safe(iface, tmp, &def_ifaces, list) {
 			list_del(&iface->list);
@@ -2318,9 +2283,7 @@ int idbm_add_nodes(idbm_t *db, node_rec_t *newrec, discovery_rec_t *drec,
 		struct list_head def_ifaces;
 
 		INIT_LIST_HEAD(&def_ifaces);
-		idbm_lock(db);
-		idbm_read_def_ifaces(&def_ifaces);
-		idbm_unlock(db);
+		iface_link_ifaces(db, &def_ifaces);
 
 		list_for_each_entry_safe(iface, tmp, &def_ifaces, list) {
 			list_del(&iface->list);
