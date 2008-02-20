@@ -24,7 +24,6 @@
 #include <signal.h>
 #include <unistd.h>
 #include <fcntl.h>
-#include <ifaddrs.h>
 #include <sys/poll.h>
 #include <sys/ioctl.h>
 #include <netinet/tcp.h>
@@ -75,6 +74,8 @@ set_non_blocking(int fd)
 
 }
 
+#if 0
+/* not used by anyone */
 static int get_hwaddress_from_netdev(char *netdev, char *hwaddress)
 {
 	struct ifaddrs *ifap, *ifa;
@@ -152,6 +153,7 @@ free_ifap:
 	freeifaddrs(ifap);
 	return found;
 }
+#endif
 
 /*
  * In this mode we do not support interfaces like a bond or alias because
@@ -159,15 +161,14 @@ free_ifap:
  */
 static int get_netdev_from_hwaddress(char *hwaddress, char *netdev)
 {
-	struct ifaddrs *ifap, *ifa;
-	struct sockaddr_in *s4;
-	struct sockaddr_in6 *s6;
+	struct if_nameindex *ifni;
 	struct ifreq if_hwaddr;
-	int found = 0, sockfd;
+	int found = 0, sockfd, i = 0;
 	unsigned char *hwaddr;
-	char buf[INET6_ADDRSTRLEN], tmp_hwaddress[ISCSI_MAX_IFACE_LEN];
+	char tmp_hwaddress[ISCSI_MAX_IFACE_LEN];
 
-	if (getifaddrs(&ifap)) {
+	ifni = if_nameindex();
+	if (ifni == NULL) {
 		log_error("Could not match hwaddress %s to netdev. "
 			  "getifaddrs failed %d", hwaddress, errno);
 		return 0;
@@ -177,34 +178,13 @@ static int get_netdev_from_hwaddress(char *hwaddress, char *netdev)
 	sockfd = socket(AF_INET, SOCK_DGRAM, 0);
 	if (sockfd < 0) {
 		log_error("Could not open socket for ioctl.");
-		goto free_ifap;
+		goto free_ifni;
 	}
 
-	for (ifa = ifap; ifa; ifa = ifa->ifa_next) {
-		if (!ifa->ifa_addr)
-			continue;
+	for (i = 0; ifni[i].if_index && ifni[i].if_name; i++) {
+		struct if_nameindex *n = &ifni[i];
 
-		switch (ifa->ifa_addr->sa_family) {
-		case AF_INET:
-			s4 = (struct sockaddr_in *)(ifa->ifa_addr);
-			if (!inet_ntop(ifa->ifa_addr->sa_family,
-				      (void *)&(s4->sin_addr), buf,
-				      INET_ADDRSTRLEN))
-				continue;
-			log_debug(4, "name %s addr %s\n", ifa->ifa_name, buf);
-			break;
-		case AF_INET6:
-			s6 = (struct sockaddr_in6 *)(ifa->ifa_addr);
-			if (!inet_ntop(ifa->ifa_addr->sa_family,
-			    (void *)&(s6->sin6_addr), buf, INET6_ADDRSTRLEN))
-				continue;
-			log_debug(4, "name %s addr %s\n", ifa->ifa_name, buf);
-			break;
-		default:
-			continue;
-		}
-
-		strncpy(if_hwaddr.ifr_name, ifa->ifa_name, IFNAMSIZ);
+		strncpy(if_hwaddr.ifr_name, n->if_name, IFNAMSIZ);
 		if (ioctl(sockfd, SIOCGIFHWADDR, &if_hwaddr) < 0) {
 			log_error("Could not match %s to netdevice.",
 				  hwaddress);
@@ -224,17 +204,17 @@ static int get_netdev_from_hwaddress(char *hwaddress, char *netdev)
 		log_debug(4, "Found hardware address %s", tmp_hwaddress);
 		if (!strcasecmp(tmp_hwaddress, hwaddress)) {
 			log_debug(4, "Matches %s to %s", hwaddress,
-				  ifa->ifa_name);
+				  n->if_name);
 			memset(netdev, 0, IFNAMSIZ); 
-			strncpy(netdev, ifa->ifa_name, IFNAMSIZ);
+			strncpy(netdev, n->if_name, IFNAMSIZ);
 			found = 1;
 			break;
 		}
 	}
 
 	close(sockfd);
-free_ifap:
-	freeifaddrs(ifap);
+free_ifni:
+	if_freenameindex(ifni);
 	return found;
 }
 
