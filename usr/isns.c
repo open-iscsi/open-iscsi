@@ -286,7 +286,10 @@ static void add_new_target_node(char *targetname, uint8_t *ip, int port,
 	char dst[INET6_ADDRSTRLEN];
 
 	memset(dst, 0, sizeof(dst));
-	if (!memcmp(ip, dst, 10) && ip[10] == 0xff && ip[11] == 0xff)
+	/*
+	 * some servers are sending compat instead of mapped
+	 */
+	if (IN6_IS_ADDR_V4MAPPED(ip) || IN6_IS_ADDR_V4COMPAT(ip))
 		inet_ntop(AF_INET, ip + 12, dst, sizeof(dst));
 	else
 		inet_ntop(AF_INET6, ip, dst, sizeof(dst));
