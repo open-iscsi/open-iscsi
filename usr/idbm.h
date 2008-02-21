@@ -50,6 +50,12 @@ typedef struct recinfo {
 	int		visible;
 	char*		opts[OPTS_MAXVAL];
 	int		numopts;
+	/*
+	 * bool indicating if we can change it or not.
+	 * TODO: make it a enum that can indicate wheter it also requires
+	 * a relogin to pick up if a session is running.
+	 */
+	int		can_modify;
 } recinfo_t;
 
 typedef char *(idbm_get_config_file_fn)(void);
@@ -73,7 +79,7 @@ typedef struct idbm {
 struct db_set_param {
 	char *name;
 	char *value;
-	struct idbm  *db;
+	struct idbm *db;
 };
 
 typedef int (idbm_iface_op_fn)(idbm_t *db, void *data, node_rec_t *rec);

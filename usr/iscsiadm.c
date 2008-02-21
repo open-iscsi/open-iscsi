@@ -1449,6 +1449,11 @@ static int delete_node(struct idbm *db, void *data, struct node_rec *rec)
 		 * perf is not important in this path, so do not worry
 		 * about doing a async logout
 		 */
+		log_warning("Found running session using record. Logging "
+			    "out session [iface: %s, target: %s, "
+			    "portal: %s,%d] before deleting record.",
+			    rec->iface.name, rec->name,
+			    rec->conn[0].address, rec->conn[0].port);
 		switch (iscsid_req(MGMT_IPC_SESSION_LOGOUT, rec)) {
 		case MGMT_IPC_ERR_NOT_FOUND:
 		case MGMT_IPC_OK:
@@ -1968,17 +1973,25 @@ static int exec_node_op(idbm_t *db, int op, int do_login, int do_logout,
 			goto out;
 		}
 
-		set_param.db = db;
-		set_param.name = name;
-		set_param.value = value;
-
-		if (check_for_session_through_iface(rec)) {
-			log_error("Could not update record, because a "
-				  "session is accessing it. Please log "
-				  "out session, then retry operation.");
+		/*
+		 * We do not export the iscsiadm iface.iscsi_ifacename
+		 * in sysfs because it is iscsiadm specific abstraction.
+		 * To work around this, we do some hacky matching by bind
+		 * info. As a result we cannot change the iface binding
+		 * values here and must do it in iface mode which will do
+		 * the right thing.
+		 */
+		if (!strncmp(name, "iface.", 6) &&
+		    strcmp(name, "iface.transport_name")) {
+			log_error("Cannot modify %s. Use iface mode to update "
+				  "this value.", name);
 			rc = -1;
 			goto out;
 		}
+
+		set_param.db = db;
+		set_param.name = name;
+		set_param.value = value;
 
 		if (for_each_rec(db, rec, &set_param, idbm_node_set_param))	
 			rc = -1;

@@ -246,7 +246,10 @@ Usage: iscsiadm [OPTION]
 			  op could be one of:
                           [new], [delete], [update] or [show]. In case of
                           [update], you have to provide [name] and [value]
-                          you wish to update
+                          you wish to update.
+			  [delete] - Note that if a session is using the
+			  node record, the session will be logged out then
+			  the record will be deleted.
 
 			  Print level can be 0 to 1.
 

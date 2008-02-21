@@ -41,7 +41,7 @@
 #define IDBM_SHOW	1    /* Show parameter when print. */
 #define IDBM_MASKED	2    /* Show "stars" instead of real value when print */
 
-#define __recinfo_str(_key, _info, _rec, _name, _show, _n) do { \
+#define __recinfo_str(_key, _info, _rec, _name, _show, _n, _mod) do { \
 	_info[_n].type = TYPE_STR; \
 	strncpy(_info[_n].name, _key, NAME_MAXVAL); \
 	if (strlen((char*)_rec->_name)) \
@@ -50,20 +50,22 @@
 	_info[_n].data = &_rec->_name; \
 	_info[_n].data_len = sizeof(_rec->_name); \
 	_info[_n].visible = _show; \
+	_info[_n].can_modify = _mod; \
 	_n++; \
 } while(0)
 
-#define __recinfo_int(_key, _info, _rec, _name, _show, _n) do { \
+#define __recinfo_int(_key, _info, _rec, _name, _show, _n, _mod) do { \
 	_info[_n].type = TYPE_INT; \
 	strncpy(_info[_n].name, _key, NAME_MAXVAL); \
 	snprintf(_info[_n].value, VALUE_MAXVAL, "%d", _rec->_name); \
 	_info[_n].data = &_rec->_name; \
 	_info[_n].data_len = sizeof(_rec->_name); \
 	_info[_n].visible = _show; \
+	_info[_n].can_modify = _mod; \
 	_n++; \
 } while(0)
 
-#define __recinfo_int_o2(_key,_info,_rec,_name,_show,_op0,_op1,_n) do { \
+#define __recinfo_int_o2(_key,_info,_rec,_name,_show,_op0,_op1,_n, _mod) do { \
 	_info[_n].type = TYPE_INT_O; \
 	strncpy(_info[_n].name, _key, NAME_MAXVAL); \
 	if (_rec->_name == 0) strncpy(_info[_n].value, _op0, VALUE_MAXVAL); \
@@ -74,38 +76,46 @@
 	_info[_n].opts[0] = _op0; \
 	_info[_n].opts[1] = _op1; \
 	_info[_n].numopts = 2; \
+	_info[_n].can_modify = _mod; \
 	_n++; \
 } while(0)
 
-#define __recinfo_int_o3(_key,_info,_rec,_name,_show,_op0,_op1,_op2,_n)do{ \
-	__recinfo_int_o2(_key,_info,_rec,_name,_show,_op0,_op1,_n); _n--; \
-	if (_rec->_name == 2) strncpy(_info[_n].value, _op2, VALUE_MAXVAL); \
+#define __recinfo_int_o3(_key,_info,_rec,_name,_show,_op0,_op1,_op2,_n,	\
+			 _mod) do { \
+	__recinfo_int_o2(_key,_info,_rec,_name,_show,_op0,_op1,_n, _mod); \
+	_n--; \
+	if (_rec->_name == 2) strncpy(_info[_n].value, _op2, VALUE_MAXVAL);\
 	_info[_n].opts[2] = _op2; \
 	_info[_n].numopts = 3; \
 	_n++; \
 } while(0)
 
-#define __recinfo_int_o4(_key,_info,_rec,_name,_show,_op0,_op1,_op2,_op3,_n)do{\
-	__recinfo_int_o3(_key,_info,_rec,_name,_show,_op0,_op1,_op2,_n); _n--; \
+#define __recinfo_int_o4(_key,_info,_rec,_name,_show,_op0,_op1,_op2,_op3,_n, \
+			 _mod) do { \
+	__recinfo_int_o3(_key,_info,_rec,_name,_show,_op0,_op1,_op2,_n, _mod); \
+	_n--; \
 	if (_rec->_name == 3) strncpy(_info[_n].value, _op3, VALUE_MAXVAL); \
 	_info[_n].opts[3] = _op3; \
 	_info[_n].numopts = 4; \
 	_n++; \
 } while(0)
 
-#define __recinfo_int_o5(_key,_info,_rec,_name,_show,_op0,_op1,_op2,_op3,_op4,_n)do{\
-	__recinfo_int_o4(_key,_info,_rec,_name,_show,_op0,_op1,_op2,_op3,_n); _n--; \
+#define __recinfo_int_o5(_key,_info,_rec,_name,_show,_op0,_op1,_op2,_op3, \
+			 _op4,_n, _mod) do { \
+	__recinfo_int_o4(_key,_info,_rec,_name,_show,_op0,_op1,_op2,_op3, \
+			  _n,_mod); \
+	_n--; \
 	if (_rec->_name == 4) strncpy(_info[_n].value, _op4, VALUE_MAXVAL); \
 	_info[_n].opts[4] = _op4; \
 	_info[_n].numopts = 5; \
 	_n++; \
 } while(0)
 
-#define __recinfo_int_o6(_key,_info,_rec,_name,_show,_op0,_op1,_op2,\
-			 _op3,_op4,_op5,_n)\
-do{\
-	__recinfo_int_o5(_key,_info,_rec,_name,_show,_op0,_op1,_op2,_op3,\
-			 _op4,_n); _n--; \
+#define __recinfo_int_o6(_key,_info,_rec,_name,_show,_op0,_op1,_op2, \
+			 _op3,_op4,_op5,_n,_mod) do { \
+	__recinfo_int_o5(_key,_info,_rec,_name,_show,_op0,_op1,_op2,_op3, \
+			 _op4,_n,_mod); \
+	_n--; \
 	if (_rec->_name == 5) strncpy(_info[_n].value, _op5, VALUE_MAXVAL); \
 	_info[_n].opts[5] = _op5; \
 	_info[_n].numopts = 6; \
@@ -195,47 +205,47 @@ idbm_recinfo_discovery(discovery_rec_t *r, recinfo_t *ri)
 	int num = 0;
 
 	__recinfo_int_o2("discovery.startup", ri, r, startup, IDBM_SHOW,
-			"manual", "automatic", num);
+			"manual", "automatic", num, 1);
 	__recinfo_int_o6("discovery.type", ri, r, type, IDBM_SHOW,
 			"sendtargets", "offload_send_targets", "slp", "isns",
-			"static", "fw", num);
+			"static", "fw", num, 0);
 	if (r->type == DISCOVERY_TYPE_SENDTARGETS) {
 		__recinfo_str("discovery.sendtargets.address", ri, r,
-			address, IDBM_SHOW, num);
+			address, IDBM_SHOW, num, 0);
 		__recinfo_int("discovery.sendtargets.port", ri, r,
-			port, IDBM_SHOW, num);
+			port, IDBM_SHOW, num, 0);
 		__recinfo_int_o2("discovery.sendtargets.auth.authmethod", ri, r,
 			u.sendtargets.auth.authmethod,
-			IDBM_SHOW, "None", "CHAP", num);
+			IDBM_SHOW, "None", "CHAP", num, 1);
 		__recinfo_str("discovery.sendtargets.auth.username", ri, r,
-			u.sendtargets.auth.username, IDBM_SHOW, num);
+			u.sendtargets.auth.username, IDBM_SHOW, num, 1);
 		__recinfo_str("discovery.sendtargets.auth.password", ri, r,
-			u.sendtargets.auth.password, IDBM_MASKED, num);
+			u.sendtargets.auth.password, IDBM_MASKED, num, 1);
 		__recinfo_int("discovery.sendtargets.auth.password_length",
 			ri, r, u.sendtargets.auth.password_length,
-			IDBM_HIDE, num);
+			IDBM_HIDE, num, 1);
 		__recinfo_str("discovery.sendtargets.auth.username_in", ri, r,
-			u.sendtargets.auth.username_in, IDBM_SHOW, num);
+			u.sendtargets.auth.username_in, IDBM_SHOW, num, 1);
 		__recinfo_str("discovery.sendtargets.auth.password_in", ri, r,
-			u.sendtargets.auth.password_in, IDBM_MASKED, num);
+			u.sendtargets.auth.password_in, IDBM_MASKED, num, 1);
 		__recinfo_int("discovery.sendtargets.auth.password_in_length",
 			ri, r, u.sendtargets.auth.password_in_length,
-			IDBM_HIDE, num);
+			IDBM_HIDE, num, 1);
 		__recinfo_int("discovery.sendtargets.timeo.login_timeout",ri, r,
 			u.sendtargets.conn_timeo.login_timeout,
-			IDBM_SHOW, num);
+			IDBM_SHOW, num, 1);
 		__recinfo_int("discovery.sendtargets.reopen_max",ri, r,
 			u.sendtargets.reopen_max,
-			IDBM_SHOW, num);
+			IDBM_SHOW, num, 1);
 		__recinfo_int("discovery.sendtargets.timeo.auth_timeout", ri, r,
 			u.sendtargets.conn_timeo.auth_timeout,
-			IDBM_SHOW, num);
+			IDBM_SHOW, num, 1);
 		__recinfo_int("discovery.sendtargets.timeo.active_timeout",ri,r,
 			      u.sendtargets.conn_timeo.active_timeout,
-			      IDBM_SHOW, num);
+			      IDBM_SHOW, num, 1);
 		__recinfo_int("discovery.sendtargets.iscsi.MaxRecvDataSegmentLength",
 			ri, r, u.sendtargets.iscsi.MaxRecvDataSegmentLength,
-			IDBM_SHOW, num);
+			IDBM_SHOW, num, 1);
 	}
 }
 
@@ -244,137 +254,151 @@ idbm_recinfo_node(node_rec_t *r, recinfo_t *ri)
 {
 	int num = 0, i;
 
-	__recinfo_str("node.name", ri, r, name, IDBM_SHOW, num);
-	__recinfo_int("node.tpgt", ri, r, tpgt, IDBM_SHOW, num);
+	__recinfo_str("node.name", ri, r, name, IDBM_SHOW, num, 0);
+	__recinfo_int("node.tpgt", ri, r, tpgt, IDBM_SHOW, num, 0);
 	__recinfo_int_o3("node.startup", ri, r, startup,
-			IDBM_SHOW, "manual", "automatic", "onboot", num);
+			IDBM_SHOW, "manual", "automatic", "onboot", num, 1);
+	/*
+	 * Note: because we do not add the iface.iscsi_ifacename to
+	 * sysfs iscsiadm does some weird matching. We can change the iface
+	 * values if a session is not running, but node record ifaces values
+	 * have to be changed and so do the iface record ones.
+	 *
+	 * Users should nornmally not want to change the iface ones
+	 * in the node record directly and instead do it through
+	 * the iface mode which will do the right thing (althought that
+	 * needs some locking).
+	 */
 	__recinfo_str("iface.hwaddress", ri, r, iface.hwaddress, IDBM_SHOW,
-		      num);
+		      num, 1);
 //	__recinfo_str("iface.ipaddress", ri, r, iface.ipaddress,
 //		     IDBM_SHOW, num);
 	__recinfo_str("iface.iscsi_ifacename", ri, r, iface.name, IDBM_SHOW,
-		      num);
+		      num, 1);
 	__recinfo_str("iface.net_ifacename", ri, r, iface.netdev, IDBM_SHOW,
-		      num);
+		      num, 1);
 	/*
 	 * svn 780 compat: older versions used node.transport_name and
 	 * rec->transport_name
 	 */
 	__recinfo_str("iface.transport_name", ri, r, iface.transport_name,
-		      IDBM_SHOW, num);
+		      IDBM_SHOW, num, 1);
 	__recinfo_str("node.discovery_address", ri, r, disc_address, IDBM_SHOW,
-		      num);
-	__recinfo_int("node.discovery_port", ri, r, disc_port, IDBM_SHOW, num);
+		      num, 0);
+	__recinfo_int("node.discovery_port", ri, r, disc_port, IDBM_SHOW,
+		      num, 0);
 	__recinfo_int_o6("node.discovery_type", ri, r, disc_type,
 			 IDBM_SHOW, "send_targets", "offload_send_targets",
-			 "slp", "isns", "static", "fw", num);
+			 "slp", "isns", "static", "fw", num, 0);
 	__recinfo_int("node.session.initial_cmdsn", ri, r,
-		      session.initial_cmdsn, IDBM_SHOW, num);
+		      session.initial_cmdsn, IDBM_SHOW, num, 1);
 	__recinfo_int("node.session.initial_login_retry_max", ri, r,
-		      session.initial_login_retry_max, IDBM_SHOW, num);
+		      session.initial_login_retry_max, IDBM_SHOW, num, 1);
 	__recinfo_int("node.session.cmds_max", ri, r,
-		      session.cmds_max, IDBM_SHOW, num);
+		      session.cmds_max, IDBM_SHOW, num, 1);
 	__recinfo_int("node.session.queue_depth", ri, r,
-		       session.queue_depth, IDBM_SHOW, num);
+		       session.queue_depth, IDBM_SHOW, num, 1);
 	__recinfo_int_o2("node.session.auth.authmethod", ri, r,
-		session.auth.authmethod, IDBM_SHOW, "None", "CHAP", num);
+		session.auth.authmethod, IDBM_SHOW, "None", "CHAP", num, 1);
 	__recinfo_str("node.session.auth.username", ri, r,
-		      session.auth.username, IDBM_SHOW, num);
+		      session.auth.username, IDBM_SHOW, num, 1);
 	__recinfo_str("node.session.auth.password", ri, r,
-		      session.auth.password, IDBM_MASKED, num);
+		      session.auth.password, IDBM_MASKED, num, 1);
 	__recinfo_int("node.session.auth.password_length", ri, r,
-		      session.auth.password_length, IDBM_HIDE, num);
+		      session.auth.password_length, IDBM_HIDE, num, 1);
 	__recinfo_str("node.session.auth.username_in", ri, r,
-		      session.auth.username_in, IDBM_SHOW, num);
+		      session.auth.username_in, IDBM_SHOW, num, 1);
 	__recinfo_str("node.session.auth.password_in", ri, r,
-		      session.auth.password_in, IDBM_MASKED, num);
+		      session.auth.password_in, IDBM_MASKED, num, 1);
 	__recinfo_int("node.session.auth.password_in_length", ri, r,
-		      session.auth.password_in_length, IDBM_HIDE, num);
+		      session.auth.password_in_length, IDBM_HIDE, num, 1);
 	__recinfo_int("node.session.timeo.replacement_timeout", ri, r,
 		      session.timeo.replacement_timeout,
-		      IDBM_SHOW, num);
+		      IDBM_SHOW, num, 1);
 	__recinfo_int("node.session.err_timeo.abort_timeout", ri, r,
 		      session.err_timeo.abort_timeout,
-		      IDBM_SHOW, num);
+		      IDBM_SHOW, num, 1);
 	__recinfo_int("node.session.err_timeo.lu_reset_timeout", ri, r,
 		      session.err_timeo.lu_reset_timeout,
-		      IDBM_SHOW, num);
+		      IDBM_SHOW, num, 1);
 	__recinfo_int("node.session.err_timeo.host_reset_timeout", ri, r,
 		      session.err_timeo.host_reset_timeout,
-		      IDBM_SHOW, num);
+		      IDBM_SHOW, num, 1);
 	__recinfo_int_o2("node.session.iscsi.FastAbort", ri, r,
-			 session.iscsi.FastAbort, IDBM_SHOW, "No", "Yes", num);
+			 session.iscsi.FastAbort, IDBM_SHOW, "No", "Yes",
+			 num, 1);
 	__recinfo_int_o2("node.session.iscsi.InitialR2T", ri, r,
 			 session.iscsi.InitialR2T, IDBM_SHOW,
-			"No", "Yes", num);
+			"No", "Yes", num, 1);
 	__recinfo_int_o2("node.session.iscsi.ImmediateData",
 			 ri, r, session.iscsi.ImmediateData, IDBM_SHOW,
-			"No", "Yes", num);
+			"No", "Yes", num, 1);
 	__recinfo_int("node.session.iscsi.FirstBurstLength", ri, r,
-		      session.iscsi.FirstBurstLength, IDBM_SHOW, num);
+		      session.iscsi.FirstBurstLength, IDBM_SHOW, num, 1);
 	__recinfo_int("node.session.iscsi.MaxBurstLength", ri, r,
-		      session.iscsi.MaxBurstLength, IDBM_SHOW, num);
+		      session.iscsi.MaxBurstLength, IDBM_SHOW, num, 1);
 	__recinfo_int("node.session.iscsi.DefaultTime2Retain", ri, r,
-		      session.iscsi.DefaultTime2Retain, IDBM_SHOW, num);
+		      session.iscsi.DefaultTime2Retain, IDBM_SHOW, num, 1);
 	__recinfo_int("node.session.iscsi.DefaultTime2Wait", ri, r,
-		      session.iscsi.DefaultTime2Wait, IDBM_SHOW, num);
+		      session.iscsi.DefaultTime2Wait, IDBM_SHOW, num, 1);
 	__recinfo_int("node.session.iscsi.MaxConnections", ri, r,
-		      session.iscsi.MaxConnections, IDBM_SHOW, num);
+		      session.iscsi.MaxConnections, IDBM_SHOW, num, 1);
 	__recinfo_int("node.session.iscsi.MaxOutstandingR2T", ri, r,
-		      session.iscsi.MaxOutstandingR2T, IDBM_SHOW, num);
+		      session.iscsi.MaxOutstandingR2T, IDBM_SHOW, num, 1);
 	__recinfo_int("node.session.iscsi.ERL", ri, r,
-		      session.iscsi.ERL, IDBM_SHOW, num);
+		      session.iscsi.ERL, IDBM_SHOW, num, 1);
 
 	for (i = 0; i < ISCSI_CONN_MAX; i++) {
 		char key[NAME_MAXVAL];
 
 		sprintf(key, "node.conn[%d].address", i);
-		__recinfo_str(key, ri, r, conn[i].address, IDBM_SHOW, num);
+		__recinfo_str(key, ri, r, conn[i].address, IDBM_SHOW, num, 0);
 		sprintf(key, "node.conn[%d].port", i);
-		__recinfo_int(key, ri, r, conn[i].port, IDBM_SHOW, num);
+		__recinfo_int(key, ri, r, conn[i].port, IDBM_SHOW, num, 0);
 		sprintf(key, "node.conn[%d].startup", i);
 		__recinfo_int_o3(key, ri, r, conn[i].startup, IDBM_SHOW,
-				 "manual", "automatic", "onboot", num);
+				 "manual", "automatic", "onboot", num, 1);
 		sprintf(key, "node.conn[%d].tcp.window_size", i);
 		__recinfo_int(key, ri, r, conn[i].tcp.window_size,
-			      IDBM_SHOW, num);
+			      IDBM_SHOW, num, 1);
 		sprintf(key, "node.conn[%d].tcp.type_of_service", i);
 		__recinfo_int(key, ri, r, conn[i].tcp.type_of_service,
-				IDBM_SHOW, num);
+				IDBM_SHOW, num, 1);
 		sprintf(key, "node.conn[%d].timeo.logout_timeout", i);
 		__recinfo_int(key, ri, r, conn[i].timeo.logout_timeout,
-				IDBM_SHOW, num);
+				IDBM_SHOW, num, 1);
 		sprintf(key, "node.conn[%d].timeo.login_timeout", i);
 		__recinfo_int(key, ri, r, conn[i].timeo.login_timeout,
-				IDBM_SHOW, num);
+				IDBM_SHOW, num, 1);
 		sprintf(key, "node.conn[%d].timeo.auth_timeout", i);
 		__recinfo_int(key, ri, r, conn[i].timeo.auth_timeout,
-				IDBM_SHOW, num);
+				IDBM_SHOW, num, 1);
 
 		sprintf(key, "node.conn[%d].timeo.noop_out_interval", i);
 		__recinfo_int(key, ri, r, conn[i].timeo.noop_out_interval,
-				IDBM_SHOW, num);
+				IDBM_SHOW, num, 1);
 		sprintf(key, "node.conn[%d].timeo.noop_out_timeout", i);
 		__recinfo_int(key, ri, r, conn[i].timeo.noop_out_timeout,
-				IDBM_SHOW, num);
+				IDBM_SHOW, num, 1);
 
 		sprintf(key, "node.conn[%d].iscsi.MaxRecvDataSegmentLength", i);
 		__recinfo_int(key, ri, r,
-			conn[i].iscsi.MaxRecvDataSegmentLength, IDBM_SHOW, num);
+			conn[i].iscsi.MaxRecvDataSegmentLength, IDBM_SHOW,
+			num, 1);
 		sprintf(key, "node.conn[%d].iscsi.HeaderDigest", i);
 		__recinfo_int_o4(key, ri, r, conn[i].iscsi.HeaderDigest,
 				 IDBM_SHOW, "None", "CRC32C", "CRC32C,None",
-				 "None,CRC32C", num);
+				 "None,CRC32C", num, 1);
 		sprintf(key, "node.conn[%d].iscsi.DataDigest", i);
 		__recinfo_int_o4(key, ri, r, conn[i].iscsi.DataDigest, IDBM_SHOW,
 				 "None", "CRC32C", "CRC32C,None",
-				 "None,CRC32C", num);
+				 "None,CRC32C", num, 1);
 		sprintf(key, "node.conn[%d].iscsi.IFMarker", i);
 		__recinfo_int_o2(key, ri, r, conn[i].iscsi.IFMarker, IDBM_SHOW,
-				"No", "Yes", num);
+				"No", "Yes", num, 1);
 		sprintf(key, "node.conn[%d].iscsi.OFMarker", i);
 		__recinfo_int_o2(key, ri, r, conn[i].iscsi.OFMarker, IDBM_SHOW,
-				"No", "Yes", num);
+				"No", "Yes", num, 1);
 	}
 }
 
@@ -383,12 +407,12 @@ idbm_recinfo_iface(iface_rec_t *r, recinfo_t *ri)
 {
 	int num = 0;
 
-	__recinfo_str("iface.iscsi_ifacename", ri, r, name, IDBM_SHOW, num);
-	__recinfo_str("iface.net_ifacename", ri, r, netdev, IDBM_SHOW, num);
-//	__recinfo_str("iface.ipaddress", ri, r, ipaddress, IDBM_SHOW, num);
-	__recinfo_str("iface.hwaddress", ri, r, hwaddress, IDBM_SHOW, num);
+	__recinfo_str("iface.iscsi_ifacename", ri, r, name, IDBM_SHOW, num, 0);
+	__recinfo_str("iface.net_ifacename", ri, r, netdev, IDBM_SHOW, num, 1);
+//	__recinfo_str("iface.ipaddress", ri, r, ipaddress, IDBM_SHOW, num, 1);
+	__recinfo_str("iface.hwaddress", ri, r, hwaddress, IDBM_SHOW, num, 1);
 	__recinfo_str("iface.transport_name", ri, r, transport_name,
-		      IDBM_SHOW, num);
+		      IDBM_SHOW, num, 1);
 }
 
 static recinfo_t*
@@ -482,8 +506,8 @@ idbm_discovery_setup_defaults(discovery_rec_t *rec, discovery_type_e type)
 }
 
 static int
-idbm_node_update_param(recinfo_t *info, char *name, char *value,
-		       int line_number)
+idbm_rec_update_param(recinfo_t *info, char *name, char *value,
+		      int line_number)
 {
 	int i;
 	int passwd_done = 0;
@@ -552,6 +576,31 @@ updated:
 	return 0;
 }
 
+/*
+ * TODO: we can also check for valid values here.
+ */
+static int idbm_verify_param(recinfo_t *info, char *name)
+{
+	int i;
+
+	for (i = 0; i < MAX_KEYS; i++) {
+		if (strcmp(name, info[i].name))
+			continue;
+
+		log_debug(7, "verify %s %d\n", name, info[i].can_modify);
+		if (info[i].can_modify)
+			return 0;
+		else {
+			log_error("Cannot modify %s. It is used to look up "
+				  "the record and cannot be changed.", name);
+			return EINVAL;
+		}
+	}
+
+	log_error("Cannot modify %s. Invalid param name.", name);
+	return EINVAL;
+}
+
 static void
 idbm_recinfo_config(recinfo_t *info, FILE *f)
 {
@@ -616,7 +665,7 @@ idbm_recinfo_config(recinfo_t *info, FILE *f)
 		}
 		*(value+i) = 0;
 
-		(void)idbm_node_update_param(info, name, value, line_number);
+		(void)idbm_rec_update_param(info, name, value, line_number);
 	} while (line);
 }
 
@@ -965,7 +1014,11 @@ int iface_conf_update(idbm_t *db, struct db_set_param *param,
 		return ENOMEM;
 
 	idbm_recinfo_iface(iface, info);
-	rc = idbm_node_update_param(info, param->name, param->value, 0);
+	rc = idbm_verify_param(info, param->name);
+	if (rc)
+		goto free_info;
+
+	rc = idbm_rec_update_param(info, param->name, param->value, 0);
 	if (rc) {
 		rc = EIO;
 		goto free_info;
@@ -2570,8 +2623,7 @@ idbm_slp_defaults(idbm_t *db, struct iscsi_slp_config *cfg)
 	       sizeof(struct iscsi_slp_config));
 }
 
-int
-idbm_node_set_param(idbm_t *db, void *data, node_rec_t *rec)
+int idbm_node_set_param(idbm_t *db, void *data, node_rec_t *rec)
 {
 	struct db_set_param *param = data;
 	recinfo_t *info;
@@ -2583,6 +2635,9 @@ idbm_node_set_param(idbm_t *db, void *data, node_rec_t *rec)
 
 	idbm_recinfo_node(rec, info);
 
+	rc = idbm_verify_param(info, param->name);
+	if (rc)
+		goto free_info;
 	/*
 	 * Another compat hack!!!!: in the future we will have a common
 	 * way to define node wide vs iface wide values and it will
@@ -2591,23 +2646,20 @@ idbm_node_set_param(idbm_t *db, void *data, node_rec_t *rec)
 	 * we update it for them.
 	 */
 	if (!strcmp("node.transport_name", param->name))
-		rc = idbm_node_update_param(info, "iface.transport_name",
+		rc = idbm_rec_update_param(info, "iface.transport_name",
 					    param->value, 0);
 	else
-		rc = idbm_node_update_param(info, param->name, param->value, 0);
-	if (rc) {
-		free(info);
-		return EIO;
-	}
+		rc = idbm_rec_update_param(info, param->name, param->value, 0);
+	if (rc)
+		goto free_info;
 
 	rc = idbm_rec_write(param->db, rec);
-	if (rc) {
-		free(info);
-		return rc;
-	}
+	if (rc)
+		goto free_info;
 
+free_info:
 	free(info);
-	return 0;
+	return rc;
 }
 
 idbm_t*
