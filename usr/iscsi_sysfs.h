@@ -54,6 +54,7 @@ extern int get_iscsi_kernel_version(char *buf);
 extern int check_class_version(void);
 extern int get_sessioninfo_by_sysfs_id(struct session_info *info,
 				      char *sys_session);
+extern int sysfs_session_has_leadconn(uint32_t sid);
 
 typedef int (sysfs_session_op_fn)(void *, struct session_info *);
 typedef int (sysfs_host_op_fn)(void *, struct host_info *);

@@ -38,6 +38,12 @@
 
 #define ISCSI_MAX_SYSFS_BUFFER NI_MAXHOST
 
+/*
+ * TODO: make this into a real API and check inputs better and add doc.
+ * We should also use a common lib and search sysfs according to the sysfs
+ * doc in the kernel documetnation.
+ */
+
 /* tmp buffer used by sysfs functions */
 static char sysfs_file[PATH_MAX];
 int num_transports = 0;
@@ -461,6 +467,24 @@ int sysfs_for_each_host(void *data, int *nr_found, sysfs_host_op_fn *fn)
 free_info:
 	free(info);
 	return rc;
+}
+
+/**
+ * sysfs_session_has_leadconn - checks if session has lead conn in kernel
+ * @sid: session id
+ *
+ * return 1 if session has lead conn and 0 if not.
+ */
+int sysfs_session_has_leadconn(uint32_t sid)
+{
+	struct stat statb;
+
+	memset(sysfs_file, 0, PATH_MAX);
+	sprintf(sysfs_file, ISCSI_CONN_DIR"/connection%u:0", sid);
+	if (!stat(sysfs_file, &statb))
+		return 1;
+	else
+		return 0;
 }
 
 int get_sessioninfo_by_sysfs_id(struct session_info *info, char *session)

@@ -602,7 +602,10 @@ session_conn_shutdown(iscsi_conn_t *conn, queue_task_t *qtask,
 {
 	iscsi_session_t *session = conn->session;
 
-	if (!conn->ksetup)
+	if (session->id == -1)
+		goto disconnect_conn;
+
+	if (!sysfs_session_has_leadconn(session->id))
 		goto disconnect_conn;
 
 	if (conn->state == STATE_IN_LOGIN ||
@@ -623,7 +626,6 @@ session_conn_shutdown(iscsi_conn_t *conn, queue_task_t *qtask,
 		log_error("can not safely destroy connection %d", conn->id);
 		return MGMT_IPC_ERR_INTERNAL;
 	}
-	conn->ksetup = 0;
 
 disconnect_conn:
 	log_debug(2, "disconnect conn");
@@ -1720,7 +1722,6 @@ static void session_conn_poll(void *data)
 				err = MGMT_IPC_ERR_INTERNAL;
 				goto cleanup;
 			}
-			conn->ksetup = 1;
 			log_debug(3, "created new iSCSI connection "
 				  "%d:%d", session->id, conn->id);
 		}
