@@ -4,7 +4,7 @@
 
 =================================================================
 
-                                                     Jan 26, 2007
+                                                     Feb 21, 2008
 
 Contents
 ========
@@ -937,6 +937,25 @@ Host Number: X State: Recovery
 When the SCSI EH is running, commands will not be failed until
 node.session.timeo.replacement_timeout seconds.
 
+To modify the the timer that starts the SCSI EH, you can either write
+directly to the devices's sysfs file:
+
+echo X > /sys/block/sdX/device/timeout
+
+where X is in seconds or on most distros you can modify the udev rule.
+
+To modify the udev rule open /etc/udev/rules.d/50-udev.rules, and find the
+following lines:
+
+ACTION=="add", SUBSYSTEM=="scsi" , SYSFS{type}=="0|7|14", \
+        RUN+="/bin/sh -c 'echo 60 > /sys$$DEVPATH/timeout'"
+
+And change the echo 60 part of the line to the value that you want.
+
+The default timeout for normal File System commands is 30 seconds when udev
+is not being used. If udev is used the default is the above value which
+is normally 60 seconds.
+
 
 8.1.2.2 Pending Commands and replacement_timeout
 ------------------------------------------------
@@ -960,13 +979,13 @@ dm-multipath.
 ---------------------------------------
 
 The default value for replacement_timeout is 120 seconds, but because
-multipath's queue if no path setting can prevent IO errors from being propogated
-to the application, replacement_timeout can be set to a shorter value like
-15 to 30 seconds. By setting it lower pending IO is quickly sent to a new path
-and executed while the iSCSI layer attempts to re-establishment the session.
-If all paths end up being failed, then the multipath and device mapper layer
-will internally queue IO based on the multipath.conf settings, instead of the
-iSCSI layer.
+multipath's queue_if_no_path and no_path_retyr setting can prevent IO errors
+from being propogated to the application, replacement_timeout can be set to a
+shorter value like 5 to 15 seconds. By setting it lower pending IO is quickly
+sent to a new path and executed while the iSCSI layer attempts
+re-establishment of the session. If all paths end up being failed, then the
+multipath and device mapper layer will internally queue IO based on the
+multipath.conf settings, instead of the iSCSI layer.
 
 
 8.2 iSCSI settings for iSCSI root
