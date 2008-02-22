@@ -368,10 +368,19 @@ for_each_session(struct node_rec *rec, sysfs_session_op_fn *fn)
 	return err;
 }
 
+struct session_link_info {
+	struct list_head *list;
+	struct session_info *match_info;
+};
+
 static int link_sessions(void *data, struct session_info *info)
 {
-	struct list_head *list = data;
+	struct session_link_info *link_info = data;
+	struct list_head *list = link_info->list;
 	struct session_info *new, *curr, *match = NULL;
+
+	if (link_info->match_info && link_info->match_info->sid != info->sid)
+		return 0;
 
 	new = calloc(1, sizeof(*new));
 	if (!new)
@@ -473,14 +482,19 @@ __logout_portals(idbm_t *db, void *data, int *nr_found,
 				   struct session_info *))
 {
 	struct session_info *curr_info, *tmp;
+	struct session_link_info link_info;
 	struct list_head session_list, logout_list;
 	int ret = 0, err;
 
 	INIT_LIST_HEAD(&session_list);
 	INIT_LIST_HEAD(&logout_list);
+
+	memset(&link_info, 0, sizeof(link_info));
+	link_info.list = &session_list;
+	link_info.match_info = NULL;
 	*nr_found = 0;
 
-	err = sysfs_for_each_session(&session_list, nr_found,
+	err = sysfs_for_each_session(&link_info, nr_found,
 				    link_sessions);
 	if (err || !*nr_found)
 		return err;
@@ -889,7 +903,11 @@ static char *get_config_file(void)
 
 static int print_session_flat(void *data, struct session_info *info)
 {
+	struct session_info *match_info = data;
 	struct iscsi_transport *t = get_transport_by_sid(info->sid);
+
+	if (match_info && match_info->sid != info->sid)
+		return 0;
 
 	if (strchr(info->persistent_address, '.'))
 		printf("%s: [%d] %s:%d,%d %s\n",
@@ -1111,37 +1129,8 @@ next:
 	}
 }
 
-static int print_session(idbm_t *db, int info_level, struct session_info *info)
-{
-	struct list_head list;
-	int err;
-
-	switch (info_level) {
-	case 0:
-	case -1:
-		err = print_session_flat(NULL, info);
-		break;
-	case 1:
-	case 2:
-	case 3:
-		INIT_LIST_HEAD(&list);
-
-		err = link_sessions(&list, info);
-		if (err)
-			break;
-		print_sessions_tree(db, &list, info_level);
-		break;
-	default:
-		log_error("Invalid info level %d. Try 0 - 3.", info_level);
-		return EINVAL;
-	}
-
-	if (err)
-		log_error("Can not get session info (%d)", err);
-	return 0;
-}
-
-static int print_sessions(idbm_t *db, int info_level)
+static int print_sessions(idbm_t *db, int info_level,
+			  struct session_info *match_info)
 {
 	struct list_head list;
 	int num_found = 0, err = 0;
@@ -1150,7 +1139,7 @@ static int print_sessions(idbm_t *db, int info_level)
 	switch (info_level) {
 	case 0:
 	case -1:
-		err = sysfs_for_each_session(NULL, &num_found,
+		err = sysfs_for_each_session(match_info, &num_found,
 					     print_session_flat);
 		break;
 	case 2:
@@ -1164,8 +1153,13 @@ static int print_sessions(idbm_t *db, int info_level)
 		/* fall through */
 	case 1:
 		INIT_LIST_HEAD(&list);
+		struct session_link_info link_info;
 
-		err = sysfs_for_each_session(&list, &num_found,
+		memset(&link_info, 0, sizeof(link_info));
+		link_info.list = &list;
+		link_info.match_info = match_info;
+
+		err = sysfs_for_each_session(&link_info, &num_found,
 					    link_sessions);
 		if (err || !num_found)
 			break;
@@ -2512,9 +2506,9 @@ main(int argc, char **argv)
 			if (!t)
 				goto free_info;
 
-			if (!do_logout && !do_rescan && !do_stats && op < 0 &&
-			    info_level > 0) {
-				rc = print_session(db, info_level, info);
+			if (!do_logout && !do_rescan && !do_stats &&
+			    op == OP_NOOP && info_level > 0) {
+				rc = print_sessions(db, info_level, info);
 				if (rc)
 					rc = -1;
 				goto free_info;
@@ -2545,7 +2539,7 @@ free_info:
 				goto out;
 			}
 
-			rc = print_sessions(db, info_level);
+			rc = print_sessions(db, info_level, NULL);
 		}
 		break;
 	default:
