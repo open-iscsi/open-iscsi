@@ -760,6 +760,14 @@ int idbm_print_node_info(idbm_t *db, void *data, node_rec_t *rec)
 	return 0;
 }
 
+int idbm_print_iface_info(idbm_t *db, void *data, struct iface_rec *iface)
+{
+	int show = *((int *)data);
+
+	idbm_print(PRINT_TYPE_IFACE, iface, show, stdout);
+	return 0;
+}
+
 int idbm_print_node_flat(idbm_t *db, void *data, node_rec_t *rec)
 {
 	if (strchr(rec->conn[0].address, '.'))
@@ -1303,6 +1311,27 @@ int iface_is_bound_by_ipaddr(struct iface_rec *iface)
 		return 1;
 	return 0;
 */
+}
+
+/**
+ * iface_print_node_tree - print out binding info
+ * @iface: iface to print out
+ *
+ * Currently this looks like the iface conf print, because we only
+ * have the binding info. When we store the iface specific node settings
+ * in the iface record then it will look different.
+ */
+int iface_print_tree(void *data, struct iface_rec *iface)
+{
+	printf("Name: %s\n", iface->name);
+	printf("\tTransport Name: %s\n",
+	       strlen(iface->transport_name) ? iface->transport_name :
+	       UNKNOWN_VALUE);
+	printf("\tHW Address: %s\n",
+	       strlen(iface->hwaddress) ? iface->hwaddress : UNKNOWN_VALUE);
+	printf("\tNetdev: %s\n",
+	       strlen(iface->netdev) ? iface->netdev : UNKNOWN_VALUE);
+	return 0;
 }
 
 int iface_print_flat(void *data, struct iface_rec *iface)

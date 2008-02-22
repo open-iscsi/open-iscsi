@@ -106,6 +106,8 @@ extern idbm_t *idbm_init(idbm_get_config_file_fn *fn);
 
 extern void idbm_node_setup_from_conf(idbm_t *db, node_rec_t *rec);
 extern void idbm_terminate(idbm_t *db);
+extern int idbm_print_iface_info(idbm_t *db, void *data,
+				 struct iface_rec *iface);
 extern int idbm_print_node_info(idbm_t *db, void *data, node_rec_t *rec);
 extern int idbm_print_node_flat(idbm_t *db, void *data, node_rec_t *rec);
 extern int idbm_print_node_tree(idbm_t *db, void *data, node_rec_t *rec);
@@ -154,6 +156,7 @@ typedef int (iface_op_fn)(void *data, struct iface_rec *iface);
 extern int iface_for_each_iface(idbm_t *db, void *data, int *nr_found,
 				 iface_op_fn *fn);
 extern int iface_print_flat(void *data, struct iface_rec *iface);
+extern int iface_print_tree(void *data, struct iface_rec *iface);
 extern void iface_setup_host_bindings(idbm_t *db);
 extern int iface_get_by_bind_info(idbm_t *db, struct iface_rec *pattern,
 				 struct iface_rec *out_rec);

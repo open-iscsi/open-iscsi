@@ -199,21 +199,31 @@ static void kill_iscsid(int priority)
 }
 
 /*
- * TODO: when we get more time we can make add what sessions
- * are connected to the host. For now you can see this in session
- * mode although with -P 3, althought it is not nicely structured
- * like how you would want
+ * TODO: we can display how the ifaces are related to node records.
+ * And we can add a scsi_host mode which would display how
+ * sessions are related to hosts
+ * (scsi_host and iscsi_sessions are the currently running instance of
+ * a iface or node record).
  */
 static int print_ifaces(idbm_t *db, int info_level)
 {
 	int err, num_found = 0;
 
-	if (info_level > 0) {
-		log_error("Invalid info level %d. Try 0.", info_level);
+	switch (info_level) {
+	case 0:
+	case -1:
+		err = iface_for_each_iface(db, NULL, &num_found,
+					   iface_print_flat);
+		break;
+	case 1:
+		err = iface_for_each_iface(db, NULL, &num_found,
+					   iface_print_tree);
+		break;
+	default:
+		log_error("Invalid info level %d. Try 0 or 1.", info_level);
 		return EINVAL;
 	}
 
-	err = iface_for_each_iface(db, NULL, &num_found, iface_print_flat);
 	if (!num_found) {
 		log_error("No interfaces found.");
 		err = ENODEV;
@@ -1752,6 +1762,7 @@ static void catch_sigint( int signo ) {
 	exit(1);
 }
 
+/* TODO: merge iter helpers and clean them up, so we can use them here */
 static int exec_iface_op(idbm_t *db, int op, int do_show, int info_level,
 			 struct iface_rec *iface, char *name, char *value)
 {
@@ -1885,10 +1896,19 @@ update_fail:
 			  iface->name);
 		break;
 	default:
-		if (op == OP_NOOP || op == OP_SHOW)
-			rc = print_ifaces(db, info_level);
-		else
-			rc = EINVAL;
+		if (!iface) {
+			if (op == OP_NOOP || op == OP_SHOW)
+				rc = print_ifaces(db, info_level);
+			else
+				rc = EINVAL;
+		} else {
+			rc = iface_conf_read(db, iface);
+			if (!rc)
+				idbm_print_iface_info(db, &do_show, iface);
+			else
+				log_error("Could not read iface %s (%d).",
+					  iface->name, rc);
+		}
 	}
 
 	if (rec)
