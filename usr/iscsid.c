@@ -177,7 +177,7 @@ setup_rec_from_negotiated_values(idbm_t *db, node_rec_t *rec,
 static int sync_session(void *data, struct session_info *info)
 {
 	idbm_t *db = data;
-	node_rec_t rec;
+	node_rec_t rec, sysfsrec;
 	iscsiadm_req_t req;
 	iscsiadm_rsp_t rsp;
 	struct iscsi_transport *t;
@@ -219,6 +219,27 @@ static int sync_session(void *data, struct session_info *info)
 		log_warning("Could not read data from db. Using default and "
 			    "currently negotiated values\n");
 		setup_rec_from_negotiated_values(db, &rec, info);
+	} else {
+		/*
+		 * we have a valid record and iface so lets merge
+		 * the values from them and sysfs to try and get
+		 * the most uptodate values.
+		 *
+		 * Currenlty that means we will use the CHAP, target and
+		 * and portal values from sysfs and use timer, queue depth,
+		 * and segment length values from the record. In the future
+		 * when boot supports iface binding we will want to use
+		 * those values from sysfs.
+		 */
+		memset(&sysfsrec, 0, sizeof(node_rec_t));
+		setup_rec_from_negotiated_values(db, &sysfsrec, info);
+		/*
+		 * target and portal values have to be the same or
+		 * we would not have found the record, so just copy
+		 * CHAP.
+		 */
+		memcpy(&rec.session.auth, &sysfsrec.session.auth,
+		      sizeof(struct iscsi_auth_config));
 	}
 
 	/* multiple drivers could be connected to the same portal */
