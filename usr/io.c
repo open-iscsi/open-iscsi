@@ -774,7 +774,7 @@ iscsi_io_recv_pdu(iscsi_conn_t *conn, struct iscsi_hdr *hdr,
 	if (dlength == 0)
 		goto done;
 
-	if (data + dlength >= end) {
+	if (data + dlength > end) {
 		log_warning("buffer size %u too small for data length %u",
 		       max_data_length, dlength);
 		failed = 1;
