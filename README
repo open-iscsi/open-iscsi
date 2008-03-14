@@ -4,7 +4,7 @@
 
 =================================================================
 
-                                                     Feb 21, 2008
+                                                     Mar 14, 2008
 
 Contents
 ========
@@ -259,11 +259,11 @@ Usage: iscsiadm [OPTION]
 			  Stats prints the iSCSI stats for the session.
   -m node --logoutall=[all|manual|automatic]
 			  Logout "all" the running sessions or just the ones
-			  with a node or conn startup value manual or automatic.
+			  with a node startup value manual or automatic.
 			  Nodes marked as ONBOOT are skipped.
   -m node --loginall=[all|manual|automatic]
 			  Login "all" the running sessions or just the ones
-			  with a node or conn startup value manual or automatic.
+			  with a node startup value manual or automatic.
 			  Nodes marked as ONBOOT are skipped.
   -m session              display all active sessions and connections
   -m session --sid=[sid] [ --print=level | --rescan | --logout ]
@@ -845,16 +845,16 @@ Note: this may only work for distros with init scripts.
 To automate login to a node, use the following with the record ID
 (record ID is the targetname and portal) of the node discovered in the
 discovery above:
-	iscsiadm -m node -T targetname -p ip:port --op update -n node.conn[0].startup -v automatic
+	iscsiadm -m node -T targetname -p ip:port --op update -n node.startup -v automatic
 
 To set the automatic setting to all portals on a target through every
 interface setup for each protal, the following can be run:
-	iscsiadm -m node -T targetname --op update -n node.conn[0].startup -v automatic
+	iscsiadm -m node -T targetname --op update -n node.startup -v automatic
 
-Or to set the "node.conn[0].statup" attribute to "startup" as default for
+Or to set the "node.startup" attribute to "startup" as default for
 all sessions add the following to the /etc/iscsi/iscsid.conf:
 
-	node.conn[0].startup = automatic
+	node.startup = automatic
 
 Setting this in iscsid.conf, will not affect existing nodes. It will only
 affect nodes that are discovered after setting the value.
