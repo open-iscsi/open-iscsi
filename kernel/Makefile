@@ -50,7 +50,8 @@ all: kernel_check
 #some constants
 14to19_patch=2.6.14-19_compat.patch
 20to21_patch=2.6.20-21_compat.patch
-all_patches=14to21_patch 20to21_patch
+24_patch=2.6.24_compat.patch
+all_patches=14to21_patch 20to21_patch 24_patch
 cur_patched=cur_patched
 
 ## fun stuff for maintaining multiple versions
@@ -84,7 +85,7 @@ linux_2_6_22: has_20to21_patch
 
 linux_2_6_23: has_20to21_patch
 
-linux_2_6_24: $(unpatch_code)
+linux_2_6_24: has_24_patch
 
 linux_2_6_25: $(unpatch_code)
 
@@ -112,6 +113,15 @@ has_20to21_patch: $(20to21_patch)
 	fi
 	patch -p1 < $(20to21_patch)
 	cp $(20to21_patch) $@
+	ln -s $@ $(cur_patched)
+
+has_24_patch: $(24_patch)
+	echo "Patching source code for linux-2.6.24 ..."
+	if [ -e $(cur_patched) ]; then \
+		make -C . clean; \
+	fi
+	patch -p1 < $(24_patch)
+	cp $(24_patch) $@
 	ln -s $@ $(cur_patched)
 
 # ============ END code for kernel_check and source patching =================
