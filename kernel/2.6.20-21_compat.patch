@@ -90,7 +90,7 @@ index 0000000..2ba7deb
 +
 +#endif
 diff --git a/iscsi_tcp.c b/iscsi_tcp.c
-index ce1fdf1..ad46009 100644
+index 0d21d87..b24e533 100644
 --- a/iscsi_tcp.c
 +++ b/iscsi_tcp.c
 @@ -422,6 +422,17 @@ iscsi_segment_seek_sg(struct iscsi_segment *segment,
@@ -111,12 +111,12 @@ index ce1fdf1..ad46009 100644
  	__iscsi_segment_init(segment, size, done, hash);
  	for_each_sg(sg_list, sg, sg_count, i) {
  		debug_scsi("sg %d, len %u offset %u\n", i, sg->length,
-@@ -1933,7 +1944,9 @@ static struct scsi_host_template iscsi_sht = {
+@@ -1936,6 +1947,9 @@ static struct scsi_host_template iscsi_sht = {
  	.eh_device_reset_handler= iscsi_eh_device_reset,
  	.eh_host_reset_handler	= iscsi_eh_host_reset,
  	.use_clustering         = DISABLE_CLUSTERING,
-+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,24)
- 	.use_sg_chaining	= ENABLE_SG_CHAINING,
++#if LINUX_VERSION_CODE == KERNEL_VERSION(2,6,24)
++	.use_sg_chaining	= ENABLE_SG_CHAINING,
 +#endif
  	.slave_configure        = iscsi_tcp_slave_configure,
  	.proc_name		= "iscsi_tcp",
@@ -134,7 +134,7 @@ index 950d75f..a7bc56f 100644
  struct socket;
  struct iscsi_tcp_conn;
 diff --git a/libiscsi.h b/libiscsi.h
-index 72f6fc6..fb98306 100644
+index 6f10518..995852f 100644
 --- a/libiscsi.h
 +++ b/libiscsi.h
 @@ -30,6 +30,8 @@
@@ -147,7 +147,7 @@ index 72f6fc6..fb98306 100644
  struct scsi_device;
  struct Scsi_Host;
 diff --git a/scsi_transport_iscsi.c b/scsi_transport_iscsi.c
-index 4686f3a..0cd18a0 100644
+index e8f8cf1..0ab82de 100644
 --- a/scsi_transport_iscsi.c
 +++ b/scsi_transport_iscsi.c
 @@ -29,6 +29,7 @@
@@ -158,7 +158,7 @@ index 4686f3a..0cd18a0 100644
  
  #define ISCSI_SESSION_ATTRS 19
  #define ISCSI_CONN_ATTRS 13
-@@ -1265,49 +1266,61 @@ iscsi_if_recv_msg(struct sk_buff *skb, struct nlmsghdr *nlh)
+@@ -1290,49 +1291,61 @@ iscsi_if_recv_msg(struct sk_buff *skb, struct nlmsghdr *nlh)
  }
  
  /*
@@ -255,6 +255,24 @@ index 4686f3a..0cd18a0 100644
  	}
  	mutex_unlock(&rx_queue_mutex);
  }
+@@ -1738,7 +1751,7 @@ static __init int iscsi_transport_init(void)
+ 	return 0;
+ 
+ release_nls:
+-	netlink_kernel_release(nls);
++	sock_release(nls->sk_socket);
+ unregister_session_class:
+ 	transport_class_unregister(&iscsi_session_class);
+ unregister_conn_class:
+@@ -1753,7 +1766,7 @@ unregister_transport_class:
+ static void __exit iscsi_transport_exit(void)
+ {
+ 	destroy_workqueue(iscsi_eh_timer_workq);
+-	netlink_kernel_release(nls);
++	sock_release(nls->sk_socket);
+ 	transport_class_unregister(&iscsi_connection_class);
+ 	transport_class_unregister(&iscsi_session_class);
+ 	transport_class_unregister(&iscsi_host_class);
 -- 
-1.5.1.2
+1.5.4.1
 
