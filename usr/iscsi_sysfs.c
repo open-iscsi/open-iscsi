@@ -34,6 +34,7 @@
 #define ISCSI_SESSION_DIR	"/sys/class/iscsi_session"
 #define ISCSI_CONN_DIR		"/sys/class/iscsi_connection"
 #define ISCSI_HOST_DIR		"/sys/class/iscsi_host"
+#define SCSI_HOST_DIR		"/sys/class/scsi_host"
 #define SCSI_DEVICE_DIR		"/sys/bus/scsi/devices"
 
 #define ISCSI_MAX_SYSFS_BUFFER NI_MAXHOST
@@ -687,7 +688,7 @@ int get_session_state(char *state, int sid)
 int get_host_state(char *state, int host_no)
 {
 	memset(sysfs_file, 0, PATH_MAX);
-	sprintf(sysfs_file, "/sys/class/scsi_host/host%d/state", host_no);
+	sprintf(sysfs_file, SCSI_HOST_DIR"/host%d/state", host_no);
 	return read_sysfs_file(sysfs_file, state, "%s\n");
 }
 
@@ -792,7 +793,7 @@ struct iscsi_transport *get_transport_by_hba(long host_no)
 		return NULL;
 
 	memset(sysfs_file, 0, PATH_MAX);
-	sprintf(sysfs_file, "/sys/class/scsi_host/host%lu/proc_name", host_no);
+	sprintf(sysfs_file, SCSI_HOST_DIR"/host%lu/proc_name", host_no);
 	rc = read_sysfs_file(sysfs_file, name, "%s\n");
 	if (rc) {
 		log_error("Could not read %s rc %d.", sysfs_file, rc);
@@ -921,7 +922,7 @@ pid_t scan_host(int hostno, int async)
 	pid_t pid = 0;
 	int fd;
 
-	sprintf(sysfs_file, "/sys/class/scsi_host/host%d/scan",
+	sprintf(sysfs_file, SCSI_HOST_DIR"/host%d/scan",
 		hostno);
 	fd = open(sysfs_file, O_WRONLY);
 	if (fd < 0) {
