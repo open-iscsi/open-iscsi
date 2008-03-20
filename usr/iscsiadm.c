@@ -1106,7 +1106,12 @@ static void print_sessions_tree(idbm_t *db, struct list_head *list, int level)
 		printf("\t\tIface Initiatorname: %s\n",
 		       strlen(curr->iface.iname) ? curr->iface.iname :
 								UNKNOWN_VALUE);
-		printf("\t\tIface IPaddress: %s\n", curr->iface.ipaddress);
+		if (strchr(curr->address, '.'))
+			printf("\t\tIface IPaddress: %s\n",
+			       curr->iface.ipaddress);
+		else
+			printf("\t\tIface IPaddress: [%s]\n",
+			       curr->iface.ipaddress);
 		printf("\t\tIface HWaddress: %s\n", curr->iface.hwaddress);
 		printf("\t\tIface Netdev: %s\n", curr->iface.netdev);
 		printf("\t\tSID: %d\n", curr->sid);
