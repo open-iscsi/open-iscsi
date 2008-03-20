@@ -168,4 +168,9 @@ $(ko): all
 install_kernel: $(ko)
 	$(KBUILD_BASE) modules_install INSTALL_MOD_DIR=$(INSTALL_MOD_DIR) INSTALL_MOD_PATH=$(INSTALL_MOD_PATH)
 
+dpkg_divert:
+	for module in $(ko) ; do \
+		dpkg-divert --rename /lib/modules/$(KERNELRELEASE)/$(INSTALL_MOD_DIR)/$$module ; \
+	done
+
 # vim: ft=make tw=72 sw=4 ts=4:

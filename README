@@ -101,15 +101,25 @@ To compile on SUSE Linux you'll have to use
 
 where <config> is the kernel configuration to use (eg. 'smp').
 
-If you choose to install the Debian packages instead of building from source,
-please read the file /usr/share/doc/linux-iscsi/README.debian for information
-on how to build kernel modules against your specific kernel.
-
 For Red Hat/Fedora and Debian distributions open-iscsi can be installed by
 typing "make install". This will copy iscsid and iscsiadm to /usr/sbin, the
 init script to /etc/init.d, and the kernel modules: iscsi_tcp.ko, libiscsi.ko
 and scsi_transport_iscsi to /lib/modules/`uname -r`/kernel/drivers/scsi/
 overwriting existing iscsi modules.
+
+For Debian, be sure to install the linux-headers package that
+corresponds to your kernel in order to compile the kernel modules
+('aptitude install linux-headers-`uname -r`').  You may also wish to
+run 'make -C kernel/ dpkg_divert' before installing kernel modules if
+you run a Debian-provided kernel.  This will use dpkg-divert(8) to
+move the packaged kernel modules out of the way, and ensure that
+future kernel upgrades will not overwrite them.
+
+Also, please be aware that the compatibility patches that enable these
+iscsi modules to run on kernels older than 2.6.25 will not update the
+ib_iser module; you may get warnings related to mismatched symbols on
+this driver, in which case you'll be unable to load ib_iser and
+open-iscsi simultaneously.
 
 4. Open-iSCSI daemon
 ====================
