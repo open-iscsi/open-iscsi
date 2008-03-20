@@ -133,7 +133,7 @@ function bonnie_run() {
 
 function fatal() {
 	echo "regression.sh: $1"
-	echo "Usage: regression.sh <targetname|-f> <ipnumber#> <device> [test#[:#]] [bsize]"
+	echo "Usage: regression.sh [-f | <targetname> <ipnumber#> ] <device> [test#[:#]] [bsize]"
 	exit 1
 }
 
@@ -147,18 +147,19 @@ test ! -e ${datfile} && fatal "can not find regression.dat"
 test ! -e ${disktest} && fatal "can not find disktest"
 test ! -e ${iscsiadm} && fatal "can not find iscsiadm"
 test ! -e ${bonnie} && fatal "can not find bonnie++"
-test x$1 = x && fatal "target name parameter error"
-test x$2 = x && fatal "ipnumber parameter error"
-test x$3 = x && fatal "SCSI device parameter error"
 
 if test x$1 = "x-f" -o x$1 = "x--format"; then
-	mkfs_run
-	exit
-fi
+	test x$2 = x && fatal "SCSI device parameter error"
+	device=$2
+else
+	test x$1 = x && fatal "target name parameter error"
+	test x$2 = x && fatal "ipnumber parameter error"
+	test x$3 = x && fatal "SCSI device parameter error"
 
-target="$1"
-ipnr="$2"
-device=$3
+	target="$1"
+	ipnr="$2"
+	device=$3
+fi
 
 device_dir="$(dirname ${device})"
 device_partition=''
@@ -171,6 +172,11 @@ case "${device_dir}" in
 	# upcoming stuff
 	/dev/iscsi/*) device_partition="${device}-part1" ;;
 esac
+
+if test x$1 = "x-f" -o x$1 = "x--format"; then
+	mkfs_run
+	exit
+fi
 
 if [ -z "${device_partition}" ]; then
 	echo 'Unable to find device name for first partition.' >&2
