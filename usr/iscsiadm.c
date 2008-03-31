@@ -642,10 +642,17 @@ create_node_record(idbm_t *db, char *targetname, int tpgt, char *ip, int port,
 	memset(&rec->iface, 0, sizeof(struct iface_rec));
 	if (iface) {
 		if (!strlen(iface->name)) {
-			if (iface_get_by_bind_info(db, iface, &rec->iface)) {
-				if (verbose)
-					log_error("Could not find iface info.");
-				goto free_rec;
+			if (!iface_is_bound(iface))
+				/* copy transport name */
+				iface_copy(&rec->iface, iface);
+			else {
+				if (iface_get_by_bind_info(db, iface,
+							   &rec->iface)) {
+					if (verbose)
+						log_error("Could not find "
+							  "iface info.");
+					goto free_rec;
+				}
 			}
 		} else if (!strcmp(iface->name, DEFAULT_IFACENAME))
 			/*
@@ -2488,7 +2495,6 @@ main(int argc, char **argv)
 		}
 		if (sid >= 0) {
 			char session[64];
-			struct iscsi_transport *t;
 			struct session_info *info;
 
 			snprintf(session, 63, "session%d", sid);
@@ -2507,8 +2513,12 @@ main(int argc, char **argv)
 				goto free_info;
 			}
 
-			t = get_transport_by_sid(sid);
-			if (!t)
+			/*
+			 * We should be able to go on, but for now
+			 * we only support session mode ops if the module
+			 * is loaded and we support that module.
+			 */
+			if (!get_transport_by_sid(sid))
 				goto free_info;
 
 			if (!do_logout && !do_rescan && !do_stats &&
