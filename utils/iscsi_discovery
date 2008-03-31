@@ -110,7 +110,7 @@ set_transport()
 	iscsiadm -m node --targetname ${target} --portal ${portal} \
 			 --op update -n node.conn[0].iscsi.HeaderDigest -v None
 	iscsiadm -m node --targetname ${target} --portal ${portal} \
-			 --op update -n node.transport_name -v ${transport}
+			 --op update -n iface.transport_name -v ${transport}
 }
 
 select_transport()
