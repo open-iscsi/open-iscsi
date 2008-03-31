@@ -1507,11 +1507,6 @@ static int delete_stale_recs(struct idbm *db, void *data, struct node_rec *rec)
 			 */
 			return 0;
 
-		/*
-		 * we only care if the target endpoint matches, because
-		 * it is gone and we want to logout all sessions with
-		 * that endpoint, so we pass in null for the iface.
- 		 */
 		if (__iscsi_match_session(rec,
 					  new_rec->name,
 					  new_rec->conn[0].address,
@@ -1552,24 +1547,7 @@ update_discovery_recs(idbm_t *db, discovery_rec_t *drec,
 	if (op & OP_NEW || op & OP_UPDATE) {
 		/* now add/update records */
 		list_for_each_entry(new_rec, &bound_rec_list, list) {
-			int update = op & OP_UPDATE;
-
-			if (update &&
-			    check_for_session_through_iface(new_rec)) {
-				log_warning("Could not update record for "
-					    "[iface: %s, target: %s, portal: "
-					    "%s,%d], because session is "
-					    "logged in. Log out session "
-					    "then retry operation, or run "
-					    "discovery without the 'update' "
-					    "option.",
-					    new_rec->iface.name, new_rec->name,
-					    new_rec->conn[0].address,
-					    new_rec->conn[0].port);
-				continue;
-			}
-
-			rc = idbm_add_node(db, new_rec, drec, update);
+			rc = idbm_add_node(db, new_rec, drec, op & OP_UPDATE);
 			if (rc)
 				log_error("Could not add/update "
 					  "[%s:" iface_fmt " %s,%d,%d %s]",
