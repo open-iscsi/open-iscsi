@@ -922,7 +922,7 @@ __conn_error_handle(iscsi_session_t *session, iscsi_conn_t *conn)
 				qtask = session->sync_qtask;
 			else
 				qtask = &session->reopen_qtask;
-			iscsi_login_eh(conn, qtask, STOP_CONN_RECOVER);
+			iscsi_login_eh(conn, qtask, MGMT_IPC_ERR_TRANS_FAILURE);
 			return;
 		}
 		log_debug(1, "ignoring conn error in login. "
@@ -1609,7 +1609,12 @@ static void iscsi_recv_login_rsp(struct iscsi_conn *conn)
 retry:
 	/* force retry */
 	session->r_stage = R_STAGE_SESSION_REOPEN;
+	iscsi_login_eh(conn, c->qtask, MGMT_IPC_ERR_LOGIN_FAILURE);
+	return;
 failed:
+	/* force faulure */
+	session->r_stage = R_STAGE_NO_CHANGE;
+	session->reopen_cnt = session->nrec.session.initial_login_retry_max;
 	iscsi_login_eh(conn, c->qtask, MGMT_IPC_ERR_LOGIN_FAILURE);
 	return;
 }
