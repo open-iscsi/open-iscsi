@@ -171,6 +171,19 @@ select_transport()
 	fi
 }
 
+check_iscsid()
+{
+	#check if iscsid is running
+	pidof iscsid &>/dev/null
+	ret=$?
+	if [ $ret -ne 0 ]; then
+		echo "iscsid is not running"
+		echo "Exiting..."
+		exit 1
+	fi
+}
+
+check_iscsid
 initialize
 parse_cmdline "$@"
 discover
