@@ -24,13 +24,13 @@
 #    * tries to login
 #    * if succeeds,
 #          o logout,
-#          o mark record autmatic 
+#          o mark record autmatic
 #    * else
 #          o reset transport type to TCP
 #          o try to login
 #          o if succeeded
 #                + logout
-#                + mark record automatic 
+#                + mark record automatic
 #
 
 usage()
@@ -94,7 +94,6 @@ parse_cmdline()
 	done
 }
 
-
 discover()
 {
 	# If open-iscsi is already logged in to the portal, exit
@@ -119,7 +118,7 @@ discover()
 	if [ ${discovered} = 0 ]; then
 		echo "failed to discover targets at ${ip}"
 		exit 2
-	else 
+	else
 		echo "discovered ${discovered} targets at ${ip}"
 	fi
 	/bin/rm -f ${df}
