@@ -51,6 +51,9 @@ struct logmsg {
 };
 
 struct logarea {
+	int shmid;
+	int shmid_msg;
+	int shmid_buff;
 	int empty;
 	void *head;
 	void *tail;
