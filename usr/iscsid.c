@@ -409,7 +409,7 @@ int main(int argc, char *argv[])
 
 	if ((mgmt_ipc_fd = mgmt_ipc_listen()) < 0) {
 		log_close(log_pid);
-		exit(-1);
+		exit(1);
 	}
 
 	if (log_daemon) {
@@ -434,7 +434,7 @@ int main(int argc, char *argv[])
 
 		if ((control_fd = ipc->ctldev_open()) < 0) {
 			log_close(log_pid);
-			exit(-1);
+			exit(1);
 		}
 
 		chdir("/");
@@ -451,7 +451,7 @@ int main(int argc, char *argv[])
 	} else {
 		if ((control_fd = ipc->ctldev_open()) < 0) {
 			log_close(log_pid);
-			exit(-1);
+			exit(1);
 		}
 	}
 
