@@ -1462,29 +1462,19 @@ static int delete_node(struct idbm *db, void *data, struct node_rec *rec)
 {
 	if (check_for_session_through_iface(rec)) {
 		/*
-		 * perf is not important in this path, so do not worry
-		 * about doing a async logout
+ 		 * We could log out the session for the user, but if
+ 		 * the session is being used the user may get something
+ 		 * they were not expecting (FS errors and a read only
+ 		 * remount).
 		 */
-		log_warning("Found running session using record. Logging "
-			    "out session [iface: %s, target: %s, "
-			    "portal: %s,%d] before deleting record.",
-			    rec->iface.name, rec->name,
-			    rec->conn[0].address, rec->conn[0].port);
-		switch (iscsid_req(MGMT_IPC_SESSION_LOGOUT, rec)) {
-		case MGMT_IPC_ERR_NOT_FOUND:
-		case MGMT_IPC_OK:
-			break;
-		default:
-			log_error("Could not remove record, because there "
-				  "is a session to the portal that cannot "
-				  "stopped. Please log out session: "
-				  "[iface: %s, target: %s, portal: %s,%d]"
-				  "and then remove record.",
-				  rec->iface.name, rec->name,
-				  rec->conn[0].address, rec->conn[0].port);
-			return EINVAL;
-		}
+		log_error("This command will remove the record [iface: %s, "
+			  "target: %s, portal: %s,%d], but a session is "
+			  "using it. Logout session then rerun command to "
+			  "remove record.", rec->iface.name, rec->name,
+			  rec->conn[0].address, rec->conn[0].port);
+		return EINVAL;
 	}
+
 	return idbm_delete_node(db, rec);
 }
 
