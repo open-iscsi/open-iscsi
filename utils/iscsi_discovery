@@ -33,6 +33,19 @@
 #                + mark record automatic 
 #
 
+usage()
+{
+	echo "Usage: $0 <IP> [-p <port>] [-d] [-t <tcp|iser|qla4xxx> [-f]] [-m] [-l]"
+	echo "Options:"
+	echo  "-p		set the port number (defualt is 3260)."
+	echo  "-d		print debugging information"
+	echo  "-t		set trasnpot (default is tcp)."
+	echo  "-f		force specific transport -disable the fallback to tcp (default is fallback enabled)."
+	echo  "			force the transport specified by the argument of the -t flag."
+	echo  "-m		manual startup - will set manual startup (default is automatic startup)."
+	echo  "-l		login to the new discovered nodes (defualt is false)."
+}
+
 dbg()
 {
 	$debug && echo $@
@@ -41,23 +54,44 @@ dbg()
 initialize()
 {
 	trap "exit" 2
-	usage="Usage: $0 [-d] <IP> [<port>]"
 	debug=false
+	force="0"
+	log_out="1"
+	startup_manual="0"
+	#set defualt transport to tcp
+	transport=tcp
+	#set defualt port to 3260
+	port=3260;
 }
 
 parse_cmdline()
 {
-	if [ "$1" = "-d" ]; then
-		debug=true
-		shift
-	fi
 	if [ $# -lt 1 ]; then
-		echo ${usage}
+		usage
 		exit 1
 	fi
 
-	ip=$1
-	port=${2:-3260}
+	# check if the IP address is valid
+	ip=`echo $1 | awk -F'.' '$1 != "" && $1 <=255 && $2 != "" && $2 <= 255 && $3 != "" && $3 <= 255 && $4 != "" && $4 <= 255 {print $0}'`
+	if [ -z "$ip" ]; then
+		echo "$1 is not a vaild IP address!"
+		exit 1
+	fi
+	shift
+	while getopts "dfmlt:p:" options; do
+	 case $options in
+		d ) debug=true;;
+		f ) force="1";;
+		t ) transport=$OPTARG;;
+		p ) port=$OPTARG;;
+		m ) startup_manual="1";;
+		l ) log_out=0;;
+		\? ) usage
+			exit 1;;
+		* )  usage
+			exit 1;;
+	 esac
+	done
 }
 
 
@@ -91,15 +125,22 @@ discover()
 	/bin/rm -f ${df}
 }
 
-set_auto_if_login()
+try_login()
 {
+	if [ "$startup_manual" != "1" ]; then
+		iscsiadm -m node --targetname ${target} --portal ${portal} --op update -n node.conn[0].startup -v automatic
+	fi
 	iscsiadm -m node --targetname ${target} --portal ${portal} --login >/dev/null 2>&1
 	ret=$?
 	if [ ${ret} = 0 ]; then
-        	iscsiadm -m node --targetname ${target} --portal ${portal} --logout
-		iscsiadm -m node --targetname ${target} --portal ${portal} --op update -n node.conn[0].startup -v automatic
 		echo "Set target ${target} to automatic login over ${transport} to portal ${portal}"
 		((connected++))
+		if [ "$log_out" = "1" ]; then
+			iscsiadm -m node --targetname ${target} --portal ${portal} --logout
+		fi
+	else
+		echo "Cannot login over ${transport} to portal ${portal}"
+		iscsiadm -m node --targetname ${target} --portal ${portal} --op update -n node.conn[0].startup -v manual
 	fi
 	return ${ret}
 }
@@ -107,21 +148,26 @@ set_auto_if_login()
 set_transport()
 {
 	transport=$1
+	if [ "$transport" == "iser" ];then
+		iscsiadm -m node --targetname ${target} --portal ${portal} \
+				--op update -n node.conn[0].iscsi.HeaderDigest -v None
+		iscsiadm -m node --targetname ${target} --portal ${portal} \
+				--op update -n node.conn[0].iscsi.DataDigest -v None
+	fi
+	transport_name=`iscsiadm  -m node -p ${portal} -T ${target} |awk '/transport_name/ {print $1}'`
 	iscsiadm -m node --targetname ${target} --portal ${portal} \
-			 --op update -n node.conn[0].iscsi.HeaderDigest -v None
-	iscsiadm -m node --targetname ${target} --portal ${portal} \
-			 --op update -n iface.transport_name -v ${transport}
+			--op update -n ${transport_name} -v ${transport}
 }
 
 select_transport()
 {
-	set_transport iser
-	dbg "Testing iser-login to target ${target} portal ${portal}"
-	set_auto_if_login
-	if [ $? != 0 ]; then
+	set_transport $transport
+	dbg "Testing $transport-login to target ${target} portal ${portal}"
+	try_login;
+	if [ $? != 0 -a  "$force" = "0" ]; then
 		set_transport tcp
 		dbg "starting to test tcp-login to target ${target} portal ${portal}"
-		set_auto_if_login
+		try_login;
 	fi
 }
 

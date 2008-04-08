@@ -8,32 +8,45 @@
 .SH NAME
 iscsi_discovery \- discover iscsi devices
 .SH SYNOPSIS
-.B iscsi_discovery <IP> [port]
+.B iscsi_discovery <IP> [-p <port>] [-d] [-t <tcp|iser|qla4xxx> [-f]] [-m] [-l]
 
 .SH DESCRIPTION
 Perform send-targets discovery to the specified IP. If a discovery record
-is generated, try to login to the portal using iSER and TCP transports.
+is generated, try to login to the portal using iSER and TCP transports
+(-t flag specifies the requested transport type, TCP is the default).
 If login using a certain transport succeeds, mark the portal for automatic
-login, and disconnect.
+login (unless -m flag is used), and disconnect (unless -l flag is used).
 
 For iscsi discovery to work, open-iscsi services must be running. e.g. iscsid 
 should be up, and the iscsi modules loaded. This is best accomplished by the
 init.d startup script.
 
 .\" .SH OPTIONS
-.\" .TP
-.\" .B \-<a command line switch>
-.\" <description of what that switch does>
-.\" .TP
-.\" .B \-<a command line switch>
-.\" <description of what that switch does>
-.\" .TP
-.\" .B <etc . . .>
-.\" .SH "SEE ALSO"
-.\" <a list of related man pages>
+.TP
+.BI [-p=]\fIport\-number\fP
+set the port number (defualt is 3260).
+.TP
+.BI [-d]
+print debugging information.
+.TP
+.BI [-t=]\fItransport\-type\fP
+set transport (default is tcp).
+.TP
+.BI [-f]
+force specific transport -
+disable the fallback to tcp (default is fallback enabled).
+force the transport specified by the argument of the -t flag.
+
+.TP
+.BI [-m]
+manual startup - will set manual startup (default is automatic startup).
+.TP
+.BI [-l]
+login - login to the new discovered nodes (defualt is false).
+
 .SH AUTHOR
 Written by Dan Bar Dov
 .SH "REPORTING BUGS"
-Report bugs to <danb@voltaire.com>.
+Report bugs to <erezz@voltaire.com>.
 .SH COPYRIGHT
 Copyright \(co Voltaire Ltd. 2006.
