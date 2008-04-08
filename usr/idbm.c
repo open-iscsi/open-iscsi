@@ -1271,8 +1271,8 @@ int iface_match_bind_info(struct iface_rec *pattern, struct iface_rec *iface)
 	    !strcmp(pattern->hwaddress, iface->hwaddress))
 		return 1;
 
-	if (iface_is_bound_by_netdev(iface) &&
-	   !strcmp(pattern->netdev, iface->netdev))
+	if (iface_is_bound_by_netdev(pattern) &&
+	    !strcmp(pattern->netdev, iface->netdev))
 		return 1;
 
 //	if (iface_is_bound_by_ipaddr(iface) &&
