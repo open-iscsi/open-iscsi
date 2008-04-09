@@ -35,7 +35,7 @@
 
 usage()
 {
-	echo "Usage: $0 <IP> [-p <port>] [-d] [-t <tcp|iser|qla4xxx> [-f]] [-m] [-l]"
+	echo "Usage: $0 <IP> [-p <port>] [-d] [-t <tcp|iser> [-f]] [-m] [-l]"
 	echo "Options:"
 	echo  "-p		set the port number (defualt is 3260)."
 	echo  "-d		print debugging information"
