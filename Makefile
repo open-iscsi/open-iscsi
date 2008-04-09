@@ -79,6 +79,8 @@ install_initd_suse:
 	$(INSTALL) -d $(DESTDIR)$(initddir)
 	$(INSTALL) -m 755 etc/initd/initd.suse \
 		$(DESTDIR)$(initddir)/open-iscsi
+	$(INSTALL) -m 755 etc/initd/boot.suse \
+		$(DESTDIR)$(initddir)/boot.open-iscsi
 
 install_initd_redhat:
 	$(INSTALL) -d $(DESTDIR)$(initddir)

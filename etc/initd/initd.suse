@@ -29,23 +29,63 @@ rc_reset
 iscsi_login_all_nodes()
 {
 	echo -n "Setting up iSCSI targets: "
-	$ISCSIADM -m node --loginall=automatic
+	$ISCSIADM -m node --loginall=automatic 2> /dev/null
+	if [ $? == 19 ] ; then
+	    rc_failed 6
+	fi
 	rc_status -v
 }
 
 iscsi_logout_all_nodes()
 {
-	# Logout from all active sessions
-	if $ISCSIADM -m node --logoutall=all ; then
-		rc_status -v
-	else
-		RETVAL=$?
+	echo -n "Closing all iSCSI connections: "
+	# Logout from all sessions marked automatic
+	if ! $ISCSIADM -m node --logoutall=automatic 2> /dev/null; then
+		if [ $? == 19 ] ; then
+		    RETVAL=6
+		else
+		    RETVAL=1
+		fi
 		rc_failed $RETVAL
 	fi
+	rc_status -v
 
 	# Not sure whether this is still needed
 	sleep 1
 	return ${RETVAL:-0}
+}
+
+iscsi_umount_all_luns()
+{
+    local d m dev p s
+
+    cat /proc/mounts | sed -ne '/^\/dev\/.*/p' | while read d m t o x; do 
+	if [ "$m" = "/" ] ; then 
+	    continue;
+	fi
+	if [ -L "$d" ] ; then
+	    d=$(readlink -f $d)
+	fi
+	dev=${d##/dev}
+
+	if [ "${dev##/sd}" = "$dev" ] ; then
+	    continue;
+	fi
+	p="/sys/block${dev%%[0-9]*}"
+
+	if [ ! -d ${p} ] && [ ! -d ${p}/device ] ; then
+	    continue;
+	fi
+
+	s=$(cd -P ${p}/device && echo $PWD)
+
+	case "$s" in
+	    */session[0-9]*/*)
+		# This is an iSCSI device
+		umount "$m"
+	    ;;
+	esac
+    done
 }
 
 iscsi_list_all_nodes()
@@ -59,6 +99,38 @@ iscsi_list_all_nodes()
 	PORTAL=${PORTAL%,*}
 	echo -e "\t$TARGET at $PORTAL"
     done
+}
+
+iscsi_discover_all_targets()
+{
+	# Strip off any existing ID information
+	RAW_NODE_LIST=`iscsiadm -m node | sed -nre 's/^(\[[0-9a-f]*\] )?(.*)$/\2/p'`
+	# Obtain IPv4 list
+	IPV4_NODE_LIST=`echo "$RAW_NODE_LIST" | sed -nre 's/^([0-9]{1,3}(\.[0-9]{1,3}){3}):[^: ]* (.*)$/\1 \3/p'`
+	# Now obtain IPv6 list
+	IPV6_NODE_LIST=`echo "$RAW_NODE_LIST" | sed -nre 's/^([0-9a-f]{1,4}(:[0-9a-f]{0,4}){6}:[0-9a-f]{1,4}):[^: ]* (.*)$/\1 \3/p'`
+
+	DISC_TARGETS=""
+	while read NODE_ADDR NODE_NAME; do
+		[ -z "$NODE_ADDR" -a -z "$NODE_NAME" ] && continue
+		NODE_ATTRS=`iscsiadm -m node -p "$NODE_ADDR" -T "$NODE_NAME"`
+		NODE_STATUS=`echo "$NODE_ATTRS" | sed -nre 's/^.*node\.conn\[0\]\.startup = ([a-z]*).*$/\1/p'`
+
+		if [ "$NODE_STATUS" == 'automatic' ]; then
+			DISC_TARGETS=`echo "$DISC_TARGETS" | sed -re '/'"$NODE_ADDR"'/!{s/(.*)/\1 '"$NODE_ADDR"'/}'`
+		fi
+	done < <(echo "$IPV4_NODE_LIST"; echo "$IPV6_NODE_LIST")
+
+	for TARGET_ADDR in $DISC_TARGETS; do
+		echo -n "Attempting discovery on target at ${TARGET_ADDR}: "
+		iscsiadm -m discovery -t st -p "$TARGET_ADDR" > /dev/null 2>&1
+		if [ "$?" -ne 0 ]; then
+			rc_failed 1
+			rc_status -v
+			return 1
+		fi
+		rc_status -v
+	done
 }
 
 case "$1" in
@@ -75,10 +147,15 @@ case "$1" in
 	    rc_status -v
 	fi
 	if [ "$RETVAL" == "0" ]; then
+	    iscsi_discover_all_targets
+	    RETVAL=$?
+	fi
+	if [ "$RETVAL" == "0" ]; then
 	    iscsi_login_all_nodes
 	fi
 	;;
     stop)
+	iscsi_umount_all_luns
 	if iscsi_logout_all_nodes ; then
 	    killproc -KILL $DAEMON
 	    RETVAL=$?
@@ -99,7 +176,7 @@ case "$1" in
             fi
 	    rc_failed $status
 	else
-	    rc_failed 1
+	    rc_failed $RETVAL
 	fi
 	rc_status -v
 	;;

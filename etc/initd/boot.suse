@@ -1,0 +1,82 @@
+#!/bin/bash
+#
+# /etc/init.d/iscsi
+#
+### BEGIN INIT INFO
+# Provides:          iscsiboot
+# Required-Start:    boot.proc
+# Should-Start:
+# Required-Stop:     
+# Should-Stop:
+# Default-Start:     B
+# Default-Stop:      
+# Short-Description: Starts the iSCSI initiator daemon
+#                    
+### END INIT INFO
+
+ISCSIADM=/sbin/iscsiadm
+PID_FILE=/var/run/iscsi.pid
+CONFIG_FILE=/etc/iscsid.conf
+DAEMON=/sbin/iscsid
+ARGS="-c $CONFIG_FILE -p $PID_FILE"
+
+# Source LSB init functions
+. /etc/rc.status
+
+#
+# This service is run right after booting. So all activated targets
+# must be enabled during mkinitrd run and thus should not be removed
+# when the open-iscsi service is stopped.
+#
+iscsi_mark_root_nodes()
+{
+    $ISCSIADM -m session 2> /dev/null | while read t num i target ; do
+	ip=${i%%:*}
+	STARTUP=`$ISCSIADM -m node -p $ip -T $target | grep "node.conn\[0\].startup" | cut -d' ' -f3`
+	if [ "$STARTUP" != "onboot" ] ; then
+	    $ISCSIADM -m node -p $ip -T $target -o update -n node.conn[0].startup -v onboot
+	fi
+    done
+}
+
+# Reset status of this service
+rc_reset
+
+# We only need to start this for root on iSCSI
+if ! grep -q iscsi_tcp /proc/modules ; then
+    rc_failed 6
+    rc_exit
+fi
+
+case "$1" in
+    start)
+	[ ! -d /var/lib/open-iscsi ] && mkdir -p /var/lib/open-iscsi
+	echo -n "Starting iSCSI initiator for the root device: "
+	startproc $DAEMON $ARGS
+	rc_status -v
+	iscsi_mark_root_nodes
+	;;
+    stop)
+	rc_failed 0
+	;;
+    status)
+	echo -n "Checking for iSCSI initiator service: "
+	if checkproc $DAEMON ; then
+	    rc_status -v
+	else
+	    rc_failed 3
+	    rc_status -v
+	fi
+	;;
+    restart)
+	$0 stop
+	sleep 1
+	$0 start
+	;;
+    *)
+	echo "Usage: $0 {start|stop|status|restart}"
+	exit 1
+	;;
+esac
+rc_exit
+
