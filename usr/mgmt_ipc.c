@@ -84,15 +84,7 @@ mgmt_ipc_close(int fd)
 static mgmt_ipc_err_e
 mgmt_ipc_session_login(queue_task_t *qtask)
 {
-	node_rec_t *rec = &qtask->req.u.session.rec;
-
-	if (session_is_running(rec)) {
-		log_error("session [%s,%s,%d] already running.", rec->name,
-			  rec->conn[0].address, rec->conn[0].port);
-		return MGMT_IPC_ERR_EXISTS;
-	}
-
-	return session_login_task(rec, qtask);
+	return session_login_task(&qtask->req.u.session.rec, qtask);
 }
 
 static mgmt_ipc_err_e
@@ -135,16 +127,7 @@ mgmt_ipc_send_targets(queue_task_t *qtask)
 static mgmt_ipc_err_e
 mgmt_ipc_session_logout(queue_task_t *qtask)
 {
-	node_rec_t *rec = &qtask->req.u.session.rec;
-	iscsi_session_t *session;
-
-	if (!(session = session_find_by_rec(rec))) {
-		log_debug(1, "session [%s,%s,%d] not found!", rec->name,
-			  rec->conn[0].address, rec->conn[0].port);
-		return MGMT_IPC_ERR_NOT_FOUND;
-	}
-
-	return session_logout_task(session, qtask);
+	return session_logout_task(qtask->req.u.session.sid, qtask);
 }
 
 static mgmt_ipc_err_e

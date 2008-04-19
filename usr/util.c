@@ -203,6 +203,56 @@ mgmt_ipc_err_e do_iscsid(iscsiadm_req_t *req, iscsiadm_rsp_t *rsp)
 	return iscsid_response(fd, req->command, rsp);
 }
 
+int iscsid_req_wait(iscsiadm_cmd_e cmd, int fd)
+{
+	iscsiadm_rsp_t rsp;
+
+	memset(&rsp, 0, sizeof(iscsiadm_rsp_t));
+	return iscsid_response(fd, cmd, &rsp);
+}
+
+int iscsid_req_by_rec_async(iscsiadm_cmd_e cmd, node_rec_t *rec, int *fd)
+{
+	iscsiadm_req_t req;
+
+	memset(&req, 0, sizeof(iscsiadm_req_t));
+	req.command = cmd;
+	memcpy(&req.u.session.rec, rec, sizeof(node_rec_t));
+
+	return iscsid_request(fd, &req);
+}
+
+int iscsid_req_by_rec(iscsiadm_cmd_e cmd, node_rec_t *rec)
+{
+	int err, fd;
+
+	err = iscsid_req_by_rec_async(cmd, rec, &fd);
+	if (err)
+		return err;
+	return iscsid_req_wait(cmd, fd);
+}
+
+int iscsid_req_by_sid_async(iscsiadm_cmd_e cmd, int sid, int *fd)
+{
+	iscsiadm_req_t req;
+
+	memset(&req, 0, sizeof(iscsiadm_req_t));
+	req.command = cmd;
+	req.u.session.sid = sid;
+
+	return iscsid_request(fd, &req);
+}
+
+int iscsid_req_by_sid(iscsiadm_cmd_e cmd, int sid)
+{
+	int err, fd;
+
+	err = iscsid_req_by_sid_async(cmd, sid, &fd);
+	if (err)
+		return err;
+	return iscsid_req_wait(cmd, fd);
+}
+
 void idbm_node_setup_defaults(node_rec_t *rec)
 {
 	int i;

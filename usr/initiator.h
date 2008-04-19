@@ -325,10 +325,8 @@ extern int iscsi_io_recv_pdu(iscsi_conn_t *conn, struct iscsi_hdr *hdr,
 
 /* initiator.c */
 extern int session_login_task(node_rec_t *rec, queue_task_t *qtask);
-extern int session_logout_task(iscsi_session_t *session, queue_task_t *qtask);
+extern int session_logout_task(int sid, queue_task_t *qtask);
 extern iscsi_session_t *session_find_by_sid(int sid);
-extern iscsi_session_t *session_find_by_rec(node_rec_t *rec);
-extern int session_is_running(node_rec_t *rec);
 extern struct iscsi_conn_context *iscsi_conn_context_get(iscsi_conn_t *conn,
 						   int ev_size);
 extern void iscsi_conn_context_put(struct iscsi_conn_context *conn_context);

@@ -1832,8 +1832,7 @@ session_find_by_sid(int sid)
 	return NULL;
 }
 
-iscsi_session_t*
-session_find_by_rec(node_rec_t *rec)
+static iscsi_session_t* session_find_by_rec(node_rec_t *rec)
 {
 	struct iscsi_transport *t;
 	iscsi_session_t *session;
@@ -1873,6 +1872,12 @@ session_login_task(node_rec_t *rec, queue_task_t *qtask)
 	iscsi_session_t *session;
 	iscsi_conn_t *conn;
 	struct iscsi_transport *t;
+
+	if (session_is_running(rec)) {
+		log_error("session [%s,%s,%d] already running.", rec->name,
+			  rec->conn[0].address, rec->conn[0].port);
+		return MGMT_IPC_ERR_EXISTS;
+	}
 
 	t = get_transport_by_name(rec->iface.transport_name);
 	if (!t)
@@ -2025,11 +2030,17 @@ static int session_unbind(struct iscsi_session *session)
 }
 
 int
-session_logout_task(iscsi_session_t *session, queue_task_t *qtask)
+session_logout_task(int sid, queue_task_t *qtask)
 {
+	iscsi_session_t *session;
 	iscsi_conn_t *conn;
 	mgmt_ipc_err_e rc = MGMT_IPC_OK;
 
+	session = session_find_by_sid(sid);
+	if (!session) {
+                log_debug(1, "session sid %d not found.\n", sid);
+		return MGMT_IPC_ERR_NOT_FOUND;
+	}
 	conn = &session->conn[0];
 	/*
 	 * If syncing up or if this is the initial login and mgmt_ipc

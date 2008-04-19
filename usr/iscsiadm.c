@@ -231,35 +231,6 @@ static int print_ifaces(idbm_t *db, int info_level)
 	return err;
 }
 
-static int iscsid_req_async(iscsiadm_cmd_e cmd, node_rec_t *rec, int *fd)
-{
-	iscsiadm_req_t req;
-
-	memset(&req, 0, sizeof(iscsiadm_req_t));
-	req.command = cmd;
-	memcpy(&req.u.session.rec, rec, sizeof(node_rec_t));
-
-	return iscsid_request(fd, &req);
-}
-
-static int iscsid_req_wait(iscsiadm_cmd_e cmd, int fd)
-{
-	iscsiadm_rsp_t rsp;
-
-	memset(&rsp, 0, sizeof(iscsiadm_rsp_t));
-	return iscsid_response(fd, cmd, &rsp);
-}
-
-static int iscsid_req(iscsiadm_cmd_e cmd, node_rec_t *rec)
-{
-	int err, fd;
-
-	err = iscsid_req_async(cmd, rec, &fd);
-	if (err)
-		return err;
-	return iscsid_req_wait(cmd, fd);
-}
-
 static int
 match_startup_mode(node_rec_t *rec, char *mode)
 {
@@ -429,7 +400,6 @@ static int link_recs(idbm_t *db, void *data, struct node_rec *rec)
 static int __logout_portal(struct session_info *info, struct list_head *list)
 {
 	struct iscsid_async_req *async_req = NULL;
-	struct node_rec tmprec;
 	int fd, rc;
 
 	/* TODO: add fn to add session prefix info like dev_printk */
@@ -437,20 +407,15 @@ static int __logout_portal(struct session_info *info, struct list_head *list)
 		info->sid, info->targetname, info->persistent_address,
 		info->port);
 
-	memset(&tmprec, 0, sizeof(node_rec_t));
-	strncpy(tmprec.name, info->targetname, TARGET_NAME_MAXLEN);
-	tmprec.conn[0].port = info->persistent_port;
-	strncpy(tmprec.conn[0].address, info->persistent_address, NI_MAXHOST);
-	memcpy(&tmprec.iface, &info->iface, sizeof(struct iface_rec));
-
 	async_req = calloc(1, sizeof(*async_req));
 	if (!async_req) {
 		log_error("Could not allocate memory for async logout "
 			  "handling. Using sequential logout instead.");
-		rc = iscsid_req(MGMT_IPC_SESSION_LOGOUT, &tmprec);
+		rc = iscsid_req_by_sid(MGMT_IPC_SESSION_LOGOUT, info->sid);
 	} else {
 		INIT_LIST_HEAD(&async_req->list);
-		rc = iscsid_req_async(MGMT_IPC_SESSION_LOGOUT, &tmprec, &fd);
+		rc = iscsid_req_by_sid_async(MGMT_IPC_SESSION_LOGOUT,
+					     info->sid, &fd);
 	}
 
 	/* we raced with another app or instance of iscsiadm */
@@ -700,10 +665,10 @@ static int login_portal(void *data, struct list_head *list,
 	}
 
 	if (async_req)
-		rc = iscsid_req_async(MGMT_IPC_SESSION_LOGIN,
-				      rec, &fd);
+		rc = iscsid_req_by_rec_async(MGMT_IPC_SESSION_LOGIN,
+					     rec, &fd);
 	else
-		rc = iscsid_req(MGMT_IPC_SESSION_LOGIN, rec);
+		rc = iscsid_req_by_rec(MGMT_IPC_SESSION_LOGIN, rec);
 	/* we raced with another app or instance of iscsiadm */
 	if (rc == MGMT_IPC_ERR_EXISTS) {
 		if (async_req)
