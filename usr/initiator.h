@@ -240,7 +240,7 @@ typedef struct iscsi_session {
 	int password_in_length;
 	iscsi_conn_t conn[ISCSI_CONN_MAX];
 	int ctrl_fd;
-	uint32_t param_mask;
+	uint64_t param_mask;
 
 	/* connection reopens during recovery */
 	int reopen_cnt;

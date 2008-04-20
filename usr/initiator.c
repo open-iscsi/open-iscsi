@@ -546,16 +546,16 @@ __session_create(node_rec_t *rec, struct iscsi_transport *t)
 	/* setup authentication variables for the session*/
 	__setup_authentication(session, &rec->session.auth);
 
-	session->param_mask = 0xFFFFFFFF;
+	session->param_mask = ~0ULL;
 	if (!(t->caps & CAP_MULTI_R2T))
-		session->param_mask &= ~(1 << ISCSI_PARAM_MAX_R2T);
+		session->param_mask &= ~ISCSI_PARAM_MAX_R2T;
 	if (!(t->caps & CAP_HDRDGST))
-		session->param_mask &= ~(1 << ISCSI_PARAM_HDRDGST_EN);
+		session->param_mask &= ~ISCSI_PARAM_HDRDGST_EN;
 	if (!(t->caps & CAP_DATADGST))
-		session->param_mask &= ~(1 << ISCSI_PARAM_DATADGST_EN);
+		session->param_mask &= ~ISCSI_PARAM_DATADGST_EN;
 	if (!(t->caps & CAP_MARKERS)) {
-		session->param_mask &= ~(1 << ISCSI_PARAM_IFMARKER_EN);
-		session->param_mask &= ~(1 << ISCSI_PARAM_OFMARKER_EN);
+		session->param_mask &= ~ISCSI_PARAM_IFMARKER_EN;
+		session->param_mask &= ~ISCSI_PARAM_OFMARKER_EN;
 	}
 
 	list_add_tail(&session->list, &t->sessions);
@@ -1324,7 +1324,8 @@ setup_full_feature_phase(iscsi_conn_t *conn)
 	for (i = 0; i < MAX_SESSION_PARAMS; i++) {
 		if (conn->id != 0 && !conntbl[i].conn_only)
 			continue;
-		if (!(session->param_mask & (1 << conntbl[i].param)))
+		
+		if (!(session->param_mask & (1ULL << conntbl[i].param)))
 			continue;
 
 		rc = ipc->set_param(session->t->handle, session->id,
