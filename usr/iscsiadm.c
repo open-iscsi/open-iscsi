@@ -493,23 +493,9 @@ __logout_by_startup(idbm_t *db, void *data, struct list_head *list,
 	int rc = 0;
 
 	memset(&rec, 0, sizeof(node_rec_t));
-	if (iface_get_by_bind_info(db, &info->iface, &rec.iface)) {
-		/*
-		 * If someone removed the /etc/iscsi/ifaces file
-		 * between logins then this will fail.
-		 *
-		 * To support that, we would have to throw our ifacename
-		 * into the kernel.
-		 */
-		log_debug(7, "could not read data for [%s,%s.%d]\n",
-			  info->targetname, info->persistent_address,
-			  info->persistent_port);
-		return -1;
-	}
-
 	if (idbm_rec_read(db, &rec, info->targetname, info->tpgt,
 			  info->persistent_address,
-			  info->persistent_port, &rec.iface)) {
+			  info->persistent_port, &info->iface)) {
 		/*
 		 * this is due to a HW driver or some other driver
 		 * not hooked in
@@ -521,9 +507,8 @@ __logout_by_startup(idbm_t *db, void *data, struct list_head *list,
 	}
 
 	/* multiple drivers could be connected to the same portal */
-	if (!iscsi_match_session(&rec, info))
+	if (strcmp(rec.iface.transport_name, info->iface.transport_name))
 		return -1;
-
 	/*
 	 * we always skip on boot because if the user killed this on
 	 * they would not be able to do anything
@@ -606,31 +591,8 @@ create_node_record(idbm_t *db, char *targetname, int tpgt, char *ip, int port,
 		strncpy(rec->conn[0].address, ip, NI_MAXHOST);
 	memset(&rec->iface, 0, sizeof(struct iface_rec));
 	if (iface) {
-		if (!strlen(iface->name)) {
-			if (!iface_is_bound(iface))
-				/* copy transport name */
-				iface_copy(&rec->iface, iface);
-			else {
-				if (iface_get_by_bind_info(db, iface,
-							   &rec->iface)) {
-					if (verbose)
-						log_error("Could not find "
-							  "iface info.");
-					goto free_rec;
-				}
-			}
-		} else if (!strcmp(iface->name, DEFAULT_IFACENAME))
-			/*
- 			 * default is a special name and should not be used by
-			 * a real iface
-			 */
-			iface_init(&rec->iface);
-		else {
-			/*
-			 * the initial iface update will not be able to find
-			 * by bind info because there is none.
-			 */
-			iface_copy(&rec->iface, iface);
+		iface_copy(&rec->iface, iface);
+		if (strlen(iface->name)) {
 			if (iface_conf_read(db, &rec->iface)) {
 				if (verbose)
 					log_error("Could not read iface info "
@@ -1032,7 +994,6 @@ static void print_sessions_tree(idbm_t *db, struct list_head *list, int level)
 {
 	struct session_info *curr, *prev = NULL, *tmp;
 	struct iscsi_transport *t;
-	struct iface_rec iface;
 
 	list_for_each_entry(curr, list, list) {
 		if (!prev || strcmp(prev->targetname, curr->targetname)) {
@@ -1065,14 +1026,10 @@ static void print_sessions_tree(idbm_t *db, struct list_head *list, int level)
 		printf("\t\t**********\n");
 		printf("\t\tInterface:\n");
 		printf("\t\t**********\n");
-		if (iface_is_bound(&curr->iface)) {
-			memset(&iface, 0, sizeof(struct iface_rec));
-			if (iface_get_by_bind_info(db, &curr->iface, &iface))
-				printf("\t\tIface Name: %s\n", UNKNOWN_VALUE);
-			else
-				printf("\t\tIface Name: %s\n", iface.name);
-		} else
-			printf("\t\tIface Name: %s\n", DEFAULT_IFACENAME);
+		if (strlen(curr->iface.name))
+			printf("\t\tIface Name: %s\n", curr->iface.name);
+		else
+			printf("\t\tIface Name: %s\n", UNKNOWN_VALUE);
 		printf("\t\tIface Transport: %s\n",
 		       t ? t->name : UNKNOWN_VALUE);
 		printf("\t\tIface Initiatorname: %s\n",
@@ -1599,10 +1556,6 @@ do_sendtargets(idbm_t *db, discovery_rec_t *drec, struct list_head *ifaces,
 			continue;
 		}
 
-		/* if no binding it must be software */
-		if (!iface_is_bound(iface))
-			continue;
-
 		host_no = get_host_no_from_iface(iface, &rc);
 		if (rc || host_no == -1) {
 			log_debug(1, "Could not match iface" iface_fmt " to "
@@ -1718,12 +1671,9 @@ static int exec_iface_op(idbm_t *db, int op, int do_show, int info_level,
 		}
 
 		rec = create_node_record(db, NULL, -1, NULL, -1, iface, 0);
-		if (rec && iface_is_bound(&rec->iface)) {
-			if (check_for_session_through_iface(rec)) {
-				rc = EBUSY;
-				goto new_fail;
-			}
-			log_warning("Overwriting existing %s.", iface->name);
+		if (rec && check_for_session_through_iface(rec)) {
+			rc = EBUSY;
+			goto new_fail;
 		}
 
 		iface_init(iface);
@@ -1748,12 +1698,10 @@ new_fail:
 			goto delete_fail;
 		}
 
-		if (iface_is_bound(&rec->iface)) {
-			/* logout and delete records using it first */
-			rc = __for_each_rec(db, 0, rec, NULL, delete_node);
-			if (rc && rc != ENODEV)
-				goto delete_fail;
-		}
+		/* logout and delete records using it first */
+		rc = __for_each_rec(db, 0, rec, NULL, delete_node);
+		if (rc && rc != ENODEV)
+			goto delete_fail;
 
 		rc = iface_conf_delete(db, iface);
 		if (rc)
@@ -1779,39 +1727,37 @@ delete_fail:
 			goto update_fail;
 		}
 
-		if (iface_is_bound(&rec->iface)) {
-			if (check_for_session_through_iface(rec)) {
-				rc = EINVAL;
-				goto update_fail;
-			}
+		if (check_for_session_through_iface(rec)) {
+			rc = EINVAL;
+			goto update_fail;
+		}
 
-			if (!strcmp(name, "iface.iscsi_ifacename")) {
-				log_error("Can not update "
-					  "iface.iscsi_ifacename. Delete it, "
-					  "and then create a new one.");
-				rc = EINVAL;
-				break;
-			}
+		if (!strcmp(name, "iface.iscsi_ifacename")) {
+			log_error("Can not update "
+				  "iface.iscsi_ifacename. Delete it, "
+				  "and then create a new one.");
+			rc = EINVAL;
+			break;
+		}
 
-			if (iface_is_bound_by_hwaddr(&rec->iface) &&
-			    !strcmp(name, "iface.net_ifacename")) {
-				log_error("Can not update interface binding "
-					  "from hwaddress to net_ifacename. ");
-				log_error("You must delete the interface and "
-					  "create a new one");
-				rc = EINVAL;
-				break;
-			}
+		if (iface_is_bound_by_hwaddr(&rec->iface) &&
+		    !strcmp(name, "iface.net_ifacename")) {
+			log_error("Can not update interface binding "
+				  "from hwaddress to net_ifacename. ");
+			log_error("You must delete the interface and "
+				  "create a new one");
+			rc = EINVAL;
+			break;
+		}
 
-			if (iface_is_bound_by_netdev(&rec->iface) &&
-			    !strcmp(name, "iface.hwaddress")) {
-				log_error("Can not update interface binding "
-					  "from net_ifacename to hwaddress. ");
-				log_error("You must delete the interface and "
-					  "create a new one");
-				rc = EINVAL;
-				break;
-			}
+		if (iface_is_bound_by_netdev(&rec->iface) &&
+		    !strcmp(name, "iface.hwaddress")) {
+			log_error("Can not update interface binding "
+				  "from net_ifacename to hwaddress. ");
+			log_error("You must delete the interface and "
+				  "create a new one");
+			rc = EINVAL;
+			break;
 		}
 		set_param.db = db;
 		set_param.name = name;

@@ -1132,7 +1132,7 @@ mgmt_ipc_err_e iscsi_host_set_param(int host_no, int param, char *value)
         return MGMT_IPC_OK;
 }
 
-#define MAX_SESSION_PARAMS 29
+#define MAX_SESSION_PARAMS 30
 #define MAX_HOST_PARAMS 3
 
 static void
@@ -1312,6 +1312,10 @@ setup_full_feature_phase(iscsi_conn_t *conn)
 			.value = &conn->noop_out_interval,
 			.type = ISCSI_INT,
 			.conn_only = 1,
+		}, {
+			.param = ISCSI_PARAM_IFACE_NAME,
+			.value = session->nrec.iface.name,
+			.type = ISCSI_STRING,
 		},
 	};
 

@@ -141,25 +141,21 @@ extern int idbm_rec_read(idbm_t *db, node_rec_t *out_rec, char *target_name,
 extern int idbm_node_set_param(idbm_t *db, void *data, node_rec_t *rec);
 
 /* TODO: seperate iface, node and core idbm code */
-extern int iface_id_is_mac(char *iface_id);
 extern void iface_copy(struct iface_rec *dst, struct iface_rec *src);
-extern int iface_is_bound(struct iface_rec *iface);
-extern int iface_match_bind_info(struct iface_rec *pattern,
-				  struct iface_rec *iface);
+extern int iface_match(struct iface_rec *pattern, struct iface_rec *iface);
 extern struct iface_rec *iface_alloc(char *ifname, int *err);
 extern int iface_conf_read(idbm_t *db, struct iface_rec *iface);
 extern void iface_init(struct iface_rec *iface);
 extern int iface_is_bound_by_hwaddr(struct iface_rec *iface);
 extern int iface_is_bound_by_netdev(struct iface_rec *iface);
-extern int iface_is_bound_by_ipaddr(struct iface_rec *iface);
 typedef int (iface_op_fn)(void *data, struct iface_rec *iface);
 extern int iface_for_each_iface(idbm_t *db, void *data, int *nr_found,
 				 iface_op_fn *fn);
 extern int iface_print_flat(void *data, struct iface_rec *iface);
 extern int iface_print_tree(void *data, struct iface_rec *iface);
 extern void iface_setup_host_bindings(idbm_t *db);
-extern int iface_get_by_bind_info(idbm_t *db, struct iface_rec *pattern,
-				 struct iface_rec *out_rec);
+extern int iface_get_by_net_binding(idbm_t *db, struct iface_rec *pattern,
+				    struct iface_rec *out_rec);
 extern int iface_conf_update(idbm_t *db, struct db_set_param *set_param,
 			     struct iface_rec *iface);
 extern int iface_conf_write(idbm_t *db, struct iface_rec *iface);

@@ -26,6 +26,7 @@
 #include "log.h"
 #include "initiator.h"
 #include "transport.h"
+#include "idbm.h"
 #include "version.h"
 #include "iscsi_sysfs.h"
 #include "iscsi_settings.h"
@@ -392,12 +393,90 @@ uint32_t get_host_no_from_iface(struct iface_rec *iface, int *rc)
 	return host_no;
 }
 
+static int sysfs_read_iface(struct iface_rec *iface, int host_no, int sid)
+{
+	struct iscsi_transport *t;
+	int ret;
+
+	memset(sysfs_file, 0, PATH_MAX);
+	sprintf(sysfs_file, ISCSI_HOST_DIR"/host%u/hwaddress", host_no);
+	/*
+	 * backward compat
+	 * If we cannot get the address we assume we are doing the old
+	 * style and use default.
+	 */
+	sprintf(iface->hwaddress, DEFAULT_HWADDRESS);
+	ret = read_sysfs_file(sysfs_file, iface->hwaddress, "%s\n");
+	if (ret)
+		log_debug(7, "could not read hwaddress for %s", sysfs_file);
+
+	t = get_transport_by_hba(host_no);
+	if (!t)
+		log_debug(7, "could not get transport name for host %d",
+			  host_no);
+	else
+		strcpy(iface->transport_name, t->name);
+
+	memset(sysfs_file, 0, PATH_MAX);
+	sprintf(sysfs_file, ISCSI_HOST_DIR"/host%u/ipaddress", host_no);
+	/* if not found just print out default */
+	sprintf(iface->ipaddress, DEFAULT_IPADDRESS);
+	ret = read_sysfs_file(sysfs_file, iface->ipaddress, "%s\n");
+	if (ret)
+		log_debug(7, "could not read local address for %s",
+			 sysfs_file);
+
+	memset(sysfs_file, 0, PATH_MAX);
+	sprintf(sysfs_file, ISCSI_HOST_DIR"/host%u/netdev", host_no);
+	/* if not found just print out default */
+	sprintf(iface->netdev, DEFAULT_NETDEV);
+	ret = read_sysfs_file(sysfs_file, iface->netdev, "%s\n");
+	if (ret)
+		log_debug(7, "could not read netdev for %s",
+			 sysfs_file);
+
+	memset(sysfs_file, 0, PATH_MAX);
+	sprintf(sysfs_file, ISCSI_HOST_DIR"/host%d/initiatorname", host_no);
+	ret = read_sysfs_file(sysfs_file, iface->iname, "%s\n");
+	if (ret)
+		log_debug(7, "Could not read initiatorname for %s",
+			 sysfs_file);
+
+	/*
+	 * this is on the session, because we support multiple bindings
+	 * per device.
+	 */
+	memset(sysfs_file, 0, PATH_MAX);
+	sprintf(sysfs_file, ISCSI_SESSION_DIR"/session%u/ifacename", sid);
+	/*
+	 * this was added after 2.0.869 so we could be doing iscsi_tcp
+	 * session binding, but there may not be a ifacename set
+	 */
+	memset(iface->name, 0, sizeof(iface->name));
+	ret = read_sysfs_file(sysfs_file, iface->name, "%s\n");
+	if (ret) {
+		log_debug(7, "could not read iface name for %s",
+			 sysfs_file);
+		/*
+ 		 * if the ifacename file is not there then we are using a older
+ 		 * kernel and can try to find the binding by the net info
+ 		 * which was used on these older kernels.
+ 		 */
+		if (!iface_is_bound_by_hwaddr(iface) &&
+		    !iface_is_bound_by_netdev(iface))
+			sprintf(iface->name, DEFAULT_IFACENAME);
+/*		else if (iface_get_by_net_binding(db, iface, iface))
+			log_debug(7, "Could not find iface for session bound "
+				  "to:" iface_fmt "\n", iface_str(iface));
+*/	}
+	return ret;
+}
+
 int sysfs_for_each_host(void *data, int *nr_found, sysfs_host_op_fn *fn)
 {
 	struct dirent **namelist;
 	int rc = 0, i, n;
 	struct host_info *info;
-	struct iscsi_transport *t;
 
 	info = calloc(1, sizeof(*info));
 	if (!info)
@@ -416,44 +495,7 @@ int sysfs_for_each_host(void *data, int *nr_found, sysfs_host_op_fn *fn)
 			break;
 		}
 
-		memset(sysfs_file, 0, PATH_MAX);
-		sprintf(sysfs_file, ISCSI_HOST_DIR"/%s/initiatorname",
-			namelist[i]->d_name);
-		rc = read_sysfs_file(sysfs_file, info->iname, "%s\n");
-		if (rc)
-			log_debug(4, "Could not read initiatorname for host "
-				  "%u. Error %d\n", info->host_no, rc);
-
-		memset(sysfs_file, 0, PATH_MAX);
-		sprintf(sysfs_file, ISCSI_HOST_DIR"/%s/ipaddress",
-			namelist[i]->d_name);
-		rc = read_sysfs_file(sysfs_file, info->iface.ipaddress, "%s\n");
-		if (rc)
-			log_debug(4, "Could not read ipaddress for host %u. "
-				  "Error %d\n", info->host_no, rc);
-
-		memset(sysfs_file, 0, PATH_MAX);
-		sprintf(sysfs_file, ISCSI_HOST_DIR"/%s/hwaddress",
-			namelist[i]->d_name);
-		rc = read_sysfs_file(sysfs_file, info->iface.hwaddress, "%s\n");
-		if (rc)
-			log_debug(4, "Could not read hwaddress for host %u. "
-				  "Error %d\n", info->host_no, rc);
-
-		memset(sysfs_file, 0, PATH_MAX);
-		sprintf(sysfs_file, ISCSI_HOST_DIR"/%s/netdev",
-			namelist[i]->d_name);
-		rc = read_sysfs_file(sysfs_file, info->iface.netdev, "%s\n");
-		if (rc)
-			log_debug(4, "Could not read netdev for host %u. "
-				  "Error %d\n", info->host_no, rc);
-
-		t = get_transport_by_hba(info->host_no);
-		if (!t)
-			log_debug(4, "could not get transport name for host %d",
-				  info->host_no);
-		else
-			strcpy(info->iface.transport_name, t->name);
+		sysfs_read_iface(&info->iface, info->host_no, -1);
 
 		rc = fn(data, info);
 		if (rc != 0)
@@ -492,7 +534,6 @@ int get_sessioninfo_by_sysfs_id(struct session_info *info, char *session)
 {
 	int ret, pers_failed = 0;
 	uint32_t host_no;
-	struct iscsi_transport *t;
 
 	if (sscanf(session, "session%d", &info->sid) != 1) {
 		log_error("invalid session '%s'", session);
@@ -579,57 +620,15 @@ int get_sessioninfo_by_sysfs_id(struct session_info *info, char *session)
 		return ret;
 	}
 
-	memset(sysfs_file, 0, PATH_MAX);
-	sprintf(sysfs_file, ISCSI_HOST_DIR"/host%d/initiatorname", host_no);
-	ret = read_sysfs_file(sysfs_file, info->iface.iname, "%s\n");
-	if (ret)
-		log_debug(7, "Could not read initiatorname for %s",
-			 sysfs_file);
-
-	memset(sysfs_file, 0, PATH_MAX);
-	sprintf(sysfs_file, ISCSI_HOST_DIR"/host%u/hwaddress", host_no);
-	/*
-	 * backward compat
-	 * If we cannot get the address we assume we are doing the old
-	 * style and use default.
-	 */
-	sprintf(info->iface.hwaddress, DEFAULT_HWADDRESS);
-	ret = read_sysfs_file(sysfs_file, info->iface.hwaddress, "%s\n");
-	if (ret)
-		log_debug(7, "could not read hwaddress for %s", sysfs_file);
-
-	t = get_transport_by_sid(info->sid);
-	if (!t)
-		log_debug(7, "could not get transport name for session %d",
-			  info->sid);
-	else
-		strcpy(info->iface.transport_name, t->name);
-
-	memset(sysfs_file, 0, PATH_MAX);
-	sprintf(sysfs_file, ISCSI_HOST_DIR"/host%u/ipaddress", host_no);
-	/* if not found just print out default */
-	sprintf(info->iface.ipaddress, DEFAULT_IPADDRESS);
-	ret = read_sysfs_file(sysfs_file, info->iface.ipaddress, "%s\n");
-	if (ret)
-		log_debug(7, "could not read local address for %s",
-			 sysfs_file);
-
-	memset(sysfs_file, 0, PATH_MAX);
-	sprintf(sysfs_file, ISCSI_HOST_DIR"/host%u/netdev", host_no);
-	/* if not found just print out default */
-	sprintf(info->iface.netdev, DEFAULT_NETDEV);
-	ret = read_sysfs_file(sysfs_file, info->iface.netdev, "%s\n");
-	if (ret)
-		log_debug(7, "could not read netdev for %s",
-			 sysfs_file);
-
+	sysfs_read_iface(&info->iface, host_no, info->sid);
+ 
 	log_debug(7, "found targetname %s address %s pers address %s port %d "
-		 "pers port %d driver %s iface ipaddress %s "
+		 "pers port %d driver %s iface name %s ipaddress %s "
 		 "netdev %s hwaddress %s iname %s",
 		  info->targetname, info->address ? info->address : "NA",
 		  info->persistent_address ? info->persistent_address : "NA",
-		  info->port, info->persistent_port,
-		  info->iface.transport_name, info->iface.ipaddress,
+		  info->port, info->persistent_port, info->iface.transport_name,
+		  info->iface.name, info->iface.ipaddress,
 		  info->iface.netdev, info->iface.hwaddress,
 		  info->iface.iname);
 	return 0;

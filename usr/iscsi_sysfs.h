@@ -43,7 +43,6 @@ struct session_info {
 };
 
 struct host_info {
-	char iname[TARGET_NAME_MAXLEN + 1];
 	struct iface_rec iface;
 	int host_no;
 };

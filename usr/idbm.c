@@ -1081,7 +1081,7 @@ struct iface_search {
 	struct iface_rec *found;
 };
 
-static int __iface_get_by_bind_info(void *data, struct iface_rec *iface)
+static int __iface_get_by_net_binding(void *data, struct iface_rec *iface)
 {
 	struct iface_search *search = data;
 
@@ -1118,7 +1118,17 @@ static int __iface_get_by_bind_info(void *data, struct iface_rec *iface)
 	return 0;
 }
 
-int iface_get_by_bind_info(idbm_t *db, struct iface_rec *pattern,
+/*
+ * Before 2.0.870, we only could bind by netdeivce or hwaddress,
+ * so we did a simple reverse lookup to go from sysfs info to
+ * the iface name. After 2.0.870 we added a lot of options to the
+ * iface binding so we added the ifacename to the kernel.
+ *
+ * This function is for older kernels that do not export the ifacename.
+ * If the user was doing iscsi_tcp session binding or using qla4xxx
+ * we will find the iface by matching the hwaddres or netdev.
+ */
+int iface_get_by_net_binding(idbm_t *db, struct iface_rec *pattern,
 			   struct iface_rec *out_rec)
 {
 	int num_found = 0, rc;
@@ -1128,11 +1138,12 @@ int iface_get_by_bind_info(idbm_t *db, struct iface_rec *pattern,
 	search.found = out_rec;
 
 	rc = iface_for_each_iface(db, &search, &num_found,
-				  __iface_get_by_bind_info);
+				  __iface_get_by_net_binding);
 	if (rc == 1)
 		return 0;
 
-	if (iface_is_bound(pattern))
+	if (iface_is_bound_by_hwaddr(pattern) ||
+	    iface_is_bound_by_netdev(pattern))
 		return ENODEV;
 
 	/*
@@ -1154,21 +1165,21 @@ static int __iface_setup_host_bindings(void *data, struct host_info *info)
 	struct iscsi_transport *t;
 	int id;
 
-	if (!strlen(info->iface.hwaddress) ||
-	    !strlen(info->iface.transport_name))
-		return 0;
-
 	t = get_transport_by_hba(info->host_no);
 	if (!t)
 		return 0;
 	/*
-	 * if software iscsi do not touch the bindngs. They do not
-	 * need it and may not support it
+	 * if software or partial offload do not touch the bindngs.
+	 * They do not need it and may not support it
 	 */
-	if (!(t->caps & CAP_DATA_PATH_OFFLOAD))
+	if (!(t->caps & CAP_FW_DB))
 		return 0;
 
-	if (iface_get_by_bind_info(db, &info->iface, &iface)) {
+	/*
+	 * since this is only for qla4xxx we only care about finding
+	 * a iface with a matching hwaddress.
+	 */
+	if (iface_get_by_net_binding(db, &info->iface, &iface)) {
 		/* Must be a new port */
 		id = iface_get_next_id();
 		if (id < 0) {
@@ -1226,9 +1237,15 @@ void iface_copy(struct iface_rec *dst, struct iface_rec *src)
 		strcpy(dst->transport_name, src->transport_name);
 }
 
-int iface_is_bound(struct iface_rec *iface)
+static int iface_is_valid(struct iface_rec *iface)
 {
 	if (!iface)
+		return 0;
+
+	if (!strlen(iface->name))
+		return 0;
+
+	if (!strlen(iface->transport_name))
 		return 0;
 
 	if (iface_is_bound_by_hwaddr(iface))
@@ -1236,53 +1253,23 @@ int iface_is_bound(struct iface_rec *iface)
 
 	if (iface_is_bound_by_netdev(iface))
 		return 1;
-
 //	if (iface_is_bound_by_ipaddr(iface))
 //		return 1;
 
-	return 0;
+	/* bound by transport name */
+	return 1;
 }
 
-int iface_match_bind_info(struct iface_rec *pattern, struct iface_rec *iface)
+int iface_match(struct iface_rec *pattern, struct iface_rec *iface)
 {
 	if (!pattern || !iface)
 		return 1;
 
-	/* if no values set then we have a match */
-	if (!strlen(pattern->hwaddress) &&
-//	    !strlen(pattern->ipaddress) &&
-	    !strlen(pattern->netdev) &&
-	    !strlen(pattern->name))
+	if (!strlen(pattern->name))
 		return 1;
 
-	/*
-	 * If both interfaces are not bound we return match.
-	 * This assumes we will not have two ifaces with different
-	 * names and no binding info. There should only be one
-	 * iface with no binding info for each transport and that
-	 * is the "default" which is used for backward compat from
-	 * when we did not have ifaces.	
-	 */
-	if (!iface_is_bound(iface) &&
-	    !iface_is_bound(pattern))
+	if (!strcmp(pattern->name, iface->name))
 		return 1;
-
-	if (iface_is_bound_by_hwaddr(pattern) &&
-	    !strcmp(pattern->hwaddress, iface->hwaddress))
-		return 1;
-
-	if (iface_is_bound_by_netdev(pattern) &&
-	    !strcmp(pattern->netdev, iface->netdev))
-		return 1;
-
-//	if (iface_is_bound_by_ipaddr(iface) &&
-//	   !strcmp(pattern->ipaddress, iface->ipaddress))
-//		return 1;
-
-	if (strlen(pattern->name)) {
-		if (!strcmp(pattern->name, iface->name))
-			return 1;
-	}
 
 	return 0;
 }
@@ -1290,7 +1277,7 @@ int iface_match_bind_info(struct iface_rec *pattern, struct iface_rec *iface)
 int iface_is_bound_by_hwaddr(struct iface_rec *iface)
 {
 	if (iface && strlen(iface->hwaddress) &&
-	   strcmp(iface->hwaddress, DEFAULT_HWADDRESS))
+	    strcmp(iface->hwaddress, DEFAULT_HWADDRESS))
 		return 1;
 	return 0;
 }
@@ -1387,8 +1374,8 @@ int iface_for_each_iface(idbm_t *db, void *data, int *nr_found, iface_op_fn *fn)
 			continue;
 		}
 
-		if (!iface_is_bound(iface)) {
-			log_debug(5, "iface is not bound "
+		if (!iface_is_valid(iface)) {
+			log_debug(5, "iface is not valid "
 				  "Iface settings " iface_fmt,
 				  iface_str(iface));
 			free(iface);
@@ -2311,7 +2298,9 @@ int idbm_bind_ifaces_to_node(idbm_t *db, struct node_rec *new_rec,
 		list_for_each_entry_safe(iface, tmp, &def_ifaces, list) {
 			list_del(&iface->list);
 			t = get_transport_by_name(iface->transport_name);
-			if (!t || t->caps & CAP_FW_DB) {
+			/* only auto bind to software iscsi */
+			if (!t || t->caps & CAP_FW_DB ||
+			    t->caps & CAP_DATA_PATH_OFFLOAD) {
 				free(iface);
 				continue;
 			}
@@ -2335,8 +2324,8 @@ int idbm_bind_ifaces_to_node(idbm_t *db, struct node_rec *new_rec,
 	} else {
 		list_for_each_entry(iface, ifaces, list) {
 			if (strcmp(iface->name, DEFAULT_IFACENAME) &&
-			    !iface_is_bound(iface)) {
-				log_error("iface %s is not bound. Will not "
+			    !iface_is_valid(iface)) {
+				log_error("iface %s is not valid. Will not "
 					  "bind node to it. Iface settings "
 					  iface_fmt, iface->name,
 					  iface_str(iface));
@@ -2371,7 +2360,9 @@ int idbm_add_nodes(idbm_t *db, node_rec_t *newrec, discovery_rec_t *drec,
 		list_for_each_entry_safe(iface, tmp, &def_ifaces, list) {
 			list_del(&iface->list);
 			t = get_transport_by_name(iface->transport_name);
-			if (!t || t->caps & CAP_FW_DB) {
+			/* only auto bind to software iscsi */
+			if (!t || t->caps & CAP_FW_DB ||
+			    t->caps & CAP_DATA_PATH_OFFLOAD) {
 				free(iface);
 				continue;
 			}
@@ -2392,8 +2383,8 @@ int idbm_add_nodes(idbm_t *db, node_rec_t *newrec, discovery_rec_t *drec,
 	} else {
 		list_for_each_entry(iface, ifaces, list) {
 			if (strcmp(iface->name, DEFAULT_IFACENAME) &&
-			    !iface_is_bound(iface)) {
-				log_error("iface %s is not bound. Will not "
+			    !iface_is_valid(iface)) {
+				log_error("iface %s is not valid. Will not "
 					  "bind node to it. Iface settings "
 					  iface_fmt, iface->name,
 					  iface_str(iface));
