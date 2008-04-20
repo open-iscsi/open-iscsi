@@ -1840,6 +1840,7 @@ void iscsi_session_teardown(struct iscsi_cls_session *cls_session)
 	kfree(session->netdev);
 	kfree(session->hwaddress);
 	kfree(session->initiatorname);
+	kfree(session->ifacename);
 
 	iscsi_free_session(cls_session);
 	scsi_host_put(shost);
@@ -2298,6 +2299,10 @@ int iscsi_set_param(struct iscsi_cls_conn *cls_conn,
 		if (!conn->persistent_address)
 			return -ENOMEM;
 		break;
+	case ISCSI_PARAM_IFACE_NAME:
+		if (!session->ifacename)
+			session->ifacename = kstrdup(buf, GFP_KERNEL);
+		break;
 	default:
 		return -ENOSYS;
 	}
@@ -2364,6 +2369,9 @@ int iscsi_session_get_param(struct iscsi_cls_session *cls_session,
 		break;
 	case ISCSI_PARAM_PASSWORD_IN:
 		len = sprintf(buf, "%s\n", session->password_in);
+		break;
+	case ISCSI_PARAM_IFACE_NAME:
+		len = sprintf(buf, "%s\n", session->ifacename);
 		break;
 	default:
 		return -ENOSYS;
@@ -2446,7 +2454,6 @@ int iscsi_host_get_param(struct Scsi_Host *shost, enum iscsi_host_param param,
 		else
 			len = sprintf(buf, "%s\n", session->initiatorname);
 		break;
-
 	default:
 		return -ENOSYS;
 	}

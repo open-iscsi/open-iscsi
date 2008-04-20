@@ -284,6 +284,7 @@ struct iscsi_session {
 	/* hw address or netdev iscsi connection is bound to */
 	char			*hwaddress;
 	char			*netdev;
+	char			*ifacename;
 	/* control data */
 	struct iscsi_transport	*tt;
 	struct Scsi_Host	*host;
