@@ -91,6 +91,5 @@ extern struct iscsi_transport *get_transport_by_sid(uint32_t sid);
 extern struct iscsi_transport *get_transport_by_name(char *transport_name);
 
 extern struct list_head transports;
-extern int num_transports;
 
 #endif

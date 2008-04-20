@@ -48,7 +48,7 @@
 
 /* tmp buffer used by sysfs functions */
 static char sysfs_file[PATH_MAX];
-int num_transports = 0;
+static int num_transports;
 LIST_HEAD(transports);
 
 /* mini implementation of versionsort for uclibc compatility */
