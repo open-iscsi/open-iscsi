@@ -285,6 +285,8 @@ idbm_recinfo_node(node_rec_t *r, recinfo_t *ri)
 	 */
 	__recinfo_str("iface.transport_name", ri, r, iface.transport_name,
 		      IDBM_SHOW, num, 1);
+	__recinfo_str("iface.initiatorname", ri, r, iface.iname,
+		      IDBM_SHOW, num, 1);
 	__recinfo_str("node.discovery_address", ri, r, disc_address, IDBM_SHOW,
 		      num, 0);
 	__recinfo_int("node.discovery_port", ri, r, disc_port, IDBM_SHOW,
@@ -415,6 +417,7 @@ idbm_recinfo_iface(iface_rec_t *r, recinfo_t *ri)
 	__recinfo_str("iface.hwaddress", ri, r, hwaddress, IDBM_SHOW, num, 1);
 	__recinfo_str("iface.transport_name", ri, r, transport_name,
 		      IDBM_SHOW, num, 1);
+	__recinfo_str("iface.initiatorname", ri, r, iname, IDBM_SHOW, num, 1);
 }
 
 static recinfo_t*
@@ -1234,6 +1237,8 @@ void iface_copy(struct iface_rec *dst, struct iface_rec *src)
 		strcpy(dst->hwaddress, src->hwaddress);
 	if (strlen(src->transport_name))
 		strcpy(dst->transport_name, src->transport_name);
+	if (strlen(src->iname))
+		strcpy(dst->iname, src->iname);
 }
 
 static int iface_is_valid(struct iface_rec *iface)
@@ -1317,17 +1322,20 @@ int iface_print_tree(void *data, struct iface_rec *iface)
 	       strlen(iface->hwaddress) ? iface->hwaddress : UNKNOWN_VALUE);
 	printf("\tNetdev: %s\n",
 	       strlen(iface->netdev) ? iface->netdev : UNKNOWN_VALUE);
+	printf("\tInitiator Name: %s\n",
+	       strlen(iface->iname) ? iface->iname : UNKNOWN_VALUE);
 	return 0;
 }
 
 int iface_print_flat(void *data, struct iface_rec *iface)
 {
-	printf("%s %s,%s,%s\n",
+	printf("%s %s,%s,%s,%s\n",
 		strlen(iface->name) ? iface->name : UNKNOWN_VALUE,
 		strlen(iface->transport_name) ? iface->transport_name :
 							UNKNOWN_VALUE,
 		strlen(iface->hwaddress) ? iface->hwaddress : UNKNOWN_VALUE,
-		strlen(iface->netdev) ? iface->netdev : UNKNOWN_VALUE);
+		strlen(iface->netdev) ? iface->netdev : UNKNOWN_VALUE,
+		strlen(iface->iname) ? iface->iname : UNKNOWN_VALUE);
 	return 0;
 }
 
@@ -2655,18 +2663,8 @@ int idbm_node_set_param(void *data, node_rec_t *rec)
 	rc = idbm_verify_param(info, param->name);
 	if (rc)
 		goto free_info;
-	/*
-	 * Another compat hack!!!!: in the future we will have a common
-	 * way to define node wide vs iface wide values and it will
-	 * nicely obey some hierd, but for now this one sits between both
-	 * and if someone tries to set it using the old values then
-	 * we update it for them.
-	 */
-	if (!strcmp("node.transport_name", param->name))
-		rc = idbm_rec_update_param(info, "iface.transport_name",
-					    param->value, 0);
-	else
-		rc = idbm_rec_update_param(info, param->name, param->value, 0);
+
+	rc = idbm_rec_update_param(info, param->name, param->value, 0);
 	if (rc)
 		goto free_info;
 

@@ -4,22 +4,36 @@
 # There must be a seperate iscsi interface config file for each NIC, network
 # interface or port or iscsi HBA you want to bind sessions to.
 #
-# For hardware/offload iscsi, this is created for you when you run iscsiadm.
+# For hardware iscsi, this is created for you when you run iscsiadm.
 # For software iscsi, you must define these files yourself.
 #
 
+# REQUIRED: iface.transport_name
+#
 # Set the iscsi transport/driver to use for the iface by setting
 # iface.transport_name
 # example:
 # iface.transport_name = tcp
 
-# This values is required and valid values for iface.transport_name are:
+# This value is required and valid values for iface.transport_name are:
 # - tcp (Software iSCSI over TCP/IP)
 # - iser (Software iSCSI over infinniband
 # - qla4xxx (Qlogic QLA4XXX HBAs)
-
-
-# __One__ of the following values are required for the binding.
+#
+#
+#OPTIONAL: iface.initiatorname
+# To use a initiator name other than the one set in
+# /etc/iscsi/initiatorname.iscsi for normal sessions set the
+# iface.initiatorname. This is only used for normal sessions.
+# For discovery sessions the /etc/iscsi/initiatorname.iscsi value
+# is used.
+#
+# iface.initiatorname = iqn.2003-04.com.fedora:test
+#
+#
+# REQUIRED: [iface.net_ifacename | iface.hwaddress]
+# __One__ of the following values are required for binding a session
+# to a specific nic/netdevice.
 #
 # To bind by network interface name (example: eth0, eth2:2, eth1.3)
 # set iface.net_ifacename
