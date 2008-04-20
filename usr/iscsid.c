@@ -40,6 +40,7 @@
 #include "idbm.h"
 #include "version.h"
 #include "iscsi_sysfs.h"
+#include "iface.h"
 
 /* global config info */
 struct iscsi_daemon_config daemon_config;
