@@ -19,6 +19,10 @@
 
 #include <sys/types.h>
 
+#include "types.h"
+#include "iscsi_proto.h"
+#include "config.h"
+
 struct iscsi_session;
 struct iscsi_conn;
 struct iscsi_session_operational_config;

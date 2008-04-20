@@ -20,6 +20,7 @@
 #include "iscsi_proto.h"
 #include "transport.h"
 #include "idbm.h"
+#include "iface.h"
 
 void daemon_init(void)
 {

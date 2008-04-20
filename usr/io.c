@@ -36,6 +36,7 @@
 #include "log.h"
 #include "transport.h"
 #include "idbm.h"
+#include "iface.h"
 
 #define LOG_CONN_CLOSED(conn) \
 do { \

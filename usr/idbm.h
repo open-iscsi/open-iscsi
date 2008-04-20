@@ -27,7 +27,6 @@
 #include "config.h"
 
 #define NODE_CONFIG_DIR		ISCSI_CONFIG_ROOT"nodes"
-#define IFACE_CONFIG_DIR	ISCSI_CONFIG_ROOT"ifaces"
 #define SLP_CONFIG_DIR		ISCSI_CONFIG_ROOT"slp"
 #define ISNS_CONFIG_DIR		ISCSI_CONFIG_ROOT"isns"
 #define STATIC_CONFIG_DIR	ISCSI_CONFIG_ROOT"static"
@@ -134,30 +133,22 @@ extern int idbm_rec_read(node_rec_t *out_rec, char *target_name,
 			 struct iface_rec *iface);
 extern int idbm_node_set_param(void *data, node_rec_t *rec);
 
-/* TODO: seperate iface, node and core idbm code */
-extern void iface_copy(struct iface_rec *dst, struct iface_rec *src);
-extern int iface_match(struct iface_rec *pattern, struct iface_rec *iface);
-extern struct iface_rec *iface_alloc(char *ifname, int *err);
-extern int iface_conf_read(struct iface_rec *iface);
-extern void iface_init(struct iface_rec *iface);
-extern int iface_is_bound_by_hwaddr(struct iface_rec *iface);
-extern int iface_is_bound_by_netdev(struct iface_rec *iface);
-typedef int (iface_op_fn)(void *data, struct iface_rec *iface);
-extern int iface_for_each_iface(void *data, int *nr_found,
-				 iface_op_fn *fn);
-extern int iface_print_flat(void *data, struct iface_rec *iface);
-extern int iface_print_tree(void *data, struct iface_rec *iface);
-extern void iface_setup_host_bindings(void);
-extern int iface_get_by_net_binding(struct iface_rec *pattern,
-				    struct iface_rec *out_rec);
-extern int iface_conf_update(struct db_set_param *set_param,
-			     struct iface_rec *iface);
-extern int iface_conf_write(struct iface_rec *iface);
-extern int iface_conf_delete(struct iface_rec *iface);
+/* lower level idbm functions for use by iface.c */
+extern void idbm_recinfo_config(recinfo_t *info, FILE *f);
+extern void idbm_recinfo_iface(struct iface_rec *r, recinfo_t *ri);
+extern int idbm_lock(void);
+extern void idbm_unlock(void);
+extern recinfo_t *idbm_recinfo_alloc(int max_keys);
+extern int idbm_verify_param(recinfo_t *info, char *name);
+extern int idbm_rec_update_param(recinfo_t *info, char *name, char *value,
+				 int line_number);
 
-#define iface_fmt "[hw=%s,ip=%s,net_if=%s,iscsi_if=%s]"
-#define iface_str(_iface) \
-	(_iface)->hwaddress, (_iface)->ipaddress, (_iface)->netdev, \
-	(_iface)->name
+enum {
+	IDBM_PRINT_TYPE_DISCOVERY,
+	IDBM_PRINT_TYPE_NODE,
+	IDBM_PRINT_TYPE_IFACE,
+};
+
+extern void idbm_print(int type, void *rec, int show, FILE *f);
 
 #endif /* IDBM_H */

@@ -40,6 +40,7 @@
 #include "list.h"
 #include "iscsi_settings.h"
 #include "fw_context.h"
+#include "iface.h"
 
 struct iscsi_ipc *ipc = NULL; /* dummy */
 static char program_name[] = "iscsiadm";

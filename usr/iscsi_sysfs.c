@@ -30,6 +30,7 @@
 #include "version.h"
 #include "iscsi_sysfs.h"
 #include "iscsi_settings.h"
+#include "iface.h"
 
 #define ISCSI_TRANSPORT_DIR	"/sys/class/iscsi_transport"
 #define ISCSI_SESSION_DIR	"/sys/class/iscsi_session"
