@@ -299,7 +299,7 @@ void idbm_node_setup_defaults(node_rec_t *rec)
 
 		rec->conn[i].iscsi.MaxRecvDataSegmentLength =
 						DEF_INI_MAX_RECV_SEG_LEN;
-		rec->conn[i].iscsi.HeaderDigest = CONFIG_DIGEST_PREFER_OFF;
+		rec->conn[i].iscsi.HeaderDigest = CONFIG_DIGEST_NEVER;
 		rec->conn[i].iscsi.DataDigest = CONFIG_DIGEST_NEVER;
 		rec->conn[i].iscsi.IFMarker = 0;
 		rec->conn[i].iscsi.OFMarker = 0;
