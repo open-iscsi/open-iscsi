@@ -282,7 +282,6 @@ static void add_new_target_node(char *targetname, uint8_t *ip, int port,
 	int err;
 	node_rec_t rec;
 	discovery_rec_t drec;
-	idbm_t *db;
 	char dst[INET6_ADDRSTRLEN];
 
 	memset(dst, 0, sizeof(dst));
@@ -297,13 +296,12 @@ static void add_new_target_node(char *targetname, uint8_t *ip, int port,
 	log_debug(1, "add a new target node:%s %s,%d %d",
 		  targetname, dst, port, tag);
 
-	db = idbm_init(isns_get_config_file);
-	if (!db) {
+	if (idbm_init(isns_get_config_file)) {
 		log_error("Could not add new target node:%s %s,%d",
 			  targetname, dst, port);
 		return;
 	}
-	idbm_node_setup_from_conf(db, &rec);
+	idbm_node_setup_from_conf(&rec);
 	strncpy(rec.name, targetname, TARGET_NAME_MAXLEN);
 	rec.conn[0].port = port;
 	rec.tpgt = tag;
@@ -312,12 +310,12 @@ static void add_new_target_node(char *targetname, uint8_t *ip, int port,
 	/* TODO?: shoudl we set the address and port of the server ? */
 	memset(&drec, 0, sizeof(discovery_rec_t));
 	drec.type = DISCOVERY_TYPE_ISNS;
-	err = idbm_add_nodes(db, &rec, &drec, NULL, 0);
+	err = idbm_add_nodes(&rec, &drec, NULL, 0);
 	if (err)
 		log_error("Could not add new target node:%s %s,%d",
 			  targetname, dst, port);
 
-	idbm_terminate(db);
+	idbm_terminate();
 }
 
 static int qry_rsp_handle(struct isns_hdr *hdr)

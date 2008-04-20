@@ -465,10 +465,10 @@ static int sysfs_read_iface(struct iface_rec *iface, int host_no, int sid)
 		if (!iface_is_bound_by_hwaddr(iface) &&
 		    !iface_is_bound_by_netdev(iface))
 			sprintf(iface->name, DEFAULT_IFACENAME);
-/*		else if (iface_get_by_net_binding(db, iface, iface))
+		else if (iface_get_by_net_binding(iface, iface))
 			log_debug(7, "Could not find iface for session bound "
 				  "to:" iface_fmt "\n", iface_str(iface));
-*/	}
+	}
 	return ret;
 }
 

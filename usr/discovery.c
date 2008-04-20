@@ -53,7 +53,7 @@ static int rediscover = 0;
 static char initiator_name[TARGET_NAME_MAXLEN];
 static char initiator_alias[TARGET_NAME_MAXLEN];
 
-int discovery_offload_sendtargets(idbm_t *db, int host_no, int do_login,
+int discovery_offload_sendtargets(int host_no, int do_login,
 				  discovery_rec_t *drec)
 {
 	struct sockaddr_storage ss;
@@ -183,9 +183,8 @@ iterate_targets(iscsi_session_t *session, uint32_t ttt)
 	return 1;
 }
 
-static int add_portal(idbm_t *db, struct list_head *rec_list,
-		      discovery_rec_t *drec, char *targetname, char *address,
-		      char *port, char *tag)
+static int add_portal(struct list_head *rec_list, discovery_rec_t *drec,
+		      char *targetname, char *address, char *port, char *tag)
 {
 	struct sockaddr_storage ss;
 	char host[NI_MAXHOST];
@@ -205,7 +204,7 @@ static int add_portal(idbm_t *db, struct list_head *rec_list,
 	if (!rec)
 		return 0;
 
-	idbm_node_setup_from_conf(db, rec);
+	idbm_node_setup_from_conf(rec);
 	rec->disc_type = drec->type;
 	rec->disc_port = drec->port;
 	strcpy(rec->disc_address, drec->address);
@@ -226,9 +225,8 @@ static int add_portal(idbm_t *db, struct list_head *rec_list,
 }
 
 static int
-add_target_record(idbm_t *db, char *name, char *end,
-		  discovery_rec_t *drec, struct list_head *rec_list,
-		  char *default_port)
+add_target_record(char *name, char *end, discovery_rec_t *drec,
+		  struct list_head *rec_list, char *default_port)
 {
 	char *text = NULL;
 	char *nul = name;
@@ -271,7 +269,7 @@ add_target_record(idbm_t *db, char *name, char *end,
 			log_error("no default address known for target %s",
 				  name);
 			return 0;
-		} else if (!add_portal(db, rec_list, drec, name, drec->address,
+		} else if (!add_portal(rec_list, drec, name, drec->address,
 				       default_port, NULL)) {
 			log_error("failed to add default portal, ignoring "
 				  "target %s", name);
@@ -309,7 +307,7 @@ add_target_record(idbm_t *db, char *name, char *end,
 					*temp = '\0';
 			}
 
-			if (!add_portal(db, rec_list, drec, name, address, port,
+			if (!add_portal(rec_list, drec, name, address, port,
 					tag)) {
 				log_error("failed to add default portal, "
 					 "ignoring target %s", name);
@@ -325,7 +323,7 @@ add_target_record(idbm_t *db, char *name, char *end,
 }
 
 static int
-process_sendtargets_response(idbm_t *db, struct string_buffer *sendtargets,
+process_sendtargets_response(struct string_buffer *sendtargets,
 			     int final, discovery_rec_t *drec,
 			     struct list_head *rec_list,
 			     char *default_port)
@@ -378,7 +376,7 @@ process_sendtargets_response(idbm_t *db, struct string_buffer *sendtargets,
 				 * the end of. don't bother passing the
 				 * "TargetName=" prefix.
 				 */
-				if (!add_target_record(db, record + 11, text,
+				if (!add_target_record(record + 11, text,
 							drec, rec_list,
 							default_port)) {
 					log_error(
@@ -407,7 +405,7 @@ process_sendtargets_response(idbm_t *db, struct string_buffer *sendtargets,
 				 "processing final sendtargets record %p, "
 				 "line %s",
 				 record, record);
-			if (add_target_record (db, record + 11, text,
+			if (add_target_record (record + 11, text,
 					       drec, rec_list, default_port)) {
 				num_targets++;
 				record = NULL;
@@ -686,7 +684,7 @@ setup_authentication(iscsi_session_t *session,
 }
 
 static int
-process_recvd_pdu(idbm_t *db, struct iscsi_hdr *pdu,
+process_recvd_pdu(struct iscsi_hdr *pdu,
 		  discovery_rec_t *drec,
 		  struct list_head *rec_list,
 		  iscsi_session_t *session,
@@ -727,7 +725,7 @@ process_recvd_pdu(idbm_t *db, struct iscsi_hdr *pdu,
 
 			*valid_text = 1;
 			/* process as much as we can right now */
-			process_sendtargets_response(db, sendtargets,
+			process_sendtargets_response(sendtargets,
 						     final,
 						     drec,
 						     rec_list,
@@ -821,7 +819,7 @@ done:
 	iscsi_io_disconnect(&session->conn[0]);
 }
 
-int discovery_sendtargets(idbm_t *db, discovery_rec_t *drec,
+int discovery_sendtargets(discovery_rec_t *drec,
 			  struct list_head *rec_list)
 {
 	iscsi_session_t *session;
@@ -1119,7 +1117,7 @@ repoll:
 			/*
 			 * process iSCSI PDU received
 			 */
-			rc = process_recvd_pdu(db, pdu, drec, rec_list,
+			rc = process_recvd_pdu(pdu, drec, rec_list,
 					       session, &sendtargets,
 					       default_port,
 					       &active, &valid_text, data);
