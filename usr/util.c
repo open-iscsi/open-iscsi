@@ -286,7 +286,7 @@ void idbm_node_setup_defaults(node_rec_t *rec)
 	rec->session.iscsi.FastAbort = 1;
 
 	for (i=0; i<ISCSI_CONN_MAX; i++) {
-		rec->conn[i].startup = 0;
+		rec->conn[i].startup = ISCSI_STARTUP_MANUAL;
 		rec->conn[i].port = ISCSI_LISTEN_PORT;
 		rec->conn[i].tcp.window_size = TCP_WINDOW_SIZE;
 		rec->conn[i].tcp.type_of_service = 0;
