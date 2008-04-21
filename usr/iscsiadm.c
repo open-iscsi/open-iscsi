@@ -1873,16 +1873,7 @@ static int exec_node_op(int op, int do_login, int do_logout,
 			goto out;
 		}
 
-		/*
-		 * We do not export the iscsiadm iface.iscsi_ifacename
-		 * in sysfs because it is iscsiadm specific abstraction.
-		 * To work around this, we do some hacky matching by bind
-		 * info. As a result we cannot change the iface binding
-		 * values here and must do it in iface mode which will do
-		 * the right thing.
-		 */
-		if (!strncmp(name, "iface.", 6) &&
-		    strcmp(name, "iface.transport_name")) {
+		if (!strncmp(name, "iface.", 6)) {
 			log_error("Cannot modify %s. Use iface mode to update "
 				  "this value.", name);
 			rc = -1;
