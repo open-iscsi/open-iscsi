@@ -548,14 +548,14 @@ __session_create(node_rec_t *rec, struct iscsi_transport *t)
 
 	session->param_mask = ~0ULL;
 	if (!(t->caps & CAP_MULTI_R2T))
-		session->param_mask &= ~ISCSI_PARAM_MAX_R2T;
+		session->param_mask &= ~ISCSI_MAX_R2T;
 	if (!(t->caps & CAP_HDRDGST))
-		session->param_mask &= ~ISCSI_PARAM_HDRDGST_EN;
+		session->param_mask &= ~ISCSI_HDRDGST_EN;
 	if (!(t->caps & CAP_DATADGST))
-		session->param_mask &= ~ISCSI_PARAM_DATADGST_EN;
+		session->param_mask &= ~ISCSI_DATADGST_EN;
 	if (!(t->caps & CAP_MARKERS)) {
-		session->param_mask &= ~ISCSI_PARAM_IFMARKER_EN;
-		session->param_mask &= ~ISCSI_PARAM_OFMARKER_EN;
+		session->param_mask &= ~ISCSI_IFMARKER_EN;
+		session->param_mask &= ~ISCSI_OFMARKER_EN;
 	}
 
 	list_add_tail(&session->list, &t->sessions);
