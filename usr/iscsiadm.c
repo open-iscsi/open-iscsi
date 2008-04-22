@@ -1673,7 +1673,7 @@ static int exec_iface_op(int op, int do_show, int info_level,
 			goto new_fail;
 		}
 
-		iface_init(iface);
+		iface_setup_defaults(iface);
 		rc = iface_conf_write(iface);
 		if (rc)
 			goto new_fail;
@@ -1914,7 +1914,7 @@ fw_create_rec_by_entry(struct boot_context *context)
 	}
 
 	/* todo - grab mac and set that here */
-	iface_init(&rec->iface);
+	iface_setup_defaults(&rec->iface);
 	strncpy(rec->iface.iname, context->initiatorname,
 		sizeof(context->initiatorname));
 	strncpy(rec->session.auth.username, context->chap_name,

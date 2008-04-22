@@ -305,7 +305,7 @@ void idbm_node_setup_defaults(node_rec_t *rec)
 		rec->conn[i].iscsi.OFMarker = 0;
 	}
 
-	iface_init(&rec->iface);
+	iface_setup_defaults(&rec->iface);
 }
 
 void iscsid_handle_error(mgmt_ipc_err_e err)

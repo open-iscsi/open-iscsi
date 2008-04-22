@@ -29,7 +29,7 @@ extern void iface_copy(struct iface_rec *dst, struct iface_rec *src);
 extern int iface_match(struct iface_rec *pattern, struct iface_rec *iface);
 extern struct iface_rec *iface_alloc(char *ifname, int *err);
 extern int iface_conf_read(struct iface_rec *iface);
-extern void iface_init(struct iface_rec *iface);
+extern void iface_setup_defaults(struct iface_rec *iface);
 extern int iface_is_bound_by_hwaddr(struct iface_rec *iface);
 extern int iface_is_bound_by_netdev(struct iface_rec *iface);
 extern int iface_is_bound_by_ipaddr(struct iface_rec *iface);

@@ -31,7 +31,12 @@
 # iface.initiatorname = iqn.2003-04.com.fedora:test
 #
 #
-# REQUIRED: [iface.net_ifacename | iface.hwaddress]
+# REQUIRED to be able to bind a session to a network device:
+#			[iface.net_ifacename | iface.hwaddress]
+#
+# OPTIONAL if you are creating ifaces so you can create multiple sessions
+# using the default behavior where the network layer selects the device.
+#
 # __One__ of the following values are required for binding a session
 # to a specific nic/netdevice.
 #

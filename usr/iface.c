@@ -90,18 +90,23 @@ static struct iface_rec *iface_match_default(struct iface_rec *iface)
 	return NULL;
 }
 
+static void iface_init(struct iface_rec *iface)
+{
+	if (!strlen(iface->name))
+		sprintf(iface->name, DEFAULT_IFACENAME);
+}
+
 /*
  * default is to use tcp through whatever the network layer
  * selects for us with the /etc/iscsi/initiatorname.iscsi iname.
  */
-void iface_init(struct iface_rec *iface)
+void iface_setup_defaults(struct iface_rec *iface)
 {
 	sprintf(iface->netdev, DEFAULT_NETDEV);
 //	sprintf(iface->ipaddress, DEFAULT_IPADDRESS);
 	sprintf(iface->hwaddress, DEFAULT_HWADDRESS);
 	sprintf(iface->transport_name, DEFAULT_TRANSPORT);
-	if (!strlen(iface->name))
-		sprintf(iface->name, DEFAULT_IFACENAME);
+	iface_init(iface);
 }
 
 struct iface_rec *iface_alloc(char *ifname, int *err)
@@ -152,7 +157,7 @@ static int __iface_conf_read(struct iface_rec *iface)
 		 * a iface with default then we do it for them
 		 */
 		if (!strcmp(iface->name, DEFAULT_IFACENAME)) {
-			iface_init(iface);
+			iface_setup_defaults(iface);
 			rc = 0;
 		} else
 			rc = errno;
@@ -400,7 +405,7 @@ int iface_get_by_net_binding(struct iface_rec *pattern,
 	 */
 	if (!strlen(pattern->name) ||
 	    !strcmp(pattern->name, DEFAULT_IFACENAME)) {
-		iface_init(out_rec);
+		iface_setup_defaults(out_rec);
 		return 0;
 	}
 

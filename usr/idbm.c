@@ -1768,7 +1768,7 @@ int idbm_bind_ifaces_to_node(struct node_rec *new_rec, struct list_head *ifaces,
 		if (!found) {
 			struct iface_rec def_iface;
 
-			iface_init(&def_iface);
+			iface_setup_defaults(&def_iface);
 			return idbm_bind_iface_to_node(new_rec, &def_iface,
 						       bound_recs);
 		}
@@ -1828,7 +1828,7 @@ int idbm_add_nodes(node_rec_t *newrec, discovery_rec_t *drec,
 
 		/* create default iface with old/default behavior */
 		if (!found) {
-			iface_init(&newrec->iface);
+			iface_setup_defaults(&newrec->iface);
 			return idbm_add_node(newrec, drec, update);
 		}
 	} else {
