@@ -995,7 +995,15 @@ static void session_conn_error(void *data)
 		    "state (%d)", session->id, conn->id, error,
 		    conn->state);
 	iscsi_conn_context_put(conn_context);
-	__conn_error_handle(session, conn);
+
+	switch (error) {
+	case ISCSI_ERR_INVALID_HOST:
+		if (session_conn_shutdown(conn, NULL, MGMT_IPC_OK))
+			log_error("BUG: Could not shutdown session.");
+		break;
+	default:
+		__conn_error_handle(session, conn);
+	}
 }
 
 static void iscsi_login_timedout(void *data)
