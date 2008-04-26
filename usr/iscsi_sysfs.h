@@ -93,6 +93,7 @@ extern struct iscsi_transport *get_transport_by_hba(long host_no);
 extern struct iscsi_transport *get_transport_by_session(char *sys_session);
 extern struct iscsi_transport *get_transport_by_sid(uint32_t sid);
 extern struct iscsi_transport *get_transport_by_name(char *transport_name);
+extern int free_transport_by_handle(uint64_t handle);
 
 extern struct list_head transports;
 

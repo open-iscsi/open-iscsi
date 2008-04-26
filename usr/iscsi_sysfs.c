@@ -109,6 +109,21 @@ void free_transports(void)
 	}
 }
 
+int free_transport_by_handle(uint64_t handle)
+{
+	struct iscsi_transport *t;
+
+	list_for_each_entry(t, &transports, list) {
+		if (t->handle == handle) {
+			list_del(&t->list);
+			free(t);
+			return 0;
+		}
+	}
+
+	return 1;
+}
+
 static int trans_filter(const struct dirent *dir)
 {
 	return strcmp(dir->d_name, ".") && strcmp(dir->d_name, "..");

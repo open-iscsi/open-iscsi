@@ -916,6 +916,16 @@ static int ctldev_handle(void)
 		; /* fall through */
 	}
 
+	/* Handle transport error which is not connection related */
+	if (ev->type == ISCSI_KEVENT_TRANS_ERROR) {
+		rc = free_transport_by_handle(ev->transport_handle);
+		if (rc) {
+			log_error("Could not release transport 0x%lx\n", ev->transport_handle);
+		}
+		drop_data(nlh);
+		return rc;
+	}
+
 	/* verify connection */
 	session = session_find_by_sid(sid);
 	if (!session) {
