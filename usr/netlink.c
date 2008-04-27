@@ -25,6 +25,7 @@
 #include <unistd.h>
 #include <stdint.h>
 #include <errno.h>
+#include <inttypes.h>
 #include <asm/types.h>
 #include <sys/socket.h>
 #include <sys/types.h>
@@ -793,7 +794,7 @@ ktransport_ep_disconnect(iscsi_conn_t *conn)
 
 	log_debug(7, "in %s", __FUNCTION__);
 
-	if (conn->transport_ep_handle < 0)
+	if (conn->transport_ep_handle == -1)
 		return;
 
 	memset(&ev, 0, sizeof(struct iscsi_uevent));
@@ -803,8 +804,9 @@ ktransport_ep_disconnect(iscsi_conn_t *conn)
 	ev.u.ep_disconnect.ep_handle = conn->transport_ep_handle;
 
 	if ((rc = __kipc_call(&ev, sizeof(ev))) < 0) {
-		log_error("conn %p session %p transport disconnect failed %d\n",
-			  conn, conn->session, rc);
+		log_error("connnection %d:%d transport disconnect failed for "
+			  "ep %" PRIu64 " with error %d.", conn->session->id,
+			  conn->id, conn->transport_ep_handle, rc);
 	} else
 		conn->transport_ep_handle = -1;
 }
