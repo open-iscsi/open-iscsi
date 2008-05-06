@@ -1,0 +1,3 @@
+open-iscsi-2.0-869.1
+- Fix nop out timer. If the timer wakes up at the exact same time we were
+supposed to check the transport we mistakenly drop the connection.
