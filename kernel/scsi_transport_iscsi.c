@@ -1673,32 +1673,6 @@ free_priv:
 }
 EXPORT_SYMBOL_GPL(iscsi_register_transport);
 
-void iscsi_trans_error(struct iscsi_transport *tt)
-{
-	struct nlmsghdr *nlh;
-	struct sk_buff *skb;
-	struct iscsi_uevent *ev;
-	int len = NLMSG_SPACE(sizeof(*ev));
-	struct iscsi_internal *priv;
-
-	priv = iscsi_if_transport_lookup(tt);
-	if (!priv)
-		return;
-
-	skb = alloc_skb(len, GFP_KERNEL);
-	if (!skb) {
-		printk(KERN_ERR "iscsi: gracefully ignored transport error\n");
-		return;
-	}
-
-	nlh = __nlmsg_put(skb, priv->daemon_pid, 0, 0, (len - sizeof(*nlh)), 0);
-	ev = NLMSG_DATA(nlh);
-	ev->transport_handle = iscsi_handle(tt);
-	ev->type = ISCSI_KEVENT_TRANS_ERROR;
-
-	iscsi_broadcast_skb(skb, GFP_KERNEL);
-}
-
 int iscsi_unregister_transport(struct iscsi_transport *tt)
 {
 	struct iscsi_internal *priv;
@@ -1707,8 +1681,6 @@ int iscsi_unregister_transport(struct iscsi_transport *tt)
 	BUG_ON(!tt);
 
 	mutex_lock(&rx_queue_mutex);
-
-	iscsi_trans_error(tt);
 
 	priv = iscsi_if_transport_lookup(tt);
 	BUG_ON (!priv);
