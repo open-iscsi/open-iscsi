@@ -55,10 +55,10 @@ struct iscsi_ipc {
 	int (*sendtargets) (uint64_t transport_handle, uint32_t host_no,
 			    struct sockaddr *addr);
 
-	int (*create_session) (uint64_t transport_handle,
+	int (*create_session) (uint64_t transport_handle, uint64_t ep_handle,
 			       uint32_t initial_cmdsn, uint16_t cmds_max,
 			       uint16_t qdepth, uint32_t *out_sid,
-			       uint32_t *out_hostno);
+			       uint32_t *hostno);
 
 	int (*destroy_session) (uint64_t transport_handle, uint32_t sid);
 

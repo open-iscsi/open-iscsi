@@ -19,7 +19,7 @@
 # - tcp (Software iSCSI over TCP/IP)
 # - iser (Software iSCSI over infinniband
 # - qla4xxx (Qlogic QLA4XXX HBAs)
-#
+# - bnx2i (Broadcom bnx iSCSI HBAs);
 #
 #OPTIONAL: iface.initiatorname
 # To use a initiator name other than the one set in

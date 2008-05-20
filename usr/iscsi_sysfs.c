@@ -303,6 +303,43 @@ free_buf:
 	return host_no;
 }
 
+/* TODO: merge and make macro */
+static int __get_host_no_from_netdev(void *data, struct host_info *info)
+{
+	struct host_info *ret_info = data;
+
+	if (!strcmp(ret_info->iface.netdev, info->iface.netdev)) {
+		ret_info->host_no = info->host_no;
+		return 1;
+	}
+	return 0;
+}
+
+static uint32_t get_host_no_from_netdev(char *netdev, int *rc)
+{
+	uint32_t host_no = -1;
+	struct host_info *info;
+	int nr_found, local_rc;
+
+	*rc = 0;
+
+	info = calloc(1, sizeof(*info));
+	if (!info) {
+		*rc = ENOMEM;
+		return -1;
+	}
+	strcpy(info->iface.netdev, netdev);
+
+	local_rc = sysfs_for_each_host(info, &nr_found,
+					__get_host_no_from_netdev);
+	if (local_rc == 1)
+		host_no = info->host_no;
+	else
+		*rc = ENODEV;
+	free(info);
+	return host_no;
+}
+
 static int __get_host_no_from_hwaddress(void *data, struct host_info *info)
 {
 	struct host_info *ret_info = data;
@@ -387,6 +424,9 @@ uint32_t get_host_no_from_iface(struct iface_rec *iface, int *rc)
 	else if (strlen(iface->ipaddress) &&
 		 strcasecmp(iface->ipaddress, DEFAULT_IPADDRESS))
 		host_no = get_host_no_from_ipaddress(iface->ipaddress, &tmp_rc);
+	else if(strlen(iface->netdev) &&
+		strcasecmp(iface->netdev, DEFAULT_NETDEV))
+		host_no = get_host_no_from_netdev(iface->netdev, &tmp_rc);
 	else
 		tmp_rc = EINVAL;
 

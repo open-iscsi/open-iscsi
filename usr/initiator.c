@@ -419,7 +419,14 @@ __session_conn_create(iscsi_session_t *session, int cid)
 
 	conn->state = STATE_FREE;
 	conn->session = session;
+	/*
+	 * TODO: we must export the socket_fd/transport_eph from sysfs
+	 * so if iscsid is resyncing up we can pick that up and cleanup up
+	 * the old connection. Right now we leak a connection.
+	 * We can also probably merge these two fields.
+	 */
 	conn->socket_fd = -1;
+	conn->transport_ep_handle = -1;
 	/* connection's timeouts */
 	conn->id = cid;
 	conn->logout_timeout = conn_rec->timeo.logout_timeout;
@@ -602,11 +609,15 @@ session_conn_shutdown(iscsi_conn_t *conn, queue_task_t *qtask,
 {
 	iscsi_session_t *session = conn->session;
 
+	log_debug(2, "disconnect conn");
+	/* this will check for a valid interconnect connection */
+	conn->session->t->template->ep_disconnect(conn);
+
 	if (session->id == -1)
-		goto disconnect_conn;
+		goto cleanup;
 
 	if (!sysfs_session_has_leadconn(session->id))
-		goto disconnect_conn;
+		goto cleanup;
 
 	if (conn->state == STATE_IN_LOGIN ||
 	    conn->state == STATE_IN_LOGOUT ||
@@ -627,11 +638,7 @@ session_conn_shutdown(iscsi_conn_t *conn, queue_task_t *qtask,
 		return MGMT_IPC_ERR_INTERNAL;
 	}
 
-disconnect_conn:
-	log_debug(2, "disconnect conn");
-	/* this will check for a valid interconnect connection */
-	conn->session->t->template->ep_disconnect(conn);
-
+cleanup:
 	if (session->id != -1) {
 		log_debug(2, "kdestroy session %u", session->id);
 		if (ipc->destroy_session(session->t->handle, session->id)) {
@@ -686,8 +693,8 @@ static int iscsi_conn_connect(struct iscsi_conn *conn, queue_task_t *qtask)
 			    conn->host, sizeof(conn->host), serv, sizeof(serv),
 			    NI_NUMERICHOST|NI_NUMERICSERV);
 
-		log_error("cannot make a connection to %s:%s (%d)",
-			  conn->host, serv, errno);
+		log_error("cannot make a connection to %s:%s (%d,%d)",
+			  conn->host, serv, rc, errno);
 		iscsi_conn_context_put(conn_context);
 		return ENOTCONN;
 	}
@@ -717,6 +724,7 @@ __session_conn_reopen(iscsi_conn_t *conn, queue_task_t *qtask, int do_stop,
 	conn_delete_timers(conn);
 	conn->state = STATE_XPT_WAIT;
 
+	conn->session->t->template->ep_disconnect(conn);
 	if (do_stop) {
 		/* state: STATE_CLEANUP_WAIT */
 		if (ipc->stop_conn(session->t->handle, session->id,
@@ -729,7 +737,6 @@ __session_conn_reopen(iscsi_conn_t *conn, queue_task_t *qtask, int do_stop,
 		log_debug(3, "connection %d:%d is stopped for recovery",
 			  session->id, conn->id);
 	}
-	conn->session->t->template->ep_disconnect(conn);
 
 	if (!redirected) {
 		delay = session->def_time2wait;
@@ -1677,6 +1684,26 @@ static void session_conn_recv_pdu(void *data)
 	}
 }
 
+static int session_ipc_create(struct iscsi_session *session)
+{
+	struct iscsi_conn *conn = &session->conn[0];
+	int err = 0, kern_ep = 1;
+	uint32_t host_no = -1;
+
+	if (session->t->template->ep_connect == iscsi_io_tcp_connect)
+		kern_ep = 0;
+
+	err = ipc->create_session(session->t->handle,
+				  kern_ep ? conn->transport_ep_handle : 0,
+				  session->nrec.session.initial_cmdsn,
+				  session->nrec.session.cmds_max,
+				  session->nrec.session.queue_depth,
+				  &session->id, &host_no);
+	if (!err)
+		session->hostno = host_no;
+	return err;
+}
+
 static void session_conn_poll(void *data)
 {
 	struct iscsi_conn_context *conn_context = data;
@@ -1712,18 +1739,13 @@ static void session_conn_poll(void *data)
 
 		/* do not allocate new connection in case of reopen */
 		if (session->id == -1) {
-			if (conn->id == 0 &&
-			    ipc->create_session(session->t->handle,
-					session->nrec.session.initial_cmdsn,
-					session->nrec.session.cmds_max,
-					session->nrec.session.queue_depth,
-					&session->id, &session->hostno)) {
+			if (conn->id == 0 && session_ipc_create(session)) {
 				log_error("can't create session (%d)", errno);
 				err = MGMT_IPC_ERR_INTERNAL;
 				goto cleanup;
 			}
-			log_debug(3, "created new iSCSI session %d",
-				  session->id);
+			log_debug(3, "created new iSCSI session sid %d host "
+				  "no %u", session->id, session->hostno);
 
 			if (ipc->create_conn(session->t->handle,
 					session->id, conn->id, &conn->id)) {

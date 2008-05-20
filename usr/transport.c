@@ -28,7 +28,6 @@
 
 struct iscsi_transport_template iscsi_tcp = {
 	.name		= "tcp",
-	.rdma		= 0,
 	.ep_connect	= iscsi_io_tcp_connect,
 	.ep_poll	= iscsi_io_tcp_poll,
 	.ep_disconnect	= iscsi_io_tcp_disconnect,
@@ -42,14 +41,21 @@ struct iscsi_transport_template iscsi_iser = {
 	.ep_disconnect	= ktransport_ep_disconnect,
 };
 
+struct iscsi_transport_template bnx2i = {
+	.name		= "bnx2i",
+	.ep_connect	= ktransport_ep_connect,
+	.ep_poll	= ktransport_ep_poll,
+	.ep_disconnect	= ktransport_ep_disconnect,
+};
+
 struct iscsi_transport_template qla4xxx = {
 	.name		= "qla4xxx",
-	.rdma		= 0,
 };
 
 static struct iscsi_transport_template *iscsi_transport_templates[] = {
 	&iscsi_tcp,
 	&iscsi_iser,
+	&bnx2i,
 	&qla4xxx,
 	NULL
 };

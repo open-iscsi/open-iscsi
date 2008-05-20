@@ -340,9 +340,9 @@ ksendtargets(uint64_t transport_handle, uint32_t host_no, struct sockaddr *addr)
 }
 
 static int
-kcreate_session(uint64_t transport_handle, uint32_t initial_cmdsn,
-		uint16_t cmds_max, uint16_t qdepth,
-		uint32_t *out_sid, uint32_t *out_hostno)
+kcreate_session(uint64_t transport_handle, uint64_t ep_handle,
+		uint32_t initial_cmdsn, uint16_t cmds_max, uint16_t qdepth,
+		uint32_t *out_sid, uint32_t *hostno)
 {
 	int rc;
 	struct iscsi_uevent ev;
@@ -351,17 +351,26 @@ kcreate_session(uint64_t transport_handle, uint32_t initial_cmdsn,
 
 	memset(&ev, 0, sizeof(struct iscsi_uevent));
 
-	ev.type = ISCSI_UEVENT_CREATE_SESSION;
-	ev.transport_handle = transport_handle;
-	ev.u.c_session.initial_cmdsn = initial_cmdsn;
-	ev.u.c_session.cmds_max = cmds_max;
-	ev.u.c_session.queue_depth = qdepth;
+	if (ep_handle == 0) {
+		ev.type = ISCSI_UEVENT_CREATE_SESSION;
+		ev.transport_handle = transport_handle;
+		ev.u.c_session.initial_cmdsn = initial_cmdsn;
+		ev.u.c_session.cmds_max = cmds_max;
+		ev.u.c_session.queue_depth = qdepth;
+	} else {
+		ev.type = ISCSI_UEVENT_CREATE_BOUND_SESSION;
+		ev.transport_handle = transport_handle;
+		ev.u.c_bound_session.initial_cmdsn = initial_cmdsn;
+		ev.u.c_bound_session.cmds_max = cmds_max;
+		ev.u.c_bound_session.queue_depth = qdepth;
+		ev.u.c_bound_session.ep_handle = ep_handle;
+	}
 
 	if ((rc = __kipc_call(&ev, sizeof(ev))) < 0) {
 		return rc;
 	}
 
-	*out_hostno = ev.r.c_session_ret.host_no;
+	*hostno = ev.r.c_session_ret.host_no;
 	*out_sid = ev.r.c_session_ret.sid;
 
 	return 0;
