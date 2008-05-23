@@ -1687,18 +1687,29 @@ static void session_conn_recv_pdu(void *data)
 static int session_ipc_create(struct iscsi_session *session)
 {
 	struct iscsi_conn *conn = &session->conn[0];
-	int err = 0, kern_ep = 1;
+	int err = 0, pass_ep = 1;
 	uint32_t host_no = -1;
 
-	if (session->t->template->ep_connect == iscsi_io_tcp_connect)
-		kern_ep = 0;
-
+	if (session->t->template->ep_connect != ktransport_ep_connect)
+		pass_ep = 0;
+retry_create:
 	err = ipc->create_session(session->t->handle,
-				  kern_ep ? conn->transport_ep_handle : 0,
+				  pass_ep ? conn->transport_ep_handle : 0,
 				  session->nrec.session.initial_cmdsn,
 				  session->nrec.session.cmds_max,
 				  session->nrec.session.queue_depth,
 				  &session->id, &host_no);
+	/*
+	 * Older kernels were not passed the sessions's leading conn ep,
+	 * so we will get -EINVAL || -ENOSYS for iser.
+	 *
+	 * 2.6.22 and earlier would send -EINVAL instead of -ENOSYS.
+	 */
+	if (pass_ep && (err == -ENOSYS || err == -EINVAL)) {
+		pass_ep = 0;
+		goto retry_create;
+	}
+
 	if (!err)
 		session->hostno = host_no;
 	return err;
