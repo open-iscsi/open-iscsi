@@ -324,11 +324,11 @@ static int iscsid_logout_reqs_wait(struct list_head *list)
 }
 
 static int
-for_each_session(struct node_rec *rec, sysfs_session_op_fn *fn)
+for_each_session(struct node_rec *rec, iscsi_sysfs_session_op_fn *fn)
 {
 	int err, num_found = 0;
 
-	err = sysfs_for_each_session(rec, &num_found, fn);
+	err = iscsi_sysfs_for_each_session(rec, &num_found, fn);
 	if (err)
 		log_error("Could not execute operation on all sessions. Err "
 			  "%d.", err);
@@ -460,7 +460,7 @@ __logout_portals(void *data, int *nr_found,
 	link_info.match_info = NULL;
 	*nr_found = 0;
 
-	err = sysfs_for_each_session(&link_info, nr_found,
+	err = iscsi_sysfs_for_each_session(&link_info, nr_found,
 				    link_sessions);
 	if (err || !*nr_found)
 		return err;
@@ -543,7 +543,7 @@ logout_portal(void *data, struct list_head *list, struct session_info *info)
 	struct node_rec *pattern_rec = data;
 	struct iscsi_transport *t;
 
-	t = get_transport_by_sid(info->sid);
+	t = iscsi_sysfs_get_transport_by_sid(info->sid);
 	if (!t)
 		return -1;
 
@@ -838,7 +838,7 @@ static char *get_config_file(void)
 static int print_session_flat(void *data, struct session_info *info)
 {
 	struct session_info *match_info = data;
-	struct iscsi_transport *t = get_transport_by_sid(info->sid);
+	struct iscsi_transport *t = iscsi_sysfs_get_transport_by_sid(info->sid);
 
 	if (match_info && match_info->sid != info->sid)
 		return 0;
@@ -895,7 +895,7 @@ static int print_iscsi_state(int sid)
 	state = NULL;
 
 	memset(state_buff, 0, SCSI_MAX_STATE_VALUE);
-	if (!get_session_state(state_buff, sid))
+	if (!iscsi_sysfs_get_session_state(state_buff, sid))
 		printf("\t\tiSCSI Session State: %s\n", state_buff);
 	else
 		printf("\t\tiSCSI Session State: Unknown\n");
@@ -913,8 +913,8 @@ static void print_iscsi_params(int sid)
 	struct iscsi_session_operational_config session_conf;
 	struct iscsi_conn_operational_config conn_conf;
 
-	get_negotiated_session_conf(sid, &session_conf);
-	get_negotiated_conn_conf(sid, &conn_conf);
+	iscsi_sysfs_get_negotiated_session_conf(sid, &session_conf);
+	iscsi_sysfs_get_negotiated_conn_conf(sid, &conn_conf);
 
 	printf("\t\t************************\n");
 	printf("\t\tNegotiated iSCSI params:\n");
@@ -954,12 +954,12 @@ static void print_scsi_device_info(int host_no, int target, int lun)
 	char *blockdev, state[SCSI_MAX_STATE_VALUE];
 
 	printf("\t\tscsi%d Channel 00 Id %d Lun: %d\n", host_no, target, lun);
-	blockdev = get_blockdev_from_lun(host_no, target, lun);
+	blockdev = iscsi_sysfs_get_blockdev_from_lun(host_no, target, lun);
 	if (blockdev) {
 		printf("\t\t\tAttached scsi disk %s\t\t", blockdev);
 		free(blockdev);
 
-		if (!get_device_state(state, host_no, target, lun))
+		if (!iscsi_sysfs_get_device_state(state, host_no, target, lun))
 			printf("State: %s\n", state);
 		else
 			printf("State: Unknown\n");
@@ -975,18 +975,18 @@ static int print_scsi_state(int sid)
 	printf("\t\tAttached SCSI devices:\n");
 	printf("\t\t************************\n");
 
-	host_no = get_host_no_from_sid(sid, &err);
+	host_no = iscsi_sysfs_get_host_no_from_sid(sid, &err);
 	if (err) {
 		printf("\t\tHost No: Unknown\n");
 		return err;
 	}
 	printf("\t\tHost Number: %d\t", host_no);
-	if (!get_host_state(state, host_no))
+	if (!iscsi_sysfs_get_host_state(state, host_no))
 		printf("State: %s\n", state);
 	else
 		printf("State: Unknown\n");
 
-	sysfs_for_each_device(host_no, sid, print_scsi_device_info);
+	iscsi_sysfs_for_each_device(host_no, sid, print_scsi_device_info);
 	return 0;
 }
 
@@ -1021,7 +1021,7 @@ static void print_sessions_tree(struct list_head *list, int level)
 		} else
 			printf("\n");
 
-		t = get_transport_by_sid(curr->sid);
+		t = iscsi_sysfs_get_transport_by_sid(curr->sid);
 
 		printf("\t\t**********\n");
 		printf("\t\tInterface:\n");
@@ -1067,17 +1067,18 @@ static int print_sessions(int info_level, struct session_info *match_info)
 {
 	struct list_head list;
 	int num_found = 0, err = 0;
-	char version[20];
+	char *version;
 
 	switch (info_level) {
 	case 0:
 	case -1:
-		err = sysfs_for_each_session(match_info, &num_found,
-					     print_session_flat);
+		err = iscsi_sysfs_for_each_session(match_info, &num_found,
+						   print_session_flat);
 		break;
 	case 2:
 	case 3:
-		if (!get_iscsi_kernel_version(version)) {
+		version = iscsi_sysfs_get_iscsi_kernel_version();
+		if (version) {
 			printf("iSCSI Transport Class version %s\n",
 				version);
 			printf("%s version %s\n", program_name,
@@ -1092,8 +1093,8 @@ static int print_sessions(int info_level, struct session_info *match_info)
 		link_info.list = &list;
 		link_info.match_info = match_info;
 
-		err = sysfs_for_each_session(&link_info, &num_found,
-					    link_sessions);
+		err = iscsi_sysfs_for_each_session(&link_info, &num_found,
+						   link_sessions);
 		if (err || !num_found)
 			break;
 
@@ -1123,15 +1124,16 @@ static int rescan_portal(void *data, struct session_info *info)
 		"%s,%d]\n", info->sid, info->targetname,
 		info->persistent_address, info->port);
 
-	host_no = get_host_no_from_sid(info->sid, &err);
+	host_no = iscsi_sysfs_get_host_no_from_sid(info->sid, &err);
 	if (err) {
 		log_error("Could not rescan session sid %d.", info->sid);
 		return err;
 	}
 	/* rescan each device to pick up size changes */
-	sysfs_for_each_device(host_no, info->sid, rescan_device);
+	iscsi_sysfs_for_each_device(host_no, info->sid,
+				    iscsi_sysfs_rescan_device);
 	/* now scan for new devices */
-	scan_host(host_no, 0);
+	iscsi_sysfs_scan_host(host_no, 0);
 	return 0;
 }
 
@@ -1373,7 +1375,7 @@ static int login_discovered_portal(void *data, struct list_head *list,
 static int check_for_session_through_iface(struct node_rec *rec)
 {
 	int nr_found = 0;
-	if (sysfs_for_each_session(rec, &nr_found, iscsi_match_session))
+	if (iscsi_sysfs_for_each_session(rec, &nr_found, iscsi_match_session))
 		return 1;
 	return 0;
 }
@@ -1554,7 +1556,7 @@ do_sendtargets(discovery_rec_t *drec, struct list_head *ifaces,
 			continue;
 		}
 
-		host_no = get_host_no_from_iface(iface, &rc);
+		host_no = iscsi_sysfs_get_host_no_from_iface(iface, &rc);
 		if (rc || host_no == -1) {
 			log_debug(1, "Could not match iface" iface_fmt " to "
 				  "host.", iface_str(iface)); 
@@ -1562,7 +1564,7 @@ do_sendtargets(discovery_rec_t *drec, struct list_head *ifaces,
 			continue;
 		}
 
-		t = get_transport_by_hba(host_no);
+		t = iscsi_sysfs_get_transport_by_hba(host_no);
 		if (!t) {
 			log_error("Could not match hostno %d to "
 				  "transport. Dropping interface %s,"
@@ -1964,56 +1966,6 @@ static int exec_fw_op(discovery_rec_t *drec, int do_login, int info_level)
 	return ret;
 }
 
-static int parse_sid(char *session)
-{
-	struct stat statb;
-	char sys_session[64], *start, *last;
-	int sid = -1, len;
-
-	if (stat(session, &statb)) {
-		log_debug(1, "Could not stat %s failed with %d",
-			  session, errno);
-		if (index(session, '/')) {
-			log_error("%s is an invalid session path\n", session);
-			exit(1);
-		}
-		return atoi(session);
-	}
-
-	if (!S_ISDIR(statb.st_mode)) {
-		log_error("%s is not a directory", session);
-		exit(1);
-	}
-
-	/*
-	 * Given sysfs_device is a directory name of the form:
-	 *
-	 * /sys/devices/platform/hostH/sessionS/targetH:B:I/H:B:I:L
-	 * /sys/devices/platform/hostH/sessionS/targetH:B:I
-	 * /sys/devices/platform/hostH/sessionS
-	 *
-	 * We want to set sys_session to sessionS
-	 */
-	last = NULL;
-	start = strstr(session, "session");
-	if (start && strncmp(start, "session", 7) == 0) {
-		len = strlen(start);
-		last = index(start, '/');
-		/*
-		 * If '/' not found last is NULL.
-		 */
-		if (last)
-			len = last - start;
-		strncpy(sys_session, start, len);
-	} else {
-		log_error("Unable to find session in %s", session);
-		exit(1);
-	}
-
-	sscanf(sys_session, "session%d", &sid);
-	return sid;
-}
-
 int
 main(int argc, char **argv)
 {
@@ -2045,6 +1997,7 @@ main(int argc, char **argv)
 	/* enable stdout logging */
 	log_daemon = 0;
 	log_init(program_name, 1024);
+	sysfs_init();
 
 	optopt = 0;
 	while ((ch = getopt_long(argc, argv, short_options,
@@ -2056,7 +2009,8 @@ main(int argc, char **argv)
 				log_error("Invalid killiscsid priority %d "
 					  "Priority must be greater than or "
 					  "equal to zero.", killiscsid);
-				exit(-1);
+				rc = -1;
+				goto free_ifaces;
 			}
 			break;
 		case 't':
@@ -2067,7 +2021,8 @@ main(int argc, char **argv)
 			if (op == OP_NOOP) {
 				log_error("can not recognize operation: '%s'",
 					optarg);
-				return -1;
+				rc = -1;
+				goto free_ifaces;
 			}
 			break;
 		case 'n':
@@ -2077,11 +2032,12 @@ main(int argc, char **argv)
 			value = optarg;
 			break;
 		case 'r':
-			sid = parse_sid(optarg);
+			sid = iscsi_sysfs_get_sid_from_path(optarg);
 			if (sid < 0) {
 				log_error("invalid sid '%s'",
 					  optarg);
-				return -1;
+				rc = -1;
+				goto free_ifaces;
 			}
 			break;
 		case 'R':
@@ -2150,7 +2106,8 @@ main(int argc, char **argv)
 
 	if (optopt) {
 		log_error("unrecognized character '%c'", optopt);
-		return -1;
+		rc = -1;
+		goto free_ifaces;
 	}
 
 	if (killiscsid >= 0) {
@@ -2166,17 +2123,18 @@ main(int argc, char **argv)
 			log_error("fw mode: option '-%c' is not "
 				  "allowed/supported", rc);
 			rc = -1;
-			goto out;
+			goto free_ifaces;
 		}
 
 		rc = exec_fw_op(NULL, do_login, info_level);
-		goto out;
+		goto free_ifaces;
 	}
 
 	increase_max_files();
 	if (idbm_init(get_config_file)) {
 		log_warning("exiting due to idbm configuration error");
-		return -1;
+		rc = -1;
+		goto free_ifaces;
 	}
 
 	iface_setup_host_bindings();
@@ -2366,7 +2324,7 @@ main(int argc, char **argv)
 				goto out;
 			}
 
-			rc = get_sessioninfo_by_sysfs_id(info, session);
+			rc = iscsi_sysfs_get_sessioninfo_by_id(info, session);
 			if (rc) {
 				log_error("Could not get session info for sid "
 					  "%d", sid);
@@ -2378,7 +2336,7 @@ main(int argc, char **argv)
 			 * we only support session mode ops if the module
 			 * is loaded and we support that module.
 			 */
-			if (!get_transport_by_sid(sid))
+			if (!iscsi_sysfs_get_transport_by_sid(sid))
 				goto free_info;
 
 			if (!do_logout && !do_rescan && !do_stats &&
@@ -2432,5 +2390,6 @@ free_ifaces:
 		free(iface);
 	}
 	free_transports();
+	sysfs_cleanup();
 	return rc;
 }

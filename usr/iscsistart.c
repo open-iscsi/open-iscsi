@@ -305,7 +305,8 @@ int main(int argc, char *argv[])
 	log_daemon = 0;
 	log_init(program_name, DEFAULT_AREA_SIZE);
 
-	if (check_class_version())
+	sysfs_init();
+	if (iscsi_sysfs_check_class_version())
 		exit(1);
 
 	if (check_params(initiatorname))
@@ -378,6 +379,7 @@ int main(int argc, char *argv[])
 	ipc->ctldev_close();
 	mgmt_ipc_close(mgmt_ipc_fd);
 	free_initiator();
+	sysfs_cleanup();
 
 	log_debug(1, "iscsi child done");
 	return 0;

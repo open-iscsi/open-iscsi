@@ -419,7 +419,7 @@ static int __iface_setup_host_bindings(void *data, struct host_info *info)
 	struct iscsi_transport *t;
 	int id;
 
-	t = get_transport_by_hba(info->host_no);
+	t = iscsi_sysfs_get_transport_by_hba(info->host_no);
 	if (!t)
 		return 0;
 	/*
@@ -471,7 +471,8 @@ void iface_setup_host_bindings(void)
 	}
 	idbm_unlock();
 
-	if (sysfs_for_each_host(NULL, &nr_found, __iface_setup_host_bindings))
+	if (iscsi_sysfs_for_each_host(NULL, &nr_found,
+				      __iface_setup_host_bindings))
 		log_error("Could not scan scsi hosts. HW/OFFLOAD iscsi "
 			  "operations may not be supported.");
 }

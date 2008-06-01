@@ -103,9 +103,9 @@ setup_rec_from_negotiated_values(node_rec_t *rec, struct session_info *info)
 	rec->tpgt = info->tpgt;
 	iface_copy(&rec->iface, &info->iface);
 
-	get_negotiated_session_conf(info->sid, &session_conf);
-	get_negotiated_conn_conf(info->sid, &conn_conf);
-	get_auth_conf(info->sid, &auth_conf);
+	iscsi_sysfs_get_negotiated_session_conf(info->sid, &session_conf);
+	iscsi_sysfs_get_negotiated_conn_conf(info->sid, &conn_conf);
+	iscsi_sysfs_get_auth_conf(info->sid, &auth_conf);
 
 	if (strlen(auth_conf.username))
 		strcpy(rec->session.auth.username, auth_conf.username);
@@ -185,7 +185,7 @@ static int sync_session(void *data, struct session_info *info)
 		  info->targetname, info->persistent_address,
 		  info->port, info->iface.hwaddress);
 
-	t = get_transport_by_sid(info->sid);
+	t = iscsi_sysfs_get_transport_by_sid(info->sid);
 	if (!t)
 		return 0;
 
@@ -197,13 +197,13 @@ static int sync_session(void *data, struct session_info *info)
 		uint32_t host_no;
 		int err;
 
-		host_no = get_host_no_from_sid(info->sid, &err);
+		host_no = iscsi_sysfs_get_host_no_from_sid(info->sid, &err);
 		if (err) {
 			log_error("Could not get host no from sid %u. Can not "
 				  "sync session. Error %d", info->sid, err);
 			return 0;
 		}
-		scan_host(host_no, 0);
+		iscsi_sysfs_scan_host(host_no, 0);
 		return 0;
 	}
 
@@ -267,7 +267,7 @@ static void sync_sessions(void)
 
 	if (idbm_init(iscsid_get_config_file))
 		return;
-	sysfs_for_each_session(NULL, &nr_found, sync_session);
+	iscsi_sysfs_for_each_session(NULL, &nr_found, sync_session);
 	idbm_terminate();
 }
 
@@ -383,7 +383,10 @@ int main(int argc, char *argv[])
 	log_pid = log_init(program_name, DEFAULT_AREA_SIZE);
 	if (log_pid < 0)
 		exit(1);
-	if (check_class_version()) {
+
+	sysfs_init();
+
+	if (iscsi_sysfs_check_class_version()) {
 		log_close(log_pid);
 		exit(1);
 	}
@@ -504,5 +507,6 @@ int main(int argc, char *argv[])
 	isns_fd = isns_init();
 	event_loop(ipc, control_fd, mgmt_ipc_fd, isns_fd);
 	iscsid_shutdown();
+	sysfs_cleanup();
 	return 0;
 }

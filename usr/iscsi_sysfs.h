@@ -19,6 +19,7 @@
 
 #include <sys/types.h>
 
+#include "sysfs.h"
 #include "types.h"
 #include "iscsi_proto.h"
 #include "config.h"
@@ -53,46 +54,49 @@ struct host_info {
 
 extern int direntcmp(const void *d1, const void *d2);
 extern void free_transports(void);
-extern int get_iscsi_kernel_version(char *buf);
-extern int check_class_version(void);
-extern int get_sessioninfo_by_sysfs_id(struct session_info *info,
-				      char *sys_session);
-extern int sysfs_session_has_leadconn(uint32_t sid);
+extern char *iscsi_sysfs_get_iscsi_kernel_version(void);
+extern int iscsi_sysfs_check_class_version(void);
+extern int iscsi_sysfs_get_sessioninfo_by_id(struct session_info *info,
+					     char *sys_session);
+extern int iscsi_sysfs_session_has_leadconn(uint32_t sid);
 
-typedef int (sysfs_session_op_fn)(void *, struct session_info *);
-typedef int (sysfs_host_op_fn)(void *, struct host_info *);
+typedef int (iscsi_sysfs_session_op_fn)(void *, struct session_info *);
+typedef int (iscsi_sysfs_host_op_fn)(void *, struct host_info *);
 
-extern int sysfs_for_each_session(void *data, int *nr_found,
-				  sysfs_session_op_fn *fn);
-extern int sysfs_for_each_host(void *data, int *nr_found, sysfs_host_op_fn *fn);
-extern uint32_t get_host_no_from_sid(uint32_t sid, int *err);
-extern uint32_t get_host_no_from_iface(struct iface_rec *iface, int *rc);
-extern char *get_blockdev_from_lun(int hostno, int target, int sid);
-extern int set_exp_statsn(struct iscsi_conn *conn);
+extern int iscsi_sysfs_for_each_session(void *data, int *nr_found,
+					iscsi_sysfs_session_op_fn *fn);
+extern int iscsi_sysfs_for_each_host(void *data, int *nr_found,
+				     iscsi_sysfs_host_op_fn *fn);
+extern uint32_t iscsi_sysfs_get_host_no_from_sid(uint32_t sid, int *err);
+extern uint32_t iscsi_sysfs_get_host_no_from_iface(struct iface_rec *iface,
+						   int *rc);
+extern int iscsi_sysfs_get_sid_from_path(char *session);
+extern char *iscsi_sysfs_get_blockdev_from_lun(int hostno, int target, int sid);
 
 static inline int is_valid_operational_value(int value)
 {
 	return value != -1;
 }
 
-extern void get_auth_conf(int sid, struct iscsi_auth_config *conf);
-extern void get_negotiated_session_conf(int sid,
+extern void iscsi_sysfs_get_auth_conf(int sid, struct iscsi_auth_config *conf);
+extern void iscsi_sysfs_get_negotiated_session_conf(int sid,
 				struct iscsi_session_operational_config *conf);
-extern void get_negotiated_conn_conf(int sid,
+extern void iscsi_sysfs_get_negotiated_conn_conf(int sid,
 				struct iscsi_conn_operational_config *conf);
-extern pid_t scan_host(int hostno, int async);
-extern int get_session_state(char *state, int sid);
-extern int get_host_state(char *state, int host_no);
-extern int get_device_state(char *state, int host_no, int target, int lun);
-extern void set_device_online(int hostno, int target, int lun);
-extern void delete_device(int hostno, int target, int lun);
-extern void rescan_device(int hostno, int target, int lun);
-extern int sysfs_for_each_device(int host_no, uint32_t sid,
-				 void (* fn)(int host_no, int target, int lun));
-extern struct iscsi_transport *get_transport_by_hba(long host_no);
-extern struct iscsi_transport *get_transport_by_session(char *sys_session);
-extern struct iscsi_transport *get_transport_by_sid(uint32_t sid);
-extern struct iscsi_transport *get_transport_by_name(char *transport_name);
+extern pid_t iscsi_sysfs_scan_host(int hostno, int async);
+extern int iscsi_sysfs_get_session_state(char *state, int sid);
+extern int iscsi_sysfs_get_host_state(char *state, int host_no);
+extern int iscsi_sysfs_get_device_state(char *state, int host_no, int target,
+					int lun);
+extern int iscsi_sysfs_get_exp_statsn(int sid);
+extern void iscsi_sysfs_set_device_online(int hostno, int target, int lun);
+extern void iscsi_sysfs_rescan_device(int hostno, int target, int lun);
+extern int iscsi_sysfs_for_each_device(int host_no, uint32_t sid,
+				void (* fn)(int host_no, int target, int lun));
+extern struct iscsi_transport *iscsi_sysfs_get_transport_by_hba(long host_no);
+extern struct iscsi_transport *iscsi_sysfs_get_transport_by_session(char *sys_session);
+extern struct iscsi_transport *iscsi_sysfs_get_transport_by_sid(uint32_t sid);
+extern struct iscsi_transport *iscsi_sysfs_get_transport_by_name(char *transport_name);
 
 extern struct list_head transports;
 

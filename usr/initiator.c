@@ -134,8 +134,8 @@ void iscsi_conn_context_put(struct iscsi_conn_context *conn_context)
 
 static void session_online_devs(int host_no, int sid)
 {
-	sysfs_for_each_device(host_no, sid,
-			      set_device_online);
+	iscsi_sysfs_for_each_device(host_no, sid,
+				    iscsi_sysfs_set_device_online);
 }
 
 static conn_login_status_e
@@ -616,7 +616,7 @@ session_conn_shutdown(iscsi_conn_t *conn, queue_task_t *qtask,
 	if (session->id == -1)
 		goto cleanup;
 
-	if (!sysfs_session_has_leadconn(session->id))
+	if (!iscsi_sysfs_session_has_leadconn(session->id))
 		goto cleanup;
 
 	if (conn->state == STATE_IN_LOGIN ||
@@ -1096,7 +1096,7 @@ static void session_scan_host(int hostno, queue_task_t *qtask)
 {
 	pid_t pid;
 
-	pid = scan_host(hostno, 1);
+	pid = iscsi_sysfs_scan_host(hostno, 1);
 	if (pid == 0) {
 		mgmt_ipc_write_rsp(qtask, MGMT_IPC_OK);
 		exit(0);
@@ -1131,7 +1131,7 @@ mgmt_ipc_err_e iscsi_host_set_param(int host_no, int param, char *value)
 {
 	struct iscsi_transport *t;
 
-	t = get_transport_by_hba(host_no);
+	t = iscsi_sysfs_get_transport_by_hba(host_no);
 	if (!t)
 		return MGMT_IPC_ERR_TRANS_FAILURE;
 	if (__iscsi_host_set_param(t, host_no, param, value, ISCSI_STRING))
@@ -1793,7 +1793,7 @@ static void session_conn_poll(void *data)
 		c->buffer = conn->data;
 		c->bufsize = sizeof(conn->data);
 
-		set_exp_statsn(conn);
+		conn->exp_statsn = iscsi_sysfs_get_exp_statsn(session->id);
 
 		if (iscsi_login_begin(session, c)) {
 			iscsi_login_eh(conn, qtask, MGMT_IPC_ERR_LOGIN_FAILURE);
@@ -1898,7 +1898,7 @@ int session_is_running(node_rec_t *rec)
 	if (session_find_by_rec(rec))
 		return 1;
 
-	if (sysfs_for_each_session(rec, &nr_found, iscsi_match_session))
+	if (iscsi_sysfs_for_each_session(rec, &nr_found, iscsi_match_session))
 		return 1;
 
 	return 0;
@@ -1917,7 +1917,7 @@ session_login_task(node_rec_t *rec, queue_task_t *qtask)
 		return MGMT_IPC_ERR_EXISTS;
 	}
 
-	t = get_transport_by_name(rec->iface.transport_name);
+	t = iscsi_sysfs_get_transport_by_name(rec->iface.transport_name);
 	if (!t)
 		return MGMT_IPC_ERR_TRANS_NOT_FOUND;
 	if (set_transport_template(t))
@@ -2014,7 +2014,7 @@ iscsi_sync_session(node_rec_t *rec, queue_task_t *qtask, uint32_t sid)
 	struct iscsi_transport *t;
 	int err;
 
-	t = get_transport_by_name(rec->iface.transport_name);
+	t = iscsi_sysfs_get_transport_by_name(rec->iface.transport_name);
 	if (!t)
 		return MGMT_IPC_ERR_TRANS_NOT_FOUND;
 	if (set_transport_template(t))
@@ -2025,7 +2025,7 @@ iscsi_sync_session(node_rec_t *rec, queue_task_t *qtask, uint32_t sid)
 		return MGMT_IPC_ERR_LOGIN_FAILURE;
 
 	session->id = sid;
-	session->hostno = get_host_no_from_sid(sid, &err);
+	session->hostno = iscsi_sysfs_get_host_no_from_sid(sid, &err);
 	if (err) {
 		log_error("Could not get hostno for session %d\n", sid);
 		err = MGMT_IPC_ERR_NOT_FOUND;
@@ -2129,7 +2129,7 @@ iscsi_host_send_targets(queue_task_t *qtask, int host_no, int do_login,
 {
 	struct iscsi_transport *t;
 
-	t = get_transport_by_hba(host_no);
+	t = iscsi_sysfs_get_transport_by_hba(host_no);
 	if (!t || set_transport_template(t)) {
 		log_error("Invalid host no %d for sendtargets\n", host_no);
 		return MGMT_IPC_ERR_TRANS_FAILURE;
@@ -2154,7 +2154,7 @@ void iscsi_async_session_creation(uint32_t host_no, uint32_t sid)
 {
 	struct iscsi_transport *transport;
 
-	transport = get_transport_by_hba(host_no);
+	transport = iscsi_sysfs_get_transport_by_hba(host_no);
 	if (!transport)
 		return;
 

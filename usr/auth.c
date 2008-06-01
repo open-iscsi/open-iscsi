@@ -31,6 +31,7 @@
 #include <unistd.h>
 #include <fcntl.h>
 
+#include "sysdeps.h"
 #include "auth.h"
 #include "initiator.h"
 #include "md5.h"
@@ -223,58 +224,6 @@ get_random_bytes(unsigned char *data, unsigned int length)
         }
 	if (fd)
 		close(fd);
-}
-
-/**
- * strlcpy - Copy a %NUL terminated string into a sized buffer
- * @dest: Where to copy the string to
- * @src: Where to copy the string from
- * @size: size of destination buffer
- *
- * Compatible with *BSD: the result is always a valid
- * NUL-terminated string that fits in the buffer (unless,
- * of course, the buffer size is zero). It does not pad
- * out the result like strncpy() does.
- **/
-
-size_t strlcpy(char *dest, const char *src, size_t size)
-{
-        size_t ret = strlen(src);
-
-        if (size) {
-                size_t len = (ret >= size) ? size-1 : ret;
-                memcpy(dest, src, len);
-                dest[len] = '\0';
-        }
-        return ret;
-}
-
-/**
- * strlcat - Append a length-limited, %NUL-terminated string to another
- * @dest: The string to be appended to
- * @src: The string to append to it
- * @count: The size of the destination buffer.
- **/
-
-size_t strlcat(char *dest, const char *src, size_t count)
-{
-	size_t dsize = strlen(dest);
-        size_t len = strlen(src);
-        size_t res = dsize + len;
-
-	/* This would be a bug */
-	if (dsize >= count) {
-		dest[count - 1] = 0;
-		return count;
-	}
-
-	dest += dsize;
-	count -= dsize;
-	if (len >= count)
-		len = count-1;
-	memcpy(dest, src, len);
-	dest[len] = 0;
-	return res;
 }
 
 static const char acl_none_option_name[] = "None";

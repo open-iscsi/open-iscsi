@@ -1748,7 +1748,7 @@ int idbm_bind_ifaces_to_node(struct node_rec *new_rec, struct list_head *ifaces,
 
 		list_for_each_entry_safe(iface, tmp, &def_ifaces, list) {
 			list_del(&iface->list);
-			t = get_transport_by_name(iface->transport_name);
+			t = iscsi_sysfs_get_transport_by_name(iface->transport_name);
 			/* only auto bind to software iscsi */
 			if (!t || t->caps & CAP_FW_DB ||
 			    t->caps & CAP_DATA_PATH_OFFLOAD) {
@@ -1810,7 +1810,7 @@ int idbm_add_nodes(node_rec_t *newrec, discovery_rec_t *drec,
 
 		list_for_each_entry_safe(iface, tmp, &def_ifaces, list) {
 			list_del(&iface->list);
-			t = get_transport_by_name(iface->transport_name);
+			t = iscsi_sysfs_get_transport_by_name(iface->transport_name);
 			/* only auto bind to software iscsi */
 			if (!t || t->caps & CAP_FW_DB ||
 			    t->caps & CAP_DATA_PATH_OFFLOAD) {

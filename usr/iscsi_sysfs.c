@@ -29,28 +29,175 @@
 #include "idbm.h"
 #include "version.h"
 #include "iscsi_sysfs.h"
+#include "sysdeps.h"
 #include "iscsi_settings.h"
 #include "iface.h"
 
+/*
+ * TODO: remove the _DIR defines and search for subsys dirs like
+ *  is done in sysfs.c.
+ */
 #define ISCSI_TRANSPORT_DIR	"/sys/class/iscsi_transport"
 #define ISCSI_SESSION_DIR	"/sys/class/iscsi_session"
-#define ISCSI_CONN_DIR		"/sys/class/iscsi_connection"
 #define ISCSI_HOST_DIR		"/sys/class/iscsi_host"
-#define SCSI_HOST_DIR		"/sys/class/scsi_host"
-#define SCSI_DEVICE_DIR		"/sys/bus/scsi/devices"
+
+#define ISCSI_SYSFS_INVALID_VALUE	"<NULL>"
+#define ISCSI_SESSION_SUBSYS		"iscsi_session"
+#define ISCSI_CONN_SUBSYS		"iscsi_connection"
+#define ISCSI_HOST_SUBSYS		"iscsi_host"
+#define ISCSI_TRANSPORT_SUBSYS		"iscsi_transport"
+#define SCSI_HOST_SUBSYS		"scsi_host"
+#define SCSI_DEVICE_SUBSYS		"scsi_device"
+#define SCSI_SUBSYS			"scsi"
 
 #define ISCSI_MAX_SYSFS_BUFFER NI_MAXHOST
 
 /*
  * TODO: make this into a real API and check inputs better and add doc.
- * We should also use a common lib and search sysfs according to the sysfs
- * doc in the kernel documetnation.
  */
 
 /* tmp buffer used by sysfs functions */
 static char sysfs_file[PATH_MAX];
 static int num_transports;
 LIST_HEAD(transports);
+
+static int iscsi_sysfs_get_param(char *id, char *subsys, char *param,
+				 void *ret_value, char *format)
+{
+	char devpath[PATH_SIZE];
+	char *sysfs_value;
+
+	/* set to invalid */
+	if (!strcmp(format, "%s\n"))
+		((char *)ret_value)[0] = '\0';
+	else
+		*((int *)ret_value) = -1;
+
+	if (!sysfs_lookup_devpath_by_subsys_id(devpath, sizeof(devpath),
+					       subsys, id)) {
+		log_debug(3, "Could not lookup devpath for %s %s\n",
+			  subsys, id);
+		return EIO;
+	}
+
+	sysfs_value = sysfs_attr_get_value(devpath, param);
+	if (!sysfs_value) {
+		log_debug(3, "Could not read attr %s on path %s\n",
+			  param, devpath);
+		return EIO;
+	}
+
+	if (!strncmp(sysfs_value, ISCSI_SYSFS_INVALID_VALUE, 6))
+		return ENODATA;
+
+	sscanf(sysfs_value, format, ret_value);
+	return 0;
+}
+
+#define iscsi_sysfs_get_param_by_str(name, subsys)			\
+static int iscsi_sysfs_get_##name##_param(char *tag, char *param,	\
+					  void *ret_value,		\
+					  char *format)			\
+{									\
+	char id[NAME_SIZE];						\
+									\
+	snprintf(id, sizeof(id), "%s", tag);				\
+	return iscsi_sysfs_get_param(id, subsys, param, ret_value, format);\
+}
+
+#define iscsi_sysfs_get_param_by_int(name, id_format, subsys)		\
+static int iscsi_sysfs_get_##name##_param(int tag, char *param,		\
+					  void *ret_value,		\
+					  char *format)			\
+{									\
+	char id[NAME_SIZE];						\
+									\
+	snprintf(id, sizeof(id), id_format, tag);			\
+	return iscsi_sysfs_get_param(id, subsys, param, ret_value, format);\
+}
+
+iscsi_sysfs_get_param_by_int(session, "session%d", ISCSI_SESSION_SUBSYS);
+iscsi_sysfs_get_param_by_int(conn, "connection%d:0", ISCSI_CONN_SUBSYS);
+iscsi_sysfs_get_param_by_int(iscsi_host, "host%d", ISCSI_HOST_SUBSYS);
+iscsi_sysfs_get_param_by_int(scsi_host, "host%d", SCSI_HOST_SUBSYS);
+
+iscsi_sysfs_get_param_by_str(transport, ISCSI_TRANSPORT_SUBSYS);
+iscsi_sysfs_get_param_by_str(scsi_dev, SCSI_SUBSYS);
+
+static int iscsi_sysfs_set_param(char *id, char *subsys, char *attr_name,
+				 char *write_buf, ssize_t buf_size)
+{
+	struct stat statbuf;
+	char devpath[PATH_SIZE];
+	size_t sysfs_len;
+	char path_full[PATH_SIZE];
+	const char *path;
+	int rc = 0, fd;
+
+	if (!sysfs_lookup_devpath_by_subsys_id(devpath, sizeof(devpath),
+					       subsys, id)) {
+		log_debug(3, "Could not lookup devpath for %s %s\n",
+			  subsys, id);
+		return EIO;
+	}
+
+	sysfs_len = strlcpy(path_full, sysfs_path, sizeof(path_full));
+	if(sysfs_len >= sizeof(path_full))
+		sysfs_len = sizeof(path_full) - 1;
+	path = &path_full[sysfs_len];
+	strlcat(path_full, devpath, sizeof(path_full));
+	strlcat(path_full, "/", sizeof(path_full));
+	strlcat(path_full, attr_name, sizeof(path_full));
+
+	if (lstat(path_full, &statbuf)) {
+		log_debug(3, "Could not stat %s\n", path_full);
+		return errno;
+	}
+
+	if ((statbuf.st_mode & S_IWUSR) == 0) {
+		log_error("Could not write to %s. Invalid permissions.\n",
+			  path_full);
+		return EACCES;
+	}
+
+	fd = open(path_full, O_WRONLY);
+	if (fd < 0) {
+		log_error("Could not open %s err %d\n", path_full, errno);
+		return errno;
+	}
+
+	if (write(fd, write_buf, buf_size) == -1)
+		rc = errno;
+	close(fd);
+	return rc;
+}
+
+#define iscsi_sysfs_set_param_by_str(name, subsys)			\
+static int iscsi_sysfs_set_##name##_param(char *tag, char *attr_name,	\
+					  char *write_buf,		\
+					  ssize_t buf_size)		\
+{									\
+	char id[NAME_SIZE];						\
+									\
+	snprintf(id, sizeof(id), "%s", tag);				\
+	return iscsi_sysfs_set_param(id, subsys, attr_name, write_buf,	\
+				     buf_size);				\
+}
+
+#define iscsi_sysfs_set_param_by_int(name, id_format, subsys)		\
+static int iscsi_sysfs_set_##name##_param(int tag, char *attr_name,	\
+					  char *write_buf,		\
+					  ssize_t buf_size)		\
+{									\
+	char id[NAME_SIZE];						\
+									\
+	snprintf(id, sizeof(id), id_format, tag);			\
+	return iscsi_sysfs_set_param(id, subsys, attr_name, write_buf,	\
+				     buf_size);				\
+}
+
+iscsi_sysfs_set_param_by_int(scsi_host, "host%d", SCSI_HOST_SUBSYS);
+iscsi_sysfs_set_param_by_str(scsi_dev, SCSI_SUBSYS);
 
 /* mini implementation of versionsort for uclibc compatility */
 int direntcmp(const void *d1, const void *d2)
@@ -76,29 +223,6 @@ int direntcmp(const void *d1, const void *d2)
 	return *a - *b;
 }
 
-int read_sysfs_file(char *filename, void *value, char *format)
-{
-	FILE *file;
-	char buffer[ISCSI_MAX_SYSFS_BUFFER + 1], *line;
-	int err = 0;
-
-	file = fopen(filename, "r");
-	if (file) {
-		line = fgets(buffer, sizeof(buffer), file);
-		if (line && strncmp(line, "<NULL>", 6))
-			sscanf(buffer, format, value);
-		else {
-			log_debug(5, "Could not read %s.\n", filename);
-			err = ENODATA;
-		}
-		fclose(file);
-	} else {
-		log_debug(5, "Could not open %s.\n", filename);
-		err = errno;
-	}
-	return err;
-}
-
 void free_transports(void)
 {
 	struct iscsi_transport *t, *tmp;
@@ -117,8 +241,7 @@ static int trans_filter(const struct dirent *dir)
 static int read_transports(void)
 {
 	struct dirent **namelist;
-	char filename[64];
-	int i, n, found, err = 0;
+	int i, n, found;
 	struct iscsi_transport *t;
 
 	log_debug(7, "in %s", __FUNCTION__);
@@ -154,16 +277,13 @@ static int read_transports(void)
 		strncpy(t->name, namelist[i]->d_name,
 			ISCSI_TRANSPORT_NAME_MAXLEN);
 
-		sprintf(filename, ISCSI_TRANSPORT_DIR"/%s/handle", t->name);
-		err = read_sysfs_file(filename, &t->handle, "%llu\n");
-		if (err)
+		if (iscsi_sysfs_get_transport_param(t->name, "handle",
+						    &t->handle, "%llu\n"))
 			continue;
 
-		sprintf(filename, ISCSI_TRANSPORT_DIR"/%s/caps", t->name);
-		err = read_sysfs_file(filename, &t->caps, "0x%x");
-		if (err)
+		if (iscsi_sysfs_get_transport_param(t->name, "caps",
+						    &t->caps, "0x%x"))
 			continue;
-
 		/*
 		 * tmp hack for qla4xx compat
 		 */
@@ -183,124 +303,113 @@ static int read_transports(void)
 	return 0;
 }
 
-static void get_session_param(int sid, char *param, void *value, char *format)
-{
-	/* set to invalid */
-	if (!strcmp(format, "%s\n"))
-		((char *)value)[0] = '\0';
-	else
-		*((int *)value) = -1;
-
-	memset(sysfs_file, 0, PATH_MAX);
-	sprintf(sysfs_file, ISCSI_SESSION_DIR"/session%d/%s", sid, param);
-	read_sysfs_file(sysfs_file, value, format);
-}
-
-static void get_negotiated_conn_param(int sid, char *param, int *value)
-{
-	/* set to invalid */
-	*value = -1;
-
-	memset(sysfs_file, 0, PATH_MAX);
-	sprintf(sysfs_file, ISCSI_CONN_DIR"/connection%d:0/%s", sid, param);
-	read_sysfs_file(sysfs_file, value, "%d\n");
-}
-
 /* caller must check lengths */
-void get_auth_conf(int sid, struct iscsi_auth_config *conf)
+void iscsi_sysfs_get_auth_conf(int sid, struct iscsi_auth_config *conf)
 {
 	memset(conf, 0, sizeof(*conf));
 
-	get_session_param(sid, "username", conf->username, "%s\n");
-	get_session_param(sid, "username_in", conf->username_in, "%s\n");
-	get_session_param(sid, "password", conf->password, "%s\n");
+	iscsi_sysfs_get_session_param(sid, "username", conf->username, "%s\n");
+	iscsi_sysfs_get_session_param(sid, "username_in", conf->username_in,
+				      "%s\n");
+	iscsi_sysfs_get_session_param(sid, "password", conf->password, "%s\n");
 	if (strlen((char *)conf->password))
 		conf->password_length = strlen((char *)conf->password);
-	get_session_param(sid, "password_in", conf->password_in, "%s\n");
+	iscsi_sysfs_get_session_param(sid, "password_in", conf->password_in,
+				      "%s\n");
 	if (strlen((char *)conf->password_in))
 		conf->password_in_length = strlen((char *)conf->password_in);
 }
 
 /* called must check for -1=invalid value */
-void get_negotiated_conn_conf(int sid,
-			      struct iscsi_conn_operational_config *conf)
+void iscsi_sysfs_get_negotiated_conn_conf(int sid,
+				struct iscsi_conn_operational_config *conf)
 {
 	memset(conf, 0, sizeof(*conf));
 
-	get_negotiated_conn_param(sid, "data_digest",
-				  &conf->DataDigest);
-	get_negotiated_conn_param(sid, "header_digest",
-				  &conf->HeaderDigest);
-	get_negotiated_conn_param(sid, "max_xmit_dlength",
-				  &conf->MaxXmitDataSegmentLength);
-	get_negotiated_conn_param(sid, "max_recv_dlength",
-				  &conf->MaxRecvDataSegmentLength);
+	iscsi_sysfs_get_conn_param(sid, "data_digest", &conf->DataDigest,
+				   "%d\n");
+	iscsi_sysfs_get_conn_param(sid, "header_digest", &conf->HeaderDigest,
+				   "%d\n");
+	iscsi_sysfs_get_conn_param(sid, "max_xmit_dlength",
+				   &conf->MaxXmitDataSegmentLength, "%d\n");
+	iscsi_sysfs_get_conn_param(sid, "max_recv_dlength",
+				   &conf->MaxRecvDataSegmentLength, "%d\n");
 }
 
 /* called must check for -1=invalid value */
-void get_negotiated_session_conf(int sid,
-				 struct iscsi_session_operational_config *conf)
+void iscsi_sysfs_get_negotiated_session_conf(int sid,
+				struct iscsi_session_operational_config *conf)
 {
 	memset(conf, 0, sizeof(*conf));
 
-	get_session_param(sid, "data_pdu_in_order",
-			  &conf->DataPDUInOrder, "%d\n");
-	get_session_param(sid, "data_seq_in_order",
-			  &conf->DataSequenceInOrder, "%d\n");
-	get_session_param(sid, "erl",
-			  &conf->ERL, "%d\n");
-	get_session_param(sid, "first_burst_len",
-			  &conf->FirstBurstLength, "%d\n");
-	get_session_param(sid, "max_burst_len",
-			  &conf->MaxBurstLength, "%d\n");
-	get_session_param(sid, "immediate_data",
-			  &conf->ImmediateData, "%d\n");
-	get_session_param(sid, "initial_r2t",
-			  &conf->InitialR2T, "%d\n");
-	get_session_param(sid, "max_outstanding_r2t",
-			  &conf->MaxOutstandingR2T, "%d\n");
+	iscsi_sysfs_get_session_param(sid, "data_pdu_in_order",
+				      &conf->DataPDUInOrder, "%d\n");
+	iscsi_sysfs_get_session_param(sid, "data_seq_in_order",
+				      &conf->DataSequenceInOrder, "%d\n");
+	iscsi_sysfs_get_session_param(sid, "erl", &conf->ERL, "%d\n");
+	iscsi_sysfs_get_session_param(sid, "first_burst_len",
+				      &conf->FirstBurstLength, "%d\n");
+	iscsi_sysfs_get_session_param(sid, "max_burst_len",
+				      &conf->MaxBurstLength, "%d\n");
+	iscsi_sysfs_get_session_param(sid, "immediate_data",
+				      &conf->ImmediateData, "%d\n");
+	iscsi_sysfs_get_session_param(sid, "initial_r2t",
+				      &conf->InitialR2T, "%d\n");
+	iscsi_sysfs_get_session_param(sid, "max_outstanding_r2t",
+				      &conf->MaxOutstandingR2T, "%d\n");
 }
 
-uint32_t get_host_no_from_sid(uint32_t sid, int *err)
+uint32_t iscsi_sysfs_get_host_no_from_sid(uint32_t sid, int *err)
 {
-	char *buf, *path, *tmp;
-	uint32_t host_no;
+	struct sysfs_device *session_dev, *host_dev;
+	char devpath[PATH_SIZE];
+	char id[NAME_SIZE];
 
 	*err = 0;
-
-	buf = calloc(2, PATH_MAX);
-	if (!buf) {
-		*err = ENOMEM;
+	snprintf(id, sizeof(id), "session%u", sid);
+	if (!sysfs_lookup_devpath_by_subsys_id(devpath, sizeof(devpath),
+					       ISCSI_SESSION_SUBSYS, id)) {
+		log_error("Could not lookup devpath for %s. Possible sysfs "
+			  "incompatibility.\n", id);
+		*err = EIO;
 		return 0;
 	}
-	path = buf + PATH_MAX;
 
-	sprintf(path, ISCSI_SESSION_DIR"/session%d/device", sid);
-	if (readlink(path, buf, PATH_MAX) < 0) {
-		log_error("Could not get link for %s.", path);
-		*err = errno;
-		goto free_buf;
+	session_dev = sysfs_device_get(devpath);
+	if (!session_dev) {
+		log_error("Could not get dev for %s. Possible sysfs "
+			  "incompatibility.\n", id);
+		*err = EIO;
+		return 0;
 	}
 
-	/* buf will be .....bus_info/hostX/sessionY */
+	/*
+	 * 2.6.27 moved from scsi_host to scsi for the subsys when
+	 * sysfs compat is not on.
+	 */
+	host_dev = sysfs_device_get_parent_with_subsystem(session_dev,
+							  SCSI_SUBSYS);
+	if (!host_dev) {
+		struct sysfs_device *dev_parent;
 
-	/* find hostX */
-	tmp = strrchr(buf, '/');
-	*tmp = '\0';
+		dev_parent = sysfs_device_get_parent(session_dev);
+		while (dev_parent != NULL) {
+			if (strncmp(dev_parent->kernel, "host", 4) == 0) {
+				host_dev = dev_parent;
+				break;
+			}
+			dev_parent = sysfs_device_get_parent(dev_parent);
+		}
 
-	/* find bus and increment past it */
-	tmp = strrchr(buf, '/');
-	tmp++;
-
-	if (sscanf(tmp, "host%u", &host_no) != 1) {
-		log_error("Could not get host for sid %u.", sid);
-		*err = ENXIO;
-		goto free_buf;
+		if (!host_dev) {
+			log_error("Could not get host dev for %s. Possible "
+				  "sysfs incompatibility.\n", id);
+			*err = EIO;
+			return 0;
+		}
 	}
 
-free_buf:
-	free(buf);
-	return host_no;
+	return atol(host_dev->kernel_number);
 }
 
 /* TODO: merge and make macro */
@@ -330,8 +439,8 @@ static uint32_t get_host_no_from_netdev(char *netdev, int *rc)
 	}
 	strcpy(info->iface.netdev, netdev);
 
-	local_rc = sysfs_for_each_host(info, &nr_found,
-					__get_host_no_from_netdev);
+	local_rc = iscsi_sysfs_for_each_host(info, &nr_found,
+					     __get_host_no_from_netdev);
 	if (local_rc == 1)
 		host_no = info->host_no;
 	else
@@ -366,7 +475,7 @@ static uint32_t get_host_no_from_hwaddress(char *address, int *rc)
 	}
 	strcpy(info->iface.hwaddress, address);
 
-	local_rc = sysfs_for_each_host(info, &nr_found,
+	local_rc = iscsi_sysfs_for_each_host(info, &nr_found,
 					__get_host_no_from_hwaddress);
 	if (local_rc == 1)
 		host_no = info->host_no;
@@ -403,8 +512,8 @@ static uint32_t get_host_no_from_ipaddress(char *address, int *rc)
 	}
 	strcpy(info->iface.ipaddress, address);
 
-	local_rc = sysfs_for_each_host(info, &nr_found,
-					__get_host_no_from_ipaddress);
+	local_rc = iscsi_sysfs_for_each_host(info, &nr_found,
+					     __get_host_no_from_ipaddress);
 	if (local_rc == 1)
 		host_no = info->host_no;
 	else
@@ -413,7 +522,7 @@ static uint32_t get_host_no_from_ipaddress(char *address, int *rc)
 	return host_no;
 }
 
-uint32_t get_host_no_from_iface(struct iface_rec *iface, int *rc)
+uint32_t iscsi_sysfs_get_host_no_from_iface(struct iface_rec *iface, int *rc)
 {
 	int tmp_rc;
 	uint32_t host_no = -1;
@@ -439,65 +548,58 @@ static int sysfs_read_iface(struct iface_rec *iface, int host_no, int sid)
 	struct iscsi_transport *t;
 	int ret;
 
-	memset(sysfs_file, 0, PATH_MAX);
-	sprintf(sysfs_file, ISCSI_HOST_DIR"/host%u/hwaddress", host_no);
 	/*
 	 * backward compat
 	 * If we cannot get the address we assume we are doing the old
 	 * style and use default.
 	 */
 	sprintf(iface->hwaddress, DEFAULT_HWADDRESS);
-	ret = read_sysfs_file(sysfs_file, iface->hwaddress, "%s\n");
+	ret = iscsi_sysfs_get_iscsi_host_param(host_no, "hwaddress",
+					       iface->hwaddress, "%s\n");
 	if (ret)
-		log_debug(7, "could not read hwaddress for %s", sysfs_file);
+		log_debug(7, "could not read hwaddress for host%d\n", host_no);
 
-	t = get_transport_by_hba(host_no);
+	t = iscsi_sysfs_get_transport_by_hba(host_no);
 	if (!t)
-		log_debug(7, "could not get transport name for host %d",
+		log_debug(7, "could not get transport name for host%d",
 			  host_no);
 	else
 		strcpy(iface->transport_name, t->name);
 
-	memset(sysfs_file, 0, PATH_MAX);
-	sprintf(sysfs_file, ISCSI_HOST_DIR"/host%u/ipaddress", host_no);
 	/* if not found just print out default */
 	sprintf(iface->ipaddress, DEFAULT_IPADDRESS);
-	ret = read_sysfs_file(sysfs_file, iface->ipaddress, "%s\n");
+	ret = iscsi_sysfs_get_iscsi_host_param(host_no, "ipaddress",
+					       iface->ipaddress, "%s\n");
 	if (ret)
-		log_debug(7, "could not read local address for %s",
-			 sysfs_file);
+		log_debug(7, "could not read local address for host%d\n",
+			  host_no);
 
-	memset(sysfs_file, 0, PATH_MAX);
-	sprintf(sysfs_file, ISCSI_HOST_DIR"/host%u/netdev", host_no);
 	/* if not found just print out default */
 	sprintf(iface->netdev, DEFAULT_NETDEV);
-	ret = read_sysfs_file(sysfs_file, iface->netdev, "%s\n");
+	ret = iscsi_sysfs_get_iscsi_host_param(host_no, "ipaddress",
+					       iface->ipaddress, "%s\n");
 	if (ret)
-		log_debug(7, "could not read netdev for %s",
-			 sysfs_file);
+		log_debug(7, "could not read netdev for host%d\n", host_no);
 
-	memset(sysfs_file, 0, PATH_MAX);
-	sprintf(sysfs_file, ISCSI_HOST_DIR"/host%d/initiatorname", host_no);
-	ret = read_sysfs_file(sysfs_file, iface->iname, "%s\n");
+	ret = iscsi_sysfs_get_iscsi_host_param(host_no, "initiatorname",
+					       iface->iname, "%s\n");
 	if (ret)
-		log_debug(7, "Could not read initiatorname for %s",
-			 sysfs_file);
+		log_debug(7, "Could not read initiatorname for host%d\n",
+			  host_no);
 
 	/*
 	 * this is on the session, because we support multiple bindings
 	 * per device.
 	 */
-	memset(sysfs_file, 0, PATH_MAX);
-	sprintf(sysfs_file, ISCSI_SESSION_DIR"/session%u/ifacename", sid);
+	memset(iface->name, 0, sizeof(iface->name));
 	/*
 	 * this was added after 2.0.869 so we could be doing iscsi_tcp
 	 * session binding, but there may not be a ifacename set
 	 */
-	memset(iface->name, 0, sizeof(iface->name));
-	ret = read_sysfs_file(sysfs_file, iface->name, "%s\n");
+	ret = iscsi_sysfs_get_session_param(sid, "ifacename", iface->name,
+					    "%s\n");
 	if (ret) {
-		log_debug(7, "could not read iface name for %s",
-			 sysfs_file);
+		log_debug(7, "could not read iface name for sid %u\n", sid);
 		/*
  		 * if the ifacename file is not there then we are using a older
  		 * kernel and can try to find the binding by the net info
@@ -513,7 +615,8 @@ static int sysfs_read_iface(struct iface_rec *iface, int host_no, int sid)
 	return ret;
 }
 
-int sysfs_for_each_host(void *data, int *nr_found, sysfs_host_op_fn *fn)
+int iscsi_sysfs_for_each_host(void *data, int *nr_found,
+			      iscsi_sysfs_host_op_fn *fn)
 {
 	struct dirent **namelist;
 	int rc = 0, i, n;
@@ -559,19 +662,78 @@ free_info:
  *
  * return 1 if session has lead conn and 0 if not.
  */
-int sysfs_session_has_leadconn(uint32_t sid)
+int iscsi_sysfs_session_has_leadconn(uint32_t sid)
 {
-	struct stat statb;
+	char devpath[PATH_SIZE];
+	char id[NAME_SIZE];
 
-	memset(sysfs_file, 0, PATH_MAX);
-	sprintf(sysfs_file, ISCSI_CONN_DIR"/connection%u:0", sid);
-	if (!stat(sysfs_file, &statb))
-		return 1;
-	else
-		return 0;
+	snprintf(id, sizeof(id), "connection%u:0", sid);
+	return sysfs_lookup_devpath_by_subsys_id(devpath, sizeof(devpath),
+						 ISCSI_CONN_SUBSYS, id);
 }
 
-int get_sessioninfo_by_sysfs_id(struct session_info *info, char *session)
+/*
+ * iscsi_sysfs_get_sid_from_path - parse a string for the sid
+ * @session: session path
+ *
+ * Given sysfs_device is a directory name of the form:
+ *
+ * /sys/devices/platform/hostH/sessionS/targetH:B:I/H:B:I:L
+ * /sys/devices/platform/hostH/sessionS/targetH:B:I
+ * /sys/devices/platform/hostH/sessionS
+ *
+ * return the sid S. If just the sid is passed in it will be covnerted
+ * to a int.
+ */
+int iscsi_sysfs_get_sid_from_path(char *session)
+{
+	struct sysfs_device *dev_parent, *dev;
+	struct stat statb;
+	char devpath[PATH_SIZE];
+
+	if (lstat(session, &statb)) {
+		log_debug(1, "Could not stat %s failed with %d",
+			  session, errno);
+		if (index(session, '/')) {
+			log_error("%s is an invalid session path\n", session);
+			exit(1);
+		}
+		return atoi(session);
+	}
+
+	if (!S_ISDIR(statb.st_mode) && !S_ISLNK(statb.st_mode)) {
+		log_error("%s is not a directory", session);
+		exit(1);
+	}
+
+	if (!strncmp(session, "/sys", 4))
+		strncpy(devpath, session + 4, sizeof(devpath));
+	else
+		strncpy(devpath, session, sizeof(devpath));
+
+	dev = sysfs_device_get(devpath);
+	if (!dev) {
+		log_error("Could not get dev for %s. Possible sysfs "
+			  "incompatibility.\n", devpath);
+		exit(1);
+	}
+
+	if (!strncmp(dev->kernel, "session", 7))
+		return atoi(dev->kernel_number);
+
+	dev_parent = sysfs_device_get_parent(dev);
+	while (dev_parent != NULL) {
+		if (strncmp(dev_parent->kernel, "session", 7) == 0)
+			return atoi(dev_parent->kernel_number);
+		dev_parent = sysfs_device_get_parent(dev_parent);
+	}
+
+	log_error("Unable to find sid in path %s", session);
+	exit(1);
+	return 0;
+}
+
+int iscsi_sysfs_get_sessioninfo_by_id(struct session_info *info, char *session)
 {
 	int ret, pers_failed = 0;
 	uint32_t host_no;
@@ -581,39 +743,33 @@ int get_sessioninfo_by_sysfs_id(struct session_info *info, char *session)
 		return EINVAL;
 	}
 
-	memset(sysfs_file, 0, PATH_MAX);
-	sprintf(sysfs_file, ISCSI_SESSION_DIR"/%s/targetname", session);
-	ret = read_sysfs_file(sysfs_file, info->targetname, "%s\n");
+	ret = iscsi_sysfs_get_session_param(info->sid, "targetname",
+					    info->targetname, "%s\n");
 	if (ret) {
 		log_error("could not read session targetname: %d", ret);
 		return ret;
 	}
 
-	memset(sysfs_file, 0, PATH_MAX);
-	sprintf(sysfs_file, ISCSI_SESSION_DIR"/%s/tpgt", session);
-	ret = read_sysfs_file(sysfs_file, &info->tpgt, "%u\n");
+	ret = iscsi_sysfs_get_session_param(info->sid, "tpgt", &info->tpgt,
+					    "%u\n");
 	if (ret) {
-		log_error("could not read session tpgt: %d", ret);
+		log_error("could not read session tpgt: %u", ret);
 		return ret;
 	}
 
 	/* some HW drivers do not export addr and port */
-	memset(sysfs_file, 0, PATH_MAX);
-	sprintf(sysfs_file, ISCSI_CONN_DIR"/connection%d:0/"
-		"persistent_address", info->sid);
 	memset(info->persistent_address, 0, NI_MAXHOST);
-	ret = read_sysfs_file(sysfs_file, info->persistent_address, "%s\n");
+	ret = iscsi_sysfs_get_conn_param(info->sid, "persistent_address",
+					 info->persistent_address, "%s\n");
 	if (ret) {
 		pers_failed = 1;
 		/* older qlogic does not support this */
 		log_debug(5, "could not read pers conn addr: %d", ret);
 	}
 
-	memset(sysfs_file, 0, PATH_MAX);
-	sprintf(sysfs_file, ISCSI_CONN_DIR"/connection%d:0/address",
-		 info->sid);
 	memset(info->address, 0, NI_MAXHOST);
-	ret = read_sysfs_file(sysfs_file, info->address, "%s\n");
+	ret = iscsi_sysfs_get_conn_param(info->sid, "address",
+					 info->address, "%s\n");
 	if (ret) {
 		log_debug(5, "could not read curr addr: %d", ret);
 		/* iser did not export this */
@@ -627,21 +783,17 @@ int get_sessioninfo_by_sysfs_id(struct session_info *info, char *session)
 		strcpy(info->persistent_address, info->address);
 	pers_failed = 0;
 
-	memset(sysfs_file, 0, PATH_MAX);
-	sprintf(sysfs_file, ISCSI_CONN_DIR"/connection%d:0/"
-		"persistent_port", info->sid);
 	info->persistent_port = -1;
-	ret = read_sysfs_file(sysfs_file, &info->persistent_port, "%u\n");
+	ret = iscsi_sysfs_get_conn_param(info->sid, "persistent_port",
+					 &info->persistent_port, "%u\n");
 	if (ret) {
 		pers_failed = 1;
 		log_debug(5, "Could not read pers conn port %d", ret);
 	}
 
-	memset(sysfs_file, 0, PATH_MAX);
-	sprintf(sysfs_file, ISCSI_CONN_DIR"/connection%d:0/port",
-		info->sid);
 	info->port = -1;
-	ret = read_sysfs_file(sysfs_file, &info->port, "%u\n");
+	ret = iscsi_sysfs_get_conn_param(info->sid, "port", &info->port,
+					 "%u\n");
 	if (ret) {
 		/* iser did not export this */
 		if (!pers_failed)
@@ -655,9 +807,10 @@ int get_sessioninfo_by_sysfs_id(struct session_info *info, char *session)
 		info->persistent_port = info->port;
 
 	ret = 0;
-	host_no = get_host_no_from_sid(info->sid, &ret);
+	host_no = iscsi_sysfs_get_host_no_from_sid(info->sid, &ret);
 	if (ret) {
-		log_error("could not get host_no for session %d.", ret);
+		log_error("could not get host_no for session%d err %d.",
+			  info->sid, ret);
 		return ret;
 	}
 
@@ -675,7 +828,8 @@ int get_sessioninfo_by_sysfs_id(struct session_info *info, char *session)
 	return 0;
 }
  
-int sysfs_for_each_session(void *data, int *nr_found, sysfs_session_op_fn *fn)
+int iscsi_sysfs_for_each_session(void *data, int *nr_found,
+				 iscsi_sysfs_session_op_fn *fn)
 {
 	struct dirent **namelist;
 	int rc = 0, n, i;
@@ -692,7 +846,8 @@ int sysfs_for_each_session(void *data, int *nr_found, sysfs_session_op_fn *fn)
 		goto free_info;
 
 	for (i = 0; i < n; i++) {
-		rc = get_sessioninfo_by_sysfs_id(info, namelist[i]->d_name);
+		rc = iscsi_sysfs_get_sessioninfo_by_id(info,
+						       namelist[i]->d_name);
 		if (rc) {
 			log_error("could not find session info for %s",
 				   namelist[i]->d_name);
@@ -718,37 +873,56 @@ free_info:
 	return rc;
 }
 
-int get_session_state(char *state, int sid)
+int iscsi_sysfs_get_session_state(char *state, int sid)
 {
-	memset(sysfs_file, 0, PATH_MAX);
-	sprintf(sysfs_file, ISCSI_SESSION_DIR"/session%d/state", sid);
-	return read_sysfs_file(sysfs_file, state, "%s\n");
+	return iscsi_sysfs_get_session_param(sid, "state", state, "%s\n");
 }
 
-int get_host_state(char *state, int host_no)
+int iscsi_sysfs_get_host_state(char *state, int host_no)
 {
-	memset(sysfs_file, 0, PATH_MAX);
-	sprintf(sysfs_file, SCSI_HOST_DIR"/host%d/state", host_no);
-	return read_sysfs_file(sysfs_file, state, "%s\n");
+	return iscsi_sysfs_get_scsi_host_param(host_no, "state", state, "%s\n");
 }
 
-int get_device_state(char *state, int host_no, int target, int lun)
+int iscsi_sysfs_get_device_state(char *state, int host_no, int target, int lun)
 {
-	memset(sysfs_file, 0, PATH_MAX);
-	sprintf(sysfs_file, SCSI_DEVICE_DIR"/%d:0:%d:%d/state",
-		host_no, target, lun);
-	return read_sysfs_file(sysfs_file, state, "%s\n");
+	char id[NAME_SIZE];
+
+	snprintf(id, sizeof(id), "%d:0:%d:%d", host_no, target, lun);
+	if (iscsi_sysfs_get_scsi_dev_param(id, "state", state, "%s\n")) {
+		log_debug(3, "Could not read attr state for %s\n", id);
+		return EIO;
+	}
+
+	return 0;
 }
 
-char *get_blockdev_from_lun(int host_no, int target, int lun)
+char *iscsi_sysfs_get_blockdev_from_lun(int host_no, int target, int lun)
 {
+	char devpath[PATH_SIZE];
+	char path_full[PATH_SIZE];
+	char *path;
+	char id[NAME_SIZE];
 	DIR *dirfd;
 	struct dirent *dent;
+	size_t sysfs_len;
+	struct stat statbuf;
 	char *blockdev, *blockdup = NULL;
 
-	sprintf(sysfs_file, SCSI_DEVICE_DIR"/%d:0:%d:%d",
-		host_no, target, lun);
-	dirfd = opendir(sysfs_file);
+	snprintf(id, sizeof(id), "%d:0:%d:%d", host_no, target, lun);
+	if (!sysfs_lookup_devpath_by_subsys_id(devpath, sizeof(devpath),
+					       SCSI_SUBSYS, id)) {
+		log_debug(3, "Could not lookup devpath for %s %s\n",
+			  SCSI_SUBSYS, id);
+		return NULL;
+	}
+
+	sysfs_len = strlcpy(path_full, sysfs_path, sizeof(path_full));
+	if(sysfs_len >= sizeof(path_full))
+		sysfs_len = sizeof(path_full) - 1;
+	path = &path_full[sysfs_len];
+	strlcat(path_full, devpath, sizeof(path_full));
+
+	dirfd = opendir(path_full);
 	if (!dirfd)
 		return NULL;
 
@@ -760,15 +934,47 @@ char *get_blockdev_from_lun(int host_no, int target, int lun)
 		if (strncmp(dent->d_name, "block:", 5))
 			continue;
 
-		blockdev = strchr(dent->d_name, ':');
-		if (!blockdev)
+		strlcat(path_full, "/", sizeof(path_full));
+		strlcat(path_full, dent->d_name, sizeof(path_full));
+		/*
+		 * 2.6.25 dropped the symlink and now block is a dir.
+		 */
+		if (lstat(path_full, &statbuf)) {
+			log_error("Could not stat block path %s err %d\n",
+				  path_full, errno);
 			break;
-		/* increment past colon */
-		blockdev++;
+		}
 
-		blockdup = strdup(blockdev);
+		if (S_ISLNK(statbuf.st_mode)) {
+			blockdev = strchr(dent->d_name, ':');
+			if (!blockdev)
+				break;
+			/* increment past colon */
+			blockdev++;
+			blockdup = strdup(blockdev);
+		} else if (S_ISDIR(statbuf.st_mode)) {
+			DIR *blk_dirfd;
+			struct dirent *blk_dent;
+
+			/* it should not be this hard should it? :) */
+			blk_dirfd = opendir(path_full);
+			if (!blk_dirfd) {
+				log_debug(3, "Could not open blk path %s\n",
+					  path_full);
+				break;
+			}
+
+			while ((blk_dent = readdir(blk_dirfd))) {
+				if (!strcmp(blk_dent->d_name, ".") ||
+				    !strcmp(blk_dent->d_name, ".."))
+					continue;
+				blockdup = strdup(blk_dent->d_name);
+				break;
+			}
+			closedir(blk_dirfd);
+		}
+
 		break;
-
 	}
 	closedir(dirfd);
 	return blockdup;
@@ -776,14 +982,38 @@ char *get_blockdev_from_lun(int host_no, int target, int lun)
 
 static uint32_t get_target_no_from_sid(uint32_t sid, int *err)
 {
+	char devpath[PATH_SIZE];
+	char path_full[PATH_SIZE];
+	char *path;
+	char id[NAME_SIZE];
 	DIR *dirfd;
 	struct dirent *dent;
 	uint32_t host, bus, target = 0;
+	size_t sysfs_len;
 
 	*err = ENODEV;
 
-	sprintf(sysfs_file, ISCSI_SESSION_DIR"/session%u/device/", sid);
-	dirfd = opendir(sysfs_file);
+	snprintf(id, sizeof(id), "session%u", sid);
+	if (!sysfs_lookup_devpath_by_subsys_id(devpath, sizeof(devpath),
+					       ISCSI_SESSION_SUBSYS, id)) {
+		log_debug(3, "Could not lookup devpath for %s %s\n",
+			  ISCSI_SESSION_SUBSYS, id);
+		return 0;
+	}
+
+	/*
+	 * This does not seem safe from future changes, but we currently
+	 * want /devices/platform/hostY/sessionX, but we come from the
+	 * /class/iscsi_session/sessionX/device.
+	 */
+	sysfs_len = strlcpy(path_full, sysfs_path, sizeof(path_full));
+	if(sysfs_len >= sizeof(path_full))
+		sysfs_len = sizeof(path_full) - 1;
+	path = &path_full[sysfs_len];
+	strlcat(path_full, devpath, sizeof(path_full));
+	strlcat(path_full, "/device", sizeof(devpath));
+
+	dirfd = opendir(path_full);
 	if (!dirfd)
 		return 0;
 
@@ -807,7 +1037,7 @@ static uint32_t get_target_no_from_sid(uint32_t sid, int *err)
 
 }
 
-struct iscsi_transport *get_transport_by_name(char *transport_name)
+struct iscsi_transport *iscsi_sysfs_get_transport_by_name(char *transport_name)
 {
 	struct iscsi_transport *t;
 
@@ -824,7 +1054,7 @@ struct iscsi_transport *get_transport_by_name(char *transport_name)
 }
 
 /* TODO: replace the following functions with some decent sysfs links */
-struct iscsi_transport *get_transport_by_hba(long host_no)
+struct iscsi_transport *iscsi_sysfs_get_transport_by_hba(long host_no)
 {
 	char name[ISCSI_TRANSPORT_NAME_MAXLEN];
 	int rc;
@@ -832,11 +1062,11 @@ struct iscsi_transport *get_transport_by_hba(long host_no)
 	if (host_no == -1)
 		return NULL;
 
-	memset(sysfs_file, 0, PATH_MAX);
-	sprintf(sysfs_file, SCSI_HOST_DIR"/host%lu/proc_name", host_no);
-	rc = read_sysfs_file(sysfs_file, name, "%s\n");
+	rc = iscsi_sysfs_get_scsi_host_param(host_no, "proc_name", name,
+					     "%s\n");
 	if (rc) {
-		log_error("Could not read %s rc %d.", sysfs_file, rc);
+		log_error("Could not read proc_name for host%ld rc %d.",
+			  host_no, rc);
 		return NULL;
 	}
 
@@ -845,20 +1075,20 @@ struct iscsi_transport *get_transport_by_hba(long host_no)
 	 * the modules are named iscsi_tcp and iscsi_iser
 	 */
 	if (strstr(name, "iscsi_"))
-		return get_transport_by_name(name + 6);
+		return iscsi_sysfs_get_transport_by_name(name + 6);
 	else
-		return get_transport_by_name(name);
+		return iscsi_sysfs_get_transport_by_name(name);
 }
 
-struct iscsi_transport *get_transport_by_sid(uint32_t sid)
+struct iscsi_transport *iscsi_sysfs_get_transport_by_sid(uint32_t sid)
 {
 	uint32_t host_no;
 	int err;
 
-	host_no = get_host_no_from_sid(sid, &err);
+	host_no = iscsi_sysfs_get_host_no_from_sid(sid, &err);
 	if (err)
 		return NULL;
-	return get_transport_by_hba(host_no);
+	return iscsi_sysfs_get_transport_by_hba(host_no);
 }
 
 /*
@@ -868,32 +1098,42 @@ struct iscsi_transport *get_transport_by_sid(uint32_t sid)
  * This is only called when the connection is halted so exp_statsn is safe
  * to read without racing.
  */
-int set_exp_statsn(iscsi_conn_t *conn)
+int iscsi_sysfs_get_exp_statsn(int sid)
 {
-	sprintf(sysfs_file,
-		ISCSI_CONN_DIR"/connection%d:%d/exp_statsn",
-		conn->session->id, conn->id);
-	if (read_sysfs_file(sysfs_file, &conn->exp_statsn, "%u\n")) {
-		log_error("Could not read %s. Using zero fpr exp_statsn.",
-			  sysfs_file);
-		conn->exp_statsn = 0;
+	uint32_t exp_statsn = 0;
+
+	if (iscsi_sysfs_get_conn_param(sid, "exp_statsn", &exp_statsn,
+				      "%u\n")) {
+		log_error("Could not read expstatsn for sid %d. "
+			  "Using zero for exp_statsn.", sid);
+		exp_statsn = 0;
 	}
-	return 0;
+	return exp_statsn;
 }
 
-int sysfs_for_each_device(int host_no, uint32_t sid,
-			  void (* fn)(int host_no, int target, int lun))
+int iscsi_sysfs_for_each_device(int host_no, uint32_t sid,
+				void (* fn)(int host_no, int target, int lun))
 {
 	struct dirent **namelist;
 	int h, b, t, l, i, n, err = 0, target;
+	char devpath[PATH_SIZE];
+	char id[NAME_SIZE];
+	char path_full[PATH_SIZE];
 
 	target = get_target_no_from_sid(sid, &err);
 	if (err)
 		return err;
+	snprintf(id, sizeof(id), "session%u", sid);
+	if (!sysfs_lookup_devpath_by_subsys_id(devpath, sizeof(devpath),
+					       ISCSI_SESSION_SUBSYS, id)) {
+		log_debug(3, "Could not lookup devpath for %s %s\n",
+			  ISCSI_SESSION_SUBSYS, id);
+		return EIO;
+	}
 
-	sprintf(sysfs_file, ISCSI_SESSION_DIR"/session%d/device/target%d:0:%d",
-		sid, host_no, target);
-	n = scandir(sysfs_file, &namelist, trans_filter,
+	snprintf(path_full, sizeof(path_full), "%s%s/device/target%d:0:%d",
+		 sysfs_path, devpath, host_no, target);
+	n = scandir(path_full, &namelist, trans_filter,
 		    direntcmp);
 	if (n <= 0)
 		return 0;
@@ -912,63 +1152,37 @@ int sysfs_for_each_device(int host_no, uint32_t sid,
 	return 0;
 }
 
-void set_device_online(int hostno, int target, int lun)
+void iscsi_sysfs_set_device_online(int hostno, int target, int lun)
 {
-	int fd;
+	char *write_buf = "running\n";
+	char id[NAME_SIZE];
+	int err;
 
-	sprintf(sysfs_file, SCSI_DEVICE_DIR"/%d:0:%d:%d/state",
-		hostno, target, lun);
-	fd = open(sysfs_file, O_WRONLY);
-	if (fd < 0)
-		return;
-	log_debug(4, "online device using %s", sysfs_file);
-	if (write(fd, "running\n", 8) == -1 && errno != EINVAL)
+	snprintf(id, sizeof(id), "%d:0:%d:%d", hostno, target, lun);
+	log_debug(4, "online device %s", id);
+
+	err = iscsi_sysfs_set_scsi_dev_param(id, "state", write_buf,
+					     strlen(write_buf));
+	if (err && err != EINVAL)
 		/* we should read the state */
-		log_error("Could not online LUN %d err %d.", lun, errno);
-	close(fd);
+		log_error("Could not online LUN %d err %d.", lun, err);
 }
 
-/* TODO: remove this when we fix shutdown */
-void delete_device(int hostno, int target, int lun)
+void iscsi_sysfs_rescan_device(int hostno, int target, int lun)
 {
-	int fd;
+	char *write_buf = "1";
+	char id[NAME_SIZE];
 
-	sprintf(sysfs_file, SCSI_DEVICE_DIR"/%d:0:%d:%d/delete",
-		hostno, target, lun);
-	fd = open(sysfs_file, O_WRONLY);
-	if (fd < 0)
-		return;
-	log_debug(4, "deleting device using %s", sysfs_file);
-	write(fd, "1", 1);
-	close(fd);
+	snprintf(id, sizeof(id), "%d:0:%d:%d", hostno, target, lun);
+	log_debug(4, "rescanning device %s", id);
+	iscsi_sysfs_set_scsi_dev_param(id, "rescan", write_buf,
+				       strlen(write_buf));
 }
 
-void rescan_device(int hostno, int target, int lun)
+pid_t iscsi_sysfs_scan_host(int hostno, int async)
 {
-	int fd;
-
-	sprintf(sysfs_file, SCSI_DEVICE_DIR"/%d:0:%d:%d/rescan",
-		hostno, target, lun);
-	fd = open(sysfs_file, O_WRONLY);
-	if (fd < 0)
-		return;
-	log_debug(4, "rescanning device using %s", sysfs_file);
-	write(fd, "1", 1);
-	close(fd);
-}
-
-pid_t scan_host(int hostno, int async)
-{
+	char *write_buf = "- - -";
 	pid_t pid = 0;
-	int fd;
-
-	sprintf(sysfs_file, SCSI_HOST_DIR"/host%d/scan",
-		hostno);
-	fd = open(sysfs_file, O_WRONLY);
-	if (fd < 0) {
-		log_error("could not scan scsi host%d.", hostno);
-		return -1;
-	}
 
 	if (async)
 		pid = fork();
@@ -976,7 +1190,9 @@ pid_t scan_host(int hostno, int async)
 		/* child */
 		log_debug(4, "scanning host%d using %s", hostno,
 			  sysfs_file);
-		write(fd, "- - -", 5);
+
+		iscsi_sysfs_set_scsi_host_param(hostno, "scan", write_buf,
+					        strlen(write_buf));
 		log_debug(4, "scanning host%d completed\n", hostno);
 	} else if (pid > 0) {
 		log_debug(4, "scanning host%d from pid %d", hostno, pid);
@@ -988,12 +1204,10 @@ pid_t scan_host(int hostno, int async)
 		log_error("Could not start scanning process for host %d "
 			  "err %d. Try scanning through sysfs.", hostno,
 			  errno);
-
-	close(fd);
 	return pid;
 }
 
-struct iscsi_transport *get_transport_by_session(char *sys_session)
+struct iscsi_transport *iscsi_sysfs_get_transport_by_session(char *sys_session)
 {
 	uint32_t sid;
 
@@ -1002,23 +1216,21 @@ struct iscsi_transport *get_transport_by_session(char *sys_session)
                 return NULL;
         }
 
-	return get_transport_by_sid(sid);
+	return iscsi_sysfs_get_transport_by_sid(sid);
 }
 
-int get_iscsi_kernel_version(char *buf)
+char *iscsi_sysfs_get_iscsi_kernel_version(void)
 {
-	if (read_sysfs_file(ISCSI_VERSION_FILE, buf, "%s\n"))
-		return ENODATA;
-	else
-		return 0;
+	return sysfs_attr_get_value("/module/scsi_transport_iscsi", "version");
 }
 
-int check_class_version(void)
+int iscsi_sysfs_check_class_version(void)
 {
-	char version[20];
+	char *version;
 	int i;
 
-	if (get_iscsi_kernel_version(version))
+	version = iscsi_sysfs_get_iscsi_kernel_version();
+	if (!version)
 		goto fail;
 
 	log_warning("transport class version %s. iscsid version %s",
