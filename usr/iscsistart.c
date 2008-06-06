@@ -126,9 +126,18 @@ static int setup_session(void)
 	iscsiadm_rsp_t rsp;
 	int rc;
 
+	/*
+	 * For root boot we cannot change this so increase to account
+	 * for boot using static setup.
+	 */
+	config_rec.session.initial_login_retry_max = 120;
 	/* we cannot answer so turn off */
 	config_rec.conn[0].timeo.noop_out_interval = 0;
 	config_rec.conn[0].timeo.noop_out_timeout = 0;
+
+	printf("%s: Logging into %s %s:%d,%d\n", program_name, config_rec.name,
+		config_rec.conn[0].address, config_rec.conn[0].port,
+		config_rec.tpgt);
 
 	memset(&req, 0, sizeof(req));
 	req.command = MGMT_IPC_SESSION_LOGIN;
