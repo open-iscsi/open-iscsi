@@ -1946,6 +1946,9 @@ iscsi_session_setup(struct iscsi_transport *iscsit, struct Scsi_Host *shost,
 	struct iscsi_session *session;
 	struct iscsi_cls_session *cls_session;
 	int cmd_i, scsi_cmds, total_cmds = cmds_max;
+
+	if (!total_cmds)
+		total_cmds = ISCSI_DEF_XMIT_CMDS_MAX;
 	/*
 	 * The iscsi layer needs some tasks for nop handling and tmfs,
 	 * so the cmds_max must at least be greater than ISCSI_MGMT_CMDS_MAX
