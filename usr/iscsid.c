@@ -261,16 +261,6 @@ static char *iscsid_get_config_file(void)
 	return daemon_config.config_file;
 }
 
-static void sync_sessions(void)
-{
-	int nr_found = 0;
-
-	if (idbm_init(iscsid_get_config_file))
-		return;
-	iscsi_sysfs_for_each_session(NULL, &nr_found, sync_session);
-	idbm_terminate();
-}
-
 static void iscsid_exit(void)
 {
 	isns_exit();
@@ -385,6 +375,10 @@ int main(int argc, char *argv[])
 		exit(1);
 
 	sysfs_init();
+	if (idbm_init(iscsid_get_config_file)) {
+		log_close(log_pid);
+		exit(1);
+	}
 
 	if (iscsi_sysfs_check_class_version()) {
 		log_close(log_pid);
@@ -482,8 +476,9 @@ int main(int argc, char *argv[])
 
 	pid = fork();
 	if (pid == 0) {
+		int nr_found = 0;
 		/* child */
-		sync_sessions();
+		iscsi_sysfs_for_each_session(NULL, &nr_found, sync_session);
 		exit(0);
 	} else if (pid < 0) {
 		log_error("Fork failed error %d: existing sessions"
@@ -507,6 +502,7 @@ int main(int argc, char *argv[])
 	isns_fd = isns_init();
 	event_loop(ipc, control_fd, mgmt_ipc_fd, isns_fd);
 	iscsid_shutdown();
+	idbm_terminate();
 	sysfs_cleanup();
 	return 0;
 }
