@@ -280,7 +280,18 @@ __kipc_call(void *iov_base, int iov_len)
 							 sizeof(*ev), 0)) < 0) {
 					return rc;
 				}
-				log_error("received iferror %d", ev->iferror);
+				if (ev->iferror == -ENOSYS)
+					/* not fatal so let caller handle log */
+					log_debug(1, "Recieved iferror %d: %s",
+						  ev->iferror,
+						  strerror(ev->iferror));
+				else if (ev->iferror < 0)
+					log_error("Received iferror %d: %s",
+						   ev->iferror,
+						   strerror(ev->iferror));
+				else
+					log_error("Received iferror %d",
+						   ev->iferror);
 				return ev->iferror;
 			}
 			/*
