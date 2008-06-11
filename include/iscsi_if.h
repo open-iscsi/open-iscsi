@@ -260,6 +260,7 @@ enum iscsi_param {
 
 	ISCSI_PARAM_IFACE_NAME,
 	ISCSI_PARAM_ISID,
+	ISCSI_PARAM_INITIATOR_NAME,
 	/* must always be last */
 	ISCSI_PARAM_MAX,
 };
@@ -298,6 +299,7 @@ enum iscsi_param {
 #define ISCSI_RECV_TMO			(1ULL << ISCSI_PARAM_RECV_TMO)
 #define ISCSI_IFACE_NAME		(1ULL << ISCSI_PARAM_IFACE_NAME)
 #define ISCSI_ISID			(1ULL << ISCSI_PARAM_ISID)
+#define ISCSI_INITIATOR_NAME		(1ULL << ISCSI_PARAM_INITIATOR_NAME)
 
 /* iSCSI HBA params */
 enum iscsi_host_param {
@@ -315,13 +317,6 @@ enum iscsi_host_param {
 
 #define iscsi_ptr(_handle) ((void*)(unsigned long)_handle)
 #define iscsi_handle(_ptr) ((uint64_t)(unsigned long)_ptr)
-#define hostdata_session(_hostdata) (iscsi_ptr(*(unsigned long *)_hostdata))
-
-/**
- * iscsi_hostdata - get LLD hostdata from scsi_host
- * @_hostdata: pointer to scsi host's hostdata
- **/
-#define iscsi_hostdata(_hostdata) ((void*)_hostdata + sizeof(unsigned long))
 
 /*
  * These flags presents iSCSI Data-Path capabilities.
