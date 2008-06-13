@@ -188,7 +188,6 @@ iscsi_update_address(iscsi_conn_t *conn, char *address)
 	char *port, *tag;
 	char default_port[NI_MAXSERV];
 	iscsi_session_t *session = conn->session;
-
 	struct sockaddr_storage addr;
 
 	if ((tag = strrchr(address, ','))) {
@@ -204,6 +203,18 @@ iscsi_update_address(iscsi_conn_t *conn, char *address)
 		sprintf(default_port, "%d", ISCSI_LISTEN_PORT);
 		port = default_port;
 	}
+
+	if (*address == '[') {
+		char *end_bracket;
+
+		if (!(end_bracket = strchr(address, ']'))) {
+			log_error("Invalid IPv6 address with opening bracket, "
+				  "but no closing bracket.");
+			return 0;
+		}
+		*end_bracket = '\0';
+		address++;
+        }
 
 	if (resolve_address(address, port, &addr)) {
 		log_error("cannot resolve host name %s", address);
