@@ -48,16 +48,12 @@ display help text and exit
 \fB\-I\fR, \fB\-\-interface\fI[iface]\fR
 The interface argument specifies the iSCSI interface to use for the operation.
 iSCSI interfaces (iface) are defined in /etc/iscsi/ifaces. For hardware
-or offload, the iface config must have the hardware address (iface.hwaddress)
+or the iface config must have the hardware address (iface.hwaddress)
 and the driver/transport_name (iface.transport_name). The iface's name is
 then the filename of the iface config. For software iSCSI, the iface config
 must have either the hardware address (iface.hwaddress), or the network
-layer's interface name (iface.net_ifacename), or the IP address of the
-NIC (iface.ipaddress), and it must have the driver/transport_name
-(iface.transport_name). Note that for software iSCSI using specifying the
-IP address does not bind the session through a specific NIC. We allow the
-network layer to decide which NIC to use, but packets from this host will
-use the address specific.
+layer's interface name (iface.net_ifacename), and it must have the
+driver/transport_name
 
 The available drivers/iscsi_transports are tcp (software iSCSI over TCP/IP),
 iser (software iSCSI over infinniband), or qla4xxx (Qlogic 4XXXX HBAs). The
@@ -66,6 +62,11 @@ value "default" which directs the initiator to not bind the session to a
 specific hardware resource and instead allow the network or infinniband layer
 to decide what to do. There is no need to create a iface config with the default
 behavior. If you do not specify a iface, then the default behavior is used.
+
+As mentioned above there is a special iface name default. There are two others
+bnx2i and iser, which does not bind the session to a specific card, but
+will bind the session to either the bnx2i or iser transport. These are
+experimental and the use is not supported as a stable interface yet.
 
 In discovery mode multiple interfaces can be specific by passing in multiple
 -I/--interface instances. For example, 

@@ -1875,11 +1875,34 @@ static int exec_node_op(int op, int do_login, int do_logout,
 			goto out;
 		}
 
-		if (!strncmp(name, "iface.", 6)) {
+		/* compat - old tools used node and iface transport name */
+		if (!strncmp(name, "iface.", 6) &&
+		     strcmp(name, "iface.transport_name")) {
 			log_error("Cannot modify %s. Use iface mode to update "
 				  "this value.", name);
 			rc = -1;
 			goto out;
+		}
+
+		if (!strcmp(name, "node.transport_name"))
+			name = "iface.transport_name";
+		/*
+		 * tmp hack - we added compat crap above for the transport,
+		 * but want to fix Doran's issue in this release too. However
+		 * his patch is too harsh on many settings and we do not have
+		 * time to update apps so we have this tmp hack until we
+		 * can settle on a good interface that distros can use
+		 * and we can mark stable.
+		 */
+		if (!strcmp(name, "iface.transport_name")) {
+			if (check_for_session_through_iface(rec)) {
+				log_warning("Cannot modify node/iface "
+					    "transport name while a session "
+					    "is using it. Log out the session "
+					    "then update record.");
+				rc = -1;
+				goto out;
+			}
 		}
 
 		set_param.name = name;

@@ -184,8 +184,27 @@ int iface_conf_read(struct iface_rec *iface)
 
 	def_iface = iface_match_default(iface);
 	if (def_iface) {
-		iface_init(iface);
-		iface_copy(iface, def_iface);
+		/*
+		 * older tools allowed default to have different
+		 * transport_names so we do not want to overwrite
+		 * it.
+		 */
+		if (!strcmp(def_iface->name, DEFAULT_IFACENAME)) {
+			if (!strlen(iface->name))
+				strcpy(iface->name, def_iface->name);
+			if (!strlen(iface->netdev))
+				strcpy(iface->netdev, def_iface->netdev);
+			if (!strlen(iface->hwaddress))
+				strcpy(iface->hwaddress, def_iface->hwaddress);
+			if (!strlen(iface->transport_name))
+				strcpy(iface->transport_name,
+				       def_iface->transport_name);
+			if (!strlen(iface->iname))
+				strcpy(iface->iname, def_iface->iname);
+		} else {
+			iface_init(iface);
+			iface_copy(iface, def_iface);
+		}
 		return 0;
 	}
 
@@ -380,14 +399,20 @@ static int __iface_get_by_net_binding(void *data, struct iface_rec *iface)
  * iface binding so we added the ifacename to the kernel.
  *
  * This function is for older kernels that do not export the ifacename.
- * If the user was doing iscsi_tcp session binding or using qla4xxx
- * we will find the iface by matching the hwaddres or netdev.
+ * If the user was doing iscsi_tcp session binding we will find
+ * the iface by matching net info.
  */
 int iface_get_by_net_binding(struct iface_rec *pattern,
-			   struct iface_rec *out_rec)
+			     struct iface_rec *out_rec)
 {
 	int num_found = 0, rc;
 	struct iface_search search;
+
+	if (!iface_is_bound_by_hwaddr(pattern) &&
+	    !iface_is_bound_by_netdev(pattern)) {
+		sprintf(out_rec->name, DEFAULT_IFACENAME);
+		return 0;
+	}
 
 	search.pattern = pattern;
 	search.found = out_rec;
@@ -396,20 +421,6 @@ int iface_get_by_net_binding(struct iface_rec *pattern,
 				  __iface_get_by_net_binding);
 	if (rc == 1)
 		return 0;
-
-	if (iface_is_bound_by_hwaddr(pattern) ||
-	    iface_is_bound_by_netdev(pattern))
-		return ENODEV;
-
-	/*
-	 * compat for default behavior
-	 */
-	if (!strlen(pattern->name) ||
-	    !strcmp(pattern->name, DEFAULT_IFACENAME)) {
-		iface_setup_defaults(out_rec);
-		return 0;
-	}
-
 	return ENODEV;
 }
 
@@ -433,7 +444,7 @@ static int __iface_setup_host_bindings(void *data, struct host_info *info)
 	 * since this is only for qla4xxx we only care about finding
 	 * a iface with a matching hwaddress.
 	 */
-	if (iface_get_by_net_binding(&info->iface, &iface)) {
+	if (iface_get_by_net_binding(&info->iface, &iface) == ENODEV) {
 		/* Must be a new port */
 		id = iface_get_next_id();
 		if (id < 0) {
@@ -524,9 +535,20 @@ int iface_match(struct iface_rec *pattern, struct iface_rec *iface)
 	if (!strlen(pattern->name))
 		return 1;
 
-	if (!strcmp(pattern->name, iface->name))
-		return 1;
+	if (!strcmp(pattern->name, iface->name)) {
+		if (strcmp(pattern->name, DEFAULT_IFACENAME))
+			return 1;
+		/*
+		 * For default we allow the same name, but different
+		 * transports.
+		 */
+		if (!strlen(pattern->transport_name))
+			return 1;
 
+		if (!strcmp(pattern->transport_name, iface->transport_name))
+			return 1;
+		/* fall through */
+	}
 	return 0;
 }
 

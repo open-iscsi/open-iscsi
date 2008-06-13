@@ -553,11 +553,12 @@ static int sysfs_read_iface(struct iface_rec *iface, int host_no, int sid)
 	 * If we cannot get the address we assume we are doing the old
 	 * style and use default.
 	 */
-	sprintf(iface->hwaddress, DEFAULT_HWADDRESS);
 	ret = iscsi_sysfs_get_iscsi_host_param(host_no, "hwaddress",
 					       iface->hwaddress, "%s\n");
-	if (ret)
+	if (ret) {
+		sprintf(iface->hwaddress, DEFAULT_HWADDRESS);
 		log_debug(7, "could not read hwaddress for host%d\n", host_no);
+	}
 
 	t = iscsi_sysfs_get_transport_by_hba(host_no);
 	if (!t)
@@ -567,23 +568,26 @@ static int sysfs_read_iface(struct iface_rec *iface, int host_no, int sid)
 		strcpy(iface->transport_name, t->name);
 
 	/* if not found just print out default */
-	sprintf(iface->ipaddress, DEFAULT_IPADDRESS);
 	ret = iscsi_sysfs_get_iscsi_host_param(host_no, "ipaddress",
 					       iface->ipaddress, "%s\n");
-	if (ret)
+	if (ret) {
+		sprintf(iface->ipaddress, DEFAULT_IPADDRESS);
 		log_debug(7, "could not read local address for host%d\n",
 			  host_no);
+	}
 
 	/* if not found just print out default */
-	sprintf(iface->netdev, DEFAULT_NETDEV);
-	ret = iscsi_sysfs_get_iscsi_host_param(host_no, "ipaddress",
-					       iface->ipaddress, "%s\n");
-	if (ret)
+	ret = iscsi_sysfs_get_iscsi_host_param(host_no, "netdev",
+					       iface->netdev, "%s\n");
+	if (ret) {
+		sprintf(iface->netdev, DEFAULT_NETDEV);
 		log_debug(7, "could not read netdev for host%d\n", host_no);
+	}
 
 	ret = iscsi_sysfs_get_iscsi_host_param(host_no, "initiatorname",
 					       iface->iname, "%s\n");
 	if (ret)
+		/* default iname is picked up later from initiatorname.iscsi */
 		log_debug(7, "Could not read initiatorname for host%d\n",
 			  host_no);
 
@@ -605,10 +609,7 @@ static int sysfs_read_iface(struct iface_rec *iface, int host_no, int sid)
  		 * kernel and can try to find the binding by the net info
  		 * which was used on these older kernels.
  		 */
-		if (!iface_is_bound_by_hwaddr(iface) &&
-		    !iface_is_bound_by_netdev(iface))
-			sprintf(iface->name, DEFAULT_IFACENAME);
-		else if (iface_get_by_net_binding(iface, iface))
+		if (iface_get_by_net_binding(iface, iface))
 			log_debug(7, "Could not find iface for session bound "
 				  "to:" iface_fmt "\n", iface_str(iface));
 	}
