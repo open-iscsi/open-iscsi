@@ -1189,8 +1189,7 @@ pid_t iscsi_sysfs_scan_host(int hostno, int async)
 		pid = fork();
 	if (pid == 0) {
 		/* child */
-		log_debug(4, "scanning host%d using %s", hostno,
-			  sysfs_file);
+		log_debug(4, "scanning host%d", hostno);
 
 		iscsi_sysfs_set_scsi_host_param(hostno, "scan", write_buf,
 					        strlen(write_buf));

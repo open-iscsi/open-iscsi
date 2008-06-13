@@ -1619,8 +1619,13 @@ static void iscsi_recv_login_rsp(struct iscsi_conn *conn)
 
 	return;
 retry:
-	/* force retry */
-	session->r_stage = R_STAGE_SESSION_REOPEN;
+	/*
+	 * If this is not the initial login attempt force a retry. If this
+	 * is the initial attempt we follow the login_retry count.
+	 */
+	if (session->r_stage != R_STAGE_NO_CHANGE &&
+	    session->r_stage != R_STAGE_SESSION_REDIRECT)
+		session->r_stage = R_STAGE_SESSION_REOPEN;
 	iscsi_login_eh(conn, c->qtask, MGMT_IPC_ERR_LOGIN_FAILURE);
 	return;
 failed:
