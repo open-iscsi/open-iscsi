@@ -56,8 +56,6 @@
  * TODO: make this into a real API and check inputs better and add doc.
  */
 
-/* tmp buffer used by sysfs functions */
-static char sysfs_file[PATH_MAX];
 static int num_transports;
 LIST_HEAD(transports);
 
@@ -840,8 +838,7 @@ int iscsi_sysfs_for_each_session(void *data, int *nr_found,
 	if (!info)
 		return ENOMEM;
 
-	sprintf(sysfs_file, ISCSI_SESSION_DIR);
-	n = scandir(sysfs_file, &namelist, trans_filter,
+	n = scandir(ISCSI_SESSION_DIR, &namelist, trans_filter,
 		    direntcmp);
 	if (n <= 0)
 		goto free_info;
