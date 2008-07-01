@@ -1498,7 +1498,15 @@ static int idbm_rec_write(node_rec_t *rec)
 
 	if (!S_ISDIR(statb.st_mode)) {
 		/*
-		 * Old style portal as a file. Let's update it.
+		 * older iscsiadm versions had you create the config then set
+		 * set the tgpt. In new versions you must pass all the info in
+		 * from the start
+		 */
+		if (rec->tpgt == PORTAL_GROUP_TAG_UNKNOWN)
+			/* drop down to old style portal as config */
+			goto open_conf;
+		/*
+		 * Old style portal as a file, but with tpgt. Let's update it.
 		 */
 		if (unlink(portal)) {
 			log_error("Could not convert %s. err %d\n", portal,
