@@ -311,10 +311,10 @@ index cfc5fa6..ede08ef 100644
  struct scsi_device;
 diff --git a/open_iscsi_compat.h b/open_iscsi_compat.h
 new file mode 100644
-index 0000000..7ea4643
+index 0000000..ecd48df
 --- /dev/null
 +++ b/open_iscsi_compat.h
-@@ -0,0 +1,270 @@
+@@ -0,0 +1,303 @@
 +#include <linux/version.h>
 +#include <linux/kernel.h>
 +#include <scsi/scsi.h>
@@ -468,11 +468,20 @@ index 0000000..7ea4643
 +#endif
 +
 +#if LINUX_VERSION_CODE <= KERNEL_VERSION(2,6,20)
-+
++#ifdef RHEL_RELEASE_VERSION
++#if RHEL_RELEASE_CODE < RHEL_RELEASE_VERSION(5,2)
 +static inline int is_power_of_2(unsigned long n)
 +{
 +	return (n != 0 && ((n & (n - 1)) == 0));
 +}
++#endif
++#else
++/* not a redhat kernel */
++static inline int is_power_of_2(unsigned long n)
++{
++	return (n != 0 && ((n & (n - 1)) == 0));
++}
++#endif
 +#endif
 +
 +#if LINUX_VERSION_CODE <= KERNEL_VERSION(2,6,21)
@@ -485,11 +494,20 @@ index 0000000..7ea4643
 +#endif
 +
 +#if LINUX_VERSION_CODE <= KERNEL_VERSION(2,6,22)
-+
++#ifdef RHEL_RELEASE_VERSION
++#if RHEL_RELEASE_CODE < RHEL_RELEASE_VERSION(5,2)
 +static inline void *shost_priv(struct Scsi_Host *shost)
 +{
 +	return (void *)shost->hostdata;
 +}
++#endif
++#else
++/* not a redhat kernel */
++static inline void *shost_priv(struct Scsi_Host *shost)
++{
++	return (void *)shost->hostdata;
++}
++#endif
 +
 +/*
 + * Note: We do not support bidi for the compat modules if the kernel
@@ -499,6 +517,8 @@ index 0000000..7ea4643
 +#define scsi_sglist(cmd) ((struct scatterlist *)(cmd)->request_buffer)
 +#define scsi_bufflen(cmd) ((cmd)->request_bufflen)
 +
++#ifdef RHEL_RELEASE_VERSION
++#if RHEL_RELEASE_CODE < RHEL_RELEASE_VERSION(5,2)
 +static inline void scsi_set_resid(struct scsi_cmnd *cmd, int resid)
 +{
 +	cmd->resid = resid;
@@ -508,6 +528,19 @@ index 0000000..7ea4643
 +{
 +	return cmd->resid;
 +}
++#endif
++#else
++/* not a redhat kernel */
++static inline void scsi_set_resid(struct scsi_cmnd *cmd, int resid)
++{
++	cmd->resid = resid;
++}
++
++static inline int scsi_get_resid(struct scsi_cmnd *cmd)
++{
++	return cmd->resid;
++}
++#endif
 +
 +#endif
 +
