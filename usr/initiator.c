@@ -1932,45 +1932,49 @@ session_login_task(node_rec_t *rec, queue_task_t *qtask)
 	     rec->session.iscsi.ERL != 0) ||
 	    (!(t->caps & CAP_RECOVERY_L1) &&
 	     rec->session.iscsi.ERL > 1)) {
-		log_error("transport '%s' does not support ERL %d",
+		log_error("Transport '%s' does not support ERL %d."
+			  "Setting ERL to ERL0.\n",
 			  t->name, rec->session.iscsi.ERL);
-		return MGMT_IPC_ERR_TRANS_CAPS;
+		rec->session.iscsi.ERL = 0;
 	}
 
 	if (!(t->caps & CAP_MULTI_R2T) &&
 	    rec->session.iscsi.MaxOutstandingR2T) {
-		log_error("transport '%s' does not support "
-			  "MaxOutstandingR2T %d", t->name,
+		log_error("Transport '%s' does not support "
+			  "MaxOutstandingR2T %d. Setting "
+			  "MaxOutstandingR2T to 1.", t->name,
 			  rec->session.iscsi.MaxOutstandingR2T);
-		return MGMT_IPC_ERR_TRANS_CAPS;
+		rec->session.iscsi.MaxOutstandingR2T = 1;		
 	}
 
 	if (!(t->caps & CAP_HDRDGST) &&
 	    rec->conn[0].iscsi.HeaderDigest) {
-		log_error("transport '%s' does not support "
-			  "HeaderDigest != None", t->name);
-		return MGMT_IPC_ERR_TRANS_CAPS;
+		log_error("Transport '%s' does not support "
+			  "HeaderDigest != None. Setting HeaderDigest "
+			  "to None.", t->name);
+		rec->conn[0].iscsi.HeaderDigest = CONFIG_DIGEST_NEVER;
 	}
 
 	if (!(t->caps & CAP_DATADGST) &&
 	    rec->conn[0].iscsi.DataDigest) {
-		log_error("transport '%s' does not support "
-			  "DataDigest != None", t->name);
-		return MGMT_IPC_ERR_TRANS_CAPS;
+		log_error("Transport '%s' does not support "
+			  "DataDigest != None. Setting DataDigest "
+			  "to None", t->name);
+		rec->conn[0].iscsi.DataDigest = CONFIG_DIGEST_NEVER;
 	}
 
 	if (!(t->caps & CAP_MARKERS) &&
 	    rec->conn[0].iscsi.IFMarker) {
-		log_error("transport '%s' does not support IFMarker",
-			  t->name);
-		return MGMT_IPC_ERR_TRANS_CAPS;
+		log_error("Transport '%s' does not support IFMarker. "
+			  "Disabling IFMarkers.\n", t->name);
+		rec->conn[0].iscsi.IFMarker = 0;
 	}
 
 	if (!(t->caps & CAP_MARKERS) &&
 	    rec->conn[0].iscsi.OFMarker) {
-		log_error("transport '%s' does not support OFMarker",
-			  t->name);
-		return MGMT_IPC_ERR_TRANS_CAPS;
+		log_error("Transport '%s' does not support OFMarker.",
+			  "Disabling OFMarkers.\n", t->name);
+		rec->conn[0].iscsi.OFMarker = 0;
 	}
 
 	session = __session_create(rec, t);
