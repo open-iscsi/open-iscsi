@@ -71,11 +71,14 @@ static int logarea_init (int size)
 	logdbg(stderr,"enter logarea_init\n");
 
 	if ((shmid = shmget(IPC_PRIVATE, sizeof(struct logarea),
-			    0644 | IPC_CREAT | IPC_EXCL)) == -1)
+			    0644 | IPC_CREAT | IPC_EXCL)) == -1) {
+		syslog(LOG_ERR, "shmget logarea failed %d", errno);
 		return 1;
+	}
 
 	la = shmat(shmid, NULL, 0);
 	if (!la) {
+		syslog(LOG_ERR, "shmat logarea failed %d", errno);
 		shmctl(shmid, IPC_RMID, NULL);
 		return 1;
 	}
@@ -89,6 +92,7 @@ static int logarea_init (int size)
 
 	if ((shmid = shmget(IPC_PRIVATE, size,
 			    0644 | IPC_CREAT | IPC_EXCL)) == -1) {
+		syslog(LOG_ERR, "shmget msg failed %d", errno);
 		free_logarea();
 		return 1;
 	}
@@ -96,6 +100,7 @@ static int logarea_init (int size)
 
 	la->start = shmat(la->shmid_msg, NULL, 0);
 	if (!la->start) {
+		syslog(LOG_ERR, "shmat msg failed %d", errno);
 		free_logarea();
 		return 1;
 	}
@@ -108,22 +113,26 @@ static int logarea_init (int size)
 
 	if ((shmid = shmget(IPC_PRIVATE, MAX_MSG_SIZE + sizeof(struct logmsg),
 			    0644 | IPC_CREAT | IPC_EXCL)) == -1) {
+		syslog(LOG_ERR, "shmget logmsg failed %d", errno);
 		free_logarea();
 		return 1;
 	}
 	la->buff = shmat(shmid, NULL, 0);
 	if (!la->buff) {
+		syslog(LOG_ERR, "shmat logmsgfailed %d", errno);
 		free_logarea();
 		return 1;
 	}
 
 	if ((la->semid = semget(SEMKEY, 1, 0600 | IPC_CREAT)) < 0) {
+		syslog(LOG_ERR, "semget failed %d", errno);
 		free_logarea();
 		return 1;
 	}
 
 	la->semarg.val=1;
 	if (semctl(la->semid, 0, SETVAL, la->semarg) < 0) {
+		syslog(LOG_ERR, "semctl failed %d", errno);
 		free_logarea();
 		return 1;
 	}
@@ -390,8 +399,10 @@ int log_init(char *program_name, int size)
 		openlog(log_name, 0, LOG_DAEMON);
 		setlogmask (LOG_UPTO (LOG_DEBUG));
 
-		if (logarea_init(size))
+		if (logarea_init(size)) {
+			syslog(LOG_ERR, "logarea init failed");
 			return -1;
+		}
 
 		pid = fork();
 		if (pid < 0) {
