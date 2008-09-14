@@ -20,6 +20,7 @@
 # - iser (Software iSCSI over infinniband
 # - qla4xxx (Qlogic QLA4XXX HBAs)
 # - bnx2i (Broadcom bnx iSCSI HBAs);
+# - cxgb3i (Chelsio cxgb S3 iSCSI HBAs);
 #
 #OPTIONAL: iface.initiatorname
 # To use a initiator name other than the one set in
@@ -51,3 +52,11 @@
 
 # Note you can only bind using one value. If you set multiple values
 # the bahavior is not defined.
+
+# For some transport (cxgb3i), a user could to set the private ip address for
+# the iscsi traffic for an network interface:
+# example:
+#  - set iscsi ip on eth0 to be 102.50.50.101, eth0 needs to be up and be on
+#    the same subnet.
+# iface.net_ifacename = eth0
+# iface.ipaddress = 102.50.50.101

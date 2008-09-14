@@ -63,10 +63,9 @@ specific hardware resource and instead allow the network or infinniband layer
 to decide what to do. There is no need to create a iface config with the default
 behavior. If you do not specify a iface, then the default behavior is used.
 
-As mentioned above there is a special iface name default. There are two others
-bnx2i and iser, which does not bind the session to a specific card, but
-will bind the session to either the bnx2i or iser transport. These are
-experimental and the use is not supported as a stable interface yet.
+As mentioned above there is a special iface name default. There are three
+others -- cxgb3i, bnx2i and iser, which does not bind the session to a specific card, but will bind the session to the cxgb3i, bnx2i or iser transport. These
+are experimental and the use is not supported as a stable interface yet.
 
 In discovery mode multiple interfaces can be specific by passing in multiple
 -I/--interface instances. For example, 

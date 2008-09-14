@@ -147,12 +147,21 @@ try_login()
 set_transport()
 {
 	transport=$1
-	if [ "$transport" == "iser" ];then
+	case "$transport" in
+	iser)
+		# iSER does not use digest
 		iscsiadm -m node --targetname ${target} --portal ${portal} \
-				--op update -n node.conn[0].iscsi.HeaderDigest -v None
+			--op update -n node.conn[0].iscsi.HeaderDigest -v None
 		iscsiadm -m node --targetname ${target} --portal ${portal} \
-				--op update -n node.conn[0].iscsi.DataDigest -v None
-	fi
+			--op update -n node.conn[0].iscsi.DataDigest -v None
+		;;
+	cxgb3i)
+		# cxgb3i supports <= 16K packet (BHS + AHS + pdu payload + digests)
+		iscsiadm -m node --targetname ${target} --portal ${portal} \
+			--op update -n node.conn[0].iscsi.MaxRecvDataSegmentLength \
+			-v 8192
+		;;
+	esac
 	transport_name=`iscsiadm  -m node -p ${portal} -T ${target} |awk '/transport_name/ {print $1}'`
 	iscsiadm -m node --targetname ${target} --portal ${portal} \
 			--op update -n ${transport_name} -v ${transport}
