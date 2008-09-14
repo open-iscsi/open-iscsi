@@ -52,7 +52,8 @@ all: kernel_check
 16suse_patch=2.6.16-suse.patch
 20to21_patch=2.6.20-21_compat.patch
 24_patch=2.6.24_compat.patch
-all_patches=14to21_patch 20to21_patch 24_patch
+26_patch=2.6.26_compat.patch
+all_patches=14to21_patch 20to21_patch 24_patch 26_patch
 cur_patched=cur_patched
 
 ## fun stuff for maintaining multiple versions
@@ -99,7 +100,7 @@ linux_2_6_24: has_24_patch
 
 linux_2_6_25: has_24_patch
 
-linux_2_6_26: $(unpatch_code)
+linux_2_6_26: has_26_patch
 
 linux_2_6_27: $(unpatch_code)
 
@@ -139,13 +140,23 @@ has_20to21_patch: $(20to21_patch)
 	ln -s $@ $(cur_patched)
 
 has_24_patch: $(24_patch)
-	echo "Patching source code for linux-2.6.24 ..."
+	echo "Patching source code for linux-2.6.24-25 ..."
 	if [ -e $(cur_patched) ]; then \
 		make -C . clean; \
 	fi
 	patch -p1 < $(24_patch)
 	cp $(24_patch) $@
 	ln -s $@ $(cur_patched)
+
+has_26_patch: $(26_patch)
+	echo "Patching source code for linux-2.6.26 ..."
+	if [ -e $(cur_patched) ]; then \
+		make -C . clean; \
+	fi
+	patch -p1 < $(26_patch)
+	cp $(26_patch) $@
+	ln -s $@ $(cur_patched)
+
 
 # ============ END code for kernel_check and source patching =================
 
