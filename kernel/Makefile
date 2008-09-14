@@ -49,7 +49,6 @@ all: kernel_check
 
 #some constants
 14to19_patch=2.6.14-19_compat.patch
-16suse_patch=2.6.16-suse.patch
 20to21_patch=2.6.20-21_compat.patch
 24_patch=2.6.24_compat.patch
 26_patch=2.6.26_compat.patch
@@ -64,12 +63,6 @@ unpatch_code=$(shell test -e $(cur_patched) && echo do_unpatch_code )
 KSUBLEVEL = $(shell cat $(KSRC)/Makefile | awk -F= '/^SUBLEVEL =/ {print $$2}' | \
 		sed 's/^[ \t]*//;s/[ \t]*$$//')
 
-ifeq (16, ${KSUBLEVEL})
-KERNEL_SUSE = $(shell cat $(KBUILD_OUTPUT)/.config | sed -n '/^CONFIG_SUSE_KERNEL=y/p')
-ifneq (${KERNEL_SUSE}, undefined)
-KSUBLEVEL := 16-suse
-endif
-endif
 
 KERNEL_TARGET=linux_2_6_$(KSUBLEVEL)
 kernel_check: $(KERNEL_TARGET)
@@ -79,8 +72,6 @@ linux_2_6_14: has_14to19_patch
 linux_2_6_15: has_14to19_patch
 
 linux_2_6_16: has_14to19_patch
-
-linux_2_6_16-suse: has_16suse_patch
 
 linux_2_6_17: has_14to19_patch
 
@@ -119,15 +110,6 @@ has_14to19_patch: $(14to19_patch)
 	fi
 	patch -p1 < $(14to19_patch)
 	cp $(14to19_patch) $@
-	ln -s $@ $(cur_patched)
-
-has_16suse_patch: $(16suse_patch)
-	echo "Patching source code for linux-2.6.16 SLES10 SP2 ..."
-	if [ -e $(cur_patched) ]; then \
-		make -C . clean; \
-	fi
-	patch -p1 < $(16suse_patch)
-	cp $(16suse_patch) $@
 	ln -s $@ $(cur_patched)
 
 has_20to21_patch: $(20to21_patch)
