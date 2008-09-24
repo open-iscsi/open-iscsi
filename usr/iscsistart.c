@@ -130,7 +130,7 @@ static int setup_session(void)
 	 * For root boot we cannot change this so increase to account
 	 * for boot using static setup.
 	 */
-	config_rec.session.initial_login_retry_max = 120;
+	config_rec.session.initial_login_retry_max = 30;
 	/* we cannot answer so turn off */
 	config_rec.conn[0].timeo.noop_out_interval = 0;
 	config_rec.conn[0].timeo.noop_out_timeout = 0;

@@ -24,6 +24,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <errno.h>
+#include <sys/time.h>
 
 #include "initiator.h"
 #include "transport.h"
@@ -773,13 +774,45 @@ session_conn_reopen(iscsi_conn_t *conn, queue_task_t *qtask, int do_stop)
 	__session_conn_reopen(conn, qtask, do_stop, 0);
 }
 
+static int iscsi_retry_initial_login(struct iscsi_conn *conn)
+{
+	int initial_login_retry_max;
+	struct timeval now, timeout, fail_time;
+
+	initial_login_retry_max =
+			conn->session->nrec.session.initial_login_retry_max;
+
+	memset(&now, 0, sizeof(now));
+	memset(&timeout, 0, sizeof(timeout));
+	memset(&fail_time, 0, sizeof(fail_time));
+
+	timeout.tv_sec = initial_login_retry_max * conn->login_timeout;
+	if (gettimeofday(&now, NULL)) {
+		log_error("Could not get time of day. Dropping down to "
+			  "max retry check.\n");
+		return initial_login_retry_max > conn->session->reopen_cnt;
+	}
+	timeradd(&conn->initial_connect_time, &timeout, &fail_time);
+
+	/*
+	 * if we have been trying for login_retry_max * login_timeout
+	 * then it is time to give up
+	 */
+	if (timercmp(&now, &fail_time, >)) {
+		log_debug(1, "Giving up on initial login attempt after "
+			  "%u seconds.\n",
+			  initial_login_retry_max * conn->login_timeout);
+		return 0;
+	}
+
+	return 1;
+}
+
 static void iscsi_login_eh(struct iscsi_conn *conn, struct queue_task *qtask,
 			   mgmt_ipc_err_e err)
 {
 	struct iscsi_session *session = conn->session;
-	int initial_login_retry_max;
 
-	initial_login_retry_max = session->nrec.session.initial_login_retry_max;
 	log_debug(3, "iscsi_login_eh");
 	/*
 	 * Flush polls and other events
@@ -791,12 +824,10 @@ static void iscsi_login_eh(struct iscsi_conn *conn, struct queue_task *qtask,
 		switch (session->r_stage) {
 		case R_STAGE_NO_CHANGE:
 			log_debug(6, "login failed STATE_XPT_WAIT/"
-				  "R_STAGE_NO_CHANGE (%d/%d)",
-				  session->reopen_cnt,
-				  initial_login_retry_max);
+				  "R_STAGE_NO_CHANGE");
 			/* timeout during initial connect.
 			 * clean connection. write ipc rsp or retry */
-			if (initial_login_retry_max < session->reopen_cnt + 1)
+			if (!iscsi_retry_initial_login(conn))
 				session_conn_shutdown(conn, qtask, err);
 			else {
 				session->reopen_cnt++;
@@ -808,12 +839,10 @@ static void iscsi_login_eh(struct iscsi_conn *conn, struct queue_task *qtask,
 			break;
 		case R_STAGE_SESSION_REDIRECT:
 			log_debug(6, "login failed STATE_XPT_WAIT/"
-				  "R_STAGE_SESSION_REDIRECT (%d/%d)",
-				  session->reopen_cnt,
-				  initial_login_retry_max);
+				  "R_STAGE_SESSION_REDIRECT");
 			/* timeout during initial redirect connect
 			 * clean connection. write ipc rsp or retry */
-			if (initial_login_retry_max < session->reopen_cnt + 1)
+			if (!iscsi_retry_initial_login(conn))
 				session_conn_shutdown(conn, qtask, err);
 			else
 				session_conn_reopen(conn, qtask, 0);
@@ -845,7 +874,7 @@ static void iscsi_login_eh(struct iscsi_conn *conn, struct queue_task *qtask,
 			 * initial redirected connect. Clean connection
 			 * and write rsp or retry.
 			 */
-			if (initial_login_retry_max < session->reopen_cnt + 1)
+			if (!iscsi_retry_initial_login(conn))
 				session_conn_shutdown(conn, qtask, err);
 			else
 				session_conn_reopen(conn, qtask,
@@ -1996,6 +2025,11 @@ session_login_task(node_rec_t *rec, queue_task_t *qtask)
 		__session_destroy(session);
 		return MGMT_IPC_ERR_TRANS_FAILURE;
 	}
+
+	if (gettimeofday(&conn->initial_connect_time, NULL))
+		log_error("Could not get initial connect time. If "
+			  "login errors iscsid may give up the initial "
+			  "login early. You should manually login.");
 
 	qtask->rsp.command = MGMT_IPC_SESSION_LOGIN;
 	qtask->rsp.err = MGMT_IPC_OK;

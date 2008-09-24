@@ -22,6 +22,7 @@
 
 #include <stdint.h>
 #include <net/if.h>
+#include <sys/time.h>
 
 #include "types.h"
 #include "iscsi_proto.h"
@@ -125,6 +126,7 @@ typedef struct iscsi_conn {
 	iscsi_conn_state_e state;
 	int userspace_nop;
 
+	struct timeval initial_connect_time;
 	actor_t login_timer;
 	actor_t nop_out_timer;
 
