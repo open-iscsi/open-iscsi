@@ -1,5 +1,5 @@
 diff --git a/iscsi_tcp.c b/iscsi_tcp.c
-index 908b541..dfd8e31 100644
+index d074146..4a01066 100644
 --- a/iscsi_tcp.c
 +++ b/iscsi_tcp.c
 @@ -426,6 +426,17 @@ iscsi_segment_seek_sg(struct iscsi_segment *segment,
@@ -20,25 +20,16 @@ index 908b541..dfd8e31 100644
  	__iscsi_segment_init(segment, size, done, hash);
  	for_each_sg(sg_list, sg, sg_count, i) {
  		debug_scsi("sg %d, len %u offset %u\n", i, sg->length,
-@@ -536,7 +547,7 @@ iscsi_data_rsp(struct iscsi_conn *conn, struct iscsi_task *task)
- 	struct iscsi_session *session = conn->session;
- 	struct scsi_cmnd *sc = task->sc;
+@@ -534,7 +545,7 @@ iscsi_data_in(struct iscsi_conn *conn, struct iscsi_task *task)
+ 	struct iscsi_tcp_task *tcp_task = task->dd_data;
+ 	struct iscsi_data_rsp *rhdr = (struct iscsi_data_rsp *)tcp_conn->in.hdr;
  	int datasn = be32_to_cpu(rhdr->datasn);
--	unsigned total_in_length = scsi_in(sc)->length;
-+	unsigned total_in_length = scsi_bufflen(sc);
+-	unsigned total_in_length = scsi_in(task->sc)->length;
++	unsigned total_in_length = scsi_bufflen(task->sc);
  
- 	iscsi_update_cmdsn(session, (struct iscsi_nopin*)rhdr);
+ 	iscsi_update_cmdsn(conn->session, (struct iscsi_nopin*)rhdr);
  	if (tcp_conn->in.datalen == 0)
-@@ -568,7 +579,7 @@ iscsi_data_rsp(struct iscsi_conn *conn, struct iscsi_task *task)
- 			if (res_count > 0 &&
- 			    (rhdr->flags & ISCSI_FLAG_CMD_OVERFLOW ||
- 			     res_count <= total_in_length))
--				scsi_in(sc)->resid = res_count;
-+				scsi_set_resid(sc, res_count);
- 			else
- 				sc->result = (DID_BAD_TARGET << 16) |
- 					rhdr->cmd_status;
-@@ -679,11 +690,11 @@ iscsi_r2t_rsp(struct iscsi_conn *conn, struct iscsi_task *task)
+@@ -660,11 +671,11 @@ iscsi_r2t_rsp(struct iscsi_conn *conn, struct iscsi_task *task)
  			    r2t->data_length, session->max_burst);
  
  	r2t->data_offset = be32_to_cpu(rhdr->data_offset);
@@ -52,7 +43,7 @@ index 908b541..dfd8e31 100644
  		__kfifo_put(tcp_task->r2tpool.queue, (void*)&r2t,
  			    sizeof(void*));
  		return ISCSI_ERR_DATALEN;
-@@ -783,7 +794,6 @@ iscsi_tcp_hdr_dissect(struct iscsi_conn *conn, struct iscsi_hdr *hdr)
+@@ -764,7 +775,6 @@ iscsi_tcp_hdr_dissect(struct iscsi_conn *conn, struct iscsi_hdr *hdr)
  		if (tcp_conn->in.datalen) {
  			struct iscsi_tcp_task *tcp_task = task->dd_data;
  			struct hash_desc *rx_hash = NULL;
@@ -60,7 +51,7 @@ index 908b541..dfd8e31 100644
  
  			/*
  			 * Setup copy of Data-In into the Scsi_Cmnd
-@@ -801,8 +811,8 @@ iscsi_tcp_hdr_dissect(struct iscsi_conn *conn, struct iscsi_hdr *hdr)
+@@ -782,8 +792,8 @@ iscsi_tcp_hdr_dissect(struct iscsi_conn *conn, struct iscsi_hdr *hdr)
  				  tcp_task->data_offset,
  				  tcp_conn->in.datalen);
  			rc = iscsi_segment_seek_sg(&tcp_conn->in.segment,
@@ -71,7 +62,7 @@ index 908b541..dfd8e31 100644
  						   tcp_task->data_offset,
  						   tcp_conn->in.datalen,
  						   iscsi_tcp_process_data_in,
-@@ -1369,8 +1379,8 @@ iscsi_tcp_task_init(struct iscsi_task *task)
+@@ -1352,8 +1362,8 @@ iscsi_tcp_task_init(struct iscsi_task *task)
  		return 0;
  
  	/* If we have immediate data, attach a payload */
@@ -82,7 +73,7 @@ index 908b541..dfd8e31 100644
  				       0, task->imm_count);
  	if (err)
  		return err;
-@@ -1393,7 +1403,6 @@ iscsi_tcp_task_xmit(struct iscsi_task *task)
+@@ -1376,7 +1386,6 @@ iscsi_tcp_task_xmit(struct iscsi_task *task)
  	struct iscsi_conn *conn = task->conn;
  	struct iscsi_tcp_task *tcp_task = task->dd_data;
  	struct scsi_cmnd *sc = task->sc;
@@ -90,7 +81,7 @@ index 908b541..dfd8e31 100644
  	int rc = 0;
  
  flush:
-@@ -1413,7 +1422,6 @@ flush:
+@@ -1396,7 +1405,6 @@ flush:
  	if (sc->sc_data_direction != DMA_TO_DEVICE)
  		return 0;
  
@@ -98,7 +89,7 @@ index 908b541..dfd8e31 100644
  	if (task->unsol_count != 0) {
  		struct iscsi_data *hdr = &tcp_task->unsol_dtask.hdr;
  
-@@ -1428,8 +1436,8 @@ flush:
+@@ -1411,8 +1419,8 @@ flush:
  				task->itt, tcp_task->sent, task->data_count);
  
  		iscsi_tcp_send_hdr_prep(conn, hdr, sizeof(*hdr));
@@ -109,7 +100,7 @@ index 908b541..dfd8e31 100644
  					      task->data_count);
  		if (rc)
  			goto fail;
-@@ -1475,8 +1483,8 @@ flush:
+@@ -1458,8 +1466,8 @@ flush:
  		iscsi_tcp_send_hdr_prep(conn, &r2t->dtask.hdr,
  					sizeof(struct iscsi_hdr));
  
@@ -120,7 +111,7 @@ index 908b541..dfd8e31 100644
  					      r2t->data_offset + r2t->sent,
  					      r2t->data_count);
  		if (rc)
-@@ -1864,7 +1872,11 @@ iscsi_tcp_session_create(struct iscsi_endpoint *ep, uint16_t cmds_max,
+@@ -1847,7 +1855,11 @@ iscsi_tcp_session_create(struct iscsi_endpoint *ep, uint16_t cmds_max,
  	shost->max_lun = iscsi_max_lun;
  	shost->max_id = 0;
  	shost->max_channel = 0;
@@ -132,7 +123,7 @@ index 908b541..dfd8e31 100644
  
  	if (iscsi_host_add(shost, NULL))
  		goto free_host;
-@@ -1917,6 +1929,9 @@ static int iscsi_tcp_slave_configure(struct scsi_device *sdev)
+@@ -1900,6 +1912,9 @@ static int iscsi_tcp_slave_configure(struct scsi_device *sdev)
  }
  
  static struct scsi_host_template iscsi_sht = {
@@ -156,7 +147,7 @@ index 68423e8..1796c96 100644
  struct socket;
  struct iscsi_tcp_conn;
 diff --git a/libiscsi.c b/libiscsi.c
-index e45476b..60f7a5e 100644
+index f3b845f..80da87f 100644
 --- a/libiscsi.c
 +++ b/libiscsi.c
 @@ -187,7 +187,7 @@ static int iscsi_prep_bidi_ahs(struct iscsi_task *task)
@@ -195,8 +186,8 @@ index e45476b..60f7a5e 100644
  		   session->cmdsn, session->max_cmdsn - session->exp_cmdsn + 1);
  	return 0;
  }
-@@ -412,12 +412,7 @@ static void fail_command(struct iscsi_conn *conn, struct iscsi_task *task,
- 		return;
+@@ -407,12 +407,7 @@ static void fail_command(struct iscsi_conn *conn, struct iscsi_task *task,
+ 		conn->session->tt->cleanup_task(conn, task);
  
  	sc->result = err;
 -	if (!scsi_bidi_cmnd(sc))
@@ -209,7 +200,7 @@ index e45476b..60f7a5e 100644
  
  	if (conn->task == task)
  		conn->task = NULL;
-@@ -592,7 +587,7 @@ invalid_datalen:
+@@ -587,7 +582,7 @@ invalid_datalen:
  			goto out;
  		}
  
@@ -218,7 +209,7 @@ index e45476b..60f7a5e 100644
  		if (datalen < senselen)
  			goto invalid_datalen;
  
-@@ -608,8 +603,8 @@ invalid_datalen:
+@@ -603,8 +598,8 @@ invalid_datalen:
  
  		if (scsi_bidi_cmnd(sc) && res_count > 0 &&
  				(rhdr->flags & ISCSI_FLAG_CMD_BIDI_OVERFLOW ||
@@ -229,7 +220,18 @@ index e45476b..60f7a5e 100644
  		else
  			sc->result = (DID_BAD_TARGET << 16) | rhdr->cmd_status;
  	}
-@@ -1273,12 +1268,7 @@ reject:
+@@ -653,8 +648,8 @@ iscsi_data_in_rsp(struct iscsi_conn *conn, struct iscsi_hdr *hdr,
+ 
+ 		if (res_count > 0 &&
+ 		    (rhdr->flags & ISCSI_FLAG_CMD_OVERFLOW ||
+-		     res_count <= scsi_in(sc)->length))
+-			scsi_in(sc)->resid = res_count;
++		     res_count <= scsi_bufflen(sc)))
++			scsi_set_resid(sc, res_count);
+ 		else
+ 			sc->result = (DID_BAD_TARGET << 16) | rhdr->cmd_status;
+ 	}
+@@ -1297,12 +1292,7 @@ reject:
  fault:
  	spin_unlock(&session->lock);
  	debug_scsi("iscsi: cmd 0x%x is not queued (%d)\n", sc->cmnd[0], reason);
@@ -509,7 +511,7 @@ index 0000000..8bd48d1
 +
 +#endif
 diff --git a/scsi_transport_iscsi.c b/scsi_transport_iscsi.c
-index 535e461..65f36a3 100644
+index 852b016..f4270b2 100644
 --- a/scsi_transport_iscsi.c
 +++ b/scsi_transport_iscsi.c
 @@ -41,13 +41,13 @@ struct iscsi_internal {
@@ -598,8 +600,8 @@ index 535e461..65f36a3 100644
  /*
   * iSCSI endpoint attrs
   */
-@@ -229,9 +228,10 @@ struct iscsi_endpoint *iscsi_lookup_endpoint(u64 handle)
- 	return iscsi_dev_to_endpoint(dev);
+@@ -237,9 +236,10 @@ struct iscsi_endpoint *iscsi_lookup_endpoint(u64 handle)
+ 	return ep;
  }
  EXPORT_SYMBOL_GPL(iscsi_lookup_endpoint);
 +#endif
@@ -610,7 +612,7 @@ index 535e461..65f36a3 100644
  {
  	struct Scsi_Host *shost = dev_to_shost(dev);
  	struct iscsi_cls_host *ihost = shost->shost_data;
-@@ -250,7 +250,7 @@ static int iscsi_setup_host(struct transport_container *tc, struct device *dev,
+@@ -258,7 +258,7 @@ static int iscsi_setup_host(struct transport_container *tc, struct device *dev,
  }
  
  static int iscsi_remove_host(struct transport_container *tc, struct device *dev,
@@ -619,7 +621,7 @@ index 535e461..65f36a3 100644
  {
  	struct Scsi_Host *shost = dev_to_shost(dev);
  	struct iscsi_cls_host *ihost = shost->shost_data;
-@@ -1300,6 +1300,8 @@ static int
+@@ -1308,6 +1308,8 @@ static int
  iscsi_if_transport_ep(struct iscsi_transport *transport,
  		      struct iscsi_uevent *ev, int msg_type)
  {
@@ -628,7 +630,7 @@ index 535e461..65f36a3 100644
  	struct iscsi_endpoint *ep;
  	struct sockaddr *dst_addr;
  	int rc = 0;
-@@ -1340,6 +1342,8 @@ iscsi_if_transport_ep(struct iscsi_transport *transport,
+@@ -1348,6 +1350,8 @@ iscsi_if_transport_ep(struct iscsi_transport *transport,
  		break;
  	}
  	return rc;
@@ -637,7 +639,7 @@ index 535e461..65f36a3 100644
  }
  
  static int
-@@ -1421,6 +1425,9 @@ iscsi_if_recv_msg(struct sk_buff *skb, struct nlmsghdr *nlh)
+@@ -1429,6 +1433,9 @@ iscsi_if_recv_msg(struct sk_buff *skb, struct nlmsghdr *nlh)
  					      ev->u.c_session.queue_depth);
  		break;
  	case ISCSI_UEVENT_CREATE_BOUND_SESSION:
@@ -647,7 +649,7 @@ index 535e461..65f36a3 100644
  		ep = iscsi_lookup_endpoint(ev->u.c_bound_session.ep_handle);
  		if (!ep) {
  			err = -EINVAL;
-@@ -1432,6 +1439,7 @@ iscsi_if_recv_msg(struct sk_buff *skb, struct nlmsghdr *nlh)
+@@ -1440,6 +1447,7 @@ iscsi_if_recv_msg(struct sk_buff *skb, struct nlmsghdr *nlh)
  					ev->u.c_bound_session.cmds_max,
  					ev->u.c_bound_session.queue_depth);
  		break;
@@ -655,7 +657,7 @@ index 535e461..65f36a3 100644
  	case ISCSI_UEVENT_DESTROY_SESSION:
  		session = iscsi_session_lookup(ev->u.d_session.sid);
  		if (session)
-@@ -1514,55 +1522,70 @@ iscsi_if_recv_msg(struct sk_buff *skb, struct nlmsghdr *nlh)
+@@ -1522,55 +1530,70 @@ iscsi_if_recv_msg(struct sk_buff *skb, struct nlmsghdr *nlh)
  }
  
  /*
@@ -762,7 +764,7 @@ index 535e461..65f36a3 100644
  	__ATTR(_name,_mode,_show,_store)
  
  /*
-@@ -1570,10 +1593,9 @@ struct device_attribute dev_attr_##_prefix##_##_name =	\
+@@ -1578,10 +1601,9 @@ struct device_attribute dev_attr_##_prefix##_##_name =	\
   */
  #define iscsi_conn_attr_show(param)					\
  static ssize_t								\
@@ -775,7 +777,7 @@ index 535e461..65f36a3 100644
  	struct iscsi_transport *t = conn->transport;			\
  	return t->get_conn_param(conn, param, buf);			\
  }
-@@ -1597,16 +1619,17 @@ iscsi_conn_attr(address, ISCSI_PARAM_CONN_ADDRESS);
+@@ -1605,16 +1627,17 @@ iscsi_conn_attr(address, ISCSI_PARAM_CONN_ADDRESS);
  iscsi_conn_attr(ping_tmo, ISCSI_PARAM_PING_TMO);
  iscsi_conn_attr(recv_tmo, ISCSI_PARAM_RECV_TMO);
  
@@ -797,7 +799,7 @@ index 535e461..65f36a3 100644
  	struct iscsi_transport *t = session->transport;			\
  									\
  	if (perm && !capable(CAP_SYS_ADMIN))				\
-@@ -1640,10 +1663,9 @@ iscsi_session_attr(ifacename, ISCSI_PARAM_IFACE_NAME, 0);
+@@ -1648,10 +1671,9 @@ iscsi_session_attr(ifacename, ISCSI_PARAM_IFACE_NAME, 0);
  iscsi_session_attr(initiatorname, ISCSI_PARAM_INITIATOR_NAME, 0)
  
  static ssize_t
@@ -810,7 +812,7 @@ index 535e461..65f36a3 100644
  	return sprintf(buf, "%s\n", iscsi_session_state_name(session->state));
  }
  static ISCSI_CLASS_ATTR(priv_sess, state, S_IRUGO, show_priv_session_state,
-@@ -1651,11 +1673,9 @@ static ISCSI_CLASS_ATTR(priv_sess, state, S_IRUGO, show_priv_session_state,
+@@ -1659,11 +1681,9 @@ static ISCSI_CLASS_ATTR(priv_sess, state, S_IRUGO, show_priv_session_state,
  
  #define iscsi_priv_session_attr_show(field, format)			\
  static ssize_t								\
@@ -824,7 +826,7 @@ index 535e461..65f36a3 100644
  	return sprintf(buf, format"\n", session->field);		\
  }
  
-@@ -1670,10 +1690,9 @@ iscsi_priv_session_attr(recovery_tmo, "%d");
+@@ -1678,10 +1698,9 @@ iscsi_priv_session_attr(recovery_tmo, "%d");
   */
  #define iscsi_host_attr_show(param)					\
  static ssize_t								\
@@ -837,7 +839,7 @@ index 535e461..65f36a3 100644
  	struct iscsi_internal *priv = to_iscsi_internal(shost->transportt); \
  	return priv->iscsi_transport->get_host_param(shost, param, buf); \
  }
-@@ -1690,7 +1709,7 @@ iscsi_host_attr(initiatorname, ISCSI_HOST_PARAM_INITIATOR_NAME);
+@@ -1698,7 +1717,7 @@ iscsi_host_attr(initiatorname, ISCSI_HOST_PARAM_INITIATOR_NAME);
  
  #define SETUP_PRIV_SESSION_RD_ATTR(field)				\
  do {									\
@@ -846,7 +848,7 @@ index 535e461..65f36a3 100644
  	count++;							\
  } while (0)
  
-@@ -1698,7 +1717,7 @@ do {									\
+@@ -1706,7 +1725,7 @@ do {									\
  #define SETUP_SESSION_RD_ATTR(field, param_flag)			\
  do {									\
  	if (tt->param_mask & param_flag) {				\
@@ -855,7 +857,7 @@ index 535e461..65f36a3 100644
  		count++;						\
  	}								\
  } while (0)
-@@ -1706,7 +1725,7 @@ do {									\
+@@ -1714,7 +1733,7 @@ do {									\
  #define SETUP_CONN_RD_ATTR(field, param_flag)				\
  do {									\
  	if (tt->param_mask & param_flag) {				\
@@ -864,7 +866,7 @@ index 535e461..65f36a3 100644
  		count++;						\
  	}								\
  } while (0)
-@@ -1714,7 +1733,7 @@ do {									\
+@@ -1722,7 +1741,7 @@ do {									\
  #define SETUP_HOST_RD_ATTR(field, param_flag)				\
  do {									\
  	if (tt->host_param_mask & param_flag) {				\
@@ -873,7 +875,7 @@ index 535e461..65f36a3 100644
  		count++;						\
  	}								\
  } while (0)
-@@ -1807,15 +1826,15 @@ iscsi_register_transport(struct iscsi_transport *tt)
+@@ -1815,15 +1834,15 @@ iscsi_register_transport(struct iscsi_transport *tt)
  	if (!(tt->caps & CAP_DATA_PATH_OFFLOAD))
  		priv->t.create_work_queue = 1;
  
@@ -894,7 +896,7 @@ index 535e461..65f36a3 100644
  
  	/* host parameters */
  	priv->t.host_attrs.ac.attrs = &priv->host_attrs[0];
-@@ -1894,9 +1913,8 @@ iscsi_register_transport(struct iscsi_transport *tt)
+@@ -1902,9 +1921,8 @@ iscsi_register_transport(struct iscsi_transport *tt)
  	printk(KERN_NOTICE "iscsi: registered transport (%s)\n", tt->name);
  	return &priv->t;
  
@@ -906,7 +908,7 @@ index 535e461..65f36a3 100644
  free_priv:
  	kfree(priv);
  	return NULL;
-@@ -1923,8 +1941,8 @@ int iscsi_unregister_transport(struct iscsi_transport *tt)
+@@ -1931,8 +1949,8 @@ int iscsi_unregister_transport(struct iscsi_transport *tt)
  	transport_container_unregister(&priv->session_cont);
  	transport_container_unregister(&priv->t.host_attrs);
  
@@ -917,7 +919,7 @@ index 535e461..65f36a3 100644
  	mutex_unlock(&rx_queue_mutex);
  
  	return 0;
-@@ -1944,13 +1962,14 @@ static __init int iscsi_transport_init(void)
+@@ -1952,13 +1970,14 @@ static __init int iscsi_transport_init(void)
  	if (err)
  		return err;
  
@@ -934,7 +936,7 @@ index 535e461..65f36a3 100644
  
  	err = transport_class_register(&iscsi_connection_class);
  	if (err)
-@@ -1981,8 +2000,10 @@ unregister_conn_class:
+@@ -1989,8 +2008,10 @@ unregister_conn_class:
  	transport_class_unregister(&iscsi_connection_class);
  unregister_host_class:
  	transport_class_unregister(&iscsi_host_class);
@@ -945,7 +947,7 @@ index 535e461..65f36a3 100644
  unregister_transport_class:
  	class_unregister(&iscsi_transport_class);
  	return err;
-@@ -1995,7 +2016,9 @@ static void __exit iscsi_transport_exit(void)
+@@ -2003,7 +2024,9 @@ static void __exit iscsi_transport_exit(void)
  	transport_class_unregister(&iscsi_connection_class);
  	transport_class_unregister(&iscsi_session_class);
  	transport_class_unregister(&iscsi_host_class);
@@ -956,7 +958,7 @@ index 535e461..65f36a3 100644
  }
  
 diff --git a/scsi_transport_iscsi.h b/scsi_transport_iscsi.h
-index b7652e3..4b6dc5c 100644
+index b65c96a..9919c0d 100644
 --- a/scsi_transport_iscsi.h
 +++ b/scsi_transport_iscsi.h
 @@ -28,6 +28,8 @@
