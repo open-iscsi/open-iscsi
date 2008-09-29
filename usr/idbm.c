@@ -850,6 +850,14 @@ int idbm_lock(void)
 		if (ret == 0)
 			break;
 
+		if (errno != EEXIST) {
+			log_error("Could not lock discovery DB: %s: %s",
+					LOCK_WRITE_FILE, strerror(errno));
+			log_error("Maybe you are not root?");
+			exit(-1);
+		} else if (i == 0)
+			log_debug(2, "Waiting for discovery DB lock");
+
 		usleep(10000);
 	}
 
