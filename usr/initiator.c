@@ -2009,7 +2009,7 @@ session_login_task(node_rec_t *rec, queue_task_t *qtask)
 
 	if (!(t->caps & CAP_MARKERS) &&
 	    rec->conn[0].iscsi.OFMarker) {
-		log_error("Transport '%s' does not support OFMarker.",
+		log_error("Transport '%s' does not support OFMarker."
 			  "Disabling OFMarkers.\n", t->name);
 		rec->conn[0].iscsi.OFMarker = 0;
 	}
