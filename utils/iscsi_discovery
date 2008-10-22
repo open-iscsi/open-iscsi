@@ -20,17 +20,17 @@
 
 # iscsi_discovery:
 #    * does a send-targets discovery to the given IP
-#    * set the transport type to ISER
+#    * set the transport type to the preferred transport (or tcp is -t flag is not used)
 #    * tries to login
 #    * if succeeds,
 #          o logout,
-#          o mark record autmatic
+#          o mark record autmatic (unless -m flag is used)
 #    * else
 #          o reset transport type to TCP
 #          o try to login
 #          o if succeeded
 #                + logout
-#                + mark record automatic
+#                + mark record automatic (unless -m flag is used)
 #
 
 usage()

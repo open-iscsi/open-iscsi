@@ -6,19 +6,19 @@
 
 .TH "iscsi_discovery" 8
 .SH NAME
-iscsi_discovery \- discover iscsi devices
+iscsi_discovery \- discover iSCSI targets
 .SH SYNOPSIS
 .B iscsi_discovery <IP> [-p <port>] [-d] [-t <tcp|iser> [-f]] [-m] [-l]
 
 .SH DESCRIPTION
 Perform send-targets discovery to the specified IP. If a discovery record
-is generated, try to login to the portal using iSER and TCP transports
+is generated, try to login to the portal using the preferred transport
 (-t flag specifies the requested transport type, TCP is the default).
 If login using a certain transport succeeds, mark the portal for automatic
 login (unless -m flag is used), and disconnect (unless -l flag is used).
 
-For iscsi discovery to work, open-iscsi services must be running. e.g. iscsid 
-should be up, and the iscsi modules loaded. This is best accomplished by the
+For iSCSI discovery to work, open-iscsi services must be running. i.e. iscsid
+should be up, and the iSCSI modules loaded. This is best accomplished by the
 init.d startup script.
 
 .\" .SH OPTIONS
@@ -47,6 +47,6 @@ login - login to the new discovered nodes (defualt is false).
 .SH AUTHOR
 Written by Dan Bar Dov
 .SH "REPORTING BUGS"
-Report bugs to <erezz@voltaire.com>.
+Report bugs to <erezzi.list@gmail.com>.
 .SH COPYRIGHT
 Copyright \(co Voltaire Ltd. 2006.
