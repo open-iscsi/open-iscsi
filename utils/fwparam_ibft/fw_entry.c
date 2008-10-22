@@ -38,8 +38,6 @@ int fw_get_entry(struct boot_context *context, const char *filepath)
  */
 static void dump_mac(struct boot_context *context)
 {
-	int i;
-
 	if (!strlen(context->mac))
 		return;
 
