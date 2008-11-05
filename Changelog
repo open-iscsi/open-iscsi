@@ -1,3 +1,75 @@
-open-iscsi-2.0-869.1
-- Fix nop out timer. If the timer wakes up at the exact same time we were
-supposed to check the transport we mistakenly drop the connection.
+open-iscsi-2.0-870 - open-iscsi-2.0.869
+
+Doron Shoham (1):
+      log.c: add error messages when allocation shared memory
+
+Erez Zilber (2):
+      Minor fixes in iscsi_discovery documentation
+      rm unused variable in fw_entry.c
+
+Hannes Reinecke (1):
+      Add SLES10 SP2 compat
+
+Hans de Goede (1):
+      PATCH: add error checking to iscsi discovery db lock creation
+
+Mike Christie (58):
+      change mgmt_ipc to logout by sid
+      iscsi class/if kernel: add ifacename attr
+      add ifacename support tools
+      rm db param
+      rm num_transports from sysfs header.
+      Add bind by initiatorname
+      break up iface code and add default iser, tcp/default and bnx2i ifaces
+      Use startup definition in util.c.
+      set header digests to off by default
+      fix compile warning for missing iface.h
+      User 64 bit params mask.
+      Do not allow iface setting to be changed in node mode.
+      Fix bad merge. User iscsi param masks instead of params.
+      Support mutlple ifaces with the same binding (lack of binding).
+      Release transport entry when the transport is unloaded
+      Fix ep_disconnect handling of invalid ep
+      libiscsi: Fix nop timeout handling
+      libiscsi: fix recv tmo
+      Revert Release-transport-entry-when-the-transport-is-unload.patch
+      pass ep to session creation
+      Fix iser create bound session compat
+      fix compilation on Fedora 9
+      Fix sysfs handling of block:sdX and scsi bus changes
+      Only autobind to ifaces with transport = tcp
+      Increase login retry for iscsistart.
+      Sync kernel modules to scsi-misc for 2.6.27.
+      Update 2.6.14 - 2.6.19 compat patch
+      Update 2.6.20 - 2.6.24 patch
+      Update 2.6.24 - 2.6.25 patch
+      iscsid: don't print enosys errors.
+      libiscsi: support older tools that did not set can_queue/cmds_max
+      Fix transport_name compat support.
+      Fix idbm iscsid segfault when accsing ifaces
+      Fix discovery and autobinding
+      fix ipv6 login redirect support.
+      Fix login redirect failure handling.
+      remove sysfs_file
+      fix dynamic tpgt support.
+      Bump version for new release.
+      Add compat patch for RHEL 5.2
+      iscsid: adjust requested settings for user
+      Sync kernel modules with 2.6.27
+      Add 2.6.26 compat support
+      Add Makefile support for 2.6.26 compat patch
+      Add .gitignore files
+      Revert broken SLES 10 compat patch.
+      iscsi conf: increase default login max
+      iscsi conf: partially revert increase default login max change
+      modify initial login retry max
+      libiscsi: fix data corruption when target has to resend data-in packets
+      iscsi class: fix endpoint id handling
+      handle ISCSI_ERR_INVALID_HOST
+      iscsi_tcp: return a descriptive error value during connection errors
+      libiscsi: fix locking in iscsi_eh_device_reset
+      update 2.6.14-19_compat.patch
+      update 2.6.20-21_compat.patch
+      update 2.6.24_compat.patch
+      Fix initiator.c compile warning
+
