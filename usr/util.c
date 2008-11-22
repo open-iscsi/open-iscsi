@@ -330,6 +330,7 @@ void iscsid_handle_error(mgmt_ipc_err_e err)
 		/* 16 */ "Unknown request",
 		/* 17 */ "encountered iSNS failure",
 		/* 18 */ "could not communicate to iscsid",
+		/* 19 */ "encountered non-retryable iSCSI login failure",
 	};
 	log_error("initiator reported error (%d - %s)", err, err_msgs[err]);
 }

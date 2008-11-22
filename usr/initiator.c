@@ -153,7 +153,8 @@ __login_response_status(iscsi_conn_t *conn,
 	case LOGIN_REDIRECTION_FAILED:
 		return CONN_LOGIN_RETRY;
 	default:
-		log_error("conn %d giving up on login attempts", conn->id);
+		log_error("Login error (Login status %d) on conn %d", conn->id,
+			  login_status);
 		break;
 	}
 
@@ -217,8 +218,7 @@ __check_iscsi_status_class(iscsi_session_t *session, int cid,
 			return CONN_LOGIN_FAILED;
 		default:
 			log_error("conn %d login rejected: initiator "
-			       "error (%02x/%02x), non-retryable, "
-			       "giving up", conn->id, status_class,
+			       "error (%02x/%02x)", conn->id, status_class,
 			       status_detail);
 			return CONN_LOGIN_FAILED;
 		}
@@ -827,7 +827,8 @@ static void iscsi_login_eh(struct iscsi_conn *conn, struct queue_task *qtask,
 				  "R_STAGE_NO_CHANGE");
 			/* timeout during initial connect.
 			 * clean connection. write ipc rsp or retry */
-			if (!iscsi_retry_initial_login(conn))
+			if (err == MGMT_IPC_ERR_FATAL_LOGIN_FAILURE ||
+			    !iscsi_retry_initial_login(conn))
 				session_conn_shutdown(conn, qtask, err);
 			else {
 				session->reopen_cnt++;
@@ -842,7 +843,8 @@ static void iscsi_login_eh(struct iscsi_conn *conn, struct queue_task *qtask,
 				  "R_STAGE_SESSION_REDIRECT");
 			/* timeout during initial redirect connect
 			 * clean connection. write ipc rsp or retry */
-			if (!iscsi_retry_initial_login(conn))
+			if (err == MGMT_IPC_ERR_FATAL_LOGIN_FAILURE ||
+			    !iscsi_retry_initial_login(conn))
 				session_conn_shutdown(conn, qtask, err);
 			else
 				session_conn_reopen(conn, qtask, 0);
@@ -874,7 +876,8 @@ static void iscsi_login_eh(struct iscsi_conn *conn, struct queue_task *qtask,
 			 * initial redirected connect. Clean connection
 			 * and write rsp or retry.
 			 */
-			if (!iscsi_retry_initial_login(conn))
+			if (err == MGMT_IPC_ERR_FATAL_LOGIN_FAILURE ||
+			    !iscsi_retry_initial_login(conn))
 				session_conn_shutdown(conn, qtask, err);
 			else
 				session_conn_reopen(conn, qtask,
@@ -884,11 +887,6 @@ static void iscsi_login_eh(struct iscsi_conn *conn, struct queue_task *qtask,
 			log_debug(6, "login failed STATE_IN_LOGIN/"
 				  "R_STAGE_SESSION_REOPEN %d",
 				  session->reopen_cnt);
-			/*
-			 * If we get a retryable error during the initial
-			 * login then we will hit this path and
-			 * initial_login_retry_max is ignored.
-			 */
 			session_conn_reopen(conn, qtask, STOP_CONN_RECOVER);
 			break;
 		case R_STAGE_SESSION_CLEANUP:
@@ -1656,20 +1654,13 @@ static void iscsi_recv_login_rsp(struct iscsi_conn *conn)
 
 	return;
 retry:
-	/*
-	 * If this is not the initial login attempt force a retry. If this
-	 * is the initial attempt we follow the login_retry count.
-	 */
-	if (session->r_stage != R_STAGE_NO_CHANGE &&
-	    session->r_stage != R_STAGE_SESSION_REDIRECT)
-		session->r_stage = R_STAGE_SESSION_REOPEN;
+	/* retry if not initial login or initial login has not timed out */
 	iscsi_login_eh(conn, c->qtask, MGMT_IPC_ERR_LOGIN_FAILURE);
 	return;
 failed:
-	/* force faulure */
-	session->r_stage = R_STAGE_NO_CHANGE;
+	/* force failure if initial login */
 	session->reopen_cnt = session->nrec.session.initial_login_retry_max;
-	iscsi_login_eh(conn, c->qtask, MGMT_IPC_ERR_LOGIN_FAILURE);
+	iscsi_login_eh(conn, c->qtask, MGMT_IPC_ERR_FATAL_LOGIN_FAILURE);
 	return;
 }
 
