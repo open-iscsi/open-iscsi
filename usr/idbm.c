@@ -452,6 +452,7 @@ void idbm_print(int type, void *rec, int show, FILE *f)
 		break;
 	}
 
+	fprintf(f, "# BEGIN RECORD\n");
 	for (i = 0; i < MAX_KEYS; i++) {
 		if (!info[i].visible)
 			continue;
@@ -468,6 +469,7 @@ void idbm_print(int type, void *rec, int show, FILE *f)
 		else if (f == stdout)
 			fprintf(f, "%s = <empty>\n", info[i].name);
 	}
+	fprintf(f, "# END RECORD\n");
 
 	free(info);
 }
