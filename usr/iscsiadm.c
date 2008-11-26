@@ -1492,8 +1492,8 @@ free_bound_recs:
 }
 
 static int
-do_sofware_sendtargets(discovery_rec_t *drec, struct list_head *ifaces,
-		       int info_level, int do_login,
+do_software_sendtargets(discovery_rec_t *drec, struct list_head *ifaces,
+		        int info_level, int do_login,
 			int op)
 {
 	struct list_head new_rec_list;
@@ -1587,8 +1587,8 @@ do_sendtargets(discovery_rec_t *drec, struct list_head *ifaces,
 		return ENODEV;
 
 sw_st:
-	return do_sofware_sendtargets(drec, ifaces, info_level, do_login,
-				      op);
+	return do_software_sendtargets(drec, ifaces, info_level, do_login,
+				       op);
 }
 
 /* TODO: merge this with the idbm code */
@@ -1958,15 +1958,23 @@ fw_create_rec_by_entry(struct boot_context *context)
 	return rec;
 }
 
-static int exec_fw_op(discovery_rec_t *drec, int info_level, int do_login,
-		      int op)
+static int exec_fw_op(discovery_rec_t *drec, struct list_head *ifaces,
+		      int info_level, int do_login, int op)
 {
 	struct boot_context *context;
-	struct node_rec *rec;
-	struct list_head targets;
+	struct node_rec *rec, *tmp_rec;
+	struct list_head targets, new_rec_list;
+	struct iface_rec *iface, *tmp_iface;;
 	int ret = 0;
 
+	INIT_LIST_HEAD(&new_rec_list);
 	INIT_LIST_HEAD(&targets);
+	/*
+	 * compat: if the user did not pass any op then we do all
+	 * ops for them
+	 */
+	if (!op)
+		op = OP_NEW | OP_DELETE | OP_UPDATE;
 
 	ret = fw_get_targets(&targets);
 	if (ret) {
@@ -1975,31 +1983,55 @@ static int exec_fw_op(discovery_rec_t *drec, int info_level, int do_login,
 		return ret;
 	}
 
-	list_for_each_entry(context, &targets, list) {
-		rec = fw_create_rec_by_entry(context);
-		if (!rec) {
-			log_error("Could not convert firmware info to "
-				  "node record.\n");
-			break;
+	if (drec) {
+		list_for_each_entry_safe(iface, tmp_iface, ifaces, list) {
+			ret = iface_conf_read(iface);
+			if (ret) {
+				log_error("Could not read iface info for %s. "
+					  "Make sure a iface config with the "
+					  "file name and iface.iscsi_ifacename "
+					  "%s is in %s.", iface->name,
+					   iface->name, IFACE_CONFIG_DIR);
+				list_del(&iface->list);
+				free(iface);
+				continue;
+			}
 		}
 
-		if (drec) {
-			ret = idbm_add_node(rec, drec, op & OP_UPDATE);
-			if (ret) {
-				log_error("Could not add node record. "
-					  "(err %d)\n", ret);
+		list_for_each_entry(context, &targets, list) {
+			rec = fw_create_rec_by_entry(context);
+			if (!rec) {
+				log_error("Could not convert firmware info to "
+					  "node record.\n");
+				ret = ENOMEM;
+				list_for_each_entry_safe(rec, tmp_rec,
+							 &new_rec_list,
+							 list) {
+					list_del(&rec->list);
+					free(rec);
+				}
+				break;
+			}
+			list_add_tail(&rec->list, &new_rec_list);
+		}
+
+		ret = update_discovery_recs(drec, &new_rec_list, ifaces,
+					    info_level, do_login, op);
+	} else if (do_login) {
+		list_for_each_entry(context, &targets, list) {
+			rec = fw_create_rec_by_entry(context);
+			if (!rec) {
+				log_error("Could not convert firmware info to "
+					  "node record.\n");
+				ret = ENOMEM;
 				break;
 			}
 
-			print_fw_nodes(rec, info_level);
+			login_portal(NULL, NULL, rec);
+			free(rec);
 		}
-
-		if (do_login)
-			ret = login_portal(NULL, NULL, rec);
-		free(rec);
-
-		/* print the fw node info if called in fw mode with no params */
-		if (!do_login && !drec)
+	} else {
+		list_for_each_entry(context, &targets, list)
 			fw_print_entry(context);
 	}
 
@@ -2168,7 +2200,7 @@ main(int argc, char **argv)
 			goto free_ifaces;
 		}
 
-		rc = exec_fw_op(NULL, info_level, do_login, op);
+		rc = exec_fw_op(NULL, NULL, info_level, do_login, op);
 		goto free_ifaces;
 	}
 
@@ -2240,7 +2272,8 @@ main(int argc, char **argv)
 			break;
 		case DISCOVERY_TYPE_FW:
 			drec.type = DISCOVERY_TYPE_FW;
-			if (exec_fw_op(&drec, info_level, do_login, op))
+			if (exec_fw_op(&drec, &ifaces, info_level, do_login,
+					op))
 				rc = -1;
 			break;
 		default:

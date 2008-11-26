@@ -260,6 +260,8 @@ void idbm_node_setup_defaults(node_rec_t *rec)
 
 	memset(rec, 0, sizeof(node_rec_t));
 
+	INIT_LIST_HEAD(&rec->list);
+
 	rec->tpgt = PORTAL_GROUP_TAG_UNKNOWN;
 	rec->disc_type = DISCOVERY_TYPE_STATIC;
 	rec->session.cmds_max = CMDS_MAX;
