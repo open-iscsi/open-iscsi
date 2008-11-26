@@ -2202,7 +2202,7 @@ main(int argc, char **argv)
 				   name, value);
 		break;
 	case MODE_DISCOVERY:
-		if ((rc = verify_mode_params(argc, argv, "IPdmtplo", 0))) {
+		if ((rc = verify_mode_params(argc, argv, "SIPdmtplo", 0))) {
 			log_error("discovery mode: option '-%c' is not "
 				  "allowed/supported", rc);
 			rc = -1;
