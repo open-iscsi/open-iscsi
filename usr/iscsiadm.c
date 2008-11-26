@@ -162,7 +162,7 @@ str_to_type(char *str)
 	else if (!strcmp("isns", str))
 		type = DISCOVERY_TYPE_ISNS;
 	else if (!strcmp("fw", str))
-		type = DISCOVERY_TYPE_FWBOOT;
+		type = DISCOVERY_TYPE_FW;
 	else
 		type = -1;
 
@@ -1958,34 +1958,52 @@ fw_create_rec_by_entry(struct boot_context *context)
 	return rec;
 }
 
-static int exec_fw_op(discovery_rec_t *drec, int do_login, int info_level)
+static int exec_fw_op(discovery_rec_t *drec, int info_level, int do_login,
+		      int op)
 {
-	struct boot_context context;
+	struct boot_context *context;
 	struct node_rec *rec;
+	struct list_head targets;
 	int ret = 0;
 
-	memset(&context, 0, sizeof(struct boot_context));
-	ret = fw_get_entry(&context, NULL);
+	INIT_LIST_HEAD(&targets);
+
+	ret = fw_get_targets(&targets);
 	if (ret) {
-		log_error("Could not read fw values.");
+		log_error("Could not get list of targets from firmware. "
+			  "(err %d)\n", ret);
 		return ret;
 	}
 
-	rec = fw_create_rec_by_entry(&context);
-	if (!rec)
-		return ENODEV;
+	list_for_each_entry(context, &targets, list) {
+		rec = fw_create_rec_by_entry(context);
+		if (!rec) {
+			log_error("Could not convert firmware info to "
+				  "node record.\n");
+			break;
+		}
 
-	/* if discovery, print nodes that were found. */
-	if (drec)
-		print_fw_nodes(rec, info_level);
+		if (drec) {
+			ret = idbm_add_node(rec, drec, op & OP_UPDATE);
+			if (ret) {
+				log_error("Could not add node record. "
+					  "(err %d)\n", ret);
+				break;
+			}
 
-	if (do_login)
-		ret = login_portal(NULL, NULL, rec);
-	free(rec);
+			print_fw_nodes(rec, info_level);
+		}
 
-	/* print the fw node info if called in fw mode with no params */
-	if (!do_login && !drec)
-		fw_print_entry(&context);
+		if (do_login)
+			ret = login_portal(NULL, NULL, rec);
+		free(rec);
+
+		/* print the fw node info if called in fw mode with no params */
+		if (!do_login && !drec)
+			fw_print_entry(context);
+	}
+
+	fw_free_targets(&targets);
 	return ret;
 }
 
@@ -2005,6 +2023,7 @@ main(int argc, char **argv)
 	struct iface_rec *iface = NULL, *tmp;
 	struct node_rec *rec = NULL;
 
+	memset(&drec, 0, sizeof(discovery_rec_t));
 	INIT_LIST_HEAD(&ifaces);
 	/* do not allow ctrl-c for now... */
 	memset(&sa_old, 0, sizeof(struct sigaction));
@@ -2149,7 +2168,7 @@ main(int argc, char **argv)
 			goto free_ifaces;
 		}
 
-		rc = exec_fw_op(NULL, do_login, info_level);
+		rc = exec_fw_op(NULL, info_level, do_login, op);
 		goto free_ifaces;
 	}
 
@@ -2198,7 +2217,6 @@ main(int argc, char **argv)
 				goto out;
 			}
 
-			memset(&drec, 0, sizeof(discovery_rec_t));
 			idbm_sendtargets_defaults(&drec.u.sendtargets);
 			strncpy(drec.address, ip, sizeof(drec.address));
 			drec.port = port;
@@ -2220,9 +2238,9 @@ main(int argc, char **argv)
 			if (isns_dev_attr_query(&drec, info_level))
 				rc = -1;
 			break;
-		case DISCOVERY_TYPE_FWBOOT:
-			drec.type = DISCOVERY_TYPE_FWBOOT;
-			if (exec_fw_op(&drec, do_login, info_level))
+		case DISCOVERY_TYPE_FW:
+			drec.type = DISCOVERY_TYPE_FW;
+			if (exec_fw_op(&drec, info_level, do_login, op))
 				rc = -1;
 			break;
 		default:

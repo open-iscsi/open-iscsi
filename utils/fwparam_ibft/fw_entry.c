@@ -20,35 +20,73 @@
 #include <stddef.h>
 #include <stdio.h>
 #include <string.h>
-#include "fw_context.h"
-#include "fwparam_ibft.h"
+#include <stdlib.h>
 
+#include "fw_context.h"
+#include "fwparam.h"
+
+/**
+ * fw_get_entry - return boot context of portal used for boot
+ * @context: firmware info of portal
+ * @filepath: CURRENTLY NOT USED
+ *
+ * Returns non-zero if no portal was used for boot.
+ *
+ * This function is not thread safe.
+ */
 int fw_get_entry(struct boot_context *context, const char *filepath)
 {
 	int ret;
 
-	ret = fwparam_ppc(context, filepath);
+	ret = fwparam_ppc_boot_info(context);
 	if (ret)
-		ret = fwparam_ibft(context, filepath);
+		ret = fwparam_ibft_sysfs_boot_info(context);
+
 	return ret;
 }
 
-/*
- * Dump the 8 byte mac address
+/**
+ * fw_get_targets - get a boot_context struct for each target
+ * @list: list to add entires on.
+ *
+ * Returns zero if entries were found that can be traversed with the
+ * list.h helpers, or non-zero if no entries are found.
+ *
+ * fw_free_targets should be called to free the list.
+ *
+ * This function is not thread safe.
  */
-static void dump_mac(struct boot_context *context)
+int fw_get_targets(struct list_head *list)
 {
-	if (!strlen(context->mac))
+	int ret;
+
+	ret = fwparam_ppc_get_targets(list);
+	if (ret)
+		ret = fwparam_ibft_sysfs_get_targets(list);
+
+	return ret;
+}
+
+void fw_free_targets(struct list_head *list)
+{
+	struct boot_context *curr, *tmp;
+
+	if (!list || list_empty(list))
 		return;
 
-	printf("iface.hwaddress = %s\n", context->mac);
+	list_for_each_entry_safe(curr, tmp, list, list) {
+		list_del(&curr->list);
+		free(curr);
+	}
 }
 
 static void dump_initiator(struct boot_context *context)
 {
-	if (!strlen(context->initiatorname))
-		return;
-	printf("iface.initiatorname = %s\n", context->initiatorname);
+	if (strlen(context->initiatorname))
+		printf("iface.initiatorname = %s\n", context->initiatorname);
+
+	if (strlen(context->isid))
+		printf("iface.isid = %s\n", context->isid);
 }
 
 static void dump_target(struct boot_context *context)
@@ -72,11 +110,54 @@ static void dump_target(struct boot_context *context)
 	if (strlen(context->chap_password_in))
 		printf("node.session.auth.password_in = %s\n",
 		       context->chap_password_in);
+
+	if (strlen(context->lun))
+		printf("node.boot_lun = %s\n", context->lun);
 }
 
+/* TODO: add defines for all the idbm strings in this file and add a macro */
+static void dump_network(struct boot_context *context)
+{
+	/* Dump the 8 byte mac address (not iser support) */
+	if (strlen(context->mac))
+		printf("iface.hwaddress = %s\n", context->mac);
+	/*
+	 * If this has a valid address then DHCP was used (broadcom sends
+	 * 0.0.0.0).
+	 */
+	if (strlen(context->dhcp) && strcmp(context->dhcp, "0.0.0.0"))
+		printf("iface.bootproto = DHCP\n");
+	else
+		printf("iface.bootproto = STATIC\n");
+	if (strlen(context->ipaddr))
+		printf("iface.ipaddress = %s\n", context->ipaddr);
+	if (strlen(context->mask))
+		printf("iface.subnet_mask = %s\n", context->mask);
+	if (strlen(context->gateway))
+		printf("iface.gateway = %s\n", context->gateway);
+	if (strlen(context->primary_dns))
+		printf("iface.primary_dns = %s\n", context->primary_dns);
+	if (strlen(context->secondary_dns))
+		printf("iface.secondary_dns = %s\n", context->secondary_dns);
+	if (strlen(context->vlan))
+		printf("iface.vlan = %s\n", context->vlan);
+	if (strlen(context->iface))
+		printf("iface.net_ifacename = %s\n", context->iface);
+}
+
+/**
+ * fw_print_entry - print boot context info of portal used for boot
+ * @context: firmware info of portal
+ *
+ * Does not print anything if no portal was used for boot.
+ *
+ * TODO: Merge this in with idbm.c helpers.
+ */
 void fw_print_entry(struct boot_context *context)
 {
+	printf("# BEGIN RECORD\n");
 	dump_initiator(context);
-	dump_mac(context);
+	dump_network(context);
 	dump_target(context);
+	printf("# END RECORD\n");
 }

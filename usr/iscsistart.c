@@ -50,6 +50,7 @@ struct iscsi_daemon_config daemon_config;
 struct iscsi_daemon_config *dconfig = &daemon_config;
 
 static node_rec_t config_rec;
+static LIST_HEAD(targets);
 
 static char program_name[] = "iscsistart";
 static int mgmt_ipc_fd;
@@ -120,7 +121,8 @@ static int stop_event_loop(void)
 	return rc;
 }
 
-static int setup_session(void)
+
+static int login_session(void)
 {
 	iscsiadm_req_t req;
 	iscsiadm_rsp_t rsp;
@@ -145,7 +147,45 @@ static int setup_session(void)
 	rc = do_iscsid(&req, &rsp);
 	if (rc)
 		iscsid_handle_error(rc);
+	return rc;
+}
 
+static int setup_session(void)
+{
+	struct boot_context *context;
+	struct iscsi_auth_config *auth;
+	int rc = 0, rc2 = 0;
+
+	if (list_empty(&targets))
+		return login_session();
+
+	list_for_each_entry(context, &targets, list) {
+		idbm_node_setup_defaults(&config_rec);
+
+		auth = &config_rec.session.auth;
+		strncpy(config_rec.name, context->targetname,
+			sizeof(context->targetname));
+		strncpy(config_rec.conn[0].address, context->target_ipaddr,
+			sizeof(context->target_ipaddr));
+		config_rec.conn[0].port = context->target_port;
+		/* this seems broken ??? */
+		config_rec.tpgt = 1;
+		strncpy(auth->username, context->chap_name,
+			sizeof(context->chap_name));
+		strncpy((char *)auth->password, context->chap_password,
+			sizeof(context->chap_password));
+		auth->password_length = strlen((char *)auth->password);
+		strncpy(auth->username_in, context->chap_name_in,
+			sizeof(context->chap_name_in));
+		strncpy((char *)auth->password_in, context->chap_password_in,
+			sizeof(context->chap_password_in));
+		auth->password_in_length = strlen((char *)auth->password_in);
+
+		rc2 = login_session();
+		if (rc2)
+			rc = rc2;
+	}
+	fw_free_targets(&targets);
 	return rc;
 }
 
@@ -194,9 +234,9 @@ int main(int argc, char *argv[])
 	struct iscsi_auth_config *auth;
 	char *initiatorname = NULL;
 	int ch, longindex, ret;
+	struct boot_context *context, boot_context;
 	struct sigaction sa_old;
 	struct sigaction sa_new;
-	struct boot_context context;
 	pid_t pid;
 
 	idbm_node_setup_defaults(&config_rec);
@@ -260,42 +300,32 @@ int main(int argc, char *argv[])
 			log_level = atoi(optarg);
 			break;
 		case 'b':
-			ret = fw_get_entry(&context, NULL);
+			memset(&boot_context, 0, sizeof(boot_context));
+			ret = fw_get_entry(&boot_context, NULL);
 			if (ret) {
-				printf("Could not setup fw entries.");
-				exit(-1);
+				printf("Could not get boot entry.\n");
+				exit(1);
 			}
 
-			initiatorname = context.initiatorname;
-			strncpy(config_rec.name, context.targetname,
-				sizeof(context.targetname));
-			strncpy(config_rec.conn[0].address,
-				context.target_ipaddr,
-				sizeof(context.target_ipaddr));
-			config_rec.conn[0].port = context.target_port;
-			/* this seems broken ??? */
-			config_rec.tpgt = 1;
-			strncpy(auth->username, context.chap_name,
-				sizeof(context.chap_name));
-			strncpy((char *)auth->password, context.chap_password,
-				sizeof(context.chap_password));
-			auth->password_length = strlen((char *)auth->password);
-			strncpy(auth->username_in, context.chap_name_in,
-				sizeof(context.chap_name_in));
-			strncpy((char *)auth->password_in,
-				context.chap_password_in,
-				sizeof(context.chap_password_in));
-			auth->password_in_length =
-					strlen((char *)auth->password_in);
+			initiatorname = boot_context.initiatorname;
+			ret = fw_get_targets(&targets);
+			if (ret || list_empty(&targets)) {
+				printf("Could not setup fw entries.\n");
+				exit(1);
+			}
 			break;
 		case 'f':
-			ret = fw_get_entry(&context, NULL);
-			if (ret) {
-				printf("Could not read fw values.\n");
-				exit(-1);
+			ret = fw_get_targets(&targets);
+			if (ret || list_empty(&targets)) {
+				printf("Could not get list of targets from "
+				       "firmware.\n");
+				exit(1);
 			}
 
-			fw_print_entry(&context);
+			list_for_each_entry(context, &targets, list)
+				fw_print_entry(context);
+
+			fw_free_targets(&targets);
 			exit(0);
 		case 'v':
 			printf("%s version %s\n", program_name,
@@ -318,7 +348,7 @@ int main(int argc, char *argv[])
 	if (iscsi_sysfs_check_class_version())
 		exit(1);
 
-	if (check_params(initiatorname))
+	if (list_empty(&targets) && check_params(initiatorname))
 		exit(1);
 
 	pid = fork();

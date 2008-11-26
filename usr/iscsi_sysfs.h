@@ -93,7 +93,7 @@ extern void iscsi_sysfs_set_device_online(int hostno, int target, int lun);
 extern void iscsi_sysfs_rescan_device(int hostno, int target, int lun);
 extern int iscsi_sysfs_for_each_device(int host_no, uint32_t sid,
 				void (* fn)(int host_no, int target, int lun));
-extern struct iscsi_transport *iscsi_sysfs_get_transport_by_hba(long host_no);
+extern struct iscsi_transport *iscsi_sysfs_get_transport_by_hba(uint32_t host_no);
 extern struct iscsi_transport *iscsi_sysfs_get_transport_by_session(char *sys_session);
 extern struct iscsi_transport *iscsi_sysfs_get_transport_by_sid(uint32_t sid);
 extern struct iscsi_transport *iscsi_sysfs_get_transport_by_name(char *transport_name);

@@ -145,14 +145,5 @@ extern char filename[FILENAMESZ];
 extern int debug;
 extern int dev_count;
 
-/*
- * Prefix strings, for the "prefixN:NAME=value".
- */
-#define NETWORK		"network"
-#define INITIATOR	"iscsi-initiator"
-#define TARGET		"target"
-
 extern int fwparam_ibft(struct boot_context *context, const char *filepath);
-extern int fwparam_ppc(struct boot_context *context, const char *filepath);
-
 #endif /* FWPARAM_IBFT_H_ */

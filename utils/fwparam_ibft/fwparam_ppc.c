@@ -25,7 +25,7 @@
 #include <fcntl.h>
 #include <errno.h>
 
-#include "fwparam_ibft.h"
+#include "fwparam.h"
 #include "fw_context.h"
 #include "iscsi_obp.h"
 #include "prom_parse.h"
@@ -44,6 +44,8 @@ static int bytes_read;
 static struct ofw_dev *ofwdevs[OFWDEV_MAX];
 static char *niclist[OFWDEV_MAX];
 static int nic_count;
+static int debug;
+static int dev_count;
 
 static void cp_param(char *dest, const char *name, struct ofw_dev *dev,
 		     enum obp_param item, int len)
@@ -114,7 +116,7 @@ static int locate_mac(const char *devtree, struct ofw_dev *ofwdev)
 	mac_file = malloc(mac_path_len);
 	if (!mac_file) {
 		error = ENOMEM;
-		fprintf(stderr, "%s: malloc %s, %s\n", __func__, filename,
+		fprintf(stderr, "%s: malloc , %s\n", __func__,
 			strerror(errno));
 		goto lpm_bail;
 	}
@@ -422,8 +424,9 @@ static void fill_context(struct boot_context *context, struct ofw_dev *ofwdev)
 
 }
 
-int fwparam_ppc(struct boot_context *context, const char *filepath)
+int fwparam_ppc_boot_info(struct boot_context *context)
 {
+	char filename[FILENAMESZ];
 	int error;
 	int fplen = 0;
 	char *devtree;
@@ -435,12 +438,7 @@ int fwparam_ppc(struct boot_context *context, const char *filepath)
 	 * systems that can support iscsi are the ones that provide
 	 * the appropriate FCODE with a load method.
 	 */
-	if (filepath) {
-		strncat(filename, filepath, FILENAMESZ);
-		fplen = strlen(filename);
-	} else
-		strncat(filename, DT_TOP, FILENAMESZ);
-
+	strncat(filename, DT_TOP, FILENAMESZ);
 	strncat(filename + fplen, BOOTPATH, FILENAMESZ - fplen);
 
 	if (debug)
@@ -488,6 +486,85 @@ int fwparam_ppc(struct boot_context *context, const char *filepath)
 		if (!error)
 			fill_context(context, ofwdevs[0]);
 
+	}
+
+	return error;
+}
+
+/*
+ * Due to lack of time this is just fwparam_ppc_boot_info which
+ * adds the target used for boot to the list. It does not add
+ * all possible targets (IBM please add).
+ */
+int fwparam_ppc_get_targets(struct list_head *list)
+{
+	char filename[FILENAMESZ];
+	struct boot_context *context;
+	int error;
+	int fplen = 0;
+	char *devtree;
+
+	/*
+	 * For powerpc, our operations are fundamentally to locate
+	 * either the one boot target (the singleton disk), or to find
+	 * the nics that support iscsi boot.  The only nics in IBM
+	 * systems that can support iscsi are the ones that provide
+	 * the appropriate FCODE with a load method.
+	 */
+	strncat(filename, DT_TOP, FILENAMESZ);
+	strncat(filename + fplen, BOOTPATH, FILENAMESZ - fplen);
+
+	if (debug)
+		fprintf(stderr, "%s: file:%s; debug:%d\n", __func__, filename,
+			debug);
+
+	devtree = find_devtree(filename);
+	if (!devtree)
+		return EINVAL;
+
+	/*
+	 * Always search the device-tree to find the capable nic devices.
+	 */
+	error = loop_devs(devtree);
+	if (error)
+		return error;
+
+	dev_count = find_file(filename);
+	if (dev_count < 1)
+		error = ENODEV;
+	else {
+		if (debug)
+			printf("%s:\n%s\n\n", filename, bootpath_val);
+		/*
+		 * We find *almost* everything we need in the
+		 * bootpath, save the mac-address.
+		 */
+
+		if (strstr(bootpath_val, "iscsi")) {
+			ofwdevs[0] = calloc(1, sizeof(struct ofw_dev));
+			if (!ofwdevs[0])
+				return ENOMEM;
+
+			error = parse_params(bootpath_val, ofwdevs[0]);
+			if (!error)
+				error = locate_mac(devtree, ofwdevs[0]);
+
+		} else
+			/*
+			 * yikes! we did not boot from iscsi.
+			 * tsk, tsk.
+			 */
+			error = EINVAL;
+
+		if (!error) {
+			context = calloc(1, sizeof(*context));
+			if (!context)
+				error = ENOMEM;
+			else {
+				fill_context(context, ofwdevs[0]);
+				list_add_tail(&context->list, list);
+			}
+		}
 	}
 
 	return error;

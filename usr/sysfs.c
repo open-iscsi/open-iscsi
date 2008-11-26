@@ -26,6 +26,7 @@
 #include <fcntl.h>
 #include <ctype.h>
 #include <errno.h>
+#include <limits.h>
 #include <sys/stat.h>
 
 #include "log.h"
@@ -527,6 +528,14 @@ int sysfs_lookup_devpath_by_subsys_id(char *devpath_full, size_t len, const char
 	strlcat(path, id, sizeof(path_full) - sysfs_len);
 	if (stat(path_full, &statbuf) == 0)
 		goto found;
+
+	strlcpy(path, "/firmware/", sizeof(path_full) - sysfs_len);
+	strlcat(path, subsystem, sizeof(path_full) - sysfs_len);
+	strlcat(path, "/", sizeof(path_full) - sysfs_len);
+	strlcat(path, id, sizeof(path_full) - sysfs_len);
+	if (stat(path_full, &statbuf) == 0)
+		goto found;
+
 out:
 	return 0;
 found:
@@ -534,4 +543,144 @@ found:
 		sysfs_resolve_link(path, sizeof(path_full) - sysfs_len);
 	strlcpy(devpath_full, path, len);
 	return 1;
+}
+
+
+char *sysfs_get_value(char *id, char *subsys, char *param)
+{
+	char devpath[PATH_SIZE];
+	char *sysfs_value;
+
+	if (!sysfs_lookup_devpath_by_subsys_id(devpath, sizeof(devpath),
+					       subsys, id)) {
+		log_debug(3, "Could not lookup devpath for %s %s\n",
+			  subsys, id);
+		return NULL;
+	}
+
+	sysfs_value = sysfs_attr_get_value(devpath, param);
+	if (!sysfs_value) {
+		log_debug(3, "Could not read attr %s on path %s\n",
+			  param, devpath);
+		return NULL;
+	}
+
+	if (!strncmp(sysfs_value, "<NULL>", 6))
+		return NULL;
+
+	return sysfs_value;
+}
+
+int sysfs_get_uint(char *id, char *subsys, char *param,
+		   unsigned int *value)
+{
+	char *sysfs_value;
+
+	*value = -1;
+	sysfs_value = sysfs_get_value(id, subsys, param);
+	if (!sysfs_value)
+		return EIO;
+
+	*value = strtoul(sysfs_value, NULL, 0);
+	if (*value == ULONG_MAX)
+		return errno;
+	return 0;
+}
+
+int sysfs_get_int(char *id, char *subsys, char *param, int *value)
+{
+	char *sysfs_value;
+
+	*value = -1;
+	sysfs_value = sysfs_get_value(id, subsys, param);
+	if (!sysfs_value)
+		return EIO;
+
+	*value = strtol(sysfs_value, NULL, 0);
+	if (*value == LONG_MAX || *value == LONG_MIN)
+		return errno;
+	return 0;
+}
+
+int sysfs_get_str(char *id, char *subsys, char *param, char *value,
+		  int value_size)
+{
+	char *sysfs_value;
+	int len;
+
+	value[0] = '\0';
+	sysfs_value = sysfs_get_value(id, subsys, param);
+	if (!sysfs_value || !strlen(sysfs_value))
+		return EIO;
+
+	len = strlen(sysfs_value);
+	if (len && (sysfs_value[len - 1] == '\n'))
+		sysfs_value[len - 1] = '\0';
+	strncpy(value, sysfs_value, value_size);
+	value[value_size - 1] = '\0';
+	return 0;
+}
+
+int sysfs_get_ull(char *id, char *subsys, char *param,
+		  unsigned long long *value)
+{
+	char *sysfs_value;
+
+	*value = -1;
+	sysfs_value = sysfs_get_value(id, subsys, param);
+	if (!sysfs_value)
+		return EIO;
+
+	*value = strtoull(sysfs_value, NULL, 0);
+	if (*value == ULLONG_MAX)
+		return errno;
+	return 0;
+}
+
+int sysfs_set_param(char *id, char *subsys, char *attr_name,
+		    char *write_buf, ssize_t buf_size)
+{
+	struct stat statbuf;
+	char devpath[PATH_SIZE];
+	size_t sysfs_len;
+	char path_full[PATH_SIZE];
+	const char *path;
+	int rc = 0, fd;
+
+	if (!sysfs_lookup_devpath_by_subsys_id(devpath, sizeof(devpath),
+					       subsys, id)) {
+		log_debug(3, "Could not lookup devpath for %s %s\n",
+			  subsys, id);
+		return EIO;
+	}
+
+	sysfs_len = strlcpy(path_full, sysfs_path, sizeof(path_full));
+	if(sysfs_len >= sizeof(path_full))
+		sysfs_len = sizeof(path_full) - 1;
+	path = &path_full[sysfs_len];
+	strlcat(path_full, devpath, sizeof(path_full));
+	strlcat(path_full, "/", sizeof(path_full));
+	strlcat(path_full, attr_name, sizeof(path_full));
+
+	if (lstat(path_full, &statbuf)) {
+		log_debug(3, "Could not stat %s\n", path_full);
+		return errno;
+	}
+
+	if ((statbuf.st_mode & S_IWUSR) == 0) {
+		log_error("Could not write to %s. Invalid permissions.\n",
+			  path_full);
+		return EACCES;
+	}
+
+	fd = open(path_full, O_WRONLY);
+	if (fd < 0) {
+		log_error("Could not open %s err %d\n", path_full, errno);
+		return errno;
+	}
+
+	if (write(fd, write_buf, buf_size) == -1)
+		rc = errno;
+	close(fd);
+	return rc;
 }

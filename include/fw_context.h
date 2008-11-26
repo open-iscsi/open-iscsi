@@ -21,26 +21,44 @@
 #ifndef FWPARAM_CONTEXT_H_
 #define FWPARAM_CONTEXT_H_
 
+#include <net/if.h>
+
+#include "iscsi_proto.h"
+#include "list.h"
+#include "auth.h"
+
 struct boot_context {
-#define IQNSZ (223+1)
+	struct list_head list;
+
+	/* target settings */
 	int target_port;
-	char initiatorname[IQNSZ];
-	char targetname[IQNSZ];
+	char targetname[TARGET_NAME_MAXLEN + 1];
 	char target_ipaddr[32];
-	char chap_name[127];
-	char chap_password[16];
-	char chap_name_in[127];
-	char chap_password_in[16];
-	char iface[42];
+	char chap_name[AUTH_STR_MAX_LEN];
+	char chap_password[AUTH_STR_MAX_LEN];
+	char chap_name_in[AUTH_STR_MAX_LEN];
+	char chap_password_in[AUTH_STR_MAX_LEN];
+
+	/* initiator settings */
+	char isid[10];
+	char initiatorname[TARGET_NAME_MAXLEN + 1];
+
+	/* network settings */
+	char dhcp[18];
+	char iface[IF_NAMESIZE];
 	char mac[18];
 	char ipaddr[18];
+	char gateway[18];
+	char primary_dns[18];
+	char secondary_dns[18];
 	char mask[18];
 	char lun[17];
 	char vlan[15];
-	char isid[10];
 };
 
 extern int fw_get_entry(struct boot_context *context, const char *filepath);
 extern void fw_print_entry(struct boot_context *context);
+extern int fw_get_targets(struct list_head *list);
+extern void fw_free_targets(struct list_head *list);
 
 #endif /* FWPARAM_CONTEXT_H_ */

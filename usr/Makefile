@@ -30,7 +30,7 @@ endif
 
 OPTFLAGS ?= -O2 -g
 WARNFLAGS ?= -Wall -Wstrict-prototypes
-CFLAGS += $(OPTFLAGS) $(WARNFLAGS) -I../include -D$(OSNAME) $(IPC_CFLAGS)
+CFLAGS += $(OPTFLAGS) $(WARNFLAGS) -I../include -I. -D$(OSNAME) $(IPC_CFLAGS)
 PROGRAMS = iscsid iscsiadm iscsistart
 
 # sources shared between iscsid, iscsiadm and iscsistart

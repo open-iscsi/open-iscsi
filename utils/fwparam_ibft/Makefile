@@ -21,13 +21,13 @@
 #	    "Prasanna Mumbai" <mumbai.prasanna@gmail.com>
 #
 
-OBJS := fwparam_ibft.o fw_entry.o
+OBJS := fw_entry.o fwparam_ibft_sysfs.o
 OBJS += prom_lex.o prom_parse.tab.o fwparam_ppc.o
 CLEANFILES = $(OBJS) *.output *~
 
 OPTFLAGS ?= -O2 -g -fPIC
 WARNFLAGS ?= -Wall -Wstrict-prototypes
-CFLAGS += $(OPTFLAGS) $(WARNFLAGS) -I../../include
+CFLAGS += $(OPTFLAGS) $(WARNFLAGS) -I../../include -I../../usr
 
 all: $(OBJS)
 

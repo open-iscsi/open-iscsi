@@ -30,6 +30,7 @@
 #define SLP_CONFIG_DIR		ISCSI_CONFIG_ROOT"slp"
 #define ISNS_CONFIG_DIR		ISCSI_CONFIG_ROOT"isns"
 #define STATIC_CONFIG_DIR	ISCSI_CONFIG_ROOT"static"
+#define FW_CONFIG_DIR		ISCSI_CONFIG_ROOT"fw"
 #define ST_CONFIG_DIR		ISCSI_CONFIG_ROOT"send_targets"
 #define ST_CONFIG_NAME		"st_config"
 

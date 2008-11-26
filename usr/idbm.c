@@ -1076,6 +1076,9 @@ int idbm_print_discovered(discovery_rec_t *drec, int info_level)
 	case DISCOVERY_TYPE_STATIC:
 		snprintf(disc_path, PATH_MAX, "%s", STATIC_CONFIG_DIR);
 		break;
+	case DISCOVERY_TYPE_FW:
+		snprintf(disc_path, PATH_MAX, "%s", FW_CONFIG_DIR);
+		break;
 	case DISCOVERY_TYPE_ISNS:
 		snprintf(disc_path, PATH_MAX, "%s", ISNS_CONFIG_DIR);
 		break;
@@ -1168,6 +1171,14 @@ int idbm_print_all_discovery(int info_level)
 
 	printf("STATIC:\n");
 	drec->type = DISCOVERY_TYPE_STATIC;
+	tmp = idbm_print_discovered(drec, info_level);
+	if (!tmp)
+		printf("No targets found.\n");
+	found += tmp;
+	tmp = 0;
+
+	printf("FIRMWARE:\n");
+	drec->type = DISCOVERY_TYPE_FW;
 	tmp = idbm_print_discovered(drec, info_level);
 	if (!tmp)
 		printf("No targets found.\n");
@@ -1630,6 +1641,20 @@ static int setup_disc_to_node_link(char *disc_portal, node_rec_t *rec)
 		snprintf(disc_portal, PATH_MAX, "%s/%s,%d/%s,%s,%d,%d,%s",
 			 ST_CONFIG_DIR,
 			 rec->disc_address, rec->disc_port, rec->name,
+			 rec->conn[0].address, rec->conn[0].port, rec->tpgt,
+			 rec->iface.name);
+		break;
+	case DISCOVERY_TYPE_FW:
+		if (access(FW_CONFIG_DIR, F_OK) != 0) {
+			if (mkdir(FW_CONFIG_DIR, 0660) != 0) {
+				log_error("Could not make %s\n",
+					  FW_CONFIG_DIR);
+				rc = errno;
+			}
+		}
+
+		snprintf(disc_portal, PATH_MAX, "%s/%s,%s,%d,%d,%s",
+			 FW_CONFIG_DIR, rec->name,
 			 rec->conn[0].address, rec->conn[0].port, rec->tpgt,
 			 rec->iface.name);
 		break;
