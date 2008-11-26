@@ -31,6 +31,7 @@
 #include <sys/file.h>
 
 #include "idbm.h"
+#include "idbm_fields.h"
 #include "log.h"
 #include "util.h"
 #include "iscsi_settings.h"
@@ -207,48 +208,42 @@ idbm_recinfo_discovery(discovery_rec_t *r, recinfo_t *ri)
 {
 	int num = 0;
 
-	__recinfo_int_o2("discovery.startup", ri, r, startup, IDBM_SHOW,
+	__recinfo_int_o2(DISC_STARTUP, ri, r, startup, IDBM_SHOW,
 			"manual", "automatic", num, 1);
-	__recinfo_int_o6("discovery.type", ri, r, type, IDBM_SHOW,
+	__recinfo_int_o6(DISC_TYPE, ri, r, type, IDBM_SHOW,
 			"sendtargets", "offload_send_targets", "slp", "isns",
 			"static", "fw", num, 0);
 	if (r->type == DISCOVERY_TYPE_SENDTARGETS) {
-		__recinfo_str("discovery.sendtargets.address", ri, r,
+		__recinfo_str(DISC_ST_ADDR, ri, r,
 			address, IDBM_SHOW, num, 0);
-		__recinfo_int("discovery.sendtargets.port", ri, r,
+		__recinfo_int(DISC_ST_PORT, ri, r,
 			port, IDBM_SHOW, num, 0);
-		__recinfo_int_o2("discovery.sendtargets.auth.authmethod", ri, r,
+		__recinfo_int_o2(DISC_ST_AUTH_METHOD, ri, r,
 			u.sendtargets.auth.authmethod,
 			IDBM_SHOW, "None", "CHAP", num, 1);
-		__recinfo_str("discovery.sendtargets.auth.username", ri, r,
+		__recinfo_str(DISC_ST_USERNAME, ri, r,
 			u.sendtargets.auth.username, IDBM_SHOW, num, 1);
-		__recinfo_str("discovery.sendtargets.auth.password", ri, r,
+		__recinfo_str(DISC_ST_PASSWORD, ri, r,
 			u.sendtargets.auth.password, IDBM_MASKED, num, 1);
-		__recinfo_int("discovery.sendtargets.auth.password_length",
-			ri, r, u.sendtargets.auth.password_length,
-			IDBM_HIDE, num, 1);
-		__recinfo_str("discovery.sendtargets.auth.username_in", ri, r,
+		__recinfo_str(DISC_ST_USERNAME_IN, ri, r,
 			u.sendtargets.auth.username_in, IDBM_SHOW, num, 1);
-		__recinfo_str("discovery.sendtargets.auth.password_in", ri, r,
+		__recinfo_str(DISC_ST_PASSWORD_IN, ri, r,
 			u.sendtargets.auth.password_in, IDBM_MASKED, num, 1);
-		__recinfo_int("discovery.sendtargets.auth.password_in_length",
-			ri, r, u.sendtargets.auth.password_in_length,
-			IDBM_HIDE, num, 1);
-		__recinfo_int("discovery.sendtargets.timeo.login_timeout",ri, r,
+		__recinfo_int(DISC_ST_LOGIN_TMO, ri, r,
 			u.sendtargets.conn_timeo.login_timeout,
 			IDBM_SHOW, num, 1);
-		__recinfo_int("discovery.sendtargets.reopen_max",ri, r,
+		__recinfo_int(DISC_ST_REOPEN_MAX,ri, r,
 			u.sendtargets.reopen_max,
 			IDBM_SHOW, num, 1);
-		__recinfo_int("discovery.sendtargets.timeo.auth_timeout", ri, r,
+		__recinfo_int(DISC_ST_AUTH_TMO, ri, r,
 			u.sendtargets.conn_timeo.auth_timeout,
 			IDBM_SHOW, num, 1);
-		__recinfo_int("discovery.sendtargets.timeo.active_timeout",ri,r,
+		__recinfo_int(DISC_ST_ACTIVE_TMO, ri, r,
 			      u.sendtargets.conn_timeo.active_timeout,
 			      IDBM_SHOW, num, 1);
-		__recinfo_int("discovery.sendtargets.iscsi.MaxRecvDataSegmentLength",
-			ri, r, u.sendtargets.iscsi.MaxRecvDataSegmentLength,
-			IDBM_SHOW, num, 1);
+		__recinfo_int(DISC_ST_MAX_RECV_DLEN, ri, r,
+			      u.sendtargets.iscsi.MaxRecvDataSegmentLength,
+			      IDBM_SHOW, num, 1);
 	}
 }
 
@@ -257,9 +252,9 @@ idbm_recinfo_node(node_rec_t *r, recinfo_t *ri)
 {
 	int num = 0, i;
 
-	__recinfo_str("node.name", ri, r, name, IDBM_SHOW, num, 0);
-	__recinfo_int("node.tpgt", ri, r, tpgt, IDBM_SHOW, num, 0);
-	__recinfo_int_o3("node.startup", ri, r, startup,
+	__recinfo_str(NODE_NAME, ri, r, name, IDBM_SHOW, num, 0);
+	__recinfo_int(NODE_TPGT, ri, r, tpgt, IDBM_SHOW, num, 0);
+	__recinfo_int_o3(NODE_STARTUP, ri, r, startup,
 			IDBM_SHOW, "manual", "automatic", "onboot", num, 1);
 	/*
 	 * Note: because we do not add the iface.iscsi_ifacename to
@@ -272,136 +267,131 @@ idbm_recinfo_node(node_rec_t *r, recinfo_t *ri)
 	 * the iface mode which will do the right thing (althought that
 	 * needs some locking).
 	 */
-	__recinfo_str("iface.hwaddress", ri, r, iface.hwaddress, IDBM_SHOW,
+	__recinfo_str(IFACE_HWADDR, ri, r, iface.hwaddress, IDBM_SHOW,
 		      num, 1);
 //	__recinfo_str("iface.ipaddress", ri, r, iface.ipaddress,
 //		     IDBM_SHOW, num);
-	__recinfo_str("iface.iscsi_ifacename", ri, r, iface.name, IDBM_SHOW,
+	__recinfo_str(IFACE_ISCSINAME, ri, r, iface.name, IDBM_SHOW,
 		      num, 1);
-	__recinfo_str("iface.net_ifacename", ri, r, iface.netdev, IDBM_SHOW,
+	__recinfo_str(IFACE_NETNAME, ri, r, iface.netdev, IDBM_SHOW,
 		      num, 1);
 	/*
 	 * svn 780 compat: older versions used node.transport_name and
 	 * rec->transport_name
 	 */
-	__recinfo_str("iface.transport_name", ri, r, iface.transport_name,
+	__recinfo_str(IFACE_TRANSPORTNAME, ri, r, iface.transport_name,
 		      IDBM_SHOW, num, 1);
-	__recinfo_str("iface.initiatorname", ri, r, iface.iname,
-		      IDBM_SHOW, num, 1);
-	__recinfo_str("node.discovery_address", ri, r, disc_address, IDBM_SHOW,
+	__recinfo_str(IFACE_INAME, ri, r, iface.iname, IDBM_SHOW, num, 1);
+	__recinfo_str(NODE_DISC_ADDR, ri, r, disc_address, IDBM_SHOW,
 		      num, 0);
-	__recinfo_int("node.discovery_port", ri, r, disc_port, IDBM_SHOW,
+	__recinfo_int(NODE_DISC_PORT, ri, r, disc_port, IDBM_SHOW,
 		      num, 0);
-	__recinfo_int_o6("node.discovery_type", ri, r, disc_type,
+	__recinfo_int_o6(NODE_DISC_TYPE, ri, r, disc_type,
 			 IDBM_SHOW, "send_targets", "offload_send_targets",
 			 "slp", "isns", "static", "fw", num, 0);
-	__recinfo_int("node.session.initial_cmdsn", ri, r,
+	__recinfo_int(SESSION_INIT_CMDSN, ri, r,
 		      session.initial_cmdsn, IDBM_SHOW, num, 1);
-	__recinfo_int("node.session.initial_login_retry_max", ri, r,
+	__recinfo_int(SESSION_INIT_LOGIN_RETRY, ri, r,
 		      session.initial_login_retry_max, IDBM_SHOW, num, 1);
-	__recinfo_int("node.session.cmds_max", ri, r,
+	__recinfo_int(SESSION_CMDS_MAX, ri, r,
 		      session.cmds_max, IDBM_SHOW, num, 1);
-	__recinfo_int("node.session.queue_depth", ri, r,
+	__recinfo_int(SESSION_QDEPTH, ri, r,
 		       session.queue_depth, IDBM_SHOW, num, 1);
-	__recinfo_int_o2("node.session.auth.authmethod", ri, r,
-		session.auth.authmethod, IDBM_SHOW, "None", "CHAP", num, 1);
-	__recinfo_str("node.session.auth.username", ri, r,
+	__recinfo_int_o2(SESSION_AUTH_METHOD, ri, r, session.auth.authmethod,
+			 IDBM_SHOW, "None", "CHAP", num, 1);
+	__recinfo_str(SESSION_USERNAME, ri, r,
 		      session.auth.username, IDBM_SHOW, num, 1);
-	__recinfo_str("node.session.auth.password", ri, r,
+	__recinfo_str(SESSION_PASSWORD, ri, r,
 		      session.auth.password, IDBM_MASKED, num, 1);
-	__recinfo_int("node.session.auth.password_length", ri, r,
-		      session.auth.password_length, IDBM_HIDE, num, 1);
-	__recinfo_str("node.session.auth.username_in", ri, r,
+	__recinfo_str(SESSION_USERNAME_IN, ri, r,
 		      session.auth.username_in, IDBM_SHOW, num, 1);
-	__recinfo_str("node.session.auth.password_in", ri, r,
+	__recinfo_str(SESSION_PASSWORD_IN, ri, r,
 		      session.auth.password_in, IDBM_MASKED, num, 1);
-	__recinfo_int("node.session.auth.password_in_length", ri, r,
-		      session.auth.password_in_length, IDBM_HIDE, num, 1);
-	__recinfo_int("node.session.timeo.replacement_timeout", ri, r,
+	__recinfo_int(SESSION_REPLACEMENT_TMO, ri, r,
 		      session.timeo.replacement_timeout,
 		      IDBM_SHOW, num, 1);
-	__recinfo_int("node.session.err_timeo.abort_timeout", ri, r,
+	__recinfo_int(SESSION_ABORT_TMO, ri, r,
 		      session.err_timeo.abort_timeout,
 		      IDBM_SHOW, num, 1);
-	__recinfo_int("node.session.err_timeo.lu_reset_timeout", ri, r,
+	__recinfo_int(SESSION_LU_RESET_TMO, ri, r,
 		      session.err_timeo.lu_reset_timeout,
 		      IDBM_SHOW, num, 1);
-	__recinfo_int("node.session.err_timeo.host_reset_timeout", ri, r,
+	__recinfo_int(SESSION_HOST_RESET_TMO, ri, r,
 		      session.err_timeo.host_reset_timeout,
 		      IDBM_SHOW, num, 1);
-	__recinfo_int_o2("node.session.iscsi.FastAbort", ri, r,
+	__recinfo_int_o2(SESSION_FAST_ABORT, ri, r,
 			 session.iscsi.FastAbort, IDBM_SHOW, "No", "Yes",
 			 num, 1);
-	__recinfo_int_o2("node.session.iscsi.InitialR2T", ri, r,
-			 session.iscsi.InitialR2T, IDBM_SHOW,
+	__recinfo_int_o2(SESSION_INITIAL_R2T, ri, r,
+			session.iscsi.InitialR2T, IDBM_SHOW,
 			"No", "Yes", num, 1);
-	__recinfo_int_o2("node.session.iscsi.ImmediateData",
-			 ri, r, session.iscsi.ImmediateData, IDBM_SHOW,
-			"No", "Yes", num, 1);
-	__recinfo_int("node.session.iscsi.FirstBurstLength", ri, r,
+	__recinfo_int_o2(SESSION_IMM_DATA, ri, r,
+			session.iscsi.ImmediateData,
+			IDBM_SHOW, "No", "Yes", num, 1);
+	__recinfo_int(SESSION_FIRST_BURST, ri, r,
 		      session.iscsi.FirstBurstLength, IDBM_SHOW, num, 1);
-	__recinfo_int("node.session.iscsi.MaxBurstLength", ri, r,
+	__recinfo_int(SESSION_MAX_BURST, ri, r,
 		      session.iscsi.MaxBurstLength, IDBM_SHOW, num, 1);
-	__recinfo_int("node.session.iscsi.DefaultTime2Retain", ri, r,
+	__recinfo_int(SESSION_DEF_TIME2RETAIN, ri, r,
 		      session.iscsi.DefaultTime2Retain, IDBM_SHOW, num, 1);
-	__recinfo_int("node.session.iscsi.DefaultTime2Wait", ri, r,
+	__recinfo_int(SESSION_DEF_TIME2WAIT, ri, r,
 		      session.iscsi.DefaultTime2Wait, IDBM_SHOW, num, 1);
-	__recinfo_int("node.session.iscsi.MaxConnections", ri, r,
+	__recinfo_int(SESSION_MAX_CONNS, ri, r,
 		      session.iscsi.MaxConnections, IDBM_SHOW, num, 1);
-	__recinfo_int("node.session.iscsi.MaxOutstandingR2T", ri, r,
+	__recinfo_int(SESSION_MAX_R2T, ri, r,
 		      session.iscsi.MaxOutstandingR2T, IDBM_SHOW, num, 1);
-	__recinfo_int("node.session.iscsi.ERL", ri, r,
+	__recinfo_int(SESSION_ERL, ri, r,
 		      session.iscsi.ERL, IDBM_SHOW, num, 1);
 
 	for (i = 0; i < ISCSI_CONN_MAX; i++) {
 		char key[NAME_MAXVAL];
 
-		sprintf(key, "node.conn[%d].address", i);
+		sprintf(key, CONN_ADDR, i);
 		__recinfo_str(key, ri, r, conn[i].address, IDBM_SHOW, num, 0);
-		sprintf(key, "node.conn[%d].port", i);
+		sprintf(key, CONN_PORT, i);
 		__recinfo_int(key, ri, r, conn[i].port, IDBM_SHOW, num, 0);
-		sprintf(key, "node.conn[%d].startup", i);
+		sprintf(key, CONN_STARTUP, i);
 		__recinfo_int_o3(key, ri, r, conn[i].startup, IDBM_SHOW,
 				 "manual", "automatic", "onboot", num, 1);
-		sprintf(key, "node.conn[%d].tcp.window_size", i);
+		sprintf(key, CONN_WINDOW_SIZE, i);
 		__recinfo_int(key, ri, r, conn[i].tcp.window_size,
 			      IDBM_SHOW, num, 1);
-		sprintf(key, "node.conn[%d].tcp.type_of_service", i);
+		sprintf(key, CONN_SERVICE_TYPE, i);
 		__recinfo_int(key, ri, r, conn[i].tcp.type_of_service,
 				IDBM_SHOW, num, 1);
-		sprintf(key, "node.conn[%d].timeo.logout_timeout", i);
+		sprintf(key, CONN_LOGOUT_TMO, i);
 		__recinfo_int(key, ri, r, conn[i].timeo.logout_timeout,
 				IDBM_SHOW, num, 1);
-		sprintf(key, "node.conn[%d].timeo.login_timeout", i);
+		sprintf(key, CONN_LOGIN_TMO, i);
 		__recinfo_int(key, ri, r, conn[i].timeo.login_timeout,
 				IDBM_SHOW, num, 1);
-		sprintf(key, "node.conn[%d].timeo.auth_timeout", i);
+		sprintf(key, CONN_AUTH_TMO, i);
 		__recinfo_int(key, ri, r, conn[i].timeo.auth_timeout,
 				IDBM_SHOW, num, 1);
 
-		sprintf(key, "node.conn[%d].timeo.noop_out_interval", i);
+		sprintf(key, CONN_NOP_INT, i);
 		__recinfo_int(key, ri, r, conn[i].timeo.noop_out_interval,
 				IDBM_SHOW, num, 1);
-		sprintf(key, "node.conn[%d].timeo.noop_out_timeout", i);
+		sprintf(key, CONN_NOP_TMO, i);
 		__recinfo_int(key, ri, r, conn[i].timeo.noop_out_timeout,
 				IDBM_SHOW, num, 1);
 
-		sprintf(key, "node.conn[%d].iscsi.MaxRecvDataSegmentLength", i);
+		sprintf(key, CONN_MAX_RECV_DLEN, i);
 		__recinfo_int(key, ri, r,
 			conn[i].iscsi.MaxRecvDataSegmentLength, IDBM_SHOW,
 			num, 1);
-		sprintf(key, "node.conn[%d].iscsi.HeaderDigest", i);
+		sprintf(key, CONN_HDR_DIGEST, i);
 		__recinfo_int_o4(key, ri, r, conn[i].iscsi.HeaderDigest,
 				 IDBM_SHOW, "None", "CRC32C", "CRC32C,None",
 				 "None,CRC32C", num, 1);
-		sprintf(key, "node.conn[%d].iscsi.DataDigest", i);
+		sprintf(key, CONN_DATA_DIGEST, i);
 		__recinfo_int_o4(key, ri, r, conn[i].iscsi.DataDigest, IDBM_SHOW,
 				 "None", "CRC32C", "CRC32C,None",
 				 "None,CRC32C", num, 1);
-		sprintf(key, "node.conn[%d].iscsi.IFMarker", i);
+		sprintf(key, CONN_IFMARKER, i);
 		__recinfo_int_o2(key, ri, r, conn[i].iscsi.IFMarker, IDBM_SHOW,
 				"No", "Yes", num, 1);
-		sprintf(key, "node.conn[%d].iscsi.OFMarker", i);
+		sprintf(key, CONN_OFMARKER, i);
 		__recinfo_int_o2(key, ri, r, conn[i].iscsi.OFMarker, IDBM_SHOW,
 				"No", "Yes", num, 1);
 	}
@@ -411,13 +401,13 @@ void idbm_recinfo_iface(iface_rec_t *r, recinfo_t *ri)
 {
 	int num = 0;
 
-	__recinfo_str("iface.iscsi_ifacename", ri, r, name, IDBM_SHOW, num, 0);
-	__recinfo_str("iface.net_ifacename", ri, r, netdev, IDBM_SHOW, num, 1);
+	__recinfo_str(IFACE_ISCSINAME, ri, r, name, IDBM_SHOW, num, 0);
+	__recinfo_str(IFACE_NETNAME, ri, r, netdev, IDBM_SHOW, num, 1);
 //	__recinfo_str("iface.ipaddress", ri, r, ipaddress, IDBM_SHOW, num, 1);
-	__recinfo_str("iface.hwaddress", ri, r, hwaddress, IDBM_SHOW, num, 1);
-	__recinfo_str("iface.transport_name", ri, r, transport_name,
+	__recinfo_str(IFACE_HWADDR, ri, r, hwaddress, IDBM_SHOW, num, 1);
+	__recinfo_str(IFACE_TRANSPORTNAME, ri, r, transport_name,
 		      IDBM_SHOW, num, 1);
-	__recinfo_str("iface.initiatorname", ri, r, iname, IDBM_SHOW, num, 1);
+	__recinfo_str(IFACE_INAME, ri, r, iname, IDBM_SHOW, num, 1);
 }
 
 recinfo_t *idbm_recinfo_alloc(int max_keys)
@@ -452,7 +442,7 @@ void idbm_print(int type, void *rec, int show, FILE *f)
 		break;
 	}
 
-	fprintf(f, "# BEGIN RECORD\n");
+	fprintf(f, "%s\n", ISCSI_BEGIN_REC);
 	for (i = 0; i < MAX_KEYS; i++) {
 		if (!info[i].visible)
 			continue;
@@ -469,7 +459,7 @@ void idbm_print(int type, void *rec, int show, FILE *f)
 		else if (f == stdout)
 			fprintf(f, "%s = <empty>\n", info[i].name);
 	}
-	fprintf(f, "# END RECORD\n");
+	fprintf(f, "%s\n", ISCSI_END_REC);
 
 	free(info);
 }
