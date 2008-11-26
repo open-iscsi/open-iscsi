@@ -52,7 +52,6 @@ struct host_info {
 	int host_no;
 };
 
-extern int direntcmp(const void *d1, const void *d2);
 extern void free_transports(void);
 extern char *iscsi_sysfs_get_iscsi_kernel_version(void);
 extern int iscsi_sysfs_check_class_version(void);

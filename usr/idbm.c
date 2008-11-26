@@ -976,7 +976,7 @@ static int print_discovered(char *disc_path, int info_level)
 	struct dirent **namelist;
 	node_rec_t *rec;
 
-	n = scandir(disc_path, &namelist, st_disc_filter, direntcmp);
+	n = scandir(disc_path, &namelist, st_disc_filter, alphasort);
 	if (n < 0)
 		return 0;
 
@@ -2092,7 +2092,7 @@ rm_conf:
 		snprintf(portal, PATH_MAX, "%s/%s/%s,%d,%d", NODE_CONFIG_DIR,
 			 rec->name, rec->conn[0].address, rec->conn[0].port,
 			 rec->tpgt);
-		n = scandir(portal, &namelist, st_disc_filter, direntcmp);
+		n = scandir(portal, &namelist, st_disc_filter, alphasort);
 		if (n < 0)
 			goto free_portal;
 		if (n == 0)
