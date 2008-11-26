@@ -301,7 +301,7 @@ int main(int argc, char *argv[])
 			break;
 		case 'b':
 			memset(&boot_context, 0, sizeof(boot_context));
-			ret = fw_get_entry(&boot_context, NULL);
+			ret = fw_get_entry(&boot_context);
 			if (ret) {
 				printf("Could not get boot entry.\n");
 				exit(1);

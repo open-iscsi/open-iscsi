@@ -28,13 +28,12 @@
 /**
  * fw_get_entry - return boot context of portal used for boot
  * @context: firmware info of portal
- * @filepath: CURRENTLY NOT USED
  *
  * Returns non-zero if no portal was used for boot.
  *
  * This function is not thread safe.
  */
-int fw_get_entry(struct boot_context *context, const char *filepath)
+int fw_get_entry(struct boot_context *context)
 {
 	int ret;
 
