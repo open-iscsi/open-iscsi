@@ -104,7 +104,7 @@ static void iface_init(struct iface_rec *iface)
 void iface_setup_defaults(struct iface_rec *iface)
 {
 	sprintf(iface->netdev, DEFAULT_NETDEV);
-//	sprintf(iface->ipaddress, DEFAULT_IPADDRESS);
+	sprintf(iface->ipaddress, DEFAULT_IPADDRESS);
 	sprintf(iface->hwaddress, DEFAULT_HWADDRESS);
 	sprintf(iface->transport_name, DEFAULT_TRANSPORT);
 	iface_init(iface);
@@ -494,8 +494,8 @@ void iface_copy(struct iface_rec *dst, struct iface_rec *src)
 		strcpy(dst->name, src->name);
 	if (strlen(src->netdev))
 		strcpy(dst->netdev, src->netdev);
-//	if (strlen(src->ipaddress))
-//		strcpy(dst->ipaddress, src->ipaddress);
+	if (strlen(src->ipaddress))
+		strcpy(dst->ipaddress, src->ipaddress);
 	if (strlen(src->hwaddress))
 		strcpy(dst->hwaddress, src->hwaddress);
 	if (strlen(src->transport_name))
@@ -570,12 +570,10 @@ int iface_is_bound_by_netdev(struct iface_rec *iface)
 
 int iface_is_bound_by_ipaddr(struct iface_rec *iface)
 {
-	return 0;
-/*	if (iface && strlen(iface->ipaddress) &&
-	   strcmp(iface->ipaddress, DEFAULT_NETDEV))
+	if (iface && strlen(iface->ipaddress) &&
+	   strcmp(iface->ipaddress, DEFAULT_IPADDRESS))
 		return 1;
 	return 0;
-*/
 }
 
 /**
@@ -594,6 +592,8 @@ int iface_print_tree(void *data, struct iface_rec *iface)
 	       UNKNOWN_VALUE);
 	printf("\tHW Address: %s\n",
 	       strlen(iface->hwaddress) ? iface->hwaddress : UNKNOWN_VALUE);
+	printf("\tIP Address: %s\n",
+	       strlen(iface->ipaddress) ? iface->ipaddress : UNKNOWN_VALUE);
 	printf("\tNetdev: %s\n",
 	       strlen(iface->netdev) ? iface->netdev : UNKNOWN_VALUE);
 	printf("\tInitiator Name: %s\n",
@@ -603,11 +603,12 @@ int iface_print_tree(void *data, struct iface_rec *iface)
 
 int iface_print_flat(void *data, struct iface_rec *iface)
 {
-	printf("%s %s,%s,%s,%s\n",
+	printf("%s %s,%s,%s,%s,%s\n",
 		strlen(iface->name) ? iface->name : UNKNOWN_VALUE,
 		strlen(iface->transport_name) ? iface->transport_name :
 							UNKNOWN_VALUE,
 		strlen(iface->hwaddress) ? iface->hwaddress : UNKNOWN_VALUE,
+		strlen(iface->ipaddress) ? iface->ipaddress : UNKNOWN_VALUE,
 		strlen(iface->netdev) ? iface->netdev : UNKNOWN_VALUE,
 		strlen(iface->iname) ? iface->iname : UNKNOWN_VALUE);
 	return 0;

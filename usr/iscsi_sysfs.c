@@ -378,12 +378,12 @@ uint32_t iscsi_sysfs_get_host_no_from_iface(struct iface_rec *iface, int *rc)
 	if (strlen(iface->hwaddress) &&
 	    strcasecmp(iface->hwaddress, DEFAULT_HWADDRESS))
 		host_no = get_host_no_from_hwaddress(iface->hwaddress, &tmp_rc);
-	else if (strlen(iface->ipaddress) &&
-		 strcasecmp(iface->ipaddress, DEFAULT_IPADDRESS))
-		host_no = get_host_no_from_ipaddress(iface->ipaddress, &tmp_rc);
 	else if(strlen(iface->netdev) &&
 		strcasecmp(iface->netdev, DEFAULT_NETDEV))
 		host_no = get_host_no_from_netdev(iface->netdev, &tmp_rc);
+	else if (strlen(iface->ipaddress) &&
+		 strcasecmp(iface->ipaddress, DEFAULT_IPADDRESS))
+		host_no = get_host_no_from_ipaddress(iface->ipaddress, &tmp_rc);
 	else
 		tmp_rc = EINVAL;
 

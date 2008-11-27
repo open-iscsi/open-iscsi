@@ -267,14 +267,10 @@ idbm_recinfo_node(node_rec_t *r, recinfo_t *ri)
 	 * the iface mode which will do the right thing (althought that
 	 * needs some locking).
 	 */
-	__recinfo_str(IFACE_HWADDR, ri, r, iface.hwaddress, IDBM_SHOW,
-		      num, 1);
-//	__recinfo_str("iface.ipaddress", ri, r, iface.ipaddress,
-//		     IDBM_SHOW, num);
-	__recinfo_str(IFACE_ISCSINAME, ri, r, iface.name, IDBM_SHOW,
-		      num, 1);
-	__recinfo_str(IFACE_NETNAME, ri, r, iface.netdev, IDBM_SHOW,
-		      num, 1);
+	__recinfo_str(IFACE_HWADDR, ri, r, iface.hwaddress, IDBM_SHOW, num, 1);
+	__recinfo_str(IFACE_IPADDR, ri, r, iface.ipaddress, IDBM_SHOW, num, 1);
+	__recinfo_str(IFACE_ISCSINAME, ri, r, iface.name, IDBM_SHOW, num, 1);
+	__recinfo_str(IFACE_NETNAME, ri, r, iface.netdev, IDBM_SHOW, num, 1);
 	/*
 	 * svn 780 compat: older versions used node.transport_name and
 	 * rec->transport_name
@@ -403,7 +399,7 @@ void idbm_recinfo_iface(iface_rec_t *r, recinfo_t *ri)
 
 	__recinfo_str(IFACE_ISCSINAME, ri, r, name, IDBM_SHOW, num, 0);
 	__recinfo_str(IFACE_NETNAME, ri, r, netdev, IDBM_SHOW, num, 1);
-//	__recinfo_str("iface.ipaddress", ri, r, ipaddress, IDBM_SHOW, num, 1);
+	__recinfo_str(IFACE_IPADDR, ri, r, ipaddress, IDBM_SHOW, num, 1);
 	__recinfo_str(IFACE_HWADDR, ri, r, hwaddress, IDBM_SHOW, num, 1);
 	__recinfo_str(IFACE_TRANSPORTNAME, ri, r, transport_name,
 		      IDBM_SHOW, num, 1);

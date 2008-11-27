@@ -38,6 +38,7 @@
 #include "scsi.h"
 #include "iscsi_sysfs.h"
 #include "iscsi_settings.h"
+#include "iface.h"
 
 #define ISCSI_CONN_ERR_REOPEN_DELAY	3
 #define ISCSI_INTERNAL_ERR_REOPEN_DELAY	5
@@ -1938,6 +1939,51 @@ int session_is_running(node_rec_t *rec)
 	return 0;
 }
 
+static int iface_set_param(struct iscsi_transport *t, struct iface_rec *iface,
+			   struct iscsi_session *session)
+{
+	int rc = 0, hostno;
+
+	log_debug(3, "setting iface %s, dev %s, set ip %s, hw %s, "
+		  "transport %s.\n",
+		  iface->name, iface->netdev, iface->ipaddress,
+		  iface->hwaddress, iface->transport_name);
+
+	/* if we need to set the ip addr then set all the iface net settings */
+	if (!iface_is_bound_by_ipaddr(iface))
+		return 0;
+
+	/* this assumes that the netdev or hw address is going to be set */
+	hostno = iscsi_sysfs_get_host_no_from_iface(iface, &rc);
+	if (rc)
+		return rc;
+
+	session->hostno = hostno;
+
+	rc = __iscsi_host_set_param(t, session->hostno,
+				    ISCSI_HOST_PARAM_IPADDRESS,
+				    iface->ipaddress, ISCSI_STRING);
+	if (rc)
+		return rc;
+
+	if (iface_is_bound_by_netdev(iface)) {
+		rc = __iscsi_host_set_param(t, session->hostno,
+					    ISCSI_HOST_PARAM_NETDEV_NAME,
+					    iface->netdev, ISCSI_STRING);
+		if (rc)
+			return rc;
+	}
+
+	if (iface_is_bound_by_hwaddr(iface)) {
+		rc = __iscsi_host_set_param(t, session->hostno,
+					    ISCSI_HOST_PARAM_HWADDRESS,
+					    iface->hwaddress, ISCSI_STRING);
+		if (rc)
+			return rc;
+	}
+	return 0;
+}
+
 int
 session_login_task(node_rec_t *rec, queue_task_t *qtask)
 {
@@ -2019,6 +2065,11 @@ session_login_task(node_rec_t *rec, queue_task_t *qtask)
 	}
 	conn = &session->conn[0];
 	qtask->conn = conn;
+
+	if (iface_set_param(t, &rec->iface, session)) {
+		__session_destroy(session);
+		return MGMT_IPC_ERR_LOGIN_FAILURE;
+	}
 
 	conn->state = STATE_XPT_WAIT;
 	if (iscsi_conn_connect(conn, qtask)) {
