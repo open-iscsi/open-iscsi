@@ -62,20 +62,9 @@ static struct iface_rec iface_iser = {
 	.hwaddress	= DEFAULT_HWADDRESS,
 };
 
-/*
- * Broadcom bnx2i
- */
-static struct iface_rec iface_bnx2i = {
-	.name		= "bnx2i",
-	.transport_name	= "bnx2i",
-	.netdev		= DEFAULT_NETDEV,
-	.hwaddress	= DEFAULT_HWADDRESS,
-};
-
 static struct iface_rec *default_ifaces[] = {
 	&iface_default,
 	&iface_iser,
-	&iface_bnx2i,
 	NULL,
 };
 
