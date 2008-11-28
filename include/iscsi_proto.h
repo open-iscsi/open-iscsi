@@ -21,7 +21,9 @@
 #ifndef ISCSI_PROTO_H
 #define ISCSI_PROTO_H
 
+#ifndef __KERNEL__
 #include <stdint.h>
+#endif
 #include <linux/types.h>
 
 #define ISCSI_DRAFT20_VERSION	0x00
