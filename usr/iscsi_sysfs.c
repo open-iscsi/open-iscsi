@@ -100,27 +100,41 @@ static int read_transports(void)
 			}
 		}
 
-		if (found)
-			continue;
+		if (!found) {
+			/* copy new transport */
+			t = malloc(sizeof(*t));
+			if (!t)
+				continue;
+			log_debug(7, "Adding new transport %s",
+				  namelist[i]->d_name);
 
-		/* copy new transport */
-		t = malloc(sizeof(*t));
-		if (!t)
-			continue;
-		log_debug(7, "Adding new transport %s", namelist[i]->d_name);
-
-		INIT_LIST_HEAD(&t->sessions);
-		INIT_LIST_HEAD(&t->list);
-		strncpy(t->name, namelist[i]->d_name,
-			ISCSI_TRANSPORT_NAME_MAXLEN);
+			INIT_LIST_HEAD(&t->sessions);
+			INIT_LIST_HEAD(&t->list);
+			strncpy(t->name, namelist[i]->d_name,
+				ISCSI_TRANSPORT_NAME_MAXLEN);
+		} else
+			log_debug(7, "Updating transport %s",
+				  namelist[i]->d_name);
 
 		if (sysfs_get_ull(t->name, ISCSI_TRANSPORT_SUBSYS,
-				  "handle", (unsigned long long *)&t->handle))
+				  "handle", (unsigned long long *)&t->handle)) {
+			if (list_empty(&t->list))
+				free(t);
+			else
+				log_error("Could not update %s.\n",
+					  t->name);
 			continue;
+		}
 
 		if (sysfs_get_uint(t->name, ISCSI_TRANSPORT_SUBSYS,
-				  "caps", &t->caps))
+				  "caps", &t->caps)) {
+			if (list_empty(&t->list))
+				free(t);
+			else
+				log_error("Could not update %s.\n",
+					  t->name);
 			continue;
+		}
 		/*
 		 * tmp hack for qla4xx compat
 		 */
@@ -129,7 +143,8 @@ static int read_transports(void)
 			t->caps |= CAP_FW_DB;
 		}
 
-		list_add_tail(&t->list, &transports);
+		if (list_empty(&t->list))
+			list_add_tail(&t->list, &transports);
 	}
 
 	for (i = 0; i < n; i++)
