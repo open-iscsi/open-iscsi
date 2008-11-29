@@ -435,12 +435,45 @@ static int sysfs_read_iface(struct iface_rec *iface, int host_no,
 		log_debug(7, "could not read netdev for host%d\n", host_no);
 	}
 
-	ret = sysfs_get_str(id, ISCSI_HOST_SUBSYS, "initiatorname",
-			    iface->iname, sizeof(iface->iname));
-	if (ret)
-		/* default iname is picked up later from initiatorname.iscsi */
-		log_debug(7, "Could not read initiatorname for host%d\n",
-			  host_no);
+	/*
+	 * For drivers like qla4xxx we can only set the iname at the
+	 * host level because we cannot create different initiator ports
+	 * (cannot set isid either). The LLD also exports the iname at the
+	 * hba level so apps can see it, but we no longer set the iname for
+	 * each iscsid controlled host since bnx2i cxgb3i can support multiple
+	 * initiator names and of course software iscsi can support anything.
+	 */
+	ret = 1;
+	if (session) {
+		ret = sysfs_get_str(session, ISCSI_SESSION_SUBSYS,
+				    "initiatorname",
+				    iface->iname, sizeof(iface->iname));
+		/*
+		 * qlaxxx will not set this at the session level so we
+		 * always drop down for it.
+		 *
+		 * And.
+		 *
+		 * For older kernels/tools (2.6.26 and below and 2.0.870)
+		 * we will not have a session level initiator name, so
+		 * we will drop down.
+		 */
+	}
+
+	if (ret) {
+		ret = sysfs_get_str(id, ISCSI_HOST_SUBSYS, "initiatorname",
+				    iface->iname, sizeof(iface->iname));
+		if (ret)
+			/*
+			 * default iname is picked up later from
+			 * initiatorname.iscsi if software/partial-offload.
+			 *
+			 * TODO: we should make it easier to get the
+			 * global iname so we can just fill it in here.
+			 */
+			log_debug(7, "Could not read initiatorname for "
+				  "host%d\n", host_no);
+	}
 
 	/*
 	 * this is on the session, because we support multiple bindings
@@ -451,6 +484,7 @@ static int sysfs_read_iface(struct iface_rec *iface, int host_no,
 		/*
 		 * this was added after 2.0.869 so we could be doing iscsi_tcp
 		 * session binding, but there may not be a ifacename set
+		 * if binding is not used.
 		 */
 		ret = sysfs_get_str(session, ISCSI_SESSION_SUBSYS, "ifacename",
 				    iface->name, sizeof(iface->name));

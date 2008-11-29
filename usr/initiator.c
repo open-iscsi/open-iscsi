@@ -1175,7 +1175,7 @@ mgmt_ipc_err_e iscsi_host_set_param(int host_no, int param, char *value)
         return MGMT_IPC_OK;
 }
 
-#define MAX_SESSION_PARAMS 30
+#define MAX_SESSION_PARAMS 31
 #define MAX_HOST_PARAMS 3
 
 static void
@@ -1189,19 +1189,23 @@ setup_full_feature_phase(iscsi_conn_t *conn)
 		int param;
 		int type;
 		void *value;
+		int set;
 	} hosttbl[MAX_HOST_PARAMS] = {
 		{
-			.param = ISCSI_HOST_PARAM_INITIATOR_NAME,
-			.value = session->initiator_name,
-			.type = ISCSI_STRING,
-		}, {
 			.param = ISCSI_HOST_PARAM_NETDEV_NAME,
 			.value = session->nrec.iface.netdev,
 			.type = ISCSI_STRING,
+			.set = 1,
 		}, {
 			.param = ISCSI_HOST_PARAM_HWADDRESS,
 			.value = session->nrec.iface.hwaddress,
 			.type = ISCSI_STRING,
+			.set = 1,
+		}, {
+			.param = ISCSI_HOST_PARAM_INITIATOR_NAME,
+			.value = session->initiator_name,
+			.type = ISCSI_STRING,
+			.set = 0,
 		},
 	};
 	struct connparam {
@@ -1359,6 +1363,10 @@ setup_full_feature_phase(iscsi_conn_t *conn)
 			.param = ISCSI_PARAM_IFACE_NAME,
 			.value = session->nrec.iface.name,
 			.type = ISCSI_STRING,
+		}, {
+			.param = ISCSI_PARAM_INITIATOR_NAME,
+			.value = session->initiator_name,
+			.type = ISCSI_STRING,
 		},
 	};
 
@@ -1385,16 +1393,30 @@ setup_full_feature_phase(iscsi_conn_t *conn)
 			return;
 		}
 
-		/* older kernels may not support nop handling in kernel */
-		if (rc == -ENOSYS &&
-		    conntbl[i].param == ISCSI_PARAM_PING_TMO)
-			conn->userspace_nop = 1;
+		if (rc == -ENOSYS) {
+			switch (conntbl[i].param) {
+			case ISCSI_PARAM_PING_TMO:
+				/*
+				 * older kernels may not support nops
+				 * in kernel
+				 */
+				conn->userspace_nop = 1;
+				break;
+			case ISCSI_PARAM_INITIATOR_NAME:
+				/* use host level one instead */
+				hosttbl[ISCSI_HOST_PARAM_INITIATOR_NAME].set = 1;
+				break;
+			}
+		}
 
 		print_param_value(conntbl[i].param, conntbl[i].value,
 				  conntbl[i].type);
 	}
 
 	for (i = 0; i < MAX_HOST_PARAMS; i++) {
+		if (!hosttbl[i].set)
+			continue;
+
 		if (__iscsi_host_set_param(session->t, session->hostno,
 					   hosttbl[i].param, hosttbl[i].value,
 					   hosttbl[i].type)) {
