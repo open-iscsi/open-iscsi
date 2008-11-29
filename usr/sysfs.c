@@ -581,8 +581,9 @@ int sysfs_get_uint(char *id, char *subsys, char *param,
 	if (!sysfs_value)
 		return EIO;
 
+	errno = 0;
 	*value = strtoul(sysfs_value, NULL, 0);
-	if (*value == ULONG_MAX)
+	if (errno)
 		return errno;
 	return 0;
 }
@@ -596,9 +597,7 @@ int sysfs_get_int(char *id, char *subsys, char *param, int *value)
 	if (!sysfs_value)
 		return EIO;
 
-	*value = strtol(sysfs_value, NULL, 0);
-	if (*value == LONG_MAX || *value == LONG_MIN)
-		return errno;
+	*value = atoi(sysfs_value);
 	return 0;
 }
 
@@ -631,8 +630,9 @@ int sysfs_get_ull(char *id, char *subsys, char *param,
 	if (!sysfs_value)
 		return EIO;
 
+	errno = 0;
 	*value = strtoull(sysfs_value, NULL, 0);
-	if (*value == ULLONG_MAX)
+	if (errno)
 		return errno;
 	return 0;
 }
