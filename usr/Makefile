@@ -34,7 +34,7 @@ CFLAGS += $(OPTFLAGS) $(WARNFLAGS) -I../include -I. -D$(OSNAME) $(IPC_CFLAGS)
 PROGRAMS = iscsid iscsiadm iscsistart
 
 # sources shared between iscsid, iscsiadm and iscsistart
-ISCSI_LIB_SRCS = util.o io.o auth.o login.o log.o md5.o sha1.o iface.o idbm.o sysdeps.o sysfs.o iscsi_sysfs.o
+ISCSI_LIB_SRCS = util.o io.o auth.o login.o log.o md5.o sha1.o iface.o idbm.o sysdeps.o sysfs.o session_info.o iscsi_sysfs.o
 # sources shared between iscsid and iscsiadm
 COMMON_SRCS =  $(ISCSI_LIB_SRCS)
 # core initiator files

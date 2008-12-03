@@ -21,6 +21,7 @@
 #include "transport.h"
 #include "idbm.h"
 #include "iface.h"
+#include "session_info.h"
 
 void daemon_init(void)
 {

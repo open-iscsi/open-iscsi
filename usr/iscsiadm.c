@@ -41,6 +41,7 @@
 #include "iscsi_settings.h"
 #include "fw_context.h"
 #include "iface.h"
+#include "session_info.h"
 
 struct iscsi_ipc *ipc = NULL; /* dummy */
 static char program_name[] = "iscsiadm";
@@ -206,7 +207,7 @@ static void kill_iscsid(int priority)
  * (scsi_host and iscsi_sessions are the currently running instance of
  * a iface or node record).
  */
-static int print_ifaces(int info_level)
+static int print_ifaces(struct iface_rec *iface, int info_level)
 {
 	int err, num_found = 0;
 
@@ -217,11 +218,24 @@ static int print_ifaces(int info_level)
 					   iface_print_flat);
 		break;
 	case 1:
-		err = iface_for_each_iface(NULL, &num_found,
-					   iface_print_tree);
+	case 2:
+	case 3:
+	case 4:
+		if (iface) {
+			err = iface_conf_read(iface);
+			if (err) {
+				log_error("Could not read iface %s.\n",
+					  iface->name);
+				return err;
+			}
+			iface_print_tree(&info_level, iface);
+			num_found = 1;
+		} else
+			err = iface_for_each_iface(&info_level, &num_found,
+						   iface_print_tree);
 		break;
 	default:
-		log_error("Invalid info level %d. Try 0 or 1.", info_level);
+		log_error("Invalid info level %d. Try 0 - 4.", info_level);
 		return EINVAL;
 	}
 
@@ -340,50 +354,6 @@ for_each_session(struct node_rec *rec, iscsi_sysfs_session_op_fn *fn)
 	return err;
 }
 
-struct session_link_info {
-	struct list_head *list;
-	struct session_info *match_info;
-};
-
-static int link_sessions(void *data, struct session_info *info)
-{
-	struct session_link_info *link_info = data;
-	struct list_head *list = link_info->list;
-	struct session_info *new, *curr, *match = NULL;
-
-	if (link_info->match_info && link_info->match_info->sid != info->sid)
-		return 0;
-
-	new = calloc(1, sizeof(*new));
-	if (!new)
-		return ENOMEM;
-	memcpy(new, info, sizeof(*new));
-	INIT_LIST_HEAD(&new->list);
-
-	if (list_empty(list)) {
-		list_add_tail(&new->list, list);
-		return 0;
-	}
-
-	list_for_each_entry(curr, list, list) {
-		if (!strcmp(curr->targetname, info->targetname)) {
-			match = curr;
-
-			if (!strcmp(curr->address, info->address)) {
-				match = curr;
-
-				if (curr->port == info->port) {
-					match = curr;
-					break;
-				}
-			}
-		}
-	}
-
-	list_add_tail(&new->list, match ? match->list.next : list);
-	return 0;
-}
-
 static int link_recs(void *data, struct node_rec *rec)
 {
 	struct list_head *list = data;
@@ -447,7 +417,7 @@ __logout_portals(void *data, int *nr_found,
 		 int (*logout_fn)(void *, struct list_head *,
 				   struct session_info *))
 {
-	struct session_info *curr_info, *tmp;
+	struct session_info *curr_info;
 	struct session_link_info link_info;
 	struct list_head session_list, logout_list;
 	int ret = 0, err;
@@ -457,11 +427,12 @@ __logout_portals(void *data, int *nr_found,
 
 	memset(&link_info, 0, sizeof(link_info));
 	link_info.list = &session_list;
-	link_info.match_info = NULL;
+	link_info.data = NULL;
+	link_info.match_fn = NULL;
 	*nr_found = 0;
 
 	err = iscsi_sysfs_for_each_session(&link_info, nr_found,
-				    link_sessions);
+					   session_info_create_list);
 	if (err || !*nr_found)
 		return err;
 
@@ -478,10 +449,7 @@ __logout_portals(void *data, int *nr_found,
 	if (err)
 		ret = err;
 
-	list_for_each_entry_safe(curr_info, tmp, &session_list, list) {
-		list_del(&curr_info->list);
-		free(curr_info);
-	}
+	session_info_free_list(&session_list);
 	return ret;
 }
 
@@ -835,284 +803,6 @@ static char *get_config_file(void)
 	return NULL;
 }
 
-static int print_session_flat(void *data, struct session_info *info)
-{
-	struct session_info *match_info = data;
-	struct iscsi_transport *t = iscsi_sysfs_get_transport_by_sid(info->sid);
-
-	if (match_info && match_info->sid != info->sid)
-		return 0;
-
-	if (strchr(info->persistent_address, '.'))
-		printf("%s: [%d] %s:%d,%d %s\n",
-			t ? t->name : UNKNOWN_VALUE,
-			info->sid, info->persistent_address,
-			info->persistent_port, info->tpgt, info->targetname);
-	else
-		printf("%s: [%d] [%s]:%d,%d %s\n",
-			t ? t->name : UNKNOWN_VALUE,
-			info->sid, info->persistent_address,
-			info->persistent_port, info->tpgt, info->targetname);
-	return 0;
-}
-
-static int print_iscsi_state(int sid)
-{
-	iscsiadm_req_t req;
-	iscsiadm_rsp_t rsp;
-	int err;
-	char *state = NULL;
-	char state_buff[SCSI_MAX_STATE_VALUE];
-	static char *conn_state[] = {
-		"FREE",
-		"TRANSPORT WAIT",
-		"IN LOGIN",
-		"LOGGED IN",
-		"IN LOGOUT",
-		"LOGOUT REQUESTED",
-		"CLEANUP WAIT",
-	};
-	static char *session_state[] = {
-		"NO CHANGE",
-		"CLEANUP",
-		"REPOEN",
-		"REDIRECT",
-	};
-
-	memset(&req, 0, sizeof(iscsiadm_req_t));
-	req.command = MGMT_IPC_SESSION_INFO;
-	req.u.session.sid = sid;
-
-	err = do_iscsid(&req, &rsp);
-	/*
-	 * for drivers like qla4xxx, iscsid does not display
-	 * anything here since it does not know about it.
-	 */
-	if (!err && rsp.u.session_state.conn_state >= 0 &&
-	    rsp.u.session_state.conn_state <= STATE_CLEANUP_WAIT)
-		state = conn_state[rsp.u.session_state.conn_state];
-	printf("\t\tiSCSI Connection State: %s\n", state ? state : "Unknown");
-	state = NULL;
-
-	memset(state_buff, 0, SCSI_MAX_STATE_VALUE);
-	if (!iscsi_sysfs_get_session_state(state_buff, sid))
-		printf("\t\tiSCSI Session State: %s\n", state_buff);
-	else
-		printf("\t\tiSCSI Session State: Unknown\n");
-
-	if (!err && rsp.u.session_state.session_state >= 0 &&
-	   rsp.u.session_state.session_state <= R_STAGE_SESSION_REDIRECT)
-		state = session_state[rsp.u.session_state.session_state];
-	printf("\t\tInternal iscsid Session State: %s\n",
-	       state ? state : "Unknown");
-	return 0;
-}
-
-static void print_iscsi_params(int sid)
-{
-	struct iscsi_session_operational_config session_conf;
-	struct iscsi_conn_operational_config conn_conf;
-
-	iscsi_sysfs_get_negotiated_session_conf(sid, &session_conf);
-	iscsi_sysfs_get_negotiated_conn_conf(sid, &conn_conf);
-
-	printf("\t\t************************\n");
-	printf("\t\tNegotiated iSCSI params:\n");
-	printf("\t\t************************\n");
-
-	if (is_valid_operational_value(conn_conf.HeaderDigest))
-		printf("\t\tHeaderDigest: %s\n",
-			conn_conf.HeaderDigest ? "CRC32C" : "None");
-	if (is_valid_operational_value(conn_conf.DataDigest))
-		printf("\t\tDataDigest: %s\n",
-			conn_conf.DataDigest ? "CRC32C" : "None");
-	if (is_valid_operational_value(conn_conf.MaxRecvDataSegmentLength))
-		printf("\t\tMaxRecvDataSegmentLength: %d\n",
-			conn_conf.MaxRecvDataSegmentLength);
-	if (is_valid_operational_value(conn_conf.MaxXmitDataSegmentLength))
-		printf("\t\tMaxXmitDataSegmentLength: %d\n",
-			conn_conf.MaxXmitDataSegmentLength);
-	if (is_valid_operational_value(session_conf.FirstBurstLength))
-		printf("\t\tFirstBurstLength: %d\n",
-			session_conf.FirstBurstLength);
-	if (is_valid_operational_value(session_conf.MaxBurstLength))
-		printf("\t\tMaxBurstLength: %d\n",
-			session_conf.MaxBurstLength);
-	if (is_valid_operational_value(session_conf.ImmediateData))
-		printf("\t\tImmediateData: %s\n",
-			session_conf.ImmediateData ? "Yes" : "No");
-	if (is_valid_operational_value(session_conf.InitialR2T))
-		printf("\t\tInitialR2T: %s\n",
-			session_conf.InitialR2T ? "Yes" : "No");
-	if (is_valid_operational_value(session_conf.MaxOutstandingR2T))
-		printf("\t\tMaxOutstandingR2T: %d\n",
-			session_conf.MaxOutstandingR2T);
-}
-
-static void print_scsi_device_info(int host_no, int target, int lun)
-{
-	char *blockdev, state[SCSI_MAX_STATE_VALUE];
-
-	printf("\t\tscsi%d Channel 00 Id %d Lun: %d\n", host_no, target, lun);
-	blockdev = iscsi_sysfs_get_blockdev_from_lun(host_no, target, lun);
-	if (blockdev) {
-		printf("\t\t\tAttached scsi disk %s\t\t", blockdev);
-		free(blockdev);
-
-		if (!iscsi_sysfs_get_device_state(state, host_no, target, lun))
-			printf("State: %s\n", state);
-		else
-			printf("State: Unknown\n");
-	}
-}
-
-static int print_scsi_state(int sid)
-{
-	int host_no = -1, err = 0;
-	char state[SCSI_MAX_STATE_VALUE];
-
-	printf("\t\t************************\n");
-	printf("\t\tAttached SCSI devices:\n");
-	printf("\t\t************************\n");
-
-	host_no = iscsi_sysfs_get_host_no_from_sid(sid, &err);
-	if (err) {
-		printf("\t\tHost No: Unknown\n");
-		return err;
-	}
-	printf("\t\tHost Number: %d\t", host_no);
-	if (!iscsi_sysfs_get_host_state(state, host_no))
-		printf("State: %s\n", state);
-	else
-		printf("State: Unknown\n");
-
-	iscsi_sysfs_for_each_device(host_no, sid, print_scsi_device_info);
-	return 0;
-}
-
-static void print_sessions_tree(struct list_head *list, int level)
-{
-	struct session_info *curr, *prev = NULL, *tmp;
-	struct iscsi_transport *t;
-
-	list_for_each_entry(curr, list, list) {
-		if (!prev || strcmp(prev->targetname, curr->targetname)) {
-			printf("Target: %s\n", curr->targetname);
-			prev = NULL;
-		}
-
-		if (!prev || (strcmp(prev->address, curr->address) ||
-		     prev->port != curr->port)) {
-			if (strchr(curr->address, '.'))
-				printf("\tCurrent Portal: %s:%d,%d\n",
-				      curr->address, curr->port, curr->tpgt);
-			else
-				printf("\tCurrent Portal: [%s]:%d,%d\n",
-				      curr->address, curr->port, curr->tpgt);
-
-			if (strchr(curr->persistent_address, '.'))
-				printf("\tPersistent Portal: %s:%d,%d\n",
-				      curr->persistent_address,
-				      curr->persistent_port, curr->tpgt);
-			else
-				printf("\tPersistent Portal: [%s]:%d,%d\n",
-				      curr->persistent_address,
-				      curr->persistent_port, curr->tpgt);
-		} else
-			printf("\n");
-
-		t = iscsi_sysfs_get_transport_by_sid(curr->sid);
-
-		printf("\t\t**********\n");
-		printf("\t\tInterface:\n");
-		printf("\t\t**********\n");
-		if (strlen(curr->iface.name))
-			printf("\t\tIface Name: %s\n", curr->iface.name);
-		else
-			printf("\t\tIface Name: %s\n", UNKNOWN_VALUE);
-		printf("\t\tIface Transport: %s\n",
-		       t ? t->name : UNKNOWN_VALUE);
-		printf("\t\tIface Initiatorname: %s\n",
-		       strlen(curr->iface.iname) ? curr->iface.iname :
-								UNKNOWN_VALUE);
-		if (strchr(curr->address, '.'))
-			printf("\t\tIface IPaddress: %s\n",
-			       curr->iface.ipaddress);
-		else
-			printf("\t\tIface IPaddress: [%s]\n",
-			       curr->iface.ipaddress);
-		printf("\t\tIface HWaddress: %s\n", curr->iface.hwaddress);
-		printf("\t\tIface Netdev: %s\n", curr->iface.netdev);
-		printf("\t\tSID: %d\n", curr->sid);
-		print_iscsi_state(curr->sid);
-
-		if (level < 2)
-			goto next;
-		print_iscsi_params(curr->sid);
-
-		if (level < 3)
-			goto next;
-		print_scsi_state(curr->sid);
-next:
-		prev = curr;
-	}
-
-	list_for_each_entry_safe(curr, tmp, list, list) {
-		list_del(&curr->list);
-		free(curr);
-	}
-}
-
-static int print_sessions(int info_level, struct session_info *match_info)
-{
-	struct list_head list;
-	int num_found = 0, err = 0;
-	char *version;
-
-	switch (info_level) {
-	case 0:
-	case -1:
-		err = iscsi_sysfs_for_each_session(match_info, &num_found,
-						   print_session_flat);
-		break;
-	case 2:
-	case 3:
-		version = iscsi_sysfs_get_iscsi_kernel_version();
-		if (version) {
-			printf("iSCSI Transport Class version %s\n",
-				version);
-			printf("%s version %s\n", program_name,
-			      ISCSI_VERSION_STR);
-		}
-		/* fall through */
-	case 1:
-		INIT_LIST_HEAD(&list);
-		struct session_link_info link_info;
-
-		memset(&link_info, 0, sizeof(link_info));
-		link_info.list = &list;
-		link_info.match_info = match_info;
-
-		err = iscsi_sysfs_for_each_session(&link_info, &num_found,
-						   link_sessions);
-		if (err || !num_found)
-			break;
-
-		print_sessions_tree(&list, info_level);
-		break;
-	default:
-		log_error("Invalid info level %d. Try 0 - 3.", info_level);
-		return EINVAL;
-	}
-
-	if (err) {
-		log_error("Can not get list of active sessions (%d)", err);
-		return err;
-	} else if (!num_found)
-		log_error("No active sessions.");
-	return 0;
-}
-
 static int rescan_portal(void *data, struct session_info *info)
 {
 	int host_no, err;
@@ -1130,7 +820,7 @@ static int rescan_portal(void *data, struct session_info *info)
 		return err;
 	}
 	/* rescan each device to pick up size changes */
-	iscsi_sysfs_for_each_device(host_no, info->sid,
+	iscsi_sysfs_for_each_device(NULL, host_no, info->sid,
 				    iscsi_sysfs_rescan_device);
 	/* now scan for new devices */
 	iscsi_sysfs_scan_host(host_no, 0);
@@ -1556,7 +1246,7 @@ do_sendtargets(discovery_rec_t *drec, struct list_head *ifaces,
 			continue;
 		}
 
-		host_no = iscsi_sysfs_get_host_no_from_iface(iface, &rc);
+		host_no = iscsi_sysfs_get_host_no_from_hwinfo(iface, &rc);
 		if (rc || host_no == -1) {
 			log_debug(1, "Could not match iface" iface_fmt " to "
 				  "host.", iface_str(iface)); 
@@ -1778,9 +1468,9 @@ update_fail:
 			  iface->name);
 		break;
 	default:
-		if (!iface) {
+		if (!iface || (iface && info_level > 0)) {
 			if (op == OP_NOOP || op == OP_SHOW)
-				rc = print_ifaces(info_level);
+				rc = print_ifaces(iface, info_level);
 			else
 				rc = EINVAL;
 		} else {
@@ -2415,7 +2105,7 @@ main(int argc, char **argv)
 
 			if (!do_logout && !do_rescan && !do_stats &&
 			    op == OP_NOOP && info_level > 0) {
-				rc = print_sessions(info_level, info);
+				rc = session_info_print(info_level, info);
 				if (rc)
 					rc = -1;
 				goto free_info;
@@ -2446,7 +2136,7 @@ free_info:
 				goto out;
 			}
 
-			rc = print_sessions(info_level, NULL);
+			rc = session_info_print(info_level, NULL);
 		}
 		break;
 	default:

@@ -41,6 +41,7 @@
 #include "version.h"
 #include "iscsi_sysfs.h"
 #include "iface.h"
+#include "session_info.h"
 
 /* global config info */
 struct iscsi_daemon_config daemon_config;

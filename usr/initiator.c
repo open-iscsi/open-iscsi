@@ -136,7 +136,7 @@ void iscsi_conn_context_put(struct iscsi_conn_context *conn_context)
 
 static void session_online_devs(int host_no, int sid)
 {
-	iscsi_sysfs_for_each_device(host_no, sid,
+	iscsi_sysfs_for_each_device(NULL, host_no, sid,
 				    iscsi_sysfs_set_device_online);
 }
 
@@ -1976,7 +1976,7 @@ static int iface_set_param(struct iscsi_transport *t, struct iface_rec *iface,
 		return 0;
 
 	/* this assumes that the netdev or hw address is going to be set */
-	hostno = iscsi_sysfs_get_host_no_from_iface(iface, &rc);
+	hostno = iscsi_sysfs_get_host_no_from_hwinfo(iface, &rc);
 	if (rc)
 		return rc;
 

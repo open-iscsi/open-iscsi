@@ -32,6 +32,7 @@
 #include "sysdeps.h"
 #include "iscsi_settings.h"
 #include "iface.h"
+#include "session_info.h"
 
 /*
  * TODO: remove the _DIR defines and search for subsys dirs like
@@ -370,7 +371,7 @@ static uint32_t get_host_no_from_ipaddress(char *address, int *rc)
 	return host_no;
 }
 
-uint32_t iscsi_sysfs_get_host_no_from_iface(struct iface_rec *iface, int *rc)
+uint32_t iscsi_sysfs_get_host_no_from_hwinfo(struct iface_rec *iface, int *rc)
 {
 	int tmp_rc;
 	uint32_t host_no = -1;
@@ -378,7 +379,7 @@ uint32_t iscsi_sysfs_get_host_no_from_iface(struct iface_rec *iface, int *rc)
 	if (strlen(iface->hwaddress) &&
 	    strcasecmp(iface->hwaddress, DEFAULT_HWADDRESS))
 		host_no = get_host_no_from_hwaddress(iface->hwaddress, &tmp_rc);
-	else if(strlen(iface->netdev) &&
+	else if (strlen(iface->netdev) &&
 		strcasecmp(iface->netdev, DEFAULT_NETDEV))
 		host_no = get_host_no_from_netdev(iface->netdev, &tmp_rc);
 	else if (strlen(iface->ipaddress) &&
@@ -1013,8 +1014,9 @@ int iscsi_sysfs_get_exp_statsn(int sid)
 	return exp_statsn;
 }
 
-int iscsi_sysfs_for_each_device(int host_no, uint32_t sid,
-				void (* fn)(int host_no, int target, int lun))
+int iscsi_sysfs_for_each_device(void *data, int host_no, uint32_t sid,
+				void (* fn)(void *data, int host_no,
+					    int target, int lun))
 {
 	struct dirent **namelist;
 	int h, b, t, l, i, n, err = 0, target;
@@ -1044,7 +1046,7 @@ int iscsi_sysfs_for_each_device(int host_no, uint32_t sid,
 		if (sscanf(namelist[i]->d_name, "%d:%d:%d:%d\n",
 			   &h, &b, &t, &l) != 4)
 			continue;
-		fn(h, t, l);
+		fn(data, h, t, l);
 	}
 
 	for (i = 0; i < n; i++)
@@ -1054,7 +1056,7 @@ int iscsi_sysfs_for_each_device(int host_no, uint32_t sid,
 	return 0;
 }
 
-void iscsi_sysfs_set_device_online(int hostno, int target, int lun)
+void iscsi_sysfs_set_device_online(void *data, int hostno, int target, int lun)
 {
 	char *write_buf = "running\n";
 	char id[NAME_SIZE];
@@ -1070,7 +1072,7 @@ void iscsi_sysfs_set_device_online(int hostno, int target, int lun)
 		log_error("Could not online LUN %d err %d.", lun, err);
 }
 
-void iscsi_sysfs_rescan_device(int hostno, int target, int lun)
+void iscsi_sysfs_rescan_device(void *data, int hostno, int target, int lun)
 {
 	char *write_buf = "1";
 	char id[NAME_SIZE];
