@@ -38,6 +38,7 @@
 #include "transport.h"
 #include "iscsi_sysfs.h"
 #include "iface.h"
+#include "sysdeps.h"
 
 #define IDBM_HIDE	0    /* Hide parameter when print. */
 #define IDBM_SHOW	1    /* Show parameter when print. */
@@ -541,6 +542,8 @@ setup_passwd_len:
 	return 1;
 
 updated:
+	strlcpy((char*)info[i].value, value, VALUE_MAXVAL);
+
 #define check_password_param(_param) \
 	if (!passwd_done && !strcmp(#_param, name)) { \
 		passwd_done = 1; \
