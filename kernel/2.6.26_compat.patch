@@ -1,8 +1,64 @@
+diff --git a/libiscsi.c b/libiscsi.c
+index 5ac73fb..3dae4cc 100644
+--- a/libiscsi.c
++++ b/libiscsi.c
+@@ -38,6 +38,8 @@
+ #include "scsi_transport_iscsi.h"
+ #include "libiscsi.h"
+ 
++#include "open_iscsi_compat.h"
++
+ /* Serial Number Arithmetic, 32 bits, less than, RFC1982 */
+ #define SNA32_CHECK 2147483648UL
+ 
+diff --git a/open_iscsi_compat.h b/open_iscsi_compat.h
+new file mode 100644
+index 0000000..b977df5
+--- /dev/null
++++ b/open_iscsi_compat.h
+@@ -0,0 +1,28 @@
++#ifndef OPEN_ISCSI_COMPAT
++#define OPEN_ISCSI_COMPAT
++
++#include <linux/version.h>
++#include <linux/kernel.h>
++
++#ifndef DID_TRANSPORT_DISRUPTED
++#define DID_TRANSPORT_DISRUPTED DID_BUS_BUSY
++#endif
++
++#ifndef DID_TRANSPORT_FAILFAST
++#define DID_TRANSPORT_FAILFAST DID_NO_CONNECT
++#endif
++
++#ifndef SCSI_MLQUEUE_TARGET_BUSY
++#define SCSI_MLQUEUE_TARGET_BUSY SCSI_MLQUEUE_HOST_BUSY
++#endif
++
++#if LINUX_VERSION_CODE <= KERNEL_VERSION(2,6,27)
++
++#define BLK_EH_NOT_HANDLED EH_NOT_HANDLED
++#define BLK_EH_RESET_TIMER EH_RESET_TIMER
++
++#define blk_eh_timer_return scsi_eh_timer_return
++
++#endif
++
++#endif
 diff --git a/scsi_transport_iscsi.c b/scsi_transport_iscsi.c
-index 7dfb7da..332d33c 100644
+index 4781d81..288a4a3 100644
 --- a/scsi_transport_iscsi.c
 +++ b/scsi_transport_iscsi.c
-@@ -113,6 +113,7 @@ static struct attribute_group iscsi_transport_group = {
+@@ -30,6 +30,8 @@
+ #include "scsi_transport_iscsi.h"
+ #include "iscsi_if.h"
+ 
++#include "open_iscsi_compat.h"
++
+ #define ISCSI_SESSION_ATTRS 21
+ #define ISCSI_CONN_ATTRS 13
+ #define ISCSI_HOST_ATTRS 4
+@@ -113,6 +115,7 @@ static struct attribute_group iscsi_transport_group = {
  	.attrs = iscsi_transport_attrs,
  };
  
@@ -10,7 +66,7 @@ index 7dfb7da..332d33c 100644
  /*
   * iSCSI endpoint attrs
   */
-@@ -236,6 +237,7 @@ struct iscsi_endpoint *iscsi_lookup_endpoint(u64 handle)
+@@ -236,6 +239,7 @@ struct iscsi_endpoint *iscsi_lookup_endpoint(u64 handle)
  	return ep;
  }
  EXPORT_SYMBOL_GPL(iscsi_lookup_endpoint);
@@ -18,7 +74,7 @@ index 7dfb7da..332d33c 100644
  
  static int iscsi_setup_host(struct transport_container *tc, struct device *dev,
  			    struct device *cdev)
-@@ -1307,6 +1309,8 @@ static int
+@@ -1305,6 +1309,8 @@ static int
  iscsi_if_transport_ep(struct iscsi_transport *transport,
  		      struct iscsi_uevent *ev, int msg_type)
  {
@@ -27,7 +83,7 @@ index 7dfb7da..332d33c 100644
  	struct iscsi_endpoint *ep;
  	struct sockaddr *dst_addr;
  	int rc = 0;
-@@ -1347,6 +1351,8 @@ iscsi_if_transport_ep(struct iscsi_transport *transport,
+@@ -1345,6 +1351,8 @@ iscsi_if_transport_ep(struct iscsi_transport *transport,
  		break;
  	}
  	return rc;
@@ -36,7 +92,7 @@ index 7dfb7da..332d33c 100644
  }
  
  static int
-@@ -1428,6 +1434,9 @@ iscsi_if_recv_msg(struct sk_buff *skb, struct nlmsghdr *nlh)
+@@ -1426,6 +1434,9 @@ iscsi_if_recv_msg(struct sk_buff *skb, struct nlmsghdr *nlh)
  					      ev->u.c_session.queue_depth);
  		break;
  	case ISCSI_UEVENT_CREATE_BOUND_SESSION:
@@ -46,7 +102,7 @@ index 7dfb7da..332d33c 100644
  		ep = iscsi_lookup_endpoint(ev->u.c_bound_session.ep_handle);
  		if (!ep) {
  			err = -EINVAL;
-@@ -1439,6 +1448,7 @@ iscsi_if_recv_msg(struct sk_buff *skb, struct nlmsghdr *nlh)
+@@ -1437,6 +1448,7 @@ iscsi_if_recv_msg(struct sk_buff *skb, struct nlmsghdr *nlh)
  					ev->u.c_bound_session.cmds_max,
  					ev->u.c_bound_session.queue_depth);
  		break;
@@ -54,7 +110,7 @@ index 7dfb7da..332d33c 100644
  	case ISCSI_UEVENT_DESTROY_SESSION:
  		session = iscsi_session_lookup(ev->u.d_session.sid);
  		if (session)
-@@ -1951,13 +1961,14 @@ static __init int iscsi_transport_init(void)
+@@ -1949,13 +1961,14 @@ static __init int iscsi_transport_init(void)
  	if (err)
  		return err;
  
@@ -71,7 +127,7 @@ index 7dfb7da..332d33c 100644
  
  	err = transport_class_register(&iscsi_connection_class);
  	if (err)
-@@ -1988,8 +1999,10 @@ unregister_conn_class:
+@@ -1986,8 +1999,10 @@ unregister_conn_class:
  	transport_class_unregister(&iscsi_connection_class);
  unregister_host_class:
  	transport_class_unregister(&iscsi_host_class);
@@ -82,7 +138,7 @@ index 7dfb7da..332d33c 100644
  unregister_transport_class:
  	class_unregister(&iscsi_transport_class);
  	return err;
-@@ -2002,7 +2015,9 @@ static void __exit iscsi_transport_exit(void)
+@@ -2000,7 +2015,9 @@ static void __exit iscsi_transport_exit(void)
  	transport_class_unregister(&iscsi_connection_class);
  	transport_class_unregister(&iscsi_session_class);
  	transport_class_unregister(&iscsi_host_class);
@@ -92,3 +148,6 @@ index 7dfb7da..332d33c 100644
  	class_unregister(&iscsi_transport_class);
  }
  
+-- 
+1.6.0.4
+
