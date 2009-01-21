@@ -1,0 +1,63 @@
+diff --git a/libiscsi.c b/libiscsi.c
+index 5ac73fb..3dae4cc 100644
+--- a/libiscsi.c
++++ b/libiscsi.c
+@@ -38,6 +38,8 @@
+ #include "scsi_transport_iscsi.h"
+ #include "libiscsi.h"
+ 
++#include "open_iscsi_compat.h"
++
+ /* Serial Number Arithmetic, 32 bits, less than, RFC1982 */
+ #define SNA32_CHECK 2147483648UL
+ 
+diff --git a/open_iscsi_compat.h b/open_iscsi_compat.h
+new file mode 100644
+index 0000000..b977df5
+--- /dev/null
++++ b/open_iscsi_compat.h
+@@ -0,0 +1,28 @@
++#ifndef OPEN_ISCSI_COMPAT
++#define OPEN_ISCSI_COMPAT
++
++#include <linux/version.h>
++#include <linux/kernel.h>
++
++#ifndef DID_TRANSPORT_DISRUPTED
++#define DID_TRANSPORT_DISRUPTED DID_BUS_BUSY
++#endif
++
++#ifndef DID_TRANSPORT_FAILFAST
++#define DID_TRANSPORT_FAILFAST DID_NO_CONNECT
++#endif
++
++#ifndef SCSI_MLQUEUE_TARGET_BUSY
++#define SCSI_MLQUEUE_TARGET_BUSY SCSI_MLQUEUE_HOST_BUSY
++#endif
++
++#if LINUX_VERSION_CODE <= KERNEL_VERSION(2,6,27)
++
++#define BLK_EH_NOT_HANDLED EH_NOT_HANDLED
++#define BLK_EH_RESET_TIMER EH_RESET_TIMER
++
++#define blk_eh_timer_return scsi_eh_timer_return
++
++#endif
++
++#endif
+diff --git a/scsi_transport_iscsi.c b/scsi_transport_iscsi.c
+index 4781d81..cdf3f45 100644
+--- a/scsi_transport_iscsi.c
++++ b/scsi_transport_iscsi.c
+@@ -30,6 +30,8 @@
+ #include "scsi_transport_iscsi.h"
+ #include "iscsi_if.h"
+ 
++#include "open_iscsi_compat.h"
++
+ #define ISCSI_SESSION_ATTRS 21
+ #define ISCSI_CONN_ATTRS 13
+ #define ISCSI_HOST_ATTRS 4
+-- 
+1.6.0.4
+
