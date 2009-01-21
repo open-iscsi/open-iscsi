@@ -187,8 +187,7 @@ iscsi_create_endpoint(int dd_size)
 
 	ep->id = id;
 	ep->dev.class = &iscsi_endpoint_class;
-	snprintf(ep->dev.bus_id, BUS_ID_SIZE, "ep-%llu",
-		 (unsigned long long) id);
+	dev_set_name(&ep->dev, "ep-%llu", (unsigned long long) id);
 	err = device_register(&ep->dev);
         if (err)
                 goto free_ep;
@@ -375,10 +374,10 @@ int iscsi_session_chkready(struct iscsi_cls_session *session)
 		err = 0;
 		break;
 	case ISCSI_SESSION_FAILED:
-		err = DID_IMM_RETRY << 16;
+		err = DID_TRANSPORT_DISRUPTED << 16;
 		break;
 	case ISCSI_SESSION_FREE:
-		err = DID_NO_CONNECT << 16;
+		err = DID_TRANSPORT_FAILFAST << 16;
 		break;
 	default:
 		err = DID_NO_CONNECT << 16;
@@ -724,8 +723,7 @@ int iscsi_add_session(struct iscsi_cls_session *session, unsigned int target_id)
 	}
 	session->target_id = id;
 
-	snprintf(session->dev.bus_id, BUS_ID_SIZE, "session%u",
-		 session->sid);
+	dev_set_name(&session->dev, "session%u", session->sid);
 	err = device_add(&session->dev);
 	if (err) {
 		iscsi_cls_session_printk(KERN_ERR, session,
@@ -898,8 +896,7 @@ iscsi_create_conn(struct iscsi_cls_session *session, int dd_size, uint32_t cid)
 	if (!get_device(&session->dev))
 		goto free_conn;
 
-	snprintf(conn->dev.bus_id, BUS_ID_SIZE, "connection%d:%u",
-		 session->sid, cid);
+	dev_set_name(&conn->dev, "connection%d:%u", session->sid, cid);
 	conn->dev.parent = &session->dev;
 	conn->dev.release = iscsi_conn_release;
 	err = device_register(&conn->dev);
@@ -1011,7 +1008,7 @@ int iscsi_recv_pdu(struct iscsi_cls_conn *conn, struct iscsi_hdr *hdr,
 
 	skb = alloc_skb(len, GFP_ATOMIC);
 	if (!skb) {
-		iscsi_conn_error(conn, ISCSI_ERR_CONN_FAILED);
+		iscsi_conn_error_event(conn, ISCSI_ERR_CONN_FAILED);
 		iscsi_cls_conn_printk(KERN_ERR, conn, "can not deliver "
 				      "control PDU: OOM\n");
 		return -ENOMEM;
@@ -1032,7 +1029,7 @@ int iscsi_recv_pdu(struct iscsi_cls_conn *conn, struct iscsi_hdr *hdr,
 }
 EXPORT_SYMBOL_GPL(iscsi_recv_pdu);
 
-void iscsi_conn_error(struct iscsi_cls_conn *conn, enum iscsi_err error)
+void iscsi_conn_error_event(struct iscsi_cls_conn *conn, enum iscsi_err error)
 {
 	struct nlmsghdr	*nlh;
 	struct sk_buff	*skb;
@@ -1064,7 +1061,7 @@ void iscsi_conn_error(struct iscsi_cls_conn *conn, enum iscsi_err error)
 	iscsi_cls_conn_printk(KERN_INFO, conn, "detected conn error (%d)\n",
 			      error);
 }
-EXPORT_SYMBOL_GPL(iscsi_conn_error);
+EXPORT_SYMBOL_GPL(iscsi_conn_error_event);
 
 static int
 iscsi_if_send_reply(int pid, int seq, int type, int done, int multi,
@@ -1362,7 +1359,7 @@ iscsi_tgt_dscvr(struct iscsi_transport *transport,
 		return -EINVAL;
 
 	shost = scsi_host_lookup(ev->u.tgt_dscvr.host_no);
-	if (IS_ERR(shost)) {
+	if (!shost) {
 		printk(KERN_ERR "target discovery could not find host no %u\n",
 		       ev->u.tgt_dscvr.host_no);
 		return -ENODEV;
@@ -1388,7 +1385,7 @@ iscsi_set_host_param(struct iscsi_transport *transport,
 		return -ENOSYS;
 
 	shost = scsi_host_lookup(ev->u.set_host_param.host_no);
-	if (IS_ERR(shost)) {
+	if (!shost) {
 		printk(KERN_ERR "set_host_param could not find host no %u\n",
 		       ev->u.set_host_param.host_no);
 		return -ENODEV;
@@ -1816,7 +1813,7 @@ iscsi_register_transport(struct iscsi_transport *tt)
 		priv->t.create_work_queue = 1;
 
 	priv->dev.class = &iscsi_transport_class;
-	snprintf(priv->dev.bus_id, BUS_ID_SIZE, "%s", tt->name);
+	dev_set_name(&priv->dev, "%s", tt->name);
 	err = device_register(&priv->dev);
 	if (err)
 		goto free_priv;

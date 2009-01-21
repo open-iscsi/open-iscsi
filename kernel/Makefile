@@ -20,6 +20,7 @@ endif
 
 obj-m				+= scsi_transport_iscsi.o
 obj-m				+= libiscsi.o
+obj-m				+= libiscsi_tcp.o
 obj-m				+= iscsi_tcp.o
 
 # Everything beyond this point is used to call KBuild or handle support
@@ -94,6 +95,10 @@ linux_2_6_25: has_24_patch
 linux_2_6_26: has_26_patch
 
 linux_2_6_27: $(unpatch_code)
+
+linux_2_6_28: $(unpatch_code)
+
+linux_2_6_29: $(unpatch_code)
 
 do_unpatch_code:
 	echo "Un-patching source code for use with linux-2.6.14 and up ..."
