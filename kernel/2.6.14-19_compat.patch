@@ -620,10 +620,10 @@ index 0000000..2dbe4ce
 +#endif
 +
 +#endif
-diff --git a/kernel/scsi_transport_iscsi.c b/kernel/scsi_transport_iscsi.c
+diff --git a/scsi_transport_iscsi.c b/scsi_transport_iscsi.c
 index 4781d81..98d1351 100644
---- a/kernel/scsi_transport_iscsi.c
-+++ b/kernel/scsi_transport_iscsi.c
+--- a/scsi_transport_iscsi.c
++++ b/scsi_transport_iscsi.c
 @@ -21,7 +21,10 @@
   * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
   */
