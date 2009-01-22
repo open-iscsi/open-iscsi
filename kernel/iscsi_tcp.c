@@ -25,7 +25,8 @@
  *	Arne Redlich
  *	Zhenyu Wang
  */
-
+#include <linux/version.h>
+#include <linux/kernel.h>
 #include <linux/types.h>
 #include <linux/inet.h>
 #include <linux/file.h>
@@ -593,14 +594,22 @@ static int iscsi_sw_tcp_get_addr(struct iscsi_conn *conn, struct socket *sock,
 	case AF_INET:
 		sin = (struct sockaddr_in *)addr;
 		spin_lock_bh(&conn->session->lock);
+#if LINUX_VERSION_CODE > KERNEL_VERSION(2,6,28)
 		sprintf(buf, "%pI4", &sin->sin_addr.s_addr);
+#else
+		sprintf(buf, NIPQUAD_FMT, NIPQUAD(sin->sin_addr.s_addr));
+#endif
 		*port = be16_to_cpu(sin->sin_port);
 		spin_unlock_bh(&conn->session->lock);
 		break;
 	case AF_INET6:
 		sin6 = (struct sockaddr_in6 *)addr;
 		spin_lock_bh(&conn->session->lock);
+#if LINUX_VERSION_CODE > KERNEL_VERSION(2,6,28)
 		sprintf(buf, "%pI6", &sin6->sin6_addr);
+#else
+		sprintf(buf, NIP6_FMT, NIP6(sin6->sin6_addr));
+#endif
 		*port = be16_to_cpu(sin6->sin6_port);
 		spin_unlock_bh(&conn->session->lock);
 		break;
