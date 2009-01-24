@@ -30,15 +30,21 @@ all:
 	$(MAKE) -C kernel
 	$(MAKE) -C utils
 	@echo
-	@echo "Compilation complete                Output file"
-	@echo "----------------------------------- ----------------"
-	@echo "Built iSCSI Open Interface module:  kernel/scsi_transport_iscsi.ko"
-	@echo "Built iSCSI library module:         kernel/libiscsi.ko"
-	@echo "Built iSCSI over TCP kernel module: kernel/iscsi_tcp.ko"
-	@echo "Built iSCSI daemon:                 usr/iscsid"
-	@echo "Built management application:       usr/iscsiadm"
+	@echo "Compilation complete                 Output file"
+	@echo "-----------------------------------  ----------------"
+	@echo "Built iSCSI Open Interface module:   kernel/scsi_transport_iscsi.ko"
+	@echo "Built iSCSI library module:          kernel/libiscsi.ko"
+	@echo "Built iSCSI over TCP library module: kernel/iscsi_tcp.ko"
+	@echo "Built iSCSI over TCP kernel module:  kernel/iscsi_tcp.ko"
+	@echo "Built iSCSI daemon:                  usr/iscsid"
+	@echo "Built management application:        usr/iscsiadm"
 	@echo
 	@echo Read README file for detailed information.
+
+user:
+	$(MAKE) -C utils/fwparam_ibft
+	$(MAKE) -C utils
+	$(MAKE) -C usr
 
 clean:
 	$(MAKE) -C utils/fwparam_ibft clean
@@ -49,14 +55,14 @@ clean:
 # this is for safety
 # now -jXXX will still be safe
 # note that make may still execute the blocks in parallel
-.NOTPARALLEL: install_usr install_programs install_initd \
+.NOTPARALLEL: install_user install_programs install_initd \
 	install_initd_suse install_initd_redhat install_initd_debian \
 	install_etc install_iface install_doc install_kernel install_iname
 
 install: install_kernel install_programs install_doc install_etc \
 	install_initd install_iname install_iface
 
-install_usr: install_programs install_doc install_etc \
+install_user: install_programs install_doc install_etc \
 	install_initd install_iname install_iface
 
 install_programs:  $(PROGRAMS)
