@@ -300,10 +300,14 @@ idbm_recinfo_node(node_rec_t *r, recinfo_t *ri)
 		      session.auth.username, IDBM_SHOW, num, 1);
 	__recinfo_str(SESSION_PASSWORD, ri, r,
 		      session.auth.password, IDBM_MASKED, num, 1);
+	__recinfo_int(SESSION_PASSWORD_LEN, ri, r,
+		      session.auth.password_length, IDBM_HIDE, num, 1);
 	__recinfo_str(SESSION_USERNAME_IN, ri, r,
 		      session.auth.username_in, IDBM_SHOW, num, 1);
 	__recinfo_str(SESSION_PASSWORD_IN, ri, r,
 		      session.auth.password_in, IDBM_MASKED, num, 1);
+	__recinfo_int(SESSION_PASSWORD_IN_LEN, ri, r,
+		      session.auth.password_in_length, IDBM_HIDE, num, 1);
 	__recinfo_int(SESSION_REPLACEMENT_TMO, ri, r,
 		      session.timeo.replacement_timeout,
 		      IDBM_SHOW, num, 1);
