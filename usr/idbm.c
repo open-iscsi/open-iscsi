@@ -832,7 +832,7 @@ int idbm_lock(void)
 	if (access(LOCK_DIR, F_OK) != 0) {
 		if (mkdir(LOCK_DIR, 0660) != 0) {
 			log_error("Could not open %s. Exiting\n", LOCK_DIR);
-			exit(-1);
+			return errno;
 		}
 	}
 
@@ -846,10 +846,10 @@ int idbm_lock(void)
 			break;
 
 		if (errno != EEXIST) {
+			log_error("Maybe you are not root?");
 			log_error("Could not lock discovery DB: %s: %s",
 					LOCK_WRITE_FILE, strerror(errno));
-			log_error("Maybe you are not root?");
-			exit(-1);
+			return errno;
 		} else if (i == 0)
 			log_debug(2, "Waiting for discovery DB lock");
 
@@ -904,7 +904,10 @@ static int __idbm_rec_read(node_rec_t *out_rec, char *conf)
 	if (!info)
 		return ENOMEM;
 
-	idbm_lock();
+	rc = idbm_lock();
+	if (rc)
+		goto free_info;
+
 	f = fopen(conf, "r");
 	if (!f) {
 		log_debug(5, "Could not open %s err %d\n", conf, errno);
@@ -920,6 +923,7 @@ static int __idbm_rec_read(node_rec_t *out_rec, char *conf)
 
 unlock:
 	idbm_unlock();
+free_info:
 	free(info);
 	return rc;
 }
@@ -1385,14 +1389,18 @@ idbm_discovery_read(discovery_rec_t *out_rec, char *addr, int port)
 		return ENOMEM;
 
 	portal = malloc(PATH_MAX);
-	if (!portal)
+	if (!portal) {
+		rc = ENOMEM;
 		goto free_info;
+	}
 
 	snprintf(portal, PATH_MAX, "%s/%s,%d", ST_CONFIG_DIR,
 		 addr, port);
 	log_debug(5, "Looking for config file %s\n", portal);
 
-	idbm_lock();
+	rc = idbm_lock();
+	if (rc)
+		goto free_info;
 
 	f = idbm_open_rec_r(portal, ST_CONFIG_NAME);
 	if (!f) {
@@ -1493,7 +1501,9 @@ static int idbm_rec_write(node_rec_t *rec)
 		 rec->name, rec->conn[0].address, rec->conn[0].port);
 	log_debug(5, "Looking for config file %s", portal);
 
-	idbm_lock();
+	rc = idbm_lock();
+	if (rc)
+		goto free_portal;
 
 	rc = stat(portal, &statb);
 	if (rc) {
@@ -1578,13 +1588,16 @@ idbm_discovery_write(discovery_rec_t *rec)
 		return ENOMEM;
 	}
 
-	idbm_lock();
+	rc = idbm_lock();
+	if (rc)
+		goto free_portal;
+
 	snprintf(portal, PATH_MAX, "%s", ST_CONFIG_DIR);
 	if (access(portal, F_OK) != 0) {
 		if (mkdir(portal, 0660) != 0) {
 			log_error("Could not make %s\n", portal);
 			rc = errno;
-			goto free_portal;
+			goto unlock;
 		}
 	}
 
@@ -1595,13 +1608,14 @@ idbm_discovery_write(discovery_rec_t *rec)
 	if (!f) {
 		log_error("Could not open %s err %d\n", portal, errno);
 		rc = errno;
-		goto free_portal;
+		goto unlock;
 	}
 
 	idbm_print(IDBM_PRINT_TYPE_DISCOVERY, rec, 1, f);
 	fclose(f);
-free_portal:
+unlock:
 	idbm_unlock();
+free_portal:
 	free(portal);
 	return rc;
 }
@@ -1735,7 +1749,10 @@ int idbm_add_node(node_rec_t *newrec, discovery_rec_t *drec, int overwrite)
 	log_debug(7, "node addition making link from %s to %s", node_portal,
 		 disc_portal);
 
-	idbm_lock();
+	rc = idbm_lock();
+	if (rc)
+		goto free_portal;
+
 	if (symlink(node_portal, disc_portal)) {
 		if (errno == EEXIST)
 			log_debug(7, "link from %s to %s exists", node_portal,
@@ -2022,7 +2039,10 @@ static int idbm_remove_disc_to_node_link(node_rec_t *rec,
 	if (rc)
 		goto done;
 
-	idbm_lock();
+	rc = idbm_lock();
+	if (rc)
+		goto done;
+
 	if (!stat(portal, &statb)) {
 		if (unlink(portal)) {
 			log_error("Could not remove link %s err %d\n",
@@ -2059,7 +2079,10 @@ int idbm_delete_node(node_rec_t *rec)
 	log_debug(5, "Removing config file %s iface id %s\n",
 		  portal, rec->iface.name);
 
-	idbm_lock();
+	rc = idbm_lock();
+	if (rc)
+		goto free_portal;
+
 	if (!stat(portal, &statb))
 		goto rm_conf;
 

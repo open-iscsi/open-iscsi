@@ -198,7 +198,10 @@ int iface_conf_read(struct iface_rec *iface)
 		return 0;
 	}
 
-	idbm_lock();
+	rc = idbm_lock();
+	if (rc)
+		return rc;
+
 	rc = __iface_conf_read(iface);
 	idbm_unlock();
 	return rc;
@@ -222,11 +225,15 @@ int iface_conf_delete(struct iface_rec *iface)
 		return ENOMEM;
 
 	sprintf(iface_conf, "%s/%s", IFACE_CONFIG_DIR, iface->name);
-	idbm_lock();
+	rc = idbm_lock();
+	if (rc)
+		goto free_conf;
+
 	if (unlink(iface_conf))
 		rc = errno;
 	idbm_unlock();
 
+free_conf:
 	free(iface_conf);
 	return rc;
 }
@@ -257,10 +264,14 @@ int iface_conf_write(struct iface_rec *iface)
 		goto free_conf;
 	}
 
-	idbm_lock();
+	rc = idbm_lock();
+	if (rc)
+		goto close_f;
+
 	idbm_print(IDBM_PRINT_TYPE_IFACE, iface, 1, f);
 	idbm_unlock();
 
+close_f:
 	fclose(f);
 free_conf:
 	free(iface_conf);
@@ -461,7 +472,9 @@ void iface_setup_host_bindings(void)
 {
 	int nr_found = 0;
 
-	idbm_lock();
+	if (idbm_lock())
+		return;
+
 	if (access(IFACE_CONFIG_DIR, F_OK) != 0) {
 		if (mkdir(IFACE_CONFIG_DIR, 0660) != 0) {
 			log_error("Could not make %s. HW/OFFLOAD iscsi "
@@ -732,7 +745,12 @@ int iface_for_each_iface(void *data, int *nr_found, iface_op_fn *fn)
 			continue;
 		}
 
-		idbm_lock();
+		err = idbm_lock();
+		if (err) {
+			free(iface);
+			continue;
+		}
+
 		err = __iface_conf_read(iface);
 		idbm_unlock();
 		if (err) {
