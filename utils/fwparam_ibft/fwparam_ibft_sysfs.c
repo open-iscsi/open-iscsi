@@ -103,39 +103,46 @@ static int get_iface_from_device(char *id, struct boot_context *context)
 				rc = EINVAL;
 			rc = 0;
 			break;
-		} else if (!strncmp(dent->d_name, "net", 3)) {
-			DIR *net_dirfd;
-			struct dirent *net_dent;
-
-			strncat(dev_dir, "/", FILENAMESZ);
-			strncat(dev_dir, dent->d_name, FILENAMESZ);
-
-			net_dirfd = opendir(dev_dir);
-			if (!net_dirfd) {
-				printf("Could not open net path %s.\n",
-				       dev_dir);
-				rc = errno;
-				break;
-			}
-
-			while ((net_dent = readdir(net_dirfd))) {
-				if (!strcmp(net_dent->d_name, ".") ||
-				    !strcmp(net_dent->d_name, ".."))
-					continue;
-
-				strncpy(context->iface, net_dent->d_name,
-					sizeof(context->iface));
-				break;
-			}
-			closedir(net_dirfd);
-			rc = 0;
-			break;
 		} else {
 			printf("Could not read ethernet to net link\n.");
 			rc = EOPNOTSUPP;
 			break;
 		}
 	}
+
+	closedir(dirfd);
+
+	if (rc != ENODEV)
+		return rc;
+
+	/* If not found try again with newer kernel networkdev sysfs layout */
+	strncat(dev_dir, "/net", FILENAMESZ - strlen(dev_dir));
+
+	if (!file_exist(dev_dir))
+		return rc;
+
+	dirfd = opendir(dev_dir);
+	if (!dirfd)
+		return errno;
+
+	while ((dent = readdir(dirfd))) {
+		if (!strcmp(dent->d_name, ".") || !strcmp(dent->d_name, ".."))
+			continue;
+
+		/* Take the first "regular" directory entry */
+		if (strlen(dent->d_name) > (sizeof(context->iface) - 1)) {
+			rc = EINVAL;
+			printf("Net device %s too big for iface buffer.\n",
+			       dent->d_name);
+			break;
+		}
+
+		strcpy(context->iface, dent->d_name);
+		rc = 0;
+		break;
+	}
+
+	closedir(dirfd);
 
 	return rc;
 }
