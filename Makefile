@@ -24,27 +24,30 @@ IFACEFILES = etc/iface.example
 # using '$(MAKE)' instead of just 'make' allows make to run in parallel
 # over multiple makefile.
 
-all:
+all: user kernel
+
+user: ;
 	$(MAKE) -C utils/fwparam_ibft
 	$(MAKE) -C usr
-	$(MAKE) -C kernel
 	$(MAKE) -C utils
 	@echo
 	@echo "Compilation complete                 Output file"
 	@echo "-----------------------------------  ----------------"
-	@echo "Built iSCSI Open Interface module:   kernel/scsi_transport_iscsi.ko"
-	@echo "Built iSCSI library module:          kernel/libiscsi.ko"
-	@echo "Built iSCSI over TCP library module: kernel/iscsi_tcp.ko"
-	@echo "Built iSCSI over TCP kernel module:  kernel/iscsi_tcp.ko"
 	@echo "Built iSCSI daemon:                  usr/iscsid"
 	@echo "Built management application:        usr/iscsiadm"
 	@echo
-	@echo Read README file for detailed information.
+	@echo "Read README file for detailed information."
 
-user:
-	$(MAKE) -C utils/fwparam_ibft
-	$(MAKE) -C utils
-	$(MAKE) -C usr
+kernel: force
+	$(MAKE) -C kernel
+	@echo "Kernel Compilation complete          Output file"
+	@echo "-----------------------------------  ----------------"
+	@echo "Built iSCSI Open Interface module:   kernel/scsi_transport_iscsi.ko"
+	@echo "Built iSCSI library module:          kernel/libiscsi.ko"
+	@echo "Built iSCSI over TCP library module: kernel/libiscsi_tcp.ko"
+	@echo "Built iSCSI over TCP kernel module:  kernel/iscsi_tcp.ko"
+
+force: ;
 
 clean:
 	$(MAKE) -C utils/fwparam_ibft clean
