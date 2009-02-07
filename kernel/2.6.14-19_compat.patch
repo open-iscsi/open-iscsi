@@ -1,8 +1,8 @@
 diff --git a/iscsi_tcp.c b/iscsi_tcp.c
-index 6214055..8563545 100644
+index 8ef3f41..14c6706 100644
 --- a/iscsi_tcp.c
 +++ b/iscsi_tcp.c
-@@ -444,11 +444,9 @@ static int iscsi_sw_tcp_pdu_init(struct iscsi_task *task,
+@@ -445,11 +445,9 @@ static int iscsi_sw_tcp_pdu_init(struct iscsi_task *task,
  	if (!task->sc)
  		iscsi_sw_tcp_send_linear_data_prep(conn, task->data, count);
  	else {
@@ -17,7 +17,7 @@ index 6214055..8563545 100644
  	}
  
  	if (err) {
-@@ -773,7 +771,11 @@ iscsi_sw_tcp_session_create(struct iscsi_endpoint *ep, uint16_t cmds_max,
+@@ -782,7 +780,11 @@ iscsi_sw_tcp_session_create(struct iscsi_endpoint *ep, uint16_t cmds_max,
  	shost->max_lun = iscsi_max_lun;
  	shost->max_id = 0;
  	shost->max_channel = 0;
@@ -29,7 +29,7 @@ index 6214055..8563545 100644
  
  	if (iscsi_host_add(shost, NULL))
  		goto free_host;
-@@ -821,6 +823,9 @@ static int iscsi_sw_tcp_slave_configure(struct scsi_device *sdev)
+@@ -830,6 +832,9 @@ static int iscsi_sw_tcp_slave_configure(struct scsi_device *sdev)
  }
  
  static struct scsi_host_template iscsi_sw_tcp_sht = {
@@ -39,7 +39,7 @@ index 6214055..8563545 100644
  	.module			= THIS_MODULE,
  	.name			= "iSCSI Initiator over TCP/IP",
  	.queuecommand           = iscsi_queuecommand,
-@@ -831,7 +836,7 @@ static struct scsi_host_template iscsi_sw_tcp_sht = {
+@@ -840,7 +845,7 @@ static struct scsi_host_template iscsi_sw_tcp_sht = {
  	.cmd_per_lun		= ISCSI_DEF_CMD_PER_LUN,
  	.eh_abort_handler       = iscsi_eh_abort,
  	.eh_device_reset_handler= iscsi_eh_device_reset,
@@ -61,8 +61,8 @@ index f9a4044..ab20530 100644
  #include "libiscsi.h"
  #include "libiscsi_tcp.h"
  
-diff --git a/libiscsi.c b//libiscsi.c
-index 5ac73fb..de654fb 100644
+diff --git a/libiscsi.c b/libiscsi.c
+index 457ecfe..756b171 100644
 --- a/libiscsi.c
 +++ b/libiscsi.c
 @@ -24,7 +24,10 @@
@@ -193,17 +193,18 @@ index 5ac73fb..de654fb 100644
  	done(sc);
  	spin_lock(host->host_lock);
  	return 0;
-@@ -2020,7 +2014,9 @@ struct Scsi_Host *iscsi_host_alloc(struct scsi_host_template *sht,
- 	shost = scsi_host_alloc(sht, sizeof(struct iscsi_host) + dd_data_size);
- 	if (!shost)
- 		return NULL;
-+#if LINUX_VERSION_CODE > KERNEL_VERSION(2,6,16)
- 	shost->transportt->eh_timed_out = iscsi_eh_cmd_timed_out;
-+#endif
+@@ -1998,8 +1992,10 @@ int iscsi_host_add(struct Scsi_Host *shost, struct device *pdev)
+ 	if (!shost->can_queue)
+ 		shost->can_queue = ISCSI_DEF_XMIT_CMDS_MAX;
  
- 	if (qdepth > ISCSI_MAX_CMD_PER_LUN || qdepth < 1) {
- 		if (qdepth != 0)
-@@ -2294,7 +2290,7 @@ iscsi_conn_setup(struct iscsi_cls_session *cls_session, int dd_size,
++#if LINUX_VERSION_CODE > KERNEL_VERSION(2,6,16)
+ 	if (!shost->transportt->eh_timed_out)
+ 		shost->transportt->eh_timed_out = iscsi_eh_cmd_timed_out;
++#endif
+ 	return scsi_add_host(shost, pdev);
+ }
+ EXPORT_SYMBOL_GPL(iscsi_host_add);
+@@ -2295,7 +2291,7 @@ iscsi_conn_setup(struct iscsi_cls_session *cls_session, int dd_size,
  	INIT_LIST_HEAD(&conn->mgmtqueue);
  	INIT_LIST_HEAD(&conn->xmitqueue);
  	INIT_LIST_HEAD(&conn->requeue);
@@ -1242,5 +1243,5 @@ index 27d067a..6fa17f6 100644
  	unsigned int target_id;
  
 -- 
-1.6.0.4
+1.5.6.6
 
