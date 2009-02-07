@@ -61,7 +61,7 @@ size_t strlcat(char *dst, const char *src, size_t size)
 
 	while ((ch = *p++)) {
 		if (bytes+1 < size)
-		*q++ = ch;
+			*q++ = ch;
 		bytes++;
 	}
 

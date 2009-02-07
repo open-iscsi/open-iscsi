@@ -32,6 +32,7 @@
 #include "sysfs.h"
 #include "fw_context.h"
 #include "fwparam.h"
+#include "sysdeps.h"
 
 #define IBFT_MAX 255
 #define IBFT_SYSFS_ROOT "/sys/firmware/ibft/"
@@ -116,7 +117,7 @@ static int get_iface_from_device(char *id, struct boot_context *context)
 		return rc;
 
 	/* If not found try again with newer kernel networkdev sysfs layout */
-	strncat(dev_dir, "/net", FILENAMESZ - strlen(dev_dir));
+	strlcat(dev_dir, "/net", FILENAMESZ);
 
 	if (!file_exist(dev_dir))
 		return rc;
@@ -274,8 +275,8 @@ int fwparam_ibft_sysfs_boot_info(struct boot_context *context)
 	int nic_idx = -1, tgt_idx = -1;
 
 	memset(&initiator_dir, 0 , FILENAMESZ);
-	strncat(initiator_dir, IBFT_SYSFS_ROOT, FILENAMESZ);
-	strncat(initiator_dir, "initiator", FILENAMESZ);
+	strlcat(initiator_dir, IBFT_SYSFS_ROOT, FILENAMESZ);
+	strlcat(initiator_dir, "initiator", FILENAMESZ);
 
 	if (file_exist(initiator_dir)) {
 		/* Find the target's and the ethernet's */
@@ -308,8 +309,8 @@ int fwparam_ibft_sysfs_get_targets(struct list_head *list)
 	char initiator_dir[FILENAMESZ];
 
 	memset(&initiator_dir, 0 , FILENAMESZ);
-	strncat(initiator_dir, IBFT_SYSFS_ROOT, FILENAMESZ);
-	strncat(initiator_dir, "initiator", FILENAMESZ);
+	strlcat(initiator_dir, IBFT_SYSFS_ROOT, FILENAMESZ);
+	strlcat(initiator_dir, "initiator", FILENAMESZ);
 
 	if (!file_exist(initiator_dir))
 		return ENODEV;

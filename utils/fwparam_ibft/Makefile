@@ -21,7 +21,8 @@
 #	    "Prasanna Mumbai" <mumbai.prasanna@gmail.com>
 #
 
-OBJS := fw_entry.o fwparam_ibft_sysfs.o
+SYSDEPS_OBJS = $(wildcard ../sysdeps/*.o)
+OBJS := fw_entry.o fwparam_ibft_sysfs.o $(SYSDEPS_OBJS)
 OBJS += prom_lex.o prom_parse.tab.o fwparam_ppc.o
 CLEANFILES = $(OBJS) *.output *~
 

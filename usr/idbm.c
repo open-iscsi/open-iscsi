@@ -888,8 +888,8 @@ static FILE *idbm_open_rec_r(char *portal, char *config)
 	}
 
 	if (S_ISDIR(statb.st_mode)) {
-		strncat(portal, "/", PATH_MAX);
-		strncat(portal, config, PATH_MAX);
+		strlcat(portal, "/", PATH_MAX);
+		strlcat(portal, config, PATH_MAX);
 	}
 	return fopen(portal, "r");
 }
@@ -1458,8 +1458,8 @@ mkdir_portal:
 		}
 	}
 
-	strncat(portal, "/", PATH_MAX);
-	strncat(portal, config, PATH_MAX);
+	strlcat(portal, "/", PATH_MAX);
+	strlcat(portal, config, PATH_MAX);
 	f = fopen(portal, "w");
 	if (!f)
 		log_error("Could not open %s err %d\n", portal, errno);
@@ -1978,8 +1978,8 @@ int idbm_delete_discovery(discovery_rec_t *drec)
 	}
 
 	if (S_ISDIR(statb.st_mode)) {
-		strncat(portal, "/", PATH_MAX);
-		strncat(portal, ST_CONFIG_NAME, PATH_MAX);
+		strlcat(portal, "/", PATH_MAX);
+		strlcat(portal, ST_CONFIG_NAME, PATH_MAX);
 	}
 
 	if (unlink(portal))

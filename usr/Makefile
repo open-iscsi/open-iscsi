@@ -33,8 +33,10 @@ WARNFLAGS ?= -Wall -Wstrict-prototypes
 CFLAGS += $(OPTFLAGS) $(WARNFLAGS) -I../include -I. -D$(OSNAME) $(IPC_CFLAGS)
 PROGRAMS = iscsid iscsiadm iscsistart
 
+# libc compat files
+SYSDEPS_SRCS = $(wildcard ../utils/sysdeps/*.o)
 # sources shared between iscsid, iscsiadm and iscsistart
-ISCSI_LIB_SRCS = util.o io.o auth.o login.o log.o md5.o sha1.o iface.o idbm.o sysdeps.o sysfs.o session_info.o iscsi_sysfs.o
+ISCSI_LIB_SRCS = util.o io.o auth.o login.o log.o md5.o sha1.o iface.o idbm.o sysfs.o session_info.o iscsi_sysfs.o $(SYSDEPS_SRCS)
 # sources shared between iscsid and iscsiadm
 COMMON_SRCS =  $(ISCSI_LIB_SRCS)
 # core initiator files
@@ -53,9 +55,8 @@ iscsiadm: $(COMMON_SRCS) $(FW_BOOT_SRCS) strings.o discovery.o iscsiadm.o
 iscsistart: $(IPC_OBJ) $(ISCSI_LIB_SRCS) $(INITIATOR_SRCS) $(FW_BOOT_SRCS) \
 		iscsistart.o statics.o
 	$(CC) $(CFLAGS) -static $^ -o $@
-
 clean:
-	rm -f *.o $(PROGRAMS) .depend
+	rm -f *.o $(PROGRAMS) .depend $(LIBSYS)
 
 depend:
 	gcc $(CFLAGS) -M `ls *.c` > .depend

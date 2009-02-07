@@ -27,6 +27,7 @@ IFACEFILES = etc/iface.example
 all: user kernel
 
 user: ;
+	$(MAKE) -C utils/sysdeps
 	$(MAKE) -C utils/fwparam_ibft
 	$(MAKE) -C usr
 	$(MAKE) -C utils
@@ -50,6 +51,7 @@ kernel: force
 force: ;
 
 clean:
+	$(MAKE) -C utils/sysdeps clean
 	$(MAKE) -C utils/fwparam_ibft clean
 	$(MAKE) -C utils clean
 	$(MAKE) -C usr clean

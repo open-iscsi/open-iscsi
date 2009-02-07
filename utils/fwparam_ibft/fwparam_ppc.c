@@ -29,6 +29,7 @@
 #include "fw_context.h"
 #include "iscsi_obp.h"
 #include "prom_parse.h"
+#include "sysdeps.h"
 
 void* yy_scan_string(const char *str);
 int yyparse(struct ofw_dev *ofwdev);
@@ -428,7 +429,6 @@ int fwparam_ppc_boot_info(struct boot_context *context)
 {
 	char filename[FILENAMESZ];
 	int error;
-	int fplen = 0;
 	char *devtree;
 
 	/*
@@ -438,8 +438,8 @@ int fwparam_ppc_boot_info(struct boot_context *context)
 	 * systems that can support iscsi are the ones that provide
 	 * the appropriate FCODE with a load method.
 	 */
-	strncat(filename, DT_TOP, FILENAMESZ);
-	strncat(filename + fplen, BOOTPATH, FILENAMESZ - fplen);
+	strlcat(filename, DT_TOP, FILENAMESZ);
+	strlcat(filename, BOOTPATH, FILENAMESZ);
 
 	if (debug)
 		fprintf(stderr, "%s: file:%s; debug:%d\n", __func__, filename,
@@ -501,7 +501,6 @@ int fwparam_ppc_get_targets(struct list_head *list)
 	char filename[FILENAMESZ];
 	struct boot_context *context;
 	int error;
-	int fplen = 0;
 	char *devtree;
 
 	/*
@@ -511,8 +510,8 @@ int fwparam_ppc_get_targets(struct list_head *list)
 	 * systems that can support iscsi are the ones that provide
 	 * the appropriate FCODE with a load method.
 	 */
-	strncat(filename, DT_TOP, FILENAMESZ);
-	strncat(filename + fplen, BOOTPATH, FILENAMESZ - fplen);
+	strlcat(filename, DT_TOP, FILENAMESZ);
+	strlcat(filename, BOOTPATH, FILENAMESZ);
 
 	if (debug)
 		fprintf(stderr, "%s: file:%s; debug:%d\n", __func__, filename,
