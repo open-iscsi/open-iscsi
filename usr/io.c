@@ -37,6 +37,7 @@
 #include "transport.h"
 #include "idbm.h"
 #include "iface.h"
+#include "sysdeps.h"
 
 #define LOG_CONN_CLOSED(conn) \
 do { \
@@ -185,7 +186,7 @@ static int get_netdev_from_hwaddress(char *hwaddress, char *netdev)
 	for (i = 0; ifni[i].if_index && ifni[i].if_name; i++) {
 		struct if_nameindex *n = &ifni[i];
 
-		strncpy(if_hwaddr.ifr_name, n->if_name, IFNAMSIZ);
+		strlcpy(if_hwaddr.ifr_name, n->if_name, IFNAMSIZ);
 		if (ioctl(sockfd, SIOCGIFHWADDR, &if_hwaddr) < 0) {
 			log_error("Could not match %s to netdevice.",
 				  hwaddress);
@@ -207,7 +208,7 @@ static int get_netdev_from_hwaddress(char *hwaddress, char *netdev)
 			log_debug(4, "Matches %s to %s", hwaddress,
 				  n->if_name);
 			memset(netdev, 0, IFNAMSIZ); 
-			strncpy(netdev, n->if_name, IFNAMSIZ);
+			strlcpy(netdev, n->if_name, IFNAMSIZ);
 			found = 1;
 			break;
 		}
@@ -274,7 +275,7 @@ static int bind_conn_to_iface(iscsi_conn_t *conn, struct iface_rec *iface)
 		log_debug(4, "Binding session %d to %s", session->id,
 			  session->netdev);
 		memset(&ifr, 0, sizeof(ifr));
-		strncpy(ifr.ifr_name, session->netdev, IFNAMSIZ);
+		strlcpy(ifr.ifr_name, session->netdev, IFNAMSIZ);
 
 		if (setsockopt(conn->socket_fd, SOL_SOCKET, SO_BINDTODEVICE,
 			       session->netdev,

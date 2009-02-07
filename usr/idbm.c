@@ -48,9 +48,9 @@ static struct idbm *db;
 
 #define __recinfo_str(_key, _info, _rec, _name, _show, _n, _mod) do { \
 	_info[_n].type = TYPE_STR; \
-	strncpy(_info[_n].name, _key, NAME_MAXVAL); \
+	strlcpy(_info[_n].name, _key, NAME_MAXVAL); \
 	if (strlen((char*)_rec->_name)) \
-		strncpy((char*)_info[_n].value, (char*)_rec->_name, \
+		strlcpy((char*)_info[_n].value, (char*)_rec->_name, \
 			VALUE_MAXVAL); \
 	_info[_n].data = &_rec->_name; \
 	_info[_n].data_len = sizeof(_rec->_name); \
@@ -61,7 +61,7 @@ static struct idbm *db;
 
 #define __recinfo_int(_key, _info, _rec, _name, _show, _n, _mod) do { \
 	_info[_n].type = TYPE_INT; \
-	strncpy(_info[_n].name, _key, NAME_MAXVAL); \
+	strlcpy(_info[_n].name, _key, NAME_MAXVAL); \
 	snprintf(_info[_n].value, VALUE_MAXVAL, "%d", _rec->_name); \
 	_info[_n].data = &_rec->_name; \
 	_info[_n].data_len = sizeof(_rec->_name); \
@@ -72,9 +72,9 @@ static struct idbm *db;
 
 #define __recinfo_int_o2(_key,_info,_rec,_name,_show,_op0,_op1,_n, _mod) do { \
 	_info[_n].type = TYPE_INT_O; \
-	strncpy(_info[_n].name, _key, NAME_MAXVAL); \
-	if (_rec->_name == 0) strncpy(_info[_n].value, _op0, VALUE_MAXVAL); \
-	if (_rec->_name == 1) strncpy(_info[_n].value, _op1, VALUE_MAXVAL); \
+	strlcpy(_info[_n].name, _key, NAME_MAXVAL); \
+	if (_rec->_name == 0) strlcpy(_info[_n].value, _op0, VALUE_MAXVAL); \
+	if (_rec->_name == 1) strlcpy(_info[_n].value, _op1, VALUE_MAXVAL); \
 	_info[_n].data = &_rec->_name; \
 	_info[_n].data_len = sizeof(_rec->_name); \
 	_info[_n].visible = _show; \
@@ -89,7 +89,7 @@ static struct idbm *db;
 			 _mod) do { \
 	__recinfo_int_o2(_key,_info,_rec,_name,_show,_op0,_op1,_n, _mod); \
 	_n--; \
-	if (_rec->_name == 2) strncpy(_info[_n].value, _op2, VALUE_MAXVAL);\
+	if (_rec->_name == 2) strlcpy(_info[_n].value, _op2, VALUE_MAXVAL);\
 	_info[_n].opts[2] = _op2; \
 	_info[_n].numopts = 3; \
 	_n++; \
@@ -99,7 +99,7 @@ static struct idbm *db;
 			 _mod) do { \
 	__recinfo_int_o3(_key,_info,_rec,_name,_show,_op0,_op1,_op2,_n, _mod); \
 	_n--; \
-	if (_rec->_name == 3) strncpy(_info[_n].value, _op3, VALUE_MAXVAL); \
+	if (_rec->_name == 3) strlcpy(_info[_n].value, _op3, VALUE_MAXVAL); \
 	_info[_n].opts[3] = _op3; \
 	_info[_n].numopts = 4; \
 	_n++; \
@@ -110,7 +110,7 @@ static struct idbm *db;
 	__recinfo_int_o4(_key,_info,_rec,_name,_show,_op0,_op1,_op2,_op3, \
 			  _n,_mod); \
 	_n--; \
-	if (_rec->_name == 4) strncpy(_info[_n].value, _op4, VALUE_MAXVAL); \
+	if (_rec->_name == 4) strlcpy(_info[_n].value, _op4, VALUE_MAXVAL); \
 	_info[_n].opts[4] = _op4; \
 	_info[_n].numopts = 5; \
 	_n++; \
@@ -121,7 +121,7 @@ static struct idbm *db;
 	__recinfo_int_o5(_key,_info,_rec,_name,_show,_op0,_op1,_op2,_op3, \
 			 _op4,_n,_mod); \
 	_n--; \
-	if (_rec->_name == 5) strncpy(_info[_n].value, _op5, VALUE_MAXVAL); \
+	if (_rec->_name == 5) strlcpy(_info[_n].value, _op5, VALUE_MAXVAL); \
 	_info[_n].opts[5] = _op5; \
 	_info[_n].numopts = 6; \
 	_n++; \
@@ -520,7 +520,7 @@ setup_passwd_len:
 				if (!info[i].data)
 					continue;
 
-				strncpy((char*)info[i].data,
+				strlcpy((char*)info[i].data,
 					value, info[i].data_len);
 				goto updated;
 			}
@@ -1940,11 +1940,11 @@ static void idbm_rm_disc_node_links(char *disc_dir)
 			  target, address, port, iface_id);
 
 		memset(rec, 0, sizeof(*rec));	
-		strncpy(rec->name, target, TARGET_NAME_MAXLEN);
+		strlcpy(rec->name, target, TARGET_NAME_MAXLEN);
 		rec->tpgt = atoi(tpgt);
 		rec->conn[0].port = atoi(port);
-		strncpy(rec->conn[0].address, address, NI_MAXHOST);
-		strncpy(rec->iface.name, iface_id, ISCSI_MAX_IFACE_LEN);
+		strlcpy(rec->conn[0].address, address, NI_MAXHOST);
+		strlcpy(rec->iface.name, iface_id, ISCSI_MAX_IFACE_LEN);
 
 		if (idbm_delete_node(rec))
 			log_error("Could not delete node %s/%s/%s,%s/%s",

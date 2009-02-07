@@ -354,51 +354,51 @@ dump_ibft(void *ibft_loc, struct boot_context *context)
 		CHECK_HDR(tgt1, target);
 	}
 
-	strncpy(context->initiatorname,
+	strlcpy(context->initiatorname,
 		(char *)ibft_loc+initiator->initiator_name_off,
 		initiator->initiator_name_len + 1);
 
 	if (tgt0 && (tgt0->hdr.flags & INIT_FLAG_FW_SEL_BOOT)) {
-		strncpy((char *)context->targetname,
+		strlcpy((char *)context->targetname,
 			(char *)(ibft_loc+tgt0->tgt_name_off),
 			tgt0->tgt_name_len);
 		format_ipaddr(ipbuf, sizeof(ipbuf),
 			      tgt0->ip_addr);
-		strncpy((char *)context->target_ipaddr, ipbuf,
+		strlcpy((char *)context->target_ipaddr, ipbuf,
 			sizeof(ipbuf));
 		context->target_port = tgt0->port;
-		strncpy(context->chap_name,
+		strlcpy(context->chap_name,
 			(char *)(ibft_loc + tgt0->chap_name_off),
 			tgt0->chap_name_len);
-		strncpy(context->chap_password,
+		strlcpy(context->chap_password,
 			(char*)(ibft_loc + tgt0->chap_secret_off),
 			tgt0->chap_secret_len);
-		strncpy(context->chap_name_in,
+		strlcpy(context->chap_name_in,
 			(char *)(ibft_loc + tgt0->rev_chap_name_off),
 			tgt0->rev_chap_name_len);
-		strncpy(context->chap_password_in,
+		strlcpy(context->chap_password_in,
 			(char *)(ibft_loc + tgt0->rev_chap_secret_off),
 			tgt0->rev_chap_secret_len);
 	} else if (tgt1 &&
 		   (tgt1->hdr.flags & INIT_FLAG_FW_SEL_BOOT)) {
-		strncpy((char *)context->targetname,
+		strlcpy((char *)context->targetname,
 			(char *)(ibft_loc+tgt1->tgt_name_off),
 			tgt1->tgt_name_len);
 		format_ipaddr(ipbuf, sizeof(ipbuf),
 			      tgt1->ip_addr);
-		strncpy((char *)context->target_ipaddr,ipbuf,
+		strlcpy((char *)context->target_ipaddr,ipbuf,
 			sizeof(ipbuf));
 		context->target_port = tgt1->port;
-		strncpy(context->chap_name,
+		strlcpy(context->chap_name,
 			(char *)(ibft_loc + tgt1->chap_name_off),
 			tgt1->chap_name_len);
-		strncpy(context->chap_password,
+		strlcpy(context->chap_password,
 			(char*)(ibft_loc + tgt1->chap_secret_off),
 			tgt1->chap_secret_len);
-		strncpy(context->chap_name_in,
+		strlcpy(context->chap_name_in,
 			(char *)(ibft_loc + tgt1->rev_chap_name_off),
 			tgt1->rev_chap_name_len);
-		strncpy(context->chap_password_in,
+		strlcpy(context->chap_password_in,
 			(char *)(ibft_loc + tgt1->rev_chap_secret_off),
 			tgt1->rev_chap_secret_len);
 	}
@@ -448,9 +448,9 @@ fwparam_ibft(struct boot_context *context, const char *filepath)
 	struct stat buf;
 
 	if (filepath)
-		strncpy(filename, filepath, FILENAMESZ);
+		strlcpy(filename, filepath, FILENAMESZ);
 	else
-		strncpy(filename, X86_DEFAULT_FILENAME, FILENAMESZ);
+		strlcpy(filename, X86_DEFAULT_FILENAME, FILENAMESZ);
 
 	fd = open(filename, O_RDONLY);
 	if (fd < 0) {

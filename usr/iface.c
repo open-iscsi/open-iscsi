@@ -36,6 +36,7 @@
 #include "idbm.h"
 #include "iface.h"
 #include "session_info.h"
+#include "sysdeps.h"
 
 /*
  * Default ifaces for use with transports that do not bind to hardware
@@ -115,7 +116,7 @@ struct iface_rec *iface_alloc(char *ifname, int *err)
 		return NULL;
 	}
 
-	strncpy(iface->name, ifname, ISCSI_MAX_IFACE_LEN);
+	strlcpy(iface->name, ifname, ISCSI_MAX_IFACE_LEN);
 	INIT_LIST_HEAD(&iface->list);
 	return iface;
 }

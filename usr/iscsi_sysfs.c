@@ -110,7 +110,7 @@ static int read_transports(void)
 
 			INIT_LIST_HEAD(&t->sessions);
 			INIT_LIST_HEAD(&t->list);
-			strncpy(t->name, namelist[i]->d_name,
+			strlcpy(t->name, namelist[i]->d_name,
 				ISCSI_TRANSPORT_NAME_MAXLEN);
 		} else
 			log_debug(7, "Updating transport %s",
@@ -611,9 +611,9 @@ int iscsi_sysfs_get_sid_from_path(char *session)
 	}
 
 	if (!strncmp(session, "/sys", 4))
-		strncpy(devpath, session + 4, sizeof(devpath));
+		strlcpy(devpath, session + 4, sizeof(devpath));
 	else
-		strncpy(devpath, session, sizeof(devpath));
+		strlcpy(devpath, session, sizeof(devpath));
 
 	dev = sysfs_device_get(devpath);
 	if (!dev) {

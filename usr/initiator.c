@@ -39,6 +39,7 @@
 #include "iscsi_sysfs.h"
 #include "iscsi_settings.h"
 #include "iface.h"
+#include "sysdeps.h"
 
 #define ISCSI_CONN_ERR_REOPEN_DELAY	3
 #define ISCSI_INTERNAL_ERR_REOPEN_DELAY	5
@@ -266,14 +267,14 @@ __setup_authentication(iscsi_session_t *session,
 	}
 
 	/* copy in whatever credentials we have */
-	strncpy(session->username, auth_cfg->username,
+	strlcpy(session->username, auth_cfg->username,
 		sizeof (session->username));
 	session->username[sizeof (session->username) - 1] = '\0';
 	if ((session->password_length = auth_cfg->password_length))
 		memcpy(session->password, auth_cfg->password,
 		       session->password_length);
 
-	strncpy(session->username_in, auth_cfg->username_in,
+	strlcpy(session->username_in, auth_cfg->username_in,
 		sizeof (session->username_in));
 	session->username_in[sizeof (session->username_in) - 1] = '\0';
 	if ((session->password_in_length =
@@ -515,7 +516,7 @@ __session_create(node_rec_t *rec, struct iscsi_transport *t)
 	session->portal_group_tag = rec->tpgt;
 	session->type = ISCSI_SESSION_TYPE_NORMAL;
 	session->r_stage = R_STAGE_NO_CHANGE;
-	strncpy(session->target_name, rec->name, TARGET_NAME_MAXLEN);
+	strlcpy(session->target_name, rec->name, TARGET_NAME_MAXLEN);
 
 	if (strlen(session->nrec.iface.iname))
 		session->initiator_name = session->nrec.iface.iname;

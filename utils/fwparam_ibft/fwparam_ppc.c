@@ -52,7 +52,7 @@ static void cp_param(char *dest, const char *name, struct ofw_dev *dev,
 		     enum obp_param item, int len)
 {
 	if (dev->param[item])
-		strncpy(dest, dev->param[item]->val, len);
+		strlcpy(dest, dev->param[item]->val, len);
 }
 
 static void cp_int_param(int *dest, const char *name, struct ofw_dev *dev,

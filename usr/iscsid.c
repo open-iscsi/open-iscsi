@@ -42,6 +42,7 @@
 #include "iscsi_sysfs.h"
 #include "iface.h"
 #include "session_info.h"
+#include "sysdeps.h"
 
 /* global config info */
 struct iscsi_daemon_config daemon_config;
@@ -97,9 +98,9 @@ setup_rec_from_negotiated_values(node_rec_t *rec, struct session_info *info)
 	struct iscsi_auth_config auth_conf;
 
 	idbm_node_setup_from_conf(rec);
-	strncpy(rec->name, info->targetname, TARGET_NAME_MAXLEN);
+	strlcpy(rec->name, info->targetname, TARGET_NAME_MAXLEN);
 	rec->conn[0].port = info->persistent_port;
-	strncpy(rec->conn[0].address, info->persistent_address, NI_MAXHOST);
+	strlcpy(rec->conn[0].address, info->persistent_address, NI_MAXHOST);
 	memcpy(&rec->iface, &info->iface, sizeof(struct iface_rec));
 	rec->tpgt = info->tpgt;
 	iface_copy(&rec->iface, &info->iface);

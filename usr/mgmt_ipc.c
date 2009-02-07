@@ -35,6 +35,7 @@
 #include "iscsi_ipc.h"
 #include "log.h"
 #include "transport.h"
+#include "sysdeps.h"
 
 static int	leave_event_loop = 0;
 
@@ -364,7 +365,7 @@ mgmt_peeruser(int sock, char *user)
 		return 0;
 	}
 
-	strncpy(user, pass->pw_name, PEERUSER_MAX);
+	strlcpy(user, pass->pw_name, PEERUSER_MAX);
 	return 1;
 
 #elif defined(SCM_CREDS)
@@ -414,7 +415,7 @@ mgmt_peeruser(int sock, char *user)
 		return 0;
 	}
 
-	strncpy(user, pw->pw_name, PEERUSER_MAX);
+	strlcpy(user, pw->pw_name, PEERUSER_MAX);
 	return 1;
 
 #else

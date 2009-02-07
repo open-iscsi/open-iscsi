@@ -42,6 +42,7 @@
 #include "fw_context.h"
 #include "iface.h"
 #include "session_info.h"
+#include "sysdeps.h"
 
 struct iscsi_ipc *ipc = NULL; /* dummy */
 static char program_name[] = "iscsiadm";
@@ -552,11 +553,11 @@ create_node_record(char *targetname, int tpgt, char *ip, int port,
 
 	idbm_node_setup_defaults(rec);
 	if (targetname)
-		strncpy(rec->name, targetname, TARGET_NAME_MAXLEN);
+		strlcpy(rec->name, targetname, TARGET_NAME_MAXLEN);
 	rec->tpgt = tpgt;
 	rec->conn[0].port = port;
 	if (ip)
-		strncpy(rec->conn[0].address, ip, NI_MAXHOST);
+		strlcpy(rec->conn[0].address, ip, NI_MAXHOST);
 	memset(&rec->iface, 0, sizeof(struct iface_rec));
 	if (iface) {
 		iface_copy(&rec->iface, iface);
@@ -935,10 +936,10 @@ static int add_static_rec(int *found, char *targetname, int tpgt,
 	drec->type = DISCOVERY_TYPE_STATIC;
 
 	idbm_node_setup_from_conf(rec);
-	strncpy(rec->name, targetname, TARGET_NAME_MAXLEN);
+	strlcpy(rec->name, targetname, TARGET_NAME_MAXLEN);
 	rec->tpgt = tpgt;
 	rec->conn[0].port = port;
-	strncpy(rec->conn[0].address, ip, NI_MAXHOST);
+	strlcpy(rec->conn[0].address, ip, NI_MAXHOST);
 
 	if (iface) {
 		rc = iface_conf_read(iface);
@@ -1630,15 +1631,15 @@ fw_create_rec_by_entry(struct boot_context *context)
 
 	/* todo - grab mac and set that here */
 	iface_setup_defaults(&rec->iface);
-	strncpy(rec->iface.iname, context->initiatorname,
+	strlcpy(rec->iface.iname, context->initiatorname,
 		sizeof(context->initiatorname));
-	strncpy(rec->session.auth.username, context->chap_name,
+	strlcpy(rec->session.auth.username, context->chap_name,
 		sizeof(context->chap_name));
-	strncpy((char *)rec->session.auth.password, context->chap_password,
+	strlcpy((char *)rec->session.auth.password, context->chap_password,
 		sizeof(context->chap_password));
-	strncpy(rec->session.auth.username_in, context->chap_name_in,
+	strlcpy(rec->session.auth.username_in, context->chap_name_in,
 		sizeof(context->chap_name_in));
-	strncpy((char *)rec->session.auth.password_in,
+	strlcpy((char *)rec->session.auth.password_in,
 		context->chap_password_in,
 		sizeof(context->chap_password_in));
 	rec->session.auth.password_length =
@@ -1940,7 +1941,7 @@ main(int argc, char **argv)
 			}
 
 			idbm_sendtargets_defaults(&drec.u.sendtargets);
-			strncpy(drec.address, ip, sizeof(drec.address));
+			strlcpy(drec.address, ip, sizeof(drec.address));
 			drec.port = port;
 
 			if (do_sendtargets(&drec, &ifaces, info_level,

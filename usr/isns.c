@@ -34,6 +34,7 @@
 #include "log.h"
 #include "util.h"
 #include "isns_proto.h"
+#include "sysdeps.h"
 
 enum isns_task_state {
 	ISNS_TASK_WAIT_CONN,
@@ -302,10 +303,10 @@ static void add_new_target_node(char *targetname, uint8_t *ip, int port,
 		return;
 	}
 	idbm_node_setup_from_conf(&rec);
-	strncpy(rec.name, targetname, TARGET_NAME_MAXLEN);
+	strlcpy(rec.name, targetname, TARGET_NAME_MAXLEN);
 	rec.conn[0].port = port;
 	rec.tpgt = tag;
-	strncpy(rec.conn[0].address, dst, NI_MAXHOST);
+	strlcpy(rec.conn[0].address, dst, NI_MAXHOST);
 
 	/* TODO?: shoudl we set the address and port of the server ? */
 	memset(&drec, 0, sizeof(discovery_rec_t));

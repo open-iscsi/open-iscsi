@@ -43,6 +43,7 @@
 #include "iscsi_sysfs.h"
 #include "iscsi_settings.h"
 #include "fw_context.h"
+#include "sysdeps.h"
 
 /* global config info */
 /* initiator needs initiator name/alias */
@@ -163,21 +164,21 @@ static int setup_session(void)
 		idbm_node_setup_defaults(&config_rec);
 
 		auth = &config_rec.session.auth;
-		strncpy(config_rec.name, context->targetname,
+		strlcpy(config_rec.name, context->targetname,
 			sizeof(context->targetname));
-		strncpy(config_rec.conn[0].address, context->target_ipaddr,
+		strlcpy(config_rec.conn[0].address, context->target_ipaddr,
 			sizeof(context->target_ipaddr));
 		config_rec.conn[0].port = context->target_port;
 		/* this seems broken ??? */
 		config_rec.tpgt = 1;
-		strncpy(auth->username, context->chap_name,
+		strlcpy(auth->username, context->chap_name,
 			sizeof(context->chap_name));
-		strncpy((char *)auth->password, context->chap_password,
+		strlcpy((char *)auth->password, context->chap_password,
 			sizeof(context->chap_password));
 		auth->password_length = strlen((char *)auth->password);
-		strncpy(auth->username_in, context->chap_name_in,
+		strlcpy(auth->username_in, context->chap_name_in,
 			sizeof(context->chap_name_in));
-		strncpy((char *)auth->password_in, context->chap_password_in,
+		strlcpy((char *)auth->password_in, context->chap_password_in,
 			sizeof(context->chap_password_in));
 		auth->password_in_length = strlen((char *)auth->password_in);
 
@@ -259,14 +260,14 @@ int main(int argc, char *argv[])
 		case 't':
 			check_str_param_len(optarg, TARGET_NAME_MAXLEN,
 					    "targetname");
-			strncpy(config_rec.name, optarg, TARGET_NAME_MAXLEN);
+			strlcpy(config_rec.name, optarg, TARGET_NAME_MAXLEN);
 			break;
 		case 'g':
 			config_rec.tpgt = atoi(optarg);
 			break;
 		case 'a':
 			check_str_param_len(optarg, NI_MAXHOST, "address");
-			strncpy(config_rec.conn[0].address, optarg, NI_MAXHOST);
+			strlcpy(config_rec.conn[0].address, optarg, NI_MAXHOST);
 			break;
 		case 'p':
 			config_rec.conn[0].port = atoi(optarg);
@@ -274,14 +275,14 @@ int main(int argc, char *argv[])
 		case 'w':
 			check_str_param_len(optarg, AUTH_STR_MAX_LEN,
 					   "password");
-			strncpy((char *)auth->password, optarg,
+			strlcpy((char *)auth->password, optarg,
 				AUTH_STR_MAX_LEN);
 			auth->password_length = strlen((char *)auth->password);
 			break;
 		case 'W':
 			check_str_param_len(optarg, AUTH_STR_MAX_LEN,
 					   "password_in");
-			strncpy((char *)auth->password_in, optarg,
+			strlcpy((char *)auth->password_in, optarg,
 				AUTH_STR_MAX_LEN);
 			auth->password_in_length =
 				strlen((char *)auth->password_in);
@@ -289,12 +290,12 @@ int main(int argc, char *argv[])
 		case 'u':
 			check_str_param_len(optarg, AUTH_STR_MAX_LEN,
 					    "username");
-			strncpy(auth->username, optarg, AUTH_STR_MAX_LEN);
+			strlcpy(auth->username, optarg, AUTH_STR_MAX_LEN);
 			break;
 		case 'U':
 			check_str_param_len(optarg, AUTH_STR_MAX_LEN,
 					    "username_in");
-			strncpy(auth->username_in, optarg, AUTH_STR_MAX_LEN);
+			strlcpy(auth->username_in, optarg, AUTH_STR_MAX_LEN);
 			break;
 		case 'd':
 			log_level = atoi(optarg);

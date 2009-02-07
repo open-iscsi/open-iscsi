@@ -41,6 +41,7 @@
 #include "idbm.h"
 #include "iscsi_settings.h"
 #include "util.h"
+#include "sysdeps.h"
 
 #ifdef SLP_ENABLE
 #include "iscsi-slp-discovery.h"
@@ -209,7 +210,7 @@ static int add_portal(struct list_head *rec_list, discovery_rec_t *drec,
 	rec->disc_port = drec->port;
 	strcpy(rec->disc_address, drec->address);
 
-	strncpy(rec->name, targetname, TARGET_NAME_MAXLEN);
+	strlcpy(rec->name, targetname, TARGET_NAME_MAXLEN);
 	if (tag && *tag)
 		rec->tpgt = atoi(tag);
 	else
@@ -218,7 +219,7 @@ static int add_portal(struct list_head *rec_list, discovery_rec_t *drec,
 		rec->conn[0].port = atoi(port);
 	else
 		rec->conn[0].port = ISCSI_LISTEN_PORT;
-	strncpy(rec->conn[0].address, address, NI_MAXHOST);
+	strlcpy(rec->conn[0].address, address, NI_MAXHOST);
 
 	list_add_tail(&rec->list, rec_list);
 	return 1;
@@ -635,14 +636,14 @@ setup_authentication(iscsi_session_t *session,
 	}
 
 	/* copy in whatever credentials we have */
-	strncpy(session->username, config->auth.username,
+	strlcpy(session->username, config->auth.username,
 		sizeof (session->username));
 	session->username[sizeof (session->username) - 1] = '\0';
 	if ((session->password_length = config->auth.password_length))
 		memcpy(session->password, config->auth.password,
 		       session->password_length);
 
-	strncpy(session->username_in, config->auth.username_in,
+	strlcpy(session->username_in, config->auth.username_in,
 		sizeof (session->username_in));
 	session->username_in[sizeof (session->username_in) - 1] = '\0';
 	if ((session->password_in_length =
