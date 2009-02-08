@@ -392,8 +392,8 @@ iscsi_io_tcp_poll(iscsi_conn_t *conn, int timeout_ms)
 			    conn->host, sizeof(conn->host), serv, sizeof(serv),
 			    NI_NUMERICHOST|NI_NUMERICSERV);
 
-		log_error("cannot make connection to %s:%s (%d)",
-			  conn->host, serv, errno);
+		log_error("cannot make connection to %s:%s (%s)",
+			  conn->host, serv, strerror(errno));
 		return rc;
 	}
 
@@ -404,7 +404,13 @@ iscsi_io_tcp_poll(iscsi_conn_t *conn, int timeout_ms)
 		return -1;
 	}
 	if (rc) {
-		log_error("connect failed (%d)\n", rc);
+		getnameinfo((struct sockaddr *) &conn->saddr,
+			    sizeof(conn->saddr),
+			    conn->host, sizeof(conn->host), serv, sizeof(serv),
+			    NI_NUMERICHOST|NI_NUMERICSERV);
+
+		log_error("connect to %s:%s failed (%s)\n",
+			  conn->host, serv, strerror(rc));
 		return -rc;
 	}
 
