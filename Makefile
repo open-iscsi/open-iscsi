@@ -36,6 +36,7 @@ user: ;
 	@echo "-----------------------------------  ----------------"
 	@echo "Built iSCSI daemon:                  usr/iscsid"
 	@echo "Built management application:        usr/iscsiadm"
+	@echo "Built boot tool:                     usr/iscsistart"
 	@echo
 	@echo "Read README file for detailed information."
 
