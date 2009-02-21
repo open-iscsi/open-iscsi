@@ -48,7 +48,8 @@ display help text and exit
 \fB\-I\fR, \fB\-\-interface\fI[iface]\fR
 The interface argument specifies the iSCSI interface to use for the operation.
 iSCSI interfaces (iface) are defined in /etc/iscsi/ifaces. For hardware
-or the iface config must have the hardware address (iface.hwaddress)
+iSCSI (qla4xxx) the iface config must have the hardware address
+(iface.hwaddress = port's MAC address)
 and the driver/transport_name (iface.transport_name). The iface's name is
 then the filename of the iface config. For software iSCSI, the iface config
 must have either the hardware address (iface.hwaddress), or the network
