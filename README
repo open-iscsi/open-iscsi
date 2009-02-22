@@ -4,7 +4,7 @@
 
 =================================================================
 
-                                                     Mar 14, 2008
+                                                     Feb 22, 2009
 
 Contents
 ========
@@ -41,9 +41,6 @@ open-iscsi@googlegroups.com
     - PDU header Digest;
     - multiple sessions;
     
-    For the most recent list of features please refer to:
-    http://www.open-iscsi.org/cgi-bin/wiki.pl/Roadmap
-
 2. Introduction
 ===============
 
