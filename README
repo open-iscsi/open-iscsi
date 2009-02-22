@@ -103,9 +103,9 @@ where <config> is the kernel configuration to use (eg. 'smp').
 
 For Red Hat/Fedora and Debian distributions open-iscsi can be installed by
 typing "make install". This will copy iscsid and iscsiadm to /usr/sbin, the
-init script to /etc/init.d, and the kernel modules: iscsi_tcp.ko, libiscsi.ko
-and scsi_transport_iscsi to /lib/modules/`uname -r`/kernel/drivers/scsi/
-overwriting existing iscsi modules.
+init script to /etc/init.d, and the kernel modules: iscsi_tcp.ko,
+libiscsi_tcp.ko, libiscsi.ko and scsi_transport_iscsi to
+/lib/modules/`uname -r`/kernel/drivers/scsi/ overwriting existing iscsi modules.
 
 For Debian, be sure to install the linux-headers package that
 corresponds to your kernel in order to compile the kernel modules
