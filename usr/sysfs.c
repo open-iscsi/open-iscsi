@@ -96,12 +96,12 @@ void sysfs_cleanup(void)
 	struct sysfs_device *dev_temp;
 
 	list_for_each_entry_safe(attr_loop, attr_temp, &attr_list, node) {
-		list_del(&attr_loop->node);
+		list_del_init(&attr_loop->node);
 		free(attr_loop);
 	}
 
 	list_for_each_entry_safe(dev_loop, dev_temp, &dev_list, node) {
-		list_del(&dev_loop->node);
+		list_del_init(&dev_loop->node);
 		free(dev_loop);
 	}
 }
