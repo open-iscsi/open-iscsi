@@ -35,6 +35,7 @@
 
 #include "initiator.h"
 #include "iscsi_ipc.h"
+#include "event_poll.h"
 #include "transport.h"
 #include "log.h"
 #include "util.h"

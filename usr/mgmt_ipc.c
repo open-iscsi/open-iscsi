@@ -25,19 +25,16 @@
 #include <errno.h>
 #include <unistd.h>
 #include <pwd.h>
-#include <sys/poll.h>
 #include <sys/un.h>
-#include <sys/wait.h>
 
 #include "iscsid.h"
 #include "idbm.h"
 #include "mgmt_ipc.h"
-#include "iscsi_ipc.h"
+#include "event_poll.h"
 #include "log.h"
 #include "transport.h"
 #include "sysdeps.h"
-
-static int	leave_event_loop = 0;
+#include "iscsi_ipc.h"
 
 #define PEERUSER_MAX	64
 #define EXTMSG_MAX	(64 * 1024)
@@ -77,7 +74,7 @@ mgmt_ipc_listen(void)
 void
 mgmt_ipc_close(int fd)
 {
-	leave_event_loop = 1;
+	event_loop_exit();
 	if (fd >= 0)
 		close(fd);
 }
@@ -193,7 +190,7 @@ mgmt_ipc_conn_add(queue_task_t *qtask)
 static mgmt_ipc_err_e
 mgmt_ipc_immediate_stop(queue_task_t *qtask)
 {
-	leave_event_loop = 1;
+	event_loop_exit();
 	mgmt_ipc_write_rsp(qtask, MGMT_IPC_OK);
 	return MGMT_IPC_OK;
 }
@@ -529,8 +526,7 @@ static mgmt_ipc_fn_t *	mgmt_ipc_functions[__MGMT_IPC_MAX_COMMAND] = {
 [MGMT_IPC_NOTIFY_DEL_PORTAL]	= mgmt_ipc_notify_del_portal,
 };
 
-static void
-mgmt_ipc_handle(int accept_fd)
+void mgmt_ipc_handle(int accept_fd)
 {
 	unsigned int command;
 	int fd, err;
@@ -581,88 +577,4 @@ err:
 	/* This will send the response, close the
 	 * connection and free the qtask */
 	mgmt_ipc_write_rsp(qtask, err);
-}
-
-static int reap_count;
-
-void
-need_reap(void)
-{
-	reap_count++;
-}
-
-static void
-reaper(void)
-{
-	int rc;
-
-	/*
-	 * We don't really need reap_count, but calling wait() all the
-	 * time seems execessive.
-	 */
-	if (reap_count) {
-		rc = waitpid(0, NULL, WNOHANG);
-		if (rc > 0) {
-			reap_count--;
-			log_debug(6, "reaped pid %d, reap_count now %d",
-				  rc, reap_count);
-		}
-	}
-}
-
-#define POLL_CTRL	0
-#define POLL_IPC	1
-#define POLL_ISNS	2
-#define POLL_MAX	3
-
-/* TODO: this should go somewhere else */
-void event_loop(struct iscsi_ipc *ipc, int control_fd, int mgmt_ipc_fd,
-		int isns_fd)
-{
-	struct pollfd poll_array[POLL_MAX];
-	int res;
-
-	poll_array[POLL_CTRL].fd = control_fd;
-	poll_array[POLL_CTRL].events = POLLIN;
-	poll_array[POLL_IPC].fd = mgmt_ipc_fd;
-	poll_array[POLL_IPC].events = POLLIN;
-
-	if (isns_fd < 0)
-		poll_array[POLL_ISNS].fd = poll_array[POLL_ISNS].events = 0;
-	else {
-		poll_array[POLL_ISNS].fd = isns_fd;
-		poll_array[POLL_ISNS].events = POLLIN;
-	}
-
-	leave_event_loop = 0;
-	while (!leave_event_loop) {
-		res = poll(poll_array, POLL_MAX, ACTOR_RESOLUTION);
-		if (res > 0) {
-			log_debug(6, "poll result %d", res);
-			/*
-			 * flush sysfs cache since kernel objs may
-			 * have changed as a result of handling op
-			 */
-			sysfs_cleanup();
-			if (poll_array[POLL_CTRL].revents)
-				ipc->ctldev_handle();
-
-			if (poll_array[POLL_IPC].revents)
-				mgmt_ipc_handle(mgmt_ipc_fd);
-
-			if (poll_array[POLL_ISNS].revents)
-				isns_handle(isns_fd);
-
-		} else if (res < 0) {
-			if (errno == EINTR) {
-				log_debug(1, "event_loop interrupted");
-			} else {
-				log_error("got poll() error (%d), errno (%d), "
-					  "exiting", res, errno);
-				break;
-			}
-		} else
-			actor_poll();
-		reaper();
-	}
 }

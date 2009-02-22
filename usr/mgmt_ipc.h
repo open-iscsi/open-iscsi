@@ -133,14 +133,10 @@ typedef struct iscsiadm_rsp {
 struct queue_task;
 typedef mgmt_ipc_err_e	mgmt_ipc_fn_t(struct queue_task *);
 
-struct iscsi_ipc *ipc;
-
-void need_reap(void);
-void event_loop(struct iscsi_ipc *ipc, int control_fd, int mgmt_ipc_fd, int isns_fd);
-
 struct queue_task;
 void mgmt_ipc_write_rsp(struct queue_task *qtask, mgmt_ipc_err_e err);
 int mgmt_ipc_listen(void);
 void mgmt_ipc_close(int fd);
+void mgmt_ipc_handle(int accept_fd);
 
 #endif /* MGMT_IPC_H */

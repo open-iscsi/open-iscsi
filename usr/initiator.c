@@ -31,6 +31,7 @@
 #include "iscsid.h"
 #include "iscsi_if.h"
 #include "mgmt_ipc.h"
+#include "event_poll.h"
 #include "iscsi_ipc.h"
 #include "idbm.h"
 #include "log.h"
