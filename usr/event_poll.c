@@ -96,11 +96,6 @@ void event_loop(struct iscsi_ipc *ipc, int control_fd, int mgmt_ipc_fd,
 		res = poll(poll_array, POLL_MAX, ACTOR_RESOLUTION);
 		if (res > 0) {
 			log_debug(6, "poll result %d", res);
-			/*
-			 * flush sysfs cache since kernel objs may
-			 * have changed as a result of handling op
-			 */
-			sysfs_cleanup();
 			if (poll_array[POLL_CTRL].revents)
 				ipc->ctldev_handle();
 
@@ -121,5 +116,10 @@ void event_loop(struct iscsi_ipc *ipc, int control_fd, int mgmt_ipc_fd,
 		} else
 			actor_poll();
 		reaper();
+		/*
+		 * flush sysfs cache since kernel objs may
+		 * have changed as a result of handling op
+		 */
+		sysfs_cleanup();
 	}
 }
