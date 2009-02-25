@@ -489,7 +489,7 @@ iscsiadm -m node -p ip:port -I iface0 --op=delete
 	then you can pass them in during discovery:
 
 	     ./iscsiadm -m discovery -t sendtargets -p 192.168.1.1:3260 \
-	      --inerface=iface0 --interface=iface1
+	      --interface=iface0 --interface=iface1
 
 	Note that for software iscsi, we let the network layer select
 	which NIC to use for discovery, but for later logins iscsiadm
