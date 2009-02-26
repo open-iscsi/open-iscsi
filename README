@@ -205,7 +205,7 @@ Usage: iscsiadm [OPTION]
 			  that are returned during discovery and have
 			  a record in the db.
 
-			  if [op] is passed in and the value is "delete",
+			  If [op] is passed in and the value is "delete",
 			  iscsiadm will delete records for portals that
 			  were not returned during discovery.
 
@@ -639,7 +639,7 @@ iscsiadm -m node -p ip:port -I iface0 --op=delete
 
             ./iscsiadm -m session -r 1 --stats
 
-	This function also works in node mode. instead of the "-r $sid"
+	This function also works in node mode. Instead of the "-r $sid"
 	argument, you would pass in the node info like targetname and/or portal,
 	and/or interface.
 
@@ -647,7 +647,7 @@ iscsiadm -m node -p ip:port -I iface0 --op=delete
 
             ./iscsiadm -m session -r 1 --rescan
 
-	This function also works in node mode. instead of the "-r $sid"
+	This function also works in node mode. Instead of the "-r $sid"
 	argument, you would pass in the node info like targetname and/or portal,
 	and/or interface.
 
@@ -835,7 +835,7 @@ The port is 3260. The target portal group is 3. The target name
 is iqn.1992-08.com.netapp:sn.33615311. The iface being used is iface2.
 
 While discovery targets are kept in the discovery db, they are
-usefull only for re-discovery. The discovered targets (a.k.a. nodes)
+useful only for re-discovery. The discovered targets (a.k.a. nodes)
 are stored as records in the node db.
 
 The discovered targets are not logged into yet. Rather than logging
@@ -910,7 +910,7 @@ node.conn[0].timeo.noop_out_interval = 5
 node.conn[0].timeo.noop_out_timeout = 10
 
 If there are a lot of IO error messages, then the above values may be too
-aggresive and you may need to increase the values for your network conditions
+aggressive and you may need to increase the values for your network conditions
 and workload, or you may need to check your network for possible problems.
 
 
@@ -944,8 +944,8 @@ Host Number: X State: Recovery
 When the SCSI EH is running, commands will not be failed until
 node.session.timeo.replacement_timeout seconds.
 
-To modify the the timer that starts the SCSI EH, you can either write
-directly to the devices's sysfs file:
+To modify the timer that starts the SCSI EH, you can either write
+directly to the device's sysfs file:
 
 echo X > /sys/block/sdX/device/timeout
 
@@ -978,7 +978,7 @@ failed to the multipath layer, and all new incoming commands will be
 immediately failed back to the multipath layer. If a session is later
 re-established, then new commands will be queued and executed. Normally,
 multipathd's path tester mechanism will detect that the session has been
-re-established and the path is accessable again, and it will inform
+re-established and the path is accessible again, and it will inform
 dm-multipath.
 
 
@@ -986,8 +986,8 @@ dm-multipath.
 ---------------------------------------
 
 The default value for replacement_timeout is 120 seconds, but because
-multipath's queue_if_no_path and no_path_retyr setting can prevent IO errors
-from being propogated to the application, replacement_timeout can be set to a
+multipath's queue_if_no_path and no_path_retry setting can prevent IO errors
+from being propagated to the application, replacement_timeout can be set to a
 shorter value like 5 to 15 seconds. By setting it lower pending IO is quickly
 sent to a new path and executed while the iSCSI layer attempts
 re-establishment of the session. If all paths end up being failed, then the
@@ -998,7 +998,7 @@ multipath.conf settings, instead of the iSCSI layer.
 8.2 iSCSI settings for iSCSI root
 ---------------------------------
 
-When accessing the root parition directly through a iSCSI disk, the
+When accessing the root partition directly through a iSCSI disk, the
 iSCSI timers should be set so that iSCSI layer has several chances to try to
 re-establish a session and so that commands are not quickly requeued to
 the SCSI layer. Basically you want the opposite of when using dm-multipath.
@@ -1018,7 +1018,7 @@ node.session.timeo.replacement_timeout = 86400
 
 To get information about the running sessions: including the session and
 device state, session ids (sid) for session mode, and some of the
-negioated parameters, run:
+negotiated parameters, run:
 
 	iscsiadm -m session -P 2
 
