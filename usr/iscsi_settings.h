@@ -17,6 +17,9 @@
 #define CMDS_MAX	128
 #define QUEUE_DEPTH	32
 
+/* system */
+#define XMIT_THREAD_PRIORITY	-20
+
 /* interface */
 #define UNKNOWN_VALUE		"unknown"
 #define DEFAULT_IFACENAME	"default"

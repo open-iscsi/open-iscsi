@@ -266,6 +266,7 @@ void idbm_node_setup_defaults(node_rec_t *rec)
 	rec->tpgt = PORTAL_GROUP_TAG_UNKNOWN;
 	rec->disc_type = DISCOVERY_TYPE_STATIC;
 	rec->session.cmds_max = CMDS_MAX;
+	rec->session.xmit_thread_priority = XMIT_THREAD_PRIORITY;
 	rec->session.initial_cmdsn = 0;
 	rec->session.queue_depth = QUEUE_DEPTH;
 	rec->session.initial_login_retry_max = DEF_INITIAL_LOGIN_RETRIES_MAX;

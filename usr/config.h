@@ -173,6 +173,7 @@ typedef struct conn_rec {
 typedef struct session_rec {
 	int					initial_cmdsn;
 	int					reopen_max;
+	int					xmit_thread_priority;
 	int					cmds_max;
 	int					queue_depth;
 	int					initial_login_retry_max;
