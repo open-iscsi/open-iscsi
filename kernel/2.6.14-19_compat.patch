@@ -90,7 +90,7 @@ index 457ecfe..756b171 100644
  	rlen_ahdr->ahstype = ISCSI_AHSTYPE_RLENGTH;
  	rlen_ahdr->reserved = 0;
 -	rlen_ahdr->read_length = cpu_to_be32(scsi_in(sc)->length);
-+	rlen_ahdr->read_length = cpu_to_be32(scsi_bufflen(sc))
++	rlen_ahdr->read_length = cpu_to_be32(scsi_bufflen(sc));
  
  	debug_scsi("bidi-in rlen_ahdr->read_length(%d) "
  		   "rlen_ahdr->ahslength(%d)\n",
