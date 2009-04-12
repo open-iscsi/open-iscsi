@@ -74,6 +74,8 @@ extern int iscsi_sysfs_get_host_state(char *state, int host_no);
 extern int iscsi_sysfs_get_device_state(char *state, int host_no, int target,
 					int lun);
 extern int iscsi_sysfs_get_exp_statsn(int sid);
+extern void iscsi_sysfs_set_queue_depth(void *data, int hostno, int target,
+					int lun);
 extern void iscsi_sysfs_set_device_online(void *data, int hostno, int target,
 					  int lun);
 extern void iscsi_sysfs_rescan_device(void *data, int hostno, int target,

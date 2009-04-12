@@ -1137,13 +1137,20 @@ void free_initiator(void)
 	free_transports();
 }
 
-static void session_scan_host(int hostno, queue_task_t *qtask)
+static void session_scan_host(struct iscsi_session *session, int hostno,
+			      queue_task_t *qtask)
 {
 	pid_t pid;
 
 	pid = iscsi_sysfs_scan_host(hostno, 1);
 	if (pid == 0) {
 		mgmt_ipc_write_rsp(qtask, MGMT_IPC_OK);
+
+		if (session)
+			iscsi_sysfs_for_each_device(
+					&session->nrec.session.queue_depth,
+					hostno, session->id,
+					iscsi_sysfs_set_queue_depth);
 		exit(0);
 	} else if (pid > 0) {
 		need_reap();
@@ -1454,7 +1461,7 @@ setup_full_feature_phase(iscsi_conn_t *conn)
 		 * don't want to re-scan it on recovery.
 		 */
 		if (conn->id == 0)
-			session_scan_host(session->hostno, c->qtask);
+			session_scan_host(session, session->hostno, c->qtask);
 
 		log_warning("connection%d:%d is operational now",
 			    session->id, conn->id);
@@ -1603,7 +1610,7 @@ static void iscsi_recv_async_msg(iscsi_conn_t *conn, struct iscsi_hdr *hdr)
 		}
 
 		if (sshdr.asc == 0x3f && sshdr.ascq == 0x0e)
-			session_scan_host(session->hostno, NULL);
+			session_scan_host(session, session->hostno, NULL);
 		break;
 	case ISCSI_ASYNC_MSG_REQUEST_LOGOUT:
 		log_warning("Target requests logout within %u seconds for "
@@ -2367,7 +2374,7 @@ void iscsi_async_session_creation(uint32_t host_no, uint32_t sid)
 
 	log_debug(3, "session created sid %u host no %d", sid, host_no);
 	session_online_devs(host_no, sid);
-	session_scan_host(host_no, NULL);
+	session_scan_host(NULL, host_no, NULL);
 }
 
 void iscsi_async_session_destruction(uint32_t host_no, uint32_t sid)
