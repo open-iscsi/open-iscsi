@@ -1132,7 +1132,7 @@ update_discovery_recs(discovery_rec_t *drec,
 	struct node_rec *new_rec, *tmp;
 
 	INIT_LIST_HEAD(&bound_rec_list);
- 
+
 	/* bind ifaces to node recs so we know what we have */
 	list_for_each_entry(new_rec, new_rec_list, list) {
 		rc = idbm_bind_ifaces_to_node(new_rec, ifaces,
@@ -1140,7 +1140,6 @@ update_discovery_recs(discovery_rec_t *drec,
 		if (rc)
 			goto free_bound_recs;
 	}
-
 
 	/* clean up node db */
 	if (op & OP_DELETE)
@@ -1708,6 +1707,10 @@ static int exec_fw_op(discovery_rec_t *drec, struct list_head *ifaces,
 
 		ret = update_discovery_recs(drec, &new_rec_list, ifaces,
 					    info_level, do_login, op);
+		list_for_each_entry_safe(rec, tmp_rec, &new_rec_list, list) {
+			list_del(&rec->list);
+			free(rec);
+		}
 	} else if (do_login) {
 		list_for_each_entry(context, &targets, list) {
 			rec = fw_create_rec_by_entry(context);

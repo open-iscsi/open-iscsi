@@ -1826,6 +1826,7 @@ int idbm_bind_ifaces_to_node(struct node_rec *new_rec, struct list_head *ifaces,
 		if (!found) {
 			struct iface_rec def_iface;
 
+			memset(&def_iface, 0, sizeof(struct iface_rec));
 			iface_setup_defaults(&def_iface);
 			return idbm_bind_iface_to_node(new_rec, &def_iface,
 						       bound_recs);

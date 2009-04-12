@@ -128,8 +128,7 @@ static int login_session(void)
 {
 	iscsiadm_req_t req;
 	iscsiadm_rsp_t rsp;
-	int rc;
-
+	int rc, retries = 0;
 	/*
 	 * For root boot we cannot change this so increase to account
 	 * for boot using static setup.
@@ -142,12 +141,21 @@ static int login_session(void)
 	printf("%s: Logging into %s %s:%d,%d\n", program_name, config_rec.name,
 		config_rec.conn[0].address, config_rec.conn[0].port,
 		config_rec.tpgt);
-
 	memset(&req, 0, sizeof(req));
 	req.command = MGMT_IPC_SESSION_LOGIN;
 	memcpy(&req.u.session.rec, &config_rec, sizeof(node_rec_t));
+
+retry:
 	rc = do_iscsid(&req, &rsp);
-	if (rc)
+	/*
+	 * handle race where iscsid proc is starting up while we are
+	 * trying to connect.
+	 */
+	if (rc == MGMT_IPC_ERR_ISCSID_NOTCONN && retries < 30) {
+		retries++;
+		sleep(1);
+		goto retry;
+	} else if (rc)
 		iscsid_handle_error(rc);
 	return rc;
 }
@@ -252,6 +260,14 @@ int main(int argc, char *argv[])
 	sa_new.sa_flags = 0;
 	sigaction(SIGINT, &sa_new, &sa_old );
 
+	/* initialize logger */
+	log_daemon = 0;
+	log_init(program_name, DEFAULT_AREA_SIZE);
+
+	sysfs_init();
+	if (iscsi_sysfs_check_class_version())
+		exit(1);
+
 	while ((ch = getopt_long(argc, argv, "i:t:g:a:p:d:u:w:U:W:bfvh",
 				 long_options, &longindex)) >= 0) {
 		switch (ch) {
@@ -341,14 +357,6 @@ int main(int argc, char *argv[])
 			break;
 		}
 	}
-
-	/* initialize logger */
-	log_daemon = 0;
-	log_init(program_name, DEFAULT_AREA_SIZE);
-
-	sysfs_init();
-	if (iscsi_sysfs_check_class_version())
-		exit(1);
 
 	if (list_empty(&targets) && check_params(initiatorname))
 		exit(1);

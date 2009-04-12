@@ -91,7 +91,6 @@ static void dump_initiator(struct boot_context *context)
 
 static void dump_target(struct boot_context *context)
 {
-
 	if (strlen(context->targetname))
 		printf("%s = %s\n", NODE_NAME, context->targetname);
 

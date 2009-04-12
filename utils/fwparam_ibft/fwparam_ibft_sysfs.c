@@ -357,7 +357,8 @@ int fwparam_ibft_sysfs_get_targets(struct list_head *list)
 	}
 
 	if (rc) {
-		free(context);
+		if (context)
+			free(context);
 		fw_free_targets(list);
 	}
 

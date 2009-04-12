@@ -183,6 +183,7 @@ static int sync_session(void *data, struct session_info *info)
 	iscsiadm_req_t req;
 	iscsiadm_rsp_t rsp;
 	struct iscsi_transport *t;
+	int rc, retries = 0;
 
 	log_debug(7, "sync session [%d][%s,%s.%d][%s]\n", info->sid,
 		  info->targetname, info->persistent_address,
@@ -249,13 +250,18 @@ static int sync_session(void *data, struct session_info *info)
 	 * app.
 	 */
 	strcpy(rec.iface.iname, info->iface.iname);
-
 	memset(&req, 0, sizeof(req));
 	req.command = MGMT_IPC_SESSION_SYNC;
 	req.u.session.sid = info->sid;
 	memcpy(&req.u.session.rec, &rec, sizeof(node_rec_t));
 
-	do_iscsid(&req, &rsp);
+retry:
+	rc = do_iscsid(&req, &rsp);
+	if (rc == MGMT_IPC_ERR_ISCSID_NOTCONN && retries < 30) {
+		retries++;
+		sleep(1);
+		goto retry;
+	}
 	return 0;
 }
 
