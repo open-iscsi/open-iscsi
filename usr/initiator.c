@@ -2074,7 +2074,7 @@ static int iface_set_param(struct iscsi_transport *t, struct iface_rec *iface,
 	hostno = iscsi_sysfs_get_host_no_from_hwinfo(iface, &rc);
 	if (rc)
 		return rc;
-
+	session->conn[0].bind_ep = 1;
 	session->hostno = hostno;
 
 	rc = __iscsi_host_set_param(t, session->hostno,

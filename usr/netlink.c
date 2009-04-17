@@ -757,8 +757,16 @@ ktransport_ep_connect(iscsi_conn_t *conn, int non_blocking)
 
 	memset(setparam_buf, 0, NLM_SETPARAM_DEFAULT_MAX);
 	ev = (struct iscsi_uevent *)setparam_buf;
-	ev->type = ISCSI_UEVENT_TRANSPORT_EP_CONNECT;
 	ev->transport_handle = conn->session->t->handle;
+
+	if (conn->bind_ep) {
+		ev->type = ISCSI_UEVENT_TRANSPORT_EP_CONNECT_THROUGH_HOST;
+		ev->u.ep_connect_through_host.non_blocking = non_blocking;
+		ev->u.ep_connect_through_host.host_no = conn->session->hostno;
+	} else {
+		ev->type = ISCSI_UEVENT_TRANSPORT_EP_CONNECT;
+		ev->u.ep_connect.non_blocking = non_blocking;
+	}
 
 	if (dst_addr->sa_family == PF_INET)
 		addrlen = sizeof(struct sockaddr_in);
@@ -770,7 +778,6 @@ ktransport_ep_connect(iscsi_conn_t *conn, int non_blocking)
 		return -EINVAL;
 	}
 	memcpy(setparam_buf + sizeof(*ev), dst_addr, addrlen);
-	ev->u.ep_connect.non_blocking = non_blocking;
 
 	if ((rc = __kipc_call(ev, sizeof(*ev) + addrlen)) < 0)
 		return rc;
