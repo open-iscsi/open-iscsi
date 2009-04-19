@@ -21,7 +21,7 @@
 #define XMIT_THREAD_PRIORITY	-20
 
 /* interface */
-#define UNKNOWN_VALUE		"unknown"
+#define UNKNOWN_VALUE		"<empty>"
 #define DEFAULT_IFACENAME	"default"
 #define DEFAULT_NETDEV		"default"
 #define DEFAULT_IPADDRESS	"default"

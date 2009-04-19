@@ -429,27 +429,21 @@ static int sysfs_read_iface(struct iface_rec *iface, int host_no,
 	 */
 	ret = sysfs_get_str(id, ISCSI_HOST_SUBSYS, "hwaddress",
 			    iface->hwaddress, sizeof(iface->hwaddress));
-	if (ret) {
-		sprintf(iface->hwaddress, DEFAULT_HWADDRESS);
+	if (ret)
 		log_debug(7, "could not read hwaddress for host%d\n", host_no);
-	}
 
 	/* if not found just print out default */
 	ret = sysfs_get_str(id, ISCSI_HOST_SUBSYS, "ipaddress",
 			    iface->ipaddress, sizeof(iface->ipaddress));
-	if (ret) {
-		sprintf(iface->ipaddress, DEFAULT_IPADDRESS);
+	if (ret)
 		log_debug(7, "could not read local address for host%d\n",
 			  host_no);
-	}
 
 	/* if not found just print out default */
 	ret = sysfs_get_str(id, ISCSI_HOST_SUBSYS, "netdev",
 			    iface->netdev, sizeof(iface->netdev));
-	if (ret) {
-		sprintf(iface->netdev, DEFAULT_NETDEV);
+	if (ret)
 		log_debug(7, "could not read netdev for host%d\n", host_no);
-	}
 
 	/*
 	 * For drivers like qla4xxx we can only set the iname at the

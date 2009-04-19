@@ -50,8 +50,6 @@
 static struct iface_rec iface_default = {
 	.name		= "default",
 	.transport_name	= "tcp",
-	.netdev		= DEFAULT_NETDEV,
-	.hwaddress	= DEFAULT_HWADDRESS,
 };
 
 /*
@@ -60,8 +58,6 @@ static struct iface_rec iface_default = {
 static struct iface_rec iface_iser = {
 	.name		= "iser",
 	.transport_name	= "iser",
-	.netdev		= DEFAULT_NETDEV,
-	.hwaddress	= DEFAULT_HWADDRESS,
 };
 
 static struct iface_rec *default_ifaces[] = {
@@ -94,9 +90,6 @@ static void iface_init(struct iface_rec *iface)
  */
 void iface_setup_defaults(struct iface_rec *iface)
 {
-	sprintf(iface->netdev, DEFAULT_NETDEV);
-	sprintf(iface->ipaddress, DEFAULT_IPADDRESS);
-	sprintf(iface->hwaddress, DEFAULT_HWADDRESS);
 	sprintf(iface->transport_name, DEFAULT_TRANSPORT);
 	iface_init(iface);
 }
