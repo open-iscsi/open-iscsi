@@ -33,6 +33,7 @@
 #include "iscsi_settings.h"
 #include "iface.h"
 #include "session_info.h"
+#include "host.h"
 
 /*
  * TODO: remove the _DIR defines and search for subsys dirs like
@@ -407,8 +408,14 @@ uint32_t iscsi_sysfs_get_host_no_from_hwinfo(struct iface_rec *iface, int *rc)
 	return host_no;
 }
 
-static int sysfs_read_iface(struct iface_rec *iface, int host_no,
-			    char *session)
+/*
+ * Read in iface settings based on host and session values. If
+ * session is not passed in, then the ifacename will not be set. And
+ * if the session is not passed in then iname will only be set for
+ * qla4xxx.
+ */
+static int iscsi_sysfs_read_iface(struct iface_rec *iface, int host_no,
+				  char *session)
 {
 	char id[NAME_SIZE];
 	struct iscsi_transport *t;
@@ -454,6 +461,7 @@ static int sysfs_read_iface(struct iface_rec *iface, int host_no,
 	 * initiator names and of course software iscsi can support anything.
 	 */
 	ret = 1;
+	memset(iface->iname, 0, sizeof(iface->iname));
 	if (session) {
 		ret = sysfs_get_str(session, ISCSI_SESSION_SUBSYS,
 				    "initiatorname",
@@ -490,7 +498,7 @@ static int sysfs_read_iface(struct iface_rec *iface, int host_no,
 	 * per device.
 	 */
 	memset(iface->name, 0, sizeof(iface->name));
-	if (session)
+	if (session) {
 		/*
 		 * this was added after 2.0.869 so we could be doing iscsi_tcp
 		 * session binding, but there may not be a ifacename set
@@ -498,19 +506,27 @@ static int sysfs_read_iface(struct iface_rec *iface, int host_no,
 		 */
 		ret = sysfs_get_str(session, ISCSI_SESSION_SUBSYS, "ifacename",
 				    iface->name, sizeof(iface->name));
-	if (ret || !session) {
-		log_debug(7, "could not read iface name for session %s\n",
-			  session);
-		/*
- 		 * if the ifacename file is not there then we are using a older
- 		 * kernel and can try to find the binding by the net info
- 		 * which was used on these older kernels.
- 		 */
-		if (iface_get_by_net_binding(iface, iface))
-			log_debug(7, "Could not find iface for session bound "
-				  "to:" iface_fmt "\n", iface_str(iface));
+		if (ret) {
+			log_debug(7, "could not read iface name for "
+				  "session %s\n", session);
+			/*
+			 * if the ifacename file is not there then we are
+			 * using a older kernel and can try to find the
+			 * binding by the net info which was used on these
+			 * older kernels.
+			 */
+			if (iface_get_by_net_binding(iface, iface))
+				log_debug(7, "Could not find iface for session "
+					  "bound to:" iface_fmt "\n",
+					  iface_str(iface));
+		}
 	}
 	return ret;
+}
+
+int iscsi_sysfs_get_hostinfo_by_host_no(struct host_info *hinfo)
+{
+	return iscsi_sysfs_read_iface(&hinfo->iface, hinfo->host_no, NULL);
 }
 
 int iscsi_sysfs_for_each_host(void *data, int *nr_found,
@@ -520,7 +536,7 @@ int iscsi_sysfs_for_each_host(void *data, int *nr_found,
 	int rc = 0, i, n;
 	struct host_info *info;
 
-	info = calloc(1, sizeof(*info));
+	info = malloc(sizeof(*info));
 	if (!info)
 		return ENOMEM;
 
@@ -530,6 +546,7 @@ int iscsi_sysfs_for_each_host(void *data, int *nr_found,
 		goto free_info;
 
 	for (i = 0; i < n; i++) {
+		memset(info, 0, sizeof(*info));
 		if (sscanf(namelist[i]->d_name, "host%u", &info->host_no) !=
 			   1) {
 			log_error("Invalid iscsi host dir: %s",
@@ -537,8 +554,7 @@ int iscsi_sysfs_for_each_host(void *data, int *nr_found,
 			break;
 		}
 
-		sysfs_read_iface(&info->iface, info->host_no, NULL);
-
+		iscsi_sysfs_get_hostinfo_by_host_no(info);
 		rc = fn(data, info);
 		if (rc != 0)
 			break;
@@ -714,7 +730,7 @@ int iscsi_sysfs_get_sessioninfo_by_id(struct session_info *info, char *session)
 		return ret;
 	}
 
-	sysfs_read_iface(&info->iface, host_no, session);
+	iscsi_sysfs_read_iface(&info->iface, host_no, session);
  
 	log_debug(7, "found targetname %s address %s pers address %s port %d "
 		 "pers port %d driver %s iface name %s ipaddress %s "

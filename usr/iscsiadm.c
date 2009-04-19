@@ -42,6 +42,7 @@
 #include "fw_context.h"
 #include "iface.h"
 #include "session_info.h"
+#include "host.h"
 #include "sysdeps.h"
 
 struct iscsi_ipc *ipc = NULL; /* dummy */
@@ -75,6 +76,7 @@ static struct option const long_options[] =
 	{"type", required_argument, NULL, 't'},
 	{"name", required_argument, NULL, 'n'},
 	{"value", required_argument, NULL, 'v'},
+	{"host", required_argument, NULL, 'H'},
 	{"sid", required_argument, NULL, 'r'},
 	{"rescan", no_argument, NULL, 'R'},
 	{"print", required_argument, NULL, 'P'},
@@ -106,6 +108,7 @@ iscsiadm -m node [ -hV ] [ -d debug_level ] [ -P printlevel ] [ -L all,manual,au
 iscsiadm -m session [ -hV ] [ -d debug_level ] [ -P  printlevel] [ -r sessionid | sysfsdir [ -R | -u | -s ] [ -o operation ] [ -n name ] [ -v value ] ]\n\
 iscsiadm -m iface [ -hV ] [ -d debug_level ] [ -P printlevel ] [ -I ifacename ] [ [ -o  operation  ] [ -n name ] [ -v value ] ]\n\
 iscsiadm -m fw [ -l ]\n\
+iscsiadm -m host [ -P printlevel ] [ -H hostno ]\n\
 iscsiadm -k priority\n");
 	}
 	exit(status == 0 ? 0 : -1);
@@ -145,6 +148,8 @@ str_to_mode(char *str)
 		mode = MODE_IFACE;
 	else if (!strcmp("fw", str))
 		mode = MODE_FW;
+	else if (!strcmp("host", str))
+		mode = MODE_HOST;
 	else
 		mode = -1;
 
@@ -1729,6 +1734,7 @@ main(int argc, char **argv)
 	struct list_head ifaces;
 	struct iface_rec *iface = NULL, *tmp;
 	struct node_rec *rec = NULL;
+	uint32_t host_no = -1;
 
 	memset(&drec, 0, sizeof(discovery_rec_t));
 	INIT_LIST_HEAD(&ifaces);
@@ -1779,6 +1785,16 @@ main(int argc, char **argv)
 			break;
 		case 'v':
 			value = optarg;
+			break;
+		case 'H':
+			errno = 0;
+			host_no = strtoul(optarg, NULL, 10);
+			if (errno) {
+				log_error("invalid host no %s. %s.",
+					  optarg, strerror(errno));
+				rc = -1;
+				goto free_ifaces;
+			}
 			break;
 		case 'r':
 			sid = iscsi_sysfs_get_sid_from_path(optarg);
@@ -1889,6 +1905,16 @@ main(int argc, char **argv)
 	iface_setup_host_bindings();
 
 	switch (mode) {
+	case MODE_HOST:
+		if ((rc = verify_mode_params(argc, argv, "HdmP", 0))) {
+			log_error("host mode: option '-%c' is not "
+				  "allowed/supported", rc);
+			rc = -1;
+			goto out;
+		}
+
+		rc = host_info_print(info_level, host_no);
+		break;
 	case MODE_IFACE:
 		if ((rc = verify_mode_params(argc, argv, "IdnvmPo", 0))) {
 			log_error("iface mode: option '-%c' is not "

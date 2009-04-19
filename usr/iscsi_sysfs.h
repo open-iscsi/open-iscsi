@@ -25,6 +25,7 @@
 #include "config.h"
 
 struct session_info;
+struct host_info;
 struct iscsi_session;
 struct iscsi_conn;
 struct iscsi_session_operational_config;
@@ -32,11 +33,6 @@ struct iscsi_conn_operational_config;
 struct iscsi_auth_config;
 
 #define SCSI_MAX_STATE_VALUE 32
-
-struct host_info {
-	struct iface_rec iface;
-	int host_no;
-};
 
 extern void free_transports(void);
 extern char *iscsi_sysfs_get_iscsi_kernel_version(void);
@@ -55,6 +51,7 @@ extern int iscsi_sysfs_for_each_host(void *data, int *nr_found,
 extern uint32_t iscsi_sysfs_get_host_no_from_sid(uint32_t sid, int *err);
 extern uint32_t iscsi_sysfs_get_host_no_from_hwinfo(struct iface_rec *iface,
 						    int *rc);
+extern int iscsi_sysfs_get_hostinfo_by_host_no(struct host_info *hinfo);
 extern int iscsi_sysfs_get_sid_from_path(char *session);
 extern char *iscsi_sysfs_get_blockdev_from_lun(int hostno, int target, int sid);
 

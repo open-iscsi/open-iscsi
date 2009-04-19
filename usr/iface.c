@@ -36,6 +36,7 @@
 #include "idbm.h"
 #include "iface.h"
 #include "session_info.h"
+#include "host.h"
 #include "sysdeps.h"
 
 /*

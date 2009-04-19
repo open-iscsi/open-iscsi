@@ -256,10 +256,21 @@ void session_info_print_tree(struct list_head *list, char *prefix,
 			printf("\n");
 
 		if (flags & SESSION_INFO_IFACE) {
+			char *new_prefix;
+
 			printf("%s\t\t**********\n", prefix);
 			printf("%s\t\tInterface:\n", prefix);
 			printf("%s\t\t**********\n", prefix);
-			iface_print(&curr->iface, "\t\t");
+
+			new_prefix = calloc(1, 1 + strlen(prefix) +
+					    strlen("\t\t"));
+			if (!new_prefix)
+				printf("Could not print interface info. "
+					"Out of Memory.\n");
+			else {
+				sprintf(new_prefix, "%s%s", prefix, "\t\t");
+				iface_print(&curr->iface, new_prefix);
+			}
 		}
 
 		if (flags & SESSION_INFO_ISCSI_STATE) {
@@ -312,7 +323,6 @@ int session_info_print(int info_level, struct session_info *info)
 		struct session_link_info link_info;
 
 		flags |= (SESSION_INFO_ISCSI_STATE |SESSION_INFO_IFACE);
-
 		if (info) {
 			INIT_LIST_HEAD(&info->list);
 			list_add_tail(&list, &info->list);
