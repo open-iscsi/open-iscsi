@@ -219,9 +219,6 @@ static int print_ifaces(struct iface_rec *iface, int info_level)
 					   iface_print_flat);
 		break;
 	case 1:
-	case 2:
-	case 3:
-	case 4:
 		if (iface) {
 			err = iface_conf_read(iface);
 			if (err) {
@@ -229,14 +226,14 @@ static int print_ifaces(struct iface_rec *iface, int info_level)
 					  iface->name);
 				return err;
 			}
-			iface_print_tree(&info_level, iface);
+			iface_print_tree(NULL, iface);
 			num_found = 1;
 		} else
-			err = iface_for_each_iface(&info_level, &num_found,
+			err = iface_for_each_iface(NULL, &num_found,
 						   iface_print_tree);
 		break;
 	default:
-		log_error("Invalid info level %d. Try 0 - 4.", info_level);
+		log_error("Invalid info level %d. Try 0 - 1.", info_level);
 		return EINVAL;
 	}
 
@@ -772,7 +769,7 @@ static int print_nodes(int info_level, struct node_rec *rec)
 		break;
 	case 1:
 		memset(&tmp_rec, 0, sizeof(node_rec_t));
-		if (for_each_rec(rec, &tmp_rec, idbm_print_node_tree))
+		if (for_each_rec(rec, &tmp_rec, idbm_print_node_and_iface_tree))
 			rc = -1;
 		break;
 	default:
@@ -1279,22 +1276,6 @@ do_sendtargets(discovery_rec_t *drec, struct list_head *ifaces,
 sw_st:
 	return do_software_sendtargets(drec, ifaces, info_level, do_login,
 				       op);
-}
-
-/* TODO: merge this with the idbm code */
-static void print_fw_nodes(struct node_rec *rec, int info_level)
-{
-	switch (info_level) {
-	case -1:
-	case 0:
-		idbm_print_node_flat(NULL, rec);
-		break;
-	case 1:
-		idbm_print_node_tree(NULL, rec);
-		break;
-	default:
-		log_error("Invalid print level %d. Try 0 or 1.", info_level);
-	}
 }
 
 static int isns_dev_attr_query(discovery_rec_t *drec,

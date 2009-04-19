@@ -775,12 +775,11 @@ int idbm_print_node_flat(void *data, node_rec_t *rec)
 	return 0;
 }
 
-int idbm_print_node_tree(void *data, node_rec_t *rec)
+int idbm_print_node_tree(struct node_rec *last_rec, struct node_rec *rec,
+			 char *prefix)
 {
-	node_rec_t *last_rec = data;
-
 	if (!last_rec || strcmp(last_rec->name, rec->name)) {
-		printf("Target: %s\n", rec->name);
+		printf("%sTarget: %s\n", prefix, rec->name);
 		if (last_rec)
 			memset(last_rec, 0, sizeof(node_rec_t));
 	}
@@ -789,17 +788,24 @@ int idbm_print_node_tree(void *data, node_rec_t *rec)
 	     ((strcmp(last_rec->conn[0].address, rec->conn[0].address) ||
 	     last_rec->conn[0].port != rec->conn[0].port))) {
 		if (strchr(rec->conn[0].address, '.'))
-			printf("\tPortal: %s:%d,%d\n", rec->conn[0].address,
+			printf("%s\tPortal: %s:%d,%d\n", prefix,
+			       rec->conn[0].address,
 			       rec->conn[0].port, rec->tpgt);
 		else
-			printf("\tPortal: [%s]:%d,%d\n", rec->conn[0].address,
+			printf("%s\tPortal: [%s]:%d,%d\n", prefix,
+			       rec->conn[0].address,
 			       rec->conn[0].port, rec->tpgt);
 	}
 
-	printf("\t\tIface Name: %s\n", rec->iface.name);
-
 	if (last_rec)
 		memcpy(last_rec, rec, sizeof(node_rec_t));
+	return 0;
+}
+
+int idbm_print_node_and_iface_tree(void *data, node_rec_t *rec)
+{
+	idbm_print_node_tree(data, rec, "");
+	printf("\t\tIface Name: %s\n", rec->iface.name);
 	return 0;
 }
 

@@ -573,11 +573,6 @@ int iface_is_bound_by_ipaddr(struct iface_rec *iface)
 	return 0;
 }
 
-static int iface_match_session_iface(void *data, struct session_info *info)
-{
-	return iface_match(data, &info->iface);
-}
-
 void iface_print(struct iface_rec *iface, char *prefix)
 {
 	if (strlen(iface->name))
@@ -614,6 +609,22 @@ void iface_print(struct iface_rec *iface, char *prefix)
 		printf("%sIface Netdev: %s\n", prefix, UNKNOWN_VALUE);
 }
 
+struct iface_print_node_data {
+	struct node_rec *last_rec;
+	struct iface_rec *match_iface;
+};
+
+static int iface_print_nodes(void *data, node_rec_t *rec)
+{
+	struct iface_print_node_data *print_data = data;
+
+	if (!iface_match(print_data->match_iface, &rec->iface))
+		return -1;
+
+	idbm_print_node_tree(print_data->last_rec, rec, "\t");
+	return 0;
+}
+
 /**
  * iface_print_tree - print out binding info
  * @iface: iface to print out
@@ -624,60 +635,18 @@ void iface_print(struct iface_rec *iface, char *prefix)
  */
 int iface_print_tree(void *data, struct iface_rec *iface)
 {
-	struct list_head sessions;
-	struct session_link_info link_info;
-	int err, num_found = 0, info_level = *(int *)data;
-	unsigned int flags = 0;
-	uint32_t hostno;
-	char state[SCSI_MAX_STATE_VALUE];
-
-	INIT_LIST_HEAD(&sessions);
+	struct node_rec last_rec;
+	struct iface_print_node_data print_data;
+	int num_found = 0;
 
 	printf("Iface: %s\n", iface->name);
-	iface_print(iface, "\t");
-	/*
-	 * software iscsi/iser does a host per session so
-	 * we cannot get a exact hostno for the iface
-	 */
-	err = 0;
-	hostno = iscsi_sysfs_get_host_no_from_hwinfo(iface, &err);
-	if (!err) {
-		printf("\tHost Number: %u\t", hostno);
-		if (!iscsi_sysfs_get_host_state(state, hostno))
-			printf("State: %s\n", state);
-		else
-			printf("State: Unknown\n");
-	}
 
-	if (info_level == 1)
-		return 0;
+	memset(&last_rec, 0, sizeof(struct node_rec ));
 
-	link_info.list = &sessions;
-        link_info.match_fn = iface_match_session_iface;
-        link_info.data = iface;
+	print_data.match_iface = iface;
+	print_data.last_rec = &last_rec;
 
-	err = iscsi_sysfs_for_each_session(&link_info, &num_found,
-					   session_info_create_list);
-	if (err || !num_found)
-		return 0;
-
-	printf("\t*********\n");
-	printf("\tSessions:\n");
-	printf("\t*********\n");
-
-	switch (info_level) {
-	case 4:
-		flags |= SESSION_INFO_SCSI_DEVS | SESSION_INFO_HOST_DEVS;
-		/* fall through */
-	case 3:
-		flags |= SESSION_INFO_ISCSI_STATE | SESSION_INFO_ISCSI_PARAMS;
-		/* fall through */
-	case 2:
-		;/* print portals by default when called */
-	}
-
-	session_info_print_tree(&sessions, "\t", flags);
-	session_info_free_list(&sessions);
+	idbm_for_each_rec(&num_found, &print_data, iface_print_nodes);
 	return 0;
 }
 

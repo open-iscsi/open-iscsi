@@ -108,7 +108,9 @@ extern void idbm_terminate(void);
 extern int idbm_print_iface_info(void *data, struct iface_rec *iface);
 extern int idbm_print_node_info(void *data, node_rec_t *rec);
 extern int idbm_print_node_flat(void *data, node_rec_t *rec);
-extern int idbm_print_node_tree(void *data, node_rec_t *rec);
+extern int idbm_print_node_tree(struct node_rec *last_rec, struct node_rec *rec,
+				char *prefix);
+extern int idbm_print_node_and_iface_tree(void *data, node_rec_t *rec);
 extern int idbm_print_discovery_info(discovery_rec_t *rec, int show);
 extern int idbm_print_all_discovery(int info_level);
 extern int idbm_print_discovered(discovery_rec_t *drec, int info_level);
