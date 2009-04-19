@@ -420,38 +420,37 @@ int iface_get_by_net_binding(struct iface_rec *pattern,
 	return ENODEV;
 }
 
-static int __iface_setup_host_bindings(void *data, struct host_info *info)
+static int __iface_setup_host_bindings(void *data, struct host_info *hinfo)
 {
+	struct iface_rec *def_iface;
 	struct iface_rec iface;
 	struct iscsi_transport *t;
-	int id;
+	int i = 0;
 
-	t = iscsi_sysfs_get_transport_by_hba(info->host_no);
+	t = iscsi_sysfs_get_transport_by_hba(hinfo->host_no);
 	if (!t)
 		return 0;
-	/*
-	 * if software or partial offload do not touch the bindngs.
-	 * They do not need it and may not support it
-	 */
-	if (!(t->caps & CAP_FW_DB))
-		return 0;
 
-	/*
-	 * since this is only for qla4xxx we only care about finding
-	 * a iface with a matching hwaddress.
-	 */
-	if (iface_get_by_net_binding(&info->iface, &iface) == ENODEV) {
+	/* do not setup binding for hosts using non offload drivers */
+	while ((def_iface = default_ifaces[i++])) {
+		if (!strcmp(t->name, def_iface->transport_name))
+			return 0;
+	}
+
+	if (iface_get_by_net_binding(&hinfo->iface, &iface) == ENODEV) {
 		/* Must be a new port */
-		id = iface_get_next_id();
-		if (id < 0) {
-			log_error("Could not add iface for %s.",
-				  info->iface.hwaddress);
+		if (!strlen(hinfo->iface.hwaddress)) {
+			log_error("Invalid offload iSCSI host %u. Missing "
+				  "hwaddress. Try upgrading %s driver.\n",
+				  hinfo->host_no, t->name);
 			return 0;
 		}
+
 		memset(&iface, 0, sizeof(struct iface_rec));
-		strcpy(iface.hwaddress, info->iface.hwaddress);
-		strcpy(iface.transport_name, info->iface.transport_name);
-		sprintf(iface.name, "iface%d", id);
+		strcpy(iface.hwaddress, hinfo->iface.hwaddress);
+		strcpy(iface.transport_name, hinfo->iface.transport_name);
+		snprintf(iface.name, sizeof(iface.name), "%s.%s",
+			 t->name, hinfo->iface.hwaddress);
 		if (iface_conf_write(&iface))
 			log_error("Could not write iface conf for %s %s",
 				  iface.name, iface.hwaddress);
@@ -461,7 +460,8 @@ static int __iface_setup_host_bindings(void *data, struct host_info *info)
 }
 
 /*
- * sync hw/offload iscsi scsi_hosts with iface values
+ * Create a default iface for offload cards. We assume that we will
+ * be able identify each host by MAC.
  */
 void iface_setup_host_bindings(void)
 {
@@ -483,7 +483,8 @@ void iface_setup_host_bindings(void)
 	if (iscsi_sysfs_for_each_host(NULL, &nr_found,
 				      __iface_setup_host_bindings))
 		log_error("Could not scan scsi hosts. HW/OFFLOAD iscsi "
-			  "operations may not be supported.");
+			  "operations may not be supported, or please "
+			  "see README for instructions on setting up ifaces.");
 }
 
 void iface_copy(struct iface_rec *dst, struct iface_rec *src)
