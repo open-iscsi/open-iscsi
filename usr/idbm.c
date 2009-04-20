@@ -981,127 +981,68 @@ free_portal:
 	return rc;
 }
 
-static int st_disc_filter(const struct dirent *dir)
+static int print_discovered_flat(void *data, node_rec_t *rec)
 {
-	return strcmp(dir->d_name, ".") && strcmp(dir->d_name, "..") &&
-	       strcmp(dir->d_name, ST_CONFIG_NAME);
-}
+	struct discovery_rec *drec = data;
 
-static int print_discovered(char *disc_path, int info_level)
-{
-	char *tmp_port = NULL, *last_address = NULL, *last_target = NULL;
-	char *target = NULL, *address = NULL, *ifaceid = NULL, *tpgt = NULL;
-	char *portal;
-	int n, i, last_port = -1;
-	struct dirent **namelist;
-	node_rec_t *rec;
+	if (rec->disc_type != drec->type)
+		goto no_match;
 
-	n = scandir(disc_path, &namelist, st_disc_filter, alphasort);
-	if (n < 0)
-		return 0;
-
-	rec = malloc(sizeof(*rec));
-	if (!rec)
-		goto free_namelist;
-
-	portal = malloc(PATH_MAX);
-	if (!portal)
-		goto free_rec;
-
-	for (i = 0; i < n; i++) {
-		if (get_params_from_disc_link(namelist[i]->d_name, &target,
-					      &tpgt, &address, &tmp_port,
-					      &ifaceid)) {
-			log_error("Improperly formed disc to node link");
-			continue;
-		}
-
-		memset(portal, 0, PATH_MAX);
-		snprintf(portal, PATH_MAX, "%s/%s/%s,%s,%s/%s", NODE_CONFIG_DIR,
-			 target, address, tmp_port, tpgt, ifaceid);
-		if (__idbm_rec_read(rec, portal)) {
-			log_error("Could not read node record for %s "
-				  "%s %d %s", target, address, atoi(tmp_port),
-				  ifaceid);
-			continue;
-		}
-
-		if (info_level < 1) {
-			if (strchr(address, '.'))
-				printf("%s:%d,%d %s\n", address, atoi(tmp_port),
-					rec->tpgt, target);
-			else
-				printf("[%s]:%d,%d %s\n", address,
-					atoi(tmp_port), rec->tpgt, target);
-			continue;
-		}
-
-		if (!last_target || strcmp(last_target, target)) {
-			printf("    Target: %s\n", target);
-			last_target = namelist[i]->d_name;
-			last_port = -1;
-			last_address = NULL;
-		}
-
-		if (!last_address || strcmp(last_address, address) ||
-		    last_port == -1 || last_port != atoi(tmp_port)) {
-			last_port = atoi(tmp_port);
-			printf("        ");
-			if (strchr(address, '.'))
-				printf("Portal: %s:%d,%d\n", address,
-					last_port, rec->tpgt);
-			else
-				printf("Portal: [%s]:%d,%d\n", address,
-					last_port, rec->tpgt);
-			last_address = address;
-		}
-
-		printf("           Iface Name: %s\n", rec->iface.name);
+	if (drec->type == DISCOVERY_TYPE_SENDTARGETS) {
+		if (rec->disc_port != drec->port ||
+		    strcmp(rec->disc_address, drec->address))
+			goto no_match;
 	}
 
-	free(portal);
-free_rec:
-	free(rec);
-free_namelist:
-	for (i = 0; i < n; i++)
-		free(namelist[i]);
-	free(namelist);
-	return n;
+	idbm_print_node_flat(NULL, rec);
+	return 0;
+no_match:
+	return -1;
 }
 
-int idbm_print_discovered(discovery_rec_t *drec, int info_level)
+struct discovered_tree_info {
+	struct discovery_rec *drec;
+	struct node_rec *last_rec;
+};
+
+static int print_discovered_tree(void *data, node_rec_t *rec)
 {
-	char *disc_path;
-	int rc;
+	struct discovered_tree_info *tree_info = data;
+	struct discovery_rec *drec = tree_info->drec;
 
-	disc_path = calloc(1, PATH_MAX);
-	if (!disc_path)
-		return 0;
+	if (rec->disc_type != drec->type)
+		goto no_match;
 
-	switch (drec->type) {
-	case DISCOVERY_TYPE_SENDTARGETS:
-		snprintf(disc_path, PATH_MAX, "%s/%s,%d", ST_CONFIG_DIR,
-			 drec->address, drec->port);
-		break;
-	case DISCOVERY_TYPE_STATIC:
-		snprintf(disc_path, PATH_MAX, "%s", STATIC_CONFIG_DIR);
-		break;
-	case DISCOVERY_TYPE_FW:
-		snprintf(disc_path, PATH_MAX, "%s", FW_CONFIG_DIR);
-		break;
-	case DISCOVERY_TYPE_ISNS:
-		snprintf(disc_path, PATH_MAX, "%s", ISNS_CONFIG_DIR);
-		break;
-	case DISCOVERY_TYPE_SLP:
-	default:
-		rc = 0;
-		goto done;
+	if (drec->type == DISCOVERY_TYPE_SENDTARGETS) {
+		if (rec->disc_port != drec->port ||
+		    strcmp(rec->disc_address, drec->address))
+			goto no_match;
 	}
 
-	rc = print_discovered(disc_path, info_level);
-done:
-	free(disc_path);
-	return rc;
+	idbm_print_node_and_iface_tree(tree_info->last_rec, rec);
+	return 0;
+no_match:
+	return -1;
+}
+
+int idbm_print_discovered(struct discovery_rec *drec, int info_level)
+{
+	int num_found = 0;
+
+	if (info_level < 1)
+		idbm_for_each_rec(&num_found, drec, print_discovered_flat);
+	else {
+		struct discovered_tree_info tree_info;
+		struct node_rec last_rec;
+
+		memset(&last_rec, 0, sizeof(struct node_rec));
+
+		tree_info.drec = drec;
+		tree_info.last_rec = &last_rec;
+
+		idbm_for_each_rec(&num_found, &tree_info,							  print_discovered_tree);
+	}
+	return num_found;
 }
 
 static int idbm_print_all_st(int info_level)
@@ -1110,6 +1051,7 @@ static int idbm_print_all_st(int info_level)
 	struct dirent *entity_dent;
 	int found = 0;
 	char *disc_dir;
+	char *tmp_port;
 
 	disc_dir = malloc(PATH_MAX);
 	if (!disc_dir)
@@ -1125,23 +1067,28 @@ static int idbm_print_all_st(int info_level)
 			continue;
 
 		log_debug(5, "found %s\n", entity_dent->d_name);
+
+		tmp_port = strchr(entity_dent->d_name, ',');
+		if (!tmp_port)
+			continue;
+		*tmp_port++ = '\0';
+
 		if (info_level >= 1) {
-			memset(disc_dir, 0, PATH_MAX);
-			snprintf(disc_dir, PATH_MAX, "%s/%s", ST_CONFIG_DIR,
-				 entity_dent->d_name);
+			struct discovery_rec drec;
 
-			printf("DiscoveryAddress: %s\n", entity_dent->d_name);
-			found += print_discovered(disc_dir, info_level);
+			printf("DiscoveryAddress: %s,%s\n",
+				entity_dent->d_name, tmp_port);
+
+			memset(&drec, 0, sizeof(struct discovery_rec));
+			strlcpy(drec.address, entity_dent->d_name,
+				sizeof(drec.address));
+			drec.port = atoi(tmp_port);
+			drec.type = DISCOVERY_TYPE_SENDTARGETS;
+
+			found += idbm_print_discovered(&drec, info_level);
 		} else {
-			char *tmp_port;
-
-			tmp_port = strchr(entity_dent->d_name, ',');
-			if (!tmp_port)
-				continue;
-			*tmp_port++ = '\0';
-
-			printf("%s:%d via sendtargets\n", entity_dent->d_name,
-			       atoi(tmp_port));
+			printf("%s:%s via sendtargets\n", entity_dent->d_name,
+			       tmp_port);
 			found++;
 		}
 	}
@@ -2071,6 +2018,12 @@ static int idbm_remove_disc_to_node_link(node_rec_t *rec,
 done:
 	free(tmprec);
 	return rc;
+}
+
+static int st_disc_filter(const struct dirent *dir)
+{
+	return strcmp(dir->d_name, ".") && strcmp(dir->d_name, "..") &&
+		strcmp(dir->d_name, ST_CONFIG_NAME);
 }
 
 int idbm_delete_node(node_rec_t *rec)
