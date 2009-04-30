@@ -226,10 +226,15 @@ idbm_recinfo_discovery(discovery_rec_t *r, recinfo_t *ri)
 			u.sendtargets.auth.username, IDBM_SHOW, num, 1);
 		__recinfo_str(DISC_ST_PASSWORD, ri, r,
 			u.sendtargets.auth.password, IDBM_MASKED, num, 1);
+		__recinfo_int(DISC_ST_PASSWORD_LEN, ri, r,
+			u.sendtargets.auth.password_length, IDBM_HIDE, num, 1);
 		__recinfo_str(DISC_ST_USERNAME_IN, ri, r,
 			u.sendtargets.auth.username_in, IDBM_SHOW, num, 1);
 		__recinfo_str(DISC_ST_PASSWORD_IN, ri, r,
 			u.sendtargets.auth.password_in, IDBM_MASKED, num, 1);
+		__recinfo_int(DISC_ST_PASSWORD_IN_LEN, ri, r,
+			u.sendtargets.auth.password_in_length, IDBM_HIDE,
+			num, 1);
 		__recinfo_int(DISC_ST_LOGIN_TMO, ri, r,
 			u.sendtargets.conn_timeo.login_timeout,
 			IDBM_SHOW, num, 1);
