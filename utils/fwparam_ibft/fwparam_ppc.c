@@ -346,6 +346,7 @@ static int loop_devs(const char *devtree)
 	int i;
 	char prefix[256];
 
+	nic_count = 0;
 	error = nftw(devtree, find_nics, 20, 0);
 	if (error)
 		return error;
@@ -357,6 +358,7 @@ static int loop_devs(const char *devtree)
 	qsort(niclist, nic_count, sizeof(char *), nic_cmp);
 
 	snprintf(prefix, sizeof(prefix), "%s/%s", devtree, "aliases");
+	dev_count = 0;
 	error = nftw(prefix, find_initiator, 20, 0);
 	if (error)
 		return error;
@@ -371,8 +373,6 @@ static int loop_devs(const char *devtree)
 
 		}
 	}
-	if (!error)
-		putchar('\n');
 	return error;
 }
 
@@ -458,8 +458,7 @@ int fwparam_ppc_boot_info(struct boot_context *context)
 	if (error)
 		goto free_devtree;
 
-	dev_count = find_file(filename);
-	if (dev_count < 1)
+	if (find_file(filename) < 1)
 		error = ENODEV;
 	else {
 		if (debug)
@@ -534,8 +533,7 @@ int fwparam_ppc_get_targets(struct list_head *list)
 	if (error)
 		goto free_devtree;
 
-	dev_count = find_file(filename);
-	if (dev_count < 1)
+	if (find_file(filename) < 1)
 		error = ENODEV;
 	else {
 		if (debug)
