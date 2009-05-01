@@ -159,15 +159,13 @@ static int fill_nic_context(char *id, struct boot_context *context)
 			   sizeof(context->mac));
 	if (rc)
 		return rc;
-	rc = sysfs_get_str(id, IBFT_SUBSYS, "ip-addr", context->ipaddr,
-			   sizeof(context->ipaddr));
-	if (rc)
-		return rc;
 
 	rc = get_iface_from_device(id, context);
 	if (rc)
 		return rc;
 
+	sysfs_get_str(id, IBFT_SUBSYS, "ip-addr", context->ipaddr,
+		      sizeof(context->ipaddr));
 	sysfs_get_str(id, IBFT_SUBSYS, "vlan", context->vlan,
 		      sizeof(context->vlan));
 	sysfs_get_str(id, IBFT_SUBSYS, "subnet-mask", context->mask,
