@@ -56,15 +56,23 @@ static int file_exist(const char *file)
 static int find_sysfs_dirs(const char *fpath, const struct stat *sb,
 			   int tflag, struct FTW *ftw)
 {
-	if (tflag == FTW_D &&
-		(strstr(fpath + ftw->base, "target")))
-			target_list[tgt_cnt++] = strdup(strstr(fpath,
-							       "target"));
+	if (tflag == FTW_D && (strstr(fpath + ftw->base, "target"))) {
+		if (tgt_cnt == IBFT_MAX) {
+			printf("Too many targets found in IBFT data."
+			       "Max number of targets %d\n", IBFT_MAX);
+			return 0;
+		}
+		target_list[tgt_cnt++] = strdup(strstr(fpath, "target"));
+	}
 
-	if (tflag == FTW_D &&
-		(strstr(fpath + ftw->base, "ethernet")))
-			nic_list[nic_cnt++] = strdup(strstr(fpath,
-							    "ethernet"));
+	if (tflag == FTW_D && (strstr(fpath + ftw->base, "ethernet"))) {
+		if (nic_cnt == IBFT_MAX) {
+			printf("Too many nics found in IBFT data."
+			       "Max number of nics %d\n", IBFT_MAX);
+			return 0;
+		}
+		nic_list[nic_cnt++] = strdup(strstr(fpath, "ethernet"));
+	}
 
 	return 0;
 }
