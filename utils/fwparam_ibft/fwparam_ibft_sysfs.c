@@ -273,9 +273,11 @@ int fwparam_ibft_sysfs_boot_info(struct boot_context *context)
 	int nic_idx = -1, tgt_idx = -1;
 
 	memset(&initiator_dir, 0 , FILENAMESZ);
-	strlcat(initiator_dir, IBFT_SYSFS_ROOT, FILENAMESZ);
-	strlcat(initiator_dir, "initiator", FILENAMESZ);
+	snprintf(initiator_dir, FILENAMESZ, "%sinitiator",
+		IBFT_SYSFS_ROOT);
 
+	nic_cnt = 0;
+	tgt_cnt = 0;
 	if (file_exist(initiator_dir)) {
 		/* Find the target's and the ethernet's */
 		rc = nftw(IBFT_SYSFS_ROOT, find_sysfs_dirs, 20, 1);
@@ -307,11 +309,14 @@ int fwparam_ibft_sysfs_get_targets(struct list_head *list)
 	char initiator_dir[FILENAMESZ];
 
 	memset(&initiator_dir, 0 , FILENAMESZ);
-	strlcat(initiator_dir, IBFT_SYSFS_ROOT, FILENAMESZ);
-	strlcat(initiator_dir, "initiator", FILENAMESZ);
+	snprintf(initiator_dir, FILENAMESZ, "%sinitiator",
+		IBFT_SYSFS_ROOT);
 
 	if (!file_exist(initiator_dir))
 		return ENODEV;
+
+	nic_cnt = 0;
+	tgt_cnt = 0;
 
 	/* Find the target's and the ethernet's */
 	nftw(IBFT_SYSFS_ROOT, find_sysfs_dirs, 20, 1);
