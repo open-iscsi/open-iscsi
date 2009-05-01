@@ -53,8 +53,6 @@ static char program_name[] = "iscsid";
 int control_fd, mgmt_ipc_fd;
 static pid_t log_pid;
 
-extern char sysfs_file[];
-
 static struct option const long_options[] = {
 	{"config", required_argument, NULL, 'c'},
 	{"initiatorname", required_argument, NULL, 'i'},
