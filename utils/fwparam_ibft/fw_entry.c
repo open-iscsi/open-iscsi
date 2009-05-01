@@ -95,8 +95,8 @@ static void dump_target(struct boot_context *context)
 		printf("%s = %s\n", NODE_NAME, context->targetname);
 
 	if (strlen(context->target_ipaddr))
-		printf("%s = %s\n", CONN_ADDR, context->target_ipaddr);
-	printf("%s = %d\n", CONN_PORT, context->target_port);
+		printf(CONN_ADDR" = %s\n", 0, context->target_ipaddr);
+	printf(CONN_PORT" = %d\n", 0, context->target_port);
 
 	if (strlen(context->chap_name))
 		printf("%s = %s\n", SESSION_USERNAME, context->chap_name);
