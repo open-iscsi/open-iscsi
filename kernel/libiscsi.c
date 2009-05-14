@@ -1489,7 +1489,7 @@ reject:
 	ISCSI_DBG_SESSION(session, "cmd 0x%x rejected (%d)\n",
 			  sc->cmnd[0], reason);
 	spin_lock(host->host_lock);
-	return SCSI_MLQUEUE_TARGET_BUSY;
+	return SCSI_MLQUEUE_HOST_BUSY;
 
 prepd_fault:
 	sc->scsi_done = NULL;
@@ -1522,7 +1522,9 @@ int iscsi_target_alloc(struct scsi_target *starget)
 	struct iscsi_cls_session *cls_session = starget_to_session(starget);
 	struct iscsi_session *session = cls_session->dd_data;
 
+#if 0
 	starget->can_queue = session->scsi_cmds_max;
+#endif
 	return 0;
 }
 EXPORT_SYMBOL_GPL(iscsi_target_alloc);

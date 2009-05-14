@@ -1,5 +1,5 @@
 diff --git a/libiscsi.c b/libiscsi.c
-index 5ac73fb..3dae4cc 100644
+index 733fa00..5d88693 100644
 --- a/libiscsi.c
 +++ b/libiscsi.c
 @@ -38,6 +38,8 @@
@@ -8,9 +8,9 @@ index 5ac73fb..3dae4cc 100644
  
 +#include "open_iscsi_compat.h"
 +
- /* Serial Number Arithmetic, 32 bits, less than, RFC1982 */
- #define SNA32_CHECK 2147483648UL
- 
+ static int iscsi_dbg_lib;
+ module_param_named(debug_libiscsi, iscsi_dbg_lib, int, S_IRUGO | S_IWUSR);
+ MODULE_PARM_DESC(debug_libiscsi, "Turn on debugging for libiscsi module. "
 diff --git a/open_iscsi_compat.h b/open_iscsi_compat.h
 new file mode 100644
 index 0000000..b977df5
@@ -46,7 +46,7 @@ index 0000000..b977df5
 +
 +#endif
 diff --git a/scsi_transport_iscsi.c b/scsi_transport_iscsi.c
-index 4781d81..cdf3f45 100644
+index c9e95e7..38e14e5 100644
 --- a/scsi_transport_iscsi.c
 +++ b/scsi_transport_iscsi.c
 @@ -30,6 +30,8 @@
@@ -59,5 +59,5 @@ index 4781d81..cdf3f45 100644
  #define ISCSI_CONN_ATTRS 13
  #define ISCSI_HOST_ATTRS 4
 -- 
-1.6.0.4
+1.5.2.1
 
