@@ -49,8 +49,7 @@ all: kernel_check
 #            form.
 
 #some constants
-14to19_patch=2.6.14-19_compat.patch
-20to21_patch=2.6.20-21_compat.patch
+14to23_patch=2.6.14-23_compat.patch
 24_patch=2.6.24_compat.patch
 26_patch=2.6.26_compat.patch
 27_patch=2.6.27_compat.patch
@@ -69,25 +68,25 @@ KSUBLEVEL = $(shell cat $(KSRC)/Makefile | awk -F= '/^SUBLEVEL =/ {print $$2}' |
 KERNEL_TARGET=linux_2_6_$(KSUBLEVEL)
 kernel_check: $(KERNEL_TARGET)
 
-linux_2_6_14: has_14to19_patch
+linux_2_6_14: has_14to23_patch
 
-linux_2_6_15: has_14to19_patch
+linux_2_6_15: has_14to23_patch
 
-linux_2_6_16: has_14to19_patch
+linux_2_6_16: has_14to23_patch
 
-linux_2_6_17: has_14to19_patch
+linux_2_6_17: has_14to23_patch
 
-linux_2_6_18: has_14to19_patch
+linux_2_6_18: has_14to23_patch
 
-linux_2_6_19: has_14to19_patch
+linux_2_6_19: has_14to23_patch
 
-linux_2_6_20: has_20to21_patch
+linux_2_6_20: has_14to23_patch
 
-linux_2_6_21: has_20to21_patch
+linux_2_6_21: has_14to23_patch
 
-linux_2_6_22: has_20to21_patch
+linux_2_6_22: has_14to23_patch
 
-linux_2_6_23: has_20to21_patch
+linux_2_6_23: has_14to23_patch
 
 linux_2_6_24: has_24_patch
 
@@ -112,22 +111,13 @@ do_unpatch_code:
 
 # these below targets must be the same as the variable name prefixed by has_
 # otherwise below compat_patch: target will not work
-has_14to19_patch: $(14to19_patch)
-	echo "Patching source code for linux-2.6.14-19 ..."
+has_14to23_patch: $(14to23_patch)
+	echo "Patching source code for linux-2.6.14-23 ..."
 	if [ -e $(cur_patched) ]; then \
 		make -C . clean; \
 	fi
-	patch -p1 < $(14to19_patch)
-	cp $(14to19_patch) $@
-	ln -s $@ $(cur_patched)
-
-has_20to21_patch: $(20to21_patch)
-	echo "Patching source code for linux-2.6.20-21 ..."
-	if [ -e $(cur_patched) ]; then \
-		make -C . clean; \
-	fi
-	patch -p1 < $(20to21_patch)
-	cp $(20to21_patch) $@
+	patch -p1 < $(14to23_patch)
+	cp $(14to23_patch) $@
 	ln -s $@ $(cur_patched)
 
 has_24_patch: $(24_patch)
