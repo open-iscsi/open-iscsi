@@ -936,13 +936,17 @@ static int ctldev_handle(void)
 	case ISCSI_KEVENT_CONN_ERROR:
 		sid = ev->r.connerror.sid;
 		cid = ev->r.connerror.cid;
+		break;
 	case ISCSI_KEVENT_UNBIND_SESSION:
 		sid = ev->r.unbind_session.sid;
 		/* session wide event so cid is 0 */
 		cid = 0;
 		break;
 	default:
-		; /* fall through */
+		log_error("Unknown kernel event %d. You may want to upgrade "
+			  "your iscsi tools.", ev->type);
+		drop_data(nlh);
+		return -EINVAL;
 	}
 
 	/* verify connection */
