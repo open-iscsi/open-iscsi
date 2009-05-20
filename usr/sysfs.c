@@ -27,6 +27,7 @@
 #include <ctype.h>
 #include <errno.h>
 #include <limits.h>
+#include <inttypes.h>
 #include <sys/stat.h>
 
 #include "log.h"
@@ -620,8 +621,7 @@ int sysfs_get_str(char *id, char *subsys, char *param, char *value,
 	return 0;
 }
 
-int sysfs_get_ull(char *id, char *subsys, char *param,
-		  unsigned long long *value)
+int sysfs_get_uint64(char *id, char *subsys, char *param, uint64_t *value)
 {
 	char *sysfs_value;
 
@@ -630,10 +630,8 @@ int sysfs_get_ull(char *id, char *subsys, char *param,
 	if (!sysfs_value)
 		return EIO;
 
-	errno = 0;
-	*value = strtoull(sysfs_value, NULL, 0);
-	if (errno)
-		return errno;
+	if (sscanf(sysfs_value, "%" PRIu64 "\n", value) != 1)
+		return EINVAL;
 	return 0;
 }
 

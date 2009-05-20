@@ -117,8 +117,8 @@ static int read_transports(void)
 			log_debug(7, "Updating transport %s",
 				  namelist[i]->d_name);
 
-		if (sysfs_get_ull(t->name, ISCSI_TRANSPORT_SUBSYS,
-				  "handle", (unsigned long long *)&t->handle)) {
+		if (sysfs_get_uint64(t->name, ISCSI_TRANSPORT_SUBSYS,
+				     "handle", &t->handle)) {
 			if (list_empty(&t->list))
 				free(t);
 			else

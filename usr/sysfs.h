@@ -22,6 +22,7 @@
 #ifndef _SYSFS_
 #define _SYSFS_
 
+#include <stdint.h>
 #include "list.h"
 #include "string.h"
 
@@ -56,8 +57,8 @@ extern int sysfs_get_uint(char *id, char *subsys, char *param,
 extern int sysfs_get_int(char *id, char *subsys, char *param, int *value);
 extern int sysfs_get_str(char *id, char *subsys, char *param, char *value,
 			 int value_size);
-extern int sysfs_get_ull(char *id, char *subsys, char *param,
-			 unsigned long long *value);
+extern int sysfs_get_uint64(char *id, char *subsys, char *param,
+			    uint64_t *value);
 extern int sysfs_set_param(char *id, char *subsys, char *attr_name,
 			   char *write_buf, ssize_t buf_size);
 
