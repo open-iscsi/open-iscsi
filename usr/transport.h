@@ -29,6 +29,7 @@ struct iscsi_transport_template {
 	int (*ep_connect) (struct iscsi_conn *conn, int non_blocking);
 	int (*ep_poll) (struct iscsi_conn *conn, int timeout_ms);
 	void (*ep_disconnect) (struct iscsi_conn *conn);
+	void (*create_conn) (struct iscsi_conn *conn);
 };
 
 /* represents data path provider */

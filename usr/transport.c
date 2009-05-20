@@ -25,6 +25,7 @@
 #include "log.h"
 #include "util.h"
 #include "iscsi_sysfs.h"
+#include "cxgb3i.h"
 
 struct iscsi_transport_template iscsi_tcp = {
 	.name		= "tcp",
@@ -46,6 +47,7 @@ struct iscsi_transport_template cxgb3i = {
 	.ep_connect	= ktransport_ep_connect,
 	.ep_poll	= ktransport_ep_poll,
 	.ep_disconnect	= ktransport_ep_disconnect,
+	.create_conn	= cxgb3i_create_conn,
 };
 
 struct iscsi_transport_template bnx2i = {

@@ -1922,6 +1922,9 @@ static void session_conn_poll(void *data)
 		}
 
 		iscsi_copy_operational_params(conn);
+
+		if (session->t->template->create_conn)
+			session->t->template->create_conn(conn);
 		/*
 		 * TODO: use the iface number or some other value
 		 * so this will be persistent
