@@ -220,6 +220,13 @@ free_ifni:
 	return found;
 }
 
+#if 0
+
+This is not supported for now, because it is not exactly what we want.
+It also turns out that targets will send packets to other interfaces
+causing all types of weird things to happen.
+
+
 static int bind_src_by_address(int sockfd, char *address)
 {
 	int rc = 0;
@@ -250,6 +257,7 @@ static int bind_src_by_address(int sockfd, char *address)
 		log_debug(4, "Bound %s to socket fd %d", address, sockfd);
 	return rc;
 }
+#endif
 
 static int bind_conn_to_iface(iscsi_conn_t *conn, struct iface_rec *iface)
 {
@@ -261,13 +269,20 @@ static int bind_conn_to_iface(iscsi_conn_t *conn, struct iface_rec *iface)
 		log_error("Cannot match %s to net/scsi interface.",
 			  iface->hwaddress);
                 return -1;
-	} else if (iface_is_bound_by_ipaddr(iface) &&
-		   bind_src_by_address(conn->socket_fd, iface->ipaddress)) {
-		log_error("Cannot match %s to net/scsi interface.",
-			   iface->ipaddress);
-		return -1;
 	} else if (iface_is_bound_by_netdev(iface))
 		strcpy(session->netdev, iface->netdev);
+	else if (iface_is_bound_by_ipaddr(iface)) {
+		/*
+		 * we never supported this but now with offload having to
+		 * set the ip address in the iface, useris may forget to
+		 * set the offload's transport type and we end up here by
+		 * accident.
+		 */
+		log_error("Cannot bind %s to net/scsi interface. This is not "
+			  "supported with software iSCSI (iscsi_tcp).",
+			   iface->ipaddress);
+		return -1;
+	}
 
 	if (strlen(session->netdev)) {
 		struct ifreq ifr;
