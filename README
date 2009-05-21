@@ -482,12 +482,16 @@ not use the iface specified. So if you are using a offload card, you will
 need a seperate network connection to the target for discovery purposes.
 *This will be fixed in the next version of open-iscsi*
 
-When you run iscsiadm to do discovery, it will check for interfaces
-in /etc/iscsi/ifaces and bind the portals that are discovered so that
-they will be logged in through each iface. This behavior can also be overriden
-by passing in the interfaces you want to use. For example if you had defined
-two interface but only wanted to use one you can use the
---interface/-I argument:
+For compatibility reasons, when you run iscsiadm to do discovery, it
+will check for interfaces in /etc/iscsi/iscsi/ifaces that are using
+tcp for the iface.transport and it will bind the portals that are discovered
+so that they will be logged in through those ifaces. This behavior can also
+be overriden by passing in the interfaces you want to use. For the case
+of offload like with cxgb3i and bnx2i this is required because the transport
+will not be tcp.
+
+For example if you had defined two interface but only wanted to use one
+you can use the --interface/-I argument:
 
 iscsiadm -m discovery -t st -p ip:port -I iface1 -P 1
 
