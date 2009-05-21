@@ -4,7 +4,7 @@
 
 =================================================================
 
-                                                     Feb 22, 2009
+                                                     May 20, 2009
 
 Contents
 ========
@@ -295,14 +295,35 @@ Usage: iscsiadm [OPTION]
 			  iscsi_ifacename.
 
 			  See below for examples.
+  -m host --host=hostno --print=level
+			  Display information for a specific host if hostno
+			  is passed in. If no hostno is passed in then info
+			  for all hosts is printed.
+
+			  Print level can be 0 to 4.
+			  1 = Print info for how like its state, MAC, and
+			  netinfo if possible.
+			  2 = Print basic session info for nodes the host
+			  is connected to.
+			  3 = Print iscsi params used.
+			  4 = Print SCSI info like LUNs, device state.
   -d, --debug debuglevel  print debugging information
   -V, --version           display version and exit
   -h, --help              display this help and exit
 
 
 
-5.1 How to setup iSCSI interfaces (iface) for binding
-=====================================================
+5.1 iSCSI iface setup
+=====================
+
+The next sections describe how to setup iSCSI ifaces so you can bind
+a session to a NIC port when using software iscsi (section 5.1.1), and
+it describes how to setup ifaces for use with offload cards from Chelsio
+and Broadcm (section 5.1.2).
+
+
+5.1.1 How to setup iSCSI interfaces (iface) for binding
+=======================================================
 
 If you wish to allow the network susbsystem to figure out
 the best path/NIC to use then you can skip this section. For example
@@ -321,8 +342,8 @@ offload iscsi?
 Software iscsi, like iscsi_tcp and iser, allocate a scsi_host per session
 and does a single connection per session. As a result
 /sys/class_scsi_host and /proc/scsi will report a scsi_host for
-each connection/session you have logged into. Hardware iscsi, like
-Qlogic's qla4xxx, allocates a scsi_host for each PCI device (each
+each connection/session you have logged into. Offload iscsi, like
+Chelsio cxgb3i, allocates a scsi_host for each PCI device (each
 port on a HBA will show up as a different PCI device so you get
 a scsi_host per HBA port).
 
@@ -331,21 +352,16 @@ structure. For each HBA port or for software iscsi for each network
 device (ethX) or NIC, that you wish to bind sessions to you must create
 a iface config /etc/iscsi/ifaces.
 
-When you run iscsiadm the first time a hardware iscsi driver like qla4xxx is
-loaded, iscsiadm will create default iface configs for you. The config created
-by iscsiadm for qlogic should be ok for most uses and users should not have
-to modify them.
-
 Running:
 
 # iscsiadm -m iface
-iface0 qla4xxx,00:c0:dd:08:63:e8,default
-iface1 qla4xxx,00:c0:dd:08:63:ea,default
+iface0 qla4xxx,00:c0:dd:08:63:e8,20.15.0.7,default,iqn.2005-06.com.redhat:madmax
+iface1 qla4xxx,00:c0:dd:08:63:ea,20.15.0.9,default,iqn.2005-06.com.redhat:madmax
 
 Will report iface configurations that are setup in /etc/iscsi/ifaces.
 The format is:
 
-iface_name transport_name,hwaddress,net_ifacename
+iface_name transport_name,hwaddress,ipaddress,net_ifacename,initiatorname
 
 For software iscsi, you can create the iface configs by hand, but it is
 reccomended that you use iscsiadm's iface mode. There is a iface.example in
@@ -369,9 +385,10 @@ and in /etc/iscsi/ifaces/iface1 you would enter:
 iface.transport_name = tcp
 iface.hwaddress = 00:C0:DD:08:63:E7
 
-Warning: Do not name a iface config file  "default". default is a special
-value/file that is used by the iscsi tools for backward compatibility.
-If you name a config default, then the behavior is not defined.
+Warning: Do not name a iface config file  "default" or "iser".
+They are special value/file that is used by the iscsi tools for
+backward compatibility. If you name a iface default or iser, then
+the behavior is not defined.
 
 To use iscsiadm to create iface0 above for you run:
 
@@ -387,7 +404,85 @@ a iface. You must log out first. If you have a iface bound to a node/portal
 but you have not logged in then, iscsiadm will update the config and
 all existing bindings.
 
-When you then run iscsiadm to do discovery, it will check for interfaces
+
+You should now skip to 5.1.3 to see how to log in using the iface and for
+some helpful management commands.
+
+
+
+5.1.2 Setting up a iface for a iSCSI offload card
+=================================================
+
+This section describes how to setup ifaces for use with Chelsio
+and Broadcom cards.
+
+By default, iscsiadm will create a iface for each Broadcom and Chelsio
+port. The iface name will be of the form:
+
+$transport/driver_name.$MAC_ADDRESS
+
+Running:
+
+# iscsiadm -m iface
+default tcp,<empty>,<empty>,<empty>,<empty>
+iser iser,<empty>,<empty>,<empty>,<empty>
+cxgb3i.00:07:43:05:97:07 cxgb3i,00:07:43:05:97:07,<empty>,<empty>,<empty>
+
+
+Will report iface configurations that are setup in /etc/iscsi/ifaces.
+The format is:
+
+iface_name transport_name,hwaddress,ipaddress,net_ifacename,initiatorname
+
+iface_name:		name of iface
+transport_name:		name of driver
+hwaddress:		MAC address
+ipaddress:		IP address to use for this port
+net_iface_name:		Net_ifacename will be <empty> because change between
+reboots. It is used for software iSCSI's vlan or alias binding.
+initiatorname:		Initiatorname to be used if you want to override the
+default one in /etc/iscsi/initiatorname.iscsi.
+
+
+
+To display these values in a more friendly run:
+
+iscsiadm -m iface -I cxgb3i.00:07:43:05:97:07
+# BEGIN RECORD 2.0-871
+iface.iscsi_ifacename = cxgb3i.00:07:43:05:97:07
+iface.net_ifacename = <empty>
+iface.ipaddress = <empty>
+iface.hwaddress = 00:07:43:05:97:07
+iface.transport_name = cxgb3i
+iface.initiatorname = <empty>
+# END RECORD
+
+
+Before you can use the iface, you must set the IP address for the port
+with the following command:
+
+iscsiadm -m iface -I cxgb3i.00:07:43:05:97:07 -o update -n iface.ipaddress -v 20.15.0.66
+
+Note1.
+
+For the name of the value we want to update we use the name from
+the "iscsiadm -m iface -I cxgb3i.00:07:43:05:97:07" command which is
+"iface.ipaddress".
+
+
+Now, we can use this iface to login into targets, which is described in the
+next section.
+
+
+5.1.3 Discoverying iSCSI targets/portals 
+========================================
+
+Be aware that iscsiadm will use the default route to do discovery. It will
+not use the iface specified. So if you are using a offload card, you will
+need a seperate network connection to the target for discovery purposes.
+*This will be fixed in the next version of open-iscsi*
+
+When you run iscsiadm to do discovery, it will check for interfaces
 in /etc/iscsi/ifaces and bind the portals that are discovered so that
 they will be logged in through each iface. This behavior can also be overriden
 by passing in the interfaces you want to use. For example if you had defined
@@ -423,6 +518,11 @@ iscsiadm -m node -I iface0 --op=delete
 And for equalogic targets it is sometimes useful to remove by just portal
 
 iscsiadm -m node -p ip:port -I iface0 --op=delete
+
+
+To now log into targets it is the same as with sofware iscsi. See section
+7 for how to get started.
+
 
 
 
@@ -1070,3 +1170,36 @@ Target: iqn.1992-08.com.netapp:sn.33615311
                 Internal iscsid Session State: NO CHANGE
 
 The connection state is currently not available for qla4xxx.
+
+
+To get a HBA/Host view of the session there is the host mode.
+
+Example:
+
+iscsiadm -m host
+cxgb3i: [7] 10.10.15.51,[00:07:43:05:97:07],eth3 <empty>
+
+This prints the list of iSCSI hosts in the system with the format:
+driver [hostno] ipaddress,[hwaddress],net_ifacename,initiatorname
+
+
+To print this info in a more user friendly way the -P argument can be used:
+
+iscsiadm -m host -P 1
+Host Number: 7
+	State: running
+	Transport: cxgb3i
+	Initiatorname: <empty>
+	IPaddress: 10.10.15.51
+	HWaddress: 00:07:43:05:97:07
+	Netdev: eth3
+
+Here, you can also see the sate of the host.
+
+You can also pass in any value from 1 - 4 to print more info like the
+sessions running through the host, what ifaces are being used and what
+devices are accessed through it.
+
+To print the info for a specific host then you can pass in the -H argument
+with the host number:
+iscsiadm -m host -P 1 -H 7
