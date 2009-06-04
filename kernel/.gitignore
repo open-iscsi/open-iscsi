@@ -8,3 +8,4 @@ has_*_patch
 *.mod.*
 open_iscsi_compat.h
 *.orig
+Module.markers
