@@ -1,5 +1,5 @@
 diff --git a/libiscsi.c b/libiscsi.c
-index 733fa00..5d88693 100644
+index 149d5eb..467abbf 100644
 --- a/libiscsi.c
 +++ b/libiscsi.c
 @@ -38,6 +38,8 @@
@@ -8,9 +8,9 @@ index 733fa00..5d88693 100644
  
 +#include "open_iscsi_compat.h"
 +
- static int iscsi_dbg_lib;
- module_param_named(debug_libiscsi, iscsi_dbg_lib, int, S_IRUGO | S_IWUSR);
- MODULE_PARM_DESC(debug_libiscsi, "Turn on debugging for libiscsi module. "
+ static int iscsi_dbg_lib_conn;
+ module_param_named(debug_libiscsi_conn, iscsi_dbg_lib_conn, int,
+ 		   S_IRUGO | S_IWUSR);
 diff --git a/open_iscsi_compat.h b/open_iscsi_compat.h
 new file mode 100644
 index 0000000..b977df5
@@ -46,7 +46,7 @@ index 0000000..b977df5
 +
 +#endif
 diff --git a/scsi_transport_iscsi.c b/scsi_transport_iscsi.c
-index c9e95e7..79bd57f 100644
+index a49a92c..c07535e 100644
 --- a/scsi_transport_iscsi.c
 +++ b/scsi_transport_iscsi.c
 @@ -30,6 +30,8 @@
