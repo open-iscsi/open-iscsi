@@ -1729,25 +1729,30 @@ free_portal:
 	return rc;
 }
 
-static int idbm_bind_iface_to_node(struct node_rec *new_rec,
-				   struct iface_rec *iface,
-				   struct list_head *bound_recs)
+static int idbm_bind_iface_to_nodes(idbm_disc_nodes_fn *disc_node_fn,
+				    struct discovery_rec *drec,
+				    struct iface_rec *iface,
+				    struct list_head *bound_recs)
 {
-	struct node_rec *clone_rec;
+	struct node_rec *rec, *tmp;
+	struct list_head new_recs;
 
-	clone_rec = calloc(1, sizeof(*clone_rec));
-	if (!clone_rec)
-		return ENOMEM;
+	INIT_LIST_HEAD(&new_recs);
+	if (disc_node_fn(drec, iface, &new_recs))
+		return ENODEV;
 
-	memcpy(clone_rec, new_rec, sizeof(*clone_rec));
-	INIT_LIST_HEAD(&clone_rec->list);
-	iface_copy(&clone_rec->iface, iface);
-	list_add_tail(&clone_rec->list, bound_recs);
+	list_for_each_entry_safe(rec, tmp, &new_recs, list) {
+		list_del_init(&rec->list);
+		list_add_tail(&rec->list, bound_recs);
+		iface_copy(&rec->iface, iface);
+	}
 	return 0;
 }
 
-int idbm_bind_ifaces_to_node(struct node_rec *new_rec, struct list_head *ifaces,
-			     struct list_head *bound_recs)
+int idbm_bind_ifaces_to_nodes(idbm_disc_nodes_fn *disc_node_fn,
+			      struct discovery_rec *drec,
+			      struct list_head *ifaces,
+			      struct list_head *bound_recs)
 {
 	struct iface_rec *iface, *tmp;
 	struct iscsi_transport *t;
@@ -1772,8 +1777,8 @@ int idbm_bind_ifaces_to_node(struct node_rec *new_rec, struct list_head *ifaces,
 				continue;
 			}
 
-			rc = idbm_bind_iface_to_node(new_rec, iface,
-						     bound_recs);
+			rc = idbm_bind_iface_to_nodes(disc_node_fn, drec, iface,
+						      bound_recs);
 			free(iface);
 			if (rc)
 				return rc;
@@ -1784,10 +1789,11 @@ int idbm_bind_ifaces_to_node(struct node_rec *new_rec, struct list_head *ifaces,
 		if (!found) {
 			struct iface_rec def_iface;
 
+			//log_error("no ifaces using default\n");
 			memset(&def_iface, 0, sizeof(struct iface_rec));
 			iface_setup_defaults(&def_iface);
-			return idbm_bind_iface_to_node(new_rec, &def_iface,
-						       bound_recs);
+			return idbm_bind_iface_to_nodes(disc_node_fn, drec,
+							&def_iface, bound_recs);
 		}
 	} else {
 		list_for_each_entry(iface, ifaces, list) {
@@ -1800,8 +1806,8 @@ int idbm_bind_ifaces_to_node(struct node_rec *new_rec, struct list_head *ifaces,
 				continue;
 			}
 
-			rc = idbm_bind_iface_to_node(new_rec, iface,
-						     bound_recs);
+			rc = idbm_bind_iface_to_nodes(disc_node_fn, drec, iface,
+						      bound_recs);
 			if (rc)
 				return rc;
 		}

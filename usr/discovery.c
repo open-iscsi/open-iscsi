@@ -42,6 +42,7 @@
 #include "iscsi_settings.h"
 #include "util.h"
 #include "sysdeps.h"
+#include "fw_context.h"
 
 #ifdef SLP_ENABLE
 #include "iscsi-slp-discovery.h"
@@ -51,8 +52,49 @@
 
 static int rediscover = 0;
 
-static char initiator_name[TARGET_NAME_MAXLEN];
-static char initiator_alias[TARGET_NAME_MAXLEN];
+static char initiator_name[TARGET_NAME_MAXLEN + 1];
+static char initiator_alias[TARGET_NAME_MAXLEN + 1];
+
+int discovery_fw(struct discovery_rec *drec, struct iface_rec *iface,
+		 struct list_head *rec_list)
+{
+	struct boot_context *bcontext;
+	struct list_head targets;
+	struct node_rec *rec;
+	int rc;
+
+	INIT_LIST_HEAD(&targets);
+	rc = fw_get_targets(&targets);
+	if (rc) {
+		log_error("Could not get list of targets from firmware. "
+			  "(err %d)\n", rc);
+		return rc;
+	}
+	if (list_empty(&targets))
+		return 0;
+	/*
+	 * TODO: Do we want to match the iface MAC/netdev with what is in
+	 * the firmware or could the user want to bind based on what is
+	 * in passed in or in the default ifaces?
+	 */
+
+	list_for_each_entry(bcontext, &targets, list) {
+		rec = fw_create_rec_by_entry(bcontext);
+		if (!rec) {
+			log_error("Could not convert firmware info to "
+				  "node record.\n");
+			rc = ENOMEM;
+			goto free_targets;
+		}
+		rec->disc_type = drec->type;
+
+		list_add_tail(&rec->list, rec_list);
+	}
+
+free_targets:
+	fw_free_targets(&targets);
+	return rc;
+}
 
 int discovery_offload_sendtargets(int host_no, int do_login,
 				  discovery_rec_t *drec)
@@ -514,9 +556,9 @@ static int request_initiator_name(void)
 	iscsiadm_req_t req;
 	iscsiadm_rsp_t rsp;
 
-	memset(initiator_name, 0, TARGET_NAME_MAXLEN);
+	memset(initiator_name, 0, sizeof(initiator_name));
 	initiator_name[0] = '\0';
-	memset(initiator_alias, 0, TARGET_NAME_MAXLEN);
+	memset(initiator_alias, 0, sizeof(initiator_alias));
 	initiator_alias[0] = '\0';
 
 	memset(&req, 0, sizeof(req));
@@ -543,7 +585,8 @@ static int request_initiator_name(void)
 }
 
 static iscsi_session_t *
-init_new_session(struct iscsi_sendtargets_config *config)
+init_new_session(struct iscsi_sendtargets_config *config,
+		 struct iface_rec *iface)
 {
 	iscsi_session_t *session;
 
@@ -583,11 +626,18 @@ init_new_session(struct iscsi_sendtargets_config *config)
 	session->isid[4] = 0;
 	session->isid[5] = 0;
 
-	/* initialize the session */
-	if (request_initiator_name() ||initiator_name[0] == '\0') {
-		log_error("Cannot perform discovery. Initiatorname required.");
-		free(session);
-		return NULL;
+	request_initiator_name();
+
+	if (iface && strlen(iface->iname)) {
+		strcpy(initiator_name, iface->iname);
+		/* MNC TODO add iface alias */
+	} else {
+		if (initiator_name[0] == '\0') {
+			log_error("Cannot perform discovery. Initiatorname "
+				  "required.");
+			free(session);
+			return NULL;
+		}
 	}
 
 	session->initiator_name = initiator_name;
@@ -595,7 +645,7 @@ init_new_session(struct iscsi_sendtargets_config *config)
 	session->portal_group_tag = PORTAL_GROUP_TAG_UNKNOWN;
 	session->type = ISCSI_SESSION_TYPE_DISCOVERY;
 done:
-	return(session);
+	return session;
 }
 
 
@@ -820,7 +870,7 @@ done:
 	iscsi_io_disconnect(&session->conn[0]);
 }
 
-int discovery_sendtargets(discovery_rec_t *drec,
+int discovery_sendtargets(discovery_rec_t *drec, struct iface_rec *iface,
 			  struct list_head *rec_list)
 {
 	iscsi_session_t *session;
@@ -847,7 +897,7 @@ int discovery_sendtargets(discovery_rec_t *drec,
 	clear_timer(&connection_timer);
 
 	/* allocate a new session, and initialize default values */
-	session = init_new_session(config);
+	session = init_new_session(config, iface);
 	if (session == NULL) {
 		log_error("Discovery process to %s:%d failed to "
 			  "create a discovery session.",

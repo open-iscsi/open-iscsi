@@ -26,8 +26,16 @@
 /* discovery.c */
 struct discovery_rec;
 struct list_head;
+struct iface_rec;
+struct node_rec;
+struct boot_context;
 
+extern struct node_rec *fw_create_rec_by_entry(struct boot_context *context);
+extern int discovery_fw(struct discovery_rec *drec,
+			struct iface_rec *iface,
+			struct list_head *rec_list);
 extern int discovery_sendtargets(struct discovery_rec *drec,
+				 struct iface_rec *iface,
 				 struct list_head *rec_list);
 extern int discovery_offload_sendtargets(int host_no, int do_login,
 					 discovery_rec_t *drec);

@@ -120,9 +120,13 @@ extern int idbm_delete_node(node_rec_t *rec);
 extern int idbm_add_node(node_rec_t *newrec, discovery_rec_t *drec,
 			 int overwrite);
 struct list_head;
-extern int idbm_bind_ifaces_to_node(struct node_rec *new_rec,
-				    struct list_head *ifaces,
-				    struct list_head *bound_recs);
+typedef int (idbm_disc_nodes_fn)(struct discovery_rec *drec,
+				 struct iface_rec *iface,
+				 struct list_head *recs);
+extern int idbm_bind_ifaces_to_nodes(idbm_disc_nodes_fn *disc_node_fn,
+				     struct discovery_rec *drec,
+				     struct list_head *ifaces,
+				     struct list_head *bound_recs);
 extern int idbm_add_nodes(node_rec_t *newrec,
 			  discovery_rec_t *drec, struct list_head *ifaces,
 			  int overwrite);

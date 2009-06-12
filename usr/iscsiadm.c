@@ -1093,7 +1093,7 @@ static int delete_node(void *data, struct node_rec *rec)
 	return idbm_delete_node(rec);
 }
 
-static int delete_stale_recs(void *data, struct node_rec *rec)
+static int delete_stale_rec(void *data, struct node_rec *rec)
 {
 	struct list_head *new_rec_list = data;
 	struct node_rec *new_rec;
@@ -1125,32 +1125,19 @@ static int delete_stale_recs(void *data, struct node_rec *rec)
 }
 
 static int
-update_discovery_recs(discovery_rec_t *drec,
-		      struct list_head *new_rec_list, struct list_head *ifaces,
-		      int info_level, int do_login, int op)
+exec_disc_op_on_recs(discovery_rec_t *drec, struct list_head *rec_list,
+		     int info_level, int do_login, int op)
 {
-	int rc, err, found = 0;
-	struct list_head bound_rec_list;
-	struct node_rec *new_rec, *tmp;
-
-	INIT_LIST_HEAD(&bound_rec_list);
-
-	/* bind ifaces to node recs so we know what we have */
-	list_for_each_entry(new_rec, new_rec_list, list) {
-		rc = idbm_bind_ifaces_to_node(new_rec, ifaces,
-					      &bound_rec_list);
-		if (rc)
-			goto free_bound_recs;
-	}
+	int rc = 0, err, found = 0;
+	struct node_rec *new_rec;
 
 	/* clean up node db */
 	if (op & OP_DELETE)
-		idbm_for_each_rec(&found, &bound_rec_list,
-				  delete_stale_recs);
+		idbm_for_each_rec(&found, rec_list, delete_stale_rec);
 
 	if (op & OP_NEW || op & OP_UPDATE) {
 		/* now add/update records */
-		list_for_each_entry(new_rec, &bound_rec_list, list) {
+		list_for_each_entry(new_rec, rec_list, list) {
 			rc = idbm_add_node(new_rec, drec, op & OP_UPDATE);
 			if (rc)
 				log_error("Could not add/update "
@@ -1165,34 +1152,24 @@ update_discovery_recs(discovery_rec_t *drec,
 
 	idbm_print_discovered(drec, info_level);
 
-	if (!do_login) {
-		rc = 0;
-		goto free_bound_recs;
-	}
+	if (!do_login)
+		return 0;
 
-	err = __login_portals(drec, &found, &bound_rec_list,
-			      login_discovered_portal);
+	err = __login_portals(drec, &found, rec_list, login_discovered_portal);
 	if (err && !rc)
 		rc = err;
-
-free_bound_recs:
-	list_for_each_entry_safe(new_rec, tmp, &bound_rec_list, list) {
-		list_del(&new_rec->list);
-		free(new_rec);
-	}
 	return rc;
 }
 
 static int
 do_software_sendtargets(discovery_rec_t *drec, struct list_head *ifaces,
-		        int info_level, int do_login,
-			int op)
+		        int info_level, int do_login, int op)
 {
-	struct list_head new_rec_list;
-	struct node_rec *new_rec, *tmp;
+	struct list_head rec_list;
+	struct node_rec *rec, *tmp;
 	int rc;
 
-	INIT_LIST_HEAD(&new_rec_list);
+	INIT_LIST_HEAD(&rec_list);
 	/*
 	 * compat: if the user did not pass any op then we do all
 	 * ops for them
@@ -1201,24 +1178,31 @@ do_software_sendtargets(discovery_rec_t *drec, struct list_head *ifaces,
 		op = OP_NEW | OP_DELETE | OP_UPDATE;
 
 	drec->type = DISCOVERY_TYPE_SENDTARGETS;
-	rc = discovery_sendtargets(drec, &new_rec_list);
-	if (rc)
-		return rc;
-
+	/*
+	 * we will probably want to know how a specific iface and discovery
+	 * DB lined up, but for now just put all the targets found from
+	 * a discovery portal in one place
+	 */
 	rc = idbm_add_discovery(drec, op & OP_UPDATE);
 	if (rc) {
 		log_error("Could not add new discovery record.");
-		goto free_new_recs;
+		return rc;
 	}
 
-	rc = update_discovery_recs(drec, &new_rec_list, ifaces,
-				   info_level, do_login, op);
-
-free_new_recs:
-	list_for_each_entry_safe(new_rec, tmp, &new_rec_list, list) {
-		list_del(&new_rec->list);
-		free(new_rec);
+	rc = idbm_bind_ifaces_to_nodes(discovery_sendtargets, drec, ifaces,
+				       &rec_list);
+	if (rc) {
+		log_error("Could not perform SendTargets discovery.");
+		return rc;
 	}
+
+	rc = exec_disc_op_on_recs(drec, &rec_list, info_level, do_login, op);
+
+	list_for_each_entry_safe(rec, tmp, &rec_list, list) {
+		list_del(&rec->list);
+		free(rec);
+	}
+
 	return rc;
 }
 
@@ -1600,8 +1584,7 @@ out:
 	return rc;
 }
 
-static struct node_rec *
-fw_create_rec_by_entry(struct boot_context *context)
+struct node_rec *fw_create_rec_by_entry(struct boot_context *context)
 {
 	struct node_rec *rec;
 
@@ -1638,72 +1621,66 @@ static int exec_fw_op(discovery_rec_t *drec, struct list_head *ifaces,
 		      int info_level, int do_login, int op)
 {
 	struct boot_context *context;
+	struct list_head targets, rec_list;
+	struct iface_rec *iface, *tmp_iface;
 	struct node_rec *rec, *tmp_rec;
-	struct list_head targets, new_rec_list;
-	struct iface_rec *iface, *tmp_iface;;
-	int ret = 0;
+	int rc = 0;
 
-	INIT_LIST_HEAD(&new_rec_list);
 	INIT_LIST_HEAD(&targets);
-	/*
-	 * compat: if the user did not pass any op then we do all
-	 * ops for them
-	 */
-	if (!op)
-		op = OP_NEW | OP_DELETE | OP_UPDATE;
-
-	ret = fw_get_targets(&targets);
-	if (ret) {
-		log_error("Could not get list of targets from firmware. "
-			  "(err %d)\n", ret);
-		return ret;
-	}
+	INIT_LIST_HEAD(&rec_list);
 
 	if (drec) {
+		/*
+		 * compat: if the user did not pass any op then we do all
+		 * ops for them
+		 */
+		if (!op)
+			op = OP_NEW | OP_DELETE | OP_UPDATE;
+
 		list_for_each_entry_safe(iface, tmp_iface, ifaces, list) {
-			ret = iface_conf_read(iface);
-			if (ret) {
+			rc = iface_conf_read(iface);
+			if (rc) {
 				log_error("Could not read iface info for %s. "
 					  "Make sure a iface config with the "
 					  "file name and iface.iscsi_ifacename "
 					  "%s is in %s.", iface->name,
-					   iface->name, IFACE_CONFIG_DIR);
-				list_del(&iface->list);
+					  iface->name, IFACE_CONFIG_DIR);
+				list_del_init(&iface->list);
 				free(iface);
 				continue;
 			}
 		}
 
-		list_for_each_entry(context, &targets, list) {
-			rec = fw_create_rec_by_entry(context);
-			if (!rec) {
-				log_error("Could not convert firmware info to "
-					  "node record.\n");
-				ret = ENOMEM;
-				list_for_each_entry_safe(rec, tmp_rec,
-							 &new_rec_list,
-							 list) {
-					list_del(&rec->list);
-					free(rec);
-				}
-				break;
-			}
-			list_add_tail(&rec->list, &new_rec_list);
-		}
+		rc = idbm_bind_ifaces_to_nodes(discovery_fw, drec,
+					       ifaces, &rec_list);
+		if (rc)
+			log_error("Could not perform fw discovery.\n");
+		else
+			rc = exec_disc_op_on_recs(drec, &rec_list, info_level,
+						   do_login, op);
 
-		ret = update_discovery_recs(drec, &new_rec_list, ifaces,
-					    info_level, do_login, op);
-		list_for_each_entry_safe(rec, tmp_rec, &new_rec_list, list) {
+		list_for_each_entry_safe(rec, tmp_rec, &rec_list, list) {
 			list_del(&rec->list);
 			free(rec);
 		}
-	} else if (do_login) {
+		return rc;
+	}
+
+	/* The following ops do not interact with the DB */
+	rc = fw_get_targets(&targets);
+	if (rc) {
+		log_error("Could not get list of targets from firmware. "
+			  "(err %d)\n", rc);
+		return rc;
+	}
+
+	if (do_login) {
 		list_for_each_entry(context, &targets, list) {
 			rec = fw_create_rec_by_entry(context);
 			if (!rec) {
 				log_error("Could not convert firmware info to "
 					  "node record.\n");
-				ret = ENOMEM;
+				rc = ENOMEM;
 				break;
 			}
 
@@ -1716,7 +1693,7 @@ static int exec_fw_op(discovery_rec_t *drec, struct list_head *ifaces,
 	}
 
 	fw_free_targets(&targets);
-	return ret;
+	return rc;
 }
 
 int
