@@ -1768,6 +1768,10 @@ static void session_increase_wq_priority(struct iscsi_session *session)
 	char *proc_name, *proc_name_end;
 	uint32_t host_no;
 
+	/* drivers like bnx2i and qla4xxx do not have a write wq */
+	if (session->t->caps & CAP_DATA_PATH_OFFLOAD)
+		return;
+
 	proc_dir = opendir(PROC_DIR);
 	if (!proc_dir)
 		goto fail;
@@ -1805,6 +1809,8 @@ static void session_increase_wq_priority(struct iscsi_session *session)
 		 * Finally match proc name to iscsi thread name.
 		 * In newer kernels the name is iscsi_wq_%HOST_NO.
 		 * In older kernels before 2.6.30, it was scsi_wq_%HOST_NO.
+		 *
+		 * We only support newer kernels.
 		 */
 		proc_name = strchr(sbuf, '(') + 1;
 		if (!proc_name)
@@ -1816,13 +1822,13 @@ static void session_increase_wq_priority(struct iscsi_session *session)
 
 		*proc_name_end = '\0';
 
-		if (sscanf(proc_name, "iscsi_q_%u\n", &host_no) == 1 ||
-		    sscanf(proc_name, "scsi_wq_%u\n", &host_no) == 1) {
+		if (sscanf(proc_name, "iscsi_q_%u\n", &host_no) == 1) {
 			if (host_no == session->hostno) {
 				if (!setpriority(PRIO_PROCESS, pid,
-					session->nrec.session.xmit_thread_priority))
+					session->nrec.session.xmit_thread_priority)) {
+					closedir(proc_dir);
 					return;
-				else
+				} else
 					break;
 			}
 		}
