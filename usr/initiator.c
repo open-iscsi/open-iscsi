@@ -127,7 +127,7 @@ struct iscsi_conn_context *iscsi_conn_context_get(iscsi_conn_t *conn,
 				sizeof(struct actor));
 			conn_context->allocated = 1;
 			/* some callers abuse this pointer */
-			conn_context->data = conn_context +
+			conn_context->data = (void *)conn_context +
 					sizeof(struct iscsi_conn_context);
 			log_debug(7, "get conn context %p",
 				  &conn_context->actor);
