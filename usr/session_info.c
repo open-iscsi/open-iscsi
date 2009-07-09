@@ -99,7 +99,7 @@ static int print_iscsi_state(int sid, char *prefix)
 	static char *session_state[] = {
 		"NO CHANGE",
 		"CLEANUP",
-		"REPOEN",
+		"REOPEN",
 		"REDIRECT",
 	};
 
