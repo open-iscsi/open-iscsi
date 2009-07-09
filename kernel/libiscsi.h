@@ -128,7 +128,7 @@ struct iscsi_task {
 	/* data processing tracking */
 	unsigned long		last_xfer;
 	unsigned long		last_timeout;
-	bool			have_checked_conn;
+	int			have_checked_conn;
 	/* state set/tested under session->lock */
 	int			state;
 	atomic_t		refcount;

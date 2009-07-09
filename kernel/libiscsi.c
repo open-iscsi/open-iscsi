@@ -1387,7 +1387,7 @@ static inline struct iscsi_task *iscsi_alloc_task(struct iscsi_conn *conn,
 	task->state = ISCSI_TASK_PENDING;
 	task->conn = conn;
 	task->sc = sc;
-	task->have_checked_conn = false;
+	task->have_checked_conn = 0;
 	task->last_timeout = jiffies;
 	task->last_xfer = jiffies;
 	INIT_LIST_HEAD(&task->running);
@@ -1792,7 +1792,7 @@ static enum blk_eh_timer_return iscsi_eh_cmd_timed_out(struct scsi_cmnd *sc)
 			     "scsi-ml for more time to complete. "
 			     "Last data recv at %lu. Last timeout was at "
 			     "%lu\n.", task->last_xfer, task->last_timeout);
-		task->have_checked_conn = false;
+		task->have_checked_conn = 0;
 		rc = BLK_EH_RESET_TIMER;
 		goto done;
 	}
@@ -1817,14 +1817,14 @@ static enum blk_eh_timer_return iscsi_eh_cmd_timed_out(struct scsi_cmnd *sc)
 	 * running
 	 */
 	if (conn->ping_task) {
-		task->have_checked_conn = true;
+		task->have_checked_conn = 1;
 		rc = BLK_EH_RESET_TIMER;
 		goto done;
 	}
 
 	/* Make sure there is a transport check done */
 	iscsi_send_nopout(conn, NULL);
-	task->have_checked_conn = true;
+	task->have_checked_conn = 1;
 	rc = BLK_EH_RESET_TIMER;
 
 done:
