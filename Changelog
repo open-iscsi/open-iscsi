@@ -1,3 +1,60 @@
+open-iscsi-2.0-871 - open-iscsi-2.0.870
+
+Boaz Harrosh (1):
+      open-iscsi: Makefile: separate out user: and kernel: make targets
+
+Erez Zilber (1):
+      Add Module.markers to .gitignore
+
+Karen Xie (2):
+      userspace - add new transport cxgb3i
+      userspace - setting interface ip address
+
+Mike Christie (84):
+      iscsid: fix relogin retry handling
+      iscsid idbm: print out header and tail to seperate records
+      ibft: add support to use iscsi_ibft module and log into all portals found in firmware
+      fwparam: rm unused filepath argument
+      iscsid idbm: move record strings to header
+      iscsiadm: discovery mode supports the --show
+      iscsiadm: have fw discovery handle --op arguments
+      iscsiadm: fix output ordering
+      iscsi modules: fix compilation
+      iscsid/iscsiadm: fix strto* usage
+      iscsid: fix logout response and time2wait handling
+      iscsiadm: remove default bnx2i iface
+      iscsid/iscsiadm: support multiple inititor names per host.
+      iscsiadm: print session and session info running through ifaces in iface mode
+      iscsid: update transport handle
+      idbm: have idbm_rec_update_param update the value string of the matching rec_info
+      iscsi mod: sync up kernel modules with 2.6.29
+      iscsi mod: 2.6.27 compat
+      iscsi mod: 2.6.26 compat
+      iscsi mod: 2.6.24-25 compat
+      iscsi mod: 2.6.20-23 compat
+      iscsi mod: 2.6.14-19 compat
+      iscsi mod: fix up 2.6.14-19 compat patch
+      iscsi mod iscsi_tcp: compat fix for pI4/pI6
+      build: add a make user
+      iscsi tools: fix chap
+      PATCH: iscsi tools: do not use exit()
+      PATCH: fix iBFT firmware reading with newer kernels
+      2.6.29-rc libiscsi: Fix scsi command timeout oops in iscsi_eh_timed_out
+      iscsi mod: 2.6.14-19 compat
+      iscsi tools: convert from strncat to strlcat
+      iscsi tools: convert from strncpy to strlcpy
+      iscsi tool make: add notification that iscsi start was made
+      iscsid: Fix up connection failed messages
+      docs: fix up iscsiadm man page iface info
+      iscsi tools: update version in preparation for new release
+      iscsid: flush sysfs cache.
+      iscsid: mv event loop code to new file
+      docs: update readme with libiscsi_tcp info
+
+
+
+
+-------------------------------------------------------------------
 open-iscsi-2.0-870 - open-iscsi-2.0.869
 
 Doron Shoham (1):
