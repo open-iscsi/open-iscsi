@@ -39,6 +39,11 @@ stop()
 	echo -n $"Stopping iSCSI initiator service: "
 	sync
 	iscsiadm -m node --logoutall=all
+	RETVAL=$?
+	if [ $RETVAL -ne 0 ]; then
+		echo "Could not logout from all nodes, try again later"
+		return $RETVAL
+	fi
 	killproc iscsid
 	rm -f /var/run/iscsid.pid
 	[ $RETVAL -eq 0 ] && rm -f /var/lock/subsys/open-iscsi
@@ -63,6 +68,10 @@ stop()
 restart()
 {
 	stop
+	if [ $RETVAL -ne 0 ]; then
+		echo "Stopping iSCSI initiator service failed, not starting"
+		return $RETVAL
+	fi
 	start
 
 }
@@ -76,6 +85,10 @@ case "$1" in
 			;;
 	restart)
 			stop
+			if [ $RETVAL -ne 0 ]; then
+				echo "Stopping iSCSI initiator service failed, not starting"
+				exit $RETVAL
+			fi
 			start
 			;;
 	status)

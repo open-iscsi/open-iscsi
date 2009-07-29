@@ -192,6 +192,11 @@ case "$1" in
 	;;
     restart)
 	$0 stop
+	RETVAL=$?
+	if [ "$RETVAL" != "0" ]; then
+		echo "Stopping iSCSI initiator service failed, not starting"
+		exit $RETVAL
+	fi
 	sleep 1
 	$0 start
 	;;

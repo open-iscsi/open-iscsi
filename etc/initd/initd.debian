@@ -46,11 +46,17 @@ stoptargets() {
 	log_daemon_msg "Disconnecting iSCSI targets"
 	sync
 	$ADM -m node --logoutall=all
-	log_end_msg 0
+	RETVAL=$?
+	log_end_msg $RETVAL
 }
 
 stop() {
 	stoptargets
+	if [ $RETVAL -ne 0 ]; then
+		log_failure_msg "Could not stop all targets, try again later"
+		return $RETVAL
+	fi
+
 	log_daemon_msg "Stopping iSCSI initiator service"
 	start-stop-daemon --stop --quiet --pidfile $PIDFILE --exec $DAEMON
 	rm -f $PIDFILE
@@ -68,11 +74,19 @@ stop() {
 
 restart() {
 	stop
+	if [ $RETVAL -ne 0 ]; then
+		log_failure_msg "Stopping iSCSI initiator service failed, not starting"
+		return $RETVAL
+	fi
 	start
 }
 
 restarttargets() {
 	stoptargets
+	if [ $RETVAL -ne 0 ]; then
+		log_failure_msg "Could not stop all targets, try again later"
+		return $RETVAL
+	fi
 	starttargets
 }
 
