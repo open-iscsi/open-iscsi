@@ -90,7 +90,7 @@ actor_delete(actor_t *thread)
 }
 
 static void
-actor_schedule_private(actor_t *thread, uint32_t ttschedule)
+actor_schedule_private(actor_t *thread, uint32_t ttschedule, int head)
 {
 	uint64_t delay_time, current_time;
 	actor_t *next_thread;
@@ -115,10 +115,20 @@ actor_schedule_private(actor_t *thread, uint32_t ttschedule)
 		if (delay_time == 0) {
 			if (poll_in_progress) {
 				thread->state = ACTOR_POLL_WAITING;
-				list_add_tail(&thread->list, &poll_list);
+				if (head)
+					list_add(&thread->list,
+						 &poll_list);
+				else
+					list_add_tail(&thread->list,
+						      &poll_list);
 			} else {
 				thread->state = ACTOR_SCHEDULED;
-				list_add_tail(&thread->list, &actor_list);
+				if (head)
+					list_add(&thread->list,
+						 &actor_list);
+				else
+					list_add_tail(&thread->list,
+						      &actor_list);
 			}
 		} else {
 			thread->state = ACTOR_WAITING;
@@ -159,9 +169,15 @@ done:
 }
 
 void
+actor_schedule_head(actor_t *thread)
+{
+	actor_schedule_private(thread, 0, 1);
+}
+
+void
 actor_schedule(actor_t *thread)
 {
-	actor_schedule_private(thread, 0);
+	actor_schedule_private(thread, 0, 0);
 }
 
 void
@@ -169,7 +185,7 @@ actor_timer(actor_t *thread, uint32_t timeout, void (*callback)(void *),
 	    void *data)
 {
 	actor_new(thread, callback, data);
-	actor_schedule_private(thread, timeout);
+	actor_schedule_private(thread, timeout, 0);
 }
 
 int
@@ -178,7 +194,7 @@ actor_timer_mod(actor_t *thread, uint32_t timeout, void *data)
 	if (thread->state == ACTOR_WAITING) {
 		list_del_init(&thread->list);
 		thread->data = data;
-		actor_schedule_private(thread, timeout);
+		actor_schedule_private(thread, timeout, 0);
 		return 1;
 	}
 	return 0;

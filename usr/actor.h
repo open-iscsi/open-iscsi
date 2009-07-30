@@ -44,6 +44,7 @@ typedef struct actor {
 
 extern void actor_new(actor_t *thread, void (*callback)(void *), void * data);
 extern void actor_delete(actor_t *thread);
+extern void actor_schedule_head(actor_t *thread);
 extern void actor_schedule(actor_t *thread);
 extern void actor_timer(actor_t *thread, uint32_t timeout,
 			void (*callback)(void *), void *data);

@@ -1981,6 +1981,8 @@ void iscsi_sched_conn_context(struct iscsi_conn_context *conn_context,
 			      struct iscsi_conn *conn, unsigned long tmo,
 			      int event)
 {
+	enum iscsi_err error;
+
 	log_debug(7, "sched conn context %p event %d, tmo %lu",
 		  &conn_context->actor, event, tmo);
 
@@ -1992,9 +1994,19 @@ void iscsi_sched_conn_context(struct iscsi_conn_context *conn_context,
 		actor_schedule(&conn_context->actor);
 		break;
 	case EV_CONN_ERROR:
+		error = *(enum iscsi_err *)conn_context->data;
+
 		actor_new(&conn_context->actor, session_conn_error,
 			  conn_context);
-		actor_schedule(&conn_context->actor);
+		/*
+		 * We handle invalid host, by killing the session.
+		 * It must go at the head of the queue, so we do not
+		 * initiate error handling or logout or some other op.
+		 */
+		if (error == ISCSI_ERR_INVALID_HOST)
+			actor_schedule_head(&conn_context->actor);
+		else
+			actor_schedule(&conn_context->actor);
 		break;
 	case EV_CONN_POLL:
 		actor_new(&conn_context->actor, session_conn_poll,
