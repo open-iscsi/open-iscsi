@@ -26,6 +26,11 @@ struct iscsi_conn;
 struct iscsi_transport_template {
 	const char *name;
 	uint8_t rdma;
+	/*
+	 * Drivers should set this if they require iscsid to set
+	 * the host's ip address.
+	 */
+	uint8_t set_host_ip;
 	int (*ep_connect) (struct iscsi_conn *conn, int non_blocking);
 	int (*ep_poll) (struct iscsi_conn *conn, int timeout_ms);
 	void (*ep_disconnect) (struct iscsi_conn *conn);

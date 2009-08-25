@@ -210,6 +210,13 @@ static int sync_session(void *data, struct session_info *info)
 	}
 
 	memset(&rec, 0, sizeof(node_rec_t));
+	/*
+	 * We might get the local ip address for software. We do not
+	 * want to try and bind a session by ip though.
+	 */
+	if (!t->template->set_host_ip)
+		memset(info->iface.ipaddress, 0, sizeof(info->iface.ipaddress));
+
 	if (idbm_rec_read(&rec, info->targetname, info->tpgt,
 			  info->persistent_address, info->persistent_port,
 			  &info->iface)) {

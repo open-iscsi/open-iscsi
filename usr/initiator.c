@@ -2087,9 +2087,15 @@ static int iface_set_param(struct iscsi_transport *t, struct iface_rec *iface,
 		  iface->name, iface->netdev, iface->ipaddress,
 		  iface->hwaddress, iface->transport_name);
 
-	/* if we need to set the ip addr then set all the iface net settings */
-	if (!iface_is_bound_by_ipaddr(iface))
+	if (!t->template->set_host_ip)
 		return 0;
+
+	/* if we need to set the ip addr then set all the iface net settings */
+	if (!iface_is_bound_by_ipaddr(iface)) {
+		log_warning("Please set the iface.ipaddress for iface %s, "
+			    "then retry the login command.\n", iface->name);
+		return EINVAL;
+	}
 
 	/* this assumes that the netdev or hw address is going to be set */
 	hostno = iscsi_sysfs_get_host_no_from_hwinfo(iface, &rc);
