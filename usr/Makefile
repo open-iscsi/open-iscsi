@@ -41,7 +41,7 @@ ISCSI_LIB_SRCS = util.o io.o auth.o login.o log.o md5.o sha1.o iface.o idbm.o sy
 COMMON_SRCS =  $(ISCSI_LIB_SRCS)
 # core initiator files
 INITIATOR_SRCS = initiator.o scsi.o actor.o event_poll.o mgmt_ipc.o isns.o \
-		cxgb3i.o transport.o
+		cxgb3i.o be2iscsi.o transport.o
 # fw boot files
 FW_BOOT_SRCS = $(wildcard ../utils/fwparam_ibft/*.o)
 
