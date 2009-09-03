@@ -18,7 +18,14 @@
 
 void be2iscsi_create_conn(struct iscsi_conn *conn)
 {
-	/* card prefers 8192 for first burst */
+	if (conn->max_recv_dlength > 65536)
+		conn->max_recv_dlength = 65536;
+
 	if (conn->session->first_burst > 8192)
 		conn->session->first_burst = 8192;
+
+	if (conn->session->max_burst > 262144)
+		conn->session->max_burst = 262144;
+
+	conn->session->erl = 0;
 }
