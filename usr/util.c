@@ -4,6 +4,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <errno.h>
+#include <ctype.h>
 #include <sys/un.h>
 #include <sys/time.h>
 #include <sys/resource.h>
@@ -119,9 +120,88 @@ int increase_max_files(void)
 	return 0;
 }
 
+/*
+ * from linux kernel
+ */
+char *strstrip(char *s)
+{
+	size_t size;
+	char *end;
+
+	size = strlen(s);
+	if (!size)
+		return s;
+
+	end = s + size - 1;
+	while (end >= s && isspace(*end))
+		end--;
+	*(end + 1) = '\0';
+
+	while (*s && isspace(*s))
+		s++;
+
+	return s;
+}
+
+char *get_global_string_param(char *pathname, const char *key)
+{
+	FILE *f = NULL;
+	int len;
+	char *line, buffer[1024];
+	char *name = NULL;
+
+	if (!pathname) {
+		log_error("No pathname to load %s from", key);
+		return NULL;
+	}
+
+	len = strlen(key);
+	if ((f = fopen(pathname, "r"))) {
+		while ((line = fgets(buffer, sizeof (buffer), f))) {
+
+			line = strstrip(line);
+
+			if (strncmp(line, key, len) == 0) {
+				char *end = line + len;
+
+				/*
+				 * make sure there is something after the
+				 * key.
+				 */
+				if (strlen(end))
+					name = strdup(line + len);
+			}
+		}
+		fclose(f);
+		if (name)
+			log_debug(5, "%s=%s", key, name);
+	} else
+		log_error("can't open %s configuration file %s", key, pathname);
+
+	return name;
+}
+
+/* TODO: move iscsid client helpers to file */
+static void iscsid_startup(void)
+{
+	char *startup_cmd;
+
+	startup_cmd = get_global_string_param(CONFIG_FILE, "iscsid.startup = ");
+	if (!startup_cmd) {
+		log_error("iscsid is not running. Could not start it up "
+			  "automatically using the startup command in "
+			  "/etc/iscsi/iscsid.start. Please check that the "
+			  "file exists or that your init scripts have "
+			  "started iscsid.");
+		return;
+	}
+
+	system(startup_cmd);
+}
+
 #define MAXSLEEP 128
 
-static mgmt_ipc_err_e iscsid_connect(int *fd)
+static mgmt_ipc_err_e iscsid_connect(int *fd, int start_iscsid)
 {
 	int nsec;
 	struct sockaddr_un addr;
@@ -146,8 +226,12 @@ static mgmt_ipc_err_e iscsid_connect(int *fd)
 
 		/* If iscsid isn't there, there's no sense
 		 * in retrying. */
-		if (errno == ECONNREFUSED)
-			break;
+		if (errno == ECONNREFUSED) {
+			if (start_iscsid && nsec == 1)
+				iscsid_startup();
+			else
+				break;
+		}
 
 		/*
 		 * Delay before trying again
@@ -159,11 +243,11 @@ static mgmt_ipc_err_e iscsid_connect(int *fd)
 	return MGMT_IPC_ERR_ISCSID_NOTCONN;
 }
 
-mgmt_ipc_err_e iscsid_request(int *fd, iscsiadm_req_t *req)
+mgmt_ipc_err_e iscsid_request(int *fd, iscsiadm_req_t *req, int start_iscsid)
 {
 	int err;
 
-	err = iscsid_connect(fd);
+	err = iscsid_connect(fd, start_iscsid);
 	if (err)
 		return err;
 
@@ -193,12 +277,13 @@ mgmt_ipc_err_e iscsid_response(int fd, iscsiadm_cmd_e cmd, iscsiadm_rsp_t *rsp)
 	return iscsi_err;
 }
 
-mgmt_ipc_err_e do_iscsid(iscsiadm_req_t *req, iscsiadm_rsp_t *rsp)
+mgmt_ipc_err_e do_iscsid(iscsiadm_req_t *req, iscsiadm_rsp_t *rsp,
+			 int start_iscsid)
 {
 	int fd;
 	mgmt_ipc_err_e err;
 
-	err = iscsid_request(&fd, req);
+	err = iscsid_request(&fd, req, start_iscsid);
 	if (err)
 		return err;
 
@@ -221,7 +306,7 @@ int iscsid_req_by_rec_async(iscsiadm_cmd_e cmd, node_rec_t *rec, int *fd)
 	req.command = cmd;
 	memcpy(&req.u.session.rec, rec, sizeof(node_rec_t));
 
-	return iscsid_request(fd, &req);
+	return iscsid_request(fd, &req, 1);
 }
 
 int iscsid_req_by_rec(iscsiadm_cmd_e cmd, node_rec_t *rec)
@@ -242,7 +327,7 @@ int iscsid_req_by_sid_async(iscsiadm_cmd_e cmd, int sid, int *fd)
 	req.command = cmd;
 	req.u.session.sid = sid;
 
-	return iscsid_request(fd, &req);
+	return iscsid_request(fd, &req, 1);
 }
 
 int iscsid_req_by_sid(iscsiadm_cmd_e cmd, int sid)

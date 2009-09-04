@@ -127,67 +127,6 @@ static struct idbm *db;
 	_n++; \
 } while(0)
 
-/*
- * from linux kernel
- */
-static char *strstrip(char *s)
-{
-	size_t size;
-	char *end;
-
-	size = strlen(s);
-	if (!size)
-		return s;
-
-	end = s + size - 1;
-	while (end >= s && isspace(*end))
-		end--;
-	*(end + 1) = '\0';
-
-	while (*s && isspace(*s))
-		s++;
-
-	return s;
-}
-
-static char *get_global_string_param(char *pathname, const char *key)
-{
-	FILE *f = NULL;
-	int len;
-	char *line, buffer[1024];
-	char *name = NULL;
-
-	if (!pathname) {
-		log_error("No pathname to load %s from", key);
-		return NULL;
-	}
-
-	len = strlen(key);
-	if ((f = fopen(pathname, "r"))) {
-		while ((line = fgets(buffer, sizeof (buffer), f))) {
-
-			line = strstrip(line);
-
-			if (strncmp(line, key, len) == 0) {
-				char *end = line + len;
-
-				/*
-				 * make sure ther is something after the
-				 * key.
-				 */
-				if (strlen(end))
-					name = strdup(line + len);
-			}
-		}
-		fclose(f);
-		if (name)
-			log_debug(5, "%s=%s", key, name);
-	} else
-		log_error("can't open %s configuration file %s", key, pathname);
-
-	return name;
-}
-
 char *get_iscsi_initiatorname(char *pathname)
 {
 	char *name;

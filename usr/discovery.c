@@ -130,7 +130,7 @@ int discovery_offload_sendtargets(int host_no, int do_login,
 	 * and get back the results. We should do this since it would
 	 * allows us to then process the results like software iscsi.
 	 */
-	rc = do_iscsid(&req, &rsp);
+	rc = do_iscsid(&req, &rsp, 1);
 	if (rc) {
 		log_error("Could not offload sendtargets to %s.\n",
 			  drec->address);
@@ -564,7 +564,7 @@ static int request_initiator_name(void)
 	memset(&req, 0, sizeof(req));
 	req.command = MGMT_IPC_CONFIG_INAME;
 
-	rc = do_iscsid(&req, &rsp);
+	rc = do_iscsid(&req, &rsp, 1);
 	if (rc)
 		return EIO;
 
@@ -574,7 +574,7 @@ static int request_initiator_name(void)
 	memset(&req, 0, sizeof(req));
 	req.command = MGMT_IPC_CONFIG_IALIAS;
 
-	rc = do_iscsid(&req, &rsp);
+	rc = do_iscsid(&req, &rsp, 0);
 	if (rc)
 		/* alias is optional so return ok */
 		return 0;
