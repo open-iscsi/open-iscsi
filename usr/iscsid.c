@@ -190,6 +190,11 @@ static int sync_session(void *data, struct session_info *info)
 	t = iscsi_sysfs_get_transport_by_sid(info->sid);
 	if (!t)
 		return 0;
+	if (set_transport_template(t)) {
+		log_error("Could not find userspace transport template for %s",
+			   t->name);
+		return 0;
+	}
 
 	/*
 	 * Just rescan the device in case this is the first startup.
