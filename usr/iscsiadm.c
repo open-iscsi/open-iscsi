@@ -1912,7 +1912,7 @@ main(int argc, char **argv)
 				   name, value);
 		break;
 	case MODE_DISCOVERY:
-		if ((rc = verify_mode_params(argc, argv, "SIPdmtplo", 0))) {
+		if ((rc = verify_mode_params(argc, argv, "SIPdmntplov", 0))) {
 			log_error("discovery mode: option '-%c' is not "
 				  "allowed/supported", rc);
 			rc = -1;
@@ -1991,6 +1991,19 @@ main(int argc, char **argv)
 							   "record!");
 						rc = -1;
 					}
+				} else if (op == OP_UPDATE) {
+					struct db_set_param set_param;
+
+					if (!name || !value) {
+						log_error("Update requires "
+							  "name and value");
+						rc = -1;
+						goto out;
+					}
+					set_param.name = name;
+					set_param.value = value;
+					if (idbm_discovery_set_param(&set_param, &drec))
+						rc = -1;
 				} else {
 					log_error("operation is not supported.");
 					rc = -1;

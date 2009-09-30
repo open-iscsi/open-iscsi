@@ -2097,6 +2097,35 @@ free_info:
 	return rc;
 }
 
+int idbm_discovery_set_param(void *data, discovery_rec_t *rec)
+{
+	struct db_set_param *param = data;
+	recinfo_t *info;
+	int rc = 0;
+
+	info = idbm_recinfo_alloc(MAX_KEYS);
+	if (!info)
+		return ENOMEM;
+
+	idbm_recinfo_discovery((discovery_rec_t *)rec, info);
+
+	rc = idbm_verify_param(info, param->name);
+	if (rc)
+		goto free_info;
+
+	rc = idbm_rec_update_param(info, param->name, param->value, 0);
+	if (rc)
+		goto free_info;
+
+	rc = idbm_discovery_write((discovery_rec_t *)rec);
+	if (rc)
+		goto free_info;
+
+free_info:
+	free(info);
+	return rc;
+}
+
 int idbm_init(idbm_get_config_file_fn *fn)
 {
 	/* make sure root db dir is there */

@@ -139,6 +139,7 @@ extern int idbm_rec_read(node_rec_t *out_rec, char *target_name,
 			 int tpgt, char *addr, int port,
 			 struct iface_rec *iface);
 extern int idbm_node_set_param(void *data, node_rec_t *rec);
+extern int idbm_discovery_set_param(void *data, discovery_rec_t *rec);
 
 /* lower level idbm functions for use by iface.c */
 extern void idbm_recinfo_config(recinfo_t *info, FILE *f);
