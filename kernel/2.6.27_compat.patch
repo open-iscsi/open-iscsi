@@ -16,7 +16,7 @@ new file mode 100644
 index 0000000..b977df5
 --- /dev/null
 +++ b/open_iscsi_compat.h
-@@ -0,0 +1,28 @@
+@@ -0,0 +1,30 @@
 +#ifndef OPEN_ISCSI_COMPAT
 +#define OPEN_ISCSI_COMPAT
 +
@@ -36,12 +36,14 @@ index 0000000..b977df5
 +#endif
 +
 +#if LINUX_VERSION_CODE <= KERNEL_VERSION(2,6,27)
++#if !(defined CONFIG_SUSE_KERNEL)
 +
 +#define BLK_EH_NOT_HANDLED EH_NOT_HANDLED
 +#define BLK_EH_RESET_TIMER EH_RESET_TIMER
 +
 +#define blk_eh_timer_return scsi_eh_timer_return
 +
++#endif
 +#endif
 +
 +#endif
