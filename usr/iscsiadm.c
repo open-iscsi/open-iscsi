@@ -1183,7 +1183,7 @@ do_software_sendtargets(discovery_rec_t *drec, struct list_head *ifaces,
 	 * DB lined up, but for now just put all the targets found from
 	 * a discovery portal in one place
 	 */
-	rc = idbm_add_discovery(drec, op & OP_UPDATE);
+	rc = idbm_add_discovery(drec);
 	if (rc) {
 		log_error("Could not add new discovery record.");
 		return rc;
@@ -1927,9 +1927,11 @@ main(int argc, char **argv)
 				goto out;
 			}
 
-			idbm_sendtargets_defaults(&drec.u.sendtargets);
-			strlcpy(drec.address, ip, sizeof(drec.address));
-			drec.port = port;
+			if (idbm_discovery_read(&drec, ip, port)) {
+				idbm_sendtargets_defaults(&drec.u.sendtargets);
+				strlcpy(drec.address, ip, sizeof(drec.address));
+				drec.port = port;
+			}
 
 			if (do_sendtargets(&drec, &ifaces, info_level,
 					   do_login, op)) {
@@ -2002,7 +2004,8 @@ main(int argc, char **argv)
 					}
 					set_param.name = name;
 					set_param.value = value;
-					if (idbm_discovery_set_param(&set_param, &drec))
+					if (idbm_discovery_set_param(&set_param,
+								     &drec))
 						rc = -1;
 				} else {
 					log_error("operation is not supported.");

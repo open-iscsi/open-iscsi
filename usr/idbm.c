@@ -1519,17 +1519,15 @@ free_portal:
 	return rc;
 }
 
-int
-idbm_add_discovery(discovery_rec_t *newrec, int overwrite)
+int idbm_add_discovery(discovery_rec_t *newrec)
 {
 	discovery_rec_t rec;
 	int rc;
 
 	if (!idbm_discovery_read(&rec, newrec->address,
 				newrec->port)) {
-		if (!overwrite)
-			return 0;
-		log_debug(7, "overwriting existing record");
+		log_debug(7, "disc rec already exists");
+		return 0;
 	} else
 		log_debug(7, "adding new DB record");
 

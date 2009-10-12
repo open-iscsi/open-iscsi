@@ -186,11 +186,15 @@ Usage: iscsiadm [OPTION]
                           perform [type] discovery for target portal with
                           ip-address [ip] and port [port].
 
-			  By default this command will remove records
-			  for portals no longer returned. And, if a portal is
-			  returned by the target, then the discovery command
-			  will create a new record or modify an existing one
-			  with values from iscsi.conf and the command line.
+			  By default this command will searh for a discovery
+			  record for ip:port, and if found will use the
+			  record's settings for discovery. If a record does
+			  not exist iscsiadm will create one. It will then
+			  remove records for portals no longer returned. And,
+			  if a portal is returned by the target, then the
+			  discovery command will create a new record or modify
+			  an existing one with values from iscsi.conf and the
+			  command line.
 
 			  [op] can be passed in multiple times to this
 			  command, and it will alter the DB manipulation.
@@ -200,8 +204,8 @@ Usage: iscsiadm [OPTION]
 			  not yet have records in the db.
 
 			  If [op] is passed in and the value is
-			  "update", iscsiadm will update records using info
-			  from iscsi.conf and the command line for portals
+			  "update", iscsiadm will update node records using
+			  info from iscsi.conf and the command line for portals
 			  that are returned during discovery and have
 			  a record in the db.
 

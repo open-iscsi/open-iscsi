@@ -134,9 +134,9 @@ record.
 .IP
 \fInew\fR creates a new database record for a given \fIportal\fR (IP address and port number). In discovery mode, iscsiadm will create new records for portals returned by the target.
 .IP
-\fIdelete\fR deletes a specified \fIrecid\fR. In discovery node, iscsiadm will delete records for portals that are no longer returned.
+\fIdelete\fR deletes a specified \fIrecid\fR. In discovery node, if iscsiadm is performing discovery it will delete records for portals that are no longer returned.
 .IP
-\fIupdate\fR will update the \fIrecid\fR with \fIname\fR to the specified \fIvalue\fR. In discovery node the \fIrecid\fR, \fIname\fR  and \fIvalue\fR arguments are not needed. The update operation will operate on the portals returned by the target, and will update the record with info from the config file and command line.
+\fIupdate\fR will update the \fIrecid\fR with \fIname\fR to the specified \fIvalue\fR. In discovery node, if iscsiadm is performing discovery the \fIrecid\fR, \fIname\fR  and \fIvalue\fR arguments are not needed. The update operation will operate on the portals returned by the target, and will update the node records with info from the config file and command line.
 .IP
 \fIshow\fR is the default behaviour for node, discovery and iface mode. It is
 also used when there are no commands passed into session mode and a running
