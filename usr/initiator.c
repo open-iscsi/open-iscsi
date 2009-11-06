@@ -543,11 +543,6 @@ __session_create(node_rec_t *rec, struct iscsi_transport *t)
 
 	/* session's eh parameters */
 	session->replacement_timeout = rec->session.timeo.replacement_timeout;
-	if (session->replacement_timeout == 0) {
-		log_error("Cannot set replacement_timeout to zero. Setting "
-			  "120 seconds\n");
-		session->replacement_timeout = DEF_REPLACEMENT_TIMEO;
-	}
 	session->fast_abort = rec->session.iscsi.FastAbort;
 	session->abort_timeout = rec->session.err_timeo.abort_timeout;
 	session->lu_reset_timeout = rec->session.err_timeo.lu_reset_timeout;
