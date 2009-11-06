@@ -252,6 +252,7 @@ typedef struct iscsi_session {
 	uint32_t replacement_timeout;
 
 	int host_reset_timeout;
+	int tgt_reset_timeout;
 	int lu_reset_timeout;
 	int abort_timeout;
 

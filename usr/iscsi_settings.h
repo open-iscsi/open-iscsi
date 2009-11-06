@@ -11,6 +11,7 @@
 
 #define DEF_ABORT_TIMEO		15
 #define DEF_LU_RESET_TIMEO	30
+#define DEF_TGT_RESET_TIMEO	30
 #define DEF_HOST_RESET_TIMEO	60
 
 /* q depths */

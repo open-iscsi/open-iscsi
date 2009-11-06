@@ -361,6 +361,7 @@ void idbm_node_setup_defaults(node_rec_t *rec)
 	rec->session.auth.password_in_length = 0;
 	rec->session.err_timeo.abort_timeout = DEF_ABORT_TIMEO;
 	rec->session.err_timeo.lu_reset_timeout = DEF_LU_RESET_TIMEO;
+	rec->session.err_timeo.tgt_reset_timeout = DEF_TGT_RESET_TIMEO;
 	rec->session.err_timeo.host_reset_timeout = DEF_HOST_RESET_TIMEO;
 	rec->session.timeo.replacement_timeout = DEF_REPLACEMENT_TIMEO;
 	rec->session.iscsi.InitialR2T = 0;

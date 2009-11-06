@@ -86,6 +86,7 @@ struct iscsi_error_timeout_config {
 	int abort_timeout;
 	int host_reset_timeout;
 	int lu_reset_timeout;
+	int tgt_reset_timeout;
 };
 
 /* all TCP options go in this structure.

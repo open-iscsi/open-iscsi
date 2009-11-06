@@ -263,6 +263,9 @@ idbm_recinfo_node(node_rec_t *r, recinfo_t *ri)
 	__recinfo_int(SESSION_LU_RESET_TMO, ri, r,
 		      session.err_timeo.lu_reset_timeout,
 		      IDBM_SHOW, num, 1);
+	__recinfo_int(SESSION_TGT_RESET_TMO, ri, r,
+		      session.err_timeo.tgt_reset_timeout,
+		      IDBM_SHOW, num, 1);
 	__recinfo_int(SESSION_HOST_RESET_TMO, ri, r,
 		      session.err_timeo.host_reset_timeout,
 		      IDBM_SHOW, num, 1);

@@ -546,6 +546,7 @@ __session_create(node_rec_t *rec, struct iscsi_transport *t)
 	session->fast_abort = rec->session.iscsi.FastAbort;
 	session->abort_timeout = rec->session.err_timeo.abort_timeout;
 	session->lu_reset_timeout = rec->session.err_timeo.lu_reset_timeout;
+	session->tgt_reset_timeout = rec->session.err_timeo.tgt_reset_timeout;
 	session->host_reset_timeout = rec->session.err_timeo.host_reset_timeout;
 
 	/* OUI and uniqifying number */
@@ -1186,7 +1187,7 @@ mgmt_ipc_err_e iscsi_host_set_param(int host_no, int param, char *value)
         return MGMT_IPC_OK;
 }
 
-#define MAX_SESSION_PARAMS 31
+#define MAX_SESSION_PARAMS 32
 #define MAX_HOST_PARAMS 3
 
 static void
@@ -1358,6 +1359,11 @@ setup_full_feature_phase(iscsi_conn_t *conn)
 		}, {
 			.param = ISCSI_PARAM_LU_RESET_TMO,
 			.value = &session->lu_reset_timeout,
+			.type = ISCSI_INT,
+			.conn_only = 0,
+		}, {
+			.param = ISCSI_PARAM_TGT_RESET_TMO,
+			.value = &session->tgt_reset_timeout,
 			.type = ISCSI_INT,
 			.conn_only = 0,
 		}, {

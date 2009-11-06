@@ -31,6 +31,7 @@
 #define SESSION_REPLACEMENT_TMO	"node.session.timeo.replacement_timeout"
 #define SESSION_ABORT_TMO	"node.session.err_timeo.abort_timeout"
 #define SESSION_LU_RESET_TMO	"node.session.err_timeo.lu_reset_timeout"
+#define SESSION_TGT_RESET_TMO	"node.session.err_timeo.tgt_reset_timeout"
 #define SESSION_HOST_RESET_TMO	"node.session.err_timeo.host_reset_timeout"
 #define SESSION_FAST_ABORT	"node.session.iscsi.FastAbort"
 #define SESSION_INITIAL_R2T	"node.session.iscsi.InitialR2T"
