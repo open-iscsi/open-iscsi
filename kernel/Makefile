@@ -102,6 +102,9 @@ linux_2_6_29: $(unpatch_code)
 
 linux_2_6_30: $(unpatch_code)
 
+linux_2_6_31: $(unpatch_code)
+
+linux_2_6_32: $(unpatch_code)
 
 do_unpatch_code:
 	echo "Un-patching source code for use with linux-2.6.14 and up ..."
