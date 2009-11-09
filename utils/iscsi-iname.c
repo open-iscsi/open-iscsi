@@ -62,7 +62,8 @@ main(int argc, char *argv[])
 		prefix = argv[1];
 		if (( strcmp(prefix, "-h") == 0 ) ||
 		    ( strcmp(prefix, "--help") == 0 )) {
-			printf("\nDisplays the iSCSI initiator name\n");
+			printf("\nGenerates a unique iSCSI node name "
+			       "on every invocation.\n");
 			exit(0);
 		} else if ( strcmp(prefix, "-p") == 0 ) {
 			prefix = argv[2];
