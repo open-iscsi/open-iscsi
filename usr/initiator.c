@@ -1910,7 +1910,7 @@ static void session_conn_poll(void *data)
 		/* do not allocate new connection in case of reopen */
 		if (session->id == -1) {
 			if (conn->id == 0 && session_ipc_create(session)) {
-				log_error("can't create session (%d)", errno);
+				log_error("Can't create session.");
 				err = MGMT_IPC_ERR_INTERNAL;
 				goto cleanup;
 			}
@@ -1919,8 +1919,7 @@ static void session_conn_poll(void *data)
 
 			if (ipc->create_conn(session->t->handle,
 					session->id, conn->id, &conn->id)) {
-				log_error("can't create connection (%d)",
-					   errno);
+				log_error("Can't create connection.");
 				err = MGMT_IPC_ERR_INTERNAL;
 				goto cleanup;
 			}

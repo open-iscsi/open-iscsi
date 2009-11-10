@@ -255,7 +255,7 @@ kwritev(enum iscsi_uevent_e type, struct iovec *iovp, int count)
 static int
 __kipc_call(void *iov_base, int iov_len)
 {
-	int rc;
+	int rc, iferr;
 	struct iovec iov;
 	struct iscsi_uevent *ev = iov_base;
 	enum iscsi_uevent_e type = ev->type;
@@ -280,18 +280,22 @@ __kipc_call(void *iov_base, int iov_len)
 							 sizeof(*ev), 0)) < 0) {
 					return rc;
 				}
-				if (ev->iferror == -ENOSYS)
+				/*
+				 * iferror is u32, but the kernel returns
+				 * negative errno values for errors.
+				 */
+				iferr = ev->iferror;
+
+				if (iferr == -ENOSYS)
 					/* not fatal so let caller handle log */
-					log_debug(1, "Recieved iferror %d: %s",
-						  ev->iferror,
-						  strerror(ev->iferror));
-				else if (ev->iferror < 0)
-					log_error("Received iferror %d: %s",
-						   ev->iferror,
-						   strerror(ev->iferror));
+					log_debug(1, "Recieved iferror %d: %s.",
+						  iferr, strerror(-iferr));
+				else if (iferr < 0)
+					log_error("Received iferror %d: %s.",
+						   iferr, strerror(-iferr));
 				else
-					log_error("Received iferror %d",
-						   ev->iferror);
+					log_error("Received iferror %d.",
+						   iferr);
 				return ev->iferror;
 			}
 			/*
