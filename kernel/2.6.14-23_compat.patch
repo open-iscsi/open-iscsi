@@ -1,35 +1,39 @@
+From 10f26ba1e4e0058a25c87b2ad00c71f152212a3a Mon Sep 17 00:00:00 2001
+From: Rakesh Ranjan <rakesh@chelsio.com>
+Date: Tue, 10 Nov 2009 19:02:13 +0530
+Subject: [PATCH] libiscsi 2.6.14-23_compat port
+
+
+Signed-off-by: Rakesh Ranjan <rakesh@chelsio.com>
+---
+ iscsi_tcp.c            |   13 +--
+ libiscsi.c             |  102 ++++++++++-----
+ libiscsi.h             |    1 +
+ libiscsi_tcp.c         |   22 ++-
+ open_iscsi_compat.h    |  356 ++++++++++++++++++++++++++++++++++++++++++++++++
+ scsi_transport_iscsi.c |  273 +++++++++++++++++++------------------
+ scsi_transport_iscsi.h |    3 +-
+ 7 files changed, 586 insertions(+), 184 deletions(-)
+ create mode 100644 open_iscsi_compat.h
+
 diff --git a/iscsi_tcp.c b/iscsi_tcp.c
-index caa116c..71df5b9 100644
+index aa4abdb..2c21157 100644
 --- a/iscsi_tcp.c
 +++ b/iscsi_tcp.c
-@@ -456,11 +456,9 @@ static int iscsi_sw_tcp_pdu_init(struct iscsi_task *task,
+@@ -477,10 +477,9 @@ static int iscsi_sw_tcp_pdu_init(struct iscsi_task *task,
  	if (!task->sc)
  		iscsi_sw_tcp_send_linear_data_prep(conn, task->data, count);
  	else {
 -		struct scsi_data_buffer *sdb = scsi_out(task->sc);
--
+ 
 -		err = iscsi_sw_tcp_send_data_prep(conn, sdb->table.sgl,
 -						  sdb->table.nents, offset,
--						  count);
 +		err = iscsi_sw_tcp_send_data_prep(conn, scsi_sglist(task->sc),
-+						  scsi_sg_count(task->sc),
-+						  offset, count);
++						  scsi_sg_count(task->sc), offset,
+ 						  count);
  	}
  
- 	if (err) {
-@@ -793,7 +791,11 @@ iscsi_sw_tcp_session_create(struct iscsi_endpoint *ep, uint16_t cmds_max,
- 	shost->max_lun = iscsi_max_lun;
- 	shost->max_id = 0;
- 	shost->max_channel = 0;
-+#ifndef SCSI_MAX_VARLEN_CDB_SIZE
-+	shost->max_cmd_len = 16;
-+#else
- 	shost->max_cmd_len = SCSI_MAX_VARLEN_CDB_SIZE;
-+#endif
- 
- 	if (iscsi_host_add(shost, NULL))
- 		goto free_host;
-@@ -832,12 +834,6 @@ static void iscsi_sw_tcp_session_destroy(struct iscsi_cls_session *cls_session)
+@@ -853,12 +852,6 @@ static void iscsi_sw_tcp_session_destroy(struct iscsi_cls_session *cls_session)
  	iscsi_host_free(shost);
  }
  
@@ -42,42 +46,18 @@ index caa116c..71df5b9 100644
  static int iscsi_sw_tcp_slave_configure(struct scsi_device *sdev)
  {
  	blk_queue_bounce_limit(sdev->request_queue, BLK_BOUNCE_ANY);
-@@ -846,6 +842,9 @@ static int iscsi_sw_tcp_slave_configure(struct scsi_device *sdev)
- }
- 
- static struct scsi_host_template iscsi_sw_tcp_sht = {
-+#if LINUX_VERSION_CODE == KERNEL_VERSION(2,6,24)
-+	.use_sg_chaining	= ENABLE_SG_CHAINING,
-+#endif
- 	.module			= THIS_MODULE,
- 	.name			= "iSCSI Initiator over TCP/IP",
- 	.queuecommand           = iscsi_queuecommand,
-@@ -856,9 +855,8 @@ static struct scsi_host_template iscsi_sw_tcp_sht = {
+@@ -877,9 +870,7 @@ static struct scsi_host_template iscsi_sw_tcp_sht = {
  	.cmd_per_lun		= ISCSI_DEF_CMD_PER_LUN,
  	.eh_abort_handler       = iscsi_eh_abort,
  	.eh_device_reset_handler= iscsi_eh_device_reset,
 -	.eh_target_reset_handler= iscsi_eh_target_reset,
-+	.eh_host_reset_handler	= iscsi_eh_target_reset,
  	.use_clustering         = DISABLE_CLUSTERING,
 -	.slave_alloc            = iscsi_sw_tcp_slave_alloc,
  	.slave_configure        = iscsi_sw_tcp_slave_configure,
  	.target_alloc		= iscsi_target_alloc,
  	.proc_name		= "iscsi_tcp",
-diff --git a/iscsi_tcp.h b/iscsi_tcp.h
-index f9a4044..ab20530 100644
---- a/iscsi_tcp.h
-+++ b/iscsi_tcp.h
-@@ -22,6 +22,8 @@
- #ifndef ISCSI_SW_TCP_H
- #define ISCSI_SW_TCP_H
- 
-+#include "open_iscsi_compat.h"
-+
- #include "libiscsi.h"
- #include "libiscsi_tcp.h"
- 
 diff --git a/libiscsi.c b/libiscsi.c
-index fe4b66e..6217f76 100644
+index 0b810b6..8eb6ec0 100644
 --- a/libiscsi.c
 +++ b/libiscsi.c
 @@ -24,7 +24,10 @@
@@ -91,16 +71,16 @@ index fe4b66e..6217f76 100644
  #include <asm/unaligned.h>
  #include <net/tcp.h>
  #include <scsi/scsi_cmnd.h>
-@@ -60,6 +63,8 @@ MODULE_PARM_DESC(debug_libiscsi, "Turn on debugging for libiscsi module. "
- 					     __func__, ##arg);		\
- 	} while (0);
+@@ -38,6 +41,8 @@
+ #include "scsi_transport_iscsi.h"
+ #include "libiscsi.h"
  
 +#include "open_iscsi_compat.h"
 +
- /* Serial Number Arithmetic, 32 bits, less than, RFC1982 */
- #define SNA32_CHECK 2147483648UL
- 
-@@ -229,7 +234,7 @@ static int iscsi_prep_bidi_ahs(struct iscsi_task *task)
+ static int iscsi_dbg_lib_conn;
+ module_param_named(debug_libiscsi_conn, iscsi_dbg_lib_conn, int,
+ 		   S_IRUGO | S_IWUSR);
+@@ -255,7 +260,7 @@ static int iscsi_prep_bidi_ahs(struct iscsi_task *task)
  						  sizeof(rlen_ahdr->reserved));
  	rlen_ahdr->ahstype = ISCSI_AHSTYPE_RLENGTH;
  	rlen_ahdr->reserved = 0;
@@ -109,7 +89,48 @@ index fe4b66e..6217f76 100644
  
  	ISCSI_DBG_SESSION(task->conn->session,
  			  "bidi-in rlen_ahdr->read_length(%d) "
-@@ -300,7 +305,7 @@ static int iscsi_prep_scsi_cmd_pdu(struct iscsi_task *task)
+@@ -265,6 +270,40 @@ static int iscsi_prep_bidi_ahs(struct iscsi_task *task)
+ 	return 0;
+ }
+ 
++#if (LINUX_VERSION_CODE <= KERNEL_VERSION(2,6,22)) && \
++			   !defined(SLEC1)
++/**
++ * scsilun_to_int: convert a scsi_lun to an int
++ * @scsilun:	struct scsi_lun to be converted.
++ *
++ * Description:
++ *     Convert @scsilun from a struct scsi_lun to a four byte host byte-ordered
++ *     integer, and return the result. The caller must check for
++ *     truncation before using this function.
++ *
++ * Notes:
++ *     The struct scsi_lun is assumed to be four levels, with each level
++ *     effectively containing a SCSI byte-ordered (big endian) short; the
++ *     addressing bits of each level are ignored (the highest two bits).
++ *     For a description of the LUN format, post SCSI-3 see the SCSI
++ *     Architecture Model, for SCSI-3 see the SCSI Controller Commands.
++ *
++ *     Given a struct scsi_lun of: 0a 04 0b 03 00 00 00 00, this function returns
++ *     the integer: 0x0b030a04
++ **/
++static int scsilun_to_int(struct scsi_lun *scsilun)
++{
++	int i;
++	unsigned int lun;
++
++	lun = 0;
++	for (i = 0; i < sizeof(lun); i += 2)
++		lun = lun | (((scsilun->scsi_lun[i] << 8) |
++			      scsilun->scsi_lun[i + 1]) << (i * 8));
++	return lun;
++}
++#endif
++
+ /**
+  * iscsi_check_tmf_restrictions - check if a task is affected by TMF
+  * @task: iscsi task
+@@ -410,7 +449,7 @@ static int iscsi_prep_scsi_cmd_pdu(struct iscsi_task *task)
  			return rc;
  	}
  	if (sc->sc_data_direction == DMA_TO_DEVICE) {
@@ -118,7 +139,7 @@ index fe4b66e..6217f76 100644
  		struct iscsi_r2t_info *r2t = &task->unsol_r2t;
  
  		hdr->data_length = cpu_to_be32(out_len);
-@@ -346,7 +351,7 @@ static int iscsi_prep_scsi_cmd_pdu(struct iscsi_task *task)
+@@ -456,7 +495,7 @@ static int iscsi_prep_scsi_cmd_pdu(struct iscsi_task *task)
  	} else {
  		hdr->flags |= ISCSI_FLAG_CMD_FINAL;
  		zero_data(hdr->dlength);
@@ -127,7 +148,7 @@ index fe4b66e..6217f76 100644
  
  		if (sc->sc_data_direction == DMA_FROM_DEVICE)
  			hdr->flags |= ISCSI_FLAG_CMD_READ;
-@@ -373,7 +378,7 @@ static int iscsi_prep_scsi_cmd_pdu(struct iscsi_task *task)
+@@ -485,7 +524,7 @@ static int iscsi_prep_scsi_cmd_pdu(struct iscsi_task *task)
  			  sc->sc_data_direction == DMA_TO_DEVICE ?
  			  "write" : "read", conn->id, sc, sc->cmnd[0],
  			  task->itt, scsi_bufflen(sc),
@@ -136,7 +157,7 @@ index fe4b66e..6217f76 100644
  			  session->cmdsn,
  			  session->max_cmdsn - session->exp_cmdsn + 1);
  	return 0;
-@@ -510,12 +515,7 @@ static void fail_scsi_task(struct iscsi_task *task, int err)
+@@ -647,12 +686,7 @@ static void fail_scsi_task(struct iscsi_task *task, int err)
  		state = ISCSI_TASK_ABRT_TMF;
  
  	sc->result = err << 16;
@@ -150,7 +171,7 @@ index fe4b66e..6217f76 100644
  
  	iscsi_complete_task(task, state);
  }
-@@ -706,7 +706,7 @@ invalid_datalen:
+@@ -852,7 +886,7 @@ invalid_datalen:
  			goto out;
  		}
  
@@ -159,18 +180,18 @@ index fe4b66e..6217f76 100644
  		if (datalen < senselen)
  			goto invalid_datalen;
  
-@@ -723,8 +723,8 @@ invalid_datalen:
+@@ -869,8 +903,8 @@ invalid_datalen:
  
  		if (scsi_bidi_cmnd(sc) && res_count > 0 &&
  				(rhdr->flags & ISCSI_FLAG_CMD_BIDI_OVERFLOW ||
 -				 res_count <= scsi_in(sc)->length))
 -			scsi_in(sc)->resid = res_count;
-+				res_count <= scsi_bufflen(sc)))
++				 res_count <= scsi_bufflen(sc)))
 +			scsi_set_resid(sc, res_count);
  		else
  			sc->result = (DID_BAD_TARGET << 16) | rhdr->cmd_status;
  	}
-@@ -773,8 +773,8 @@ iscsi_data_in_rsp(struct iscsi_conn *conn, struct iscsi_hdr *hdr,
+@@ -919,8 +953,8 @@ iscsi_data_in_rsp(struct iscsi_conn *conn, struct iscsi_hdr *hdr,
  
  		if (res_count > 0 &&
  		    (rhdr->flags & ISCSI_FLAG_CMD_OVERFLOW ||
@@ -181,7 +202,19 @@ index fe4b66e..6217f76 100644
  		else
  			sc->result = (DID_BAD_TARGET << 16) | rhdr->cmd_status;
  	}
-@@ -1498,12 +1498,7 @@ fault:
+@@ -1716,7 +1750,11 @@ reject:
+ 	ISCSI_DBG_SESSION(session, "cmd 0x%x rejected (%d)\n",
+ 			  sc->cmnd[0], reason);
+ 	spin_lock(host->host_lock);
++#if (defined RHELC1) || (defined SLEC1)
++	return SCSI_MLQUEUE_DEVICE_BUSY;
++#else
+ 	return SCSI_MLQUEUE_TARGET_BUSY;
++#endif
+ 
+ prepd_fault:
+ 	sc->scsi_done = NULL;
+@@ -1725,12 +1763,7 @@ fault:
  	spin_unlock(&session->lock);
  	ISCSI_DBG_SESSION(session, "iscsi: cmd 0x%x is not queued (%d)\n",
  			  sc->cmnd[0], reason);
@@ -195,24 +228,104 @@ index fe4b66e..6217f76 100644
  	done(sc);
  	spin_lock(host->host_lock);
  	return 0;
+@@ -2283,13 +2316,11 @@ EXPORT_SYMBOL_GPL(iscsi_session_recovery_timedout);
+  * This function will wait for a relogin, session termination from
+  * userspace, or a recovery/replacement timeout.
+  */
+-static int iscsi_eh_session_reset(struct scsi_cmnd *sc)
++static int iscsi_eh_session_reset(struct iscsi_cls_session *cls_session)
+ {
+-	struct iscsi_cls_session *cls_session;
+ 	struct iscsi_session *session;
+ 	struct iscsi_conn *conn;
+ 
+-	cls_session = starget_to_session(scsi_target(sc->device));
+ 	session = cls_session->dd_data;
+ 	conn = session->leadconn;
+ 
+@@ -2335,7 +2366,7 @@ failed:
+ 	return SUCCESS;
+ }
+ 
+-static void iscsi_prep_tgt_reset_pdu(struct scsi_cmnd *sc, struct iscsi_tm *hdr)
++static void iscsi_prep_tgt_reset_pdu(struct iscsi_cls_session *cls_session, struct iscsi_tm *hdr)
+ {
+ 	memset(hdr, 0, sizeof(*hdr));
+ 	hdr->opcode = ISCSI_OP_SCSI_TMFUNC | ISCSI_OP_IMMEDIATE;
+@@ -2345,24 +2376,22 @@ static void iscsi_prep_tgt_reset_pdu(struct scsi_cmnd *sc, struct iscsi_tm *hdr)
+ }
+ 
+ /**
+- * iscsi_eh_target_reset - reset target
++ * iscsi_target_reset - reset target
+  * @sc: scsi command
+  *
+  * This will attempt to send a warm target reset. If that fails
+  * then we will drop the session and attempt ERL0 recovery.
+  */
+-int iscsi_eh_target_reset(struct scsi_cmnd *sc)
++int iscsi_target_reset(struct iscsi_cls_session *cls_session)
+ {
+-	struct iscsi_cls_session *cls_session;
+ 	struct iscsi_session *session;
+ 	struct iscsi_conn *conn;
+ 	struct iscsi_tm *hdr;
+ 	int rc = FAILED;
+ 
+-	cls_session = starget_to_session(scsi_target(sc->device));
+ 	session = cls_session->dd_data;
+ 
+-	ISCSI_DBG_EH(session, "tgt Reset [sc %p tgt %s]\n", sc,
++	ISCSI_DBG_EH(session, "tgt Reset [cls_session %p tgt %s]\n", cls_session,
+ 		     session->targetname);
+ 
+ 	mutex_lock(&session->eh_mutex);
+@@ -2381,7 +2410,7 @@ int iscsi_eh_target_reset(struct scsi_cmnd *sc)
+ 	conn->tmf_state = TMF_QUEUED;
+ 
+ 	hdr = &conn->tmhdr;
+-	iscsi_prep_tgt_reset_pdu(sc, hdr);
++	iscsi_prep_tgt_reset_pdu(cls_session, hdr);
+ 
+ 	if (iscsi_exec_task_mgmt_fn(conn, hdr, session->age,
+ 				    session->tgt_reset_timeout)) {
+@@ -2423,9 +2452,18 @@ done:
+ 	mutex_unlock(&session->eh_mutex);
+ 
+ 	if (rc == FAILED)
+-		rc = iscsi_eh_session_reset(sc);
++		rc = iscsi_eh_session_reset(cls_session);
+ 	return rc;
+ }
++EXPORT_SYMBOL_GPL(iscsi_target_reset);
++
++int iscsi_eh_target_reset(struct scsi_cmnd *sc)
++{
++	struct iscsi_cls_session *cls_session;
++
++	cls_session = starget_to_session(scsi_target(sc->device));
++	return iscsi_target_reset(cls_session);
++}
+ EXPORT_SYMBOL_GPL(iscsi_eh_target_reset);
+ 
+ /*
 diff --git a/libiscsi.h b/libiscsi.h
-index 1798fbe..c9174ec 100644
+index 76e80e7..41c287d 100644
 --- a/libiscsi.h
 +++ b/libiscsi.h
-@@ -32,6 +32,8 @@
- #include "iscsi_if.h"
- #include "scsi_transport_iscsi.h"
- 
-+#include "open_iscsi_compat.h"
-+
- struct scsi_transport_template;
- struct scsi_host_template;
- struct scsi_device;
+@@ -337,6 +337,7 @@ struct iscsi_host {
+ extern int iscsi_change_queue_depth(struct scsi_device *sdev, int depth);
+ extern int iscsi_eh_abort(struct scsi_cmnd *sc);
+ extern int iscsi_eh_target_reset(struct scsi_cmnd *sc);
++extern int iscsi_target_reset(struct iscsi_cls_session *cls_session);
+ extern int iscsi_eh_device_reset(struct scsi_cmnd *sc);
+ extern int iscsi_queuecommand(struct scsi_cmnd *sc,
+ 			      void (*done)(struct scsi_cmnd *));
 diff --git a/libiscsi_tcp.c b/libiscsi_tcp.c
-index c2b535b..76ead4b 100644
+index 4051e62..a031e2e 100644
 --- a/libiscsi_tcp.c
 +++ b/libiscsi_tcp.c
-@@ -360,6 +360,16 @@ iscsi_segment_seek_sg(struct iscsi_segment *segment,
+@@ -360,6 +360,17 @@ iscsi_segment_seek_sg(struct iscsi_segment *segment,
  	struct scatterlist *sg;
  	unsigned int i;
  
@@ -220,16 +333,17 @@ index c2b535b..76ead4b 100644
 +	 * older kernels could send use_sg=0 for commands like sgio
 +	 * or scsi-ml commands.
 +	 */
++
 +	if (!sg_count) {
 +		iscsi_segment_init_linear(segment, (void *)sg_list + offset,
-+					  size, done, hash);
++					size, done, hash);
 +		return 0;
 +	}
 +
  	__iscsi_segment_init(segment, size, done, hash);
  	for_each_sg(sg_list, sg, sg_count, i) {
  		if (offset < sg->length) {
-@@ -471,7 +481,7 @@ static int iscsi_tcp_data_in(struct iscsi_conn *conn, struct iscsi_task *task)
+@@ -471,7 +482,7 @@ static int iscsi_tcp_data_in(struct iscsi_conn *conn, struct iscsi_task *task)
  	struct iscsi_tcp_task *tcp_task = task->dd_data;
  	struct iscsi_data_rsp *rhdr = (struct iscsi_data_rsp *)tcp_conn->in.hdr;
  	int datasn = be32_to_cpu(rhdr->datasn);
@@ -238,7 +352,7 @@ index c2b535b..76ead4b 100644
  
  	/*
  	 * lib iscsi will update this in the completion handling if there
-@@ -565,11 +575,11 @@ static int iscsi_tcp_r2t_rsp(struct iscsi_conn *conn, struct iscsi_task *task)
+@@ -565,11 +576,11 @@ static int iscsi_tcp_r2t_rsp(struct iscsi_conn *conn, struct iscsi_task *task)
  			      r2t->data_length, session->max_burst);
  
  	r2t->data_offset = be32_to_cpu(rhdr->data_offset);
@@ -252,7 +366,7 @@ index c2b535b..76ead4b 100644
  		__kfifo_put(tcp_task->r2tpool.queue, (void*)&r2t,
  			    sizeof(void*));
  		return ISCSI_ERR_DATALEN;
-@@ -668,7 +678,6 @@ iscsi_tcp_hdr_dissect(struct iscsi_conn *conn, struct iscsi_hdr *hdr)
+@@ -668,7 +679,6 @@ iscsi_tcp_hdr_dissect(struct iscsi_conn *conn, struct iscsi_hdr *hdr)
  		if (tcp_conn->in.datalen) {
  			struct iscsi_tcp_task *tcp_task = task->dd_data;
  			struct hash_desc *rx_hash = NULL;
@@ -260,9 +374,9 @@ index c2b535b..76ead4b 100644
  
  			/*
  			 * Setup copy of Data-In into the Scsi_Cmnd
-@@ -687,8 +696,8 @@ iscsi_tcp_hdr_dissect(struct iscsi_conn *conn, struct iscsi_hdr *hdr)
- 				      tcp_task->data_offset,
+@@ -688,8 +698,8 @@ iscsi_tcp_hdr_dissect(struct iscsi_conn *conn, struct iscsi_hdr *hdr)
  				      tcp_conn->in.datalen);
+ 			task->last_xfer = jiffies;
  			rc = iscsi_segment_seek_sg(&tcp_conn->in.segment,
 -						   sdb->table.sgl,
 -						   sdb->table.nents,
@@ -271,24 +385,12 @@ index c2b535b..76ead4b 100644
  						   tcp_task->data_offset,
  						   tcp_conn->in.datalen,
  						   iscsi_tcp_process_data_in,
-diff --git a/libiscsi_tcp.h b/libiscsi_tcp.h
-index 3bacef5..5ea284d 100644
---- a/libiscsi_tcp.h
-+++ b/libiscsi_tcp.h
-@@ -21,6 +21,7 @@
- #ifndef LIBISCSI_TCP_H
- #define LIBISCSI_TCP_H
- 
-+#include "open_iscsi_compat.h"
- #include "libiscsi.h"
- 
- struct iscsi_tcp_conn;
 diff --git a/open_iscsi_compat.h b/open_iscsi_compat.h
 new file mode 100644
-index 0000000..763d07a
+index 0000000..5c98fef
 --- /dev/null
 +++ b/open_iscsi_compat.h
-@@ -0,0 +1,321 @@
+@@ -0,0 +1,356 @@
 +#ifndef OPEN_ISCSI_COMPAT
 +#define OPEN_ISCSI_COMPAT
 +
@@ -296,6 +398,7 @@ index 0000000..763d07a
 +#include <linux/kernel.h>
 +#include <scsi/scsi.h>
 +#include <scsi/scsi_cmnd.h>
++#include <scsi/scsi_host.h>
 +
 +#ifndef SCAN_WILD_CARD
 +#define SCAN_WILD_CARD  ~0
@@ -319,12 +422,26 @@ index 0000000..763d07a
 +#define mutex_init init_MUTEX
 +#endif
 +
-+#if LINUX_VERSION_CODE <= KERNEL_VERSION(2,6,19)
++#ifdef RHEL_RELEASE_CODE
++#if (RHEL_RELEASE_CODE < RHEL_RELEASE_VERSION(5, 4))
++#define RHELC1	1
++#endif
++#endif
++
++#ifdef SLE_VERSION_CODE
++#if (SLE_VERSION_CODE < SLE_VERSION(11, 0, 0))
++#define SLEC1	1
++#endif
++#endif
++
++
++#if LINUX_VERSION_CODE <= KERNEL_VERSION(2,6,19) 
 +struct delayed_work {
 +	struct work_struct work;
 +};
 +
 +#define cancel_delayed_work(_dwork) cancel_delayed_work(&(_dwork)->work)
++#define INIT_DELAYED_WORK(_work,_func) INIT_WORK(&(_work)->work, _func)
 +
 +static inline void INIT_WORK_compat(struct work_struct *work, void *func)
 +{
@@ -333,8 +450,6 @@ index 0000000..763d07a
 +
 +#undef INIT_WORK
 +#define INIT_WORK(_work, _func) INIT_WORK_compat(_work, _func)
-+#define INIT_DELAYED_WORK(_work,_func) INIT_WORK(&(_work)->work, _func)
-+
 +#endif
 +
 +#if LINUX_VERSION_CODE <= KERNEL_VERSION(2,6,12)
@@ -357,7 +472,9 @@ index 0000000..763d07a
 +
 +#endif
 +
-+#if LINUX_VERSION_CODE <= KERNEL_VERSION(2,6,13)
++#if LINUX_VERSION_CODE <= KERNEL_VERSION(2,6,13) 
++#ifdef RHEL_RELEASE_CODE && \
++	RHEL_RELEASE_CODE != RHEL_RELEASE_VERSION(4,8)
 +
 +#define gfp_t unsigned
 +
@@ -369,11 +486,13 @@ index 0000000..763d07a
 +}
 +
 +#endif
++#endif
 +
 +#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,19)
 +
 +#include "linux/crypto.h"
 +
++#if !defined SLEC1
 +#define CRYPTO_ALG_ASYNC		0x00000080
 +struct hash_desc
 +{
@@ -420,19 +539,21 @@ index 0000000..763d07a
 +{
 +	crypto_free_tfm(tfm);
 +}
-+
-+int kernel_getsockname(struct socket *sock, struct sockaddr *addr,
++#endif
++#if (LINUX_VERSION_CODE < KERNEL_VERSION(2,6,19)) \
++       && !(defined RHELC1)
++static inline int kernel_getsockname(struct socket *sock, struct sockaddr *addr,
 +			int *addrlen)
 +{
 +	return sock->ops->getname(sock, addr, addrlen, 0);
 +}
 +
-+int kernel_getpeername(struct socket *sock, struct sockaddr *addr,
++static inline int kernel_getpeername(struct socket *sock, struct sockaddr *addr,
 +			int *addrlen)
 +{
 +	return sock->ops->getname(sock, addr, addrlen, 1);
 +}
-+
++#endif
 +#endif
 +
 +#ifndef bool
@@ -441,7 +562,8 @@ index 0000000..763d07a
 +
 +#if LINUX_VERSION_CODE <= KERNEL_VERSION(2,6,20)
 +#ifdef RHEL_RELEASE_VERSION
-+#if RHEL_RELEASE_CODE < RHEL_RELEASE_VERSION(5,2)
++#if RHEL_RELEASE_CODE < RHEL_RELEASE_VERSION(5,2) && \
++	RHEL_RELEASE_CODE != RHEL_RELEASE_VERSION(4,8)
 +static inline int is_power_of_2(unsigned long n)
 +{
 +	return (n != 0 && ((n & (n - 1)) == 0));
@@ -518,6 +640,19 @@ index 0000000..763d07a
 +
 +#if LINUX_VERSION_CODE <= KERNEL_VERSION(2,6,23)
 +
++#ifdef	SLE_VERSION_CODE
++#if SLE_VERSION_CODE == SLE_VERSION(10,2,0)
++ 
++static inline unsigned fls_long(unsigned long l)
++{
++	if (sizeof(l) == 4)
++		return fls(l);
++	return fls64(l);
++}
++
++#endif
++#endif
++
 +static inline unsigned long rounddown_pow_of_two(unsigned long n)
 +{
 +	return 1UL << (fls_long(n) - 1);
@@ -562,14 +697,12 @@ index 0000000..763d07a
 +#define netlink_kernel_release(_nls) \
 +	sock_release(_nls->sk_socket)
 +
-+
 +#endif
-+
 +
 +#if LINUX_VERSION_CODE <= KERNEL_VERSION(2,6,13)
 +
 +#define netlink_kernel_create(net, uint, groups, input, cb_mutex, mod) \
-+	netlink_kernel_create(uint, input)
++	netlink_kernel_create(uint, groups, input, cb_mutex, mod)
 +
 +#elif LINUX_VERSION_CODE <= KERNEL_VERSION(2,6,21)
 +
@@ -609,12 +742,16 @@ index 0000000..763d07a
 +
 +#endif
 +
++#ifndef	SCSI_MAX_VARLEN_CDB_SIZE
++#define	SCSI_MAX_VARLEN_CDB_SIZE 16
++#endif
++
 +#endif
 diff --git a/scsi_transport_iscsi.c b/scsi_transport_iscsi.c
-index c9e95e7..79436c4 100644
+index f64ffa7..d0cdeb7 100644
 --- a/scsi_transport_iscsi.c
 +++ b/scsi_transport_iscsi.c
-@@ -41,13 +41,13 @@ struct iscsi_internal {
+@@ -72,13 +72,13 @@ struct iscsi_internal {
  	struct scsi_transport_template t;
  	struct iscsi_transport *iscsi_transport;
  	struct list_head list;
@@ -632,7 +769,7 @@ index c9e95e7..79436c4 100644
  };
  
  static atomic_t iscsi_session_nr; /* sysfs session id for next new session */
-@@ -64,12 +64,12 @@ static DEFINE_SPINLOCK(iscsi_transport_lock);
+@@ -95,12 +95,12 @@ static DEFINE_SPINLOCK(iscsi_transport_lock);
  #define to_iscsi_internal(tmpl) \
  	container_of(tmpl, struct iscsi_internal, t)
  
@@ -649,7 +786,7 @@ index c9e95e7..79436c4 100644
  	kfree(priv);
  }
  
-@@ -79,33 +79,31 @@ static void iscsi_transport_release(struct device *dev)
+@@ -110,33 +110,31 @@ static void iscsi_transport_release(struct device *dev)
   */
  static struct class iscsi_transport_class = {
  	.name = "iscsi_transport",
@@ -692,19 +829,138 @@ index c9e95e7..79436c4 100644
  	NULL,
  };
  
-@@ -113,6 +111,7 @@ static struct attribute_group iscsi_transport_group = {
- 	.attrs = iscsi_transport_attrs,
+@@ -154,27 +152,28 @@ static struct attribute_group iscsi_transport_group = {
+ struct device_attribute dev_attr_##_prefix##_##_name =	\
+         __ATTR(_name,_mode,_show,_store)
+ 
+-static void iscsi_endpoint_release(struct device *dev)
++static void iscsi_endpoint_release(struct class_device *cdev)
+ {
+-	struct iscsi_endpoint *ep = iscsi_dev_to_endpoint(dev);
++	struct iscsi_endpoint *ep = iscsi_dev_to_endpoint(cdev);
+ 	kfree(ep);
+ }
+ 
+ static struct class iscsi_endpoint_class = {
+ 	.name = "iscsi_endpoint",
+-	.dev_release = iscsi_endpoint_release,
++	.release = iscsi_endpoint_release,
  };
  
-+#if 0
- /*
-  * iSCSI endpoint attrs
-  */
-@@ -236,9 +235,10 @@ struct iscsi_endpoint *iscsi_lookup_endpoint(u64 handle)
+ static ssize_t
+-show_ep_handle(struct device *dev, struct device_attribute *attr, char *buf)
++show_ep_handle(struct class_device *cdev, char *buf)
+ {
+-	struct iscsi_endpoint *ep = iscsi_dev_to_endpoint(dev);
++	struct iscsi_endpoint *ep = iscsi_dev_to_endpoint(cdev);
+ 	return sprintf(buf, "%llu\n", (unsigned long long) ep->id);
+ }
+-static ISCSI_ATTR(ep, handle, S_IRUGO, show_ep_handle, NULL);
++static struct class_device_attribute class_device_attr_ep_handle =
++	__ATTR(handle, S_IRUGO, show_ep_handle, NULL);
+ 
+ static struct attribute *iscsi_endpoint_attrs[] = {
+-	&dev_attr_ep_handle.attr,
++	&class_device_attr_ep_handle.attr,
+ 	NULL,
+ };
+ 
+@@ -184,26 +183,15 @@ static struct attribute_group iscsi_endpoint_group = {
+ 
+ #define ISCSI_MAX_EPID -1
+ 
+-static int iscsi_match_epid(struct device *dev, void *data)
+-{
+-	struct iscsi_endpoint *ep = iscsi_dev_to_endpoint(dev);
+-	uint64_t *epid = (uint64_t *) data;
+-
+-	return *epid == ep->id;
+-}
+-
+ struct iscsi_endpoint *
+ iscsi_create_endpoint(int dd_size)
+ {
+-	struct device *dev;
+ 	struct iscsi_endpoint *ep;
+ 	uint64_t id;
+ 	int err;
+ 
+ 	for (id = 1; id < ISCSI_MAX_EPID; id++) {
+-		dev = class_find_device(&iscsi_endpoint_class, NULL, &id,
+-					iscsi_match_epid);
+-		if (!dev)
++		if (!iscsi_lookup_endpoint(id))
+ 			break;
+ 	}
+ 	if (id == ISCSI_MAX_EPID) {
+@@ -218,8 +206,9 @@ iscsi_create_endpoint(int dd_size)
+ 
+ 	ep->id = id;
+ 	ep->dev.class = &iscsi_endpoint_class;
+-	dev_set_name(&ep->dev, "ep-%llu", (unsigned long long) id);
+-	err = device_register(&ep->dev);
++	snprintf(ep->dev.class_id, BUS_ID_SIZE, "ep-%llu",
++			(unsigned long long) id);
++	err = class_device_register(&ep->dev);
+         if (err)
+                 goto free_ep;
+ 
+@@ -232,7 +221,7 @@ iscsi_create_endpoint(int dd_size)
+ 	return ep;
+ 
+ unregister_dev:
+-	device_unregister(&ep->dev);
++	class_device_unregister(&ep->dev);
+ 	return NULL;
+ 
+ free_ep:
+@@ -244,32 +233,38 @@ EXPORT_SYMBOL_GPL(iscsi_create_endpoint);
+ void iscsi_destroy_endpoint(struct iscsi_endpoint *ep)
+ {
+ 	sysfs_remove_group(&ep->dev.kobj, &iscsi_endpoint_group);
+-	device_unregister(&ep->dev);
++	class_device_unregister(&ep->dev);
+ }
+ EXPORT_SYMBOL_GPL(iscsi_destroy_endpoint);
+ 
+ struct iscsi_endpoint *iscsi_lookup_endpoint(u64 handle)
+ {
+-	struct iscsi_endpoint *ep;
+-	struct device *dev;
+-
+-	dev = class_find_device(&iscsi_endpoint_class, NULL, &handle,
+-				iscsi_match_epid);
+-	if (!dev)
+-		return NULL;
++	struct iscsi_endpoint *ep = NULL;
++	struct class_device *cdev;
++
++#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,22) 
++	down_read(&iscsi_endpoint_class.subsys.rwsem);
++#else
++	spin_lock(&iscsi_endpoint_class.subsys.list_lock);
++#endif
++	list_for_each_entry(cdev, &iscsi_endpoint_class.children, node) {
++		ep = iscsi_dev_to_endpoint(cdev);
++		if (ep->id == handle)
++			break;
++		ep = NULL;
++	}
++#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,22)
++	up_read(&iscsi_endpoint_class.subsys.rwsem);
++#else
++	spin_unlock(&iscsi_endpoint_class.subsys.list_lock);
++#endif
+ 
+-	ep = iscsi_dev_to_endpoint(dev);
+-	/*
+-	 * we can drop this now because the interface will prevent
+-	 * removals and lookups from racing.
+-	 */
+-	put_device(dev);
  	return ep;
  }
  EXPORT_SYMBOL_GPL(iscsi_lookup_endpoint);
-+#endif
  
  static int iscsi_setup_host(struct transport_container *tc, struct device *dev,
 -			    struct device *cdev)
@@ -712,7 +968,16 @@ index c9e95e7..79436c4 100644
  {
  	struct Scsi_Host *shost = dev_to_shost(dev);
  	struct iscsi_cls_host *ihost = shost->shost_data;
-@@ -545,15 +545,6 @@ static void __iscsi_unblock_session(struct work_struct *work)
+@@ -570,8 +565,6 @@ static void __iscsi_unblock_session(struct work_struct *work)
+ 	struct iscsi_cls_session *session =
+ 			container_of(work, struct iscsi_cls_session,
+ 				     unblock_work);
+-	struct Scsi_Host *shost = iscsi_session_to_shost(session);
+-	struct iscsi_cls_host *ihost = shost->shost_data;
+ 	unsigned long flags;
+ 
+ 	ISCSI_DBG_TRANS_SESSION(session, "Unblocking session\n");
+@@ -585,15 +578,6 @@ static void __iscsi_unblock_session(struct work_struct *work)
  	spin_unlock_irqrestore(&session->lock, flags);
  	/* start IO */
  	scsi_target_unblock(&session->dev);
@@ -725,113 +990,82 @@ index c9e95e7..79436c4 100644
 -		if (scsi_queue_work(shost, &session->scan_work))
 -			atomic_inc(&ihost->nr_scans);
 -	}
+ 	ISCSI_DBG_TRANS_SESSION(session, "Completed unblocking session\n");
  }
  
- /**
-@@ -698,7 +689,8 @@ int iscsi_add_session(struct iscsi_cls_session *session, unsigned int target_id)
+@@ -749,7 +733,7 @@ int iscsi_add_session(struct iscsi_cls_session *session, unsigned int target_id)
  	}
  	session->target_id = id;
  
 -	dev_set_name(&session->dev, "session%u", session->sid);
-+	snprintf(session->dev.bus_id, BUS_ID_SIZE, "session%u",
-+		 session->sid);
++	snprintf(session->dev.bus_id, BUS_ID_SIZE, "session%u", session->sid);
  	err = device_add(&session->dev);
  	if (err) {
  		iscsi_cls_session_printk(KERN_ERR, session,
-@@ -870,7 +862,8 @@ iscsi_create_conn(struct iscsi_cls_session *session, int dd_size, uint32_t cid)
+@@ -929,7 +913,8 @@ iscsi_create_conn(struct iscsi_cls_session *session, int dd_size, uint32_t cid)
  	if (!get_device(&session->dev))
  		goto free_conn;
  
 -	dev_set_name(&conn->dev, "connection%d:%u", session->sid, cid);
 +	snprintf(conn->dev.bus_id, BUS_ID_SIZE, "connection%d:%u",
-+		 session->sid, cid);
++			session->sid, cid);
  	conn->dev.parent = &session->dev;
  	conn->dev.release = iscsi_conn_release;
  	err = device_register(&conn->dev);
-@@ -1309,6 +1302,8 @@ static int
- iscsi_if_transport_ep(struct iscsi_transport *transport,
- 		      struct iscsi_uevent *ev, int msg_type)
- {
-+	return -ENOSYS;
-+#if 0
- 	struct iscsi_endpoint *ep;
- 	int rc = 0;
- 
-@@ -1340,6 +1335,8 @@ iscsi_if_transport_ep(struct iscsi_transport *transport,
- 		break;
- 	}
- 	return rc;
-+
-+#endif
- }
- 
+@@ -1002,7 +987,15 @@ iscsi_if_transport_lookup(struct iscsi_transport *tt)
  static int
-@@ -1421,6 +1418,9 @@ iscsi_if_recv_msg(struct sk_buff *skb, struct nlmsghdr *nlh)
- 					      ev->u.c_session.queue_depth);
- 		break;
- 	case ISCSI_UEVENT_CREATE_BOUND_SESSION:
-+		err = -ENOSYS;
-+		break;
-+#if 0
- 		ep = iscsi_lookup_endpoint(ev->u.c_bound_session.ep_handle);
- 		if (!ep) {
- 			err = -EINVAL;
-@@ -1432,6 +1432,7 @@ iscsi_if_recv_msg(struct sk_buff *skb, struct nlmsghdr *nlh)
- 					ev->u.c_bound_session.cmds_max,
- 					ev->u.c_bound_session.queue_depth);
- 		break;
-+#endif
- 	case ISCSI_UEVENT_DESTROY_SESSION:
- 		session = iscsi_session_lookup(ev->u.d_session.sid);
- 		if (session)
-@@ -1516,55 +1517,70 @@ iscsi_if_recv_msg(struct sk_buff *skb, struct nlmsghdr *nlh)
+ iscsi_multicast_skb(struct sk_buff *skb, uint32_t group, gfp_t gfp)
+ {
+-	return nlmsg_multicast(nls, skb, 0, group, gfp);
++	int err;
++
++	NETLINK_CB(skb).dst_group = group;
++	
++	err = netlink_broadcast(nls, skb, 0, group, gfp);
++	if (err > 0)
++		err = 0;
++
++	return err;
  }
  
- /*
-- * Get message from skb.  Each message is processed by iscsi_if_recv_msg.
-- * Malformed skbs with wrong lengths or invalid creds are not processed.
-+ * Get message from skb (based on rtnetlink_rcv_skb).  Each message is
-+ * processed by iscsi_if_recv_msg.  Malformed skbs with wrong lengths or
-+ * invalid creds are discarded silently.
+ int iscsi_recv_pdu(struct iscsi_cls_conn *conn, struct iscsi_hdr *hdr,
+@@ -1642,51 +1635,65 @@ iscsi_if_recv_msg(struct sk_buff *skb, struct nlmsghdr *nlh, uint32_t *group)
+  * Malformed skbs with wrong lengths or invalid creds are not processed.
   */
  static void
 -iscsi_if_rx(struct sk_buff *skb)
 +iscsi_if_rx(struct sock *sk, int len)
  {
-+	struct sk_buff *skb;
-+
- 	mutex_lock(&rx_queue_mutex);
+-	mutex_lock(&rx_queue_mutex);
 -	while (skb->len >= NLMSG_SPACE(0)) {
 -		int err;
 -		uint32_t rlen;
 -		struct nlmsghdr	*nlh;
 -		struct iscsi_uevent *ev;
+-		uint32_t group;
 -
 -		nlh = nlmsg_hdr(skb);
 -		if (nlh->nlmsg_len < sizeof(*nlh) ||
 -		    skb->len < nlh->nlmsg_len) {
 -			break;
+-		}
+-
+-		ev = NLMSG_DATA(nlh);
+-		rlen = NLMSG_ALIGN(nlh->nlmsg_len);
+-		if (rlen > skb->len)
+-			rlen = skb->len;
++	struct sk_buff *skb;
+ 
+-		err = iscsi_if_recv_msg(skb, nlh, &group);
+-		if (err) {
+-			ev->type = ISCSI_KEVENT_IF_ERROR;
+-			ev->iferror = err;
++	mutex_lock(&rx_queue_mutex);
 +	while ((skb = skb_dequeue(&sk->sk_receive_queue)) != NULL) {
 +		if (NETLINK_CREDS(skb)->uid) {
 +			skb_pull(skb, skb->len);
 +			goto free_skb;
  		}
- 
--		ev = NLMSG_DATA(nlh);
--		rlen = NLMSG_ALIGN(nlh->nlmsg_len);
--		if (rlen > skb->len)
--			rlen = skb->len;
-+		while (skb->len >= NLMSG_SPACE(0)) {
-+			int err;
-+			uint32_t rlen;
-+			struct nlmsghdr	*nlh;
-+			struct iscsi_uevent *ev;
- 
--		err = iscsi_if_recv_msg(skb, nlh);
--		if (err) {
--			ev->type = ISCSI_KEVENT_IF_ERROR;
--			ev->iferror = err;
--		}
 -		do {
 -			/*
 -			 * special case for GET_STATS:
@@ -840,12 +1074,19 @@ index c9e95e7..79436c4 100644
 -			 * on error - fall through.
 -			 */
 -			if (ev->type == ISCSI_UEVENT_GET_STATS && !err)
++	
++		while (skb->len >= NLMSG_SPACE(0)) {
++			int err;
++			uint32_t rlen;
++			struct nlmsghdr *nlh;
++			struct iscsi_uevent *ev;
++			uint32_t group;
++			
 +			nlh = nlmsg_hdr(skb);
 +			if (nlh->nlmsg_len < sizeof(*nlh) ||
-+			    skb->len < nlh->nlmsg_len) {
++				skb->len < nlh->nlmsg_len) {
  				break;
--			err = iscsi_if_send_reply(
--				NETLINK_CREDS(skb)->pid, nlh->nlmsg_seq,
+-			err = iscsi_if_send_reply(group, nlh->nlmsg_seq,
 -				nlh->nlmsg_type, 0, 0, ev, sizeof(*ev));
 -		} while (err < 0 && err != -ECONNREFUSED);
 -		skb_pull(skb, rlen);
@@ -856,7 +1097,7 @@ index c9e95e7..79436c4 100644
 +			if (rlen > skb->len)
 +				rlen = skb->len;
 +
-+			err = iscsi_if_recv_msg(skb, nlh);
++			err = iscsi_if_recv_msg(skb, nlh, &group);
 +			if (err) {
 +				ev->type = ISCSI_KEVENT_IF_ERROR;
 +				ev->iferror = err;
@@ -870,9 +1111,8 @@ index c9e95e7..79436c4 100644
 +				 */
 +				if (ev->type == ISCSI_UEVENT_GET_STATS && !err)
 +					break;
-+				err = iscsi_if_send_reply(
-+					NETLINK_CREDS(skb)->pid, nlh->nlmsg_seq,
-+					nlh->nlmsg_type, 0, 0, ev, sizeof(*ev));
++				err = iscsi_if_send_reply(group, nlh->nlmsg_seq,
++						nlh->nlmsg_type, 0, 0, ev, sizeof(*ev));
 +			} while (err < 0 && err != -ECONNREFUSED);
 +			skb_pull(skb, rlen);
 +		}
@@ -891,7 +1131,7 @@ index c9e95e7..79436c4 100644
  	__ATTR(_name,_mode,_show,_store)
  
  /*
-@@ -1572,10 +1588,9 @@ struct device_attribute dev_attr_##_prefix##_##_name =	\
+@@ -1694,10 +1701,9 @@ struct device_attribute dev_attr_##_prefix##_##_name =	\
   */
  #define iscsi_conn_attr_show(param)					\
  static ssize_t								\
@@ -904,7 +1144,7 @@ index c9e95e7..79436c4 100644
  	struct iscsi_transport *t = conn->transport;			\
  	return t->get_conn_param(conn, param, buf);			\
  }
-@@ -1599,16 +1614,17 @@ iscsi_conn_attr(address, ISCSI_PARAM_CONN_ADDRESS);
+@@ -1721,16 +1727,18 @@ iscsi_conn_attr(address, ISCSI_PARAM_CONN_ADDRESS);
  iscsi_conn_attr(ping_tmo, ISCSI_PARAM_PING_TMO);
  iscsi_conn_attr(recv_tmo, ISCSI_PARAM_RECV_TMO);
  
@@ -920,13 +1160,13 @@ index c9e95e7..79436c4 100644
 -			   struct device_attribute *attr, char *buf)	\
 +show_session_param_##param(struct class_device *cdev, char *buf)	\
  {									\
--	struct iscsi_cls_session *session = 				\
+ 	struct iscsi_cls_session *session = 				\
 -		iscsi_dev_to_session(dev->parent);			\
-+	struct iscsi_cls_session *session = iscsi_cdev_to_session(cdev); \
++		iscsi_cdev_to_session(cdev);				\
  	struct iscsi_transport *t = session->transport;			\
  									\
  	if (perm && !capable(CAP_SYS_ADMIN))				\
-@@ -1642,10 +1658,9 @@ iscsi_session_attr(ifacename, ISCSI_PARAM_IFACE_NAME, 0);
+@@ -1765,10 +1773,9 @@ iscsi_session_attr(ifacename, ISCSI_PARAM_IFACE_NAME, 0);
  iscsi_session_attr(initiatorname, ISCSI_PARAM_INITIATOR_NAME, 0)
  
  static ssize_t
@@ -939,7 +1179,7 @@ index c9e95e7..79436c4 100644
  	return sprintf(buf, "%s\n", iscsi_session_state_name(session->state));
  }
  static ISCSI_CLASS_ATTR(priv_sess, state, S_IRUGO, show_priv_session_state,
-@@ -1653,11 +1668,9 @@ static ISCSI_CLASS_ATTR(priv_sess, state, S_IRUGO, show_priv_session_state,
+@@ -1776,11 +1783,10 @@ static ISCSI_CLASS_ATTR(priv_sess, state, S_IRUGO, show_priv_session_state,
  
  #define iscsi_priv_session_attr_show(field, format)			\
  static ssize_t								\
@@ -947,13 +1187,13 @@ index c9e95e7..79436c4 100644
 -			  struct device_attribute *attr, char *buf)	\
 +show_priv_session_##field(struct class_device *cdev, char *buf)		\
  {									\
--	struct iscsi_cls_session *session = 				\
+ 	struct iscsi_cls_session *session = 				\
 -			iscsi_dev_to_session(dev->parent);		\
-+	struct iscsi_cls_session *session = iscsi_cdev_to_session(cdev);\
++			iscsi_cdev_to_session(cdev);			\
  	return sprintf(buf, format"\n", session->field);		\
  }
  
-@@ -1672,10 +1685,9 @@ iscsi_priv_session_attr(recovery_tmo, "%d");
+@@ -1795,10 +1801,9 @@ iscsi_priv_session_attr(recovery_tmo, "%d");
   */
  #define iscsi_host_attr_show(param)					\
  static ssize_t								\
@@ -966,7 +1206,7 @@ index c9e95e7..79436c4 100644
  	struct iscsi_internal *priv = to_iscsi_internal(shost->transportt); \
  	return priv->iscsi_transport->get_host_param(shost, param, buf); \
  }
-@@ -1692,7 +1704,7 @@ iscsi_host_attr(initiatorname, ISCSI_HOST_PARAM_INITIATOR_NAME);
+@@ -1815,7 +1820,7 @@ iscsi_host_attr(initiatorname, ISCSI_HOST_PARAM_INITIATOR_NAME);
  
  #define SETUP_PRIV_SESSION_RD_ATTR(field)				\
  do {									\
@@ -975,7 +1215,7 @@ index c9e95e7..79436c4 100644
  	count++;							\
  } while (0)
  
-@@ -1700,7 +1712,7 @@ do {									\
+@@ -1823,7 +1828,7 @@ do {									\
  #define SETUP_SESSION_RD_ATTR(field, param_flag)			\
  do {									\
  	if (tt->param_mask & param_flag) {				\
@@ -984,7 +1224,7 @@ index c9e95e7..79436c4 100644
  		count++;						\
  	}								\
  } while (0)
-@@ -1708,7 +1720,7 @@ do {									\
+@@ -1831,7 +1836,7 @@ do {									\
  #define SETUP_CONN_RD_ATTR(field, param_flag)				\
  do {									\
  	if (tt->param_mask & param_flag) {				\
@@ -993,7 +1233,7 @@ index c9e95e7..79436c4 100644
  		count++;						\
  	}								\
  } while (0)
-@@ -1716,7 +1728,7 @@ do {									\
+@@ -1839,7 +1844,7 @@ do {									\
  #define SETUP_HOST_RD_ATTR(field, param_flag)				\
  do {									\
  	if (tt->host_param_mask & param_flag) {				\
@@ -1002,7 +1242,7 @@ index c9e95e7..79436c4 100644
  		count++;						\
  	}								\
  } while (0)
-@@ -1808,15 +1820,15 @@ iscsi_register_transport(struct iscsi_transport *tt)
+@@ -1930,15 +1935,15 @@ iscsi_register_transport(struct iscsi_transport *tt)
  	priv->t.user_scan = iscsi_user_scan;
  	priv->t.create_work_queue = 1;
  
@@ -1023,19 +1263,18 @@ index c9e95e7..79436c4 100644
  
  	/* host parameters */
  	priv->t.host_attrs.ac.attrs = &priv->host_attrs[0];
-@@ -1895,9 +1907,8 @@ iscsi_register_transport(struct iscsi_transport *tt)
+@@ -2018,8 +2023,8 @@ iscsi_register_transport(struct iscsi_transport *tt)
  	printk(KERN_NOTICE "iscsi: registered transport (%s)\n", tt->name);
  	return &priv->t;
  
 -unregister_dev:
 -	device_unregister(&priv->dev);
--	return NULL;
 +unregister_cdev:
 +	class_device_unregister(&priv->cdev);
+ 	return NULL;
  free_priv:
  	kfree(priv);
- 	return NULL;
-@@ -1924,8 +1935,8 @@ int iscsi_unregister_transport(struct iscsi_transport *tt)
+@@ -2047,8 +2052,8 @@ int iscsi_unregister_transport(struct iscsi_transport *tt)
  	transport_container_unregister(&priv->session_cont);
  	transport_container_unregister(&priv->t.host_attrs);
  
@@ -1046,57 +1285,27 @@ index c9e95e7..79436c4 100644
  	mutex_unlock(&rx_queue_mutex);
  
  	return 0;
-@@ -1945,13 +1956,14 @@ static __init int iscsi_transport_init(void)
- 	if (err)
- 		return err;
- 
-+#if 0
- 	err = class_register(&iscsi_endpoint_class);
- 	if (err)
- 		goto unregister_transport_class;
--
-+#endif
- 	err = transport_class_register(&iscsi_host_class);
- 	if (err)
--		goto unregister_endpoint_class;
-+		goto unregister_transport_class;
- 
- 	err = transport_class_register(&iscsi_connection_class);
- 	if (err)
-@@ -1982,8 +1994,10 @@ unregister_conn_class:
- 	transport_class_unregister(&iscsi_connection_class);
- unregister_host_class:
- 	transport_class_unregister(&iscsi_host_class);
-+#if 0
- unregister_endpoint_class:
- 	class_unregister(&iscsi_endpoint_class);
-+#endif
- unregister_transport_class:
- 	class_unregister(&iscsi_transport_class);
- 	return err;
-@@ -1996,7 +2010,9 @@ static void __exit iscsi_transport_exit(void)
- 	transport_class_unregister(&iscsi_connection_class);
- 	transport_class_unregister(&iscsi_session_class);
- 	transport_class_unregister(&iscsi_host_class);
-+#if 0
- 	class_unregister(&iscsi_endpoint_class);
-+#endif
- 	class_unregister(&iscsi_transport_class);
- }
- 
 diff --git a/scsi_transport_iscsi.h b/scsi_transport_iscsi.h
-index 6beea23..d509d17 100644
+index ef4b697..a633ee0 100644
 --- a/scsi_transport_iscsi.h
 +++ b/scsi_transport_iscsi.h
-@@ -28,6 +28,8 @@
+@@ -27,6 +27,7 @@
+ #include <linux/list.h>
  #include <linux/mutex.h>
  #include "iscsi_if.h"
- 
 +#include "open_iscsi_compat.h"
-+
+ 
  struct scsi_transport_template;
  struct iscsi_transport;
- struct iscsi_endpoint;
+@@ -219,7 +220,7 @@ extern void iscsi_host_for_each_session(struct Scsi_Host *shost,
+ 
+ struct iscsi_endpoint {
+ 	void *dd_data;			/* LLD private data */
+-	struct device dev;
++	struct class_device dev;
+ 	uint64_t id;
+ };
+ 
 -- 
-1.5.2.1
+1.6.0.6
 
