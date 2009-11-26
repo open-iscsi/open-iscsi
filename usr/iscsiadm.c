@@ -277,6 +277,21 @@ match_startup_mode(node_rec_t *rec, char *mode)
 	return -1;
 }
 
+static void log_login_msg(struct node_rec *rec, int rc)
+{
+	if (rc) {
+		log_error("Could not login to [iface: %s, target: %s, "
+			  "portal: %s,%d].", rec->iface.name,
+			  rec->name, rec->conn[0].address,
+			  rec->conn[0].port);
+		iscsid_handle_error(rc);
+	} else
+		printf("Login to [iface: %s, target: %s, portal: "
+		       "%s,%d] successful.\n", rec->iface.name,
+		       rec->name, rec->conn[0].address,
+		       rec->conn[0].port);
+}
+
 struct iscsid_async_req {
 	struct list_head list;
 	void *data;
@@ -294,23 +309,28 @@ static int iscsid_login_reqs_wait(struct list_head *list)
 
 		rec = curr->data;
 		err = iscsid_req_wait(MGMT_IPC_SESSION_LOGIN, curr->fd);
-		if (err) {
-			log_error("Could not login to [iface: %s, target: %s, "
-				  "portal: %s,%d]: ", rec->iface.name,
-				  rec->name, rec->conn[0].address,
-				  rec->conn[0].port);
-			iscsid_handle_error(err);
-			ret = err;
-		} else
-			printf("Login to [iface: %s, target: %s, portal: "
-			       "%s,%d]: successful\n", rec->iface.name,
-			       rec->name, rec->conn[0].address,
-			       rec->conn[0].port);
+		log_login_msg(rec, err);
 		list_del(&curr->list);
 		free(curr);
 	}
 	return ret;
 }
+
+static void log_logout_msg(struct session_info *info, int rc)
+{
+	if (rc) {
+		log_error("Could not logout of [sid: %d, target: %s, "
+			  "portal: %s,%d].", info->sid,
+			  info->targetname,
+			  info->persistent_address, info->port);
+		iscsid_handle_error(rc);
+	} else
+		printf("Logout of [sid: %d, target: %s, "
+		       "portal: %s,%d] successful.\n",
+		       info->sid, info->targetname,
+		       info->persistent_address, info->port);
+}
+
 static int iscsid_logout_reqs_wait(struct list_head *list)
 {
 	struct iscsid_async_req *tmp, *curr;
@@ -322,18 +342,9 @@ static int iscsid_logout_reqs_wait(struct list_head *list)
 
 		info  = curr->data;
 		err = iscsid_req_wait(MGMT_IPC_SESSION_LOGOUT, curr->fd);
-		if (err) {
-			log_error("Could not logout of [sid: %d, target: %s, "
-				  "portal: %s,%d]: ", info->sid,
-				  info->targetname,
-				  info->persistent_address, info->port);
-			iscsid_handle_error(err);
+		log_logout_msg(info, err);
+		if (err)
 			ret = err;
-		} else
-			printf("Logout of [sid: %d, target: %s, "
-			       "portal: %s,%d]: successful\n",
-			       info->sid, info->targetname,
-			       info->persistent_address, info->port);
 		list_del(&curr->list);
 		free(curr);
 	}
@@ -393,26 +404,25 @@ static int __logout_portal(struct session_info *info, struct list_head *list)
 	}
 
 	/* we raced with another app or instance of iscsiadm */
-	switch (rc) {
-	case MGMT_IPC_ERR_NOT_FOUND:
-		rc = 0;
-		break;
-	case MGMT_IPC_OK:
-		if (async_req) {
-			list_add_tail(&async_req->list, list);
-			async_req->fd = fd;
-			async_req->data = info;
-		}
-		return 0;
-	default:
-		iscsid_handle_error(rc);
-		rc = EIO;
-		break;
+	if (rc) {
+		log_logout_msg(info, rc);
+		if (async_req)
+			free(async_req);
+
+		if (rc == MGMT_IPC_ERR_NOT_FOUND)
+			return 0;
+
+		return EIO;
 	}
 
-	if (async_req)
-		free(async_req);
-	return rc;
+	if (async_req) {
+		list_add_tail(&async_req->list, list);
+		async_req->fd = fd;
+		async_req->data = info;
+	} else
+		log_logout_msg(info, rc);
+
+	return 0;
 }
 
 static int
@@ -523,8 +533,8 @@ logout_portal(void *data, struct list_head *list, struct session_info *info)
 
 	/* we do not support this yet */
 	if (t->caps & CAP_FW_DB) {
-		log_error("Could not logout session [sid: %d, "
-			  "target: %s, portal: %s,%d]", info->sid,
+		log_error("Could not logout session of [sid: %d, "
+			  "target: %s, portal: %s,%d].", info->sid,
 			  info->targetname, info->persistent_address,
 			  info->port);
 		log_error("Logout not supported for driver: %s.", t->name);
@@ -602,15 +612,15 @@ static int login_portal(void *data, struct list_head *list,
 					     rec, &fd);
 	else
 		rc = iscsid_req_by_rec(MGMT_IPC_SESSION_LOGIN, rec);
-	/* we raced with another app or instance of iscsiadm */
-	if (rc == MGMT_IPC_ERR_EXISTS) {
+
+	if (rc) {
+		log_login_msg(rec, rc);
 		if (async_req)
 			free(async_req);
-		return 0;
-	} else if (rc) {
-		iscsid_handle_error(rc);
-		if (async_req)
-			free(async_req);
+		/* we raced with another app or instance of iscsiadm */
+		if (rc == MGMT_IPC_ERR_EXISTS)
+			return 0;
+
 		return ENOTCONN;
 	}
 
@@ -618,7 +628,9 @@ static int login_portal(void *data, struct list_head *list,
 		list_add_tail(&async_req->list, list);
 		async_req->fd = fd;
 		async_req->data = rec;
-	}
+	} else
+		log_login_msg(rec, rc);
+
 	return 0;
 }
 
