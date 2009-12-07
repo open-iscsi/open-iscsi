@@ -268,7 +268,7 @@ static void dolog(int prio, const char *fmt, va_list ap)
 
 		ops[0].sem_op = -1;
 		if (semop(la->semid, ops, 1) < 0) {
-			syslog(LOG_ERR, "semop up failed %d", errno);
+			syslog(LOG_ERR, "semop down failed %d", errno);
 			return;
 		}
 
@@ -276,7 +276,7 @@ static void dolog(int prio, const char *fmt, va_list ap)
 
 		ops[0].sem_op = 1;
 		if (semop(la->semid, ops, 1) < 0) {
-			syslog(LOG_ERR, "semop down failed");
+			syslog(LOG_ERR, "semop up failed");
 			return;
 		}
 	} else {
@@ -359,13 +359,13 @@ static void log_flush(void)
 	while (!la->empty) {
 		ops[0].sem_op = -1;
 		if (semop(la->semid, ops, 1) < 0) {
-			syslog(LOG_ERR, "semop up failed %d", errno);
+			syslog(LOG_ERR, "semop down failed %d", errno);
 			exit(1);
 		}
 		msglen = log_dequeue(la->buff);
 		ops[0].sem_op = 1;
 		if (semop(la->semid, ops, 1) < 0) {
-			syslog(LOG_ERR, "semop down failed");
+			syslog(LOG_ERR, "semop up failed");
 			exit(1);
 		}
 		if (msglen)
