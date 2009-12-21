@@ -123,9 +123,9 @@ install_kernel:
 
 install_iname:
 	if [ ! -f /etc/iscsi/initiatorname.iscsi ]; then \
-		echo "InitiatorName=`/sbin/iscsi-iname`" > /etc/iscsi/initiatorname.iscsi ; \
+		echo "InitiatorName=`$(DESTDIR)/sbin/iscsi-iname`" > $(DESTDIR)/etc/iscsi/initiatorname.iscsi ; \
 		echo "***************************************************" ; \
-		echo "Setting InitiatorName to `cat /etc/iscsi/initiatorname.iscsi`" ; \
+		echo "Setting InitiatorName to `cat $(DESTDIR)/etc/iscsi/initiatorname.iscsi`" ; \
 		echo "To override edit /etc/iscsi/initiatorname.iscsi" ; \
 		echo "***************************************************" ; \
 	fi
