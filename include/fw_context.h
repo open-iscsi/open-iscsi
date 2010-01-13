@@ -60,5 +60,6 @@ extern int fw_get_entry(struct boot_context *context);
 extern void fw_print_entry(struct boot_context *context);
 extern int fw_get_targets(struct list_head *list);
 extern void fw_free_targets(struct list_head *list);
+extern int fw_setup_nics(void);
 
 #endif /* FWPARAM_CONTEXT_H_ */
