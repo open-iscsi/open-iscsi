@@ -1892,8 +1892,10 @@ acl_set_user_name(struct iscsi_acl *client, const char *username)
 		return AUTH_STATUS_ERROR;
 	}
 
-	if (strlcpy(client->username, username, AUTH_STR_MAX_LEN) >=
-	    AUTH_STR_MAX_LEN) {
+	if (!username)
+		client->username[0] = '\0';
+	else if (strlcpy(client->username, username, AUTH_STR_MAX_LEN) >=
+		 AUTH_STR_MAX_LEN) {
 		client->phase = AUTH_PHASE_ERROR;
 		return AUTH_STATUS_ERROR;
 	}

@@ -666,8 +666,7 @@ setup_authentication(iscsi_session_t *session,
 		session->bidirectional_auth = 1;
 
 		/* sanity check the config */
-		if ((config->auth.username[0] == '\0')
-		    || (config->auth.password_length == 0)) {
+		if (config->auth.password_length == 0) {
 			log_error(
 			       "discovery process to %s:%d has incoming "
 			       "authentication credentials but has no outgoing "

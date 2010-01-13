@@ -260,8 +260,7 @@ __setup_authentication(iscsi_session_t *session,
 	if (auth_cfg->username_in[0]
 	    || auth_cfg->password_in_length) {
 		/* sanity check the config */
-		if ((auth_cfg->username[0] == '\0')
-		    || (auth_cfg->password_length == 0)) {
+		if (auth_cfg->password_length == 0) {
 			log_debug(1,
 			       "node record has incoming "
 			       "authentication credentials but has no outgoing "
