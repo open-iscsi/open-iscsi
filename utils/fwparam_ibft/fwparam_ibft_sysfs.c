@@ -96,7 +96,7 @@ static int get_iface_from_device(char *id, struct boot_context *context)
 
 	while ((dent = readdir(dirfd))) {
 		if (!strcmp(dent->d_name, ".") || !strcmp(dent->d_name, "..") ||
-		    strncmp(dent->d_name, "net", 3))
+		    strncmp(dent->d_name, "net:", 4))
 			continue;
 
 		if (!strncmp(dent->d_name, "net:", 4)) {
@@ -113,7 +113,7 @@ static int get_iface_from_device(char *id, struct boot_context *context)
 			rc = 0;
 			break;
 		} else {
-			printf("Could not read ethernet to net link\n.");
+			printf("Could not read ethernet to net link.\n");
 			rc = EOPNOTSUPP;
 			break;
 		}
