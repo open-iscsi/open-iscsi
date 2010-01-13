@@ -24,6 +24,7 @@
 #include <getopt.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include <stddef.h>
 #include <unistd.h>
 #include <string.h>
 #include <signal.h>
@@ -32,6 +33,11 @@
 #include <sys/signal.h>
 #include <sys/types.h>
 #include <sys/wait.h>
+#include <sys/socket.h>
+#include <sys/ioctl.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
+#include <net/route.h>
 
 #include "initiator.h"
 #include "iscsi_ipc.h"
@@ -73,6 +79,7 @@ static struct option const long_options[] = {
 	{"password_in", required_argument, NULL, 'W'},
 	{"debug", required_argument, NULL, 'd'},
 	{"fwparam_connect", no_argument, NULL, 'b'},
+	{"fwparam_network", no_argument, NULL, 'n'},
 	{"fwparam_print", no_argument, NULL, 'f'},
 	{"help", no_argument, NULL, 'h'},
 	{"version", no_argument, NULL, 'v'},
@@ -99,6 +106,7 @@ Open-iSCSI initiator.\n\
   -W, --password_in=N      set incoming password to N (optional\n\
   -d, --debug debuglevel   print debugging information \n\
   -b, --fwparam_connect    create a session to the target\n\
+  -n, --fwparam_network    bring up the network as specified by iBFT\n\
   -f, --fwparam_print      print the iBFT to STDOUT \n\
   -h, --help               display this help and exit\n\
   -v, --version            display version and exit\n\
@@ -199,6 +207,140 @@ static int setup_session(void)
 	return rc;
 }
 
+static int setup_nics(void)
+{
+	struct boot_context *context;
+	char *iface_prev = NULL;
+	int sock;
+	int ret;
+
+	/* Create socket for making networking changes */
+	if ((sock = socket(AF_INET, SOCK_DGRAM, 0)) == -1) {
+		perror("socket(AF_INET, SOCK_DGRAM, 0)");
+		exit(1);
+	}
+			
+	/* 
+	 * For each target in iBFT bring up required NIC and use routing
+	 * to force iSCSI traffic through correct NIC
+	 */
+	list_for_each_entry(context, &targets, list) {
+					
+		/* Bring up NIC with correct address  - unless it
+		 * has already been handled (2 targets in IBFT may share one NIC)
+		 */
+		struct sockaddr_in ipaddr = { .sin_family = AF_INET };
+		struct sockaddr_in netmask = { .sin_family = AF_INET };
+		struct sockaddr_in hostmask = { .sin_family = AF_INET };
+		struct sockaddr_in gateway = { .sin_family = AF_INET };
+		struct sockaddr_in tgt_ipaddr = { .sin_family = AF_INET };
+		struct rtentry rt;
+		struct ifreq ifr;
+
+		if (!strlen(context->iface)) {
+			printf("No iface in fw entry\n");
+			ret = -1;
+			continue;
+		}
+		if (!inet_aton(context->ipaddr, &ipaddr.sin_addr)) {
+			printf("Invalid or no ipaddr in fw entry\n");
+			ret = -1;
+			continue;
+		}
+
+		if (!inet_aton(context->mask, &netmask.sin_addr)) {
+			printf("Invalid or no netmask in fw entry\n");
+			ret = -1;
+			continue;
+		}
+		inet_aton("255.255.255.255", &hostmask.sin_addr);
+
+		if (!inet_aton(context->target_ipaddr, &tgt_ipaddr.sin_addr)) {
+			printf("Invalid or no target ipaddr in fw entry\n");
+			ret = -1;
+			continue;
+		}
+
+		/* Only set IP/NM if this is a new interface */
+		if (iface_prev == NULL || strcmp(context->iface, iface_prev)) {
+					
+			/* Note: test above works because there is a maximum of two targets in the iBFT */
+			iface_prev = context->iface;
+
+			/* TODO: create vlan if strlen(context->vlan) */
+
+			/* Bring up interface */
+			memset(&ifr, 0, sizeof(ifr));
+			strncpy(ifr.ifr_name, context->iface, IFNAMSIZ);
+			ifr.ifr_flags = IFF_UP | IFF_RUNNING;
+			if (ioctl(sock, SIOCSIFFLAGS, &ifr) < 0) {
+				perror("ioctl(SIOCSIFFLAGS)");
+				ret = -1;
+				continue;
+			}
+			/* Set IP address */
+			memset(&ifr, 0, sizeof(ifr));
+			strncpy(ifr.ifr_name, context->iface, IFNAMSIZ);
+			memcpy(&ifr.ifr_addr, &ipaddr, sizeof(struct sockaddr));
+			if (ioctl(sock, SIOCSIFADDR, &ifr) < 0) {
+				perror("ioctl(SIOCSIFADDR)");
+				ret = -1;
+				continue;
+			}
+			/* Set netmask */
+			memset(&ifr, 0, sizeof(ifr));
+			strncpy(ifr.ifr_name, context->iface, IFNAMSIZ);
+			memcpy(&ifr.ifr_addr, &netmask, sizeof(struct sockaddr));
+			if (ioctl(sock, SIOCSIFNETMASK, &ifr) < 0) {
+				perror("ioctl(SIOCSIFNETMASK)");
+				ret = -1;
+				continue;
+			}
+		}
+
+		/* Set static route to target via this interface */
+		memset((char *) &rt, 0, sizeof(rt));
+		memcpy(&rt.rt_dst, &tgt_ipaddr, sizeof(tgt_ipaddr));
+		memcpy(&rt.rt_genmask, &hostmask, sizeof(hostmask));
+		rt.rt_flags = RTF_UP | RTF_HOST;
+		rt.rt_dev = context->iface;
+
+		if ((tgt_ipaddr.sin_addr.s_addr & netmask.sin_addr.s_addr) == 
+			(    ipaddr.sin_addr.s_addr & netmask.sin_addr.s_addr)) {
+			/* Same subnet */
+			if (ioctl(sock, SIOCADDRT, &rt) < 0) {
+				if (errno != EEXIST) {
+					perror("ioctl(SIOCADDRT)");
+					ret = -1;
+					continue;
+				}
+			}
+		} else {
+			/* Different subnet.  Use gateway */
+			rt.rt_flags |= RTF_GATEWAY;
+			if (!inet_aton(context->gateway, &gateway.sin_addr)) {
+				printf("Invalid or no gateway in fw entry\n");
+				ret = -1;
+				continue;
+			}
+			memcpy(&rt.rt_gateway, &gateway, sizeof(gateway));
+			if (ioctl(sock, SIOCADDRT, &rt) < 0) {
+				if (errno != EEXIST) {
+					perror("ioctl(SIOCADDRT)");
+					ret = -1;
+					continue;
+				}
+			}
+		}
+		/* This target handled */
+	}
+			
+	close(sock);
+	fw_free_targets(&targets);
+	return ret;
+}
+
+
 static void catch_signal(int signo)
 {
 	log_warning("pid %d caught signal -%d", getpid(), signo);
@@ -268,7 +410,7 @@ int main(int argc, char *argv[])
 	if (iscsi_sysfs_check_class_version())
 		exit(1);
 
-	while ((ch = getopt_long(argc, argv, "i:t:g:a:p:d:u:w:U:W:bfvh",
+	while ((ch = getopt_long(argc, argv, "i:t:g:a:p:d:u:w:U:W:bnfvh",
 				 long_options, &longindex)) >= 0) {
 		switch (ch) {
 		case 'i':
@@ -332,6 +474,14 @@ int main(int argc, char *argv[])
 				exit(1);
 			}
 			break;
+		case 'n':
+			ret = fw_get_targets(&targets);
+			if (ret || list_empty(&targets)) {
+				printf("Could not setup fw entries.\n");
+				exit(1);
+			}
+			ret = setup_nics();
+			exit(ret);
 		case 'f':
 			ret = fw_get_targets(&targets);
 			if (ret || list_empty(&targets)) {

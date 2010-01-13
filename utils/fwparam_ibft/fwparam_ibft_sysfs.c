@@ -19,6 +19,7 @@
  */
 
 #define  _XOPEN_SOURCE 500
+#define _SVID_SOURCE
 #include <ftw.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -28,6 +29,7 @@
 #include <errno.h>
 #include <dirent.h>
 #include <sys/types.h>
+#include <sys/stat.h>
 
 #include "sysfs.h"
 #include "fw_context.h"
@@ -36,6 +38,7 @@
 
 #define IBFT_MAX 255
 #define IBFT_SYSFS_ROOT "/sys/firmware/ibft/"
+#define NET_SYSFS_ROOT "/sys/class/net/"
 #define IBFT_SUBSYS "ibft"
 
 static char *target_list[IBFT_MAX];
@@ -156,6 +159,67 @@ static int get_iface_from_device(char *id, struct boot_context *context)
 	return rc;
 }
 
+static int get_iface_from_mac(char *id, struct boot_context *context)
+{
+	char mac_fname[FILENAMESZ];
+	char mac[18] = {0};
+	int rc = ENODEV;
+	int fd;
+	int retval;
+	struct dirent **namelist;
+	int n, i;
+
+	memset(mac_fname, 0, FILENAMESZ);
+	snprintf(mac_fname, FILENAMESZ, IBFT_SYSFS_ROOT"/%s/mac", id);
+
+	if (!file_exist(mac_fname))
+		return 0;
+
+	fd = open(mac_fname, O_RDONLY);
+	if (fd == -1)
+		return errno;
+
+	retval = read(fd, mac, 17);
+	if (retval == -1)
+		return errno;
+	if (retval != 17) {
+		printf("Couldn't read whole mac address from %s\n", mac_fname);
+		return EINVAL;
+	}
+	close(fd);
+
+	n = scandir(NET_SYSFS_ROOT, &namelist, NULL, alphasort);
+	if (n <= 0)
+		return -n;
+
+	for (i = 0; i < n; i++) {
+		char name[256];
+		char *dir = namelist[i]->d_name;
+		char buf[18] = {0};
+		if (!strcmp(name, ".") || !strcmp(name, ".."))
+			continue;
+		
+		snprintf(name, sizeof(name), "%s%s/address", NET_SYSFS_ROOT, dir);
+		fd = open(name, O_RDONLY);
+		if (fd == -1)
+			continue;
+		retval = read(fd, buf, 17);
+		close(fd);
+
+		if (strncasecmp(buf, mac, 17) == 0) {
+			strlcpy(context->iface, dir, sizeof(context->iface));
+			rc = 0;
+			break;
+		}
+	}
+
+	for (i = 0; i < n; i++)
+		free(namelist[i]);
+	free(namelist);
+
+	return rc;
+}
+
 /*
  * Routines to fill in the context values.
  */
@@ -169,6 +233,9 @@ static int fill_nic_context(char *id, struct boot_context *context)
 		return rc;
 
 	rc = get_iface_from_device(id, context);
+	if (rc)
+		rc = get_iface_from_mac(id, context);
+
 	if (rc)
 		return rc;
 
