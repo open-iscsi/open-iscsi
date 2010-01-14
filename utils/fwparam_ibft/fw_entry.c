@@ -33,15 +33,16 @@
 #include "fw_context.h"
 #include "fwparam.h"
 #include "idbm_fields.h"
+#include "ethtool-copy.h"
 
 /**
  * fw_setup_nics - setup nics (ethXs) based on ibft net info
  *
  * Currently does not support vlans.
  *
- * TODO:
- * For offload cards, this will setup the ethX with the net info.
- * It will not yet setup the offload card with it, but this is planned.
+ * If this is a offload card, this function does nothing. The
+ * net info is used by the iscsi iface settings for the iscsi
+ * function.
  */
 int fw_setup_nics(void)
 {

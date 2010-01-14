@@ -22,7 +22,7 @@
 #
 
 SYSDEPS_OBJS = $(wildcard ../sysdeps/*.o)
-OBJS := fw_entry.o fwparam_ibft_sysfs.o $(SYSDEPS_OBJS)
+OBJS := fw_entry.o fwparam_ibft_sysfs.o $(SYSDEPS_OBJS) ../../usr/iscsi_net_util.o
 OBJS += prom_lex.o prom_parse.tab.o fwparam_ppc.o
 CLEANFILES = $(OBJS) *.output *~
 

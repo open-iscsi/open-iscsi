@@ -157,68 +157,6 @@ free_ifap:
 }
 #endif
 
-/*
- * In this mode we do not support interfaces like a bond or alias because
- * multiple interfaces will have the same hwaddress.
- */
-static int get_netdev_from_hwaddress(char *hwaddress, char *netdev)
-{
-	struct if_nameindex *ifni;
-	struct ifreq if_hwaddr;
-	int found = 0, sockfd, i = 0;
-	unsigned char *hwaddr;
-	char tmp_hwaddress[ISCSI_MAX_IFACE_LEN];
-
-	ifni = if_nameindex();
-	if (ifni == NULL) {
-		log_error("Could not match hwaddress %s to netdev. "
-			  "getifaddrs failed %d", hwaddress, errno);
-		return 0;
-	}
-
-	/* Open a basic socket. */
-	sockfd = socket(AF_INET, SOCK_DGRAM, 0);
-	if (sockfd < 0) {
-		log_error("Could not open socket for ioctl.");
-		goto free_ifni;
-	}
-
-	for (i = 0; ifni[i].if_index && ifni[i].if_name; i++) {
-		struct if_nameindex *n = &ifni[i];
-
-		strlcpy(if_hwaddr.ifr_name, n->if_name, IFNAMSIZ);
-		if (ioctl(sockfd, SIOCGIFHWADDR, &if_hwaddr) < 0) {
-			log_error("Could not match %s to netdevice.",
-				  hwaddress);
-			continue;
-		}
-
-		/* check for ARPHRD_ETHER (ethernet) */
-		if (if_hwaddr.ifr_hwaddr.sa_family != 1)
-			continue;
-		hwaddr = (unsigned char *)if_hwaddr.ifr_hwaddr.sa_data;
-
-		memset(tmp_hwaddress, 0, ISCSI_MAX_IFACE_LEN);
-		/* TODO should look and covert so we do not need tmp buf */
-		sprintf(tmp_hwaddress, "%2.2x:%2.2x:%2.2x:%2.2x:%2.2x:%2.2x",
-			hwaddr[0], hwaddr[1], hwaddr[2], hwaddr[3],
-			hwaddr[4], hwaddr[5]);
-		log_debug(4, "Found hardware address %s", tmp_hwaddress);
-		if (!strcasecmp(tmp_hwaddress, hwaddress)) {
-			log_debug(4, "Matches %s to %s", hwaddress,
-				  n->if_name);
-			memset(netdev, 0, IFNAMSIZ); 
-			strlcpy(netdev, n->if_name, IFNAMSIZ);
-			found = 1;
-			break;
-		}
-	}
-
-	close(sockfd);
-free_ifni:
-	if_freenameindex(ifni);
-	return found;
-}
 
 #if 0
 
@@ -265,7 +203,7 @@ static int bind_conn_to_iface(iscsi_conn_t *conn, struct iface_rec *iface)
 
 	memset(session->netdev, 0, IFNAMSIZ);
 	if (iface_is_bound_by_hwaddr(iface) &&
-	    !get_netdev_from_hwaddress(iface->hwaddress, session->netdev)) {
+	    net_get_dev_from_hwaddress(iface->hwaddress, session->netdev)) {
 		log_error("Cannot match %s to net/scsi interface.",
 			  iface->hwaddress);
                 return -1;

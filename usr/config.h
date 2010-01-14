@@ -22,9 +22,11 @@
 
 #include <netdb.h>
 #include <net/if.h>
+
 #include "types.h"
 #include "auth.h"	/* for the username and password sizes */
 #include "list.h"
+#include "iscsi_net_util.h"
 
 /* ISIDs now have a typed naming authority in them.  We use an OUI */
 #define DRIVER_ISID_0  0x00
@@ -197,7 +199,7 @@ typedef struct iface_rec {
 	 * TODO: we may have to make this bigger and interconnect
 	 * specific for infinniband 
 	 */
-	char			hwaddress[ISCSI_MAX_IFACE_LEN];
+	char			hwaddress[ISCSI_HWADDRESS_BUF_SIZE];
 	char			transport_name[ISCSI_TRANSPORT_NAME_MAXLEN];
 	/*
 	 * This is only used for boot now, but the iser guys
