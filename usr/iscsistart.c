@@ -73,7 +73,7 @@ static struct option const long_options[] = {
 	{"password_in", required_argument, NULL, 'W'},
 	{"debug", required_argument, NULL, 'd'},
 	{"fwparam_connect", no_argument, NULL, 'b'},
-	{"fwparam_network", no_argument, NULL, 'n'},
+	{"fwparam_network", no_argument, NULL, 'N'},
 	{"fwparam_print", no_argument, NULL, 'f'},
 	{"help", no_argument, NULL, 'h'},
 	{"version", no_argument, NULL, 'v'},
