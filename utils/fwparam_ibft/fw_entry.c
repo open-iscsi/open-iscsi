@@ -33,7 +33,7 @@
 #include "fw_context.h"
 #include "fwparam.h"
 #include "idbm_fields.h"
-#include "ethtool-copy.h"
+#include "iscsi_net_util.h"
 
 /**
  * fw_setup_nics - setup nics (ethXs) based on ibft net info
@@ -48,7 +48,7 @@ int fw_setup_nics(void)
 {
 	struct boot_context *context;
 	struct list_head targets;
-	char *iface_prev = NULL;
+	char *iface_prev = NULL, transport[16];
 	int sock;
 	int ret;
 
@@ -72,6 +72,10 @@ int fw_setup_nics(void)
 	 * to force iSCSI traffic through correct NIC
 	 */
 	list_for_each_entry(context, &targets, list) {			
+		if (!net_get_transport_name_from_iface(context->iface,
+						        transport))
+			continue;
+
 		/* Bring up NIC with correct address  - unless it
 		 * has already been handled (2 targets in IBFT may share
 		 * one NIC)

@@ -22,11 +22,72 @@
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <sys/ioctl.h>
+#include <linux/sockios.h>
 
 #include "sysdeps.h"
 #include "ethtool-copy.h"
 #include "iscsi_net_util.h"
 #include "log.h"
+
+struct iscsi_net_driver {
+	const char *net_drv_name;
+	const char *iscsi_transport;
+};
+
+static struct iscsi_net_driver net_drivers[] = {
+	{"cxgb3", "cxgb3i" },
+	{"bnx2", "bnx2i" },
+	{"bnx2x", "bnx2i"},
+	{"be2net", "be2iscsi"},
+	{NULL, NULL}
+};
+
+/**
+ * net_get_transport_name_from_iface - get name of transport to use for iface
+ * @iface: net iface name
+ * @transport: buffer to hold transport name
+ *
+ * transport buffer should be ISCSI_TRANSPORT_NAME_MAXLEN bytes
+ */
+int net_get_transport_name_from_iface(char *iface, char *transport)
+{
+	struct ethtool_drvinfo drvinfo;
+	struct ifreq ifr;
+	int err, fd, i;
+
+	memset(&ifr, 0, sizeof(ifr));
+	strcpy(ifr.ifr_name, iface);
+
+	fd = socket(AF_INET, SOCK_DGRAM, 0);
+	if (fd < 0) {
+		log_error("Could not open socket for ioctl.");
+		return errno;
+	}
+
+	drvinfo.cmd = ETHTOOL_GDRVINFO;
+	ifr.ifr_data = (caddr_t)&drvinfo;
+	err = ioctl(fd, SIOCETHTOOL, &ifr);
+	if (err < 0) {
+		log_error("Could not get driver.");
+		err = errno;
+		goto close_sock;
+	}
+
+	for (i = 0; net_drivers[i].net_drv_name != NULL; i++) {
+		struct iscsi_net_driver *net_driver = &net_drivers[i];
+
+		if (!strcmp(net_driver->net_drv_name, drvinfo.driver)) {
+			strcpy(transport, net_driver->iscsi_transport);
+			err = 0;
+			goto close_sock;
+		}
+	}
+	err = ENODEV;
+
+close_sock:
+	close(fd);
+	return err;
+}
 
 /**
  * net_get_dev_from_hwaddress - given a hwaddress return the ethX
