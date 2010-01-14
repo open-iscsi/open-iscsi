@@ -502,6 +502,7 @@ static iscsi_session_t*
 __session_create(node_rec_t *rec, struct iscsi_transport *t)
 {
 	iscsi_session_t *session;
+	int hostno, rc = 0;
 
 	session = calloc(1, sizeof (*session));
 	if (session == NULL) {
@@ -569,6 +570,17 @@ __session_create(node_rec_t *rec, struct iscsi_transport *t)
 	if (!(t->caps & CAP_MARKERS)) {
 		session->param_mask &= ~ISCSI_IFMARKER_EN;
 		session->param_mask &= ~ISCSI_OFMARKER_EN;
+	}
+
+	hostno = iscsi_sysfs_get_host_no_from_hwinfo(&rec->iface, &rc);
+	if (!rc) {
+		/*
+		 * if the netdev or mac was set, then we are going to want
+		 * to want to bind the all the conns/eps to a specific host
+		 * if offload is used.
+		 */
+		session->conn[0].bind_ep = 1;
+		session->hostno = hostno;
 	}
 
 	list_add_tail(&session->list, &t->sessions);
@@ -2079,7 +2091,7 @@ int session_is_running(node_rec_t *rec)
 static int iface_set_param(struct iscsi_transport *t, struct iface_rec *iface,
 			   struct iscsi_session *session)
 {
-	int rc = 0, hostno;
+	int rc = 0;
 
 	log_debug(3, "setting iface %s, dev %s, set ip %s, hw %s, "
 		  "transport %s.\n",
@@ -2095,13 +2107,6 @@ static int iface_set_param(struct iscsi_transport *t, struct iface_rec *iface,
 			    "then retry the login command.\n", iface->name);
 		return EINVAL;
 	}
-
-	/* this assumes that the netdev or hw address is going to be set */
-	hostno = iscsi_sysfs_get_host_no_from_hwinfo(iface, &rc);
-	if (rc)
-		return rc;
-	session->conn[0].bind_ep = 1;
-	session->hostno = hostno;
 
 	rc = __iscsi_host_set_param(t, session->hostno,
 				    ISCSI_HOST_PARAM_IPADDRESS,
