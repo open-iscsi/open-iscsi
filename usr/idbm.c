@@ -2222,10 +2222,7 @@ struct node_rec *idbm_create_rec_from_boot_context(struct boot_context *context)
 		return NULL;
 	}
 
-	/* todo - grab mac and set that here */
 	iface_setup_defaults(&rec->iface);
-	strlcpy(rec->iface.iname, context->initiatorname,
-		sizeof(context->initiatorname));
 	strlcpy(rec->session.auth.username, context->chap_name,
 		sizeof(context->chap_name));
 	strlcpy((char *)rec->session.auth.password, context->chap_password,
@@ -2239,5 +2236,8 @@ struct node_rec *idbm_create_rec_from_boot_context(struct boot_context *context)
 				strlen((char *)context->chap_password);
 	rec->session.auth.password_in_length =
 				strlen((char *)context->chap_password_in);
+
+	iface_setup_from_boot_context(&rec->iface, context);
+
 	return rec;
 }

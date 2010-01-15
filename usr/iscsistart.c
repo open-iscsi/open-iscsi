@@ -127,7 +127,7 @@ static int stop_event_loop(void)
 }
 
 
-static int login_session(void)
+static int login_session(struct node_rec *rec)
 {
 	iscsiadm_req_t req;
 	iscsiadm_rsp_t rsp;
@@ -136,17 +136,17 @@ static int login_session(void)
 	 * For root boot we cannot change this so increase to account
 	 * for boot using static setup.
 	 */
-	config_rec.session.initial_login_retry_max = 30;
+	rec->session.initial_login_retry_max = 30;
 	/* we cannot answer so turn off */
-	config_rec.conn[0].timeo.noop_out_interval = 0;
-	config_rec.conn[0].timeo.noop_out_timeout = 0;
+	rec->conn[0].timeo.noop_out_interval = 0;
+	rec->conn[0].timeo.noop_out_timeout = 0;
 
-	printf("%s: Logging into %s %s:%d,%d\n", program_name, config_rec.name,
-		config_rec.conn[0].address, config_rec.conn[0].port,
-		config_rec.tpgt);
+	printf("%s: Logging into %s %s:%d,%d\n", program_name, rec->name,
+		rec->conn[0].address, rec->conn[0].port,
+		rec->tpgt);
 	memset(&req, 0, sizeof(req));
 	req.command = MGMT_IPC_SESSION_LOGIN;
-	memcpy(&req.u.session.rec, &config_rec, sizeof(node_rec_t));
+	memcpy(&req.u.session.rec, rec, sizeof(*rec));
 
 retry:
 	rc = do_iscsid(&req, &rsp, 0);
@@ -166,39 +166,28 @@ retry:
 static int setup_session(void)
 {
 	struct boot_context *context;
-	struct iscsi_auth_config *auth;
 	int rc = 0, rc2 = 0;
 
 	if (list_empty(&targets))
-		return login_session();
+		return login_session(&config_rec);
 
 	list_for_each_entry(context, &targets, list) {
-		idbm_node_setup_defaults(&config_rec);
+		struct node_rec *rec;
 
-		auth = &config_rec.session.auth;
-		strlcpy(config_rec.name, context->targetname,
-			sizeof(context->targetname));
-		strlcpy(config_rec.conn[0].address, context->target_ipaddr,
-			sizeof(context->target_ipaddr));
-		config_rec.conn[0].port = context->target_port;
-		/* this seems broken ??? */
-		config_rec.tpgt = 1;
-		strlcpy(auth->username, context->chap_name,
-			sizeof(context->chap_name));
-		strlcpy((char *)auth->password, context->chap_password,
-			sizeof(context->chap_password));
-		auth->password_length = strlen((char *)auth->password);
-		strlcpy(auth->username_in, context->chap_name_in,
-			sizeof(context->chap_name_in));
-		strlcpy((char *)auth->password_in, context->chap_password_in,
-			sizeof(context->chap_password_in));
-		auth->password_in_length = strlen((char *)auth->password_in);
-			
-		iface_setup_from_boot_context(&config_rec.iface, context);
+		rec = idbm_create_rec_from_boot_context(context);
+		if (!rec) {
+			log_error("Could not allocate memory. Could "
+				  "not start boot session to "
+				  "%s,%s,%d", context->targetname,
+				  context->target_ipaddr,
+				  context->target_port);
+			continue;
+		}
 
-		rc2 = login_session();
+		rc2 = login_session(rec);
 		if (rc2)
 			rc = rc2;
+		free(rec);
 	}
 	fw_free_targets(&targets);
 	return rc;
