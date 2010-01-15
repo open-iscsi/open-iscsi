@@ -35,9 +35,11 @@ struct iscsi_net_driver {
 };
 
 static struct iscsi_net_driver net_drivers[] = {
+#ifdef OFFLOAD_BOOT_SUPPORTED
 	{"cxgb3", "cxgb3i" },
 	{"bnx2", "bnx2i" },
 	{"bnx2x", "bnx2i"},
+#endif
 	{NULL, NULL}
 };
 
