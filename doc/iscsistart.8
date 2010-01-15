@@ -1,0 +1,67 @@
+.TH ISCSISTART 8 "Jan 2010" "" "Linux Administrator's Manual"
+.SH NAME
+iscsistart \- iSCSI boot tool
+.SH SYNOPSIS
+.BI iscsistart
+[OPTION]
+.SH "DESCRIPTION"
+.B iscsistart
+will start a session using the settings passed in, or
+using the iBFT or Open Firmware [OF] boot information. This program should
+not be run to manage sessions. Its primary use is to start
+sessions used for iSCSI root boot.
+.SH OPTIONS
+.TP
+.BI [-i|--initiatorname=]\fIname\fP
+Set InitiatorName to name (Required if not using iBFT or OF)
+.TP
+.BI [-t|--targetname=]\fIname\fP
+Set TargetName to name (Required if not using iBFT or OF)
+.TP
+.BI [-g|--tgpt=]\fIN\fP
+Set target portal group tag to N (Required if not using iBFT or OF)
+.TP
+.BI [-a|--address=]\fIA.B.C.D\fP
+Set IP addres to A.B.C.D (Required if not using iBFT or OF)
+.TP
+.BI [-p|--port=]\fIN\fP
+Set port to N (Optional. Default 3260)
+.TP
+.BI [-u|--username=]\fIN\fP
+Set username to N (Optional)
+.TP
+.BI [-w|--password=]\fIN\fP
+Set password to N (Optional)
+.TP
+.BI [-U|-username_in=]\fIN\fP
+Set incoming username to N (Optional)
+.TP
+.BI [-W|--password_in=]\fIN\fP
+Set incoming password to N (Optional)
+.TP
+.BI [-d|--debug=]\fIdebug_level\fP
+Print debugging information
+.TP
+.BI [-b|--fwparam_connect]
+Create a session to the target using the iBFT or OF info
+.TP
+.BI [-N|--fwparam_network]
+Bring up the network as specified by iBFT or OF
+.TP
+.BI [-f|--fwparam_print]
+Print the iBFT or OF info to STDOUT
+.TP
+.BI [-h|--help]
+Display this help and exit
+.TP
+.BI [-v|--version]
+Display version and exit
+
+
+.SH "SEE ALSO"
+.BR iscsiadm (8)
+
+.SH AUTHORS
+Open-iSCSI project <http://www.open-iscsi.org/>
+.br
+Mike Christie <mchristi@redhat.com>

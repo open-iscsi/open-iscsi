@@ -98,11 +98,11 @@ Open-iSCSI initiator.\n\
   -u, --username=N         set username to N (optional)\n\
   -w, --password=N         set password to N (optional\n\
   -U, --username_in=N      set incoming username to N (optional)\n\
-  -W, --password_in=N      set incoming password to N (optional\n\
-  -d, --debug debuglevel   print debugging information \n\
-  -b, --fwparam_connect    create a session to the target\n\
-  -N, --fwparam_network    bring up the network as specified by iBFT\n\
-  -f, --fwparam_print      print the iBFT to STDOUT \n\
+  -W, --password_in=N      set incoming password to N (optional)\n\
+  -d, --debug=debuglevel   print debugging information \n\
+  -b, --fwparam_connect    create a session to the target using iBFT or OF\n\
+  -N, --fwparam_network    bring up the network as specified by iBFT or OF\n\
+  -f, --fwparam_print      print the iBFT or OF info to STDOUT \n\
   -h, --help               display this help and exit\n\
   -v, --version            display version and exit\n\
 ");
