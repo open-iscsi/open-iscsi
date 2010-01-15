@@ -189,10 +189,10 @@ static void iscsid_startup(void)
 	startup_cmd = get_global_string_param(CONFIG_FILE, "iscsid.startup = ");
 	if (!startup_cmd) {
 		log_error("iscsid is not running. Could not start it up "
-			  "automatically using the startup command in "
-			  "/etc/iscsi/iscsid.start. Please check that the "
-			  "file exists or that your init scripts have "
-			  "started iscsid.");
+			  "automatically using the startup command in the "
+			  "/etc/iscsi/iscsid.conf iscsid.startup setting. "
+			  "Please check that the file exists or that your "
+			  "init scripts have started iscsid.");
 		return;
 	}
 
