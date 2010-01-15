@@ -29,7 +29,7 @@
 #include <sys/stat.h>
 
 #include "initiator.h"
-#include "iscsiadm.h"
+#include "discovery.h"
 #include "log.h"
 #include "mgmt_ipc.h"
 #include "idbm.h"
@@ -548,44 +548,6 @@ static int logout_portals(struct node_rec *pattern_rec)
 	int nr_found;
 
 	return __logout_portals(pattern_rec, &nr_found, logout_portal);
-}
-
-static struct node_rec *
-create_node_record(char *targetname, int tpgt, char *ip, int port,
-		   struct iface_rec *iface, int verbose)
-{
-	struct node_rec *rec;
-
-	rec = calloc(1, sizeof(*rec));
-	if (!rec) {
-		log_error("Could not not allocate memory to create node "
-			  "record.");
-		return NULL;
-	}
-
-	idbm_node_setup_defaults(rec);
-	if (targetname)
-		strlcpy(rec->name, targetname, TARGET_NAME_MAXLEN);
-	rec->tpgt = tpgt;
-	rec->conn[0].port = port;
-	if (ip)
-		strlcpy(rec->conn[0].address, ip, NI_MAXHOST);
-	memset(&rec->iface, 0, sizeof(struct iface_rec));
-	if (iface) {
-		iface_copy(&rec->iface, iface);
-		if (strlen(iface->name)) {
-			if (iface_conf_read(&rec->iface)) {
-				if (verbose)
-					log_error("Could not read iface info "
-						  "for %s.", iface->name);
-				goto free_rec;
-			}
-		}
-	}
-	return rec;
-free_rec:
-	free(rec);
-	return NULL;
 }
 
 static int login_portal(void *data, struct list_head *list,
@@ -1341,7 +1303,7 @@ static int exec_iface_op(int op, int do_show, int info_level,
 			return EINVAL;
 		}
 
-		rec = create_node_record(NULL, -1, NULL, -1, iface, 0);
+		rec = idbm_create_rec(NULL, -1, NULL, -1, iface, 0);
 		if (rec && check_for_session_through_iface(rec)) {
 			rc = EBUSY;
 			goto new_fail;
@@ -1363,7 +1325,7 @@ new_fail:
 			return EINVAL;
 		}
 
-		rec = create_node_record(NULL, -1, NULL, -1, iface, 1);
+		rec = idbm_create_rec(NULL, -1, NULL, -1, iface, 1);
 		if (!rec) {
 			rc = EINVAL;
 			goto delete_fail;
@@ -1392,7 +1354,7 @@ delete_fail:
 			break;
 		}
 
-		rec = create_node_record(NULL, -1, NULL, -1, iface, 1);
+		rec = idbm_create_rec(NULL, -1, NULL, -1, iface, 1);
 		if (!rec) {
 			rc = EINVAL;
 			goto update_fail;
@@ -1596,39 +1558,6 @@ out:
 	return rc;
 }
 
-struct node_rec *fw_create_rec_by_entry(struct boot_context *context)
-{
-	struct node_rec *rec;
-
-	/* tpgt hard coded to 1 ??? */
-	rec = create_node_record(context->targetname, 1,
-				 context->target_ipaddr, context->target_port,
-				 NULL, 1);
-	if (!rec) {
-		log_error("Could not setup rec for fw discovery login.");
-		return NULL;
-	}
-
-	/* todo - grab mac and set that here */
-	iface_setup_defaults(&rec->iface);
-	strlcpy(rec->iface.iname, context->initiatorname,
-		sizeof(context->initiatorname));
-	strlcpy(rec->session.auth.username, context->chap_name,
-		sizeof(context->chap_name));
-	strlcpy((char *)rec->session.auth.password, context->chap_password,
-		sizeof(context->chap_password));
-	strlcpy(rec->session.auth.username_in, context->chap_name_in,
-		sizeof(context->chap_name_in));
-	strlcpy((char *)rec->session.auth.password_in,
-		context->chap_password_in,
-		sizeof(context->chap_password_in));
-	rec->session.auth.password_length =
-				strlen((char *)context->chap_password);
-	rec->session.auth.password_in_length =
-				strlen((char *)context->chap_password_in);
-	return rec;
-}
-
 static int exec_fw_op(discovery_rec_t *drec, struct list_head *ifaces,
 		      int info_level, int do_login, int op)
 {
@@ -1688,7 +1617,7 @@ static int exec_fw_op(discovery_rec_t *drec, struct list_head *ifaces,
 
 	if (do_login) {
 		list_for_each_entry(context, &targets, list) {
-			rec = fw_create_rec_by_entry(context);
+			rec = idbm_create_rec_from_boot_context(context);
 			if (!rec) {
 				log_error("Could not convert firmware info to "
 					  "node record.\n");
@@ -2073,7 +2002,7 @@ main(int argc, char **argv)
 					  iface->hwaddress, iface->ipaddress);
 		}
 
-		rec = create_node_record(targetname, tpgt, ip, port, iface, 1);
+		rec = idbm_create_rec(targetname, tpgt, ip, port, iface, 1);
 		if (!rec) {
 			rc = -1;
 			goto out;
@@ -2127,11 +2056,11 @@ main(int argc, char **argv)
 				goto free_info;
 			}
 
-			rec = create_node_record(info->targetname,
-						 info->tpgt,
-						 info->persistent_address,
-						 info->persistent_port,
-						 &info->iface, 1);
+			rec = idbm_create_rec(info->targetname,
+					      info->tpgt,
+					      info->persistent_address,
+					      info->persistent_port,
+					      &info->iface, 1);
 			if (!rec) {
 				rc = -1;
 				goto free_info;

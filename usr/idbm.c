@@ -39,6 +39,7 @@
 #include "iscsi_sysfs.h"
 #include "iface.h"
 #include "sysdeps.h"
+#include "fw_context.h"
 
 #define IDBM_HIDE	0    /* Hide parameter when print. */
 #define IDBM_SHOW	1    /* Show parameter when print. */
@@ -192,7 +193,7 @@ idbm_recinfo_discovery(discovery_rec_t *r, recinfo_t *ri)
 	}
 }
 
-static void
+void
 idbm_recinfo_node(node_rec_t *r, recinfo_t *ri)
 {
 	int num = 0, i;
@@ -487,6 +488,9 @@ setup_passwd_len:
 					    "unknown value format '%s' for "
 					    "parameter name '%s'",
 					    line_number, value, name);
+			} else {
+				log_error("unknown value format '%s' for "
+					  "parameter name '%s'", value, name);
 			}
 			break;
 		}
@@ -1091,7 +1095,7 @@ int idbm_print_all_discovery(int info_level)
  * This iterates over the ifaces in use in the nodes dir.
  * It does not iterate over the ifaces setup in /etc/iscsi/ifaces.
  */
-static int idbm_for_each_iface(int *found, void *data,
+int idbm_for_each_iface(int *found, void *data,
 				idbm_iface_op_fn *fn,
 				char *targetname, int tpgt, char *ip, int port)
 {
@@ -1135,6 +1139,7 @@ read_iface:
 
 	iface_dirfd = opendir(portal);
 	if (!iface_dirfd) {
+		log_error("iface iter could not read dir %s.", portal);
 		rc = errno;
 		goto free_portal;
 	}
@@ -2152,4 +2157,87 @@ void idbm_terminate(void)
 {
 	if (db)
 		free(db);
+}
+
+/**
+ * idbm_create_rec - allocate and setup a node record
+ * @targetname: target name
+ * @tgpt: target portal group
+ * @ip: ip address of portal
+ * @port: port of portal
+ * @iface: iscsi iface info
+ * @verbose: flag indicating whether to log ifaces setup errors
+ *
+ * The iface only needs to have the name set. This function will
+ * read in the other values.
+ */
+struct node_rec *idbm_create_rec(char *targetname, int tpgt, char *ip,
+				 int port, struct iface_rec *iface,
+				 int verbose)
+{
+	struct node_rec *rec;
+
+	rec = calloc(1, sizeof(*rec));
+	if (!rec) {
+		log_error("Could not not allocate memory to create node "
+			  "record.");
+		return NULL;
+	}
+
+	idbm_node_setup_defaults(rec);
+	if (targetname)
+		strlcpy(rec->name, targetname, TARGET_NAME_MAXLEN);
+	rec->tpgt = tpgt;
+	rec->conn[0].port = port;
+	if (ip)
+		strlcpy(rec->conn[0].address, ip, NI_MAXHOST);
+	memset(&rec->iface, 0, sizeof(struct iface_rec));
+	if (iface) {
+		iface_copy(&rec->iface, iface);
+		if (strlen(iface->name)) {
+			if (iface_conf_read(&rec->iface)) {
+				if (verbose)
+					log_error("Could not read iface info "
+						  "for %s.", iface->name);
+				goto free_rec;
+			}
+		}
+	}
+	return rec;
+free_rec:
+	free(rec);
+	return NULL;
+}
+
+struct node_rec *idbm_create_rec_from_boot_context(struct boot_context *context)
+{
+	struct node_rec *rec;
+
+	/* tpgt hard coded to 1 ??? */
+	rec = idbm_create_rec(context->targetname, 1,
+			      context->target_ipaddr, context->target_port,
+			      NULL, 1);
+	if (!rec) {
+		log_error("Could not setup rec for fw discovery login.");
+		return NULL;
+	}
+
+	/* todo - grab mac and set that here */
+	iface_setup_defaults(&rec->iface);
+	strlcpy(rec->iface.iname, context->initiatorname,
+		sizeof(context->initiatorname));
+	strlcpy(rec->session.auth.username, context->chap_name,
+		sizeof(context->chap_name));
+	strlcpy((char *)rec->session.auth.password, context->chap_password,
+		sizeof(context->chap_password));
+	strlcpy(rec->session.auth.username_in, context->chap_name_in,
+		sizeof(context->chap_name_in));
+	strlcpy((char *)rec->session.auth.password_in,
+		context->chap_password_in,
+		sizeof(context->chap_password_in));
+	rec->session.auth.password_length =
+				strlen((char *)context->chap_password);
+	rec->session.auth.password_in_length =
+				strlen((char *)context->chap_password_in);
+	return rec;
 }

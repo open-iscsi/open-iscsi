@@ -92,6 +92,9 @@ struct rec_op_data {
 	node_rec_t *match_rec;
 	idbm_iface_op_fn *fn;
 };
+extern int idbm_for_each_iface(int *found, void *data,
+				idbm_iface_op_fn *fn,
+				char *targetname, int tpgt, char *ip, int port);
 extern int idbm_for_each_portal(int *found, void *data,
 				idbm_portal_op_fn *fn, char *targetname);
 extern int idbm_for_each_node(int *found, void *data,
@@ -150,6 +153,7 @@ extern recinfo_t *idbm_recinfo_alloc(int max_keys);
 extern int idbm_verify_param(recinfo_t *info, char *name);
 extern int idbm_rec_update_param(recinfo_t *info, char *name, char *value,
 				 int line_number);
+extern void idbm_recinfo_node(node_rec_t *r, recinfo_t *ri);
 
 enum {
 	IDBM_PRINT_TYPE_DISCOVERY,
@@ -158,5 +162,13 @@ enum {
 };
 
 extern void idbm_print(int type, void *rec, int show, FILE *f);
+
+struct boot_context;
+extern struct node_rec *idbm_create_rec(char *targetname, int tpgt,
+					char *ip, int port,
+					struct iface_rec *iface,
+					int verbose);
+extern struct node_rec *
+idbm_create_rec_from_boot_context(struct boot_context *context);
 
 #endif /* IDBM_H */
