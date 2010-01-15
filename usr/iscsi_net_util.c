@@ -38,7 +38,6 @@ static struct iscsi_net_driver net_drivers[] = {
 	{"cxgb3", "cxgb3i" },
 	{"bnx2", "bnx2i" },
 	{"bnx2x", "bnx2i"},
-	{"be2net", "be2iscsi"},
 	{NULL, NULL}
 };
 
