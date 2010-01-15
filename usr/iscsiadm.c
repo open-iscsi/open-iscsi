@@ -1820,8 +1820,6 @@ main(int argc, char **argv)
 		goto free_ifaces;
 	}
 
-	iface_setup_host_bindings();
-
 	switch (mode) {
 	case MODE_HOST:
 		if ((rc = verify_mode_params(argc, argv, "HdmP", 0))) {
@@ -1834,6 +1832,8 @@ main(int argc, char **argv)
 		rc = host_info_print(info_level, host_no);
 		break;
 	case MODE_IFACE:
+		iface_setup_host_bindings();
+
 		if ((rc = verify_mode_params(argc, argv, "IdnvmPo", 0))) {
 			log_error("iface mode: option '-%c' is not "
 				  "allowed/supported", rc);
