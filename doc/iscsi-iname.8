@@ -1,0 +1,22 @@
+.TH ISCSI_INAME 8 "Jan 2010" "" "Linux Administrator's Manual"
+.SH NAME
+iscsi-iname \- iSCSI initiator name generation tool
+.SH SYNOPSIS
+.BI iscsi-iname
+[OPTION]
+.SH "DESCRIPTION"
+.B iscsi-iname
+generates a unique iSCSI node name on every invocation.
+
+.SH OPTIONS
+.TP
+.BI [-h|--help]
+Display help
+.TP
+.BI [-p=]\fIprefix\fP
+Use the prefix passed in instead of the default "iqn.2005-03.org.open-iscsi"
+
+.SH AUTHORS
+Open-iSCSI project <http://www.open-iscsi.org/>
+.br
+Mike Christie <mchristi@redhat.com>
