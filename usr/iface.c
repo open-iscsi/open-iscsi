@@ -775,8 +775,8 @@ void iface_setup_from_boot_context(struct iface_rec *iface,
 			sizeof(iface->iname));
 
 	if (strlen(context->iface)) {
-		if (!net_get_transport_name_from_iface(context->iface,
-						       iface->transport_name)) {
+		if (!net_get_transport_name_from_netdev(context->iface,
+						iface->transport_name)) {
 			/* set up for access through offload card */
 			memset(iface->name, 0, sizeof(iface->name));
 			snprintf(iface->name, sizeof(iface->name),
@@ -815,7 +815,7 @@ int iface_create_ifaces_from_boot_contexts(struct list_head *ifaces,
 	list_for_each_entry(context, targets, list) {
 		memset(transport_name, 0, ISCSI_TRANSPORT_NAME_MAXLEN);
 
-		if (net_get_transport_name_from_iface(context->iface,
+		if (net_get_transport_name_from_netdev(context->iface,
 						       transport_name))
 			continue;
 

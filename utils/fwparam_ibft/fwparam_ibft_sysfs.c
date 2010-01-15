@@ -181,7 +181,8 @@ static int fill_nic_context(char *id, struct boot_context *context)
 	 */
 	rc = get_iface_from_device(id, context);
 	if (rc) {
-		rc = net_get_dev_from_hwaddress(context->mac, context->iface);
+		rc = net_get_netdev_from_hwaddress(context->mac,
+						   context->iface);
 		if (rc)
 			return rc;
 	}
