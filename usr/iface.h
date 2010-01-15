@@ -25,6 +25,7 @@
 struct iface_rec;
 struct list_head;
 struct db_set_param;
+struct boot_context;
 
 extern void iface_copy(struct iface_rec *dst, struct iface_rec *src);
 extern int iface_match(struct iface_rec *pattern, struct iface_rec *iface);
@@ -49,6 +50,8 @@ extern int iface_conf_write(struct iface_rec *iface);
 extern int iface_conf_delete(struct iface_rec *iface);
 extern int iface_is_valid(struct iface_rec *iface);
 extern void iface_link_ifaces(struct list_head *ifaces);
+extern void iface_setup_from_boot_context(struct iface_rec *iface,
+                                   struct boot_context *context);
 
 #define iface_fmt "[hw=%s,ip=%s,net_if=%s,iscsi_if=%s]"
 #define iface_str(_iface) \

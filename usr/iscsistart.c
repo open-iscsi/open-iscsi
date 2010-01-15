@@ -44,6 +44,7 @@
 #include "iscsi_sysfs.h"
 #include "iscsi_settings.h"
 #include "fw_context.h"
+#include "iface.h"
 #include "sysdeps.h"
 
 /* global config info */
@@ -192,6 +193,8 @@ static int setup_session(void)
 		strlcpy((char *)auth->password_in, context->chap_password_in,
 			sizeof(context->chap_password_in));
 		auth->password_in_length = strlen((char *)auth->password_in);
+			
+		iface_setup_from_boot_context(&config_rec.iface, context);
 
 		rc2 = login_session();
 		if (rc2)

@@ -37,6 +37,7 @@
 #include "iface.h"
 #include "session_info.h"
 #include "host.h"
+#include "fw_context.h"
 #include "sysdeps.h"
 
 /*
@@ -766,4 +767,29 @@ void iface_link_ifaces(struct list_head *ifaces)
 	iface_for_each_iface(ifaces, &nr_found, iface_link);
 }
 
+void iface_setup_from_boot_context(struct iface_rec *iface,
+				   struct boot_context *context)
+{
+	if (strlen(context->initiatorname))
+		strlcpy(iface->iname, context->initiatorname,
+			sizeof(iface->iname));
 
+	if (strlen(context->iface)) {
+		if (!net_get_transport_name_from_iface(context->iface,
+						       iface->transport_name)) {
+			/* set up for access through offload card */
+			memset(iface->name, 0, sizeof(iface->name));
+			snprintf(iface->name, sizeof(iface->name),
+				 "%s.%s", iface->transport_name,
+				 context->mac);
+
+			strlcpy(iface->netdev, context->iface,
+				sizeof(iface->netdev));
+			strlcpy(iface->hwaddress, context->mac,
+				sizeof(iface->hwaddress));
+			strlcpy(iface->ipaddress, context->ipaddr,
+				sizeof(iface->ipaddress));
+		}
+	}
+	log_debug(1, "iface " iface_fmt "\n", iface_str(iface));
+}
