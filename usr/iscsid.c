@@ -234,21 +234,20 @@ static int sync_session(void *data, struct session_info *info)
 		 * the values from them and sysfs to try and get
 		 * the most uptodate values.
 		 *
-		 * Currenlty that means we will use the CHAP, target and
-		 * and portal values from sysfs and use timer, queue depth,
-		 * and segment length values from the record. In the future
-		 * when boot supports iface binding we will want to use
-		 * those values from sysfs.
+		 * Currenlty that means we will use the CHAP, target, portal
+		 * and iface values from sysfs and use timer, queue depth,
+		 * and segment length values from the record.
 		 */
 		memset(&sysfsrec, 0, sizeof(node_rec_t));
 		setup_rec_from_negotiated_values(&sysfsrec, info);
 		/*
-		 * target and portal values have to be the same or
-		 * we would not have found the record, so just copy
-		 * CHAP.
+		 * target, portal and iface name values have to be the same
+		 * or we would not have found the record, so just copy
+		 * CHAP and iface settings.
 		 */
 		memcpy(&rec.session.auth, &sysfsrec.session.auth,
 		      sizeof(struct iscsi_auth_config));
+		memcpy(&rec.iface, &info->iface, sizeof(rec.iface));
 	}
 
 	/* multiple drivers could be connected to the same portal */

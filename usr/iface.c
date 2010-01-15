@@ -453,8 +453,8 @@ static int __iface_setup_host_bindings(void *data, struct host_info *hinfo)
 		snprintf(iface.name, sizeof(iface.name), "%s.%s",
 			 t->name, hinfo->iface.hwaddress);
 		if (iface_conf_write(&iface))
-			log_error("Could not write iface conf for %s %s",
-				  iface.name, iface.hwaddress);
+			log_error("Could not create default iface conf %s.",
+				  iface.name);
 			/* fall through - will not be persistent */
 	}
 	return 0;
@@ -792,4 +792,62 @@ void iface_setup_from_boot_context(struct iface_rec *iface,
 		}
 	}
 	log_debug(1, "iface " iface_fmt "\n", iface_str(iface));
+}
+
+/**
+ * iface_create_ifaces_from_boot_contexts - create ifaces based on boot info
+ * @ifaces: list to store ifaces in
+ * @targets: list of targets to create ifaces from
+ *
+ * This function will create a iface struct based on the boot info
+ * and it will create (or update if existing already) a iface rec in
+ * the ifaces dir based on the info.
+ */
+int iface_create_ifaces_from_boot_contexts(struct list_head *ifaces,
+					   struct list_head *targets)
+{
+	char transport_name[ISCSI_TRANSPORT_NAME_MAXLEN];
+	char iface_name[ISCSI_MAX_IFACE_LEN];
+	struct boot_context *context;
+	struct iface_rec *iface, *tmp_iface;
+	int rc = 0;
+
+	list_for_each_entry(context, targets, list) {
+		memset(transport_name, 0, ISCSI_TRANSPORT_NAME_MAXLEN);
+
+		if (net_get_transport_name_from_iface(context->iface,
+						       transport_name))
+			continue;
+
+		/* offload + ibft support */
+		memset(iface_name, 0, ISCSI_MAX_IFACE_LEN);
+		snprintf(iface_name, ISCSI_MAX_IFACE_LEN,
+			 "%s.%s", transport_name, context->mac);
+
+		rc = 0;
+		iface = iface_alloc(iface_name, &rc);
+		if (!iface) {
+			log_error("Could not setup iface %s for boot\n",
+				  iface_name);
+			goto fail;
+		}
+		iface_setup_from_boot_context(iface, context);
+
+		rc = iface_conf_write(iface);
+		if (rc) {
+			log_error("Could not setup default iface conf "
+				  "for %s.", iface->name);
+			free(iface);
+			goto fail;
+		}
+		list_add_tail(&iface->list, ifaces);
+	}
+
+	return 0;
+fail:
+	list_for_each_entry_safe(iface, tmp_iface, ifaces, list) {
+		list_del(&iface->list);
+		free(iface);
+	}
+	return rc;
 }

@@ -44,6 +44,7 @@
 #include "session_info.h"
 #include "host.h"
 #include "sysdeps.h"
+#include "idbm_fields.h"
 
 struct iscsi_ipc *ipc = NULL; /* dummy */
 static char program_name[] = "iscsiadm";
@@ -1360,12 +1361,13 @@ delete_fail:
 			goto update_fail;
 		}
 
-		if (check_for_session_through_iface(rec)) {
-			rc = EINVAL;
-			goto update_fail;
-		}
+		if (check_for_session_through_iface(rec))
+			log_warning("Updating iface while iscsi sessions "
+				    "are using it. You must logout the running "
+				    "sessions then log back in for the "
+				    "new settings to take affect.");
 
-		if (!strcmp(name, "iface.iscsi_ifacename")) {
+		if (!strcmp(name, IFACE_ISCSINAME)) {
 			log_error("Can not update "
 				  "iface.iscsi_ifacename. Delete it, "
 				  "and then create a new one.");
@@ -1374,7 +1376,7 @@ delete_fail:
 		}
 
 		if (iface_is_bound_by_hwaddr(&rec->iface) &&
-		    !strcmp(name, "iface.net_ifacename")) {
+		    !strcmp(name, IFACE_NETNAME)) {
 			log_error("Can not update interface binding "
 				  "from hwaddress to net_ifacename. ");
 			log_error("You must delete the interface and "
@@ -1384,7 +1386,7 @@ delete_fail:
 		}
 
 		if (iface_is_bound_by_netdev(&rec->iface) &&
-		    !strcmp(name, "iface.hwaddress")) {
+		    !strcmp(name, IFACE_HWADDR)) {
 			log_error("Can not update interface binding "
 				  "from net_ifacename to hwaddress. ");
 			log_error("You must delete the interface and "
@@ -1558,26 +1560,29 @@ out:
 	return rc;
 }
 
-static int exec_fw_op(discovery_rec_t *drec, struct list_head *ifaces,
-		      int info_level, int do_login, int op)
+static int exec_fw_disc_op(discovery_rec_t *drec, struct list_head *ifaces,
+			   int info_level, int do_login, int op)
 {
-	struct boot_context *context;
-	struct list_head targets, rec_list;
+	struct list_head targets, rec_list, new_ifaces;
 	struct iface_rec *iface, *tmp_iface;
 	struct node_rec *rec, *tmp_rec;
 	int rc = 0;
 
 	INIT_LIST_HEAD(&targets);
 	INIT_LIST_HEAD(&rec_list);
+	INIT_LIST_HEAD(&new_ifaces);
+	/*
+	 * compat: if the user did not pass any op then we do all
+	 * ops for them
+	 */
+	if (!op)
+		op = OP_NEW | OP_DELETE | OP_UPDATE;
 
-	if (drec) {
-		/*
-		 * compat: if the user did not pass any op then we do all
-		 * ops for them
-		 */
-		if (!op)
-			op = OP_NEW | OP_DELETE | OP_UPDATE;
-
+	/*
+	 * if a user passed in ifaces then we use them and ignore the ibft
+	 * net info
+	 */
+	if (!list_empty(ifaces)) {
 		list_for_each_entry_safe(iface, tmp_iface, ifaces, list) {
 			rc = iface_conf_read(iface);
 			if (rc) {
@@ -1591,21 +1596,70 @@ static int exec_fw_op(discovery_rec_t *drec, struct list_head *ifaces,
 				continue;
 			}
 		}
+		goto discover_fw_tgts;
+	}
 
-		rc = idbm_bind_ifaces_to_nodes(discovery_fw, drec,
-					       ifaces, &rec_list);
-		if (rc)
-			log_error("Could not perform fw discovery.\n");
-		else
-			rc = exec_disc_op_on_recs(drec, &rec_list, info_level,
-						   do_login, op);
-
-		list_for_each_entry_safe(rec, tmp_rec, &rec_list, list) {
-			list_del(&rec->list);
-			free(rec);
-		}
+	/*
+	 * Next, check if we see any offload cards. If we do then
+	 * we make a iface if needed.
+	 *
+	 * Note1: if there is not a offload card we do not setup
+	 * software iscsi binding with the nic used for booting,
+	 * because we do not know if that was intended.
+	 *
+	 * Note2: we assume that the user probably wanted to access
+	 * all targets through all the ifaces instead of being limited
+	 * to what you can export in ibft.
+	 */
+	rc = fw_get_targets(&targets);
+	if (rc) {
+		log_error("Could not get list of targets from firmware. "
+			  "(err %d)\n", rc);
 		return rc;
 	}
+	rc = iface_create_ifaces_from_boot_contexts(&new_ifaces, &targets);
+	if (rc)
+		goto done;
+	if (!list_empty(&new_ifaces))
+		ifaces = &new_ifaces;
+
+discover_fw_tgts:
+	rc = idbm_bind_ifaces_to_nodes(discovery_fw, drec,
+				       ifaces, &rec_list);
+	if (rc)
+		log_error("Could not perform fw discovery.\n");
+	else
+		rc = exec_disc_op_on_recs(drec, &rec_list, info_level,
+					   do_login, op);
+
+done:
+	fw_free_targets(&targets);
+
+	list_for_each_entry_safe(iface, tmp_iface, &new_ifaces, list) {
+		list_del(&iface->list);
+		free(iface);
+	}
+
+	list_for_each_entry_safe(rec, tmp_rec, &rec_list, list) {
+		list_del(&rec->list);
+		free(rec);
+	}
+	return rc;
+}
+
+static int exec_fw_op(discovery_rec_t *drec, struct list_head *ifaces,
+		      int info_level, int do_login, int op)
+{
+	struct boot_context *context;
+	struct list_head targets, rec_list;
+	struct node_rec *rec;
+	int rc = 0;
+
+	INIT_LIST_HEAD(&targets);
+	INIT_LIST_HEAD(&rec_list);
+
+	if (drec)
+		return exec_fw_disc_op(drec, ifaces, info_level, do_login, op);
 
 	/* The following ops do not interact with the DB */
 	rc = fw_get_targets(&targets);
