@@ -156,5 +156,3 @@ free_ifni:
 		return ENODEV;
 	return 0;
 }
-
-

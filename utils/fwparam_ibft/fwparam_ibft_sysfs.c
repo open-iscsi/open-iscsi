@@ -80,6 +80,84 @@ static int find_sysfs_dirs(const char *fpath, const struct stat *sb,
 
 	return 0;
 }
+ 
+static int get_iface_from_device(char *id, struct boot_context *context)
+{
+	char dev_dir[FILENAMESZ];
+	int rc = ENODEV;
+	DIR *dirfd;
+	struct dirent *dent;
+
+	memset(dev_dir, 0, FILENAMESZ);
+	snprintf(dev_dir, FILENAMESZ, IBFT_SYSFS_ROOT"/%s/device", id);
+
+	if (!file_exist(dev_dir))
+		return 0;
+
+	dirfd = opendir(dev_dir);
+	if (!dirfd)
+		return errno;
+
+	while ((dent = readdir(dirfd))) {
+		if (!strcmp(dent->d_name, ".") || !strcmp(dent->d_name, "..") ||
+		    strncmp(dent->d_name, "net:", 4))
+			continue;
+
+		if (!strncmp(dent->d_name, "net:", 4)) {
+			if ((strlen(dent->d_name) - 4) >
+			    (sizeof(context->iface) - 1)) {
+				rc = EINVAL;
+				printf("Net device %s too big for iface "
+				       "buffer.\n", dent->d_name);
+				break;
+			}
+
+			if (sscanf(dent->d_name, "net:%s", context->iface) != 1)
+				rc = EINVAL;
+			rc = 0;
+			break;
+		} else {
+			printf("Could not read ethernet to net link.\n");
+			rc = EOPNOTSUPP;
+			break;
+		}
+	}
+
+	closedir(dirfd);
+
+	if (rc != ENODEV)
+		return rc;
+
+	/* If not found try again with newer kernel networkdev sysfs layout */
+	strlcat(dev_dir, "/net", FILENAMESZ);
+
+	if (!file_exist(dev_dir))
+		return rc;
+
+	dirfd = opendir(dev_dir);
+	if (!dirfd)
+		return errno;
+
+	while ((dent = readdir(dirfd))) {
+		if (!strcmp(dent->d_name, ".") || !strcmp(dent->d_name, ".."))
+			continue;
+
+		/* Take the first "regular" directory entry */
+		if (strlen(dent->d_name) > (sizeof(context->iface) - 1)) {
+			rc = EINVAL;
+			printf("Net device %s too big for iface buffer.\n",
+			       dent->d_name);
+			break;
+		}
+
+		strcpy(context->iface, dent->d_name);
+		rc = 0;
+		break;
+	}
+
+	closedir(dirfd);
+	return rc;
+}
 
 /*
  * Routines to fill in the context values.
@@ -93,9 +171,20 @@ static int fill_nic_context(char *id, struct boot_context *context)
 	if (rc)
 		return rc;
 
-	rc = net_get_dev_from_hwaddress(context->mac, context->iface);
-	if (rc)
-		return rc;
+	/*
+	 * Some offload cards like bnx2i use different MACs for the net and
+	 * iscsi functions, so we have to follow the sysfs links.
+	 *
+	 * Other ibft implementations may not be tied to a pci function,
+	 * so there will not be any device/net link, so we drop down to
+	 * the MAC matching.
+	 */
+	rc = get_iface_from_device(id, context);
+	if (rc) {
+		rc = net_get_dev_from_hwaddress(context->mac, context->iface);
+		if (rc)
+			return rc;
+	}
 
 	sysfs_get_str(id, IBFT_SUBSYS, "ip-addr", context->ipaddr,
 		      sizeof(context->ipaddr));
