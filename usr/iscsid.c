@@ -472,14 +472,15 @@ int main(int argc, char *argv[])
 	memset(&daemon_config, 0, sizeof (daemon_config));
 	daemon_config.pid_file = pid_file;
 	daemon_config.config_file = config_file;
-	daemon_config.initiator_name =
-				get_iscsi_initiatorname(initiatorname_file);
+	daemon_config.initiator_name = cfg_get_string_param(initiatorname_file,
+							    "InitiatorName=");
 	if (daemon_config.initiator_name == NULL)
 		missing_iname_warn(initiatorname_file);
 
 	/* optional InitiatorAlias */
 	daemon_config.initiator_alias =
-				get_iscsi_initiatoralias(initiatorname_file);
+				cfg_get_string_param(initiatorname_file,
+						     "InitiatorAlias=");
 	if (!daemon_config.initiator_alias) {
 		memset(&host_info, 0, sizeof (host_info));
 		if (uname(&host_info) >= 0) {

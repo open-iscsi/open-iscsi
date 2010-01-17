@@ -143,7 +143,7 @@ char *strstrip(char *s)
 	return s;
 }
 
-char *get_global_string_param(char *pathname, const char *key)
+char *cfg_get_string_param(char *pathname, const char *key)
 {
 	FILE *f = NULL;
 	int len;
@@ -186,7 +186,7 @@ static void iscsid_startup(void)
 {
 	char *startup_cmd;
 
-	startup_cmd = get_global_string_param(CONFIG_FILE, "iscsid.startup = ");
+	startup_cmd = cfg_get_string_param(CONFIG_FILE, "iscsid.startup = ");
 	if (!startup_cmd) {
 		log_error("iscsid is not running. Could not start it up "
 			  "automatically using the startup command in the "

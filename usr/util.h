@@ -33,6 +33,6 @@ extern int __iscsi_match_session(struct node_rec *rec, char *targetname,
 				 struct iface_rec *iface);
 
 extern char *strstrip(char *s);
-extern char *get_global_string_param(char *pathname, const char *key);
+extern char *cfg_get_string_param(char *pathname, const char *key);
 
 #endif

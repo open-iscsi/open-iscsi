@@ -101,8 +101,6 @@ extern int idbm_for_each_node(int *found, void *data,
 extern int idbm_for_each_rec(int *found, void *data,
 			     idbm_iface_op_fn *fn);
 
-extern char* get_iscsi_initiatorname(char *pathname);
-extern char* get_iscsi_initiatoralias(char *pathname);
 extern int idbm_init(idbm_get_config_file_fn *fn);
 
 extern void idbm_node_setup_from_conf(node_rec_t *rec);

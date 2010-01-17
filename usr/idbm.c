@@ -128,22 +128,6 @@ static struct idbm *db;
 	_n++; \
 } while(0)
 
-char *get_iscsi_initiatorname(char *pathname)
-{
-	char *name;
-
-	name = get_global_string_param(pathname, "InitiatorName=");
-	if (!name)
-		log_error("An InitiatorName= is required, but was not "
-			  "found in %s", pathname);
-	return name;
-}
-
-char *get_iscsi_initiatoralias(char *pathname)
-{
-	return get_global_string_param(pathname, "InitiatorAlias=");
-}
-
 static void
 idbm_recinfo_discovery(discovery_rec_t *r, recinfo_t *ri)
 {
