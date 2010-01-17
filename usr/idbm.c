@@ -2241,3 +2241,61 @@ struct node_rec *idbm_create_rec_from_boot_context(struct boot_context *context)
 
 	return rec;
 }
+
+void idbm_node_setup_defaults(node_rec_t *rec)
+{
+	int i;
+
+	memset(rec, 0, sizeof(node_rec_t));
+
+	INIT_LIST_HEAD(&rec->list);
+
+	rec->tpgt = PORTAL_GROUP_TAG_UNKNOWN;
+	rec->disc_type = DISCOVERY_TYPE_STATIC;
+	rec->session.cmds_max = CMDS_MAX;
+	rec->session.xmit_thread_priority = XMIT_THREAD_PRIORITY;
+	rec->session.initial_cmdsn = 0;
+	rec->session.queue_depth = QUEUE_DEPTH;
+	rec->session.initial_login_retry_max = DEF_INITIAL_LOGIN_RETRIES_MAX;
+	rec->session.reopen_max = 32;
+	rec->session.auth.authmethod = 0;
+	rec->session.auth.password_length = 0;
+	rec->session.auth.password_in_length = 0;
+	rec->session.err_timeo.abort_timeout = DEF_ABORT_TIMEO;
+	rec->session.err_timeo.lu_reset_timeout = DEF_LU_RESET_TIMEO;
+	rec->session.err_timeo.tgt_reset_timeout = DEF_TGT_RESET_TIMEO;
+	rec->session.err_timeo.host_reset_timeout = DEF_HOST_RESET_TIMEO;
+	rec->session.timeo.replacement_timeout = DEF_REPLACEMENT_TIMEO;
+	rec->session.iscsi.InitialR2T = 0;
+	rec->session.iscsi.ImmediateData = 1;
+	rec->session.iscsi.FirstBurstLength = DEF_INI_FIRST_BURST_LEN;
+	rec->session.iscsi.MaxBurstLength = DEF_INI_MAX_BURST_LEN;
+	rec->session.iscsi.DefaultTime2Wait = ISCSI_DEF_TIME2WAIT;
+	rec->session.iscsi.DefaultTime2Retain = 0;
+	rec->session.iscsi.MaxConnections = 1;
+	rec->session.iscsi.MaxOutstandingR2T = 1;
+	rec->session.iscsi.ERL = 0;
+	rec->session.iscsi.FastAbort = 1;
+
+	for (i=0; i<ISCSI_CONN_MAX; i++) {
+		rec->conn[i].startup = ISCSI_STARTUP_MANUAL;
+		rec->conn[i].port = ISCSI_LISTEN_PORT;
+		rec->conn[i].tcp.window_size = TCP_WINDOW_SIZE;
+		rec->conn[i].tcp.type_of_service = 0;
+		rec->conn[i].timeo.login_timeout= DEF_LOGIN_TIMEO;
+		rec->conn[i].timeo.logout_timeout= DEF_LOGOUT_TIMEO;
+		rec->conn[i].timeo.auth_timeout = 45;
+
+		rec->conn[i].timeo.noop_out_interval = DEF_NOOP_OUT_INTERVAL;
+		rec->conn[i].timeo.noop_out_timeout = DEF_NOOP_OUT_TIMEO;
+
+		rec->conn[i].iscsi.MaxRecvDataSegmentLength =
+						DEF_INI_MAX_RECV_SEG_LEN;
+		rec->conn[i].iscsi.HeaderDigest = CONFIG_DIGEST_NEVER;
+		rec->conn[i].iscsi.DataDigest = CONFIG_DIGEST_NEVER;
+		rec->conn[i].iscsi.IFMarker = 0;
+		rec->conn[i].iscsi.OFMarker = 0;
+	}
+
+	iface_setup_defaults(&rec->iface);
+}

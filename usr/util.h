@@ -26,7 +26,6 @@ extern int iscsid_req_by_sid_async(int cmd, int sid, int *fd);
 extern int iscsid_req_by_sid(int cmd, int sid);
 
 extern char *str_to_ipport(char *str, int *port, int *tgpt);
-extern void idbm_node_setup_defaults(struct node_rec *rec);
 
 extern int iscsi_match_session(void *data, struct session_info *info);
 extern int __iscsi_match_session(struct node_rec *rec, char *targetname,

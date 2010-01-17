@@ -75,7 +75,6 @@ typedef struct idbm {
 	discovery_rec_t	drec_isns;
 	recinfo_t	dinfo_isns[MAX_KEYS];
 } idbm_t;
-
 struct db_set_param {
 	char *name;
 	char *value;
@@ -143,6 +142,7 @@ extern int idbm_rec_read(node_rec_t *out_rec, char *target_name,
 			 struct iface_rec *iface);
 extern int idbm_node_set_param(void *data, node_rec_t *rec);
 extern int idbm_discovery_set_param(void *data, discovery_rec_t *rec);
+extern void idbm_node_setup_defaults(node_rec_t *rec);
 
 /* lower level idbm functions for use by iface.c */
 extern void idbm_recinfo_config(recinfo_t *info, FILE *f);
