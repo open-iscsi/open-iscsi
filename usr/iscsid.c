@@ -317,15 +317,16 @@ static void catch_signal(int signo)
 
 static void missing_iname_warn(char *initiatorname_file)
 {
-	fprintf(stderr, "Warning: initiatorname file %s doesn't "
-		"exist. If using software iscsi (iscsi_tcp or ib_iser) or "
-		"partial offload (bnx iscsi), you may not be able to log "
-		"into or discovery targets. Please create a file %s that "
-		"contains a sting with the format: InitiatorName="
-		"iqn.yyyy-mm.<reversed domain name>[:identifier].\n\n"
-		"Example: InitiatorName=iqn.2001-04.com.redhat:fc6.\n"
-		"If using hardware iscsi like qla4xxx this message can be "
-		"ignored.\n", initiatorname_file, initiatorname_file);
+	log_error("Warning: InitiatorName file %s does not exist or does not "
+		  "contain a properly formated InitiatorName. If using "
+		  "software iscsi (iscsi_tcp or ib_iser) or partial offload "
+		  "(bnx2i or cxgb3i iscsi), you may not be able to log "
+		  "into or discover targets. Please create a file %s that "
+		  "contains a sting with the format: InitiatorName="
+		  "iqn.yyyy-mm.<reversed domain name>[:identifier].\n\n"
+		  "Example: InitiatorName=iqn.2001-04.com.redhat:fc6.\n"
+		  "If using hardware iscsi like qla4xxx this message can be "
+		  "ignored.\n", initiatorname_file, initiatorname_file);
 }
 
 int main(int argc, char *argv[])
@@ -473,14 +474,14 @@ int main(int argc, char *argv[])
 	daemon_config.pid_file = pid_file;
 	daemon_config.config_file = config_file;
 	daemon_config.initiator_name = cfg_get_string_param(initiatorname_file,
-							    "InitiatorName=");
+							    "InitiatorName");
 	if (daemon_config.initiator_name == NULL)
 		missing_iname_warn(initiatorname_file);
 
 	/* optional InitiatorAlias */
 	daemon_config.initiator_alias =
 				cfg_get_string_param(initiatorname_file,
-						     "InitiatorAlias=");
+						     "InitiatorAlias");
 	if (!daemon_config.initiator_alias) {
 		memset(&host_info, 0, sizeof (host_info));
 		if (uname(&host_info) >= 0) {

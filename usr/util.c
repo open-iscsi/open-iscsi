@@ -143,12 +143,20 @@ char *strstrip(char *s)
 	return s;
 }
 
+/**
+ * cfg_get_string_param - return param value
+ * @pathname: pathname and filename of config file
+ * @key: param name
+ *
+ * Assumes the delim is a "=". "#" comments a line, but if
+ * the "#" is after the key= then it is a valid value.
+*/
 char *cfg_get_string_param(char *pathname, const char *key)
 {
 	FILE *f = NULL;
 	int len;
 	char *line, buffer[1024];
-	char *name = NULL;
+	char *value = NULL, *param, *comment;
 
 	if (!pathname) {
 		log_error("No pathname to load %s from", key);
@@ -158,27 +166,48 @@ char *cfg_get_string_param(char *pathname, const char *key)
 	len = strlen(key);
 	if ((f = fopen(pathname, "r"))) {
 		while ((line = fgets(buffer, sizeof (buffer), f))) {
+			param = strstr(line, key);
+			if (!param)
+				continue;
 
-			line = strstrip(line);
-
-			if (strncmp(line, key, len) == 0) {
-				char *end = line + len;
-
-				/*
-				 * make sure there is something after the
-				 * key.
-				 */
-				if (strlen(end))
-					name = strdup(line + len);
+			/* make sure it is not commented out */
+			comment = strchr(line, '#');
+			if (comment) {
+				if (comment < param)
+					continue;
 			}
+
+			param = strchr(param, '=');
+			if (!param) {
+				log_error("Invalid config line for %s. "
+					  "Missing '='.", key);
+				continue;
+			}
+
+			param++;
+			if (!strlen(param)) {
+				log_error("Invalid config line for %s. "
+					  "Missing value", key);
+				continue;
+			}
+
+			param = strstrip(param);
+			if (!strlen(param)) {
+				log_error("Invalid config line for %s. "
+					  "Missing value", key);
+				continue;
+			}
+
+			value = strdup(param);
+			break;
 		}
 		fclose(f);
-		if (name)
-			log_debug(5, "%s=%s", key, name);
+		if (value)
+			log_debug(5, "%s=%s", key, value);
 	} else
 		log_error("can't open %s configuration file %s", key, pathname);
 
-	return name;
+	return value;
 }
 
 /* TODO: move iscsid client helpers to file */
@@ -186,7 +215,7 @@ static void iscsid_startup(void)
 {
 	char *startup_cmd;
 
-	startup_cmd = cfg_get_string_param(CONFIG_FILE, "iscsid.startup = ");
+	startup_cmd = cfg_get_string_param(CONFIG_FILE, "iscsid.startup");
 	if (!startup_cmd) {
 		log_error("iscsid is not running. Could not start it up "
 			  "automatically using the startup command in the "
