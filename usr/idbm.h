@@ -22,6 +22,7 @@
 #ifndef IDBM_H
 #define IDBM_H
 
+#include <stdio.h>
 #include <sys/types.h>
 #include "initiator.h"
 #include "config.h"

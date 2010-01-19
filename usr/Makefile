@@ -50,7 +50,8 @@ all: $(PROGRAMS)
 iscsid: $(ISCSI_LIB_SRCS) $(IPC_OBJ) $(INITIATOR_SRCS) iscsid.o
 	$(CC) $(CFLAGS) $^ -o $@
 
-iscsiadm: $(ISCSI_LIB_SRCS) $(FW_BOOT_SRCS) strings.o discovery.o iscsiadm.o
+iscsiadm: $(ISCSI_LIB_SRCS) $(FW_BOOT_SRCS) strings.o discovery.o iscsiadm.o \
+	session_mgmt.o
 	$(CC) $(CFLAGS) $^ -o $@
 
 iscsistart: $(IPC_OBJ) $(ISCSI_LIB_SRCS) $(INITIATOR_SRCS) $(FW_BOOT_SRCS) \
