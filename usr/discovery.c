@@ -615,7 +615,7 @@ init_new_session(struct iscsi_sendtargets_config *config,
 	}
 	session->conn[0].max_xmit_dlength = ISCSI_DEF_MAX_RECV_SEG_LEN;
 
-	session->reopen_cnt = config->reopen_max;
+	session->reopen_cnt = config->reopen_max + 1;
 
 	/* OUI and uniqifying number */
 	session->isid[0] = DRIVER_ISID_0;
@@ -948,7 +948,7 @@ set_address:
 reconnect:
 
 	if (--session->reopen_cnt < 0) {
-		log_error("connection login retries (reopen_max) %d exceeded",
+		log_error("connection login retries (reopen_max %d) exceeded",
 			  config->reopen_max);
 		rc = 1;
 		goto free_sendtargets;
