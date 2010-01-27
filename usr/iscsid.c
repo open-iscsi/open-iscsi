@@ -29,6 +29,8 @@
 #include <signal.h>
 #include <sys/mman.h>
 #include <sys/utsname.h>
+#include <sys/types.h>
+#include <sys/wait.h>
 
 #include "iscsid.h"
 #include "mgmt_ipc.h"
@@ -44,6 +46,7 @@
 #include "iface.h"
 #include "session_info.h"
 #include "sysdeps.h"
+#include "discoveryd.h"
 
 /* global config info */
 struct iscsi_daemon_config daemon_config;
@@ -52,6 +55,7 @@ struct iscsi_daemon_config *dconfig = &daemon_config;
 static char program_name[] = "iscsid";
 int control_fd, mgmt_ipc_fd;
 static pid_t log_pid;
+static gid_t gid;
 
 static struct option const long_options[] = {
 	{"config", required_argument, NULL, 'c'},
@@ -279,36 +283,28 @@ static char *iscsid_get_config_file(void)
 	return daemon_config.config_file;
 }
 
-static void iscsid_exit(void)
-{
-	isns_exit();
-	ipc->ctldev_close();
-	mgmt_ipc_close(mgmt_ipc_fd);
-	if (daemon_config.initiator_name)
-		free(daemon_config.initiator_name);
-	if (daemon_config.initiator_alias)
-		free(daemon_config.initiator_alias);
-	free_initiator();
-}
-
 static void iscsid_shutdown(void)
 {
+	pid_t pid;
+
+	killpg(gid, SIGTERM);
+	while ((pid = waitpid(0, NULL, 0) > 0))
+		log_debug(7, "cleaned up pid %d", pid);
+
 	log_warning("iscsid shutting down.");
 	if (log_daemon && log_pid >= 0) {
 		log_debug(1, "daemon stopping");
 		log_close(log_pid);
-		fprintf(stderr, "done done\n");
 	}
-	exit(0);
 }
 
 static void catch_signal(int signo)
 {
 	log_debug(1, "%d caught signal -%d...", signo, getpid());
-
 	switch (signo) {
 	case SIGTERM:
 		iscsid_shutdown();
+		exit(0);
 		break;
 	default:
 		break;
@@ -338,7 +334,6 @@ int main(int argc, char *argv[])
 	int ch, longindex;
 	int isns_fd;
 	uid_t uid = 0;
-	gid_t gid = 0;
 	struct sigaction sa_old;
 	struct sigaction sa_new;
 	pid_t pid;
@@ -410,11 +405,6 @@ int main(int argc, char *argv[])
 	control_fd = -1;
 	daemon_config.initiator_name = NULL;
 	daemon_config.initiator_alias = NULL;
-	if (atexit(iscsid_exit)) {
-		log_error("failed to set exit function\n");
-		log_close(log_pid);
-		exit(1);
-	}
 
 	if ((mgmt_ipc_fd = mgmt_ipc_listen()) < 0) {
 		log_close(log_pid);
@@ -506,6 +496,9 @@ int main(int argc, char *argv[])
 	} else
 		need_reap();
 
+	increase_max_files();
+	discoveryd_start_st();
+
 	/* oom-killer will not kill us at the night... */
 	if (oom_adjust())
 		log_debug(1, "can not adjust oom-killer's pardon");
@@ -517,12 +510,20 @@ int main(int argc, char *argv[])
 		exit(1);
 	}
 
-	increase_max_files();
 	actor_init();
 	isns_fd = isns_init();
 	event_loop(ipc, control_fd, mgmt_ipc_fd, isns_fd);
-	iscsid_shutdown();
+
 	idbm_terminate();
 	sysfs_cleanup();
+	isns_exit();
+	ipc->ctldev_close();
+	mgmt_ipc_close(mgmt_ipc_fd);
+	if (daemon_config.initiator_name)
+		free(daemon_config.initiator_name);
+	if (daemon_config.initiator_alias)
+		free(daemon_config.initiator_alias);
+	free_initiator();
+	iscsid_shutdown();
 	return 0;
 }

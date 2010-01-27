@@ -414,7 +414,7 @@ int iface_get_by_net_binding(struct iface_rec *pattern,
 	search.pattern = pattern;
 	search.found = out_rec;
 
-	rc = iface_for_each_iface(&search, &num_found,
+	rc = iface_for_each_iface(&search, 0, &num_found,
 				  __iface_get_by_net_binding);
 	if (rc == 1)
 		return 0;
@@ -666,25 +666,29 @@ int iface_print_flat(void *data, struct iface_rec *iface)
 	return 0;
 }
 
-int iface_for_each_iface(void *data, int *nr_found, iface_op_fn *fn)
+int iface_for_each_iface(void *data, int skip_def, int *nr_found,
+			 iface_op_fn *fn)
 {
 	DIR *iface_dirfd;
 	struct dirent *iface_dent;
 	struct iface_rec *iface, *def_iface;
 	int err = 0, i = 0;
 
-	while ((def_iface = default_ifaces[i++])) {
-		iface = iface_alloc(def_iface->name, &err);
-		if (!iface) {
-			log_error("Could not add iface %s.", def_iface->name);
-			continue;
+	if (!skip_def) {
+		while ((def_iface = default_ifaces[i++])) {
+			iface = iface_alloc(def_iface->name, &err);
+			if (!iface) {
+				log_error("Could not add iface %s.",
+					  def_iface->name);
+				continue;
+			}
+			iface_copy(iface, def_iface);
+			err = fn(data, iface);
+			free(iface);
+			if (err)
+				return err;
+			(*nr_found)++;
 		}
-		iface_copy(iface, def_iface); 
-		err = fn(data, iface);
-		free(iface);
-		if (err)
-			return err;
-		(*nr_found)++;
 	}
 
 	iface_dirfd = opendir(IFACE_CONFIG_DIR);
@@ -760,11 +764,18 @@ static int iface_link(void *data, struct iface_rec *iface)
 	return 0;
 }
 
+/**
+ * iface_link_ifaces - link non default ifaces
+ * @ifaces: list to add ifaces to
+ *
+ * This will return a list of the ifaces created by iscsiadm
+ * or the user. It does not return the static default ones.
+ */
 void iface_link_ifaces(struct list_head *ifaces)
 {
 	int nr_found = 0;
 
-	iface_for_each_iface(ifaces, &nr_found, iface_link);
+	iface_for_each_iface(ifaces, 1, &nr_found, iface_link);
 }
 
 void iface_setup_from_boot_context(struct iface_rec *iface,

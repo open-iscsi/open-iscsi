@@ -16,4 +16,6 @@ extern int iscsi_logout_portal(struct session_info *info,
 extern int iscsi_logout_portals(void *data, int *nr_found,
 				int (*logout_fn)(void *, struct list_head *,
 						 struct session_info *));
+extern int iscsi_check_for_running_session(struct node_rec *rec);
+
 #endif

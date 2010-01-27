@@ -2075,7 +2075,7 @@ static iscsi_session_t* session_find_by_rec(node_rec_t *rec)
  * a session could be running in the kernel but not in iscsid
  * due to a resync or becuase some other app started the session
  */
-int session_is_running(node_rec_t *rec)
+static int session_is_running(node_rec_t *rec)
 {
 	int nr_found = 0;
 
@@ -2139,11 +2139,8 @@ session_login_task(node_rec_t *rec, queue_task_t *qtask)
 	iscsi_conn_t *conn;
 	struct iscsi_transport *t;
 
-	if (session_is_running(rec)) {
-		log_error("session [%s,%s,%d] already running.", rec->name,
-			  rec->conn[0].address, rec->conn[0].port);
+	if (session_is_running(rec))
 		return MGMT_IPC_ERR_EXISTS;
-	}
 
 	t = iscsi_sysfs_get_transport_by_name(rec->iface.transport_name);
 	if (!t)

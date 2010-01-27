@@ -45,13 +45,16 @@ INITIATOR_SRCS = initiator.o scsi.o actor.o event_poll.o mgmt_ipc.o isns.o \
 # fw boot files
 FW_BOOT_SRCS = $(wildcard ../utils/fwparam_ibft/*.o)
 
+# core discovery files
+DISCOVERY_SRCS = $(FW_BOOT_SRCS) strings.o discovery.o
+
 all: $(PROGRAMS)
 
-iscsid: $(ISCSI_LIB_SRCS) $(IPC_OBJ) $(INITIATOR_SRCS) iscsid.o
+iscsid: $(ISCSI_LIB_SRCS) $(IPC_OBJ) $(INITIATOR_SRCS) $(DISCOVERY_SRCS) \
+	iscsid.o session_mgmt.o discoveryd.o
 	$(CC) $(CFLAGS) $^ -o $@
 
-iscsiadm: $(ISCSI_LIB_SRCS) $(FW_BOOT_SRCS) strings.o discovery.o iscsiadm.o \
-	session_mgmt.o
+iscsiadm: $(ISCSI_LIB_SRCS) $(DISCOVERY_SRCS) iscsiadm.o session_mgmt.o
 	$(CC) $(CFLAGS) $^ -o $@
 
 iscsistart: $(IPC_OBJ) $(ISCSI_LIB_SRCS) $(INITIATOR_SRCS) $(FW_BOOT_SRCS) \

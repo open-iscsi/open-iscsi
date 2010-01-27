@@ -225,7 +225,7 @@ static int print_ifaces(struct iface_rec *iface, int info_level)
 	switch (info_level) {
 	case 0:
 	case -1:
-		err = iface_for_each_iface(NULL, &num_found,
+		err = iface_for_each_iface(NULL, 0, &num_found,
 					   iface_print_flat);
 		break;
 	case 1:
@@ -239,7 +239,7 @@ static int print_ifaces(struct iface_rec *iface, int info_level)
 			iface_print_tree(NULL, iface);
 			num_found = 1;
 		} else
-			err = iface_for_each_iface(NULL, &num_found,
+			err = iface_for_each_iface(NULL, 0, &num_found,
 						   iface_print_tree);
 		break;
 	default:
@@ -788,19 +788,9 @@ do_offload_sendtargets(discovery_rec_t *drec, int host_no, int do_login)
 	return discovery_offload_sendtargets(host_no, do_login, drec);
 }
 
-/* TODO merge with initiator.c implementation */
-/* And add locking */
-static int check_for_session_through_iface(struct node_rec *rec)
-{
-	int nr_found = 0;
-	if (iscsi_sysfs_for_each_session(rec, &nr_found, iscsi_match_session))
-		return 1;
-	return 0;
-}
-
 static int delete_node(void *data, struct node_rec *rec)
 {
-	if (check_for_session_through_iface(rec)) {
+	if (iscsi_check_for_running_session(rec)) {
 		/*
  		 * We could log out the session for the user, but if
  		 * the session is being used the user may get something
@@ -1069,7 +1059,7 @@ static int exec_iface_op(int op, int do_show, int info_level,
 		}
 
 		rec = idbm_create_rec(NULL, -1, NULL, -1, iface, 0);
-		if (rec && check_for_session_through_iface(rec)) {
+		if (rec && iscsi_check_for_running_session(rec)) {
 			rc = EBUSY;
 			goto new_fail;
 		}
@@ -1125,7 +1115,7 @@ delete_fail:
 			goto update_fail;
 		}
 
-		if (check_for_session_through_iface(rec))
+		if (iscsi_check_for_running_session(rec))
 			log_warning("Updating iface while iscsi sessions "
 				    "are using it. You must logout the running "
 				    "sessions then log back in for the "
@@ -1298,7 +1288,7 @@ static int exec_node_op(int op, int do_login, int do_logout,
 		 * and we can mark stable.
 		 */
 		if (!strcmp(name, "iface.transport_name")) {
-			if (check_for_session_through_iface(rec)) {
+			if (iscsi_check_for_running_session(rec)) {
 				log_warning("Cannot modify node/iface "
 					    "transport name while a session "
 					    "is using it. Log out the session "

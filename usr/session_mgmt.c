@@ -299,3 +299,13 @@ int iscsi_logout_portals(void *data, int *nr_found,
 	session_info_free_list(&session_list);
 	return ret;
 }
+
+/* TODO merge with initiator.c implementation */
+/* And add locking */
+int iscsi_check_for_running_session(struct node_rec *rec)
+{
+	int nr_found = 0;
+	if (iscsi_sysfs_for_each_session(rec, &nr_found, iscsi_match_session))
+		return 1;
+	return 0;
+}
