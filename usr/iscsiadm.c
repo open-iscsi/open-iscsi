@@ -46,6 +46,7 @@
 #include "sysdeps.h"
 #include "idbm_fields.h"
 #include "session_mgmt.h"
+#include "iscsid_req.h"
 
 struct iscsi_ipc *ipc = NULL; /* dummy */
 static char program_name[] = "iscsiadm";
@@ -203,7 +204,7 @@ static void kill_iscsid(int priority)
 
 	memset(&req, 0, sizeof(req));
 	req.command = MGMT_IPC_IMMEDIATE_STOP;
-	rc = do_iscsid(&req, &rsp, 0);
+	rc = iscsid_exec_req(&req, &rsp, 0);
 	if (rc) {
 		iscsid_handle_error(rc);
 		log_error("Could not stop iscsid. Trying sending iscsid "
@@ -537,7 +538,7 @@ static char *get_config_file(void)
 	memset(&req, 0, sizeof(req));
 	req.command = MGMT_IPC_CONFIG_FILE;
 
-	rc = do_iscsid(&req, &rsp, 1);
+	rc = iscsid_exec_req(&req, &rsp, 1);
 	if (rc)
 		return NULL;
 
@@ -587,7 +588,7 @@ session_stats(void *data, struct session_info *info)
 	req.command = MGMT_IPC_SESSION_STATS;
 	req.u.session.sid = info->sid;
 
-	rc = do_iscsid(&req, &rsp, 1);
+	rc = iscsid_exec_req(&req, &rsp, 1);
 	if (rc)
 		return EIO;
 
@@ -1006,7 +1007,7 @@ static int isns_dev_attr_query(discovery_rec_t *drec,
 	memset(&req, 0, sizeof(iscsiadm_req_t));
 	req.command = MGMT_IPC_ISNS_DEV_ATTR_QUERY;
 
-	err = do_iscsid(&req, &rsp, 1);
+	err = iscsid_exec_req(&req, &rsp, 1);
 	if (err) {
 		iscsid_handle_error(err);
 		return EIO;

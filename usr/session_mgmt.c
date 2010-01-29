@@ -30,6 +30,7 @@
 #include "session_info.h"
 #include "iscsi_sysfs.h"
 #include "log.h"
+#include "iscsid_req.h"
 
 static void log_login_msg(struct node_rec *rec, int rc)
 {

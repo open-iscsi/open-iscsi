@@ -3,7 +3,6 @@
 #include <errno.h>
 
 #include "list.h"
-#include "util.h"
 #include "log.h"
 #include "iscsi_sysfs.h"
 #include "version.h"
@@ -13,6 +12,7 @@
 #include "transport.h"
 #include "initiator.h"
 #include "iface.h"
+#include "iscsid_req.h"
 
 int session_info_create_list(void *data, struct session_info *info)
 {
@@ -107,7 +107,7 @@ static int print_iscsi_state(int sid, char *prefix)
 	req.command = MGMT_IPC_SESSION_INFO;
 	req.u.session.sid = sid;
 
-	err = do_iscsid(&req, &rsp, 1);
+	err = iscsid_exec_req(&req, &rsp, 1);
 	/*
 	 * for drivers like qla4xxx, iscsid does not display
 	 * anything here since it does not know about it.

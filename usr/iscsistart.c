@@ -46,6 +46,7 @@
 #include "fw_context.h"
 #include "iface.h"
 #include "sysdeps.h"
+#include "iscsid_req.h"
 
 /* global config info */
 /* initiator needs initiator name/alias */
@@ -118,7 +119,7 @@ static int stop_event_loop(void)
 
 	memset(&req, 0, sizeof(req));
 	req.command = MGMT_IPC_IMMEDIATE_STOP;
-	rc = do_iscsid(&req, &rsp, 0);
+	rc = iscsid_exec_req(&req, &rsp, 0);
 	if (rc) {
 		iscsid_handle_error(rc);
 		log_error("Could not stop event_loop\n");
@@ -149,7 +150,7 @@ static int login_session(struct node_rec *rec)
 	memcpy(&req.u.session.rec, rec, sizeof(*rec));
 
 retry:
-	rc = do_iscsid(&req, &rsp, 0);
+	rc = iscsid_exec_req(&req, &rsp, 0);
 	/*
 	 * handle race where iscsid proc is starting up while we are
 	 * trying to connect.

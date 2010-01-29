@@ -26,6 +26,7 @@
 #include "types.h"
 #include "auth.h"	/* for the username and password sizes */
 #include "list.h"
+#include "iscsi_proto.h"
 #include "iscsi_net_util.h"
 
 /* ISIDs now have a typed naming authority in them.  We use an OUI */

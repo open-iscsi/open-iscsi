@@ -47,6 +47,7 @@
 #include "session_info.h"
 #include "sysdeps.h"
 #include "discoveryd.h"
+#include "iscsid_req.h"
 
 /* global config info */
 struct iscsi_daemon_config daemon_config;
@@ -269,7 +270,7 @@ static int sync_session(void *data, struct session_info *info)
 	memcpy(&req.u.session.rec, &rec, sizeof(node_rec_t));
 
 retry:
-	rc = do_iscsid(&req, &rsp, 0);
+	rc = iscsid_exec_req(&req, &rsp, 0);
 	if (rc == MGMT_IPC_ERR_ISCSID_NOTCONN && retries < 30) {
 		retries++;
 		sleep(1);
