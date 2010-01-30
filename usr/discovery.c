@@ -365,14 +365,14 @@ add_target_record(char *name, char *end, discovery_rec_t *drec,
 }
 
 static int
-process_sendtargets_response(struct string_buffer *sendtargets,
+process_sendtargets_response(struct str_buffer *sendtargets,
 			     int final, discovery_rec_t *drec,
 			     struct list_head *rec_list,
 			     char *default_port)
 {
-	char *start = buffer_data(sendtargets);
+	char *start = str_buffer_data(sendtargets);
 	char *text = start;
-	char *end = text + data_length(sendtargets);
+	char *end = text + str_data_length(sendtargets);
 	char *nul = end - 1;
 	char *record = NULL;
 	int num_targets = 0;
@@ -423,7 +423,7 @@ process_sendtargets_response(struct string_buffer *sendtargets,
 							default_port)) {
 					log_error(
 					       "failed to add target record");
-					truncate_buffer(sendtargets, 0);
+					str_truncate_buffer(sendtargets, 0);
 					goto done;
 				}
 				num_targets++;
@@ -451,10 +451,10 @@ process_sendtargets_response(struct string_buffer *sendtargets,
 					       drec, rec_list, default_port)) {
 				num_targets++;
 				record = NULL;
-				truncate_buffer(sendtargets, 0);
+				str_truncate_buffer(sendtargets, 0);
 			} else {
 				log_error("failed to add target record");
-				truncate_buffer(sendtargets, 0);
+				str_truncate_buffer(sendtargets, 0);
 				goto done;
 			}
 		} else {
@@ -465,11 +465,11 @@ process_sendtargets_response(struct string_buffer *sendtargets,
 			log_debug(7,
 				 "processed %d bytes of sendtargets data, "
 				 "%d remaining",
-				 (int)(record - buffer_data(sendtargets)),
-				 (int)(buffer_data(sendtargets) +
-				 data_length(sendtargets) - record));
-			remove_initial(sendtargets,
-				       record - buffer_data(sendtargets));
+				 (int)(record - str_buffer_data(sendtargets)),
+				 (int)(str_buffer_data(sendtargets) +
+				 str_data_length(sendtargets) - record));
+			str_remove_initial(sendtargets,
+					   record - str_buffer_data(sendtargets));
 		}
 	}
 
@@ -737,7 +737,7 @@ process_recvd_pdu(struct iscsi_hdr *pdu,
 		  discovery_rec_t *drec,
 		  struct list_head *rec_list,
 		  iscsi_session_t *session,
-		  struct string_buffer *sendtargets,
+		  struct str_buffer *sendtargets,
 		  char *default_port,
 		  int *active,
 		  int *valid_text,
@@ -767,9 +767,9 @@ process_recvd_pdu(struct iscsi_hdr *pdu,
 			/* mark how much more data in the sendtargets
 			 * buffer is now valid
 			 */
-			curr_data_length = data_length(sendtargets);
-			enlarge_data(sendtargets, dlength);
-			memcpy(buffer_data(sendtargets) + curr_data_length,
+			curr_data_length = str_data_length(sendtargets);
+			str_enlarge_data(sendtargets, dlength);
+			memcpy(str_buffer_data(sendtargets) + curr_data_length,
 			       data, dlength);
 
 			*valid_text = 1;
@@ -880,7 +880,7 @@ int discovery_sendtargets(discovery_rec_t *drec, struct iface_rec *iface,
 	struct timeval connection_timer;
 	int timeout;
 	int rc;
-	struct string_buffer sendtargets;
+	struct str_buffer sendtargets;
 	uint8_t status_class = 0, status_detail = 0;
 	unsigned int login_failures = 0, data_len;
 	int login_delay = 0;
@@ -917,7 +917,7 @@ int discovery_sendtargets(discovery_rec_t *drec, struct iface_rec *iface,
 	}
 	data_len = session->conn[0].max_recv_dlength;
 
-	init_string_buffer(&sendtargets, 0);
+	str_init_buffer(&sendtargets, 0);
 
 	sprintf(default_port, "%d", drec->port);
 	/* resolve the DiscoveryAddress to an IP address */
@@ -1101,7 +1101,7 @@ redirect_reconnect:
 	}
 
 	/* reinitialize */
-	truncate_buffer(&sendtargets, 0);
+	str_truncate_buffer(&sendtargets, 0);
 
 	/* ask for targets */
 	if (!request_targets(session)) {
@@ -1221,7 +1221,7 @@ repoll:
 	rc = 0;
 
 free_sendtargets:
-	free_string_buffer(&sendtargets);
+	str_free_buffer(&sendtargets);
 	free(data);
 free_session:
 	free(session);
