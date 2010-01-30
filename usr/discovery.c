@@ -944,7 +944,13 @@ process_recvd_pdu(struct iscsi_hdr *pdu,
 			 * buffer is now valid
 			 */
 			curr_data_length = str_data_length(sendtargets);
-			str_enlarge_data(sendtargets, dlength);
+			if (str_enlarge_data(sendtargets, dlength)) {
+				log_error("Could not allocate memory to "
+					  "process SendTargets response.");
+				rc = 0;
+				goto done;
+			}
+
 			memcpy(str_buffer_data(sendtargets) + curr_data_length,
 			       data, dlength);
 

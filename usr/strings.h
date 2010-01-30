@@ -31,7 +31,7 @@ extern int str_init_buffer(struct str_buffer *s, size_t initial_allocation);
 extern struct str_buffer *str_alloc_buffer(size_t initial_allocation);
 extern void str_free_buffer(struct str_buffer *s);
 
-extern void str_enlarge_data(struct str_buffer *s, int length);
+extern int str_enlarge_data(struct str_buffer *s, int length);
 extern void str_remove_initial(struct str_buffer *s, int length);
 extern void str_truncate_buffer(struct str_buffer *s, size_t length);
 extern char *str_buffer_data(struct str_buffer *s);

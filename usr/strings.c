@@ -67,7 +67,7 @@ void str_free_buffer(struct str_buffer *s)
 	}
 }
 
-void str_enlarge_data(struct str_buffer *s, int length)
+int str_enlarge_data(struct str_buffer *s, int length)
 {
 	void *new_buf;
 
@@ -83,7 +83,7 @@ void str_enlarge_data(struct str_buffer *s, int length)
 					  "bytes, with only %d bytes of buffer "
 					  "space", s, (int)s->data_length,
 					   (int)s->allocated_length);
-				exit(1);
+				return ENOMEM;
 			}
 			s->buffer = new_buf;
 			memset(s->buffer + s->allocated_length, 0,
@@ -91,6 +91,8 @@ void str_enlarge_data(struct str_buffer *s, int length)
 			s->allocated_length = s->data_length;
 		}
 	}
+
+	return 0;
 }
 
 void str_remove_initial(struct str_buffer *s, int length)
