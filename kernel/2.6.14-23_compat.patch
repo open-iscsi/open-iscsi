@@ -423,7 +423,7 @@ index 0000000..5c98fef
 +#endif
 +
 +#ifdef RHEL_RELEASE_CODE
-+#if (RHEL_RELEASE_CODE < RHEL_RELEASE_VERSION(5, 4))
++#if (RHEL_RELEASE_CODE < RHEL_RELEASE_VERSION(6, 0))
 +#define RHELC1	1
 +#endif
 +#endif
