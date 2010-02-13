@@ -27,5 +27,8 @@ void be2iscsi_create_conn(struct iscsi_conn *conn)
 	if (conn->session->max_burst > 262144)
 		conn->session->max_burst = 262144;
 
+	if (conn->max_xmit_dlength > 65536)
+		conn->max_xmit_dlength = 65536;
+
 	conn->session->erl = 0;
 }

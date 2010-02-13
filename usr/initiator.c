@@ -348,11 +348,6 @@ iscsi_copy_operational_params(iscsi_conn_t *conn)
 	conn_rec_t *conn_rec = &session->nrec.conn[conn->id];
 	node_rec_t *rec = &session->nrec;
 
-	/*
-	 * iSCSI default, unless declared otherwise by the
-	 * target during login
-	 */
-	conn->max_xmit_dlength = ISCSI_DEF_MAX_RECV_SEG_LEN;
 	conn->hdrdgst_en = conn_rec->iscsi.HeaderDigest;
 	conn->datadgst_en = conn_rec->iscsi.DataDigest;
 
@@ -368,6 +363,22 @@ iscsi_copy_operational_params(iscsi_conn_t *conn)
 		conn_rec->iscsi.MaxRecvDataSegmentLength =
 						DEF_INI_MAX_RECV_SEG_LEN;
 		conn->max_recv_dlength = DEF_INI_MAX_RECV_SEG_LEN;
+	}
+
+	/* zero indicates to use the target's value */
+	conn->max_xmit_dlength =
+			__padding(conn_rec->iscsi.MaxXmitDataSegmentLength);
+	if (conn->max_xmit_dlength != 0 &&
+	    (conn->max_xmit_dlength < ISCSI_MIN_MAX_RECV_SEG_LEN ||
+	     conn->max_xmit_dlength > ISCSI_MAX_MAX_RECV_SEG_LEN)) {
+		log_error("Invalid iscsi.MaxXmitDataSegmentLength. Must be "
+			 "within %u and %u. Setting to %u\n",
+			  ISCSI_MIN_MAX_RECV_SEG_LEN,
+			  ISCSI_MAX_MAX_RECV_SEG_LEN,
+			  DEF_INI_MAX_RECV_SEG_LEN);
+		conn_rec->iscsi.MaxXmitDataSegmentLength =
+						DEF_INI_MAX_RECV_SEG_LEN;
+		conn->max_xmit_dlength = DEF_INI_MAX_RECV_SEG_LEN;
 	}
 
 	/* session's operational parameters */

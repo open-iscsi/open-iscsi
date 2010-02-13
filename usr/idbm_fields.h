@@ -55,6 +55,7 @@
 #define CONN_AUTH_TMO		"node.conn[%d].timeo.auth_timeout"
 #define CONN_NOP_INT		"node.conn[%d].timeo.noop_out_interval"
 #define CONN_NOP_TMO		"node.conn[%d].timeo.noop_out_timeout"
+#define CONN_MAX_XMIT_DLEN	"node.conn[%d].iscsi.MaxXmitDataSegmentLength"
 #define CONN_MAX_RECV_DLEN	"node.conn[%d].iscsi.MaxRecvDataSegmentLength"
 #define CONN_HDR_DIGEST		"node.conn[%d].iscsi.HeaderDigest"
 #define CONN_DATA_DIGEST	"node.conn[%d].iscsi.DataDigest"

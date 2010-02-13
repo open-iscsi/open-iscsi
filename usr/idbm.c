@@ -311,6 +311,10 @@ idbm_recinfo_node(node_rec_t *r, recinfo_t *ri)
 		__recinfo_int(key, ri, r, conn[i].timeo.noop_out_timeout,
 				IDBM_SHOW, num, 1);
 
+		sprintf(key, CONN_MAX_XMIT_DLEN, i);
+		__recinfo_int(key, ri, r,
+			conn[i].iscsi.MaxXmitDataSegmentLength, IDBM_SHOW,
+			num, 1);
 		sprintf(key, CONN_MAX_RECV_DLEN, i);
 		__recinfo_int(key, ri, r,
 			conn[i].iscsi.MaxRecvDataSegmentLength, IDBM_SHOW,
@@ -2214,6 +2218,7 @@ void idbm_node_setup_defaults(node_rec_t *rec)
 		rec->conn[i].timeo.noop_out_interval = DEF_NOOP_OUT_INTERVAL;
 		rec->conn[i].timeo.noop_out_timeout = DEF_NOOP_OUT_TIMEO;
 
+		rec->conn[i].iscsi.MaxXmitDataSegmentLength = 0;
 		rec->conn[i].iscsi.MaxRecvDataSegmentLength =
 						DEF_INI_MAX_RECV_SEG_LEN;
 		rec->conn[i].iscsi.HeaderDigest = CONFIG_DIGEST_NEVER;
