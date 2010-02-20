@@ -53,12 +53,13 @@ kernel: force
 force: ;
 
 clean:
-	$(MAKE) -C utils/open-isns clean
 	$(MAKE) -C utils/sysdeps clean
 	$(MAKE) -C utils/fwparam_ibft clean
 	$(MAKE) -C utils clean
 	$(MAKE) -C usr clean
 	$(MAKE) -C kernel clean
+	$(MAKE) -C utils/open-isns clean
+	$(MAKE) -C utils/open-isns distclean
 
 # this is for safety
 # now -jXXX will still be safe
