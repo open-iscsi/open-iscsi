@@ -1,0 +1,50 @@
+Under development:
+
+2007-09-27:
+	Fixed a serious interoperability bug
+	Added SLP support (using openslp)
+	Init script (courtesy Albert Pauw)
+
+2007-09-18:
+	Fixed a number of bugs
+	Added more test cases
+	Implemented default DD
+	Support autoconf, and building with/without openssl
+
+2007-08-24:
+	Improved discovery domain handling
+	Implemented DD deregistration
+	Backward compat fixes for older openssl versions
+	Made SCN more robust, SCN state now persists across server restarts
+	More regression tests
+
+2007-07-27:
+	Implemented SCN and ESI
+	Created iSNS discovery daemon (isnsdd)
+	Rewrote the policy handling a bit
+	Started to write some regression test code
+	Better manpages
+
+2007-07-12:
+	DevGetNext support
+	You can now define policies linking authentication
+		to permitted storage node names, permitted
+		entity names, etc.
+	Implemented DDReg
+	Queries and GetNext are now scoped to discovery domains
+	Lots of little bits and pieces for RFC conformance
+
+2005-07-18:
+	Public snapshot released
+	DSA based authentication
+	Deregistration
+	Simple file backed storage for the iSNS database
+	Entity Registration Period + Timestamp support (server side),
+		and entity expiration
+	isnsd now writes a pid file
+	Improved manual pages
+	DevGetNext support under development
+
+2007-05-11:
+	First public release, supporting register/query
+

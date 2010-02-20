@@ -1,0 +1,24 @@
+Dumping database contents
+Backend:     /tmp/isns-test/test02/server0/database
+Last EID:    1
+Last Index:  5
+--------------
+Object:      index=1 type=<Network Entity> state=mature PRIVATE
+  0001  string      : Entity identifier = "CONTROL"
+  0007  uint32      : Entity index = 1
+--------------
+Object:      index=2 type=<Policy> state=mature parent=1 PRIVATE
+  0601v string      : Security Policy Index = "client1.isns-test.eu"
+  0607v string      : Policy allowed node name = "isns.client1"
+  0603v opaque      : DSA security key = <30 82 01 b7 30 82 01 2b 06 07 2a 86 48 ce 38 04 01 30 82 01...
+--------------
+Object:      index=3 type=<iSCSI Storage Node> state=mature parent=1 PRIVATE
+  0020  string      : iSCSI name = "isns.control"
+  0021  uint32      : iSCSI node type = <NIL>
+  0024  uint32      : iSCSI node index = 3
+--------------
+Object:      index=4 type=<Policy> state=mature parent=1 PRIVATE
+  0601v string      : Security Policy Index = "client2.isns-test.eu"
+  0607v string      : Policy allowed node name = "isns.client2"
+  0603v opaque      : DSA security key = <30 82 01 b6 30 82 01 2b 06 07 2a 86 48 ce 38 04 01 30 82 01...
+  0608v uint32      : Policy allowed node type = Target

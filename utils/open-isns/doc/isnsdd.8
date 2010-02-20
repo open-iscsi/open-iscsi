@@ -1,0 +1,75 @@
+.TH ISNSDD 8 "11 May 2007"
+.SH NAME
+isnsdd \- iSNS discovery daemon
+.SH SYNOPSIS
+.B isnsdd
+.RB [ "\-f" ]
+.RB [ "\-c \fIfilename" ]
+.RB [ "\-d \fIdebug-facility" ]
+
+.SH DESCRIPTION
+.B Isnsdd
+is a client side daemon for iSNS. It registers storage
+nodes and portals with the iSNS service, and refreshes
+these registrations in a timely manner.
+.PP
+The daemon also registers itself to receive SCN notifications,
+and processes these. It can be configured to invoke an
+external helper application for each status notification
+received. The path name of the helper application can be
+specified via the
+.B SCNCallout
+option in the configuration file.
+.SH OPTIONS
+By default,
+.B isnsd
+will take most of its settings from the configuration
+file
+.BR /etc/isns/isnsdd.conf ,
+with the addition of the following command line options:
+.TP
+.BI \--config " filename\fR, " \-c " filename
+This option overrides the default configuration file.
+.TP
+.BR \--foreground , \-f
+By default,
+.B isnsd
+will put itself into the background. By specifying this option, you can
+tell it to run in the foreground. Any error messages or debug output
+will be printed to the console rather than being sent to syslog.
+.TP
+.BI \--role " role
+This tells the discovery daemon in which capacity is should register itself
+with the iSNS server.
+.I Role
+can be either
+.BR initiator ", or " control .
+The default is to register as an initiator.
+.IP
+Registering target nodes needs to use a different mechanism, as
+the iSCSI target server needs to inform the discovery daemon
+about each exported target separately. This is not implemented
+yet.
+.TP
+.BI \--debug " facility\fR, " \-d " facility
+enables debugging. Valid facilities are
+.PP
+.TS
+tab(,),box,center;
+lb|lr.
+socket,network send/receive
+auth,authentication and security related information
+message,iSNS protocol layer
+state,database state
+scn,SCN (state change notification) messages
+esi,ESI (entity status inquiry) messages
+all,all of the above
+.TE
+.PP
+.SH SEE ALSO
+RFC 4171,
+.BR isnsd (8),
+.BR isnsadm (8),
+.BR isns_config (5).
+.SH AUTHORS
+Olaf Kirch <olaf.kirch@oracle.com>

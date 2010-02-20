@@ -128,9 +128,6 @@ extern int idbm_bind_ifaces_to_nodes(idbm_disc_nodes_fn *disc_node_fn,
 				     struct discovery_rec *drec,
 				     struct list_head *ifaces,
 				     struct list_head *bound_recs);
-extern int idbm_add_nodes(node_rec_t *newrec,
-			  discovery_rec_t *drec, struct list_head *ifaces,
-			  int overwrite);
 extern int idbm_add_discovery(discovery_rec_t *newrec);
 extern void idbm_sendtargets_defaults(struct iscsi_sendtargets_config *cfg);
 extern void idbm_slp_defaults(struct iscsi_slp_config *cfg);

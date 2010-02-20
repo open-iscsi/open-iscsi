@@ -1,0 +1,10 @@
+object[0] = <Discovery Domain>
+  0811  uint32      : DD ID = 1
+  0812  string      : DD name = "isns.dd1"
+  081e  uint32      : DD features = <NIL>
+  0813  uint32      : DD member iSCSI index = 6
+  0814  string      : DD member iSCSI name = "isns.client1"
+  0813  uint32      : DD member iSCSI index = 10
+  0814  string      : DD member iSCSI name = "isns.client2"
+  0813  uint32      : DD member iSCSI index = 14
+  0814  string      : DD member iSCSI name = "iqn.com.foobar:disk1"

@@ -23,7 +23,7 @@
 #include "initiator.h"
 #include "transport.h"
 #include "log.h"
-#include "util.h"
+#include "iscsi_util.h"
 #include "iscsi_sysfs.h"
 #include "cxgb3i.h"
 #include "be2iscsi.h"

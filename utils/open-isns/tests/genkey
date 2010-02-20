@@ -1,0 +1,175 @@
+#!/bin/bash
+# 
+# This is a very simple script to generate a DSA
+# key pair for authenticated iSNS.
+#
+# Copyright (C) 2007 Olaf Kirch <olaf.kirch@oracle.com>
+#
+# This script is supposed to be run on the iSNS server.
+# For the first time, run as
+#	isnsgenkey -s 1024
+# This will generate a DSA params file, and a DSA private
+# and public key for the server.
+#
+# For each client, generate a key using
+#	isnsgenkey <clientname>
+# where <clientname> is the fully qualified domain name.
+# This script will convert the FQDN to a valid iSNS
+# source name (isns.com.foobar.host)
+
+myname=`basename $0`
+etcdir=/etc/isns
+keystore=$etcdir/keystore
+dsa_parms=$etcdir/dsa.params
+dsa_bits=1024
+opt_force=0
+opt_server=0
+
+function usage {
+	cat <<-EOF >&2
+	$*
+	Usage:
+	  $myname -s [-f] bits
+	  $myname clientname
+	EOF
+	exit 1
+}
+
+function make_isns_name {
+	OFS="$IFS"
+	IFS=.
+	set -- $*
+
+	__result=$1; shift
+	for part; do
+		__result=$part.$__result
+	done
+	echo "isns.$__result"
+	IFS="$OFS"
+}
+
+set -- `getopt b:fk:s $*`
+while [ $# -gt 0 ]; do
+	opt=$1; shift
+	case $opt in
+	--)	break;;
+	-b)	dsa_bits=$1; shift;;
+	-f)	opt_force=1;;
+	-k)	dsa_priv=$1; shift;;
+	-s)	opt_server=1;;
+	*)	usage "Unknown option $opt";;
+	esac
+done
+
+if [ `id -un` != "root" -a $opt_force -eq 0 ]; then
+	echo "$myname: should be run by super user only" >&2
+	exit 1
+fi
+
+# All newly generated files should have restricted
+# access by default.
+umask 077
+
+tmpdir=`mktemp -d /tmp/isnsgenkey.XXXXXX`
+trap "rm -rf $tmpdir" 0 1 2 15
+
+if [ $opt_server -ne 0 ]; then
+	[ $# -eq 1 ] || usage "Expected DSA key length"
+	dsa_bits=$1
+
+	install -m 755 -d $etcdir
+	if [ -z $dsa_priv ]; then
+		dsa_priv=$etcdir/auth_key
+	fi
+	dsa_pub=$dsa_priv.pub
+	dsa_copy=
+else
+	[ $# -eq 1 ] || usage "Expected client name"
+	client=`make_isns_name $1`
+
+	mkdir -p $tmpdir$etcdir
+	# build_client_conf $client > $tmpdir$etcdir/client.conf
+
+	if [ -z $dsa_priv ]; then
+		dsa_priv=$tmpdir$etcdir/auth_key
+	fi
+	dsa_pub=$dsa_priv.pub
+	dsa_copy=$keystore/$client
+fi
+
+if [ -f $dsa_priv -a $opt_force -eq 0 ]; then
+	cat <<-EOF
+
+	------------------------------------------------------------------
+	| There is already a DSA key installed in $dsa_priv.  In order to
+	| generate a new key, please specify the -f [force] option.
+	------------------------------------------------------------------
+	EOF
+	exit 1
+fi
+
+if [ ! -r $dsa_parms ]; then
+	if [ $opt_server -eq 0 ]; then
+		echo "Please run $myname in server-initialization mode first" >&2
+		exit 1
+	fi
+
+	cat <<-EOF
+
+	------------------------------------------------------------------
+	| I will now try to generate a set of DSA parameters. This can be
+	| a slow process, so please be patient.
+	------------------------------------------------------------------
+	EOF
+
+	mkdir -p `dirname $dsa_parms`
+	openssl dsaparam $dsa_bits -out $dsa_parms ||
+		exit 1
+
+	# DSA parameters are public
+	chmod 644 $dsa_parms
+fi
+
+cat <<EOF
+------------------------------------------------------------------
+| I will now try to generate a DSA private key and store it in
+| $dsa_priv.
+|
+| The key will not be protected by a passphrase.
+------------------------------------------------------------------
+EOF
+openssl gendsa -out $dsa_priv $dsa_parms
+openssl dsa -pubout -in $dsa_priv -out $dsa_pub
+chmod 644 $dsa_pub
+
+cat <<EOF
+------------------------------------------------------------------
+| Testing new DSA key
+------------------------------------------------------------------
+EOF
+if ! openssl dgst -dss1 -sign $dsa_priv -out $tmpdir/test-sig /etc/hosts; then
+	echo "DSA signature failed - aborting!" >&2
+	exit 1
+fi
+if ! openssl dgst -dss1 -verify $dsa_pub -signature $tmpdir/test-sig /etc/hosts; then
+	echo "DSA verification failed - aborting!" >&2
+	exit 1
+fi
+od -tx1 $tmpdir/test-sig
+
+if [ $opt_server -eq 0 ]; then
+	echo "Installing DSA public key as $dsa_copy"
+	install -d -m 755 $keystore
+	install -m 644 $dsa_pub $dsa_copy
+	install -m 644 $etcdir/auth_key.pub $tmpdir$etcdir/server.pub
+
+	tarball=auth-$client.tar.gz
+	tar -C $tmpdir -czf $tarball .$etcdir
+
+	cat <<-EOF
+	------------------------------------------------------------------
+	| Successfully packaged $tarball
+	| Please copy this file to client $client and install
+	------------------------------------------------------------------
+	EOF
+fi

@@ -40,7 +40,7 @@
 #include "iscsi_ipc.h"
 #include "idbm.h"
 #include "log.h"
-#include "util.h"
+#include "iscsi_util.h"
 #include "scsi.h"
 #include "iscsi_sysfs.h"
 #include "iscsi_settings.h"

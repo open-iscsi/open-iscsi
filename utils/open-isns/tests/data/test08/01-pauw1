@@ -1,0 +1,100 @@
+Dumping database contents
+Backend:     /tmp/isns-test/test08/server0/database
+Last EID:    1
+Last Index:  15
+--------------
+Object:      index=1 type=<Network Entity> state=mature
+  0001  string      : Entity identifier = "cyan.pauw.homeunix.net"
+  0002  uint32      : Entity protocol = iSCSI (2)
+  0006  uint32      : Registration Period = 7200
+  0004  uint64      : Timestamp = Mon Sep 17 15:15:41 2007
+  0007  uint32      : Entity index = 1
+--------------
+Object:      index=2 type=<iSCSI Storage Node> state=mature parent=1
+  0020  string      : iSCSI name = "iqn.2000-05.com.wasabisystems.storagebuilder:cyan-0"
+  0024  uint32      : iSCSI node index = 2
+  0021  uint32      : iSCSI node type = Target
+  0022  string      : iSCSI alias = "Test (10 GB)"
+  002a  string      : iSCSI auth method = "None"
+--------------
+Object:      index=3 type=<iSCSI Storage Node> state=mature parent=1
+  0020  string      : iSCSI name = "iqn.2000-05.com.wasabisystems.storagebuilder:cyan-1"
+  0024  uint32      : iSCSI node index = 3
+  0021  uint32      : iSCSI node type = Target
+  0022  string      : iSCSI alias = "160 GB disk (ntfs)"
+  002a  string      : iSCSI auth method = "None"
+--------------
+Object:      index=4 type=<iSCSI Storage Node> state=mature parent=1
+  0020  string      : iSCSI name = "iqn.2000-05.com.wasabisystems.storagebuilder:cyan-2"
+  0024  uint32      : iSCSI node index = 4
+  0021  uint32      : iSCSI node type = Target
+  0022  string      : iSCSI alias = "160 GB disk (ext3)"
+  002a  string      : iSCSI auth method = "CHAP"
+--------------
+Object:      index=5 type=<iSCSI Storage Node> state=mature parent=1
+  0020  string      : iSCSI name = "iqn.2000-05.com.wasabisystems.storagebuilder:cyan-3"
+  0024  uint32      : iSCSI node index = 5
+  0021  uint32      : iSCSI node type = Target
+  0022  string      : iSCSI alias = "Test (1 GB)"
+  002a  string      : iSCSI auth method = "None"
+--------------
+Object:      index=6 type=<iSCSI Storage Node> state=mature parent=1
+  0020  string      : iSCSI name = "iqn.2000-05.com.wasabisystems.storagebuilder:cyan-4"
+  0024  uint32      : iSCSI node index = 6
+  0021  uint32      : iSCSI node type = Target
+  0022  string      : iSCSI alias = "Test (40 GB)"
+  002a  string      : iSCSI auth method = "CHAP"
+--------------
+Object:      index=7 type=<iSCSI Storage Node> state=mature parent=1
+  0020  string      : iSCSI name = "iqn.2000-05.com.wasabisystems.storagebuilder:cyan-5"
+  0024  uint32      : iSCSI node index = 7
+  0021  uint32      : iSCSI node type = Target
+  0022  string      : iSCSI alias = "test"
+  002a  string      : iSCSI auth method = "None"
+--------------
+Object:      index=8 type=<Portal> state=mature parent=1
+  0010  ipaddr      : Portal IP address = 10.0.0.1
+  0011  uint32      : Portal TCP/UDP port = 3260/tcp
+  0016  uint32      : Portal index = 8
+--------------
+Object:      index=9 type=<iSCSI Portal Group> state=mature parent=1
+  0030  string      : Portal group name = "iqn.2000-05.com.wasabisystems.storagebuilder:cyan-0"
+  0031  ipaddr      : Portal group address = 10.0.0.1
+  0032  uint32      : Portal group port = 3260/tcp
+  0034  uint32      : Portal group index = 9
+  0033  uint32      : Portal group tag = 1
+--------------
+Object:      index=10 type=<iSCSI Portal Group> state=mature parent=1
+  0030  string      : Portal group name = "iqn.2000-05.com.wasabisystems.storagebuilder:cyan-1"
+  0031  ipaddr      : Portal group address = 10.0.0.1
+  0032  uint32      : Portal group port = 3260/tcp
+  0034  uint32      : Portal group index = 10
+  0033  uint32      : Portal group tag = 1
+--------------
+Object:      index=11 type=<iSCSI Portal Group> state=mature parent=1
+  0030  string      : Portal group name = "iqn.2000-05.com.wasabisystems.storagebuilder:cyan-2"
+  0031  ipaddr      : Portal group address = 10.0.0.1
+  0032  uint32      : Portal group port = 3260/tcp
+  0034  uint32      : Portal group index = 11
+  0033  uint32      : Portal group tag = 1
+--------------
+Object:      index=12 type=<iSCSI Portal Group> state=mature parent=1
+  0030  string      : Portal group name = "iqn.2000-05.com.wasabisystems.storagebuilder:cyan-3"
+  0031  ipaddr      : Portal group address = 10.0.0.1
+  0032  uint32      : Portal group port = 3260/tcp
+  0034  uint32      : Portal group index = 12
+  0033  uint32      : Portal group tag = 1
+--------------
+Object:      index=13 type=<iSCSI Portal Group> state=mature parent=1
+  0030  string      : Portal group name = "iqn.2000-05.com.wasabisystems.storagebuilder:cyan-4"
+  0031  ipaddr      : Portal group address = 10.0.0.1
+  0032  uint32      : Portal group port = 3260/tcp
+  0034  uint32      : Portal group index = 13
+  0033  uint32      : Portal group tag = 1
+--------------
+Object:      index=14 type=<iSCSI Portal Group> state=mature parent=1
+  0030  string      : Portal group name = "iqn.2000-05.com.wasabisystems.storagebuilder:cyan-5"
+  0031  ipaddr      : Portal group address = 10.0.0.1
+  0032  uint32      : Portal group port = 3260/tcp
+  0034  uint32      : Portal group index = 14
+  0033  uint32      : Portal group tag = 1

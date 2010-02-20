@@ -42,6 +42,11 @@
 #include "sysdeps.h"
 #include "fw_context.h"
 #include "iscsid_req.h"
+#include "iscsi_util.h"
+/* libisns includes */
+#include "isns.h"
+#include "paths.h"
+#include "message.h"
 
 #ifdef SLP_ENABLE
 #include "iscsi-slp-discovery.h"
@@ -53,6 +58,211 @@ static int rediscover = 0;
 
 static char initiator_name[TARGET_NAME_MAXLEN + 1];
 static char initiator_alias[TARGET_NAME_MAXLEN + 1];
+
+static int request_initiator_name(void)
+{
+	int rc;
+	iscsiadm_req_t req;
+	iscsiadm_rsp_t rsp;
+
+	memset(initiator_name, 0, sizeof(initiator_name));
+	initiator_name[0] = '\0';
+	memset(initiator_alias, 0, sizeof(initiator_alias));
+	initiator_alias[0] = '\0';
+
+	memset(&req, 0, sizeof(req));
+	req.command = MGMT_IPC_CONFIG_INAME;
+
+	rc = iscsid_exec_req(&req, &rsp, 1);
+	if (rc)
+		return EIO;
+
+	if (rsp.u.config.var[0] != '\0')
+		strcpy(initiator_name, rsp.u.config.var);
+
+	memset(&req, 0, sizeof(req));
+	req.command = MGMT_IPC_CONFIG_IALIAS;
+
+	rc = iscsid_exec_req(&req, &rsp, 0);
+	if (rc)
+		/* alias is optional so return ok */
+		return 0;
+
+	if (rsp.u.config.var[0] != '\0')
+		strcpy(initiator_alias, rsp.u.config.var);
+	return 0;
+}
+
+int discovery_isns(struct discovery_rec *drec, struct iface_rec *iface,
+		   struct list_head *rec_list)
+{
+	isns_object_list_t objects = ISNS_OBJECT_LIST_INIT;
+	isns_simple_t *qry;
+	isns_client_t *clnt;
+	isns_attr_list_t *attrs;
+	char *server;
+	uint32_t status;
+	int rc, i;
+
+	isns_config.ic_security = 0;
+
+	if (iface && strlen(iface->iname))
+		isns_assign_string(&isns_config.ic_source_name, iface->iname);
+	else {
+		if (request_initiator_name() || initiator_name[0] == '\0') {
+			log_error("Cannot perform discovery. Initiatorname "
+				  "required.");
+			return EINVAL;
+		}
+		isns_assign_string(&isns_config.ic_source_name, initiator_name);
+	}
+
+	if (drec->port > USHRT_MAX) {
+		log_error("Invalid port %d\n", drec->port);
+		rc = EINVAL;
+		goto free_mem;
+	}
+
+	/* 5 for port and 1 for colon and 1 for null */
+	i = strlen(drec->address) + 7;
+	server = calloc(1, i);
+	if (!server) {
+		rc = ENOMEM;
+		goto free_mem;
+	}
+
+	snprintf(server, i, "%s:%d", drec->address, drec->port);
+	isns_assign_string(&isns_config.ic_server_name, server);
+	free(server);
+
+	clnt = isns_create_default_client(NULL);
+	if (!clnt) {
+		rc = ENOMEM;
+		goto free_mem;
+	}
+
+	/* do not retry forever */
+	isns_socket_set_disconnect_fatal(clnt->ic_socket);
+
+	qry = isns_simple_create(ISNS_DEVICE_ATTRIBUTE_QUERY,
+				 clnt->ic_source, NULL);
+	if (!qry) {
+		rc = ENOMEM;
+		goto free_clnt;
+	}
+
+	attrs = &qry->is_message_attrs;
+	isns_attr_list_append_uint32(attrs, ISNS_TAG_ISCSI_NODE_TYPE,
+				     ISNS_ISCSI_TARGET_MASK);
+
+	attrs = &qry->is_operating_attrs;
+	isns_attr_list_append_nil(attrs, ISNS_TAG_ISCSI_NAME);
+	isns_attr_list_append_nil(attrs, ISNS_TAG_ISCSI_NODE_TYPE);
+	isns_attr_list_append_nil(attrs, ISNS_TAG_PORTAL_IP_ADDRESS);
+	isns_attr_list_append_nil(attrs, ISNS_TAG_PORTAL_TCP_UDP_PORT);
+	isns_attr_list_append_nil(attrs, ISNS_TAG_PG_ISCSI_NAME);
+	isns_attr_list_append_nil(attrs, ISNS_TAG_PG_PORTAL_IP_ADDR);
+	isns_attr_list_append_nil(attrs, ISNS_TAG_PG_PORTAL_TCP_UDP_PORT);
+	isns_attr_list_append_nil(attrs, ISNS_TAG_PG_TAG);
+
+	status = isns_client_call(clnt, &qry);
+	if (status != ISNS_SUCCESS) {
+		log_error("iSNS discovery failed: %s", isns_strerror(status));
+		rc = EIO;
+		goto free_query;
+	}
+
+	status = isns_query_response_get_objects(qry, &objects);
+	if (status) {
+		log_error("Unable to extract object list from query "
+			  "response: %s\n", isns_strerror(status));
+		rc = EIO;
+		goto free_query;
+	}
+
+	for (i = 0; i < objects.iol_count; ++i) {
+		isns_object_t *obj = objects.iol_data[i];
+		const char *pg_tgt = NULL;
+		struct in6_addr in_addr;
+		uint32_t pg_port = ISCSI_LISTEN_PORT;
+		uint32_t pg_tag = PORTAL_GROUP_TAG_UNKNOWN;
+		char pg_addr[INET6_ADDRSTRLEN + 1];
+		struct node_rec *rec;
+
+		if (!isns_object_is_pg(obj))
+			continue;
+
+		if (!isns_object_get_string(obj, ISNS_TAG_PG_ISCSI_NAME,
+					    &pg_tgt)) {
+			log_debug(1, "Missing target name");
+			continue;
+		}
+
+		if (!isns_object_get_ipaddr(obj, ISNS_TAG_PG_PORTAL_IP_ADDR,
+					    &in_addr)) {
+			log_debug(1, "Missing addr");
+			continue;
+		}
+		if (IN6_IS_ADDR_V4MAPPED(&in_addr) ||
+		    IN6_IS_ADDR_V4COMPAT(&in_addr)) {
+			struct in_addr ipv4;
+
+			ipv4.s_addr = in_addr.s6_addr32[3];
+			inet_ntop(AF_INET, &ipv4, pg_addr, sizeof(pg_addr));
+		} else
+			inet_ntop(AF_INET6, &in_addr, pg_addr, sizeof(pg_addr));
+
+		if (!isns_object_get_uint32(obj,
+					    ISNS_TAG_PG_PORTAL_TCP_UDP_PORT,
+					    &pg_port)) {
+			log_debug(1, "Missing port");
+			continue;
+		}
+
+		if (!isns_object_get_uint32(obj, ISNS_TAG_PG_TAG, &pg_tag)) {
+			log_debug(1, "Missing tag");
+			continue;
+		}
+
+		rec = calloc(1, sizeof(*rec));
+		if (!rec) {
+			rc = ENOMEM;
+			goto destroy_list;
+		}
+
+		idbm_node_setup_from_conf(rec);
+		rec->disc_type = drec->type;
+		rec->disc_port = drec->port;
+		strcpy(rec->disc_address, drec->address);
+
+		strlcpy(rec->name, pg_tgt, TARGET_NAME_MAXLEN);
+		rec->tpgt = pg_tag;
+		rec->conn[0].port = pg_port;
+		strlcpy(rec->conn[0].address, pg_addr, NI_MAXHOST);
+
+		list_add_tail(&rec->list, rec_list);
+	}
+	rc = 0;
+
+	isns_flush_events();
+destroy_list:
+	isns_object_list_destroy(&objects);
+free_query:
+	isns_simple_free(qry);
+free_clnt:
+	isns_client_destroy(clnt);
+free_mem:
+	if (isns_config.ic_source_name)
+		free(isns_config.ic_source_name);
+	isns_config.ic_source_name = NULL;
+
+	if (isns_config.ic_server_name)
+		free(isns_config.ic_server_name);
+	isns_config.ic_server_name = NULL;
+	return rc;
+}
+
+
 
 int discovery_fw(struct discovery_rec *drec, struct iface_rec *iface,
 		 struct list_head *rec_list)
@@ -547,40 +757,6 @@ msecs_until(struct timeval *timer)
 	}
 
 	return msecs;
-}
-
-static int request_initiator_name(void)
-{
-	int rc;
-	iscsiadm_req_t req;
-	iscsiadm_rsp_t rsp;
-
-	memset(initiator_name, 0, sizeof(initiator_name));
-	initiator_name[0] = '\0';
-	memset(initiator_alias, 0, sizeof(initiator_alias));
-	initiator_alias[0] = '\0';
-
-	memset(&req, 0, sizeof(req));
-	req.command = MGMT_IPC_CONFIG_INAME;
-
-	rc = iscsid_exec_req(&req, &rsp, 1);
-	if (rc)
-		return EIO;
-
-	if (rsp.u.config.var[0] != '\0')
-		strcpy(initiator_name, rsp.u.config.var);
-
-	memset(&req, 0, sizeof(req));
-	req.command = MGMT_IPC_CONFIG_IALIAS;
-
-	rc = iscsid_exec_req(&req, &rsp, 0);
-	if (rc)
-		/* alias is optional so return ok */
-		return 0;
-
-	if (rsp.u.config.var[0] != '\0')
-		strcpy(initiator_alias, rsp.u.config.var);
-	return 0;
 }
 
 static iscsi_session_t *

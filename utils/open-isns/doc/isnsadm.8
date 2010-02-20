@@ -1,0 +1,672 @@
+'\" t
+.TH ISNSADM 8 "11 May 2007"
+.SH NAME
+isnsadm \- iSNS client utility
+.SH SYNOPSIS
+.B isnsadm
+.RI [ options... ]
+.RI --register " object...
+.PP
+.B isnsadm
+.RB [ ... ]
+.RI --query " attr" [= value ]
+.PP
+.B isnsadm
+.RB [ ... ]
+.RI --deregister " attr=value
+.PP
+.B isnsadm
+.RB [ ... ]
+.RI --list " type attr=value
+.PP
+.B isnsadm
+.RB [ ... ]
+.RI --dd-register " attr=value
+.PP
+.B isnsadm
+.RB [ ... ]
+.RI --enroll " client-name attr=value
+.PP
+.B isnsadm
+.RB [ ... ]
+.RI --edit-policy " attr=value
+
+.SH DESCRIPTION
+.B Isnsadm
+is a command line utility for interacting with an iSNS
+server. It operates in one of several modes, which are
+mutually exclusive.
+Currently,
+.B isnsadm
+supports registration, query, and deregistration.
+.SH OPTIONS
+By default,
+.B isnsadm
+will take most of its settings from the configuration
+file
+.BR /etc/isns/isnsadm.conf ,
+with the exception of the following options:
+.TP
+.BI \--config " filename\fR, " \-c " filename
+This option overrides the default configuration file.
+.TP
+.BI \--debug " facility\fR, " \-d " facility
+enables debugging. Valid facilities are
+.PP
+.TS
+tab(,),box,center;
+lb|lr.
+socket,network send/receive
+auth,authentication and security related information
+message,iSNS protocol layer
+state,database state
+scn,SCN (state change notification) messages
+esi,ESI (entity status inquiry) messages
+all,all of the above
+.TE
+.PP
+.TP
+.BI \--local
+makes
+.B isnsadm
+use a Local (aka Unix) socket when talking to the iSNS
+server. This can be used by the administrator to perform
+management tasks, such as enrolling new clients, editing
+access control and so on. Local mode is only available
+to the super user.
+.TP
+.BI \--control
+makes
+.B isnsadm
+assume the identity of a control node. Control nodes are
+special in that they have more rights in accessing and
+modifying the database than normal storage nodes have.
+.PP
+When using this option,
+.B isnsadm
+will use the source name and DSA key specified by the
+.BR Control.SourceName " and " Control.AuthKeyFile 
+configuration options, respectively.
+.PP
+.TP
+.BI \--key " attr" = value
+This option is recognized in registration mode only, and
+lets you specify an object key. For a more detailed explanation,
+refer to section
+.BR "Registration mode" .
+.TP
+.BI \--keyfile= filename
+When creating a policy for a new iSNS client, 
+.B isnsadm
+is able to generate a DSA key for the client. The public
+part of the key is stored in a policy object in the iSNS
+server's database, whereas the private portion is stored in the
+file specified by the
+.B keyfile
+option.
+.B
+.TP
+.BI \--help
+This will print a help message and exit.
+.\"---------------------------
+.SS Built-in help
+.B Isnsadm
+has built-in help functions. When invoked with
+.BR \--help ,
+it will print a general help message showing all supported
+command modes, and exit. Specific help on an individual 
+command mode is available by invoking that mode with a
+single argument of
+.BR help ,
+like this:
+.PP
+.B isnsadm --register help
+.PP
+This will print a help message describing how to use this
+command mode, followed by a list of attributes this command supports
+and a help text describing the attribute.
+.\"---------------------------
+.SS Supported attributes
+Most command modes take a list of attributes as arguments on the
+command line. The naming and syntax of these attributes as
+the same for all commands modes, however certain modes support
+only a limited set of attributes.
+.PP
+Attributes are usually given as
+.IB name = value
+pairs. Where empty (or NIL) attributes are supported, the
+attribute name by itself can be given.
+.PP
+The syntax of attribute
+.I value
+depends on the attribute type. For strings and numeric values,
+no special conventions apply, but bitfields have a special syntax
+described below.
+.PP
+The attribute name is usually preceded by the object
+type it applies to (such as
+.BR entity ),
+followed by a hyphen and the name itself. However, where the
+context clearly determines a specific object type, the prefix
+can be omitted. For instance, when editing a policy object
+using
+.BR \--edit-policy ,
+it is acceptable to use
+.B node-type
+as shorthand for
+.BR policy-node-type .
+.PP
+Likewise, in a query command, it is not permitted to mix attributes
+from different object types. Thus, the first attribute of a
+query string establishes a type context, so that the following
+two invocations are equivalent:
+.PP
+.B isnsadm --query pg-name=iqn.com.foo pg-addr=10.1.1.1 pg-port=860/tcp
+.br
+.B isnsadm --query pg-name=iqn.com.foo addr=10.1.1.1 port=860/tcp
+.PP
+.B Isnsadm
+currently supports the following attributes:
+.PP
+.TS
+tab(,),box,center;
+li|lilili
+lt|lbrlb.
+Context,Attribute,iSNS tag,Aliases
+_
+Network Entity,entity-id,1,eid
+\^,entity-prot,2
+\^,entity-index,7
+iSCSI Storage Node,iscsi-name,32
+\^,iscsi-node-type,33
+\^,iscsi-alias,34
+\^,iscsi-idx,36
+\^,iscsi-authmethod,42
+Portal,portal-addr,16
+\^,portal-port,17
+\^,portal-name,18
+\^,portal-esi-port,20
+\^,portal-esi-interval,21
+\^,portal-idx,22
+\^,portal-scn-port,23
+Portal Group,portal-group-index,52
+\^,pg-name,48
+\^,pg-addr,49
+\^,pg-port,50
+\^,pg-tag,51,pgt
+\^,pg-idx,52
+Discovery Domain,dd-id,2065
+\^,dd-name,2066
+\^,dd-member-iscsi-idx,2067
+\^,dd-member-name,2068
+\^,dd-member-fc-name,2069,
+\^,dd-member-portal-idx,2070,
+\^,dd-member-addr,2071,
+\^,dd-member-port,2072,
+\^,dd-features,2078,
+Policy Object,policy-name,-,spi
+\^,policy-key,-
+\^,policy-entity,-
+\^,policy-node-type,-
+\^,policy-object-type,-
+\^,policy-functions,-
+.TE
+.PP
+.\"---------------------------
+.SS Portal attributes
+Portal information is conveyed by two separate attributes
+in iSNS; an address attribute holding the IP address, and
+a TCP/UDP port attribute holding the port number and an indication
+of the protocol to be used (TCP or UDP).
+.PP
+When parsing a TCP/UDP port, Open-iSNS will expect a port number,
+optionally followed by a slash and the protocol. Port names
+such as "iscsi-target" are not supported.
+.PP
+As a convenience,
+.B isnsadm
+supports a notation representing a portal as one pseudo-attribute.
+Separating address and port by a colon. Thus, the following two
+are equivalent, with the latter being the shorthand representation
+of the former:
+.PP
+.BI addr= <address> " port=" <port> [/ protocol ] \fR.
+.BI portal= <adress> : port [/ protocol ]
+.PP
+This notation can be used in any context where an
+.BR addr / port
+attribute pair can appear, and may be prefixed by a type name,
+as in
+.BR pg-portal=... .
+.PP
+When using literal IPv6 addresses, the address has to be surrounded
+by square brackets, otherwise the embedded colons would create
+ambiguity:
+.BR portal=[2001:5c0:0:2::24]:860/tcp
+.PP
+.\"---------------------------
+.SS Bitfield attributes
+Some iSNS attributes are words representing a bit field.
+.B Isnsadm
+displays and parses these attributes in human-readable form
+rather than using the numerical value. The names of the bit
+values are displayed by built-in help facilities. When specifying
+a bitfield attribute on the command line, you can combine them
+using the plus (\fB+\fP) or comma (\fB,\fR) character, like this:
+.PP
+.B node-type=control+initiator
+.PP
+.\"---------------------------
+.SS Registration mode
+Registration mode is selected by using the
+.B --register
+option, followed by a list of one or more objects
+to register with the iSNS server.
+By default, this will create a network entity for the
+client (if none exists), and place the new objects inside
+it.  Usually, you register all objects for
+a network entity in one operation, rather than each
+one separately.
+.PP
+Each object is specified as a type, optionally followed
+by a comma-separated list of attributes, such as
+this:
+.PP
+.B target=iqn.2005-01.org.open-iscsi.foo:disk1,alias=disk1
+.PP
+The following object types are currently supported:
+.TP
+.BI entity= name
+Tells the server to group all objects in the specified
+Network Entity container object.
+Normally, the iSNS server will automatically assign an
+entity name that is in line with its policies, and there is
+no need to specify it explicitly.
+.TP
+.BI initiator[= name ]
+This will register an iSCSI storage node of type initiator.
+By default, the name is set to the iSNS source name.
+.IP
+This can be followed by any number of iSCSI storage node
+attributes.
+.TP
+.BI target[= name ]
+This will register an iSCSI storage node of type target.
+By default, the name is set to the iSNS source name.
+.IP
+This object accepts the same set of attributes as
+.BR initiator .
+.TP
+.BI control[= name ]
+This will register an iSCSI storage node of type control.
+By default, the name is set to the iSNS source name.
+Only management nodes should be registered as control
+nodes, as this gives a node complete control over the
+iSNS database.
+.IP
+This object accepts the same set of attributes as
+.BR initiator .
+.TP
+.BI portal=[ address:port/proto ]
+This will register a portal using the given address,
+port and protocol triple. If the triple is omitted,
+.B isnsadm
+will use the client host's IP address. If the portal
+is preceded by an initiator registration (on the command
+line), the port defaults to 860/tcp; if it is preceded by
+a target registration, the port defaults to 3260/tcp.
+For multi-homed hosts, the choice of address is
+implementation dependant.
+.IP
+This can be followed by any number of portal attributes.
+.TP
+.B pg
+This will register a portal group joining the preceding
+portal and node. Portal groups can be used to describe
+the preferred portals for a given node; please refer
+to RFC 4711 for details.
+.IP
+This can be followed by any number of portal group attributes.
+The attribute list must specify a portal group tag (PGT)
+via the 
+.BR pgt
+attribute.
+.PP
+There are two additional command line options of interest,
+which are used exclusively with Registration mode. One is
+.BR \--replace .
+Normally, registration mode will
+.I add
+new objects to the network entity associated with the client
+host. If you specify
+.B \--replace
+on the command line, the server will wipe the network
+entity completely, and remove all portals and storage
+nodes it contained. Then it will create a new network
+entity, and place the portals and storage nodes provided
+by the caller inside.
+.PP
+In addition, it is possible to replace just parts of a
+network entity. This is achieved by using the command line
+option
+.B \--key
+to specify the object that should be replaced.
+.PP
+For instance, assume a network entity
+contains the portal 
+.BR 10.1.1.1:860 ,
+and the client's network address changed to
+.BR 10.2.7.7 .
+Then the following command will atomically update the
+database, replacing just the portal without touching the
+registered storage nodes:
+.PP
+.B "  isnsadm --replace --key portal=10.1.1.1:860 portal=10.2.7.7:860
+.PP
+The
+.B \--key
+option recognizes only a subset of the usual attributes:
+.RS
+.TS
+tab(,),box;
+li|li
+lb|lb.
+Object type,Syntax
+_
+Entity,eid=\fIidentifier
+Portal,portal=\fIaddress\fP:\fPport
+iSCSI Node,iscsi-name=\fIname
+.TE
+.RE
+.PP
+To get a list of supported attributes, invoke
+.BR "isnsadm --register help" .
+.\"---------------------------
+.SS Query mode
+Query mode is selected by using the
+.B --query
+option. A query consists of a list of 
+.BR attr = \fI value
+pairs. All attributes must belong to the same object type,
+i.e. queries that mix a Network Entity attribute with e.g.
+a Portal attribute will be rejected.
+.PP
+It is also possible to specify an attribute name without
+value (i.e. just
+.BR attr ),
+which will
+will match any object that has such an attribute, regardless
+of its value. This is useful when you want to query for all
+objects of a given type.
+.PP
+To obtain a list of supported attributes, invoke
+.BR "isnsadm --query help" .
+.\"---------------------------
+.SS List Mode
+In this mode,
+.B isnsadm
+will display all objects of a given type, optionally
+restricted to those matching certain attribute values.
+.PP
+The arguments to list mode are a
+.IR "type name" ,
+optionally followed by one or more 
+.IB attr = value
+pairs. Only attributes pertaining to the given
+type are permitted; for instance, if you specify a
+type name of
+.BR portals ,
+only portal attributes are permitted.
+.PP
+Possible type names are:
+.BR entities ,
+.BR nodes ,
+.BR portals ,
+.BR dds ,
+.BR ddsets ,
+.BR portal-groups ", and "
+.BR policies .
+.PP
+Additional information is available via
+.BR "isnsadm --list help" .
+.\"---------------------------
+.SS Deregistration mode
+In this mode, you can deregister objects previously registered.
+Only the node which registered an entity in the first place is
+permitted to remove it, or any of its child objects. (Control
+nodes are not bound by this restriction).
+.PP
+In deregistration mode, the argument list consists of a list of
+.IB attr = value
+pairs. Deregistration supports the same set of attributes as
+query mode.
+.\"---------------------------
+.SS Discovery Domain Registration
+This mode, allows to register a discovery domain or to add 
+new members to an existing discovery domain. Again, attributes
+are specified as a list of
+.IB attr = value
+pairs. Only discovery domain attributes are recognized.
+.PP
+Note, in order to add members to an existing domain, you must
+specify the domain's numeric ID. The domain's symbolic name
+is not a valid handle when referring to a discovery domain.
+.\"---------------------------
+.SS Client Enrollment
+This mode only works when the server recognizes the client
+as having control node capabilities, which is possible in
+two ways:
+.TP
+Invoke
+.B isnsadm \--local
+as super user on the host 
+.B isnsd
+is running on. The
+.B \--local
+options tells it to communicate with the server through
+the local control socket.
+.TP
+Invoke
+.BR "isnsadm \--control" ,
+which tells it to assume the identity of a control node.
+When given this option,
+.B isnsadm
+will use the source name and DSA key specified by the
+.BR Control.SourceName " and " Control.AuthKeyFile 
+configuration options, respectively.
+The server must be configured to grant this identity
+control node status.
+.PP
+To enroll a client, use the
+.B \--enroll
+option, followed by the (source) name of the client to enroll.
+This string will be used as the name of the security policy
+the client will use to identify itself.
+.PP
+This is followed by a list of attribute/value pairs, where the
+following set of attributes is supported:
+.PP
+.TS
+tab(,),box,center;
+li|lilili
+lb|lrlb.
+Attribute,Description,Aliases
+_
+name,Policy Name,spi
+key,Client's DSA public key
+entity,Assigned Entity Identifier
+node-type,Permitted node type(s)
+node-name,Permitted node name(s)
+functions,Bitmap of permitted functions
+object-type,Object access mask
+.TE
+.PP
+The
+.B key
+attribute is used to specify the DSA
+public key that the server should use to authenticate
+messages from this client. You can either provide a
+file name; in which case
+.B isnsadm
+will try to read the PEM encoded public key from that file.
+If no
+.B key
+attribute is given, or when using
+.BR key=gen ", " isnsadm
+will generate a DSA key. The private portion of the newly
+generated key will be stored in the file specified by
+.BI --keyfile= filename \fR.
+.PP
+The
+.B object-type
+attribute is used to specify which object types the client
+is permitted to access. This is a comma separated list of
+.IB type : perm
+pairs, where
+.I type
+can be any of 
+.BR entity ", " iscsi-node ", " portal ", " portal-group ", " dd ", " ddset ", and " policy .
+The permissions can be either 
+.BR rw ", or " r .
+.PP
+The
+.B functions
+attribute can be used to restrict which functions the client is
+permitted to invoke. This is a bitfield, using the standard function
+names from RFC 4171, such as
+.BR DevAttrReg ", " DevAttrQry ", etc."
+.PP
+For a description of the open-isns security model
+and policies, please refer to the
+.BR isns_config (5)
+manual page.
+.PP
+.BR "Important note" :
+In order to generate a DSA key, you have to have a set of DSA
+parameters installed. By default,
+.B isnsadm
+expects to find them in
+.BR /etc/isns/dsa.params .
+These parameters are created by calling
+.B isnsd \--init
+once on the server machine. Alternatively, you can use
+the following command:
+.PP
+.ti +8
+openssl dsaparam 1024 -out /etc/isns/dsa.params
+.ti -8
+.PP
+where 1024 is the chosen DSA key size, in bits.
+.SH EXAMPLES
+If you want to use Open-iSNS in authenticated mode,
+you first need to initialize the server's DSA key and
+DSA parameters. This can be done conveniently by using
+.PP
+.B isnsd --init
+.PP
+This will create the server's private and public key,
+and place them in
+.B /etc/isns/auth_key
+and
+.BR auth_key.pub ,
+respectively.
+.PP
+The following command will create a policy object for a
+node named 
+.B isns.control ,
+and grant it control privileges:
+.PP
+.B isnsadm --local --keyfile=control.key
+.B --enroll isns.control \(rs
+.br
+.B "           node-type=ALL functions=ALL object-type=ALL
+.PP
+In the process of entrolling the client, this will generate
+a DSA key pair, and place the private key portion in the
+file
+.BR control.key .
+This file must be installed as
+.BR /etc/isns/control.key
+on the host you wish to use as an iSNS management station.
+.PP
+Next, you need to create a storage node object for the
+management station:
+.PP
+.B isnsadm --local --register control
+.PP
+On the management station, you can then enroll additional
+hosts:
+.PP
+.B isnsadm --control --keyfile=somehost.key
+.B --enroll iqn.2005-01.org.open-iscsi.somehost \(rs
+.br
+.B "           node-type=target+initiator
+.PP
+Again, this will generate a DSA key pair and store the private
+key portion in auth_key. Note the use of the
+.B \--control
+option that tells 
+.B isnsadm
+to use the identity of the control node instead of the default
+key and source name.
+.PP
+You then need to copy
+.B somehost.key
+to the client host and install it as
+.BR /etc/isns/auth_key .
+Likewise, the server's public key (which resides in
+.BR /etc/isns/auth_key.pub 
+on the server) needs to be copied to the client machine,
+and placed in
+.BR /etc/isns/server_key.pub .
+.PP
+By default, when a client registers a storage node (be
+it initiator or target) with iSNS, the client will not be
+able to see any other storage nodes. In order for targets
+to be visible to a given initiator, you need to create
+so-called Discovery Domains (or DDs for short).
+.PP
+Currently, domain membership operations require administrator
+privilege. Future extensions may allow iSNS clients to
+add themselves to one or more DDs upon registration.
+.PP
+To create a discovery domain, and add nodes to it, you can
+use
+.PP
+.B isnsadm --control --dd-register dd-name=mydomain \(rs
+.br
+.B "           member-name=iqn.org.bozo.client iqn.org.bozo.jbod ...
+.PP
+In order to add members to an existing DD, you have to
+specify the numeric domain ID - using the DD name is not
+sufficient, unfortunately (this is a requirement of the
+RFC, not an implementation issue):
+.PP
+.B isnsadm --control --dd-register dd-id=42 \(rs
+.br
+.B "           member-name=iqn.com.foo member-name=iqn.com.bar
+.PP
+The DD ID can be obtained by doing a query for the DD name:
+.PP
+.B isnsadm --control --query dd-name=mydomain
+.PP
+In management mode, you can also register and deregister
+nodes and portals manually, in case you want to fix up
+an inconsisteny in the database. For instance, this will
+register a node and portal on a host named client.bozo.org:
+.PP
+.B isnsadm --control --register entity=client.bozo.org \(rs
+.br
+.B "           initiator=iqn.org.bozo.client portal=191.168.7.1:860
+.PP
+Note that this registration explicitly specifies the network
+entity in which to place the new objects. If you omit this,
+the new objects will be placed in an entity named 
+.BR CONTROL ,
+which is decidedly not what you want.
+.SH SEE ALSO
+RFC 4171,
+.BR isnsd (8),
+.BR isns_config (5).
+.SH AUTHORS
+Olaf Kirch <olaf.kirch@oracle.com>

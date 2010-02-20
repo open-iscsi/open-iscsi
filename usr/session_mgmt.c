@@ -25,7 +25,7 @@
 
 #include "idbm.h"
 #include "list.h"
-#include "util.h"
+#include "iscsi_util.h"
 #include "mgmt_ipc.h"
 #include "session_info.h"
 #include "iscsi_sysfs.h"

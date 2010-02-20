@@ -19,7 +19,7 @@
 #include <sys/types.h>
 #include <sys/wait.h>
 
-#include "util.h"
+#include "iscsi_util.h"
 #include "log.h"
 
 #define SEMKEY	0xA7L

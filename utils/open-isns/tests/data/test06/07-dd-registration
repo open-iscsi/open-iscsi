@@ -1,0 +1,52 @@
+Dumping database contents
+Backend:     /tmp/isns-test/test06/server0/database
+Last EID:    1
+Last Index:  20
+--------------
+Object:      index=1 type=<Network Entity> state=mature PRIVATE
+  0001  string      : Entity identifier = "CONTROL"
+  0007  uint32      : Entity index = 1
+--------------
+Object:      index=2 type=<Policy> state=mature parent=1 PRIVATE
+  0601v string      : Security Policy Index = "client1.isns-test.eu"
+  0607v string      : Policy allowed node name = "isns.client1"
+  0603v opaque      : DSA security key = <30 82 01 b7 30 82 01 2b 06 07 2a 86 48 ce 38 04 01 30 82 01...
+--------------
+Object:      index=3 type=<iSCSI Storage Node> state=mature parent=1 PRIVATE
+  0020  string      : iSCSI name = "isns.control"
+  0021  uint32      : iSCSI node type = <NIL>
+  0024  uint32      : iSCSI node index = 3
+--------------
+Object:      index=17 type=<Network Entity> state=mature
+  0001  string      : Entity identifier = "client1.isns-test.eu"
+  0002  uint32      : Entity protocol = iSCSI (2)
+  0006  uint32      : Registration Period = 7200
+  0004  uint64      : Timestamp = Fri Sep 14 13:41:52 2007
+  0007  uint32      : Entity index = 17
+--------------
+Object:      index=13 type=<iSCSI Storage Node> state=mature parent=17
+  0020  string      : iSCSI name = "isns.client1"
+  0021  uint32      : iSCSI node type = Initiator
+  0024  uint32      : iSCSI node index = 13
+--------------
+Object:      index=18 type=<Portal> state=mature parent=17
+  0010  ipaddr      : Portal IP address = 192.168.1.1
+  0011  uint32      : Portal TCP/UDP port = 860/tcp
+  0016  uint32      : Portal index = 18
+--------------
+Object:      index=19 type=<iSCSI Portal Group> state=mature parent=17
+  0030  string      : Portal group name = "isns.client1"
+  0031  ipaddr      : Portal group address = 192.168.1.1
+  0032  uint32      : Portal group port = 860/tcp
+  0033  uint32      : Portal group tag = 1
+  0034  uint32      : Portal group index = 19
+--------------
+Object:      index=16 type=<Discovery Domain> state=mature
+  0811  uint32      : DD ID = 1
+  0812  string      : DD name = "isns.dd1"
+  081e  uint32      : DD features = <NIL>
+  0813  uint32      : DD member iSCSI index = 13
+  0814  string      : DD member iSCSI name = "isns.client1"
+  0816  uint32      : DD member portal index = 18
+  0817  ipaddr      : DD member portal addr = 192.168.1.1
+  0818  uint32      : DD member portal port = 860/tcp

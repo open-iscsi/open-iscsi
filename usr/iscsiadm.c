@@ -33,7 +33,7 @@
 #include "log.h"
 #include "mgmt_ipc.h"
 #include "idbm.h"
-#include "util.h"
+#include "iscsi_util.h"
 #include "transport.h"
 #include "version.h"
 #include "iscsi_sysfs.h"
@@ -997,24 +997,38 @@ sw_st:
 				       op);
 }
 
-static int isns_dev_attr_query(discovery_rec_t *drec,
-			       int info_level)
+static int do_isns(discovery_rec_t *drec, struct list_head *ifaces,
+		   int info_level, int do_login, int op)
 {
-	iscsiadm_req_t req;
-	iscsiadm_rsp_t rsp;
-	int err;
+	struct list_head rec_list;
+	struct node_rec *rec, *tmp;
+	int rc;
 
-	memset(&req, 0, sizeof(iscsiadm_req_t));
-	req.command = MGMT_IPC_ISNS_DEV_ATTR_QUERY;
+	INIT_LIST_HEAD(&rec_list);
+	/*
+	 * compat: if the user did not pass any op then we do all
+	 * ops for them
+	 */
+	if (!op)
+		op = OP_NEW | OP_DELETE | OP_UPDATE;
 
-	err = iscsid_exec_req(&req, &rsp, 1);
-	if (err) {
-		iscsid_handle_error(err);
-		return EIO;
-	} else {
-		idbm_print_discovered(drec, info_level);
-		return 0;
+	drec->type = DISCOVERY_TYPE_ISNS;
+
+	rc = idbm_bind_ifaces_to_nodes(discovery_isns, drec, ifaces,
+				       &rec_list);
+	if (rc) {
+		log_error("Could not perform iSNS discovery.");
+		return rc;
 	}
+
+	rc = exec_disc_op_on_recs(drec, &rec_list, info_level, do_login, op);
+
+	list_for_each_entry_safe(rec, tmp, &rec_list, list) {
+		list_del(&rec->list);
+		free(rec);
+	}
+
+	return rc;
 }
 
 static int
@@ -1632,6 +1646,9 @@ main(int argc, char **argv)
 		goto free_ifaces;
 	}
 
+	if (mode != MODE_DISCOVERY && ip)
+		port = ISCSI_LISTEN_PORT;
+
 	switch (mode) {
 	case MODE_HOST:
 		if ((rc = verify_mode_params(argc, argv, "HdmP", 0))) {
@@ -1673,7 +1690,10 @@ main(int argc, char **argv)
 		}
 		switch (type) {
 		case DISCOVERY_TYPE_SENDTARGETS:
-			if (ip == NULL || port < 0) {
+			if (port < 0)
+				port = ISCSI_LISTEN_PORT;
+
+			if (ip == NULL) {
 				log_error("please specify right portal as "
 					  "<ipaddr>[:<ipport>]");
 				rc = -1;
@@ -1698,10 +1718,23 @@ main(int argc, char **argv)
 			rc = -1;
 			break;
 		case DISCOVERY_TYPE_ISNS:
-			drec.type = DISCOVERY_TYPE_ISNS;
-
-			if (isns_dev_attr_query(&drec, info_level))
+			if (!ip) {
+				log_error("please specify right portal as "
+					  "<ipaddr>:[<ipport>]");
 				rc = -1;
+				goto out;
+			}
+
+			strlcpy(drec.address, ip, sizeof(drec.address));
+			if (port < 0)
+				drec.port = 3205;
+			else
+				drec.port = port;
+
+			if (do_isns(&drec, &ifaces, info_level, do_login, op)) {
+				rc = -1;
+				goto out;
+			}
 			break;
 		case DISCOVERY_TYPE_FW:
 			drec.type = DISCOVERY_TYPE_FW;

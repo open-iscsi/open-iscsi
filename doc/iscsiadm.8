@@ -248,12 +248,8 @@ information about available targets.
 .B
 iSNS
 iSNS (Internet Storage Name Service) records information about storage
-volumes within a larger network. To utilize iSNS, the address of the
-iSNS server must be set in iscsid.conf using the "isns.address" value,
-and iscsiadm must be run in discovery mode with the "isns" discovery type.
-
-iSNS support in open-iscsi is experimental. The iscsid.conf settings,
-iscsiadm syntax and node DB layout may change.
+volumes within a larger network. To utilize iSNS, pass the address and
+optionally the port of the iSNS server to do discovery to.
 
 .TP
 .B

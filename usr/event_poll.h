@@ -22,8 +22,7 @@
 struct iscsi_ipc;
 
 void need_reap(void);
-void event_loop(struct iscsi_ipc *ipc, int control_fd, int mgmt_ipc_fd,
-		int isns_fd);
+void event_loop(struct iscsi_ipc *ipc, int control_fd, int mgmt_ipc_fd);
 void event_loop_exit(void);
 
 #endif

@@ -33,7 +33,7 @@
 #include "idbm.h"
 #include "idbm_fields.h"
 #include "log.h"
-#include "util.h"
+#include "iscsi_util.h"
 #include "iscsi_settings.h"
 #include "transport.h"
 #include "iscsi_sysfs.h"
@@ -1737,65 +1737,6 @@ int idbm_bind_ifaces_to_nodes(idbm_disc_nodes_fn *disc_node_fn,
 
 			rc = idbm_bind_iface_to_nodes(disc_node_fn, drec, iface,
 						      bound_recs);
-			if (rc)
-				return rc;
-		}
-	}
-	return 0;
-}
-
-/*
- * remove this when isns is converted
- */
-int idbm_add_nodes(node_rec_t *newrec, discovery_rec_t *drec,
-		   struct list_head *ifaces, int update)
-{
-	struct iface_rec *iface, *tmp;
-	struct iscsi_transport *t;
-	int rc = 0, found = 0;
-
-	if (!ifaces || list_empty(ifaces)) {
-		struct list_head def_ifaces;
-
-		INIT_LIST_HEAD(&def_ifaces);
-		iface_link_ifaces(&def_ifaces);
-
-		list_for_each_entry_safe(iface, tmp, &def_ifaces, list) {
-			list_del(&iface->list);
-			t = iscsi_sysfs_get_transport_by_name(iface->transport_name);
-			/* only auto bind to software iscsi */
-			if (!t || strcmp(t->name, DEFAULT_TRANSPORT) ||
-			     !strcmp(iface->name, DEFAULT_IFACENAME)) {
-				free(iface);
-				continue;
-			}
-
-			iface_copy(&newrec->iface, iface);
-			rc = idbm_add_node(newrec, drec, update);
-			free(iface);
-			if (rc)
-				return rc;
-			found = 1;
-		}
-
-		/* create default iface with old/default behavior */
-		if (!found) {
-			iface_setup_defaults(&newrec->iface);
-			return idbm_add_node(newrec, drec, update);
-		}
-	} else {
-		list_for_each_entry(iface, ifaces, list) {
-			if (strcmp(iface->name, DEFAULT_IFACENAME) &&
-			    !iface_is_valid(iface)) {
-				log_error("iface %s is not valid. Will not "
-					  "bind node to it. Iface settings "
-					  iface_fmt, iface->name,
-					  iface_str(iface));
-				continue;
-			}
-
-			iface_copy(&newrec->iface, iface);
-			rc = idbm_add_node(newrec, drec, update);
 			if (rc)
 				return rc;
 		}

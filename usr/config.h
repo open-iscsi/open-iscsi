@@ -142,6 +142,9 @@ struct iscsi_sendtargets_config {
 	struct iscsi_conn_operational_config iscsi;
 };
 
+struct iscsi_isns_config {
+};
+
 struct iscsi_slp_config {
 	char *scopes;
 	char *interfaces;	/* for multicast, list of interfaces names,
@@ -231,6 +234,7 @@ typedef struct discovery_rec {
 	union {
 		struct iscsi_sendtargets_config	sendtargets;
 		struct iscsi_slp_config		slp;
+		struct iscsi_isns_config	isns;
 	} u;
 } discovery_rec_t;
 

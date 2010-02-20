@@ -27,6 +27,7 @@ IFACEFILES = etc/iface.example
 all: user kernel
 
 user: ;
+	cd utils/open-isns; ./configure; $(MAKE)
 	$(MAKE) -C utils/sysdeps
 	$(MAKE) -C utils/fwparam_ibft
 	$(MAKE) -C usr
@@ -52,6 +53,7 @@ kernel: force
 force: ;
 
 clean:
+	$(MAKE) -C utils/open-isns clean
 	$(MAKE) -C utils/sysdeps clean
 	$(MAKE) -C utils/fwparam_ibft clean
 	$(MAKE) -C utils clean

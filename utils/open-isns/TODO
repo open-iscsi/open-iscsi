@@ -1,0 +1,100 @@
+Documentation:
+ -	Add HOWTO
+
+isnsd:
+ -	When registering a node, use the default EID given in its
+ 	policy (avoid the isns.control trap)
+ -	make PGs children of the iSCSI storage node they're associated
+ 	with?
+ -	Implement missing functions
+
+isnsadm:
+ -	support iSNS server discovery through DNS SRV
+ 	records, and SLP
+
+isnsdd:
+ -	support iSNS server discovery through DNS SRV
+ 	records, and SLP
+ -	At startup, query the server for the list of
+ 	visible nodes/portals
+ -	When receiving an SCN, query for the node's
+ 	portals, authmethod and such, and compare that
+	to what we have cached
+ -	At regular intervals, repeat the query for
+ 	all visible nodes/portals, and do a diff with
+	our shadow DB
+ -	At regular intervals, check whether the portals
+ 	we registered for ESI are seeing the server's
+	ESI messages.
+
+DevAttrReg:
+ -	Refuse registration of nodes inside the CONTROL
+ 	entity, unless it's a control node.
+ -	If the client uses REPLACE, is it okay for the
+ 	entity's index to change?
+ -	security: optionally validate the IP addresses
+ 	a client registers (either against a static policy,
+	or using DNS).
+ -	relaxed security model: require privilege
+ 	for registration of targets; anyone can register
+	an initiator?
+ -	Gracefully handle registrations where the client
+	specifies an index attribute, as long as it matches
+	the next_index
+
+DevAttrQuery:
+ -	fix --local --query policy-index=iqn.1969-12.brummo
+	and write test case
+ -	fix the way we enumerate related objects
+ -	ensure DD discovery works (5.6.5.2):
+	   DD membership can be discovered through the DevAttrQry message
+	   by including either DD member attributes (i.e., DD Member
+	   iSCSI Index, DD Member iSCSI Node, DD Member iFCP Node, DD
+	   Member Portal Index, DD Member Portal IP Addr, and DD Member
+	   Portal TCP/UDP) or the object key of the Storage Node or
+	   Portal (i.e., iSCSI Name, iSCSI Index, Portal IP Addr, Portal
+	   TCP/UDP Port, and Portal Index) in the Operating Attributes.
+	   Using DD member attributes SHALL return both registered and
+	   unregistered member Storage Nodes and/or Portals of a DD.
+	   DevAttrQry messages using the Storage Node and/or Portal
+	   object key SHALL return only member Storage Nodes or Portals
+	   that are currently registered in the iSNS database.
+
+DevAttrDereg:
+ -	PG Removal code: ignore nodes/portal that are dead
+ -	review security
+ -	cancel any SCN/ESI callbacks
+
+SCN:
+ -	Trigger a mgmt reg SCN when accepting a mgmt registration
+
+SCNEvent:
+ -	Implement
+
+ESI:
+ -	Right now the way we re-establish ESI state after database
+ 	reload is awkward.
+
+DDReg:
+ -	Write test cases
+
+DDDereg:
+ -	Write test cases
+
+DDSReg/DDSDereg:
+ -	Implement
+
+Heartbeat:
+ -	Implement message send
+ -	Implement failover?
+
+Security:
+ -	Allow policies without key?
+ -	Implement simple default policies linking client IP +
+ 	hostname (network entity) + storage node names
+
+Renaming
+ -	Add isns_ prefix to all visible functions
+
+Socket code:
+ -	impose upper limit on the reassembly buffer

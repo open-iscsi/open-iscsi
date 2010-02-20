@@ -1,0 +1,31 @@
+Dumping database contents
+Backend:     /tmp/isns-test/test10/server0/database
+Last EID:    1
+Last Index:  9
+--------------
+Object:      index=5 type=<Network Entity> state=mature
+  0001  string      : Entity identifier = "blue.pauw.homeunix.net"
+  0002  uint32      : Entity protocol = iSCSI (2)
+  0006  uint32      : Registration Period = 7200
+  0004  uint64      : Timestamp = Mon Sep 17 16:34:30 2007
+  0007  uint32      : Entity index = 5
+--------------
+Object:      index=6 type=<Portal> state=mature parent=5
+  0010  ipaddr      : Portal IP address = 192.168.1.2
+  0011  uint32      : Portal TCP/UDP port = 33849/tcp
+  0016  uint32      : Portal index = 6
+  0014  uint32      : ESI port = 56288/tcp
+  0013  uint32      : ESI interval = 10
+--------------
+Object:      index=7 type=<iSCSI Storage Node> state=mature parent=5
+  0020  string      : iSCSI name = "iqn.2005-03.org.open-iscsi:blue"
+  0024  uint32      : iSCSI node index = 7
+  0021  uint32      : iSCSI node type = Initiator
+  0022  string      : iSCSI alias = "blue.pauw.homeunix.net"
+--------------
+Object:      index=8 type=<iSCSI Portal Group> state=mature parent=5
+  0030  string      : Portal group name = "iqn.2005-03.org.open-iscsi:blue"
+  0031  ipaddr      : Portal group address = 192.168.1.2
+  0032  uint32      : Portal group port = 33849/tcp
+  0033  uint32      : Portal group tag = 1
+  0034  uint32      : Portal group index = 8

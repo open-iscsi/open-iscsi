@@ -34,7 +34,7 @@
 #include "sysdeps.h"
 #include "log.h"
 #include "session_mgmt.h"
-#include "util.h"
+#include "iscsi_util.h"
 #include "event_poll.h"
 #include "iface.h"
 

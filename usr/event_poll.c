@@ -63,8 +63,7 @@ static void reaper(void)
 
 #define POLL_CTRL	0
 #define POLL_IPC	1
-#define POLL_ISNS	2
-#define POLL_MAX	3
+#define POLL_MAX	2
 
 static int event_loop_stop;
 
@@ -73,8 +72,7 @@ void event_loop_exit(void)
 	event_loop_stop = 1;
 }
 
-void event_loop(struct iscsi_ipc *ipc, int control_fd, int mgmt_ipc_fd,
-		int isns_fd)
+void event_loop(struct iscsi_ipc *ipc, int control_fd, int mgmt_ipc_fd)
 {
 	struct pollfd poll_array[POLL_MAX];
 	int res;
@@ -83,13 +81,6 @@ void event_loop(struct iscsi_ipc *ipc, int control_fd, int mgmt_ipc_fd,
 	poll_array[POLL_CTRL].events = POLLIN;
 	poll_array[POLL_IPC].fd = mgmt_ipc_fd;
 	poll_array[POLL_IPC].events = POLLIN;
-
-	if (isns_fd < 0)
-		poll_array[POLL_ISNS].fd = poll_array[POLL_ISNS].events = 0;
-	else {
-		poll_array[POLL_ISNS].fd = isns_fd;
-		poll_array[POLL_ISNS].events = POLLIN;
-	}
 
 	event_loop_stop = 0;
 	while (!event_loop_stop) {
@@ -101,10 +92,6 @@ void event_loop(struct iscsi_ipc *ipc, int control_fd, int mgmt_ipc_fd,
 
 			if (poll_array[POLL_IPC].revents)
 				mgmt_ipc_handle(mgmt_ipc_fd);
-
-			if (poll_array[POLL_ISNS].revents)
-				isns_handle(isns_fd);
-
 		} else if (res < 0) {
 			if (errno == EINTR) {
 				log_debug(1, "event_loop interrupted");

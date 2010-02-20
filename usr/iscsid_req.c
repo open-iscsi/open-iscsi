@@ -29,7 +29,7 @@
 #include "initiator.h"
 #include "log.h"
 #include "mgmt_ipc.h"
-#include "util.h"
+#include "iscsi_util.h"
 #include "config.h"
 
 static void iscsid_startup(void)

@@ -1,0 +1,173 @@
+
+Welcome to Open-iSNS
+====================
+
+This is a partial implementation of iSNS, according to RFC4171.
+The implementation is still somewhat incomplete, but I'm releasing
+it for your reading pleasure.
+
+The distribution comprises
+
+ isnsd
+ 	This is the iSNS server, supporting persistent storage
+	of registrations in a file based database.
+
+ isnsadm
+ 	A command line utility for querying the iSNS database,
+	and for registering/deregistering nodes and portals
+
+ isnsdd
+ 	An iSNS Discovery Daemon, which is still very much work
+	in progress. The daemon is supposed to handle all the
+	bit banging and server communications required to register
+	a node, its portals, and to maintain the registration.
+	It is also supposed to use the iSNS State Change Notification
+	framework to learn of new targets or initiators coming online,
+	and inform local services (such as the iSCSI initiator daemon)
+	about these changes.
+
+Thanks!
+-------
+
+Many thanks to Albert Pauw for his fearless testing of snapshots,
+and his copious feedback!
+
+What works, after a fashion:
+----------------------------
+
+ -	For now, I've been focusing on getting the iSCSI part to
+ 	work. There is some very basic support for FC objects, but
+	this will be hardly useful yet.
+
+ -	Registration, deregistration, query, getnext
+	You can use isnsadm to register iSCSI nodes, and portals.
+	isnsadm also illustrates how this is supposed to be used from
+	the client perspective.
+
+ -	Discovery domains are supported mostly. The administrator
+ 	can create discovery domains using isnsadm, and place storage
+	nodes in domains. Queries by clients are scoped by their
+	discovery domains membership, so that they will be unable to
+	see nodes not part of a shared DD.
+
+	Open-iSNS currently does not allow clients to place themselves
+	in a DD.
+
+	Optionally, storage nodes that are not in any discovery domain
+	will be placed in a "default DD" (see the DefaultDiscoveryDomain
+	in isnsd.conf).
+
+ -	ESI, supported both by the server and the discovery daemon
+
+ -	SCN, supported by the server and the discovery daemon
+
+What is still missing
+---------------------
+
+ -	Better documentation (esp. a HOWTO on getting started with iSNS)
+ -	DD Sets
+ -	Various bits and pieces of the protocol
+ -	FC support
+
+
+Building Open-iSNS
+------------------
+
+The Open-iSNS build is now based on autoconf. The distributed tarball
+should include a configure script and a config.h.in file generated
+from configure.ac. If these are missing, you can generate them
+by running
+
+	autoconf
+	autoheader
+
+For most people, it should be sufficient to run configure without any
+arguments, or at most with the option --prefix. If run without --prefix,
+program files, manpages etc will be installed below /usr/local. To have
+everything installed /usr/bin, /usr/share/man etc, run it as
+
+	./configure --prefix=/usr
+
+Dependencies:
+
+ -	If you want to build Open-iSNS with support for authentication,
+ 	you need the OpenSSL libraries and header files installed.
+
+	The configure script should pick up the presence of these
+	libraries, and enable security support automatically. To disable
+	this explicitly in your build, pass the --without-security option
+	to configure.
+
+ -	If you want to build Open-iSNS with SLP support, you need the
+ 	OpenSLP library and header file installed.
+
+	The configure script should pick up the presence of this library,
+	and enable SLP support automatically. To disable this explicitly
+	in your build, pass the --without-slp option to configure.
+
+When configure is run, it checks for a the presence of a number of
+headers and libraries in your system (the results of most of these checks
+are currently ignored :-). Then, it creates a Makefile and a config.h
+include file. With these in place, you can build the binaries and libraries:
+
+	make
+	make install
+
+Getting started
+---------------
+
+On the iSNS server, you need to generate a server key and install it. The
+simplest way is probably to use the isnssetup script included in the
+source package.
+
+For each client you wish to use, you should then 
+
+iSNS Security
+-------------
+
+This implementation of iSNS supports authentication, as descibed in RFC
+4171. In order to use it, you have to create DSA keys for the server and
+all clients.
+
+iSNS uses conceptually the same security mechanism as SLP, and identifies
+principals by a "Security Parameter Index", which is essentially a string
+identifying a key.
+
+Open-iSNS fully supports DSA based security, and offers a flexible
+policy mechanism that ties an SPI to a network entity and the storage
+node names it is allowed to use. For an introduction to the security
+model used by Open-iSNS, refer to the isns_config(5) manual page. An
+overview on setting up the iSNS server for authentication is given in
+the EXAMPLES section of the isnsadm(8) manual page.
+
+Downloading Open-iSNS
+---------------------
+
+Open-iSNS is available for download from
+
+	http://oss.oracle.com/~okir/open-isns
+
+You have to grab the latest tarball and compile it; fancy things such
+as RPMs are not available yet.
+
+------------------------------------------------------------------
+
+
+			COPYRIGHT NOTICE
+
+	Copyright (C) 2007 Olaf Kirch.
+
+	This library is free software; you can redistribute it and/or
+	modify it under the terms of the GNU Lesser General Public
+	License as published by the Free Software Foundation; either
+	version 2.1 of the License, or (at your option) any later version.
+
+	This library is distributed in the hope that it will be useful,
+	but WITHOUT ANY WARRANTY; without even the implied warranty of
+	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+	Lesser General Public License for more details.
+
+	You should have received a copy of the GNU Lesser General Public
+	License along with this library; if not, write to the Free Software
+	Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+

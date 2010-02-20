@@ -38,7 +38,7 @@
 #include "event_poll.h"
 #include "transport.h"
 #include "log.h"
-#include "util.h"
+#include "iscsi_util.h"
 #include "idbm.h"
 #include "version.h"
 #include "iscsi_sysfs.h"
@@ -422,7 +422,7 @@ int main(int argc, char *argv[])
 	 * Start Main Event Loop
 	 */
 	actor_init();
-	event_loop(ipc, control_fd, mgmt_ipc_fd, -1);
+	event_loop(ipc, control_fd, mgmt_ipc_fd);
 	ipc->ctldev_close();
 	mgmt_ipc_close(mgmt_ipc_fd);
 	free_initiator();

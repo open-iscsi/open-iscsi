@@ -1,0 +1,76 @@
+Dumping database contents
+Backend:     /tmp/isns-test/test02/server0/database
+Last EID:    1
+Last Index:  15
+--------------
+Object:      index=1 type=<Network Entity> state=mature PRIVATE
+  0001  string      : Entity identifier = "CONTROL"
+  0007  uint32      : Entity index = 1
+--------------
+Object:      index=2 type=<Policy> state=mature parent=1 PRIVATE
+  0601v string      : Security Policy Index = "client1.isns-test.eu"
+  0607v string      : Policy allowed node name = "isns.client1"
+  0603v opaque      : DSA security key = <30 82 01 b6 30 82 01 2b 06 07 2a 86 48 ce 38 04 01 30 82 01...
+--------------
+Object:      index=3 type=<iSCSI Storage Node> state=mature parent=1 PRIVATE
+  0020  string      : iSCSI name = "isns.control"
+  0021  uint32      : iSCSI node type = <NIL>
+  0024  uint32      : iSCSI node index = 3
+--------------
+Object:      index=4 type=<Policy> state=mature parent=1 PRIVATE
+  0601v string      : Security Policy Index = "client2.isns-test.eu"
+  0607v string      : Policy allowed node name = "isns.client2"
+  0603v opaque      : DSA security key = <30 82 01 b6 30 82 01 2b 06 07 2a 86 48 ce 38 04 01 30 82 01...
+  0608v uint32      : Policy allowed node type = Target
+--------------
+Object:      index=5 type=<Network Entity> state=mature
+  0001  string      : Entity identifier = "client1.isns-test.eu"
+  0002  uint32      : Entity protocol = iSCSI (2)
+  0006  uint32      : Registration Period = 7200
+  0004  uint64      : Timestamp = Fri Sep 14 13:24:04 2007
+  0007  uint32      : Entity index = 5
+--------------
+Object:      index=6 type=<iSCSI Storage Node> state=mature parent=5
+  0020  string      : iSCSI name = "isns.client1"
+  0021  uint32      : iSCSI node type = Initiator
+  0024  uint32      : iSCSI node index = 6
+--------------
+Object:      index=7 type=<Portal> state=mature parent=5
+  0010  ipaddr      : Portal IP address = 127.1.0.1
+  0011  uint32      : Portal TCP/UDP port = 860/tcp
+  0016  uint32      : Portal index = 7
+--------------
+Object:      index=8 type=<iSCSI Portal Group> state=mature parent=5
+  0030  string      : Portal group name = "isns.client1"
+  0031  ipaddr      : Portal group address = 127.1.0.1
+  0032  uint32      : Portal group port = 860/tcp
+  0033  uint32      : Portal group tag = 1
+  0034  uint32      : Portal group index = 8
+--------------
+Object:      index=9 type=<Network Entity> state=mature
+  0001  string      : Entity identifier = "client2.isns-test.eu"
+  0002  uint32      : Entity protocol = iSCSI (2)
+  0006  uint32      : Registration Period = 7200
+  0004  uint64      : Timestamp = Fri Sep 14 13:24:04 2007
+  0007  uint32      : Entity index = 9
+--------------
+Object:      index=10 type=<iSCSI Storage Node> state=mature parent=9
+  0020  string      : iSCSI name = "isns.client2"
+  0021  uint32      : iSCSI node type = Target
+  0024  uint32      : iSCSI node index = 10
+--------------
+Object:      index=11 type=<Portal> state=mature parent=9
+  0010  ipaddr      : Portal IP address = 127.1.0.2
+  0011  uint32      : Portal TCP/UDP port = 3260/tcp
+  0016  uint32      : Portal index = 11
+--------------
+Object:      index=12 type=<iSCSI Portal Group> state=mature parent=9
+  0030  string      : Portal group name = "isns.client2"
+  0031  ipaddr      : Portal group address = 127.1.0.2
+  0032  uint32      : Portal group port = 3260/tcp
+  0033  uint32      : Portal group tag = 1
+  0034  uint32      : Portal group index = 12
+--------------
+Object:      index=14 type=<iSCSI Storage Node> state=limbo
+  0020  string      : iSCSI name = "iqn.com.foobar:disk1"
+  0024  uint32      : iSCSI node index = 14

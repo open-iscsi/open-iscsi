@@ -86,8 +86,7 @@ str_to_ipport(char *str, int *port, int *tpgt)
 		*sport++ = '\0';
 		*port = strtoul(sport, NULL, 10);
 		str = sport;
-	} else
-		*port = ISCSI_LISTEN_PORT;
+	}
 
 	if ((stpgt = strchr(str, ','))) {
 		*stpgt++ = '\0';

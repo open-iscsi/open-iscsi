@@ -913,14 +913,10 @@ iscsiadm -m discovery -t sendtargets -p ip:port
 
 where "ip" is the address of the portal and port is the port.
 
-Or you can you perform discovery using iSNS by setting the address
-of the iSNS server in iscsid.conf with the "isns.address" value and
-running:
+To use iSNS you can run the discovery command with the type as "isns"
+and pass in the ip:port:
 
-iscsiadm -m discovery -t isns
-
-*** Warning *** iSNS support is experimental in this release. The command
-line options for it will change in future releases.
+iscsiadm -m discovery -t isns -p ip:port
 
 Both commands will print out the list of all discovered targets and their
 portals:

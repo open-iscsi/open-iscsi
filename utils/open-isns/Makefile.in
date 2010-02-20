@@ -1,0 +1,82 @@
+prefix	= @prefix@
+exec_prefix = @exec_prefix@
+sbindir	= @sbindir@
+mandir	= @mandir@
+etcdir	= /etc
+vardir	= /var/lib/isns
+
+SBINDIR	= $(INSTALL_ROOT)$(sbindir)
+ETCDIR	= $(INSTALL_ROOT)$(etcdir)
+CFGDIR	= $(ETCDIR)/isns
+MANDIR	= $(INSTALL_ROOT)$(mandir)
+VARDIR	= $(INSTALL_ROOT)$(vardir)
+
+CC	= @CC@
+CPPFLAGS= @CPPFLAGS@
+CFLAGS	= @CFLAGS@ -I.
+LDFLAGS	= @LDFLAGS@
+
+LIB	= libisns.a
+LIBOBJS	= server.o \
+	  client.o \
+	  objects.o \
+	  callback.o \
+	  timer.o \
+	  vendor.o \
+	  db.o \
+	  db-file.o \
+	  db-policy.o \
+	  relation.o \
+	  scope.o \
+	  message.o \
+	  security.o \
+	  authblock.o \
+	  policy.o \
+	  pki.o \
+	  register.o \
+	  query.o \
+	  getnext.o \
+	  deregister.o \
+	  esi.o \
+	  scn.o \
+	  dd.o \
+	  entity.o \
+	  portal-group.o \
+	  storage-node.o \
+	  domain.o \
+	  simple.o \
+	  tags.o \
+	  attrs.o \
+	  export.o \
+	  socket.o \
+	  slp.o \
+	  error.o \
+	  logging.o \
+	  config.o \
+	  parser.o \
+	  buffer.o \
+	  pidfile.o \
+	  sysdep-unix.o \
+	  util.o \
+	  bitvector.o \
+	  mdebug.o
+SECLINK	= @SECLIBS@
+SLPLINK	= @SLPLIBS@
+SLPLIN	= @SLPLIBS@
+
+all: $(LIB)
+
+clean distclean::
+	rm -f *.o $(LIB) *~
+
+distclean::
+	rm -f config.h Makefile config.status config.log
+	rm -rf autom4te.cache
+
+$(LIB): $(LIBOBJS)
+	ar cr $@ $(LIBOBJS)
+
+depend:
+	gcc $(CFLAGS) -M `ls *.c` > .depend
+
+-include .depend

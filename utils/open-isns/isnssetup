@@ -1,0 +1,52 @@
+#!/bin/sh
+#
+# isnssetup - bootstrap open-isns server
+#
+# Copyright (C) 2007 Olaf Kirch <olaf.kirch@oracle.com>
+#
+# This is a very simple script to bootstrap an iSNS server.
+# It creates the necessary keys, enrolls a control node,
+# and enrolls the local host as target and initiator.
+
+hostname=`hostname -f`
+
+if [ -f isnsd -a -d isnsadm ]; then
+	PATH=.:$PATH
+fi
+
+# Massage the configuration file
+for f in isnsadm.conf isnsdd.conf; do
+	etcfile=/etc/isns/$f
+	sed -e 's/^#*\(ServerAddress[[:space:]]*=\).*/\1 localhost/' \
+	    -e 's/^#*\(Security[[:space:]]*=\).*/\1 1/' \
+			$etcfile > $etcfile.tmp
+	mv $etcfile.tmp $etcfile
+done
+
+echo "*** Initializing server security ***"
+isnsd --init
+cp /etc/isns/auth_key.pub /etc/isns/server_key.pub
+
+if ps ax|grep isnsd | grep -qv grep; then
+	killall -TERM isnsd
+	sleep 1
+fi
+isnsd
+sleep 1
+
+echo "*** Registering control node policy ***"
+rm -f /etc/isns/control.key
+isnsadm --local \
+	--keyfile=/etc/isns/control.key \
+	--enroll isns.control \
+	node-type=ALL functions=ALL object-type=ALL
+
+echo "*** Registering control node ***"
+isnsadm --local \
+	--register control
+
+echo "*** Registering policy for server ***"
+isnsadm --control \
+	--enroll $hostname \
+	key=/etc/isns/auth_key.pub \
+	node-type=target+initiator

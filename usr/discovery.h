@@ -27,8 +27,9 @@ struct iface_rec;
 struct node_rec;
 struct boot_context;
 
-extern int discovery_fw(struct discovery_rec *drec,
-			struct iface_rec *iface,
+extern int discovery_isns(struct discovery_rec *drec, struct iface_rec *iface,
+			  struct list_head *rec_list);
+extern int discovery_fw(struct discovery_rec *drec, struct iface_rec *iface,
 			struct list_head *rec_list);
 extern int discovery_sendtargets(struct discovery_rec *drec,
 				 struct iface_rec *iface,

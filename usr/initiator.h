@@ -346,10 +346,4 @@ extern void iscsi_async_session_creation(uint32_t host_no, uint32_t sid);
 extern void iscsi_async_session_destruction(uint32_t host_no, uint32_t sid);
 extern void free_initiator(void);
 
-/* isns.c */
-extern int isns_init(void);
-extern void isns_handle(int);
-extern void isns_exit(void);
-extern int isns_dev_attr_query_task(queue_task_t *qtask);
-
 #endif /* INITIATOR_H */

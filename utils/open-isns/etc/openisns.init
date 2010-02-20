@@ -1,0 +1,71 @@
+#!/bin/sh
+#
+# Init script for Open-iSNS.
+#
+# Copyright (C) 2007 Albert Pauw
+#
+# chkconfig: 345 13 89
+# description: Starts and stops the iSCSI isns server
+#
+# processname: isnsd
+# pidfile: /var/run/isnsd.pid
+# config:  /etc/isns/isnsd.conf
+
+# Source function library.
+. /etc/init.d/functions
+
+PATH=/sbin:/bin:/usr/sbin:/usr/bin
+#OPTIONS="-4 -d all"
+CONFIG="-c /etc/isns/isnsd.conf"
+RETVAL=0
+
+start()
+{
+         echo -n "Starting iSCSI isns service: "
+         daemon isnsd $OPTIONS $CONFIG
+         RETVAL=$?
+         success
+         echo
+         [ $RETVAL -eq 0 ] || return
+         touch /var/lock/subsys/open-isns
+}
+
+stop()
+{
+         echo -n "Stopping iSCSI isns service: "
+         killproc isnsd
+         [ $RETVAL -eq 0 ] && rm -f /var/lock/subsys/open-isns
+         success
+         echo
+
+}
+
+restart()
+{
+         stop
+         start
+}
+
+case "$1" in
+start)
+	start
+	;;
+stop)
+	stop
+	;;
+restart)
+	restart
+	;;
+status)
+	status isnsd
+	RETVAL=$?
+	;;
+condrestart)
+	[ -f /var/lock/subsys/open-isns ] && restart
+	;;
+*)
+	echo $"Usage: $0 {start|stop|restart|status|condrestart}"
+	exit 1
+esac
+
+exit $RETVAL

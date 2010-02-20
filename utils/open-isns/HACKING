@@ -1,0 +1,30 @@
+
+When hacking on open-isns, or when trying to locate a problem,
+the following information may be useful:
+
+ -	You can start the daemon using the -f option, which
+ 	prevents it from backgrounding itself. Crucial if
+	you want to run it in a debugger, or under strace.
+
+	This option works for isnsd and isnsdd
+
+ -	All tools support the "-d" option to enable debugging.
+ 	In general, you want to use "-d all" to turn on all
+	debugging options. However, you can select individual
+	debug facilities - check out the manpages and/or
+	the source code in logging.c
+
+ -	If isnsd crashes, and you suspect memory corruption,
+	you can compile open-isns with memory debugging enabled.  Re-run
+	the configure script and add the option --enable-memdebug. Then
+	run "make clean all" to rebuild everything.
+
+	Memory debugging can be chosen at run-time by setting the
+	ISNS_MDEBUG environment variable, and re-starting the application:
+
+	export ISNS_MDEBUG=1
+	./isnsd -f -d all
+
+	Memory debugging works for all memory allocations done by the
+	Open-iSNS code, but does not affect memory allocations by other
+	libraries (such as glibc or openssl).

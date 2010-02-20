@@ -11,7 +11,7 @@
 #define offsetof(TYPE, MEMBER) ((size_t) &((TYPE *)0)->MEMBER)
 #endif
 
-#define container_of(ptr, type, member) ({			\
+#define list_container_of(ptr, type, member) ({		\
         const typeof( ((type *)0)->member ) *__mptr = (ptr);	\
         (type *)( (char *)__mptr - offsetof(type,member) );})
 
@@ -36,7 +36,7 @@ static inline int list_empty(const struct list_head *head)
 }
 
 #define list_entry(ptr, type, member) \
-	container_of(ptr, type, member)
+	list_container_of(ptr, type, member)
 
 #define list_for_each(pos, head) \
 	for (pos = (head)->next; pos != (head); pos = pos->next)

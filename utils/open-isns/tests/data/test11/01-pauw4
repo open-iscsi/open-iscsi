@@ -1,0 +1,32 @@
+Dumping database contents
+Backend:     /tmp/isns-test/test11/server0/database
+Last EID:    1
+Last Index:  5
+--------------
+Object:      index=1 type=<Network Entity> state=mature
+  0001  string      : Entity identifier = "troopa.nki.nl"
+  0002  uint32      : Entity protocol = iSCSI (2)
+  0006  uint32      : Registration Period = 7200
+  0004  uint64      : Timestamp = Fri Sep 21 09:37:10 2007
+  0007  uint32      : Entity index = 1
+--------------
+Object:      index=2 type=<Portal> state=mature parent=1
+  0010  ipaddr      : Portal IP address = 192.168.1.40
+  0011  uint32      : Portal TCP/UDP port = 3229/tcp
+  0017  uint32      : SCN port = 3230/tcp
+  0014  uint32      : ESI port = 3230/tcp
+  0013  uint32      : ESI interval = 300
+  0016  uint32      : Portal index = 2
+--------------
+Object:      index=3 type=<iSCSI Portal Group> state=mature parent=1
+  0030  string      : Portal group name = "iqn.1991-05.com.microsoft:orange"
+  0031  ipaddr      : Portal group address = 192.168.1.40
+  0032  uint32      : Portal group port = 3229/tcp
+  0033  uint32      : Portal group tag = 1
+  0034  uint32      : Portal group index = 3
+--------------
+Object:      index=4 type=<iSCSI Storage Node> state=mature parent=1
+  0020  string      : iSCSI name = "iqn.1991-05.com.microsoft:orange"
+  0021  uint32      : iSCSI node type = Initiator
+  0022  string      : iSCSI alias = "<MS SW iSCSI Initiator>"
+  0024  uint32      : iSCSI node index = 4

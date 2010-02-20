@@ -22,7 +22,7 @@
 #include <errno.h>
 
 #include "list.h"
-#include "util.h"
+#include "iscsi_util.h"
 #include "log.h"
 #include "iscsi_sysfs.h"
 #include "version.h"

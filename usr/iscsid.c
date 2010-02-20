@@ -37,7 +37,7 @@
 #include "event_poll.h"
 #include "iscsi_ipc.h"
 #include "log.h"
-#include "util.h"
+#include "iscsi_util.h"
 #include "initiator.h"
 #include "transport.h"
 #include "idbm.h"
@@ -333,7 +333,6 @@ int main(int argc, char *argv[])
 	char *initiatorname_file = INITIATOR_NAME_FILE;
 	char *pid_file = PID_FILE;
 	int ch, longindex;
-	int isns_fd;
 	uid_t uid = 0;
 	struct sigaction sa_old;
 	struct sigaction sa_new;
@@ -512,12 +511,10 @@ int main(int argc, char *argv[])
 	}
 
 	actor_init();
-	isns_fd = isns_init();
-	event_loop(ipc, control_fd, mgmt_ipc_fd, isns_fd);
+	event_loop(ipc, control_fd, mgmt_ipc_fd);
 
 	idbm_terminate();
 	sysfs_cleanup();
-	isns_exit();
 	ipc->ctldev_close();
 	mgmt_ipc_close(mgmt_ipc_fd);
 	if (daemon_config.initiator_name)
