@@ -1731,7 +1731,7 @@ static void session_conn_recv_pdu(void *data)
 	case STATE_LOGGED_IN:
 	case STATE_IN_LOGOUT:
 	case STATE_LOGOUT_REQUESTED:
-		/* read incomming PDU */
+		/* read incoming PDU */
 		if (!iscsi_io_recv_pdu(conn, &hdr, ISCSI_DIGEST_NONE,
 			    conn->data, ISCSI_DEF_MAX_RECV_SEG_LEN,
 			    ISCSI_DIGEST_NONE, 0)) {
@@ -1755,12 +1755,12 @@ static void session_conn_recv_pdu(void *data)
 		break;
 	case STATE_XPT_WAIT:
 		iscsi_conn_context_put(conn_context);
-		log_debug(1, "ignoring incomming PDU in XPT_WAIT. "
+		log_debug(1, "ignoring incoming PDU in XPT_WAIT. "
 			  "let connection re-establish or fail");
 		break;
 	case STATE_CLEANUP_WAIT:
 		iscsi_conn_context_put(conn_context);
-		log_debug(1, "ignoring incomming PDU in XPT_WAIT. "
+		log_debug(1, "ignoring incoming PDU in XPT_WAIT. "
 			  "let connection cleanup");
 		break;
 	default:

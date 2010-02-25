@@ -143,7 +143,7 @@ typedef struct iscsi_conn {
 	int socket_fd;
 	/* address being used for normal session connection */
 	struct sockaddr_storage saddr;
-	/* address recieved during login */
+	/* address received during login */
 	struct sockaddr_storage failback_saddr;
 	int tcp_window_size;
 	int type_of_service;

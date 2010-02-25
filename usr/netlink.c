@@ -288,7 +288,7 @@ __kipc_call(void *iov_base, int iov_len)
 
 				if (iferr == -ENOSYS)
 					/* not fatal so let caller handle log */
-					log_debug(1, "Recieved iferror %d: %s.",
+					log_debug(1, "Received iferror %d: %s.",
 						  iferr, strerror(-iferr));
 				else if (iferr < 0)
 					log_error("Received iferror %d: %s.",
