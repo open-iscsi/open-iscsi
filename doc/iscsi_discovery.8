@@ -13,9 +13,9 @@ iscsi_discovery \- discover iSCSI targets
 .SH DESCRIPTION
 Perform send-targets discovery to the specified IP. If a discovery record
 is generated, try to login to the portal using the preferred transport
-(-t flag specifies the requested transport type, TCP is the default).
+(\-t flag specifies the requested transport type, TCP is the default).
 If login using a certain transport succeeds, mark the portal for automatic
-login (unless -m flag is used), and disconnect (unless -l flag is used).
+login (unless \-m flag is used), and disconnect (unless \-l flag is used).
 
 For iSCSI discovery to work, open-iscsi services must be running. i.e. iscsid
 should be up, and the iSCSI modules loaded. This is best accomplished by the
@@ -35,7 +35,7 @@ set transport (default is tcp).
 .BI [-f]
 force specific transport -
 disable the fallback to tcp (default is fallback enabled).
-force the transport specified by the argument of the -t flag.
+force the transport specified by the argument of the \-t flag.
 
 .TP
 .BI [-m]

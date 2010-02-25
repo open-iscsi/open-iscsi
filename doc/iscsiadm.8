@@ -2,21 +2,21 @@
 .SH NAME
 iscsiadm \- open-iscsi administration utility
 .SH SYNOPSIS
-\fBiscsiadm\fR -m discovery [ -hV ] [ -d debug_level ] [ -P printlevel ] [ -I iface -t type -p ip:port [ -l ] ] | 
-[ -o operation ] [ -n name ] [ -v value ]
+\fBiscsiadm\fR \-m discovery [ \-hV ] [ \-d debug_level ] [ \-P printlevel ] [ \-I iface \-t type \-p ip:port [ \-l ] ] |
+[ \-o operation ] [ \-n name ] [ \-v value ]
 
-\fBiscsiadm\fR -m node [ -hV ] [ -d debug_level ] [ -P printlevel ] [ -L all,manual,automatic ] [ -U all,manual,automatic ] [ -S ] [ [ -T targetname -p ip:port -I iface ] [ -l | -u | -R | -s] ]
-[ [ -o operation ]  [ -n name ] [ -v value ] [ -p ip:port ] ]
+\fBiscsiadm\fR \-m node [ \-hV ] [ \-d debug_level ] [ \-P printlevel ] [ \-L all,manual,automatic ] [ \-U all,manual,automatic ] [ \-S ] [ [ \-T targetname \-p ip:port \-I iface ] [ \-l | \-u | \-R | \-s] ]
+[ [ \-o operation ]  [ \-n name ] [ \-v value ] [ \-p ip:port ] ]
 
-\fBiscsiadm\fR -m session [ -hV ] [ -d debug_level ] [ -P printlevel ] [ -r sessionid | sysfsdir [ -R ] [ -u | -s ] ]
+\fBiscsiadm\fR \-m session [ \-hV ] [ \-d debug_level ] [ \-P printlevel ] [ \-r sessionid | sysfsdir [ \-R ] [ \-u | \-s ] ]
 
-\fBiscsiadm\fR -m iface [ -hV ] [ -d debug_level ] [ -P printlevel ] [ -I ifacename ] [ [ -o  operation  ] [ -n name ] [ -v value ] ]
+\fBiscsiadm\fR \-m iface [ \-hV ] [ \-d debug_level ] [ \-P printlevel ] [ \-I ifacename ] [ [ \-o  operation  ] [ \-n name ] [ \-v value ] ]
 
-\fBiscsiadm\fR -m fw [-l]
+\fBiscsiadm\fR \-m fw [\-l]
 
-\fBiscsiadm\fR -m host [ -P printlevel ] [ -H hostno ]
+\fBiscsiadm\fR \-m host [ \-P printlevel ] [ \-H hostno ]
 
-\fBiscsiadm\fR -k priority
+\fBiscsiadm\fR \-k priority
 
 .SH "DESCRIPTION"
 The iscsiadm utility is a command-line tool allowing discovery and login
@@ -28,7 +28,7 @@ where a node is a single iSCSI initiator or target. Open-iscsi uses the
 term node to refer to a portal on a target.
 
 For session mode, a session id (sid) is used. The sid of a session can be
-found by running iscsiadm -m session -P 1. The session id and sysfs
+found by running iscsiadm \-m session \-P 1. The session id and sysfs
 path are not currently persistent and is partially determined by when the
 session is setup.
 
@@ -70,10 +70,10 @@ As mentioned above there is a special iface name default. There are three
 others -- cxgb3i, bnx2i and iser, which does not bind the session to a specific card, but will bind the session to the cxgb3i, bnx2i or iser transport. These
 are experimental and the use is not supported as a stable interface yet.
 
-In discovery mode multiple interfaces can be specific by passing in multiple
--I/--interface instances. For example, 
+In discovery mode multiple interfaces can be specified by passing in multiple
+\-I/\-\-interface instances. For example,
 
-"iscsiadm -m discovery -t st -p mytarget -I iface0 -I iface2"
+"iscsiadm \-m discovery \-t st \-p mytarget \-I iface0 \-I iface2"
 
 Will direct iscsiadm to setup the node db to create records which will create
 sessions though the two intefaces passed in.
@@ -151,7 +151,7 @@ Use target portal with ip-address \fIip\fR and \fIport\fR, the default
 This option is only valid for discovery, or for node operations with
 the \fInew\fR operator.
 .IP
-This should be used along with --target in node mode, to specify what the open-iscsi docs refer to as a node or node record. Note: open-iscsi's use of the word node, does not match the iSCSI RFC's iSCSI Node term.
+This should be used along with \-\-target in node mode, to specify what the open-iscsi docs refer to as a node or node record. Note: open-iscsi's use of the word node, does not match the iSCSI RFC's iSCSI Node term.
 
 .TP
 \fB\-P\fR,  \fB\-\-print=\fIprintlevel\fR
@@ -163,12 +163,12 @@ tree format.
 \fB\-T\fR, \fB\-\-targetname=\fItargetname\fR
 Use target \fItargetname\fR.
 .IP
-This should be used along with --portal in node mode, to specify what the open-iscsi docs refer to as a node or node record. Note: open-iscsi's use of the word node, does not match the iSCSI RFC's iSCSI Node term.
+This should be used along with \-\-portal in node mode, to specify what the open-iscsi docs refer to as a node or node record. Note: open-iscsi's use of the word node, does not match the iSCSI RFC's iSCSI Node term.
 
 .TP
 \fB\-r\fR,  \fB\-\-sid=\fIsid | sysfsdir\fR
 Use session ID \fIsid\fR. The sid of a session can be found from running
-iscsiadm in session mode with the --info argument.
+iscsiadm in session mode with the \-\-info argument.
 
 Instead of sid, a sysfs path containing the session can be used. For example using one of the following: /sys/devices/platform/hostH/sessionS/targetH:B:I/H:B:I:L, /sys/devices/platform/hostH/sessionS/targetH:B:I, or /sys/devices/platform/hostH/sessionS, for the sysfsdir argument would result in the session with sid S to be used.
 .IP
@@ -264,7 +264,7 @@ resource.
 
 Performing fw discovery will print the portals, like with other discovery
 methods. To see other settings like CHAP values and initiator settings,
-like you would in node mode, run "iscsiadm -m fw".
+like you would in node mode, run "iscsiadm \-m fw".
 
 fw support in open-iscsi is experimental. The settings and iscsiadm
 syntax and output format may change.
@@ -284,32 +284,32 @@ discovery type. An SLP implementation is under development.
 Discover targets at a given IP address:
 
 .ft R
-	iscsiadm --mode discovery --type sendtargets --portal 192.168.1.10
+	iscsiadm \-\-mode discovery \-\-type sendtargets \-\-portal 192.168.1.10
 .nf
 
 Login, must use a node record id found by the discovery:
 
 .ft R
-	iscsiadm --mode node --targetname iqn.2001-05.com.doe:test --portal 192.168.1.1:3260 --login
+	iscsiadm \-\-mode node \-\-targetname iqn.2001-05.com.doe:test \-\-portal 192.168.1.1:3260 \-\-login
 .nf
 
 Logout:
 
 .ft R
-	iscsiadm --mode node --targetname iqn.2001-05.com.doe:test --portal 192.168.1.1:3260 --logout
+	iscsiadm \-\-mode node \-\-targetname iqn.2001-05.com.doe:test \-\-portal 192.168.1.1:3260 \-\-logout
 .nf
 
 List node records:
 
 .ft R
-	iscsiadm --mode node
+	iscsiadm \-\-mode node
 
 .nf
 
 Display all data for a given node record:
 
 .ft R
-	iscsiadm --mode node --targetname iqn.2001-05.com.doe:test --portal 192.168.1.1:3260
+	iscsiadm \-\-mode node \-\-targetname iqn.2001-05.com.doe:test \-\-portal 192.168.1.1:3260
 
 .SH FILES
 .TP
