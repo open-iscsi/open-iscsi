@@ -57,6 +57,6 @@ index a49a92c..a9f480e 100644
  
 +#include "open_iscsi_compat.h"
 +
- #define ISCSI_SESSION_ATTRS 21
+ #define ISCSI_SESSION_ATTRS 22
  #define ISCSI_CONN_ATTRS 13
  #define ISCSI_HOST_ATTRS 4
