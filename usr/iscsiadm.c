@@ -60,11 +60,12 @@ enum iscsiadm_mode {
 };
 
 enum iscsiadm_op {
-	OP_NOOP		= 0x0,
-	OP_NEW		= 0x1,
-	OP_DELETE	= 0x2,
-	OP_UPDATE	= 0x4,
-	OP_SHOW		= 0x8,
+	OP_NOOP			= 0x0,
+	OP_NEW			= 0x1,
+	OP_DELETE		= 0x2,
+	OP_UPDATE		= 0x4,
+	OP_SHOW			= 0x8,
+	OP_NONPERSISTENT	= 0x10
 };
 
 static struct option const long_options[] =
@@ -128,6 +129,8 @@ str_to_op(char *str)
 		op = OP_UPDATE;
 	else if (!strcmp("show", str))
 		op = OP_SHOW;
+	else if (!strcmp("nonpersistent", str))
+		op = OP_NONPERSISTENT;
 	else
 		op = OP_NOOP;
 
@@ -1104,7 +1107,7 @@ exec_disc_op_on_recs(discovery_rec_t *drec, struct list_head *rec_list,
 		     int info_level, int do_login, int op)
 {
 	int rc = 0, err, found = 0;
-	struct node_rec *new_rec;
+	struct node_rec *new_rec, tmp_rec;
 
 	/* clean up node db */
 	if (op & OP_DELETE)
@@ -1125,7 +1128,18 @@ exec_disc_op_on_recs(discovery_rec_t *drec, struct list_head *rec_list,
 		}
 	}
 
-	idbm_print_discovered(drec, info_level);
+	memset(&tmp_rec, 0, sizeof(node_rec_t));
+	list_for_each_entry(new_rec, rec_list, list) {
+		switch (info_level) {
+		case 0:
+		case -1:
+			idbm_print_node_flat(NULL, new_rec);
+			break;
+		case 1:
+			idbm_print_node_and_iface_tree(&tmp_rec, new_rec);
+		}
+
+	}
 
 	if (!do_login)
 		return 0;
@@ -1158,10 +1172,12 @@ do_software_sendtargets(discovery_rec_t *drec, struct list_head *ifaces,
 	 * DB lined up, but for now just put all the targets found from
 	 * a discovery portal in one place
 	 */
-	rc = idbm_add_discovery(drec);
-	if (rc) {
-		log_error("Could not add new discovery record.");
-		return rc;
+	if (!(op & OP_NONPERSISTENT)) {
+		rc = idbm_add_discovery(drec);
+		if (rc) {
+			log_error("Could not add new discovery record.");
+			return rc;
+		}
 	}
 
 	rc = idbm_bind_ifaces_to_nodes(discovery_sendtargets, drec, ifaces,

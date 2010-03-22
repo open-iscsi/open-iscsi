@@ -127,7 +127,7 @@ operator.
 .TP
 \fB\-o\fR, \fB\-\-op=\fIop\fR
 Specifies a database operator \fIop\fR. \fIop\fR must be one of
-\fInew\fR, \fIdelete\fR, \fIupdate\fR or \fIshow\fR.
+\fInew\fR, \fIdelete\fR, \fIupdate\fR, \fIshow\fR or \fInonpersistent\fR.
 .IP
 This option is valid for all modes except fw. Delete should not be used on a running session. If it is iscsiadm will stop the session and then delete the
 record.
@@ -142,6 +142,8 @@ record.
 also used when there are no commands passed into session mode and a running
 sid is passed in.
 \fIname\fR and \fIvalue\fR are currently ignored when used with \fIshow\fR.
+.IP
+\fInonpersistent\fR instructs iscsiadm to not manipulate the node DB.
 
 .TP
 \fB\-p\fR, \fB\-\-portal=\fIip[:port]\fR

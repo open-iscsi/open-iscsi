@@ -182,8 +182,8 @@ Usage: iscsiadm [OPTION]
   -m, --mode <op>         specify operational mode op = <discovery|node>
   -m discovery --type=[type] --interface=iscsi_ifacename \
 			--portal=[ip:port] --login --print=[N] \
-			--op=[op]=[NEW | UPDATE | DELETE]
-                          perform [type] discovery for target portal with
+			--op=[op]=[NEW | UPDATE | DELETE | NONPERSISTENT]
+                        perform [type] discovery for target portal with
                           ip-address [ip] and port [port].
 
 			  By default this command will searh for a discovery
@@ -212,6 +212,10 @@ Usage: iscsiadm [OPTION]
 			  If [op] is passed in and the value is "delete",
 			  iscsiadm will delete records for portals that
 			  were not returned during discovery.
+
+			  If [op] is passed in and the value is
+			  "nonpersistent" iscsiadm will not store
+			  the portals found in the node DB.
 
 			  See the example section for more info.
 
@@ -591,6 +595,13 @@ To now log into targets it is the same as with sofware iscsi. See section
 	This command will add new portals and delete records for portals
 	no longer returned. It will not change the record information for
 	existing portals.
+
+     - SendTargets iSCSI Discovery in nonpersistent mode:
+
+	    ./iscsiadm -m discovery -t sendtargets -p 192.168.1.1:3260 \
+		-o nonpersistent
+
+	This command will perform discovery, but not manipulate the node DB.
 
   - SendTargets iSCSI Discovery with a specific interface. If you
 	wish to only use a subset of the interfaces in /etc/iscsi/ifaces
