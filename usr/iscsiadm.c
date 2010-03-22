@@ -364,7 +364,7 @@ logout_by_startup(char *mode)
 		return EINVAL;
 	}
 
-	return iscsi_logout_portals(mode, &nr_found, __logout_by_startup);
+	return iscsi_logout_portals(mode, &nr_found, 1, __logout_by_startup);
 }
 
 /*
@@ -404,7 +404,7 @@ login_by_startup(char *mode)
 
 	INIT_LIST_HEAD(&rec_list);
 	rc = idbm_for_each_rec(&nr_found, &rec_list, link_recs);
-	err = iscsi_login_portals(mode, &nr_found, &rec_list,
+	err = iscsi_login_portals(mode, &nr_found, 1, &rec_list,
 				  __login_by_startup);
 	if (err && !rc)
 		rc = err;
@@ -499,7 +499,7 @@ static int login_portals(struct node_rec *pattern_rec)
 
 	INIT_LIST_HEAD(&rec_list);
 	ret = for_each_rec(pattern_rec, &rec_list, link_recs);
-	err = iscsi_login_portals(NULL, &nr_found, &rec_list,
+	err = iscsi_login_portals(NULL, &nr_found, 1, &rec_list,
 				  iscsi_login_portal);
 	if (err && !ret)
 		ret = err;
@@ -883,7 +883,7 @@ exec_disc_op_on_recs(discovery_rec_t *drec, struct list_head *rec_list,
 	if (!do_login)
 		return 0;
 
-	err = iscsi_login_portals(NULL, &found, rec_list,
+	err = iscsi_login_portals(NULL, &found, 1, rec_list,
 				  iscsi_login_portal);
 	if (err && !rc)
 		rc = err;
@@ -1265,7 +1265,7 @@ static int exec_node_op(int op, int do_login, int do_logout,
 	if (do_logout) {
 		int nr_found;
 
-		if (iscsi_logout_portals(rec, &nr_found,
+		if (iscsi_logout_portals(rec, &nr_found, 1,
 					 iscsi_logout_matched_portal))
 			rc = -1;
 		goto out;

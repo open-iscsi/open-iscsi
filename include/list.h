@@ -90,4 +90,16 @@ static inline void list_del_init(struct list_head *entry)
 	INIT_LIST_HEAD(entry);
 }
 
+/**
+ * list_move_tail - delete from one list and add as another's tail
+ * @list: the entry to move
+ * @head: the head that will follow our entry
+ */
+static inline void list_move_tail(struct list_head *list,
+				  struct list_head *head)
+{
+	__list_del(list->prev, list->next);
+	list_add_tail(list, head);
+}
+
 #endif

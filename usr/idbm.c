@@ -2239,3 +2239,17 @@ void idbm_node_setup_defaults(node_rec_t *rec)
 
 	iface_setup_defaults(&rec->iface);
 }
+
+struct node_rec *
+idbm_find_rec_in_list(struct list_head *rec_list, char *targetname, char *addr,
+		      int port, struct iface_rec *iface)
+{
+	struct node_rec *rec;
+
+	list_for_each_entry(rec, rec_list, list) {
+		if (__iscsi_match_session(rec, targetname, addr, port, iface))
+			return rec;
+	}
+
+	return NULL;
+}

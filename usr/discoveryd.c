@@ -53,7 +53,9 @@
 
 #define DISC_DEF_POLL_INVL	30
 
-static LIST_HEAD(isns_nodes);
+static LIST_HEAD(iscsi_targets);
+
+static LIST_HEAD(isns_initiators);
 static LIST_HEAD(isns_refresh_list);
 static char *isns_entity_id = NULL;
 static uint32_t isns_refresh_interval;
@@ -63,6 +65,106 @@ static void isns_reg_refresh_by_eid_qry(void *data);
 
 typedef void (do_disc_and_login_fn)(const char *def_iname, char *addr,
 				    int port, int poll_inval);
+
+static int logout_stale_session(void *data, struct list_head *list,
+				struct session_info *info)
+{
+	struct list_head *stale_rec_list = data;
+	struct node_rec *rec;
+
+	list_for_each_entry(rec, stale_rec_list, list) {
+		if (iscsi_match_session(rec, info))
+			return iscsi_logout_portal(info, list);
+	}
+	return -1;
+}
+
+static void free_curr_targets(void)
+{
+	struct node_rec *rec, *tmp_rec;
+
+	list_for_each_entry_safe(rec, tmp_rec, &iscsi_targets, list) {
+		list_del(&rec->list);
+		free(rec);
+	}
+}
+
+/*
+ * update_sessions - login/logout sessions
+ * @new_rec_list: new target portals recs bound to ifaces
+ * @targetname: if set we only update sessions for this target
+ * @iname: if set we only update session for that initiator
+ *
+ * This will login/logout of portals. When it returns the recs on
+ * new_rec_list will be freed or put on the iscsi_targets list.
+ *
+ * FIXME: if we are hitting a per problem this may be it. With targets
+ * that do a target per lun this could get ugly.
+ */
+static void update_sessions(struct list_head *new_rec_list,
+			    const char *targetname, const char *iname)
+{
+	struct node_rec *rec, *tmp_rec;
+	struct list_head stale_rec_list;
+	int nr_found;
+
+	INIT_LIST_HEAD(&stale_rec_list);
+	/*
+ 	 * Check if a target portal is no longer being sent.
+ 	 * Note: Due to how we reread ifaces this will also detect
+ 	 * changes in ifaces being access through portals.
+ 	 */
+	list_for_each_entry_safe(rec, tmp_rec, &iscsi_targets, list) {
+		log_debug(7, "Trying to match %s %s to %s %s %s",
+	 		   targetname, iname, rec->name, rec->conn[0].address,
+			    rec->iface.name);
+		if (targetname && strcmp(rec->name, targetname))
+			continue;
+
+		if (iname) {
+			if (strlen(rec->iface.iname) &&
+			    strcmp(rec->iface.iname, iname))
+				continue;
+			else if (strcmp(iname, isns_config.ic_source_name))
+				continue;
+		}
+
+		log_debug(5, "Matched %s %s, checking if in new targets.",
+			  targetname, iname);
+		if (!idbm_find_rec_in_list(new_rec_list, rec->name,
+					   rec->conn[0].address,
+					   rec->conn[0].port, &rec->iface)) {
+			log_debug(5, "Not found. Marking for logout");
+			list_move_tail(&rec->list, &stale_rec_list);
+		}
+	}
+
+	list_for_each_entry_safe(rec, tmp_rec, new_rec_list, list) {
+		if (!iscsi_check_for_running_session(rec))
+			iscsi_login_portal_nowait(rec);
+
+		if (!idbm_find_rec_in_list(&iscsi_targets, rec->name,
+					   rec->conn[0].address,
+					   rec->conn[0].port, &rec->iface)) {
+			log_debug(5, "%s %s %s %s not on curr target list. "
+				 "Adding.", rec->name, rec->conn[0].address,
+				 rec->iface.name, rec->iface.iname);
+			list_move_tail(&rec->list, &iscsi_targets);
+		} else {
+			list_del(&rec->list);
+			free(rec);
+		}
+	}
+
+	if (!list_empty(&stale_rec_list)) {
+		iscsi_logout_portals(&stale_rec_list, &nr_found, 0,
+				     logout_stale_session);
+		list_for_each_entry_safe(rec, tmp_rec, &stale_rec_list, list) {
+			list_del(&rec->list);
+			free(rec);
+		}
+	}
+}
 
 static void do_disc_to_addrs(const char *def_iname, char *disc_addrs,
 			     int poll_inval,
@@ -130,58 +232,12 @@ static void __discoveryd_start(const char *def_iname, char *addr_cfg_str,
 	free(disc_addrs);
 }
 
-/* iSNS */
-static void do_isns_disc_and_login(char *disc_addr, int port)
-{
-	discovery_rec_t drec;
-	struct list_head rec_list, setup_ifaces;
-	int rc, nr_found;
-	struct node_rec *rec, *tmp_rec;
-	struct iface_rec *iface, *tmp_iface;
-
-	log_debug(1, "iSNS: do_isns_disc_and_login to %s,%d.",
-		  disc_addr, port);
-
-	INIT_LIST_HEAD(&rec_list);
-	INIT_LIST_HEAD(&setup_ifaces);
-
-	drec.type = DISCOVERY_TYPE_ISNS;
-	strlcpy(drec.address, disc_addr, sizeof(drec.address));
-	drec.port = port;
-
-	iface_link_ifaces(&setup_ifaces);
-	rc = idbm_bind_ifaces_to_nodes(discovery_isns, &drec,
-					&setup_ifaces, &rec_list);
-	if (rc) {
-		log_error("Could not perform iSNS DevAttrQuery to %s.",
-			   disc_addr);
-		goto free_ifaces;
-	}
-
-	list_for_each_entry_safe(rec, tmp_rec, &rec_list, list) {
-		if (iscsi_check_for_running_session(rec)) {
-			list_del(&rec->list);
-			free(rec);
-		}
-
-		/* no need to retry since the disc daemon will retry */
-		rec->session.initial_login_retry_max = 0;
-	}
-
-	iscsi_login_portals(NULL, &nr_found, &rec_list, iscsi_login_portal);
-
-free_ifaces:
-	list_for_each_entry_safe(iface, tmp_iface, &setup_ifaces, list) {
-		list_del(&iface->list);
-		free(iface);
-	}
-}
-
 struct isns_node_list {
 	isns_source_t *source;
 	struct list_head list;
 };
 
+/* iSNS */
 static int isns_build_objs(isns_portal_info_t *portal_info,
 			   isns_object_list_t *objs)
 {
@@ -262,7 +318,7 @@ static int isns_build_objs(isns_portal_info_t *portal_info,
 		}
 	}
 
-	list_for_each_entry(node, &isns_nodes, list) {
+	list_for_each_entry(node, &isns_initiators, list) {
 		inode = isns_create_storage_node2(node->source,
 						  ISNS_ISCSI_INITIATOR_MASK,
 						  NULL);
@@ -310,13 +366,12 @@ static int isns_query_node(void *data, struct iface_rec *iface,
 	return discovery_isns_query(NULL, iname, qry_data->targetname, recs);
 }
 
-static int __isns_disc_new_portals(const char *targetname, const char *iname)
+static int isns_disc_new_portals(const char *targetname, const char *iname)
 {
 	struct list_head ifaces, rec_list;
 	struct iface_rec *iface, *tmp_iface;
-	struct node_rec *rec, *tmp_rec;
 	struct isns_qry_data qry_data;
-	int nr_found = 0, rc;
+	int rc;
 
 	INIT_LIST_HEAD(&rec_list);
 	INIT_LIST_HEAD(&ifaces);
@@ -332,15 +387,7 @@ static int __isns_disc_new_portals(const char *targetname, const char *iname)
 			  targetname);
 		goto free_ifaces;
 	}
-
-	list_for_each_entry_safe(rec, tmp_rec, &rec_list, list) {
-		if (iscsi_check_for_running_session(rec)) {
-			list_del(&rec->list);
-			free(rec);
-		}
-	}
-
-	iscsi_login_portals(NULL, &nr_found, &rec_list, iscsi_login_portal);
+	update_sessions(&rec_list, targetname, iname);
 	rc = 0;
 
 free_ifaces:
@@ -367,7 +414,7 @@ static void isns_reg_refresh_with_disc(void *data)
 		 * Some servers do not support SCNs so we ping
 		 * the server by doing discovery.
 		 */
-		rc = __isns_disc_new_portals(NULL, NULL);
+		rc = isns_disc_new_portals(NULL, NULL);
 		if (rc) {
 			log_debug(4, "Registration refresh using DevAttrQuery "
 				  "failed (retires %d) err %d", retries, rc);
@@ -641,7 +688,7 @@ static int isns_register_objs(isns_client_t *clnt, isns_object_list_t *objs,
 	if (rc)
 		goto free_reg;
 
-	list_for_each_entry(node, &isns_nodes, list) {
+	list_for_each_entry(node, &isns_initiators, list) {
 		isns_simple_free(reg);
 		reg = isns_create_scn_registration2(clnt,
 					   ISNS_SCN_OBJECT_UPDATED_MASK |
@@ -723,7 +770,7 @@ static isns_source_t *isns_lookup_node(char *iname)
 {
 	struct isns_node_list *node;
 
-	list_for_each_entry(node, &isns_nodes, list) {
+	list_for_each_entry(node, &isns_initiators, list) {
 		if (!strcmp(iname, isns_source_name(node->source)))
 			return node->source;
 	}
@@ -765,7 +812,7 @@ static int isns_create_node_list(const char *def_iname)
 			rc = ENOMEM;
 			goto fail;
 		}
-		list_add_tail(&node->list, &isns_nodes);
+		list_add_tail(&node->list, &isns_initiators);
 	}
 
 	list_for_each_entry(iface, &ifaces, list) {
@@ -776,14 +823,14 @@ static int isns_create_node_list(const char *def_iname)
 				rc = ENOMEM;
 				goto fail;
 			}
-			list_add_tail(&node->list, &isns_nodes);
+			list_add_tail(&node->list, &isns_initiators);
 		}
 	}
 	/* fix me */
 	rc = 0;
 	goto done;
 fail:
-	list_for_each_entry_safe(node, tmp_node, &isns_nodes, list) {
+	list_for_each_entry_safe(node, tmp_node, &isns_initiators, list) {
 		list_del(&node->list);
 		free(node);
 	}
@@ -796,37 +843,13 @@ done:
 	return rc;
 }
 
-static void isns_disc_new_portals(const char *targetname, const char *iname)
-{
-	pid_t pid;
-
-	pid = fork();
-	if (pid < 0) {
-		log_error("Could not fork process to discover new portals.");
-		return;
-	} else if (pid > 0) {
-		log_debug(1, "iSNS SCN handler for initiator %s (target %s). "
-			  "pid=%d", iname, targetname, pid);
-		reap_inc();
-		return;
-	}
-
-	__isns_disc_new_portals(targetname, iname);
-	exit(0);
-}
-
 static void isns_scn_callback(isns_db_t *db, uint32_t bitmap,
 			      isns_object_template_t *node_type,
 			      const char *node_name, const char *dst_name)
 {
 	log_error("SCN for initiator: %s (Target: %s, Event: %s.)",
 		    dst_name, node_name, isns_event_string(bitmap));
-
-	if (bitmap & ISNS_SCN_OBJECT_REMOVED_MASK) {
-		log_error("Auto removal not supported. Manually logout of "
-			  "portals on %s", node_name);
-	} else if (bitmap & ISNS_SCN_OBJECT_ADDED_MASK)
-		isns_disc_new_portals(node_name, dst_name);
+	isns_disc_new_portals(node_name, dst_name);
 }
 
 static void isns_clear_refresh_list(void)
@@ -876,7 +899,7 @@ static int isns_scn_recv(isns_server_t *svr, isns_socket_t *svr_sock,
 				continue;
 			}
 
-			__isns_disc_new_portals(NULL, NULL);
+			isns_disc_new_portals(NULL, NULL);
 			if (!poll_inval)
 				break;
 			isns_register_nodes = 0;
@@ -931,13 +954,13 @@ static int isns_eventd(const char *def_iname, char *disc_addr, int port,
 	int rc = 0;
 
 	isns_create_node_list(def_iname);
-	if (list_empty(&isns_nodes)) {
+	if (list_empty(&isns_initiators)) {
 		log_error("iSNS registration failed. Initiatorname not set.");
 		return EINVAL;
 	}
 
 	/* use def_iname or if not set the first iface's iname for the src */
-	node = list_entry(isns_nodes.next, struct isns_node_list, list);
+	node = list_entry(isns_initiators.next, struct isns_node_list, list);
 	isns_assign_string(&isns_config.ic_source_name,
 			   isns_source_name(node->source));
 	isns_config.ic_security = 0;
@@ -976,8 +999,9 @@ static int isns_eventd(const char *def_iname, char *disc_addr, int port,
 	isns_cancel_refresh_timers();
 fail:
 	isns_clear_refresh_list();
+	free_curr_targets();
 
-	list_for_each_entry_safe(node, tmp_node, &isns_nodes, list) {
+	list_for_each_entry_safe(node, tmp_node, &isns_initiators, list) {
 		list_del(&node->list);
 		free(node);
 	}
@@ -1011,9 +1035,8 @@ static void __do_st_disc_and_login(char *disc_addr, int port)
 {
 	discovery_rec_t drec;
 	struct list_head rec_list, setup_ifaces;
-	int rc, nr_found;
-	struct node_rec *rec, *tmp_rec;
 	struct iface_rec *iface, *tmp_iface;
+	int rc;
 
 	INIT_LIST_HEAD(&rec_list);
 	INIT_LIST_HEAD(&setup_ifaces);
@@ -1045,17 +1068,7 @@ static void __do_st_disc_and_login(char *disc_addr, int port)
 		goto free_ifaces;
 	}
 
-	list_for_each_entry_safe(rec, tmp_rec, &rec_list, list) {
-		if (iscsi_check_for_running_session(rec)) {
-			list_del(&rec->list);
-			free(rec);
-		}
-
-		/* no need to retry since the disc daemon will retry */
-		rec->session.initial_login_retry_max = 0;
-	}
-
-	iscsi_login_portals(NULL, &nr_found, &rec_list, iscsi_login_portal);
+	update_sessions(&rec_list, NULL, NULL);
 
 free_ifaces:
 	list_for_each_entry_safe(iface, tmp_iface, &setup_ifaces, list) {
@@ -1075,6 +1088,8 @@ static void do_st_disc_and_login(const char *def_iname, char *disc_addr,
 		if (!poll_inval)
 			break;
 	} while (!sleep(poll_inval));
+
+	free_curr_targets();
 }
 
 void discoveryd_start(const char *def_iname)

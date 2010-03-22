@@ -768,6 +768,8 @@ int iscsi_sysfs_for_each_session(void *data, int *nr_found,
 		if (rc) {
 			log_error("could not find session info for %s",
 				   namelist[i]->d_name);
+			/* raced. session was shutdown while looping */
+			rc = 0;
 			continue;
 		}
 

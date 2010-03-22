@@ -22,6 +22,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <errno.h>
+#include <unistd.h>
 
 #include "idbm.h"
 #include "list.h"
@@ -52,6 +53,23 @@ struct iscsid_async_req {
 	void *data;
 	int fd;
 };
+
+/**
+ * iscsid_reqs_close - close open async requests
+ * @list: list of async reqs
+ *
+ * This just closes the socket to the daemon.
+ */
+static void iscsid_reqs_close(struct list_head *list)
+{
+	struct iscsid_async_req *tmp, *curr;
+
+	list_for_each_entry_safe(curr, tmp, list, list) {
+		close(curr->fd);
+		list_del(&curr->list);
+		free(curr);
+	}
+}
 
 static int iscsid_login_reqs_wait(struct list_head *list)
 {
@@ -123,17 +141,38 @@ int iscsi_login_portal(void *data, struct list_head *list, struct node_rec *rec)
 }
 
 /**
+ * iscsi_login_portal_nowait - request iscsid to login to portal
+ * @rec: portal rec to log into
+ *
+ * This sends the login request, but does not wait for the result.
+ */
+int iscsi_login_portal_nowait(struct node_rec *rec)
+{
+	struct list_head list;
+	int err;
+
+	INIT_LIST_HEAD(&list);
+
+	err = iscsi_login_portal(NULL, &list, rec);
+	if (err > 0)
+		return err;
+	iscsid_reqs_close(&list);
+	return 0;
+}
+
+/**
  * iscsi_login_portals - login into portals on @rec_list,
  * @data: data to pass to login_fn
  * @nr_found: returned with number of portals logged into
+ * @wait: bool indicating if the fn should wait for the result
  * @rec_list: list of portals to log into
  * @login_fn: list iter function
  *
  * This will loop over the list of portals and login. It
  * will attempt to login asynchronously, and then wait for
- * them to complete.
+ * them to complete if wait is set.
  */
-int iscsi_login_portals(void *data, int *nr_found,
+int iscsi_login_portals(void *data, int *nr_found, int wait,
 			struct list_head *rec_list,
 			int (* login_fn)(void *, struct list_head *,
 					 struct node_rec *))
@@ -153,9 +192,12 @@ int iscsi_login_portals(void *data, int *nr_found,
 			(*nr_found)++;
 	}
 
-	err = iscsid_login_reqs_wait(&login_list);
-	if (err && !ret)
-		ret = err;
+	if (wait) {
+		err = iscsid_login_reqs_wait(&login_list);
+		if (err && !ret)
+			ret = err;
+	} else
+		iscsid_reqs_close(&login_list);
 
 	list_for_each_entry_safe(curr_rec, tmp, rec_list, list) {
 		list_del(&curr_rec->list);
@@ -256,13 +298,14 @@ int iscsi_logout_portal(struct session_info *info, struct list_head *list)
  * iscsi_logout_portals - logout portals
  * @data: data to pass to iter logout_fn
  * @nr_found: number of sessions logged out
+ * @wait: bool indicating if the fn should wait for the result
  * @logout_fn: logout iter function
  *
  * This will loop over the list of sessions and run the logout fn
  * on them. It will attempt to logout asynchronously, and then wait for
- * them to complete.
+ * them to complete if wait is set.
  */
-int iscsi_logout_portals(void *data, int *nr_found,
+int iscsi_logout_portals(void *data, int *nr_found, int wait,
 			 int (*logout_fn)(void *, struct list_head *,
 					  struct session_info *))
 {
@@ -294,9 +337,12 @@ int iscsi_logout_portals(void *data, int *nr_found,
 			(*nr_found)++;
 	}
 
-	err = iscsid_logout_reqs_wait(&logout_list);
-	if (err)
-		ret = err;
+	if (wait) {
+		err = iscsid_logout_reqs_wait(&logout_list);
+		if (err)
+			ret = err;
+	} else
+		iscsid_reqs_close(&logout_list);
 
 	session_info_free_list(&session_list);
 	return ret;

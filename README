@@ -4,8 +4,7 @@
 
 =================================================================
 
-                                                     May 20, 2009
-
+                                                   March 22, 2010
 Contents
 ========
 
@@ -852,8 +851,10 @@ being set. If an address or addresses are set, iscsid will perform discovery
 to the address every poll_interval seconds, and it will log into any portals
 found from the discovery source using the ifaces in /etc/iscsi/ifaces.
 
-Note: iscsid will login into new portals, but does not yet support logging
-out of portals that are no longer returned during discovery.
+Note that for iSNS the poll_interval does not have to be set. If not set,
+iscsid will only perform rediscovery when it gets a SCN from the server.
+SCNs are not supported when using the Microsoft or SLES iSNS server. If
+using one of them you should set the poll_interval.
 
 See the iscsid.conf for more examples.
 

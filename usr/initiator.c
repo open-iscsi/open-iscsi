@@ -677,6 +677,13 @@ cleanup:
 		}
 	}
 
+	log_warning("Connection%d:%d to [target: %s, portal: %s,%d] "
+		    "through [iface: %s] is shutdown.",
+		    session->id, conn->id, session->nrec.name,
+		    session->nrec.conn[conn->id].address,
+		    session->nrec.conn[conn->id].port,
+		    session->nrec.iface.name);
+
 	mgmt_ipc_write_rsp(qtask, err);
 	conn_delete_timers(conn);
 	__session_destroy(session);
@@ -1486,8 +1493,12 @@ setup_full_feature_phase(iscsi_conn_t *conn)
 		if (conn->id == 0)
 			session_scan_host(session, session->hostno, c->qtask);
 
-		log_warning("connection%d:%d is operational now",
-			    session->id, conn->id);
+		log_warning("Connection%d:%d to [target: %s, portal: %s,%d] "
+			    "through [iface: %s] is operational now",
+			    session->id, conn->id, session->nrec.name,
+			    session->nrec.conn[conn->id].address,
+			    session->nrec.conn[conn->id].port,
+			    session->nrec.iface.name);
 	} else {
 		session->sync_qtask = NULL;
 
