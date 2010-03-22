@@ -38,20 +38,21 @@
 
 static int reap_count;
 
-void need_reap(void)
+void reap_inc(void)
 {
 	reap_count++;
 }
 
-static void reaper(void)
+void reap_proc(void)
 {
-	int rc;
+	int rc, i, max_reaps;
 
 	/*
 	 * We don't really need reap_count, but calling wait() all the
 	 * time seems execessive.
 	 */
-	if (reap_count) {
+	max_reaps = reap_count;
+	for (i = 0; i < max_reaps; i++) {
 		rc = waitpid(0, NULL, WNOHANG);
 		if (rc > 0) {
 			reap_count--;
@@ -102,7 +103,7 @@ void event_loop(struct iscsi_ipc *ipc, int control_fd, int mgmt_ipc_fd)
 			}
 		} else
 			actor_poll();
-		reaper();
+		reap_proc();
 		/*
 		 * flush sysfs cache since kernel objs may
 		 * have changed as a result of handling op

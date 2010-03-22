@@ -738,7 +738,7 @@ again:
  * comes in, or when the message timed out.
  */
 static void
-isns_process_scn_response(uint32_t xid, isns_simple_t *msg)
+isns_process_scn_response(uint32_t xid, int status, isns_simple_t *msg)
 {
 	isns_scn_t	*scn;
 

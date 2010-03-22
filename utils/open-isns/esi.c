@@ -49,7 +49,8 @@ static ISNS_LIST_DECLARE(isns_esi_list);
 
 static void		isns_esi_transmit(void *);
 static void		isns_esi_sendto(isns_esi_t *, isns_esi_portal_t *);
-static void		isns_process_esi_response(uint32_t, isns_simple_t *);
+static void		isns_process_esi_response(uint32_t, int,
+						  isns_simple_t *);
 static void		isns_esi_disconnect(isns_esi_portal_t *);
 static void		isns_esi_restart(isns_esi_portal_t *);
 static void		isns_esi_drop_portal(isns_esi_portal_t *, isns_db_t *, int);
@@ -465,7 +466,7 @@ isns_process_esi(isns_server_t *srv, isns_simple_t *call, isns_simple_t **reply)
 }
 
 void
-isns_process_esi_response(uint32_t xid, isns_simple_t *msg)
+isns_process_esi_response(uint32_t xid, int status, isns_simple_t *msg)
 {
 	isns_portal_info_t	portal_info;
 	isns_esi_portal_t	*esp;

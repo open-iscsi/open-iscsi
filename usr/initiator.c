@@ -1171,7 +1171,7 @@ static void session_scan_host(struct iscsi_session *session, int hostno,
 					iscsi_sysfs_set_queue_depth);
 		exit(0);
 	} else if (pid > 0) {
-		need_reap();
+		reap_inc();
 		if (qtask) {
 			close(qtask->mgmt_ipc_fd);
 			free(qtask);

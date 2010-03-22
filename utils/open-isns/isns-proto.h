@@ -20,6 +20,7 @@ struct isns_hdr {
 
 #define ISNS_VERSION		0x0001
 #define ISNS_MAX_PDU_SIZE	65535
+#define ISNS_DEFAULT_PORT	3205
 
 /*
  * Values for the i_flags field:

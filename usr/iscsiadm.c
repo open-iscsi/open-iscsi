@@ -47,6 +47,7 @@
 #include "idbm_fields.h"
 #include "session_mgmt.h"
 #include "iscsid_req.h"
+#include "isns-proto.h"
 
 struct iscsi_ipc *ipc = NULL; /* dummy */
 static char program_name[] = "iscsiadm";
@@ -1727,7 +1728,7 @@ main(int argc, char **argv)
 
 			strlcpy(drec.address, ip, sizeof(drec.address));
 			if (port < 0)
-				drec.port = 3205;
+				drec.port = ISNS_DEFAULT_PORT;
 			else
 				drec.port = port;
 

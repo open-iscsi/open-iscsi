@@ -15,7 +15,7 @@
 #include "socket.h"
 #include "util.h"
 
-typedef void isns_simple_callback_fn_t(uint32_t, isns_simple_t *);
+typedef void isns_simple_callback_fn_t(uint32_t, int status, isns_simple_t *);
 
 static int	isns_attr_list_scanner_get_pg(struct isns_attr_list_scanner *st);
 
@@ -124,7 +124,7 @@ isns_simple_recv_response(isns_message_t *cmsg, isns_message_t *rmsg)
 {
 	isns_simple_callback_fn_t *user_callback;
 	isns_simple_t	*resp = NULL;
-	int		status;
+	int		status = ISNS_INTERNAL_ERROR;
 
 	/* rmsg being NULL means the call timed out. */
 	if (rmsg == NULL)
@@ -133,15 +133,16 @@ isns_simple_recv_response(isns_message_t *cmsg, isns_message_t *rmsg)
 	status = isns_message_status(rmsg);
 	if (status != ISNS_SUCCESS) {
 		isns_error("Server flags error: %s (status 0x%04x)\n",
-				isns_strerror(status), status);
-		return;
+			    isns_strerror(status), status);
+		goto callback;
 	}
 
 	status = isns_simple_decode(rmsg, &resp);
 	if (status) {
 		isns_error("Unable to decode server response: %s (status 0x%04x)\n",
 				isns_strerror(status), status);
-		return;
+		resp = NULL;
+		goto callback;
 	}
 
 	isns_simple_print(resp, isns_debug_message);
@@ -149,8 +150,9 @@ isns_simple_recv_response(isns_message_t *cmsg, isns_message_t *rmsg)
 callback:
 	user_callback = cmsg->im_calldata;
 	if (user_callback)
-		user_callback(cmsg->im_xid, resp);
-	isns_simple_free(resp);
+		user_callback(cmsg->im_xid, status, resp);
+	if (resp)
+		isns_simple_free(resp);
 }
 
 /*

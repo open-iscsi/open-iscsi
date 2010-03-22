@@ -799,9 +799,13 @@ There are three steps needed to set up a system to use iSCSI storage:
 7.3. Automate target logins for future system reboots.
 
 The init scripts will start the iSCSI daemon and log into any
-connections or nodes that are set up for automatic login. If your distro
-does not have a init script, then you will have to start the daemon
-and log into the targets manually.
+portals that are set up for automatic login (discussed in 7.2)
+or discovered through the discover daemon iscsid.conf params
+(discussed in 7.1.2).
+
+If your distro does not have a init script, then you will have to start the
+daemon and log into the targets manually.
+
 
 7.1.1 iSCSI startup using the init script
 -----------------------------------------------
@@ -831,6 +835,28 @@ gets installed with "make install"
 	/etc/init.d/open-iscsi start
 
 will usually get you started.
+
+
+7.1.2 Automatic Discovery and Login
+-----------------------------------
+
+When iscsid starts it will check iscsid.conf for:
+
+discovery.daemon.sendtargets.addresses =
+discovery.daemon.sendtargets.poll_interval =
+
+discovery.daemon.isns.addresses =
+discovery.daemon.isns.poll_interval =
+
+being set. If an address or addresses are set, iscsid will perform discovery
+to the address every poll_interval seconds, and it will log into any portals
+found from the discovery source using the ifaces in /etc/iscsi/ifaces.
+
+Note: iscsid will login into new portals, but does not yet support logging
+out of portals that are no longer returned during discovery.
+
+See the iscsid.conf for more examples.
+
 
 7.1.2 Manual Startup:
 ---------------------

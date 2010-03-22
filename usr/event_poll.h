@@ -21,7 +21,8 @@
 
 struct iscsi_ipc;
 
-void need_reap(void);
+void reap_proc(void);
+void reap_inc(void);
 void event_loop(struct iscsi_ipc *ipc, int control_fd, int mgmt_ipc_fd);
 void event_loop_exit(void);
 

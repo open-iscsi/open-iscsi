@@ -41,10 +41,10 @@ static void log_login_msg(struct node_rec *rec, int rc)
 			  rec->conn[0].port);
 		iscsid_handle_error(rc);
 	} else
-		printf("Login to [iface: %s, target: %s, portal: "
-		       "%s,%d] successful.\n", rec->iface.name,
-		       rec->name, rec->conn[0].address,
-		       rec->conn[0].port);
+		log_warning("Login to [iface: %s, target: %s, portal: "
+			    "%s,%d] successful.", rec->iface.name,
+			    rec->name, rec->conn[0].address,
+			    rec->conn[0].port);
 }
 
 struct iscsid_async_req {
@@ -82,9 +82,9 @@ int iscsi_login_portal(void *data, struct list_head *list, struct node_rec *rec)
 	struct iscsid_async_req *async_req = NULL;
 	int rc = 0, fd;
 
-	printf("Logging in to [iface: %s, target: %s, portal: %s,%d]\n",
-		rec->iface.name, rec->name, rec->conn[0].address,
-		rec->conn[0].port);
+	log_warning("Logging in to [iface: %s, target: %s, portal: %s,%d]",
+		    rec->iface.name, rec->name, rec->conn[0].address,
+		    rec->conn[0].port);
 
 	if (list) {
 		async_req = calloc(1, sizeof(*async_req));
@@ -173,10 +173,10 @@ static void log_logout_msg(struct session_info *info, int rc)
 			  info->persistent_address, info->port);
 		iscsid_handle_error(rc);
 	} else
-		printf("Logout of [sid: %d, target: %s, "
-		       "portal: %s,%d] successful.\n",
-		       info->sid, info->targetname,
-		       info->persistent_address, info->port);
+		log_warning("Logout of [sid: %d, target: %s, "
+			    "portal: %s,%d] successful.",
+			    info->sid, info->targetname,
+			    info->persistent_address, info->port);
 }
 
 static int iscsid_logout_reqs_wait(struct list_head *list)
@@ -210,9 +210,10 @@ int iscsi_logout_portal(struct session_info *info, struct list_head *list)
 	int fd, rc;
 
 	/* TODO: add fn to add session prefix info like dev_printk */
-	printf("Logging out of session [sid: %d, target: %s, portal: %s,%d]\n",
-		info->sid, info->targetname, info->persistent_address,
-		info->port);
+	log_warning("Logging out of session [sid: %d, target: %s, portal: "
+		    "%s,%d]",
+		    info->sid, info->targetname, info->persistent_address,
+		    info->port);
 
 	if (list) {
 		async_req = calloc(1, sizeof(*async_req));

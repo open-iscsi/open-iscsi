@@ -494,10 +494,10 @@ int main(int argc, char *argv[])
 		log_error("Fork failed error %d: existing sessions"
 			  " will not be synced", errno);
 	} else
-		need_reap();
+		reap_inc();
 
 	increase_max_files();
-	discoveryd_start_st();
+	discoveryd_start(daemon_config.initiator_name);
 
 	/* oom-killer will not kill us at the night... */
 	if (oom_adjust())

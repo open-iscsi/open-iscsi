@@ -1663,15 +1663,14 @@ free_portal:
 }
 
 static int idbm_bind_iface_to_nodes(idbm_disc_nodes_fn *disc_node_fn,
-				    struct discovery_rec *drec,
-				    struct iface_rec *iface,
+				    void *data, struct iface_rec *iface,
 				    struct list_head *bound_recs)
 {
 	struct node_rec *rec, *tmp;
 	struct list_head new_recs;
 
 	INIT_LIST_HEAD(&new_recs);
-	if (disc_node_fn(drec, iface, &new_recs))
+	if (disc_node_fn(data, iface, &new_recs))
 		return ENODEV;
 
 	list_for_each_entry_safe(rec, tmp, &new_recs, list) {
@@ -1683,21 +1682,21 @@ static int idbm_bind_iface_to_nodes(idbm_disc_nodes_fn *disc_node_fn,
 }
 
 int idbm_bind_ifaces_to_nodes(idbm_disc_nodes_fn *disc_node_fn,
-			      struct discovery_rec *drec,
-			      struct list_head *ifaces,
+			      void *data, struct list_head *ifaces,
 			      struct list_head *bound_recs)
 {
-	struct iface_rec *iface, *tmp;
+	struct list_head def_ifaces;
+	struct node_rec *rec, *tmp_rec;
+	struct iface_rec *iface, *tmp_iface;
 	struct iscsi_transport *t;
 	int rc = 0, found = 0;
 
-	if (!ifaces || list_empty(ifaces)) {
-		struct list_head def_ifaces;
+	INIT_LIST_HEAD(&def_ifaces);
 
-		INIT_LIST_HEAD(&def_ifaces);
+	if (!ifaces || list_empty(ifaces)) {
 		iface_link_ifaces(&def_ifaces);
 
-		list_for_each_entry_safe(iface, tmp, &def_ifaces, list) {
+		list_for_each_entry_safe(iface, tmp_iface, &def_ifaces, list) {
 			list_del(&iface->list);
 			t = iscsi_sysfs_get_transport_by_name(iface->transport_name);
 			/*
@@ -1710,11 +1709,11 @@ int idbm_bind_ifaces_to_nodes(idbm_disc_nodes_fn *disc_node_fn,
 				continue;
 			}
 
-			rc = idbm_bind_iface_to_nodes(disc_node_fn, drec, iface,
+			rc = idbm_bind_iface_to_nodes(disc_node_fn, data, iface,
 						      bound_recs);
 			free(iface);
 			if (rc)
-				return rc;
+				goto fail;
 			found = 1;
 		}
 
@@ -1722,10 +1721,9 @@ int idbm_bind_ifaces_to_nodes(idbm_disc_nodes_fn *disc_node_fn,
 		if (!found) {
 			struct iface_rec def_iface;
 
-			//log_error("no ifaces using default\n");
 			memset(&def_iface, 0, sizeof(struct iface_rec));
 			iface_setup_defaults(&def_iface);
-			return idbm_bind_iface_to_nodes(disc_node_fn, drec,
+			return idbm_bind_iface_to_nodes(disc_node_fn, data,
 							&def_iface, bound_recs);
 		}
 	} else {
@@ -1739,13 +1737,25 @@ int idbm_bind_ifaces_to_nodes(idbm_disc_nodes_fn *disc_node_fn,
 				continue;
 			}
 
-			rc = idbm_bind_iface_to_nodes(disc_node_fn, drec, iface,
+			rc = idbm_bind_iface_to_nodes(disc_node_fn, data, iface,
 						      bound_recs);
 			if (rc)
-				return rc;
+				goto fail;
 		}
 	}
 	return 0;
+
+fail:	
+	list_for_each_entry_safe(iface, tmp_iface, &def_ifaces, list) {
+		list_del(&iface->list);
+		free(iface);
+	}
+
+	list_for_each_entry_safe(rec, tmp_rec, bound_recs, list) {
+		list_del(&rec->list);
+		free(rec);
+	}
+	return rc;
 }
 
 static void idbm_rm_disc_node_links(char *disc_dir)

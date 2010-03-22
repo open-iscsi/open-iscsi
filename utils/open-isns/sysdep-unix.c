@@ -11,6 +11,60 @@
 #include "isns.h"
 #include "util.h"
 
+int isns_get_nr_portals(void)
+{
+	char		buffer[8192], *end, *ptr;
+	struct ifconf	ifc;
+	unsigned int	nportals = 0;
+	int		fd = -1;
+
+	if ((fd = socket(PF_INET, SOCK_DGRAM, 0)) < 0) {
+		isns_error("%s: no socket - %m\n", __FUNCTION__);
+		return 0;
+	}
+
+	ifc.ifc_buf = buffer;
+	ifc.ifc_len = sizeof(buffer);
+	if (ioctl(fd, SIOCGIFCONF, &ifc) < 0) {
+		isns_error("ioctl(SIOCGIFCONF): %m\n");
+		goto out;
+	}
+
+	ptr = buffer;
+	end = buffer + ifc.ifc_len;
+	while (ptr < end) {
+		struct ifreq	ifr;
+		struct sockaddr_storage ifaddr;
+		int		ifflags;
+
+		memcpy(&ifr, ptr, sizeof(ifr));
+		ptr += sizeof(ifr);
+
+		/* Get the interface addr */
+		memcpy(&ifaddr, &ifr.ifr_addr, sizeof(ifr.ifr_addr));
+
+		if (ioctl(fd, SIOCGIFFLAGS, &ifr) < 0) {
+			isns_error("ioctl(%s, SIOCGIFFLAGS): %m\n",
+					ifr.ifr_name);
+			continue;
+		}
+		ifflags = ifr.ifr_flags;
+
+		if ((ifflags & IFF_UP) == 0)
+			continue;
+		if ((ifflags & IFF_LOOPBACK) != 0)
+			continue;
+
+		if (ifaddr.ss_family == AF_INET6 || ifaddr.ss_family == AF_INET)
+			nportals++;
+	}
+
+out:
+	if (fd >= 0)
+		close(fd);
+	return nportals;
+}
+
 int
 isns_enumerate_portals(isns_portal_info_t *result, unsigned int max)
 {

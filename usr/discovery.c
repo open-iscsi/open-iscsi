@@ -93,80 +93,93 @@ static int request_initiator_name(void)
 	return 0;
 }
 
-int discovery_isns(struct discovery_rec *drec, struct iface_rec *iface,
-		   struct list_head *rec_list)
+void discovery_isns_free_servername(void)
 {
+	if (isns_config.ic_server_name)
+		free(isns_config.ic_server_name);
+	isns_config.ic_server_name = NULL;
+}
+
+int discovery_isns_set_servername(char *address, int port)
+{
+	char *server;
+	int len;
+
+	if (port > USHRT_MAX) {
+		log_error("Invalid port %d\n", port);
+		return EINVAL;
+	}
+
+	/* 5 for port and 1 for colon and 1 for null */
+	len = strlen(address) + 7;
+	server = calloc(1, len);
+	if (!server)
+		return ENOMEM;
+
+	snprintf(server, len, "%s:%d", address, port);
+	isns_assign_string(&isns_config.ic_server_name, server);
+	free(server);
+	return 0;
+}
+
+int discovery_isns_query(struct discovery_rec *drec, const char *iname,
+			 const char *targetname, struct list_head *rec_list)
+{
+	isns_attr_list_t key_attrs = ISNS_ATTR_LIST_INIT;
 	isns_object_list_t objects = ISNS_OBJECT_LIST_INIT;
+	isns_source_t *source;
 	isns_simple_t *qry;
 	isns_client_t *clnt;
-	isns_attr_list_t *attrs;
-	char *server;
 	uint32_t status;
 	int rc, i;
 
 	isns_config.ic_security = 0;
+	source = isns_source_create_iscsi(iname);
+	if (!source)
+		return ENOMEM;
 
-	if (iface && strlen(iface->iname))
-		isns_assign_string(&isns_config.ic_source_name, iface->iname);
-	else {
-		if (request_initiator_name() || initiator_name[0] == '\0') {
-			log_error("Cannot perform discovery. Initiatorname "
-				  "required.");
-			return EINVAL;
-		}
-		isns_assign_string(&isns_config.ic_source_name, initiator_name);
-	}
-
-	if (drec->port > USHRT_MAX) {
-		log_error("Invalid port %d\n", drec->port);
-		rc = EINVAL;
-		goto free_mem;
-	}
-
-	/* 5 for port and 1 for colon and 1 for null */
-	i = strlen(drec->address) + 7;
-	server = calloc(1, i);
-	if (!server) {
-		rc = ENOMEM;
-		goto free_mem;
-	}
-
-	snprintf(server, i, "%s:%d", drec->address, drec->port);
-	isns_assign_string(&isns_config.ic_server_name, server);
-	free(server);
-
-	clnt = isns_create_default_client(NULL);
+	clnt = isns_create_client(NULL, iname); 
 	if (!clnt) {
 		rc = ENOMEM;
-		goto free_mem;
+		goto free_src;
 	}
 
 	/* do not retry forever */
 	isns_socket_set_disconnect_fatal(clnt->ic_socket);
 
-	qry = isns_simple_create(ISNS_DEVICE_ATTRIBUTE_QUERY,
-				 clnt->ic_source, NULL);
+	if (targetname)
+		isns_attr_list_append_string(&key_attrs, ISNS_TAG_ISCSI_NAME,
+					     targetname);
+	else
+		/* Query for all visible targets */
+		isns_attr_list_append_uint32(&key_attrs,
+					     ISNS_TAG_ISCSI_NODE_TYPE,
+					     ISNS_ISCSI_TARGET_MASK);
+
+	qry = isns_create_query2(clnt, &key_attrs, source);
 	if (!qry) {
 		rc = ENOMEM;
 		goto free_clnt;
 	}
 
-	attrs = &qry->is_message_attrs;
-	isns_attr_list_append_uint32(attrs, ISNS_TAG_ISCSI_NODE_TYPE,
-				     ISNS_ISCSI_TARGET_MASK);
-
-	attrs = &qry->is_operating_attrs;
-	isns_attr_list_append_nil(attrs, ISNS_TAG_ISCSI_NAME);
-	isns_attr_list_append_nil(attrs, ISNS_TAG_ISCSI_NODE_TYPE);
-	isns_attr_list_append_nil(attrs, ISNS_TAG_PORTAL_IP_ADDRESS);
-	isns_attr_list_append_nil(attrs, ISNS_TAG_PORTAL_TCP_UDP_PORT);
-	isns_attr_list_append_nil(attrs, ISNS_TAG_PG_ISCSI_NAME);
-	isns_attr_list_append_nil(attrs, ISNS_TAG_PG_PORTAL_IP_ADDR);
-	isns_attr_list_append_nil(attrs, ISNS_TAG_PG_PORTAL_TCP_UDP_PORT);
-	isns_attr_list_append_nil(attrs, ISNS_TAG_PG_TAG);
+	isns_query_request_attr_tag(qry, ISNS_TAG_ISCSI_NAME);
+	isns_query_request_attr_tag(qry, ISNS_TAG_ISCSI_NODE_TYPE);
+	isns_query_request_attr_tag(qry, ISNS_TAG_PORTAL_IP_ADDRESS);
+	isns_query_request_attr_tag(qry, ISNS_TAG_PORTAL_TCP_UDP_PORT);
+	isns_query_request_attr_tag(qry, ISNS_TAG_PG_ISCSI_NAME);
+	isns_query_request_attr_tag(qry, ISNS_TAG_PG_PORTAL_IP_ADDR);
+	isns_query_request_attr_tag(qry, ISNS_TAG_PG_PORTAL_TCP_UDP_PORT);
+	isns_query_request_attr_tag(qry, ISNS_TAG_PG_TAG);
 
 	status = isns_client_call(clnt, &qry);
-	if (status != ISNS_SUCCESS) {
+	switch (status) {
+	case ISNS_SUCCESS:
+		break;
+	case ISNS_SOURCE_UNKNOWN:
+		/* server requires that we are registered but we are not */
+		rc = ENOENT;
+		goto free_query;
+	default:
 		log_error("iSNS discovery failed: %s", isns_strerror(status));
 		rc = EIO;
 		goto free_query;
@@ -231,15 +244,16 @@ int discovery_isns(struct discovery_rec *drec, struct iface_rec *iface,
 		}
 
 		idbm_node_setup_from_conf(rec);
-		rec->disc_type = drec->type;
-		rec->disc_port = drec->port;
-		strcpy(rec->disc_address, drec->address);
+		if (drec) {
+			rec->disc_type = drec->type;
+			rec->disc_port = drec->port;
+			strcpy(rec->disc_address, drec->address);
+		}
 
 		strlcpy(rec->name, pg_tgt, TARGET_NAME_MAXLEN);
 		rec->tpgt = pg_tag;
 		rec->conn[0].port = pg_port;
 		strlcpy(rec->conn[0].address, pg_addr, NI_MAXHOST);
-
 		list_add_tail(&rec->list, rec_list);
 	}
 	rc = 0;
@@ -251,22 +265,112 @@ free_query:
 	isns_simple_free(qry);
 free_clnt:
 	isns_client_destroy(clnt);
-free_mem:
-	if (isns_config.ic_source_name)
-		free(isns_config.ic_source_name);
-	isns_config.ic_source_name = NULL;
-
-	if (isns_config.ic_server_name)
-		free(isns_config.ic_server_name);
-	isns_config.ic_server_name = NULL;
+free_src:
+	isns_source_release(source);
 	return rc;
 }
 
+/*
+ * discovery_isns_reg_node - register/deregister node
+ * @iname: initiator name
+ * @reg: bool indicating if we are supposed to register or deregister node.
+ *
+ * We do a very simple registration just so we can query.
+ */
+static int discovery_isns_reg_node(const char *iname, int op_reg)
+{
+	isns_simple_t *reg;
+	isns_client_t *clnt;
+	isns_source_t *source;
+	int rc = 0, status;
 
+	isns_config.ic_security = 0;
 
-int discovery_fw(struct discovery_rec *drec, struct iface_rec *iface,
+	log_debug(1, "trying to %s %s with iSNS server.",
+		  op_reg ? "register" : "deregister", iname);
+
+	source = isns_source_create_iscsi(iname);
+	if (!source)
+		return ENOMEM;
+
+	clnt = isns_create_client(NULL, iname); 
+	if (!clnt) {
+		rc = ENOMEM;
+		goto free_src;
+	}
+
+	reg = isns_simple_create(op_reg ? ISNS_DEVICE_ATTRIBUTE_REGISTER :
+				 ISNS_DEVICE_DEREGISTER,
+				 source, NULL);
+	if (!reg) {
+		rc = ENOMEM;
+		goto free_clnt;
+	}
+
+	isns_attr_list_append_string(&reg->is_operating_attrs,
+				     ISNS_TAG_ISCSI_NAME, iname);
+	if (op_reg)
+		isns_attr_list_append_uint32(&reg->is_operating_attrs,
+					     ISNS_TAG_ISCSI_NODE_TYPE,
+					     ISNS_ISCSI_INITIATOR_MASK);
+	status = isns_client_call(clnt, &reg);
+	if (status != ISNS_SUCCESS) {
+		log_error("Could not %s %s with iSNS server: %s.",
+			  reg ? "register" : "deregister", iname,
+			  isns_strerror(status));
+		rc = EIO;
+	} else
+		log_debug(1, "%s %s with iSNS server successful.",
+			  op_reg ? "register" : "deregister", iname);
+free_clnt:
+	isns_client_destroy(clnt);
+free_src:
+	isns_source_release(source);
+	return rc;
+}
+
+int discovery_isns(void *data, struct iface_rec *iface,
+		   struct list_head *rec_list)
+{
+	struct discovery_rec *drec = data;
+	char *iname;
+	int rc, registered = 0;
+
+	if (iface && strlen(iface->iname))
+		iname = iface->iname;
+	else {
+		if (request_initiator_name() || initiator_name[0] == '\0') {
+			log_error("Cannot perform discovery. Initiatorname "
+				  "required.");
+			return EINVAL;
+		}
+		iname = initiator_name;
+	}
+
+	rc = discovery_isns_set_servername(drec->address, drec->port);
+	if (rc)
+		return rc;
+retry:
+	rc = discovery_isns_query(drec, iname, NULL, rec_list);
+	if (!registered && rc == ENOENT) {
+		rc = discovery_isns_reg_node(iname, 1);
+		if (!rc) {
+			registered = 1;
+			goto retry;
+		}
+	}
+
+	if (registered)
+		discovery_isns_reg_node(iname, 0);
+
+	discovery_isns_free_servername();
+	return rc;
+}
+
+int discovery_fw(void *data, struct iface_rec *iface,
 		 struct list_head *rec_list)
 {
+	struct discovery_rec *drec = data;
 	struct boot_context *bcontext;
 	struct list_head targets;
 	struct node_rec *rec;
@@ -1050,9 +1154,10 @@ done:
 	iscsi_io_disconnect(&session->conn[0]);
 }
 
-int discovery_sendtargets(discovery_rec_t *drec, struct iface_rec *iface,
+int discovery_sendtargets(void *fndata, struct iface_rec *iface,
 			  struct list_head *rec_list)
 {
+	discovery_rec_t *drec = fndata;
 	iscsi_session_t *session;
 	struct pollfd pfd;
 	struct iscsi_hdr pdu_buffer;

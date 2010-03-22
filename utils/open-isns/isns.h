@@ -125,7 +125,8 @@ extern int		isns_simple_transmit(isns_socket_t *,
 				isns_simple_t *,
 				const isns_portal_info_t *,
 				unsigned int,
-				void (*callback)(uint32_t, isns_simple_t *));
+				void (*callback)(uint32_t, int,
+						 isns_simple_t *));
 extern void		isns_simple_free(isns_simple_t *);
 extern const isns_attr_list_t *isns_simple_get_attrs(isns_simple_t *);
 
@@ -488,6 +489,7 @@ extern isns_socket_t *	isns_create_bound_client_socket(const char *myaddr,
 				const char *hostname, const char *portname,
 				int af_hint, int sock_type);
 extern isns_socket_t *	isns_connect_to_portal(const isns_portal_info_t *);
+extern void		isns_socket_set_report_failure(isns_socket_t *);
 extern void		isns_socket_set_disconnect_fatal(isns_socket_t *);
 extern int		isns_socket_get_local_addr(const isns_socket_t *,
 				struct sockaddr_storage *);
@@ -652,6 +654,7 @@ extern int		isns_portal_equal(const isns_portal_info_t *,
 				const isns_portal_info_t *);
 extern int		isns_enumerate_portals(isns_portal_info_t *,
 				unsigned int);
+extern int		isns_get_nr_portals(void);
 
 /* Local registry stuff */
 extern int		isns_local_registry_load(const char *, pid_t, isns_object_list_t *);

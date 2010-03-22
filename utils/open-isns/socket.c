@@ -1320,6 +1320,12 @@ isns_socket_set_disconnect_fatal(isns_socket_t *sock)
 	sock->is_disconnect_fatal = 1;
 }
 
+void
+isns_socket_set_report_failure(isns_socket_t *sock)
+{
+	sock->is_report_failure = 1;
+}
+
 /*
  * Set the socket's security context
  */
@@ -1688,16 +1694,12 @@ again:
 				isns_assert(!sock->is_destroy);
 				isns_socket_release(sock);
 				return msg;
-
 			default:
 				isns_message_release(msg);
+				isns_socket_release(sock);
+				return NULL;
 			}
 		}
-
-		/* This will return 0 if the socket was marked for
-		 * destruction. */
-		if (!isns_socket_release(sock))
-			continue;
 
 		isns_print_socket(sock);
 
@@ -1721,16 +1723,18 @@ again:
 		}
 
 		/* Check whether pending messages have timed out. */
-		while (sock->is_state == ISNS_SOCK_IDLE
-		    && (msg = isns_message_queue_head(&sock->is_pending)) != NULL) {
+		while ((msg = isns_message_queue_head(&sock->is_pending)) !=
+		        NULL) {
 			if (__timeout_expired(&now, &msg->im_timeout)) {
 				isns_debug_socket("sock %p message %04x timed out\n",
 						sock, msg->im_xid);
 				isns_message_unlink(msg);
 				if (msg == watch_msg) {
 					isns_message_release(msg);
+					isns_socket_release(sock);
 					return NULL;
 				}
+
 				isns_net_timeout(sock, msg);
 				continue;
 			}
@@ -1774,21 +1778,32 @@ again:
 		if (sock->is_state == ISNS_SOCK_FAILED) {
 			if (sock->is_disconnect_fatal)
 				goto kill_socket;
-			if (sock->is_report_failure)
+			if (sock->is_report_failure) {
+				isns_socket_release(sock);
 				return NULL;
+			}
 			sock->is_state = ISNS_SOCK_DISCONNECTED;
+			isns_socket_release(sock);
 			continue;
 		}
 
 		if (sock->is_state == ISNS_SOCK_DEAD) {
 kill_socket:
 			isns_list_del(&sock->is_list);
-			if (sock->is_report_failure)
+			if (sock->is_report_failure) {
+				isns_socket_release(sock);
 				return NULL;
+			}
 			if (!sock->is_client)
 				isns_socket_free(sock);
+			isns_socket_release(sock);
 			continue;
 		}
+
+		/* This will return 0 if the socket was marked for
+		 * destruction. */
+		if (!isns_socket_release(sock))
+			continue;
 
 		/* should not happen */
 		if (i >= max_sockets)
