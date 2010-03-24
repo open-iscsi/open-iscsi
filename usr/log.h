@@ -26,6 +26,7 @@
 #ifndef LOG_H
 #define LOG_H
 
+#include <sys/types.h>
 #include "iscsid.h"
 
 union semun {
