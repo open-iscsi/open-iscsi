@@ -566,7 +566,8 @@ char *sysfs_get_value(char *id, char *subsys, char *param)
 		return NULL;
 	}
 
-	if (!strncmp(sysfs_value, "<NULL>", 6))
+	if (!strncmp(sysfs_value, "<NULL>", 6) ||
+	    !strncmp(sysfs_value, "(null)", 6))
 		return NULL;
 
 	return sysfs_value;
