@@ -368,9 +368,10 @@ iscsi_copy_operational_params(iscsi_conn_t *conn)
 	/* zero indicates to use the target's value */
 	conn->max_xmit_dlength =
 			__padding(conn_rec->iscsi.MaxXmitDataSegmentLength);
-	if (conn->max_xmit_dlength != 0 &&
-	    (conn->max_xmit_dlength < ISCSI_MIN_MAX_RECV_SEG_LEN ||
-	     conn->max_xmit_dlength > ISCSI_MAX_MAX_RECV_SEG_LEN)) {
+	if (conn->max_xmit_dlength == 0)
+		conn->max_xmit_dlength = ISCSI_DEF_MAX_RECV_SEG_LEN;
+	if (conn->max_xmit_dlength < ISCSI_MIN_MAX_RECV_SEG_LEN ||
+	    conn->max_xmit_dlength > ISCSI_MAX_MAX_RECV_SEG_LEN) {
 		log_error("Invalid iscsi.MaxXmitDataSegmentLength. Must be "
 			 "within %u and %u. Setting to %u\n",
 			  ISCSI_MIN_MAX_RECV_SEG_LEN,
