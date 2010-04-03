@@ -104,24 +104,22 @@ discover()
 
 	connected=0
 	discovered=0
-	df=/tmp/discovered.$$
 
 	dbg "starting discovery to $ip"
-	iscsiadm -m discovery --type sendtargets --portal ${ip}:${port} > ${df}
-	while read portal target
+	disc="$(iscsiadm -m discovery --type sendtargets --portal ${ip}:${port})"
+	echo "${disc}" | while read portal target
 	do
 		portal=${portal%,*}
 		select_transport
-	done < ${df}
+	done
 
-	discovered=$(cat ${df} | wc -l)
+	discovered=$(echo "${disc}" | wc -l)
 	if [ ${discovered} = 0 ]; then
 		echo "failed to discover targets at ${ip}"
 		exit 2
 	else
 		echo "discovered ${discovered} targets at ${ip}"
 	fi
-	/bin/rm -f ${df}
 }
 
 try_login()
