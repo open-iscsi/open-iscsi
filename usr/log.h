@@ -71,6 +71,8 @@ extern int log_init(char *program_name, int size,
 	void *priv);
 extern void log_close (pid_t pid);
 extern void dump_logmsg (void *);
+extern void log_info(const char *fmt, ...)
+	__attribute__ ((format (printf, 1, 2)));
 extern void log_warning(const char *fmt, ...)
 	__attribute__ ((format (printf, 1, 2)));
 extern void log_error(const char *fmt, ...)
@@ -79,6 +81,6 @@ extern void log_debug(int level, const char *fmt, ...)
 	__attribute__ ((format (printf, 2, 3)));
 
 extern void log_do_log_daemon(int prio, void *priv, const char *fmt, va_list ap);
-extern void log_do_log_stderr(int prio, void *priv, const char *fmt, va_list ap);
+extern void log_do_log_std(int prio, void *priv, const char *fmt, va_list ap);
 
 #endif	/* LOG_H */

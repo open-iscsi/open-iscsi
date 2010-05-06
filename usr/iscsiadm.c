@@ -1495,7 +1495,7 @@ main(int argc, char **argv)
 	umask(0177);
 
 	/* enable stdout logging */
-	log_init(program_name, 1024, log_do_log_stderr, NULL);
+	log_init(program_name, 1024, log_do_log_std, NULL);
 	sysfs_init();
 
 	optopt = 0;

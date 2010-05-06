@@ -386,7 +386,7 @@ int main(int argc, char *argv[])
 
 	/* initialize logger */
 	log_pid = log_init(program_name, DEFAULT_AREA_SIZE,
-		      daemonize ? log_do_log_daemon : log_do_log_stderr, NULL);
+		      daemonize ? log_do_log_daemon : log_do_log_std, NULL);
 	if (log_pid < 0)
 		exit(1);
 

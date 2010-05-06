@@ -279,12 +279,17 @@ void log_do_log_daemon(int prio, void *priv, const char *fmt, va_list ap)
 		syslog(LOG_ERR, "semop up failed");
 }
 
-void log_do_log_stderr(int prio, void *priv, const char *fmt, va_list ap)
+void log_do_log_std(int prio, void *priv, const char *fmt, va_list ap)
 {
-	fprintf(stderr, "%s: ", log_name);
-	vfprintf(stderr, fmt, ap);
-	fprintf(stderr, "\n");
-	fflush(stderr);
+	if (prio == LOG_INFO) {
+		vfprintf(stdout, fmt, ap);
+		fprintf(stdout, "\n");
+	} else {
+		fprintf(stderr, "%s: ", log_name);
+		vfprintf(stderr, fmt, ap);
+		fprintf(stderr, "\n");
+		fflush(stderr);
+	}
 }
 
 void log_warning(const char *fmt, ...)
@@ -311,6 +316,14 @@ void log_debug(int level, const char *fmt, ...)
 		log_func(LOG_DEBUG, log_func_priv, fmt, ap);
 		va_end(ap);
 	}
+}
+
+void log_info(const char *fmt, ...)
+{
+	va_list ap;
+	va_start(ap, fmt);
+	log_func(LOG_INFO, log_func_priv, fmt, ap);
+	va_end(ap);
 }
 
 static void __dump_line(int level, unsigned char *buf, int *cp)

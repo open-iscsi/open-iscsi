@@ -256,7 +256,7 @@ int main(int argc, char *argv[])
 	sigaction(SIGINT, &sa_new, &sa_old );
 
 	/* initialize logger */
-	log_init(program_name, DEFAULT_AREA_SIZE, log_do_log_stderr, NULL);
+	log_init(program_name, DEFAULT_AREA_SIZE, log_do_log_std, NULL);
 
 	sysfs_init();
 	if (iscsi_sysfs_check_class_version())
