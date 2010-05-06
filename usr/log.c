@@ -32,10 +32,11 @@
 #endif
 
 char *log_name;
-int log_daemon = 1;
 int log_level = 0;
 
 static int log_stop_daemon = 0;
+static void (*log_func)(int prio, void *priv, const char *fmt, va_list ap);
+static void *log_func_priv;
 
 static void free_logarea (void)
 {
@@ -258,40 +259,39 @@ static void log_syslog (void * buff)
 	syslog(msg->prio, "%s", (char *)&msg->str);
 }
 
-static void dolog(int prio, const char *fmt, va_list ap)
+void log_do_log_daemon(int prio, void *priv, const char *fmt, va_list ap)
 {
-	if (log_daemon) {
-		struct sembuf ops[1];
+	struct sembuf ops[1];
 
-		ops[0].sem_num = la->ops[0].sem_num;
-		ops[0].sem_flg = la->ops[0].sem_flg;
+	ops[0].sem_num = la->ops[0].sem_num;
+	ops[0].sem_flg = la->ops[0].sem_flg;
 
-		ops[0].sem_op = -1;
-		if (semop(la->semid, ops, 1) < 0) {
-			syslog(LOG_ERR, "semop down failed %d", errno);
-			return;
-		}
-
-		log_enqueue(prio, fmt, ap);
-
-		ops[0].sem_op = 1;
-		if (semop(la->semid, ops, 1) < 0) {
-			syslog(LOG_ERR, "semop up failed");
-			return;
-		}
-	} else {
-		fprintf(stderr, "%s: ", log_name);
-		vfprintf(stderr, fmt, ap);
-		fprintf(stderr, "\n");
-		fflush(stderr);
+	ops[0].sem_op = -1;
+	if (semop(la->semid, ops, 1) < 0) {
+		syslog(LOG_ERR, "semop down failed %d", errno);
+		return;
 	}
+
+	log_enqueue(prio, fmt, ap);
+
+	ops[0].sem_op = 1;
+	if (semop(la->semid, ops, 1) < 0)
+		syslog(LOG_ERR, "semop up failed");
+}
+
+void log_do_log_stderr(int prio, void *priv, const char *fmt, va_list ap)
+{
+	fprintf(stderr, "%s: ", log_name);
+	vfprintf(stderr, fmt, ap);
+	fprintf(stderr, "\n");
+	fflush(stderr);
 }
 
 void log_warning(const char *fmt, ...)
 {
 	va_list ap;
 	va_start(ap, fmt);
-	dolog(LOG_WARNING, fmt, ap);
+	log_func(LOG_WARNING, log_func_priv, fmt, ap);
 	va_end(ap);
 }
 
@@ -299,7 +299,7 @@ void log_error(const char *fmt, ...)
 {
 	va_list ap;
 	va_start(ap, fmt);
-	dolog(LOG_ERR, fmt, ap);
+	log_func(LOG_ERR, log_func_priv, fmt, ap);
 	va_end(ap);
 }
 
@@ -308,7 +308,7 @@ void log_debug(int level, const char *fmt, ...)
 	if (log_level > level) {
 		va_list ap;
 		va_start(ap, fmt);
-		dolog(LOG_DEBUG, fmt, ap);
+		log_func(LOG_DEBUG, log_func_priv, fmt, ap);
 		va_end(ap);
 	}
 }
@@ -389,19 +389,23 @@ static void catch_signal(int signo)
 
 static void __log_close(void)
 {
-	if (log_daemon) {
+	if (log_func == log_do_log_daemon) {
 		log_flush();
 		closelog();
 		free_logarea();
 	}
 }
 
-int log_init(char *program_name, int size)
+int log_init(char *program_name, int size,
+	void (*func)(int prio, void *priv, const char *fmt, va_list ap),
+	void *priv)
 {
 	logdbg(stderr,"enter log_init\n");
 	log_name = program_name;
+	log_func = func;
+	log_func_priv = priv;
 
-	if (log_daemon) {
+	if (log_func == log_do_log_daemon) {
 		struct sigaction sa_old;
 		struct sigaction sa_new;
 		pid_t pid;
@@ -447,11 +451,12 @@ int log_init(char *program_name, int size)
 
 	return 0;
 }
+
 void log_close(pid_t pid)
 {
 	int status;
 
-	if (!log_daemon || pid < 0) {
+	if (log_func != log_do_log_daemon || pid < 0) {
 		__log_close();
 		return;
 	}

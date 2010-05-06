@@ -26,6 +26,7 @@
 #ifndef LOG_H
 #define LOG_H
 
+#include <stdarg.h>
 #include <sys/types.h>
 #include "iscsid.h"
 
@@ -40,7 +41,6 @@ union semun {
 #define DEFAULT_AREA_SIZE 16384
 #define MAX_MSG_SIZE 256
 
-extern int log_daemon;
 extern int log_level;
 
 struct logmsg {
@@ -66,7 +66,9 @@ struct logarea {
 
 struct logarea *la;
 
-extern int log_init (char * progname, int size);
+extern int log_init(char *program_name, int size,
+	void (*func)(int prio, void *priv, const char *fmt, va_list ap),
+	void *priv);
 extern void log_close (pid_t pid);
 extern void dump_logmsg (void *);
 extern void log_warning(const char *fmt, ...)
@@ -75,5 +77,8 @@ extern void log_error(const char *fmt, ...)
 	__attribute__ ((format (printf, 1, 2)));
 extern void log_debug(int level, const char *fmt, ...)
 	__attribute__ ((format (printf, 2, 3)));
+
+extern void log_do_log_daemon(int prio, void *priv, const char *fmt, va_list ap);
+extern void log_do_log_stderr(int prio, void *priv, const char *fmt, va_list ap);
 
 #endif	/* LOG_H */

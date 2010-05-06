@@ -57,6 +57,7 @@ static char program_name[] = "iscsid";
 int control_fd, mgmt_ipc_fd;
 static pid_t log_pid;
 static gid_t gid;
+static int daemonize = 1;
 
 static struct option const long_options[] = {
 	{"config", required_argument, NULL, 'c'},
@@ -293,7 +294,7 @@ static void iscsid_shutdown(void)
 		log_debug(7, "cleaned up pid %d", pid);
 
 	log_warning("iscsid shutting down.");
-	if (log_daemon && log_pid >= 0) {
+	if (daemonize && log_pid >= 0) {
 		log_debug(1, "daemon stopping");
 		log_close(log_pid);
 	}
@@ -356,7 +357,7 @@ int main(int argc, char *argv[])
 			initiatorname_file = optarg;
 			break;
 		case 'f':
-			log_daemon = 0;
+			daemonize = 0;
 			break;
 		case 'd':
 			log_level = atoi(optarg);
@@ -384,7 +385,8 @@ int main(int argc, char *argv[])
 	}
 
 	/* initialize logger */
-	log_pid = log_init(program_name, DEFAULT_AREA_SIZE);
+	log_pid = log_init(program_name, DEFAULT_AREA_SIZE,
+		      daemonize ? log_do_log_daemon : log_do_log_stderr, NULL);
 	if (log_pid < 0)
 		exit(1);
 
@@ -411,7 +413,7 @@ int main(int argc, char *argv[])
 		exit(1);
 	}
 
-	if (log_daemon) {
+	if (daemonize) {
 		char buf[64];
 		int fd;
 
