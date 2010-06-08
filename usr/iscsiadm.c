@@ -1646,7 +1646,7 @@ main(int argc, char **argv)
 		goto free_ifaces;
 	}
 
-	if (mode != MODE_DISCOVERY && ip)
+	if (mode != MODE_DISCOVERY && ip && port != -1)
 		port = ISCSI_LISTEN_PORT;
 
 	switch (mode) {
