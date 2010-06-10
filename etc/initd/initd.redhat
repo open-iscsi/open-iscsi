@@ -44,7 +44,7 @@ stop()
 		echo "Could not logout from all nodes, try again later"
 		return $RETVAL
 	fi
-	killproc iscsid
+	iscsiadm -k 0
 	rm -f /var/run/iscsid.pid
 	[ $RETVAL -eq 0 ] && rm -f /var/lock/subsys/open-iscsi
 	status=0

@@ -157,7 +157,7 @@ case "$1" in
     stop)
 	iscsi_umount_all_luns
 	if iscsi_logout_all_nodes ; then
-	    killproc -KILL $DAEMON
+	    iscsiadm -k 0
 	    RETVAL=$?
 	else
 	    RETVAL=1
