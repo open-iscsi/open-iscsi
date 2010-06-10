@@ -54,6 +54,7 @@
 #define DISC_DEF_POLL_INVL	30
 
 static LIST_HEAD(iscsi_targets);
+static int stop_discoveryd;
 
 static LIST_HEAD(isns_initiators);
 static LIST_HEAD(isns_refresh_list);
@@ -66,27 +67,64 @@ static void isns_reg_refresh_by_eid_qry(void *data);
 typedef void (do_disc_and_login_fn)(const char *def_iname, char *addr,
 				    int port, int poll_inval);
 
-static int logout_stale_session(void *data, struct list_head *list,
-				struct session_info *info)
+static int logout_session(void *data, struct list_head *list,
+			  struct session_info *info)
 {
-	struct list_head *stale_rec_list = data;
+	struct list_head *rec_list = data;
 	struct node_rec *rec;
 
-	list_for_each_entry(rec, stale_rec_list, list) {
+	list_for_each_entry(rec, rec_list, list) {
 		if (iscsi_match_session(rec, info))
 			return iscsi_logout_portal(info, list);
 	}
 	return -1;
 }
 
-static void free_curr_targets(void)
+static void discoveryd_stop(void)
 {
 	struct node_rec *rec, *tmp_rec;
+	int nr_found = 0;
 
+	if (list_empty(&iscsi_targets))
+		goto done;
+
+	/*
+	 * User requested to just login and exit.
+	 */
+	if (!stop_discoveryd)
+		goto done;
+
+	iscsi_logout_portals(&iscsi_targets, &nr_found, 1, logout_session);
 	list_for_each_entry_safe(rec, tmp_rec, &iscsi_targets, list) {
 		list_del(&rec->list);
 		free(rec);
 	}
+
+done:
+	exit(0);
+}
+
+static void catch_signal(int signo)
+{
+	log_debug(1, "%d caught signal -%d...", signo, getpid());
+	switch (signo) {
+	case SIGTERM:
+		stop_discoveryd = 1;
+		break;
+	default:
+		break;
+	}
+}
+
+static void setup_signal_handler(void)
+{
+	struct sigaction sa_old;
+	struct sigaction sa_new;
+
+	sa_new.sa_handler = catch_signal;
+	sigemptyset(&sa_new.sa_mask);
+	sa_new.sa_flags = 0;
+	sigaction(SIGTERM, &sa_new, &sa_old );
 }
 
 /*
@@ -158,7 +196,7 @@ static void update_sessions(struct list_head *new_rec_list,
 
 	if (!list_empty(&stale_rec_list)) {
 		iscsi_logout_portals(&stale_rec_list, &nr_found, 0,
-				     logout_stale_session);
+				     logout_session);
 		list_for_each_entry_safe(rec, tmp_rec, &stale_rec_list, list) {
 			list_del(&rec->list);
 			free(rec);
@@ -194,6 +232,7 @@ static void do_disc_to_addrs(const char *def_iname, char *disc_addrs,
 
 		pid = fork();
 		if (pid == 0) {
+			setup_signal_handler();
 			do_disc_and_login(def_iname, ip_str, portn, poll_inval);
 			exit(0);
 		} else if (pid < 0)
@@ -201,6 +240,7 @@ static void do_disc_to_addrs(const char *def_iname, char *disc_addrs,
 				   "to perform discovery to %s.\n",
 				   errno, strerror(errno), ip_str);
 		else {
+			shutdown_callback(pid);
 			log_debug(1, "iSCSI disc and login helper pid=%d", pid);
 			reap_inc();
 		}
@@ -872,8 +912,7 @@ static int isns_scn_recv(isns_server_t *svr, isns_socket_t *svr_sock,
 
 	log_debug(1, "isns_scn_recv");
 
-	while (1) {
-
+	while (!stop_discoveryd) {
 		/* reap disc/login procs */
 		reap_proc();
 		/*
@@ -999,7 +1038,6 @@ static int isns_eventd(const char *def_iname, char *disc_addr, int port,
 	isns_cancel_refresh_timers();
 fail:
 	isns_clear_refresh_list();
-	free_curr_targets();
 
 	list_for_each_entry_safe(node, tmp_node, &isns_initiators, list) {
 		list_del(&node->list);
@@ -1028,6 +1066,7 @@ static void start_isns(const char *def_iname, char *disc_addr, int port,
 
 	rc = isns_eventd(def_iname, disc_addr, port, poll_inval);
 	log_debug(1, "start isns done %d.", rc);
+	discoveryd_stop();
 }
 
 /* SendTargets */
@@ -1087,9 +1126,9 @@ static void do_st_disc_and_login(const char *def_iname, char *disc_addr,
 		__do_st_disc_and_login(disc_addr, port);
 		if (!poll_inval)
 			break;
-	} while (!sleep(poll_inval));
+	} while (!stop_discoveryd && !sleep(poll_inval));
 
-	free_curr_targets();
+	discoveryd_stop();
 }
 
 void discoveryd_start(const char *def_iname)

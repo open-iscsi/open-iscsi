@@ -74,7 +74,7 @@ mgmt_ipc_listen(void)
 void
 mgmt_ipc_close(int fd)
 {
-	event_loop_exit();
+	event_loop_exit(NULL);
 	if (fd >= 0)
 		close(fd);
 }
@@ -190,8 +190,7 @@ mgmt_ipc_conn_add(queue_task_t *qtask)
 static mgmt_ipc_err_e
 mgmt_ipc_immediate_stop(queue_task_t *qtask)
 {
-	event_loop_exit();
-	mgmt_ipc_write_rsp(qtask, MGMT_IPC_OK);
+	event_loop_exit(qtask);
 	return MGMT_IPC_OK;
 }
 

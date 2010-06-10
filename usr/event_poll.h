@@ -20,10 +20,12 @@
 #define EVENT_POLL_H
 
 struct iscsi_ipc;
+struct queue_task;
 
+int shutdown_callback(pid_t pid);
 void reap_proc(void);
 void reap_inc(void);
 void event_loop(struct iscsi_ipc *ipc, int control_fd, int mgmt_ipc_fd);
-void event_loop_exit(void);
+void event_loop_exit(struct queue_task *qtask);
 
 #endif
