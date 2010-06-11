@@ -2,8 +2,9 @@
 .SH NAME
 iscsiadm \- open-iscsi administration utility
 .SH SYNOPSIS
-\fBiscsiadm\fR \-m discovery [ \-hV ] [ \-d debug_level ] [ \-P printlevel ] [ \-I iface \-t type \-p ip:port [ \-l ] ] |
-[ \-o operation ] [ \-n name ] [ \-v value ]
+\fBiscsiadm\fR \-m discovery [ \-hV ] [ \-d debug_level ] [ \-P printlevel ] [ \-I iface \-t type \-p ip:port [ \-l ] ] | [ [ -p ip:port ] \
+[ \-o operation ] [ \-n name ] [ \-v value ] [ \-l | \-D ] ]
+
 
 \fBiscsiadm\fR \-m node [ \-hV ] [ \-d debug_level ] [ \-P printlevel ] [ \-L all,manual,automatic ] [ \-U all,manual,automatic ] [ \-S ] [ [ \-T targetname \-p ip:port \-I iface ] [ \-l | \-u | \-R | \-s] ]
 [ [ \-o operation ]  [ \-n name ] [ \-v value ] [ \-p ip:port ] ]
@@ -90,6 +91,12 @@ this command is the same as doing "killall iscsid". Neither should
 normally not be used, because if iscsid is doing error recovery or if there
 is an error while iscsid is not running, the system may not be able to recover.
 This command and iscsid's SIGTERM handling are experimental.
+
+.TP
+\fB\-l\fR, \fB\-\-discover\fR
+Discover targets using discovery record info.
+.IP
+This option is only valid for SendTargets discovery mode.
 
 .TP
 \fB\-l\fR, \fB\-\-login\fR

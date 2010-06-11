@@ -85,6 +85,7 @@ static struct option const long_options[] =
 	{"sid", required_argument, NULL, 'r'},
 	{"rescan", no_argument, NULL, 'R'},
 	{"print", required_argument, NULL, 'P'},
+	{"discover", no_argument, NULL, 'D'},
 	{"login", no_argument, NULL, 'l'},
 	{"loginall", required_argument, NULL, 'L'},
 	{"logout", no_argument, NULL, 'u'},
@@ -97,7 +98,7 @@ static struct option const long_options[] =
 	{"help", no_argument, NULL, 'h'},
 	{NULL, 0, NULL, 0},
 };
-static char *short_options = "RlVhm:p:P:T:H:I:U:k:L:d:r:n:v:o:sSt:u";
+static char *short_options = "RlDVhm:p:P:T:H:I:U:k:L:d:r:n:v:o:sSt:u";
 
 static void usage(int status)
 {
@@ -106,8 +107,8 @@ static void usage(int status)
 			program_name);
 	else {
 		printf("\
-iscsiadm -m discovery [ -hV ] [ -d debug_level ] [-P printlevel] [ -t type -p ip:port -I ifaceN ... [ -l ] ] | [ -p ip:port ] \
-[ -o operation ] [ -n name ] [ -v value ]\n\
+iscsiadm -m discovery [ -hV ] [ -d debug_level ] [-P printlevel] [ -t type -p ip:port -I ifaceN ... [ -l ] ] | [ [ -p ip:port ] \
+[ -o operation ] [ -n name ] [ -v value ] [ -l | -D ] ] \n\
 iscsiadm -m node [ -hV ] [ -d debug_level ] [ -P printlevel ] [ -L all,manual,automatic ] [ -U all,manual,automatic ] [ -S ] [ [ -T targetname -p ip:port -I ifaceN ] [ -l | -u | -R | -s] ] \
 [ [ -o  operation  ] [ -n name ] [ -v value ] ]\n\
 iscsiadm -m session [ -hV ] [ -d debug_level ] [ -P  printlevel] [ -r sessionid | sysfsdir [ -R | -u | -s ] [ -o operation ] [ -n name ] [ -v value ] ]\n\
@@ -892,7 +893,7 @@ exec_disc_op_on_recs(discovery_rec_t *drec, struct list_head *rec_list,
 
 static int
 do_software_sendtargets(discovery_rec_t *drec, struct list_head *ifaces,
-		        int info_level, int do_login, int op)
+		        int info_level, int do_login, int op, int sync_drec)
 {
 	struct list_head rec_list;
 	struct node_rec *rec, *tmp;
@@ -912,7 +913,7 @@ do_software_sendtargets(discovery_rec_t *drec, struct list_head *ifaces,
 	 * DB lined up, but for now just put all the targets found from
 	 * a discovery portal in one place
 	 */
-	if (!(op & OP_NONPERSISTENT)) {
+	if ((!(op & OP_NONPERSISTENT)) && sync_drec) {
 		rc = idbm_add_discovery(drec);
 		if (rc) {
 			log_error("Could not add new discovery record.");
@@ -939,7 +940,7 @@ do_software_sendtargets(discovery_rec_t *drec, struct list_head *ifaces,
 
 static int
 do_sendtargets(discovery_rec_t *drec, struct list_head *ifaces,
-	       int info_level, int do_login, int op)
+	       int info_level, int do_login, int op, int sync_drec)
 {
 	struct iface_rec *tmp, *iface;
 	int rc, host_no;
@@ -995,7 +996,7 @@ do_sendtargets(discovery_rec_t *drec, struct list_head *ifaces,
 
 sw_st:
 	return do_software_sendtargets(drec, ifaces, info_level, do_login,
-				       op);
+				       op, sync_drec);
 }
 
 static int do_isns(discovery_rec_t *drec, struct list_head *ifaces,
@@ -1473,6 +1474,7 @@ main(int argc, char **argv)
 	int rc=0, sid=-1, op=OP_NOOP, type=-1, do_logout=0, do_stats=0;
 	int do_login_all=0, do_logout_all=0, info_level=-1, num_ifaces = 0;
 	int tpgt = PORTAL_GROUP_TAG_UNKNOWN, killiscsid=-1, do_show=0;
+	int do_discover = 0;
 	struct sigaction sa_old;
 	struct sigaction sa_new;
 	discovery_rec_t drec;
@@ -1554,6 +1556,9 @@ main(int argc, char **argv)
 			break;
 		case 'P':
 			info_level = atoi(optarg);
+			break;
+		case 'D':
+			do_discover = 1;
 			break;
 		case 'l':
 			do_login = 1;
@@ -1682,7 +1687,7 @@ main(int argc, char **argv)
 				   name, value);
 		break;
 	case MODE_DISCOVERY:
-		if ((rc = verify_mode_params(argc, argv, "SIPdmntplov", 0))) {
+		if ((rc = verify_mode_params(argc, argv, "DSIPdmntplov", 0))) {
 			log_error("discovery mode: option '-%c' is not "
 				  "allowed/supported", rc);
 			rc = -1;
@@ -1700,14 +1705,12 @@ main(int argc, char **argv)
 				goto out;
 			}
 
-			if (idbm_discovery_read(&drec, ip, port)) {
-				idbm_sendtargets_defaults(&drec.u.sendtargets);
-				strlcpy(drec.address, ip, sizeof(drec.address));
-				drec.port = port;
-			}
+			idbm_sendtargets_defaults(&drec.u.sendtargets);
+			strlcpy(drec.address, ip, sizeof(drec.address));
+			drec.port = port;
 
 			if (do_sendtargets(&drec, &ifaces, info_level,
-					   do_login, op)) {
+					   do_login, op, 1)) {
 				rc = -1;
 				goto out;
 			}
@@ -1750,11 +1753,11 @@ main(int argc, char **argv)
 					rc = -1;
 					goto out;
 				}
-				if (do_login &&
+				if ((do_discover || do_login) &&
 				    drec.type == DISCOVERY_TYPE_SENDTARGETS) {
 					do_sendtargets(&drec, &ifaces,
 							info_level, do_login,
-							op);
+							op, 0);
 				} else if (do_login &&
 					   drec.type == DISCOVERY_TYPE_SLP) {
 					log_error("SLP discovery is not fully "

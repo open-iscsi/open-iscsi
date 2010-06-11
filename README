@@ -185,11 +185,12 @@ Usage: iscsiadm [OPTION]
                         perform [type] discovery for target portal with
                           ip-address [ip] and port [port].
 
-			  By default this command will searh for a discovery
-			  record for ip:port, and if found will use the
-			  record's settings for discovery. If a record does
-			  not exist iscsiadm will create one. It will then
-			  remove records for portals no longer returned. And,
+			  This command will not use the discovery record
+			  settings. It will use the iscsid.conf discovery
+			  settings and it will overwrite the discovery
+			  record with iscsid.conf discovery settings if it
+			  exists. By default, it will then remove records for
+			  portals no longer returned. And,
 			  if a portal is returned by the target, then the
 			  discovery command will create a new record or modify
 			  an existing one with values from iscsi.conf and the
@@ -224,8 +225,19 @@ Usage: iscsiadm [OPTION]
 			  Multiple ifaces can be passed in during discovery.
   -m discovery --print=[N] display all discovery records from internal
                           persistent discovery database.
-  -m discovery --interface --portal=[ip:port] --print=[N] --login
+  -m discovery --interface --portal=[ip:port] --print=[N] --discover
                           perform discovery based on portal in database. See
+			  above for info in the interface argument.
+
+			  For the above commands "print" is optional. If
+			  used, N can be 0 or 1.
+			  0 = The old flat style of output is used.
+			  1 = The tree style with the inteface info is used.
+
+			  If print is not used the old flay style is used.
+  -m discovery --interface --portal=[ip:port] --print=[N] --login
+                          perform discovery based on portal in database, and
+			  log into portals found during discovery. See
 			  above for info in the interface argument.
 
 			  For the above commands "print" is optional. If
@@ -616,6 +628,23 @@ To now log into targets it is the same as with sofware iscsi. See section
 	qla4xxx support is very basic and experimental. It does not store
 	the record info in the card's FLASH or the node DB, so you must
 	rerun discovery every time the driver is reloaded.
+
+    - SendTargets iSCSI Discovery using the default driver and interface and
+	using the discovery settings for the discovery record with the
+	ID [192.168.1.1:3260].
+
+	    ./iscsiadm -m discovery -p 192.168.1.1:3260 --discover
+
+	This will search /etc/iscsi/send_targets for a record with the
+	ID [192.168.1.1:3260]. If found it will perform discovery using
+	the settings stored in the record. For the ifaces,
+	This will first search /etc/iscsi/ifaces for interfaces
+	using software iscsi. If any are found then nodes found during
+	discovery will be setup so that they can logged in through
+	those interfaces.
+
+	This command also accepts the -o new, delete and update settings
+	like above.
 
     Node mode. In node mode you can specify which records you want to log
     into by specifying the targetname, ip address, port or interface

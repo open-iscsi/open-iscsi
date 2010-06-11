@@ -1523,7 +1523,7 @@ int idbm_add_discovery(discovery_rec_t *newrec)
 	if (!idbm_discovery_read(&rec, newrec->address,
 				newrec->port)) {
 		log_debug(7, "disc rec already exists");
-		return 0;
+		/* fall through */
 	} else
 		log_debug(7, "adding new DB record");
 
