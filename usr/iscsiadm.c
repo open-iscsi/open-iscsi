@@ -1527,6 +1527,15 @@ static int exec_disc_op(int disc_type, char *ip, int port,
 		break;
 	default:
 		if (ip) {
+			/*
+			 * We only have disc recs for sendtargets, so we can
+			 * harcode the port check to the iscsi default.
+			 * If we add isns or slp recs then we have to
+			 * fix this somehow.
+			 */
+			if (port < 0)
+				port = ISCSI_LISTEN_PORT;
+
 			if (idbm_discovery_read(&drec, ip, port)) {
 				log_error("Discovery record [%s,%d] "
 					  "not found!", ip, port);
