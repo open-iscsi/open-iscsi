@@ -1465,6 +1465,143 @@ static int exec_fw_op(discovery_rec_t *drec, struct list_head *ifaces,
 	return rc;
 }
 
+static int exec_disc_op(int disc_type, char *ip, int port,
+			struct list_head *ifaces, int info_level, int do_login,
+			int do_discover, int op, char *name, char *value,
+			int do_show)
+{
+	struct discovery_rec drec;
+	int rc = 0;
+
+	memset(&drec, 0, sizeof(struct discovery_rec));
+
+	switch (disc_type) {
+	case DISCOVERY_TYPE_SENDTARGETS:
+		if (port < 0)
+			port = ISCSI_LISTEN_PORT;
+
+		if (ip == NULL) {
+			log_error("Please specify portal as "
+				  "<ipaddr>[:<ipport>]");
+			rc = -1;
+			goto done;
+		}
+
+		idbm_sendtargets_defaults(&drec.u.sendtargets);
+		strlcpy(drec.address, ip, sizeof(drec.address));
+		drec.port = port;
+
+		if (do_sendtargets(&drec, ifaces, info_level,
+				   do_login, op, 1)) {
+			rc = -1;
+			goto done;
+		}
+		break;
+	case DISCOVERY_TYPE_SLP:
+		log_error("SLP discovery is not fully implemented yet.");
+		rc = -1;
+		break;
+	case DISCOVERY_TYPE_ISNS:
+		if (!ip) {
+			log_error("Please specify portal as "
+				  "<ipaddr>:[<ipport>]");
+			rc = -1;
+			goto done;
+		}
+
+		strlcpy(drec.address, ip, sizeof(drec.address));
+		if (port < 0)
+			drec.port = ISNS_DEFAULT_PORT;
+		else
+			drec.port = port;
+
+		if (do_isns(&drec, ifaces, info_level, do_login, op)) {
+			rc = -1;
+			goto done;
+		}
+		break;
+	case DISCOVERY_TYPE_FW:
+		drec.type = DISCOVERY_TYPE_FW;
+		if (exec_fw_op(&drec, ifaces, info_level, do_login, op))
+			rc = -1;
+		break;
+	default:
+		if (ip) {
+			if (idbm_discovery_read(&drec, ip, port)) {
+				log_error("Discovery record [%s,%d] "
+					  "not found!", ip, port);
+				rc = -1;
+				goto done;
+			}
+			if ((do_discover || do_login) &&
+			    drec.type == DISCOVERY_TYPE_SENDTARGETS) {
+				do_sendtargets(&drec, ifaces, info_level,
+					       do_login, op, 0);
+			} else if (do_login &&
+				   drec.type == DISCOVERY_TYPE_SLP) {
+				log_error("SLP discovery is not fully "
+					  "implemented yet.");
+				rc = -1;
+				goto done;
+			} else if (do_login &&
+				   drec.type == DISCOVERY_TYPE_ISNS) {
+				log_error("iSNS discovery is not fully "
+					  "implemented yet.");
+				rc = -1;
+				goto done;
+			} else if (op == OP_NOOP || op == OP_SHOW) {
+				if (!idbm_print_discovery_info(&drec,
+							       do_show)) {
+					log_error("No records found!");
+					rc = -1;
+				}
+			} else if (op == OP_DELETE) {
+				if (idbm_delete_discovery(&drec)) {
+					log_error("Unable to delete record!");
+					rc = -1;
+				}
+			} else if (op == OP_UPDATE) {
+				struct db_set_param set_param;
+
+				if (!name || !value) {
+					log_error("Update requires "
+						  "name and value");
+					rc = -1;
+					goto done;
+				}
+				set_param.name = name;
+				set_param.value = value;
+				if (idbm_discovery_set_param(&set_param,
+							     &drec))
+					rc = -1;
+			} else {
+				log_error("Operation is not supported.");
+				rc = -1;
+				goto done;
+			}
+
+		} else if (op == OP_NOOP || op == OP_SHOW) {
+			if (!idbm_print_all_discovery(info_level))
+				rc = -1;
+			goto done;
+		} else if (op == OP_DELETE) {
+			log_error("--record required for delete operation");
+			rc = -1;
+			goto done;
+		} else {
+			log_error("Operations: new and "
+				  "update for node is not fully "
+				  "implemented yet.");
+			rc = -1;
+			goto done;
+		}
+		/* fall through */
+	}
+
+done:
+	return rc;
+}
+
 int
 main(int argc, char **argv)
 {
@@ -1477,13 +1614,11 @@ main(int argc, char **argv)
 	int do_discover = 0;
 	struct sigaction sa_old;
 	struct sigaction sa_new;
-	discovery_rec_t drec;
 	struct list_head ifaces;
 	struct iface_rec *iface = NULL, *tmp;
 	struct node_rec *rec = NULL;
 	uint32_t host_no = -1;
 
-	memset(&drec, 0, sizeof(discovery_rec_t));
 	INIT_LIST_HEAD(&ifaces);
 	/* do not allow ctrl-c for now... */
 	memset(&sa_old, 0, sizeof(struct sigaction));
@@ -1693,132 +1828,10 @@ main(int argc, char **argv)
 			rc = -1;
 			goto out;
 		}
-		switch (type) {
-		case DISCOVERY_TYPE_SENDTARGETS:
-			if (port < 0)
-				port = ISCSI_LISTEN_PORT;
 
-			if (ip == NULL) {
-				log_error("please specify right portal as "
-					  "<ipaddr>[:<ipport>]");
-				rc = -1;
-				goto out;
-			}
-
-			idbm_sendtargets_defaults(&drec.u.sendtargets);
-			strlcpy(drec.address, ip, sizeof(drec.address));
-			drec.port = port;
-
-			if (do_sendtargets(&drec, &ifaces, info_level,
-					   do_login, op, 1)) {
-				rc = -1;
-				goto out;
-			}
-			break;
-		case DISCOVERY_TYPE_SLP:
-			log_error("SLP discovery is not fully "
-				  "implemented yet.");
-			rc = -1;
-			break;
-		case DISCOVERY_TYPE_ISNS:
-			if (!ip) {
-				log_error("please specify right portal as "
-					  "<ipaddr>:[<ipport>]");
-				rc = -1;
-				goto out;
-			}
-
-			strlcpy(drec.address, ip, sizeof(drec.address));
-			if (port < 0)
-				drec.port = ISNS_DEFAULT_PORT;
-			else
-				drec.port = port;
-
-			if (do_isns(&drec, &ifaces, info_level, do_login, op)) {
-				rc = -1;
-				goto out;
-			}
-			break;
-		case DISCOVERY_TYPE_FW:
-			drec.type = DISCOVERY_TYPE_FW;
-			if (exec_fw_op(&drec, &ifaces, info_level, do_login,
-					op))
-				rc = -1;
-			break;
-		default:
-			if (ip) {
-				if (idbm_discovery_read(&drec, ip, port)) {
-					log_error("discovery record [%s,%d] "
-						  "not found!", ip, port);
-					rc = -1;
-					goto out;
-				}
-				if ((do_discover || do_login) &&
-				    drec.type == DISCOVERY_TYPE_SENDTARGETS) {
-					do_sendtargets(&drec, &ifaces,
-							info_level, do_login,
-							op, 0);
-				} else if (do_login &&
-					   drec.type == DISCOVERY_TYPE_SLP) {
-					log_error("SLP discovery is not fully "
-						  "implemented yet.");
-					rc = -1;
-					goto out;
-				} else if (do_login &&
-					   drec.type == DISCOVERY_TYPE_ISNS) {
-					log_error("iSNS discovery is not fully "
-						  "implemented yet.");
-					rc = -1;
-					goto out;
-				} else if (op == OP_NOOP || op == OP_SHOW) {
-					if (!idbm_print_discovery_info(&drec,
-								do_show)) {
-						log_error("no records found!");
-						rc = -1;
-					}
-				} else if (op == OP_DELETE) {
-					if (idbm_delete_discovery(&drec)) {
-						log_error("unable to delete "
-							   "record!");
-						rc = -1;
-					}
-				} else if (op == OP_UPDATE) {
-					struct db_set_param set_param;
-
-					if (!name || !value) {
-						log_error("Update requires "
-							  "name and value");
-						rc = -1;
-						goto out;
-					}
-					set_param.name = name;
-					set_param.value = value;
-					if (idbm_discovery_set_param(&set_param,
-								     &drec))
-						rc = -1;
-				} else {
-					log_error("operation is not supported.");
-					rc = -1;
-					goto out;
-				}
-
-			} else if (op == OP_NOOP || op == OP_SHOW) {
-				if (!idbm_print_all_discovery(info_level))
-					rc = -1;
-				goto out;
-			} else if (op == OP_DELETE) {
-				log_error("--record required for delete operation");
-				rc = -1;
-				goto out;
-			} else {
-				log_error("Operations: new and "
-					  "update for node is not fully "
-					  "implemented yet.");
-				rc = -1;
-				goto out;
-			}
-			/* fall through */
-		}
+		rc = exec_disc_op(type, ip, port, &ifaces, info_level,
+				  do_login, do_discover, op, name, value,
+				  do_show);
 		break;
 	case MODE_NODE:
 		if ((rc = verify_mode_params(argc, argv, "RsPIdmlSonvupTUL",
