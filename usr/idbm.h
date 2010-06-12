@@ -102,6 +102,10 @@ extern int idbm_for_each_node(int *found, void *data,
 extern int idbm_for_each_rec(int *found, void *data,
 			     idbm_iface_op_fn *fn);
 
+
+typedef int (idbm_st_drec_op_fn)(void *data, discovery_rec_t *drec);
+extern int idbm_for_each_st_drec(void *data, idbm_st_drec_op_fn *fn);
+
 extern int idbm_init(idbm_get_config_file_fn *fn);
 
 extern void idbm_node_setup_from_conf(node_rec_t *rec);

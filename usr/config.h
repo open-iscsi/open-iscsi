@@ -137,6 +137,8 @@ struct iscsi_session_operational_config {
 
 struct iscsi_sendtargets_config {
 	int reopen_max;
+	int use_discoveryd;
+	int discoveryd_poll_inval;
 	struct iscsi_auth_config auth;
 	struct iscsi_connection_timeout_config conn_timeo;
 	struct iscsi_conn_operational_config iscsi;

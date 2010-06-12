@@ -92,6 +92,8 @@
 #define DISC_ST_PASSWORD_IN_LEN	"discovery.sendtargets.auth.password_in_length"
 #define DISC_ST_LOGIN_TMO	"discovery.sendtargets.timeo.login_timeout"
 #define DISC_ST_REOPEN_MAX	"discovery.sendtargets.reopen_max"
+#define DISC_ST_DISC_DAEMON_POLL_INVAL	"discovery.sendtargets.discoveryd_poll_inval"
+#define DISC_ST_USE_DISC_DAEMON	"discovery.sendtargets.use_discoveryd"
 #define DISC_ST_AUTH_TMO	"discovery.sendtargets.timeo.auth_timeout"
 #define DISC_ST_ACTIVE_TMO	"discovery.sendtargets.timeo.active_timeout"
 #define DISC_ST_MAX_RECV_DLEN	"discovery.sendtargets.iscsi.MaxRecvDataSegmentLength"

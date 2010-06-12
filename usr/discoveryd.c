@@ -48,9 +48,6 @@
 #define DISC_ISNS_ADDR_CFG_STR	"discovery.daemon.isns.addresses"
 #define DISC_ISNS_POLL_INVL	"discovery.daemon.isns.poll_interval"
 
-#define DISC_ST_ADDR_CFG_STR	"discovery.daemon.sendtargets.addresses"
-#define DISC_ST_POLL_INVL	"discovery.daemon.sendtargets.poll_interval"
-
 #define DISC_DEF_POLL_INVL	30
 
 static LIST_HEAD(iscsi_targets);
@@ -64,8 +61,8 @@ static int isns_register_nodes = 1;
 
 static void isns_reg_refresh_by_eid_qry(void *data);
 
-typedef void (do_disc_and_login_fn)(const char *def_iname, char *addr,
-				    int port, int poll_inval);
+typedef void (do_disc_and_login_fn)(const char *def_iname,
+				    struct discovery_rec *drec, int poll_inval);
 
 static int logout_session(void *data, struct list_head *list,
 			  struct session_info *info)
@@ -204,13 +201,34 @@ static void update_sessions(struct list_head *new_rec_list,
 	}
 }
 
-static void do_disc_to_addrs(const char *def_iname, char *disc_addrs,
-			     int poll_inval,
-			     do_disc_and_login_fn *do_disc_and_login)
+static void fork_disc(const char *def_iname, struct discovery_rec *drec,
+		      int poll_inval, do_disc_and_login_fn *do_disc_and_login)
 {
 	pid_t pid;
+
+	pid = fork();
+	if (pid == 0) {
+		setup_signal_handler();
+		do_disc_and_login(def_iname, drec, poll_inval);
+		exit(0);
+	} else if (pid < 0)
+		log_error("Fork failed (err %d - %s). Will not be able "
+			   "to perform discovery to %s.\n",
+			   errno, strerror(errno), drec->address);
+	else {
+		shutdown_callback(pid);
+		log_debug(1, "iSCSI disc and login helper pid=%d", pid);
+		reap_inc();
+	}
+}
+
+static void parse_portals(const char *def_iname, char *disc_addrs,
+			  int poll_inval,
+			  do_disc_and_login_fn *do_disc_and_login)
+{
+	struct discovery_rec drec;
 	int portn;
-	char *saveptr1, *saveptr2;
+	char *saveptr1 = NULL, *saveptr2 = NULL;
 	char *ip_str, *addr, *port_str;
 
         addr = strtok_r(disc_addrs, " ", &saveptr1);
@@ -230,20 +248,11 @@ static void do_disc_to_addrs(const char *def_iname, char *disc_addrs,
 		else
 			portn = atoi(port_str);
 
-		pid = fork();
-		if (pid == 0) {
-			setup_signal_handler();
-			do_disc_and_login(def_iname, ip_str, portn, poll_inval);
-			exit(0);
-		} else if (pid < 0)
-			log_error("Fork failed (err %d - %s). Will not be able "
-				   "to perform discovery to %s.\n",
-				   errno, strerror(errno), ip_str);
-		else {
-			shutdown_callback(pid);
-			log_debug(1, "iSCSI disc and login helper pid=%d", pid);
-			reap_inc();
-		}
+		memset(&drec, 0, sizeof(struct discovery_rec));
+		strlcpy(drec.address, ip_str, sizeof(drec.address));
+		drec.port = portn;
+
+		fork_disc(def_iname, &drec, poll_inval, do_disc_and_login);
 	} while ((addr = strtok_r(NULL, " ", &saveptr1)));
 }
 
@@ -267,8 +276,7 @@ static void __discoveryd_start(const char *def_iname, char *addr_cfg_str,
 	log_debug(1, "%s=%s poll interval %d", addr_cfg_str,
 		  disc_addrs, disc_poll_invl);
 
-	do_disc_to_addrs(def_iname, disc_addrs, disc_poll_invl,
-			 do_disc_and_login);
+	parse_portals(def_iname, disc_addrs, disc_poll_invl, do_disc_and_login);
 	free(disc_addrs);
 }
 
@@ -1056,23 +1064,22 @@ fail:
 	return rc;
 }
 
-static void start_isns(const char *def_iname, char *disc_addr, int port,
+static void start_isns(const char *def_iname, struct discovery_rec *drec,
 		       int poll_inval)
 {
-	int rc;
+	int rc, port = drec->port;
 
 	if (port < 0)
 		port = ISNS_DEFAULT_PORT;
 
-	rc = isns_eventd(def_iname, disc_addr, port, poll_inval);
+	rc = isns_eventd(def_iname, drec->address, port, poll_inval);
 	log_debug(1, "start isns done %d.", rc);
 	discoveryd_stop();
 }
 
 /* SendTargets */
-static void __do_st_disc_and_login(char *disc_addr, int port)
+static void __do_st_disc_and_login(struct discovery_rec *drec)
 {
-	discovery_rec_t drec;
 	struct list_head rec_list, setup_ifaces;
 	struct iface_rec *iface, *tmp_iface;
 	int rc;
@@ -1080,17 +1087,11 @@ static void __do_st_disc_and_login(char *disc_addr, int port)
 	INIT_LIST_HEAD(&rec_list);
 	INIT_LIST_HEAD(&setup_ifaces);
 
-	idbm_sendtargets_defaults(&drec.u.sendtargets);
-	strlcpy(drec.address, disc_addr, sizeof(drec.address));
-	if (port < 0)
-		port = ISCSI_LISTEN_PORT;
-	drec.port = port;
-
 	/*
 	 * The disc daemon will try again in poll_interval secs
 	 * so no need to retry here
 	 */
-	drec.u.sendtargets.reopen_max = 0;
+	drec->u.sendtargets.reopen_max = 0;
 
 	iface_link_ifaces(&setup_ifaces);
 	/*
@@ -1099,11 +1100,11 @@ static void __do_st_disc_and_login(char *disc_addr, int port)
 	 */
 	ipc = NULL;
 
-	rc = idbm_bind_ifaces_to_nodes(discovery_sendtargets, &drec,
+	rc = idbm_bind_ifaces_to_nodes(discovery_sendtargets, drec,
 					&setup_ifaces, &rec_list);
 	if (rc) {
-		log_error("Could not perform SendTargets to %s.",
-			   disc_addr);
+		log_error("Could not perform SendTargets to %s:%d.",
+			   drec->address, drec->port);
 		goto free_ifaces;
 	}
 
@@ -1116,14 +1117,14 @@ free_ifaces:
 	}
 }
 
-static void do_st_disc_and_login(const char *def_iname, char *disc_addr,
-				 int port, int poll_inval)
+static void do_st_disc_and_login(const char *def_iname,
+				 struct discovery_rec *drec, int poll_inval)
 {
 	if (poll_inval < 0)
 		poll_inval = DISC_DEF_POLL_INVL;
 
 	do {
-		__do_st_disc_and_login(disc_addr, port);
+		__do_st_disc_and_login(drec);
 		if (!poll_inval)
 			break;
 	} while (!stop_discoveryd && !sleep(poll_inval));
@@ -1131,10 +1132,26 @@ static void do_st_disc_and_login(const char *def_iname, char *disc_addr,
 	discoveryd_stop();
 }
 
+static int st_start(void *data, struct discovery_rec *drec)
+{
+	log_debug(1, "st_start %s:%d %d", drec->address, drec->port,
+		  drec->u.sendtargets.use_discoveryd);
+	if (!drec->u.sendtargets.use_discoveryd)
+		return ENOSYS;
+
+	fork_disc(NULL, drec, drec->u.sendtargets.discoveryd_poll_inval,
+		  do_st_disc_and_login);
+	return 0;
+}
+
+static void discoveryd_st_start(void)
+{
+	idbm_for_each_st_drec(NULL, st_start);
+}
+
 void discoveryd_start(const char *def_iname)
 {
 	__discoveryd_start(def_iname, DISC_ISNS_ADDR_CFG_STR,
 			   DISC_ISNS_POLL_INVL, start_isns);
-	__discoveryd_start(def_iname, DISC_ST_ADDR_CFG_STR, DISC_ST_POLL_INVL,
-			   do_st_disc_and_login);
+	discoveryd_st_start();
 }

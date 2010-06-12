@@ -162,7 +162,13 @@ idbm_recinfo_discovery(discovery_rec_t *r, recinfo_t *ri)
 		__recinfo_int(DISC_ST_LOGIN_TMO, ri, r,
 			u.sendtargets.conn_timeo.login_timeout,
 			IDBM_SHOW, num, 1);
-		__recinfo_int(DISC_ST_REOPEN_MAX,ri, r,
+		__recinfo_int_o2(DISC_ST_USE_DISC_DAEMON, ri, r,
+			u.sendtargets.use_discoveryd,
+			IDBM_SHOW, "No", "Yes", num, 1);
+		__recinfo_int(DISC_ST_DISC_DAEMON_POLL_INVAL, ri, r,
+			u.sendtargets.discoveryd_poll_inval,
+			IDBM_SHOW, num, 1);
+		__recinfo_int(DISC_ST_REOPEN_MAX, ri, r,
 			u.sendtargets.reopen_max,
 			IDBM_SHOW, num, 1);
 		__recinfo_int(DISC_ST_AUTH_TMO, ri, r,
@@ -411,6 +417,8 @@ idbm_discovery_setup_defaults(discovery_rec_t *rec, discovery_type_e type)
 	rec->startup = ISCSI_STARTUP_MANUAL;
 	rec->type = type;
 	if (type == DISCOVERY_TYPE_SENDTARGETS) {
+		rec->u.sendtargets.discoveryd_poll_inval = 30;
+		rec->u.sendtargets.use_discoveryd = 0;
 		rec->u.sendtargets.reopen_max = 5;
 		rec->u.sendtargets.auth.authmethod = 0;
 		rec->u.sendtargets.auth.password_length = 0;
@@ -959,7 +967,7 @@ no_match:
 	return -1;
 }
 
-int idbm_print_discovered(struct discovery_rec *drec, int info_level)
+int idbm_print_discovered(discovery_rec_t *drec, int info_level)
 {
 	int num_found = 0;
 
@@ -979,17 +987,17 @@ int idbm_print_discovered(struct discovery_rec *drec, int info_level)
 	return num_found;
 }
 
-static int idbm_print_all_st(int info_level)
+int idbm_for_each_st_drec(void *data, idbm_st_drec_op_fn *fn)
 {
 	DIR *entity_dirfd;
 	struct dirent *entity_dent;
 	int found = 0;
-	char *disc_dir;
-	char *tmp_port;
+	discovery_rec_t drec;
+	char *disc_dir, *tmp_port;
 
 	disc_dir = malloc(PATH_MAX);
 	if (!disc_dir)
-		return 0;
+		return ENOMEM;
 
 	entity_dirfd = opendir(ST_CONFIG_DIR);
 	if (!entity_dirfd)
@@ -1007,29 +1015,50 @@ static int idbm_print_all_st(int info_level)
 			continue;
 		*tmp_port++ = '\0';
 
-		if (info_level >= 1) {
-			struct discovery_rec drec;
-
-			printf("DiscoveryAddress: %s,%s\n",
-				entity_dent->d_name, tmp_port);
-
-			memset(&drec, 0, sizeof(struct discovery_rec));
-			strlcpy(drec.address, entity_dent->d_name,
-				sizeof(drec.address));
-			drec.port = atoi(tmp_port);
-			drec.type = DISCOVERY_TYPE_SENDTARGETS;
-
-			found += idbm_print_discovered(&drec, info_level);
-		} else {
-			printf("%s:%s via sendtargets\n", entity_dent->d_name,
-			       tmp_port);
-			found++;
+		memset(&drec, 0, sizeof(drec));
+		if (idbm_discovery_read(&drec, entity_dent->d_name,
+					atoi(tmp_port))) {
+			log_error("Could not read discovery record for "
+				  "%s:%s.", entity_dent->d_name, tmp_port);
+			continue;
 		}
+
+		if (!fn(data, &drec))
+			found++;
 	}
 	closedir(entity_dirfd);
 free_disc:
 	free(disc_dir);
 	return found;
+}
+
+static int __idbm_print_all_st(void *data, struct discovery_rec *drec)
+{
+	int info_level = *(int *)data;
+	int rc;
+
+	if (info_level >= 1) {
+		printf("DiscoveryAddress: %s,%d\n",
+		       drec->address, drec->port);
+		rc = idbm_print_discovered(drec, info_level);
+		if (rc)
+			return 0;
+		else
+			return ENODEV;
+	} else {
+		printf("%s:%d via sendtargets\n", drec->address, drec->port);
+		return 0;
+	}
+}
+
+static int idbm_print_all_st(int info_level)
+{
+	int rc;
+
+	rc = idbm_for_each_st_drec(&info_level, __idbm_print_all_st);
+	if (rc < 0)
+		return 0;
+	return rc;
 }
 
 int idbm_print_all_discovery(int info_level)

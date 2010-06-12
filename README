@@ -870,15 +870,18 @@ will usually get you started.
 
 When iscsid starts it will check iscsid.conf for:
 
-discovery.daemon.sendtargets.addresses =
-discovery.daemon.sendtargets.poll_interval =
-
 discovery.daemon.isns.addresses =
 discovery.daemon.isns.poll_interval =
 
-being set. If an address or addresses are set, iscsid will perform discovery
-to the address every poll_interval seconds, and it will log into any portals
-found from the discovery source using the ifaces in /etc/iscsi/ifaces.
+being set and it will check for discovery records in
+/etc/iscsi/send_targets that have the setting:
+
+discovery.sendtargets.use_discoveryd = Yes
+
+If an address or addresses are set or the use_discoveryd is Yes,
+iscsid will perform discovery to the address every poll_interval seconds,
+and it will log into any portals found from the discovery source using
+the ifaces in /etc/iscsi/ifaces.
 
 Note that for iSNS the poll_interval does not have to be set. If not set,
 iscsid will only perform rediscovery when it gets a SCN from the server.
