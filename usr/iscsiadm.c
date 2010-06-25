@@ -464,8 +464,7 @@ static int iface_fn(void *data, node_rec_t *rec)
 	return op_data->fn(op_data->data, rec);
 }
 
-static int __for_each_rec(int verbose, struct node_rec *rec,
-			  void *data, idbm_iface_op_fn *fn)
+static int for_each_rec(struct node_rec *rec, void *data, idbm_iface_op_fn *fn)
 {
 	struct rec_op_data op_data;
 	int nr_found = 0, rc;
@@ -477,24 +476,15 @@ static int __for_each_rec(int verbose, struct node_rec *rec,
 
 	rc = idbm_for_each_rec(&nr_found, &op_data, iface_fn);
 	if (rc) {
-		if (verbose)
-			log_error("Could not execute operation on all "
-				  "records. Err %d.", rc);
+		log_error("Could not execute operation on all "
+			  "records. Err %d.", rc);
 	} else if (!nr_found) {
-		if (verbose)
-			log_error("no records found!");
+		log_error("no records found!");
 		rc = ENODEV;
 	}
 
 	return rc;
 }
-
-static int for_each_rec(struct node_rec *rec, void *data,
-			idbm_iface_op_fn *fn)
-{
-	return __for_each_rec(1, rec, data, fn);
-}
-
 
 static int login_portals(struct node_rec *pattern_rec)
 {
@@ -1107,9 +1097,9 @@ new_fail:
 		}
 
 		/* logout and delete records using it first */
-		rc = __for_each_rec(0, rec, NULL, delete_node);
-		if (rc && rc != ENODEV)
-			goto delete_fail;
+		rc = for_each_rec(rec, NULL, delete_node);
+		if (rc)
+			break;
 
 		rc = iface_conf_delete(iface);
 		if (rc)
@@ -1176,9 +1166,9 @@ delete_fail:
 		if (rc)
 			goto update_fail;
 
-		rc = __for_each_rec(0, rec, &set_param, idbm_node_set_param);
-		if (rc && rc != ENODEV)
-			goto update_fail;
+		rc = for_each_rec(rec, &set_param, idbm_node_set_param);
+		if (rc)
+			break;
 
 		printf("%s updated.\n", iface->name);
 		break;
