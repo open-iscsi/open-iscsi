@@ -342,6 +342,63 @@ Usage: iscsiadm [OPTION]
   -h, --help              display this help and exit
 
 
+Depreciated Commands:
+---------------------
+
+***********************************************************
+** discovery mode has been replaced with discovery2 mode **
+***********************************************************
+  -m discovery --type=[type] --interface=iscsi_ifacename \
+			--portal=[ip:port] --login --print=[N] \
+			--op=[op]=[NEW | UPDATE | DELETE | NONPERSISTENT]
+                        perform [type] discovery for target portal with
+                          ip-address [ip] and port [port].
+
+			  This command will not use the discovery record
+			  settings. It will use the iscsid.conf discovery
+			  settings and it will overwrite the discovery
+			  record with iscsid.conf discovery settings if it
+			  exists. By default, it will then remove records for
+			  portals no longer returned. And,
+			  if a portal is returned by the target, then the
+			  discovery command will create a new record or modify
+			  an existing one with values from iscsi.conf and the
+			  command line.
+
+			  [op] can be passed in multiple times to this
+			  command, and it will alter the DB manipulation.
+
+			  If [op] is passed in and the value is
+			  "new", iscsiadm will add records for portals that do
+			  not yet have records in the db.
+
+			  If [op] is passed in and the value is
+			  "update", iscsiadm will update node records using
+			  info from iscsi.conf and the command line for portals
+			  that are returned during discovery and have
+			  a record in the db.
+
+			  If [op] is passed in and the value is "delete",
+			  iscsiadm will delete records for portals that
+			  were not returned during discovery.
+
+			  If [op] is passed in and the value is
+			  "nonpersistent" iscsiadm will not store
+			  the portals found in the node DB.
+
+			  See the example section for more info.
+
+			  See below for how to setup iscsi ifaces for
+			  software iscsi or override the system defaults.
+
+			  Multiple ifaces can be passed in during discovery.
+  -m discovery --print=[N] display all discovery records from internal
+                          persistent discovery database.
+  -m discovery --interface --portal=[ip:port] --print=[N] --discover
+                          perform discovery based on portal in database. See
+			  above for info in the interface argument.
+
+
 
 5.1 iSCSI iface setup
 =====================
