@@ -2010,10 +2010,6 @@ main(int argc, char **argv)
 		goto free_ifaces;
 	}
 
-	if (mode != MODE_DISCOVERY && mode != MODE_DISCOVERY2 && ip &&
-	    port == -1)
-		port = ISCSI_LISTEN_PORT;
-
 	switch (mode) {
 	case MODE_HOST:
 		if ((rc = verify_mode_params(argc, argv, "HdmP", 0))) {
@@ -2099,6 +2095,9 @@ main(int argc, char **argv)
 					  "%s.", iface->transport_name,
 					  iface->hwaddress, iface->ipaddress);
 		}
+
+		if (ip && port == -1)
+			port = ISCSI_LISTEN_PORT;
 
 		rec = idbm_create_rec(targetname, tpgt, ip, port, iface, 1);
 		if (!rec) {
