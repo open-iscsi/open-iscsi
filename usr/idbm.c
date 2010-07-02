@@ -1071,7 +1071,7 @@ int idbm_print_all_discovery(int info_level)
 
 	drec = calloc(1, sizeof(*drec));
 	if (!drec)
-		return ENOMEM;
+		return 0;
 
 	tmp = 0;
 	printf("SENDTARGETS:\n");

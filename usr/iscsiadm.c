@@ -55,6 +55,7 @@ static char config_file[TARGET_NAME_MAXLEN];
 
 enum iscsiadm_mode {
 	MODE_DISCOVERY,
+	MODE_DISCOVERY2,
 	MODE_NODE,
 	MODE_SESSION,
 	MODE_HOST,
@@ -107,8 +108,8 @@ static void usage(int status)
 			program_name);
 	else {
 		printf("\
-iscsiadm -m discovery [ -hV ] [ -d debug_level ] [-P printlevel] [ -t type -p ip:port -I ifaceN ... [ -l ] ] | [ [ -p ip:port ] \
-[ -o operation ] [ -n name ] [ -v value ] [ -l | -D ] ] \n\
+iscsiadm -m discovery2 [ -hV ] [ -d debug_level ] [-P printlevel] [ -t type -p ip:port -I ifaceN ... [ -Dl ] ] | [ [ -p ip:port -t type] \
+[ -o operation ] [ -n name ] [ -v value ] [ -lD ] ] \n\
 iscsiadm -m node [ -hV ] [ -d debug_level ] [ -P printlevel ] [ -L all,manual,automatic ] [ -U all,manual,automatic ] [ -S ] [ [ -T targetname -p ip:port -I ifaceN ] [ -l | -u | -R | -s] ] \
 [ [ -o  operation  ] [ -n name ] [ -v value ] ]\n\
 iscsiadm -m session [ -hV ] [ -d debug_level ] [ -P  printlevel] [ -r sessionid | sysfsdir [ -R | -u | -s ] [ -o operation ] [ -n name ] [ -v value ] ]\n\
@@ -148,6 +149,8 @@ str_to_mode(char *str)
 
 	if (!strcmp("discovery", str))
 		mode = MODE_DISCOVERY;
+	else if (!strcmp("discovery2", str))
+		mode = MODE_DISCOVERY2;
 	else if (!strcmp("node", str))
 		mode = MODE_NODE;
 	else if (!strcmp("session", str))
@@ -1465,6 +1468,164 @@ static int exec_fw_op(discovery_rec_t *drec, struct list_head *ifaces,
 	return rc;
 }
 
+static int exec_disc2_op(int disc_type, char *ip, int port,
+			 struct list_head *ifaces, int info_level, int do_login,
+			 int do_discover, int op, char *name, char *value,
+			 int do_show)
+{
+	struct discovery_rec drec;
+	int rc = 0, sync_db;
+
+	memset(&drec, 0, sizeof(struct discovery_rec));
+
+	switch (disc_type) {
+	case DISCOVERY_TYPE_SENDTARGETS:
+		if (port < 0)
+			port = ISCSI_LISTEN_PORT;
+
+		if (ip == NULL) {
+			log_error("Please specify portal as "
+				  "<ipaddr>[:<ipport>]");
+			rc = -1;
+			goto done;
+		}
+
+		if (op & OP_NEW && !do_discover) {
+			idbm_sendtargets_defaults(&drec.u.sendtargets);
+			strlcpy(drec.address, ip, sizeof(drec.address));
+			drec.port = port;
+			if (idbm_add_discovery(&drec)) {
+				log_error("Could not add new discovery "
+					  "record.");
+				rc = -1;
+			} else
+				printf("New discovery record for [SendTargets: "
+				       "%s,%d] added.\n", ip, port);
+			goto done;
+		}
+
+		sync_db = 0;
+		rc = idbm_discovery_read(&drec, ip, port);
+		if (rc) {
+			if (!do_discover) {
+				log_error("Discovery record [%s,%d] for "
+					  "SendTargets not found!", ip, port);
+				rc = -1;
+				goto done;
+			}
+
+			/* Just add default rec */
+			log_debug(1, "Discovery record [%s,%d] not found!",
+				  ip, port);
+			idbm_sendtargets_defaults(&drec.u.sendtargets);
+			strlcpy(drec.address, ip, sizeof(drec.address));
+			drec.port = port;
+			sync_db = 1;
+		} else {
+			if (!do_discover)
+				goto do_db_op;
+		}
+
+		if (do_sendtargets(&drec, ifaces, info_level, do_login, op,
+				   sync_db)) {
+			rc = -1;
+			goto done;
+		}
+		goto done;
+	case DISCOVERY_TYPE_SLP:
+		log_error("SLP discovery is not fully implemented yet.");
+		rc = -1;
+		goto done;
+	case DISCOVERY_TYPE_ISNS:
+		if (!do_discover) {
+			log_error("Invalid command. Possibly missing "
+				  "--discover argument.");
+			rc = -1;
+			goto done;
+		}
+
+		if (!ip) {
+			log_error("Please specify portal as "
+				  "<ipaddr>:[<ipport>]");
+			rc = -1;
+			goto done;
+		}
+
+		strlcpy(drec.address, ip, sizeof(drec.address));
+		if (port < 0)
+			drec.port = ISNS_DEFAULT_PORT;
+		else
+			drec.port = port;
+
+		if (do_isns(&drec, ifaces, info_level, do_login, op)) {
+			rc = -1;
+			goto done;
+		}
+		goto done;
+	case DISCOVERY_TYPE_FW:
+		if (!do_discover) {
+			log_error("Invalid command. Possibly missing "
+				  "--discover argument.");
+			rc = -1;
+			goto done;
+		}
+
+		drec.type = DISCOVERY_TYPE_FW;
+		if (exec_fw_op(&drec, ifaces, info_level, do_login, op))
+			rc = -1;
+		goto done;
+	default:
+		rc = -1;
+
+		if (!ip) {
+			 if (op == OP_NOOP || op == OP_SHOW) {
+				if (idbm_print_all_discovery(info_level))
+					/* successfully found some recs */
+					rc = 0;
+			} else
+				log_error("Invalid operation. Operation not "
+					  "supported.");
+		} else if (op)
+			log_error("Invalid command. Possibly missing discovery "
+				  "--type.");
+		else
+			log_error("Invalid command. Portal not needed or "
+				  "Possibly missing discovery --type.");
+		goto done;
+	}
+
+do_db_op:
+	if (op == OP_NOOP || op == OP_SHOW) {
+		if (!idbm_print_discovery_info(&drec, do_show)) {
+			log_error("No records found!");
+			rc = -1;
+		}
+	} else if (op == OP_DELETE) {
+		if (idbm_delete_discovery(&drec)) {
+			log_error("Unable to delete record!");
+			rc = -1;
+		}
+	} else if (op == OP_UPDATE) {
+		struct db_set_param set_param;
+
+		if (!name || !value) {
+			log_error("Update requires name and value.");
+			rc = -1;
+			goto done;
+		}
+		set_param.name = name;
+		set_param.value = value;
+		if (idbm_discovery_set_param(&set_param, &drec))
+			rc = -1;
+	} else {
+		log_error("Operation is not supported.");
+		rc = -1;
+		goto done;
+	}
+done:
+	return rc;
+}
+
 static int exec_disc_op(int disc_type, char *ip, int port,
 			struct list_head *ifaces, int info_level, int do_login,
 			int do_discover, int op, char *name, char *value,
@@ -1795,7 +1956,8 @@ main(int argc, char **argv)
 		goto free_ifaces;
 	}
 
-	if (mode != MODE_DISCOVERY && ip && port == -1)
+	if (mode != MODE_DISCOVERY && mode != MODE_DISCOVERY2 && ip &&
+	    port == -1)
 		port = ISCSI_LISTEN_PORT;
 
 	switch (mode) {
@@ -1829,6 +1991,18 @@ main(int argc, char **argv)
 		}
 		rc = exec_iface_op(op, do_show, info_level, iface,
 				   name, value);
+		break;
+	case MODE_DISCOVERY2:
+		if ((rc = verify_mode_params(argc, argv, "DSIPdmntplov", 0))) {
+			log_error("discovery mode: option '-%c' is not "
+				  "allowed/supported", rc);
+			rc = -1;
+			goto out;
+		}
+
+		rc = exec_disc2_op(type, ip, port, &ifaces, info_level,
+				   do_login, do_discover, op, name, value,
+				   do_show);
 		break;
 	case MODE_DISCOVERY:
 		if ((rc = verify_mode_params(argc, argv, "DSIPdmntplov", 0))) {

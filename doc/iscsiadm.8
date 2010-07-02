@@ -2,8 +2,8 @@
 .SH NAME
 iscsiadm \- open-iscsi administration utility
 .SH SYNOPSIS
-\fBiscsiadm\fR \-m discovery [ \-hV ] [ \-d debug_level ] [ \-P printlevel ] [ \-I iface \-t type \-p ip:port [ \-l ] ] | [ [ -p ip:port ] \
-[ \-o operation ] [ \-n name ] [ \-v value ] [ \-l | \-D ] ]
+\fBiscsiadm\fR \-m discovery2 [ \-hV ] [ \-d debug_level ] [ \-P printlevel ] [ \-I iface \-t type \-p ip:port [ \-lD ] ] | [ [ -p ip:port -t type ] \
+[ \-o operation ] [ \-n name ] [ \-v value ] [ \-lD ] ]
 
 
 \fBiscsiadm\fR \-m node [ \-hV ] [ \-d debug_level ] [ \-P printlevel ] [ \-L all,manual,automatic ] [ \-U all,manual,automatic ] [ \-S ] [ [ \-T targetname \-p ip:port \-I iface ] [ \-l | \-u | \-R | \-s] ]
@@ -74,7 +74,7 @@ are experimental and the use is not supported as a stable interface yet.
 In discovery mode multiple interfaces can be specified by passing in multiple
 \-I/\-\-interface instances. For example,
 
-"iscsiadm \-m discovery \-t st \-p mytarget \-I iface0 \-I iface2"
+"iscsiadm \-m discovery2 \-t st \-p ip:port \-I iface0 \-I iface2 --discover"
 
 Will direct iscsiadm to setup the node db to create records which will create
 sessions though the two intefaces passed in.
@@ -93,8 +93,12 @@ is an error while iscsid is not running, the system may not be able to recover.
 This command and iscsid's SIGTERM handling are experimental.
 
 .TP
-\fB\-l\fR, \fB\-\-discover\fR
-Discover targets using discovery record info.
+\fB\-D\fR, \fB\-\-discover\fR
+Discover targets using the discovery record with the  \fIrecid\fR matching
+the the discovery type and portal passed in. If there is no matching record,
+it will be created using the iscsid.conf discovery settings.
+This must be passed in \fIdiscovery2\fR mode to instruct iscsiadm to perform
+discovery.
 .IP
 This option is only valid for SendTargets discovery mode.
 
@@ -117,9 +121,9 @@ for session mode).
 .TP
 \fB\-m, \-\-mode \fIop\fR
 specify the mode. \fIop\fR
-must be one of \fIdiscovery\fR, \fInode\fR, \fIfw\fR, \fIhost\fR \fIiface\fR or \fIsession\fR.
+must be one of \fIdiscovery2\fR, \fInode\fR, \fIfw\fR, \fIhost\fR \fIiface\fR or \fIsession\fR.
 .IP
-If no other options are specified: for \fIdiscovery\fR and \fInode\fR, all
+If no other options are specified: for \fIdiscovery2\fR and \fInode\fR, all
 of their respective records are displayed; for \fIsession\fR, all active
 sessions and connections are displayed; for \fIfw\fR, all boot firmware
 values are displayed; for \fIhost\fR, all iSCSI hosts are displayed; and
@@ -139,7 +143,13 @@ Specifies a database operator \fIop\fR. \fIop\fR must be one of
 This option is valid for all modes except fw. Delete should not be used on a running session. If it is iscsiadm will stop the session and then delete the
 record.
 .IP
-\fInew\fR creates a new database record for a given \fIportal\fR (IP address and port number). In discovery mode, iscsiadm will create new records for portals returned by the target.
+\fInew\fR creates a new database record for a given object. In node mode, the
+\fIrecid\fR is the target name and portal (IP:port). In iface mode, the \fIrecid\fR
+is the iface name. In discovery mode, the \fIrecid\fR is the portal and
+discovery type.
+
+.IP
+In discovery mode, if the \fIrecid\fR and new operation is passed in, but the \fI--discover\fR argument is not, then iscsiadm will only create a discovery record (it will not perform discovery). If the \fI--discover\fR argument is passed in with the portal and discovery type, then iscsiadm will create the discovery record if needed, and it will create records for portals returned by the target that do not yet have a node DB record.
 .IP
 \fIdelete\fR deletes a specified \fIrecid\fR. In discovery node, if iscsiadm is performing discovery it will delete records for portals that are no longer returned.
 .IP
@@ -289,7 +299,7 @@ discovery type. An SLP implementation is under development.
 Discover targets at a given IP address:
 
 .ft R
-	iscsiadm \-\-mode discovery \-\-type sendtargets \-\-portal 192.168.1.10
+	iscsiadm \-\-mode discovery2 \-\-type sendtargets \-\-portal 192.168.1.10 \-\-discover
 .nf
 
 Login, must use a node record id found by the discovery:
