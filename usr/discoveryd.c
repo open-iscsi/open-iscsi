@@ -45,9 +45,6 @@
 #include "paths.h"
 #include "message.h"
 
-#define DISC_ISNS_ADDR_CFG_STR	"discovery.daemon.isns.addresses"
-#define DISC_ISNS_POLL_INVL	"discovery.daemon.isns.poll_interval"
-
 #define DISC_DEF_POLL_INVL	30
 
 static LIST_HEAD(iscsi_targets);
@@ -222,64 +219,6 @@ static void fork_disc(const char *def_iname, struct discovery_rec *drec,
 	}
 }
 
-static void parse_portals(const char *def_iname, char *disc_addrs,
-			  int poll_inval,
-			  do_disc_and_login_fn *do_disc_and_login)
-{
-	struct discovery_rec drec;
-	int portn;
-	char *saveptr1 = NULL, *saveptr2 = NULL;
-	char *ip_str, *addr, *port_str;
-
-        addr = strtok_r(disc_addrs, " ", &saveptr1);
-	if (!addr)
-		return;
-
-	do {
-		ip_str = strtok_r(addr, ",", &saveptr2);
-		if (!ip_str) {
-			log_error("Invalid disc addr %s", addr);
-			continue;
-		}
-
-		port_str = strtok_r(NULL, " ", &saveptr2);
-		if (!port_str)
-			portn = -1;
-		else
-			portn = atoi(port_str);
-
-		memset(&drec, 0, sizeof(struct discovery_rec));
-		strlcpy(drec.address, ip_str, sizeof(drec.address));
-		drec.port = portn;
-
-		fork_disc(def_iname, &drec, poll_inval, do_disc_and_login);
-	} while ((addr = strtok_r(NULL, " ", &saveptr1)));
-}
-
-static void __discoveryd_start(const char *def_iname, char *addr_cfg_str,
-			       char *poll_cfg_str,
-			       do_disc_and_login_fn *do_disc_and_login)
-{
-	char *disc_addrs, *disc_poll_param;
-	int disc_poll_invl = -1;
-
-	disc_addrs = cfg_get_string_param(CONFIG_FILE, addr_cfg_str);
-	if (!disc_addrs)
-		return;
-
-	disc_poll_param = cfg_get_string_param(CONFIG_FILE, poll_cfg_str);
-	if (disc_poll_param) {
-		disc_poll_invl = atoi(disc_poll_param);
-		free(disc_poll_param);
-	}
-
-	log_debug(1, "%s=%s poll interval %d", addr_cfg_str,
-		  disc_addrs, disc_poll_invl);
-
-	parse_portals(def_iname, disc_addrs, disc_poll_invl, do_disc_and_login);
-	free(disc_addrs);
-}
-
 struct isns_node_list {
 	isns_source_t *source;
 	struct list_head list;
@@ -427,6 +366,7 @@ static int isns_disc_new_portals(const char *targetname, const char *iname)
 	qry_data.targetname = targetname;
 	qry_data.iname = iname;
 
+log_error("isns_disc_new_portals");
 	iface_link_ifaces(&ifaces);
 	rc = idbm_bind_ifaces_to_nodes(isns_query_node, &qry_data, &ifaces,
 				       &rec_list);
@@ -1149,9 +1089,24 @@ static void discoveryd_st_start(void)
 	idbm_for_each_st_drec(NULL, st_start);
 }
 
+static int isns_start(void *data, struct discovery_rec *drec)
+{
+	log_debug(1, "isns_start %s:%d %d", drec->address, drec->port,
+		  drec->u.isns.use_discoveryd);
+	if (!drec->u.isns.use_discoveryd)
+		return ENOSYS;
+
+	fork_disc(data, drec, drec->u.isns.discoveryd_poll_inval, start_isns);
+	return 0;
+}
+
+static void discoveryd_isns_start(const char *def_iname)
+{
+	idbm_for_each_isns_drec((void *)def_iname, isns_start);
+}
+
 void discoveryd_start(const char *def_iname)
 {
-	__discoveryd_start(def_iname, DISC_ISNS_ADDR_CFG_STR,
-			   DISC_ISNS_POLL_INVL, start_isns);
+	discoveryd_isns_start(def_iname);
 	discoveryd_st_start();
 }

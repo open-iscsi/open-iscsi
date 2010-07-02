@@ -106,6 +106,7 @@ extern int idbm_for_each_rec(int *found, void *data,
 
 typedef int (idbm_drec_op_fn)(void *data, discovery_rec_t *drec);
 extern int idbm_for_each_st_drec(void *data, idbm_drec_op_fn *fn);
+extern int idbm_for_each_isns_drec(void *data, idbm_drec_op_fn *fn);
 
 extern int idbm_init(idbm_get_config_file_fn *fn);
 

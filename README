@@ -4,7 +4,7 @@
 
 =================================================================
 
-                                                   March 22, 2010
+                                                   July 1, 2010
 Contents
 ========
 
@@ -885,32 +885,6 @@ gets installed with "make install"
 will usually get you started.
 
 
-7.1.2 Automatic Discovery and Login
------------------------------------
-
-When iscsid starts it will check iscsid.conf for:
-
-discovery.daemon.isns.addresses =
-discovery.daemon.isns.poll_interval =
-
-being set and it will check for discovery records in
-/etc/iscsi/send_targets that have the setting:
-
-discovery.sendtargets.use_discoveryd = Yes
-
-If an address or addresses are set or the use_discoveryd is Yes,
-iscsid will perform discovery to the address every poll_interval seconds,
-and it will log into any portals found from the discovery source using
-the ifaces in /etc/iscsi/ifaces.
-
-Note that for iSNS the poll_interval does not have to be set. If not set,
-iscsid will only perform rediscovery when it gets a SCN from the server.
-SCNs are not supported when using the Microsoft or SLES iSNS server. If
-using one of them you should set the poll_interval.
-
-See the iscsid.conf for more examples.
-
-
 7.1.2 Manual Startup:
 ---------------------
 
@@ -1063,6 +1037,90 @@ affect nodes that are discovered after setting the value.
 To login to all the automated nodes, simply restart the iscsi service:
 e.g /etc/init.d/open-iscsi restart. On your next startup the nodes will
 be logged into autmotically.
+
+
+7.4 Automatic Discovery and Login
+-----------------------------------
+
+Instead of running the iscsiadm discovery command and editing the
+startup setting, iscsid can be configured so that every X seconds
+it performs discovery and logs in and out of the portals return or
+no longer returned. In this mode, when iscsid starts it will check the
+discovery db for iSNS records with:
+
+discovery.isns.use_discoveryd = Yes
+
+and it will check for SendTargets discovery records that have the setting:
+
+discovery.sendtargets.use_discoveryd = Yes
+
+If set, iscsid will perform discovery to the address every
+discovery.isns.discoveryd_poll_inval or
+discovery.sendtargets.discoveryd_poll_inval seconds,
+and it will log into any portals found from the discovery source using
+the ifaces in /etc/iscsi/ifaces.
+
+Note that for iSNS the poll_interval does not have to be set. If not set,
+iscsid will only perform rediscovery when it gets a SCN from the server.
+
+#   iSNS Note:
+#   For servers like Microsofts where they allow SCN registrations, but do not
+#   send SCN events, discovery.isns.poll_interval should be set to a non zero
+#   value to auto discover new targets. This is also useful for servers like
+#   linux-isns (SLES's iSNS server) where it sometimes does not send SCN
+#   events in the proper format, so they may not get handled.
+
+
+Example:
+--------
+
+SendTargets:
+------------
+- Create a SendTargets record by passing iscsiadm the "-o new" argument in
+  discovery2 mode.
+# iscsiadm -m discovery2 -t st -p 20.15.0.7:3260 -o new
+New discovery record for [20.15.0.7,3260] added.
+
+- Set the use_discoveryd setting for the record.
+# iscsiadm -m discovery2 -t st -p 20.15.0.7:3260  -o update -n discovery.sendtargets.use_discoveryd -v Yes
+
+- Set the polling interval.
+# iscsiadm -m discovery2 -t st -p 20.15.0.7:3260  -o update -n discovery.sendtargets.discoveryd_poll_inval -v 30
+
+To have the new settings take effect restart iscsid by restarting the
+iscsi service.
+
+Note:
+When iscsiadm is run with the -o new argument, it will use the
+discovery.sendtargets.use_discoveryd and
+discovery.sendtargets.discoveryd_poll_inval
+settings in iscsid.conf for the records initial settings. So if those
+are set in iscsid.conf, then you can skip the iscsiadm -o update
+commands.
+
+
+iSNS:
+----
+- Create a iSNS record by passing iscsiadm the "-o new" argument in
+  discovery2 mode.
+# iscsiadm -m discovery2 -t isns -p 20.15.0.7:3205 -o new
+New discovery record for [20.15.0.7,3205] added.
+
+- Set the use_discoveryd setting for the record.
+# iscsiadm -m discovery2 -t isns -p 20.15.0.7:3205  -o update -n discovery.isns.use_discoveryd -v Yes
+
+- [OPTIONAL: see iSNS note above] Set the polling interval if needed.
+# iscsiadm -m discovery2 -t st -p 20.15.0.7:3205  -o update -n discovery.isns.discoveryd_poll_inval -v 30
+
+To have the new settings take effect restart iscsid by restarting the
+iscsi service.
+
+Note:
+When iscsiadm is run with the -o new argument, it will use the
+discovery.isns.use_discoveryd and discovery.isns.discoveryd_poll_inval
+settings in iscsid.conf for the records initial settings. So if those
+are set in iscsid.conf, then you can skip the iscsiadm -o update
+commands.
 
 
 8. Advanced Configuration

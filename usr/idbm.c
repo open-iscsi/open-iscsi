@@ -1064,7 +1064,7 @@ int idbm_for_each_st_drec(void *data, idbm_drec_op_fn *fn)
 				  data, fn);
 }
 
-static int idbm_for_each_isns_drec(void *data, idbm_drec_op_fn *fn)
+int idbm_for_each_isns_drec(void *data, idbm_drec_op_fn *fn)
 {
 	return idbm_for_each_drec(DISCOVERY_TYPE_ISNS, ISNS_CONFIG_DIR,
 				  data, fn);
