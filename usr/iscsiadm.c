@@ -1468,99 +1468,149 @@ static int exec_fw_op(discovery_rec_t *drec, struct list_head *ifaces,
 	return rc;
 }
 
+static void setup_drec_defaults(int type, char *ip, int port,
+				struct discovery_rec *drec)
+{
+	switch (type) {
+	case DISCOVERY_TYPE_ISNS:
+		idbm_isns_defaults(&drec->u.isns);
+		break;
+	case DISCOVERY_TYPE_SENDTARGETS:
+		idbm_sendtargets_defaults(&drec->u.sendtargets);
+		break;
+	default:
+		log_error("Invalid disc type.");
+	}
+	strlcpy(drec->address, ip, sizeof(drec->address));
+	drec->port = port;
+	drec->type = type;
+}
+
+/**
+ * exec_discover - prep, add, read and exec discovery on drec
+ * @type: discovery type
+ * @ip: IP address
+ * @port: port
+ * @ifaces: list of ifaces to bind to
+ * @info_level: print level
+ * @do_login: set to 1 if discovery function should also log into portals found
+ * @do_discover: set to 1 if discovery was requested
+ * @op: ops passed in by user
+ * @drec: discovery rec struct
+ *
+ * This function determines what type of op needs to be executed
+ * and will read and add a drec, and perform discovery if needed.
+ *
+ * returns:
+ * 	-1 - error
+ * 	0 - op/discovery completed
+ * 	1 - exec db op
+ */
+static int exec_discover(int disc_type, char *ip, int port,
+			 struct list_head *ifaces, int info_level,
+			 int do_login, int do_discover, int op,
+			 struct discovery_rec *drec)
+{
+	int rc;
+
+	if (ip == NULL) {
+		log_error("Please specify portal as <ipaddr>[:<ipport>]");
+		return -1;
+	}
+
+	if (op & OP_NEW && !do_discover) {
+		setup_drec_defaults(disc_type, ip, port, drec);
+
+		if (idbm_add_discovery(drec)) {
+			log_error("Could not add new discovery record.");
+			return -1;
+		} else {
+			printf("New discovery record for [%s,%d] added.\n", ip,
+			       port);
+			return 0;
+		}
+	}
+
+	rc = idbm_discovery_read(drec, disc_type, ip, port);
+	if (rc) {
+		if (!do_discover) {
+			log_error("Discovery record [%s,%d] not found.",
+				  ip, port);
+			return -1;
+		}
+
+		/* Just add default rec for user */
+		log_debug(1, "Discovery record [%s,%d] not found!",
+			  ip, port);
+		setup_drec_defaults(disc_type, ip, port, drec);
+		if (!(op & OP_NONPERSISTENT)) {
+			rc = idbm_add_discovery(drec);
+			if (rc) {
+				log_error("Could not add new discovery "
+					  "record.");
+				return -1;
+			}
+		}
+	} else if (!do_discover)
+		return 1;
+
+	rc = 0;
+	switch (disc_type) {
+	case DISCOVERY_TYPE_SENDTARGETS:
+		/*
+		 * idbm_add_discovery call above handles drec syncing so
+		 * we always pass in 0 here.
+		 */
+		rc = do_sendtargets(drec, ifaces, info_level, do_login, op,
+				    0);
+		break;
+	case DISCOVERY_TYPE_ISNS:
+		rc = do_isns(drec, ifaces, info_level, do_login, op);
+		break;
+	default:
+		log_error("Unsupported discovery type.");
+		break;
+	}
+
+	if (rc)
+		return -1;
+	return 0;
+}
+
 static int exec_disc2_op(int disc_type, char *ip, int port,
 			 struct list_head *ifaces, int info_level, int do_login,
 			 int do_discover, int op, char *name, char *value,
 			 int do_show)
 {
 	struct discovery_rec drec;
-	int rc = 0, sync_db;
+	int rc = 0;
 
 	memset(&drec, 0, sizeof(struct discovery_rec));
+	if (disc_type != -1)
+		drec.type = disc_type;
 
 	switch (disc_type) {
 	case DISCOVERY_TYPE_SENDTARGETS:
 		if (port < 0)
 			port = ISCSI_LISTEN_PORT;
 
-		if (ip == NULL) {
-			log_error("Please specify portal as "
-				  "<ipaddr>[:<ipport>]");
-			rc = -1;
-			goto done;
-		}
-
-		if (op & OP_NEW && !do_discover) {
-			idbm_sendtargets_defaults(&drec.u.sendtargets);
-			strlcpy(drec.address, ip, sizeof(drec.address));
-			drec.port = port;
-			if (idbm_add_discovery(&drec)) {
-				log_error("Could not add new discovery "
-					  "record.");
-				rc = -1;
-			} else
-				printf("New discovery record for [SendTargets: "
-				       "%s,%d] added.\n", ip, port);
-			goto done;
-		}
-
-		sync_db = 0;
-		rc = idbm_discovery_read(&drec, ip, port);
-		if (rc) {
-			if (!do_discover) {
-				log_error("Discovery record [%s,%d] for "
-					  "SendTargets not found!", ip, port);
-				rc = -1;
-				goto done;
-			}
-
-			/* Just add default rec */
-			log_debug(1, "Discovery record [%s,%d] not found!",
-				  ip, port);
-			idbm_sendtargets_defaults(&drec.u.sendtargets);
-			strlcpy(drec.address, ip, sizeof(drec.address));
-			drec.port = port;
-			sync_db = 1;
-		} else {
-			if (!do_discover)
-				goto do_db_op;
-		}
-
-		if (do_sendtargets(&drec, ifaces, info_level, do_login, op,
-				   sync_db)) {
-			rc = -1;
-			goto done;
-		}
+		rc = exec_discover(disc_type, ip, port, ifaces, info_level,
+				   do_login, do_discover, op, &drec);
+		if (rc == 1)
+			goto do_db_op;
 		goto done;
 	case DISCOVERY_TYPE_SLP:
 		log_error("SLP discovery is not fully implemented yet.");
 		rc = -1;
 		goto done;
 	case DISCOVERY_TYPE_ISNS:
-		if (!do_discover) {
-			log_error("Invalid command. Possibly missing "
-				  "--discover argument.");
-			rc = -1;
-			goto done;
-		}
-
-		if (!ip) {
-			log_error("Please specify portal as "
-				  "<ipaddr>:[<ipport>]");
-			rc = -1;
-			goto done;
-		}
-
-		strlcpy(drec.address, ip, sizeof(drec.address));
 		if (port < 0)
-			drec.port = ISNS_DEFAULT_PORT;
-		else
-			drec.port = port;
+			port = ISNS_DEFAULT_PORT;
 
-		if (do_isns(&drec, ifaces, info_level, do_login, op)) {
-			rc = -1;
-			goto done;
-		}
+		rc = exec_discover(disc_type, ip, port, ifaces, info_level,
+				   do_login, do_discover, op, &drec);
+		if (rc == 1)
+			goto do_db_op;
 		goto done;
 	case DISCOVERY_TYPE_FW:
 		if (!do_discover) {
@@ -1638,6 +1688,8 @@ static int exec_disc_op(int disc_type, char *ip, int port,
 
 	switch (disc_type) {
 	case DISCOVERY_TYPE_SENDTARGETS:
+		drec.type = DISCOVERY_TYPE_SENDTARGETS;
+
 		if (port < 0)
 			port = ISCSI_LISTEN_PORT;
 
@@ -1697,7 +1749,9 @@ static int exec_disc_op(int disc_type, char *ip, int port,
 			if (port < 0)
 				port = ISCSI_LISTEN_PORT;
 
-			if (idbm_discovery_read(&drec, ip, port)) {
+			if (idbm_discovery_read(&drec,
+						DISCOVERY_TYPE_SENDTARGETS,
+						ip, port)) {
 				log_error("Discovery record [%s,%d] "
 					  "not found!", ip, port);
 				rc = -1;

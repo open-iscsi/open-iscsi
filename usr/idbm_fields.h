@@ -98,4 +98,9 @@
 #define DISC_ST_ACTIVE_TMO	"discovery.sendtargets.timeo.active_timeout"
 #define DISC_ST_MAX_RECV_DLEN	"discovery.sendtargets.iscsi.MaxRecvDataSegmentLength"
 
+#define DISC_ISNS_DISC_DAEMON_POLL_INVAL	"discovery.isns.discoveryd_poll_inval"
+#define DISC_ISNS_USE_DISC_DAEMON	"discovery.isns.use_discoveryd"
+#define DISC_ISNS_ADDR		"discovery.sendtargets.address"
+#define DISC_ISNS_PORT		"discovery.sendtargets.port"
+
 #endif

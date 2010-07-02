@@ -136,9 +136,10 @@ idbm_recinfo_discovery(discovery_rec_t *r, recinfo_t *ri)
 	__recinfo_int_o2(DISC_STARTUP, ri, r, startup, IDBM_SHOW,
 			"manual", "automatic", num, 1);
 	__recinfo_int_o6(DISC_TYPE, ri, r, type, IDBM_SHOW,
-			"sendtargets", "offload_send_targets", "slp", "isns",
+			"sendtargets", "isns", "offload_send_targets", "slp",
 			"static", "fw", num, 0);
-	if (r->type == DISCOVERY_TYPE_SENDTARGETS) {
+	switch (r->type) {
+	case DISCOVERY_TYPE_SENDTARGETS:
 		__recinfo_str(DISC_ST_ADDR, ri, r,
 			address, IDBM_SHOW, num, 0);
 		__recinfo_int(DISC_ST_PORT, ri, r,
@@ -180,6 +181,21 @@ idbm_recinfo_discovery(discovery_rec_t *r, recinfo_t *ri)
 		__recinfo_int(DISC_ST_MAX_RECV_DLEN, ri, r,
 			      u.sendtargets.iscsi.MaxRecvDataSegmentLength,
 			      IDBM_SHOW, num, 1);
+		break;
+	case DISCOVERY_TYPE_ISNS:
+		__recinfo_str(DISC_ISNS_ADDR, ri, r,
+			address, IDBM_SHOW, num, 0);
+		__recinfo_int(DISC_ISNS_PORT, ri, r,
+			port, IDBM_SHOW, num, 0);
+		__recinfo_int_o2(DISC_ISNS_USE_DISC_DAEMON, ri, r,
+			u.isns.use_discoveryd,
+			IDBM_SHOW, "No", "Yes", num, 1);
+		__recinfo_int(DISC_ISNS_DISC_DAEMON_POLL_INVAL, ri, r,
+			u.isns.discoveryd_poll_inval,
+			IDBM_SHOW, num, 1);
+		break;
+	default:
+		break;
 	}
 }
 
@@ -218,9 +234,9 @@ idbm_recinfo_node(node_rec_t *r, recinfo_t *ri)
 		      num, 0);
 	__recinfo_int(NODE_DISC_PORT, ri, r, disc_port, IDBM_SHOW,
 		      num, 0);
-	__recinfo_int_o6(NODE_DISC_TYPE, ri, r, disc_type,
-			 IDBM_SHOW, "send_targets", "offload_send_targets",
-			 "slp", "isns", "static", "fw", num, 0);
+	__recinfo_int_o6(NODE_DISC_TYPE, ri, r, disc_type, IDBM_SHOW,
+			 "send_targets", "isns", "offload_send_targets", "slp",
+			 "static", "fw", num, 0);
 	__recinfo_int(SESSION_INIT_CMDSN, ri, r,
 		      session.initial_cmdsn, IDBM_SHOW, num, 1);
 	__recinfo_int(SESSION_INIT_LOGIN_RETRY, ri, r,
@@ -416,7 +432,8 @@ idbm_discovery_setup_defaults(discovery_rec_t *rec, discovery_type_e type)
 
 	rec->startup = ISCSI_STARTUP_MANUAL;
 	rec->type = type;
-	if (type == DISCOVERY_TYPE_SENDTARGETS) {
+	switch (type) {
+	case DISCOVERY_TYPE_SENDTARGETS:
 		rec->u.sendtargets.discoveryd_poll_inval = 30;
 		rec->u.sendtargets.use_discoveryd = 0;
 		rec->u.sendtargets.reopen_max = 5;
@@ -428,7 +445,8 @@ idbm_discovery_setup_defaults(discovery_rec_t *rec, discovery_type_e type)
 		rec->u.sendtargets.conn_timeo.active_timeout=30;
 		rec->u.sendtargets.iscsi.MaxRecvDataSegmentLength =
 						DEF_INI_DISC_MAX_RECV_SEG_LEN;
-	} else if (type == DISCOVERY_TYPE_SLP) {
+		break;
+	case DISCOVERY_TYPE_SLP:
 		rec->u.slp.interfaces = NULL;
 		rec->u.slp.scopes = NULL;
 		rec->u.slp.poll_interval = 5 * 60;	/* 5 minutes */
@@ -436,8 +454,13 @@ idbm_discovery_setup_defaults(discovery_rec_t *rec, discovery_type_e type)
 		rec->u.slp.auth.password_length = 0;
 		rec->u.slp.auth.password_in_length = 0;
 		rec->u.slp.auth.password_in_length = 0;
-	} else if (type == DISCOVERY_TYPE_ISNS) {
-		/* to be implemented */
+		break;
+	case DISCOVERY_TYPE_ISNS:
+		rec->u.isns.use_discoveryd = 0;
+		rec->u.isns.discoveryd_poll_inval = -1;
+		break;
+	default:
+		break;
 	}
 }
 
@@ -930,7 +953,8 @@ static int print_discovered_flat(void *data, node_rec_t *rec)
 	if (rec->disc_type != drec->type)
 		goto no_match;
 
-	if (drec->type == DISCOVERY_TYPE_SENDTARGETS) {
+	if (drec->type == DISCOVERY_TYPE_SENDTARGETS ||
+	    drec->type == DISCOVERY_TYPE_ISNS) {
 		if (rec->disc_port != drec->port ||
 		    strcmp(rec->disc_address, drec->address))
 			goto no_match;
@@ -955,7 +979,7 @@ static int print_discovered_tree(void *data, node_rec_t *rec)
 	if (rec->disc_type != drec->type)
 		goto no_match;
 
-	if (drec->type == DISCOVERY_TYPE_SENDTARGETS) {
+	if (strlen(drec->address)) {
 		if (rec->disc_port != drec->port ||
 		    strcmp(rec->disc_address, drec->address))
 			goto no_match;
@@ -967,7 +991,7 @@ no_match:
 	return -1;
 }
 
-int idbm_print_discovered(discovery_rec_t *drec, int info_level)
+static int idbm_print_discovered(discovery_rec_t *drec, int info_level)
 {
 	int num_found = 0;
 
@@ -987,21 +1011,18 @@ int idbm_print_discovered(discovery_rec_t *drec, int info_level)
 	return num_found;
 }
 
-int idbm_for_each_st_drec(void *data, idbm_st_drec_op_fn *fn)
+static int idbm_for_each_drec(int type, char *config_root, void *data,
+			      idbm_drec_op_fn *fn)
 {
 	DIR *entity_dirfd;
 	struct dirent *entity_dent;
 	int found = 0;
 	discovery_rec_t drec;
-	char *disc_dir, *tmp_port;
+	char *tmp_port;
 
-	disc_dir = malloc(PATH_MAX);
-	if (!disc_dir)
-		return ENOMEM;
-
-	entity_dirfd = opendir(ST_CONFIG_DIR);
+	entity_dirfd = opendir(config_root);
 	if (!entity_dirfd)
-		goto free_disc;
+		return found;
 
 	while ((entity_dent = readdir(entity_dirfd))) {
 		if (!strcmp(entity_dent->d_name, ".") ||
@@ -1013,10 +1034,17 @@ int idbm_for_each_st_drec(void *data, idbm_st_drec_op_fn *fn)
 		tmp_port = strchr(entity_dent->d_name, ',');
 		if (!tmp_port)
 			continue;
+		/*
+		 * pre 872 tools dumped the target portal symlinks in the isns
+		 * dir instead of the server. If we find one of those links
+		 * (by checking if there is a valid port) we skip it.
+		 */
+		if (strchr(tmp_port, ':') || strchr(tmp_port, '.'))
+			continue;
 		*tmp_port++ = '\0';
 
 		memset(&drec, 0, sizeof(drec));
-		if (idbm_discovery_read(&drec, entity_dent->d_name,
+		if (idbm_discovery_read(&drec, type, entity_dent->d_name,
 					atoi(tmp_port))) {
 			log_error("Could not read discovery record for "
 				  "%s:%s.", entity_dent->d_name, tmp_port);
@@ -1027,12 +1055,22 @@ int idbm_for_each_st_drec(void *data, idbm_st_drec_op_fn *fn)
 			found++;
 	}
 	closedir(entity_dirfd);
-free_disc:
-	free(disc_dir);
 	return found;
 }
 
-static int __idbm_print_all_st(void *data, struct discovery_rec *drec)
+int idbm_for_each_st_drec(void *data, idbm_drec_op_fn *fn)
+{
+	return idbm_for_each_drec(DISCOVERY_TYPE_SENDTARGETS, ST_CONFIG_DIR,
+				  data, fn);
+}
+
+static int idbm_for_each_isns_drec(void *data, idbm_drec_op_fn *fn)
+{
+	return idbm_for_each_drec(DISCOVERY_TYPE_ISNS, ISNS_CONFIG_DIR,
+				  data, fn);
+}
+
+static int __idbm_print_all_by_drec(void *data, struct discovery_rec *drec)
 {
 	int info_level = *(int *)data;
 	int rc;
@@ -1046,7 +1084,9 @@ static int __idbm_print_all_st(void *data, struct discovery_rec *drec)
 		else
 			return ENODEV;
 	} else {
-		printf("%s:%d via sendtargets\n", drec->address, drec->port);
+		printf("%s:%d via %s\n", drec->address, drec->port,
+		       drec->type == DISCOVERY_TYPE_ISNS ?
+		       "isns" : "sendtargets");
 		return 0;
 	}
 }
@@ -1055,7 +1095,17 @@ static int idbm_print_all_st(int info_level)
 {
 	int rc;
 
-	rc = idbm_for_each_st_drec(&info_level, __idbm_print_all_st);
+	rc = idbm_for_each_st_drec(&info_level, __idbm_print_all_by_drec);
+	if (rc < 0)
+		return 0;
+	return rc;
+}
+
+static int idbm_print_all_isns(int info_level)
+{
+	int rc;
+
+	rc = idbm_for_each_isns_drec(&info_level, __idbm_print_all_by_drec);
 	if (rc < 0)
 		return 0;
 	return rc;
@@ -1082,10 +1132,17 @@ int idbm_print_all_discovery(int info_level)
 	tmp = 0;
 
 	printf("iSNS:\n");
-	drec->type = DISCOVERY_TYPE_ISNS;
-	tmp = idbm_print_discovered(drec, info_level);
-	if (!tmp)
-		printf("No targets found.\n");
+	tmp = idbm_print_all_isns(info_level);
+	if (!tmp) {
+		/*
+		 * pre 872 tools did not store the server ip,port so
+		 * we drop down here, to just look for target portals.
+		 */
+		drec->type = DISCOVERY_TYPE_ISNS;
+		tmp = idbm_print_discovered(drec, info_level);
+		if (!tmp)
+			printf("No targets found.\n");
+	}
 	found += tmp;
 	tmp = 0;
 
@@ -1298,13 +1355,25 @@ int idbm_for_each_rec(int *found, void *data, idbm_iface_op_fn *fn)
 	return idbm_for_each_node(found, &op_data, node_fn);
 }
 
+static struct {
+	char *config_root;
+	char *config_name;
+} disc_type_to_config_vals[] = {
+	{ ST_CONFIG_DIR, ST_CONFIG_NAME },
+	{ ISNS_CONFIG_DIR, ISNS_CONFIG_NAME },
+};
+
 int
-idbm_discovery_read(discovery_rec_t *out_rec, char *addr, int port)
+idbm_discovery_read(discovery_rec_t *out_rec, int drec_type,
+		    char *addr, int port)
 {
 	recinfo_t *info;
 	char *portal;
 	int rc = 0;
 	FILE *f;
+
+	if (drec_type > 1)
+		return EINVAL;
 
 	memset(out_rec, 0, sizeof(discovery_rec_t));
 
@@ -1318,7 +1387,8 @@ idbm_discovery_read(discovery_rec_t *out_rec, char *addr, int port)
 		goto free_info;
 	}
 
-	snprintf(portal, PATH_MAX, "%s/%s,%d", ST_CONFIG_DIR,
+	snprintf(portal, PATH_MAX, "%s/%s,%d",
+		 disc_type_to_config_vals[drec_type].config_root,
 		 addr, port);
 	log_debug(5, "Looking for config file %s\n", portal);
 
@@ -1326,14 +1396,15 @@ idbm_discovery_read(discovery_rec_t *out_rec, char *addr, int port)
 	if (rc)
 		goto free_info;
 
-	f = idbm_open_rec_r(portal, ST_CONFIG_NAME);
+	f = idbm_open_rec_r(portal,
+			    disc_type_to_config_vals[drec_type].config_name);
 	if (!f) {
 		log_debug(1, "Could not open %s err %d\n", portal, errno);
 		rc = errno;
 		goto unlock;
 	}
 
-	idbm_discovery_setup_defaults(out_rec, DISCOVERY_TYPE_SENDTARGETS);
+	idbm_discovery_setup_defaults(out_rec, drec_type);
 	idbm_recinfo_discovery(out_rec, info);
 	idbm_recinfo_config(info, f);
 	fclose(f);
@@ -1506,6 +1577,9 @@ idbm_discovery_write(discovery_rec_t *rec)
 	char *portal;
 	int rc = 0;
 
+	if (rec->type > 1)
+		return EINVAL;
+
 	portal = malloc(PATH_MAX);
 	if (!portal) {
 		log_error("Could not alloc portal\n");
@@ -1516,7 +1590,8 @@ idbm_discovery_write(discovery_rec_t *rec)
 	if (rc)
 		goto free_portal;
 
-	snprintf(portal, PATH_MAX, "%s", ST_CONFIG_DIR);
+	snprintf(portal, PATH_MAX, "%s",
+		 disc_type_to_config_vals[rec->type].config_root);
 	if (access(portal, F_OK) != 0) {
 		if (mkdir(portal, 0660) != 0) {
 			log_error("Could not make %s\n", portal);
@@ -1525,10 +1600,12 @@ idbm_discovery_write(discovery_rec_t *rec)
 		}
 	}
 
-	snprintf(portal, PATH_MAX, "%s/%s,%d", ST_CONFIG_DIR,
+	snprintf(portal, PATH_MAX, "%s/%s,%d",
+		 disc_type_to_config_vals[rec->type].config_root,
 		 rec->address, rec->port);
 
-	f = idbm_open_rec_w(portal, ST_CONFIG_NAME);
+	f = idbm_open_rec_w(portal,
+			    disc_type_to_config_vals[rec->type].config_name);
 	if (!f) {
 		log_error("Could not open %s err %d\n", portal, errno);
 		rc = errno;
@@ -1547,21 +1624,20 @@ free_portal:
 int idbm_add_discovery(discovery_rec_t *newrec)
 {
 	discovery_rec_t rec;
-	int rc;
 
-	if (!idbm_discovery_read(&rec, newrec->address,
+	if (!idbm_discovery_read(&rec, newrec->type, newrec->address,
 				newrec->port)) {
 		log_debug(7, "disc rec already exists");
 		/* fall through */
 	} else
 		log_debug(7, "adding new DB record");
 
-	rc = idbm_discovery_write(newrec);
-	return rc;
+	return idbm_discovery_write(newrec);
 }
 
 static int setup_disc_to_node_link(char *disc_portal, node_rec_t *rec)
 {
+	struct stat statb;
 	int rc = 0;
 
 	switch (rec->disc_type) {
@@ -1610,9 +1686,45 @@ static int setup_disc_to_node_link(char *disc_portal, node_rec_t *rec)
 			}
 		}
 
+		/*
+		 * Older tools lumped all portals together in the
+		 * isns config dir. In 2.0-872, the isns dir added
+		 * a isns server (ddress and port) dir like sendtargets.
+		 *
+		 * If we found a older style link we return that so it
+		 * can be removed. If this function is called for
+		 * addition of a rec then the older link should have been
+		 * removed and we break down below.
+		 */
 		snprintf(disc_portal, PATH_MAX, "%s/%s,%s,%d,%d,%s",
 			 ISNS_CONFIG_DIR,
 			 rec->name, rec->conn[0].address,
+			 rec->conn[0].port, rec->tpgt, rec->iface.name);
+		if (!stat(disc_portal, &statb)) {
+			log_debug(7, "using old style isns dir %s.",
+				  disc_portal);
+			break;
+		}
+
+		snprintf(disc_portal, PATH_MAX, "%s/%s,%d",
+			 ISNS_CONFIG_DIR, rec->disc_address, rec->disc_port);
+		if (!stat(disc_portal, &statb) && S_ISDIR(statb.st_mode)) {
+			/*
+			 * if there is a dir for this isns server then
+			 * assume we are using the new style links
+			 */
+			snprintf(disc_portal, PATH_MAX,
+				 "%s/%s,%d/%s,%s,%d,%d,%s",
+				 ISNS_CONFIG_DIR, rec->disc_address,
+				 rec->disc_port, rec->name,
+				 rec->conn[0].address, rec->conn[0].port,
+				 rec->tpgt, rec->iface.name);
+			break;
+		}
+
+		/* adding a older link */
+		snprintf(disc_portal, PATH_MAX, "%s/%s,%s,%d,%d,%s",
+			 ISNS_CONFIG_DIR, rec->name, rec->conn[0].address,
 			 rec->conn[0].port, rec->tpgt, rec->iface.name);
 		break;
 	case DISCOVERY_TYPE_SLP:
@@ -1847,7 +1959,8 @@ int idbm_delete_discovery(discovery_rec_t *drec)
 	if (!portal)
 		return ENOMEM;
 
-	snprintf(portal, PATH_MAX, "%s/%s,%d", ST_CONFIG_DIR,
+	snprintf(portal, PATH_MAX, "%s/%s,%d",
+		 disc_type_to_config_vals[drec->type].config_root,
 		 drec->address, drec->port);
 	log_debug(5, "Removing config file %s\n", portal);
 
@@ -1859,21 +1972,25 @@ int idbm_delete_discovery(discovery_rec_t *drec)
 
 	if (S_ISDIR(statb.st_mode)) {
 		strlcat(portal, "/", PATH_MAX);
-		strlcat(portal, ST_CONFIG_NAME, PATH_MAX);
+		strlcat(portal,
+			disc_type_to_config_vals[drec->type].config_name,
+			PATH_MAX);
 	}
 
 	if (unlink(portal))
 		log_debug(5, "Could not remove %s err %d\n", portal, errno);
 
 	memset(portal, 0, PATH_MAX);
-	snprintf(portal, PATH_MAX, "%s/%s,%d", ST_CONFIG_DIR,
+	snprintf(portal, PATH_MAX, "%s/%s,%d",
+		 disc_type_to_config_vals[drec->type].config_root,
 		 drec->address, drec->port);
 	idbm_rm_disc_node_links(portal);
 
 	/* rm portal dir */
 	if (S_ISDIR(statb.st_mode)) {
 		memset(portal, 0, PATH_MAX);
-		snprintf(portal, PATH_MAX, "%s/%s,%d", ST_CONFIG_DIR,
+		snprintf(portal, PATH_MAX, "%s/%s,%d",
+			 disc_type_to_config_vals[drec->type].config_root,
 			 drec->address, drec->port);
 		rmdir(portal);
 	}
@@ -1911,8 +2028,8 @@ static int idbm_remove_disc_to_node_link(node_rec_t *rec,
 		goto done;
 	}
 
-	log_debug(7, "found drec %s %d\n", tmprec->disc_address,
-		 tmprec->disc_port); 
+	log_debug(7, "found drec %s %d\n",
+		  tmprec->disc_address, tmprec->disc_port);
 	/* rm link from discovery source to node */
 	memset(portal, 0, PATH_MAX);
 	rc = setup_disc_to_node_link(portal, tmprec);
@@ -2033,6 +2150,14 @@ idbm_sendtargets_defaults(struct iscsi_sendtargets_config *cfg)
 	idbm_sync_config();
 	memcpy(cfg, &db->drec_st.u.sendtargets,
 	       sizeof(struct iscsi_sendtargets_config));
+}
+
+void
+idbm_isns_defaults(struct iscsi_isns_config *cfg)
+{
+	idbm_sync_config();
+	memcpy(cfg, &db->drec_isns.u.isns,
+	       sizeof(struct iscsi_isns_config));
 }
 
 void

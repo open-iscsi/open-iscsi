@@ -34,6 +34,7 @@
 #define FW_CONFIG_DIR		ISCSI_CONFIG_ROOT"fw"
 #define ST_CONFIG_DIR		ISCSI_CONFIG_ROOT"send_targets"
 #define ST_CONFIG_NAME		"st_config"
+#define ISNS_CONFIG_NAME	"isns_config"
 
 #define TYPE_INT	0
 #define TYPE_INT_O	1
@@ -103,8 +104,8 @@ extern int idbm_for_each_rec(int *found, void *data,
 			     idbm_iface_op_fn *fn);
 
 
-typedef int (idbm_st_drec_op_fn)(void *data, discovery_rec_t *drec);
-extern int idbm_for_each_st_drec(void *data, idbm_st_drec_op_fn *fn);
+typedef int (idbm_drec_op_fn)(void *data, discovery_rec_t *drec);
+extern int idbm_for_each_st_drec(void *data, idbm_drec_op_fn *fn);
 
 extern int idbm_init(idbm_get_config_file_fn *fn);
 
@@ -118,7 +119,6 @@ extern int idbm_print_node_tree(struct node_rec *last_rec, struct node_rec *rec,
 extern int idbm_print_node_and_iface_tree(void *data, node_rec_t *rec);
 extern int idbm_print_discovery_info(discovery_rec_t *rec, int show);
 extern int idbm_print_all_discovery(int info_level);
-extern int idbm_print_discovered(discovery_rec_t *drec, int info_level);
 extern int idbm_delete_discovery(discovery_rec_t *rec);
 extern void idbm_node_setup_defaults(node_rec_t *rec);
 extern int idbm_delete_node(node_rec_t *rec);
@@ -132,8 +132,9 @@ extern int idbm_bind_ifaces_to_nodes(idbm_disc_nodes_fn *disc_node_fn,
 				     struct list_head *bound_recs);
 extern int idbm_add_discovery(discovery_rec_t *newrec);
 extern void idbm_sendtargets_defaults(struct iscsi_sendtargets_config *cfg);
+extern void idbm_isns_defaults(struct iscsi_isns_config *cfg);
 extern void idbm_slp_defaults(struct iscsi_slp_config *cfg);
-extern int idbm_discovery_read(discovery_rec_t *rec, char *addr,
+extern int idbm_discovery_read(discovery_rec_t *rec, int type, char *addr,
 				int port);
 extern int idbm_rec_read(node_rec_t *out_rec, char *target_name,
 			 int tpgt, char *addr, int port,
