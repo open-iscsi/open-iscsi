@@ -1,0 +1,297 @@
+diff --git a/iscsi_tcp.c b/iscsi_tcp.c
+index 2a401b9..197d314 100644
+--- a/iscsi_tcp.c
++++ b/iscsi_tcp.c
+@@ -43,6 +43,7 @@
+ #include <scsi/scsi.h>
+ #include "scsi_transport_iscsi.h"
+ 
++#include "open_iscsi_compat.h"
+ #include "iscsi_tcp.h"
+ 
+ MODULE_AUTHOR("Mike Christie <michaelc@cs.wisc.edu>, "
+diff --git a/open_iscsi_compat.h b/open_iscsi_compat.h
+new file mode 100644
+index 0000000..50ab84d
+--- /dev/null
++++ b/open_iscsi_compat.h
+@@ -0,0 +1,276 @@
++#include <linux/version.h>
++#include <linux/kernel.h>
++#include <scsi/scsi.h>
++#include <scsi/scsi_cmnd.h>
++
++#ifndef OPEN_ISCSI_COMPAT
++#define OPEN_ISCSI_COMPAT
++
++#ifndef SCAN_WILD_CARD
++#define SCAN_WILD_CARD  ~0
++#endif
++
++#ifndef NIPQUAD_FMT
++#define NIPQUAD_FMT "%u.%u.%u.%u"
++#endif
++
++#ifndef NIP6_FMT
++#define NIP6_FMT "%04x:%04x:%04x:%04x:%04x:%04x:%04x:%04x"
++#endif
++
++#ifndef DEFINE_MUTEX
++
++/* mutex changes from 2.6.16-rc1 and up */
++#define DEFINE_MUTEX DECLARE_MUTEX
++#define mutex_lock down
++#define mutex_unlock up
++#define mutex semaphore
++#define mutex_init init_MUTEX
++#endif
++
++#if LINUX_VERSION_CODE <= KERNEL_VERSION(2,6,12)
++
++void int_to_scsilun(unsigned int lun, struct scsi_lun *scsilun)
++{
++	int i;
++
++	memset(scsilun->scsi_lun, 0, sizeof(scsilun->scsi_lun));
++
++	for (i = 0; i < sizeof(lun); i += 2) {
++		scsilun->scsi_lun[i] = (lun >> 8) & 0xFF;
++		scsilun->scsi_lun[i+1] = lun & 0xFF;
++		lun = lun >> 16;
++	}
++}
++
++#define __nlmsg_put(skb, daemon_pid, seq, type, len, flags) \
++	__nlmsg_put(skb, daemon_pid, 0, 0, len)
++
++#endif
++
++#if LINUX_VERSION_CODE <= KERNEL_VERSION(2,6,13)
++
++#define gfp_t unsigned
++
++void *kzalloc(size_t size, gfp_t flags)
++{
++	void *ret = kmalloc(size, flags);
++	if (ret)
++		memset(ret, 0, size);
++}
++
++#endif
++
++#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,19)
++
++#include "linux/crypto.h"
++
++#define CRYPTO_ALG_ASYNC		0x00000080
++struct hash_desc
++{
++	struct crypto_tfm *tfm;
++	u32 flags;
++};
++
++static inline int crypto_hash_init(struct hash_desc *desc)
++{
++	crypto_digest_init(desc->tfm);
++	return 0;
++}
++
++static inline int crypto_hash_digest(struct hash_desc *desc,
++				     struct scatterlist *sg,
++				     unsigned int nbytes, u8 *out)
++{
++	crypto_digest_digest(desc->tfm, sg, 1, out);
++	return nbytes;
++}
++
++static inline int crypto_hash_update(struct hash_desc *desc,
++				     struct scatterlist *sg,
++				     unsigned int nbytes)
++{
++	crypto_digest_update(desc->tfm, sg, 1);
++	return nbytes;
++}
++
++static inline int crypto_hash_final(struct hash_desc *desc, u8 *out)
++{
++	crypto_digest_final(desc->tfm, out);
++	return 0;
++}
++
++static inline struct crypto_tfm *crypto_alloc_hash(const char *alg_name,
++						    u32 type, u32 mask)
++{
++	struct crypto_tfm *ret = crypto_alloc_tfm(alg_name ,type);
++	return ret ? ret : ERR_PTR(-ENOMEM);
++}
++
++static inline void crypto_free_hash(struct crypto_tfm *tfm)
++{
++	crypto_free_tfm(tfm);
++}
++
++int kernel_getsockname(struct socket *sock, struct sockaddr *addr,
++			int *addrlen)
++{
++	return sock->ops->getname(sock, addr, addrlen, 0);
++}
++
++int kernel_getpeername(struct socket *sock, struct sockaddr *addr,
++			int *addrlen)
++{
++	return sock->ops->getname(sock, addr, addrlen, 1);
++}
++
++#endif
++
++#if LINUX_VERSION_CODE <= KERNEL_VERSION(2,6,20)
++
++static inline int is_power_of_2(unsigned long n)
++{
++	return (n != 0 && ((n & (n - 1)) == 0));
++}
++#endif
++
++#if LINUX_VERSION_CODE <= KERNEL_VERSION(2,6,21)
++
++static inline struct nlmsghdr *nlmsg_hdr(const struct sk_buff *skb)
++{
++	return (struct nlmsghdr *)skb->data;
++}
++
++#endif
++
++#if LINUX_VERSION_CODE <= KERNEL_VERSION(2,6,22)
++
++static inline void *shost_priv(struct Scsi_Host *shost)
++{
++	return (void *)shost->hostdata;
++}
++
++/*
++ * Note: We do not support bidi for the compat modules if the kernel
++ * does not have support.
++ */
++#define scsi_sg_count(cmd) ((cmd)->use_sg)
++#define scsi_sglist(cmd) ((struct scatterlist *)(cmd)->request_buffer)
++#define scsi_bufflen(cmd) ((cmd)->request_bufflen)
++
++static inline void scsi_set_resid(struct scsi_cmnd *cmd, int resid)
++{
++	cmd->resid = resid;
++}
++
++static inline int scsi_get_resid(struct scsi_cmnd *cmd)
++{
++	return cmd->resid;
++}
++
++#endif
++
++#if LINUX_VERSION_CODE <= KERNEL_VERSION(2,6,23)
++
++static inline unsigned long rounddown_pow_of_two(unsigned long n)
++{
++	return 1UL << (fls_long(n) - 1);
++}
++
++
++static inline struct scatterlist *sg_next(struct scatterlist *sg)
++{
++	if (!sg) {
++		BUG();
++		return NULL;
++	}
++	return sg + 1;
++}
++
++#define for_each_sg(sglist, sg, nr, __i)        \
++	for (__i = 0, sg = (sglist); __i < (nr); __i++, sg = sg_next(sg))
++
++#define sg_page(_sg) _sg->page
++
++static inline void sg_set_page(struct scatterlist *sg, struct page *page,
++				unsigned int len, unsigned int offset)
++{
++	sg->page = page;
++	sg->offset = offset;
++	sg->length = len;
++}
++
++static inline void sg_init_table(struct scatterlist *sgl, unsigned int nents)
++{
++	memset(sgl, 0, sizeof(*sgl) * nents);
++}
++#endif
++
++#if LINUX_VERSION_CODE <= KERNEL_VERSION(2,6,24)
++
++static inline int scsi_bidi_cmnd(struct scsi_cmnd *cmd)
++{
++	return 0;
++}
++
++#define netlink_kernel_release(_nls) \
++	sock_release(_nls->sk_socket)
++
++
++#endif
++
++
++#if LINUX_VERSION_CODE <= KERNEL_VERSION(2,6,13)
++
++#define netlink_kernel_create(net, uint, groups, input, cb_mutex, mod) \
++	netlink_kernel_create(uint, input)
++
++#elif LINUX_VERSION_CODE <= KERNEL_VERSION(2,6,21)
++
++#define netlink_kernel_create(net, uint, groups, input, cb_mutex, mod) \
++	netlink_kernel_create(uint, groups, input, mod)
++
++#elif LINUX_VERSION_CODE <= KERNEL_VERSION(2,6,22)
++
++#define netlink_kernel_create(net, uint, groups, input, cb_mutex, mod) \
++	netlink_kernel_create(uint, groups, input, cb_mutex, mod)
++
++#elif LINUX_VERSION_CODE <= KERNEL_VERSION(2,6,23)
++
++#define netlink_kernel_create(net, uint, groups, input, cb_mutex, mod) \
++	netlink_kernel_create(uint, groups, input, cb_mutex, mod)
++
++#endif
++
++#ifndef DID_TRANSPORT_DISRUPTED
++#define DID_TRANSPORT_DISRUPTED DID_BUS_BUSY
++#endif
++
++#ifndef DID_TRANSPORT_FAILFAST
++#define DID_TRANSPORT_FAILFAST DID_NO_CONNECT
++#endif
++
++#ifndef SCSI_MLQUEUE_TARGET_BUSY
++#define SCSI_MLQUEUE_TARGET_BUSY SCSI_MLQUEUE_HOST_BUSY
++#endif
++
++#if LINUX_VERSION_CODE <= KERNEL_VERSION(2,6,27)
++
++#define BLK_EH_NOT_HANDLED EH_NOT_HANDLED
++#define BLK_EH_RESET_TIMER EH_RESET_TIMER
++
++#define blk_eh_timer_return scsi_eh_timer_return
++
++#endif
++
++
++#if LINUX_VERSION_CODE <= KERNEL_VERSION(2,6,34)
++
++static inline wait_queue_head_t *sk_sleep(struct sock *sk)
++{
++	return sk->sk_sleep;
++}
++
++#endif
++
++#endif
+-- 
+1.6.6.1
+
