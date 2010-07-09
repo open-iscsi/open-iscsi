@@ -1637,6 +1637,8 @@ static int exec_disc2_op(int disc_type, char *ip, int port,
 	}
 
 do_db_op:
+	rc = 0;
+
 	if (op == OP_NOOP || op == OP_SHOW) {
 		if (!idbm_print_discovery_info(&drec, do_show)) {
 			log_error("No records found!");
