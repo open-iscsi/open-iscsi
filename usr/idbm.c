@@ -1116,8 +1116,11 @@ int idbm_print_all_discovery(int info_level)
 	discovery_rec_t *drec;
 	int found = 0, tmp;
 
-	if (info_level < 1)
-		return idbm_print_all_st(info_level);
+	if (info_level < 1) {
+		found = idbm_print_all_st(info_level);
+		found += idbm_print_all_isns(info_level);
+		return found;
+	}
 
 	drec = calloc(1, sizeof(*drec));
 	if (!drec)
