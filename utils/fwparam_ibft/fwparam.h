@@ -24,8 +24,8 @@
 
 struct boot_context;
 
-int fwparam_ibft_sysfs_boot_info(struct boot_context *context);
-int fwparam_ibft_sysfs_get_targets(struct list_head *list);
+int fwparam_sysfs_boot_info(struct boot_context *context);
+int fwparam_sysfs_get_targets(struct list_head *list);
 int fwparam_ppc_boot_info(struct boot_context *context);
 int fwparam_ppc_get_targets(struct list_head *list);
 

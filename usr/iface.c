@@ -778,31 +778,62 @@ void iface_link_ifaces(struct list_head *ifaces)
 	iface_for_each_iface(ifaces, 1, &nr_found, iface_link);
 }
 
-void iface_setup_from_boot_context(struct iface_rec *iface,
+/**
+ * iface_setup_from_boot_context - setup iface from boot context info
+ * @iface: iface t setup
+ * @context: boot context info
+ *
+ * Returns 1 if setup for offload.
+ */
+int iface_setup_from_boot_context(struct iface_rec *iface,
 				   struct boot_context *context)
 {
 	if (strlen(context->initiatorname))
 		strlcpy(iface->iname, context->initiatorname,
 			sizeof(iface->iname));
 
-	if (strlen(context->iface)) {
-		if (!net_get_transport_name_from_netdev(context->iface,
-						iface->transport_name)) {
-			/* set up for access through offload card */
-			memset(iface->name, 0, sizeof(iface->name));
-			snprintf(iface->name, sizeof(iface->name),
-				 "%s.%s", iface->transport_name,
-				 context->mac);
+	if (strlen(context->scsi_host_name)) {
+		struct iscsi_transport *t;
+		uint32_t hostno;
 
-			strlcpy(iface->netdev, context->iface,
-				sizeof(iface->netdev));
-			strlcpy(iface->hwaddress, context->mac,
-				sizeof(iface->hwaddress));
-			strlcpy(iface->ipaddress, context->ipaddr,
-				sizeof(iface->ipaddress));
+		if (sscanf(context->scsi_host_name, "iscsi_boot%u", &hostno) != 		    1) {
+			log_error("Could not parse %s's host no.",
+				  context->scsi_host_name);
+			return 0;
 		}
-	}
+		t = iscsi_sysfs_get_transport_by_hba(hostno);
+		if (!t) {
+			log_error("Could not get transport for %s. "
+				  "Make sure the iSCSI driver is loaded.",
+				  context->scsi_host_name);
+			return 0;
+		}
+
+		log_debug(3, "boot context has %s transport %s",
+			  context->scsi_host_name, t->name);
+		strcpy(iface->transport_name, t->name);
+	} else if (strlen(context->iface) &&
+		 (!net_get_transport_name_from_netdev(context->iface,
+						iface->transport_name))) {
+		log_debug(3, "boot context has netdev %s",
+			  context->iface);
+		strlcpy(iface->netdev, context->iface,
+			sizeof(iface->netdev));
+	} else
+		return 0;
+	/*
+	 * set up for access through a offload card.
+	 */
+	memset(iface->name, 0, sizeof(iface->name));
+	snprintf(iface->name, sizeof(iface->name), "%s.%s",
+		 iface->transport_name, context->mac);
+
+	strlcpy(iface->hwaddress, context->mac,
+		sizeof(iface->hwaddress));
+	strlcpy(iface->ipaddress, context->ipaddr,
+		sizeof(iface->ipaddress));
 	log_debug(1, "iface " iface_fmt "\n", iface_str(iface));
+	return 1;
 }
 
 /**
@@ -817,32 +848,24 @@ void iface_setup_from_boot_context(struct iface_rec *iface,
 int iface_create_ifaces_from_boot_contexts(struct list_head *ifaces,
 					   struct list_head *targets)
 {
-	char transport_name[ISCSI_TRANSPORT_NAME_MAXLEN];
-	char iface_name[ISCSI_MAX_IFACE_LEN];
 	struct boot_context *context;
 	struct iface_rec *iface, *tmp_iface;
 	int rc = 0;
 
 	list_for_each_entry(context, targets, list) {
-		memset(transport_name, 0, ISCSI_TRANSPORT_NAME_MAXLEN);
-
-		if (net_get_transport_name_from_netdev(context->iface,
-						       transport_name))
-			continue;
-
-		/* offload + ibft support */
-		memset(iface_name, 0, ISCSI_MAX_IFACE_LEN);
-		snprintf(iface_name, ISCSI_MAX_IFACE_LEN,
-			 "%s.%s", transport_name, context->mac);
-
 		rc = 0;
-		iface = iface_alloc(iface_name, &rc);
+		/* use dummy name. If valid it will get overwritten below */
+		iface = iface_alloc(DEFAULT_IFACENAME, &rc);
 		if (!iface) {
 			log_error("Could not setup iface %s for boot\n",
-				  iface_name);
+				  context->iface);
 			goto fail;
 		}
-		iface_setup_from_boot_context(iface, context);
+		if (!iface_setup_from_boot_context(iface, context)) {
+			/* no offload so forget it */
+			free(iface);
+			continue;
+		}
 
 		rc = iface_conf_write(iface);
 		if (rc) {

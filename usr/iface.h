@@ -50,7 +50,7 @@ extern int iface_conf_write(struct iface_rec *iface);
 extern int iface_conf_delete(struct iface_rec *iface);
 extern int iface_is_valid(struct iface_rec *iface);
 extern void iface_link_ifaces(struct list_head *ifaces);
-extern void iface_setup_from_boot_context(struct iface_rec *iface,
+extern int iface_setup_from_boot_context(struct iface_rec *iface,
                                    struct boot_context *context);
 extern int iface_create_ifaces_from_boot_contexts(struct list_head *ifaces,
 						  struct list_head *targets);

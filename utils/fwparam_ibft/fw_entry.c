@@ -102,8 +102,7 @@ int fw_get_entry(struct boot_context *context)
 
 	ret = fwparam_ppc_boot_info(context);
 	if (ret)
-		ret = fwparam_ibft_sysfs_boot_info(context);
-
+		ret = fwparam_sysfs_boot_info(context);
 	return ret;
 }
 
@@ -124,8 +123,7 @@ int fw_get_targets(struct list_head *list)
 
 	ret = fwparam_ppc_get_targets(list);
 	if (ret)
-		ret = fwparam_ibft_sysfs_get_targets(list);
-
+		ret = fwparam_sysfs_get_targets(list);
 	return ret;
 }
 

@@ -54,6 +54,8 @@ struct boot_context {
 	char mask[18];
 	char lun[17];
 	char vlan[15];
+
+	char scsi_host_name[64];
 };
 
 extern int fw_get_entry(struct boot_context *context);
