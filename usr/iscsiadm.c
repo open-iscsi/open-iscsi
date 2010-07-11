@@ -55,7 +55,7 @@ static char config_file[TARGET_NAME_MAXLEN];
 
 enum iscsiadm_mode {
 	MODE_DISCOVERY,
-	MODE_DISCOVERY2,
+	MODE_DISCOVERYDB,
 	MODE_NODE,
 	MODE_SESSION,
 	MODE_HOST,
@@ -110,8 +110,7 @@ static void usage(int status)
 		printf("\
 iscsiadm -m discovery2 [ -hV ] [ -d debug_level ] [-P printlevel] [ -t type -p ip:port -I ifaceN ... [ -Dl ] ] | [ [ -p ip:port -t type] \
 [ -o operation ] [ -n name ] [ -v value ] [ -lD ] ] \n\
-DEPERCIATED: iscsiadm -m discovery [ -hV ] [ -d debug_level ] [-P printlevel] [ -t type -p ip:port -I ifaceN ... [ -l ] ] | [ [ -p ip:port ] \
-[ -o operation ] [ -n name ] [ -v value ] [ -l | -D ] ] \n\
+iscsiadm -m discovery [ -hV ] [ -d debug_level ] [-P printlevel] [ -t type -p ip:port -I ifaceN ... [ -l ] ] | [ [ -p ip:port ] [ -l | -D ] ] \n\
 iiscsiadm -m node [ -hV ] [ -d debug_level ] [ -P printlevel ] [ -L all,manual,automatic ] [ -U all,manual,automatic ] [ -S ] [ [ -T targetname -p ip:port -I ifaceN ] [ -l | -u | -R | -s] ] \
 [ [ -o  operation  ] [ -n name ] [ -v value ] ]\n\
 iscsiadm -m session [ -hV ] [ -d debug_level ] [ -P  printlevel] [ -r sessionid | sysfsdir [ -R | -u | -s ] [ -o operation ] [ -n name ] [ -v value ] ]\n\
@@ -151,8 +150,8 @@ str_to_mode(char *str)
 
 	if (!strcmp("discovery", str))
 		mode = MODE_DISCOVERY;
-	else if (!strcmp("discovery2", str))
-		mode = MODE_DISCOVERY2;
+	else if (!strcmp("discoverydb", str))
+		mode = MODE_DISCOVERYDB;
 	else if (!strcmp("node", str))
 		mode = MODE_NODE;
 	else if (!strcmp("session", str))
@@ -1735,10 +1734,12 @@ static int exec_disc_op(int disc_type, char *ip, int port,
 	default:
 		if (ip) {
 			/*
-			 * We only have disc recs for sendtargets, so we can
-			 * harcode the port check to the iscsi default.
-			 * If we add isns or slp recs then we have to
-			 * fix this somehow.
+			 * We only have sendtargets disc recs in discovery
+			 * mode, so we can hardcode the port check to the
+			 * iscsi default here.
+			 *
+			 * For isns or slp recs then discovery db mode
+			 * must be used.
 			 */
 			if (port < 0)
 				port = ISCSI_LISTEN_PORT;
@@ -1755,18 +1756,6 @@ static int exec_disc_op(int disc_type, char *ip, int port,
 			    drec.type == DISCOVERY_TYPE_SENDTARGETS) {
 				do_sendtargets(&drec, ifaces, info_level,
 					       do_login, op, 0);
-			} else if (do_login &&
-				   drec.type == DISCOVERY_TYPE_SLP) {
-				log_error("SLP discovery is not fully "
-					  "implemented yet.");
-				rc = -1;
-				goto done;
-			} else if (do_login &&
-				   drec.type == DISCOVERY_TYPE_ISNS) {
-				log_error("iSNS discovery is not fully "
-					  "implemented yet.");
-				rc = -1;
-				goto done;
 			} else if (op == OP_NOOP || op == OP_SHOW) {
 				if (!idbm_print_discovery_info(&drec,
 							       do_show)) {
@@ -1778,38 +1767,23 @@ static int exec_disc_op(int disc_type, char *ip, int port,
 					log_error("Unable to delete record!");
 					rc = -1;
 				}
-			} else if (op == OP_UPDATE) {
-				struct db_set_param set_param;
-
-				if (!name || !value) {
-					log_error("Update requires "
-						  "name and value");
-					rc = -1;
-					goto done;
-				}
-				set_param.name = name;
-				set_param.value = value;
-				if (idbm_discovery_set_param(&set_param,
-							     &drec))
-					rc = -1;
+			} else if (op == OP_UPDATE || op == OP_NEW) {
+				log_error("Operations new and update for "
+					  "discovery mode is not supported. "
+					  "Use discoverydb mode.");
+				rc = -1;
+				goto done;
 			} else {
-				log_error("Operation is not supported.");
+				log_error("Invalid operation.");
 				rc = -1;
 				goto done;
 			}
-
 		} else if (op == OP_NOOP || op == OP_SHOW) {
 			if (!idbm_print_all_discovery(info_level))
 				rc = -1;
 			goto done;
-		} else if (op == OP_DELETE) {
-			log_error("--record required for delete operation");
-			rc = -1;
-			goto done;
 		} else {
-			log_error("Operations: new and "
-				  "update for node is not fully "
-				  "implemented yet.");
+			log_error("Invalid operation.");
 			rc = -1;
 			goto done;
 		}
@@ -2036,7 +2010,7 @@ main(int argc, char **argv)
 		rc = exec_iface_op(op, do_show, info_level, iface,
 				   name, value);
 		break;
-	case MODE_DISCOVERY2:
+	case MODE_DISCOVERYDB:
 		if ((rc = verify_mode_params(argc, argv, "DSIPdmntplov", 0))) {
 			log_error("discovery mode: option '-%c' is not "
 				  "allowed/supported", rc);
