@@ -1,132 +1,114 @@
-open-iscsi-2.0-871 - open-iscsi-2.0.870
+open-iscsi-2.0-872 - open-iscsi-2.0.871
 
-Boaz Harrosh (1):
-      open-iscsi: Makefile: separate out user: and kernel: make targets
+Avi Kaplan (2):
+      Remove unused field iscsi_conn from struct iscsi_sw_tcp_conn
+      Change restore_callbacks argument iscsi_sw_tcp_conn to iscsi_conn
 
 Erez Zilber (1):
-      Add Module.markers to .gitignore
+      Fix 2.6.14-23_compat.patch to support all RHEL 5.X versions
 
-Karen Xie (2):
-      userspace - add new transport cxgb3i
-      userspace - setting interface ip address
+Hannes Reinecke (2):
+      Allow update of discovery records.
+      Update 2.6.27_compat.patch for SLES 11
 
-Mike Christie (84):
-      iscsid: fix relogin retry handling
-      iscsid idbm: print out header and tail to seperate records
-      ibft: add support to use iscsi_ibft module and log into all portals found in firmware
-      fwparam: rm unused filepath argument
-      iscsid idbm: move record strings to header
-      iscsiadm: discovery mode supports the --show
-      iscsiadm: have fw discovery handle --op arguments
-      iscsiadm: fix output ordering
-      iscsi modules: fix compilation
-      iscsid/iscsiadm: fix strto* usage
-      iscsid: fix logout response and time2wait handling
-      iscsiadm: remove default bnx2i iface
-      iscsid/iscsiadm: support multiple inititor names per host.
-      iscsiadm: print session and session info running through ifaces in iface mode
-      iscsid: update transport handle
-      idbm: have idbm_rec_update_param update the value string of the matching rec_info
-      iscsi mod: sync up kernel modules with 2.6.29
-      iscsi mod: 2.6.27 compat
-      iscsi mod: 2.6.26 compat
-      iscsi mod: 2.6.24-25 compat
-      iscsi mod: 2.6.20-23 compat
-      iscsi mod: 2.6.14-19 compat
-      iscsi mod: fix up 2.6.14-19 compat patch
-      iscsi mod iscsi_tcp: compat fix for pI4/pI6
-      build: add a make user
-      iscsi tools: fix chap
-      PATCH: iscsi tools: do not use exit()
-      PATCH: fix iBFT firmware reading with newer kernels
-      2.6.29-rc libiscsi: Fix scsi command timeout oops in iscsi_eh_timed_out
-      iscsi mod: 2.6.14-19 compat
-      iscsi tools: convert from strncat to strlcat
-      iscsi tools: convert from strncpy to strlcpy
-      iscsi tool make: add notification that iscsi start was made
-      iscsid: Fix up connection failed messages
-      docs: fix up iscsiadm man page iface info
-      iscsi tools: update version in preparation for new release
-      iscsid: flush sysfs cache.
-      iscsid: mv event loop code to new file
-      docs: update readme with libiscsi_tcp info
+Mike Christie (91):
+      Don't kill iscsid if logout from all nodes fail
+      iscsid: fix ISCSI_ERR_INVALID_HOST err handling
+      iscsid: add flag to indicate if driver needs iscsid to set ip
+      iscsid: add be2iscsi template
+      iscsid be2iscsi: add more driver limits
+      iscsid: start iscsid automatically when needed
+      iscsid: fix segfault during session sync up
+      iscsiadm: fix discovery record use
+      iscsi mod: sync to linux-2.6-iscsi tree's 2.6.33 feature window patches
+      iscsid: handle new replacement_timeout values
+      iscsi tools: support tgt reset timeout
+      iscsi-iname: fix misleading help description
+      iscsid: fix iferror log message
+      iscsi mod: Update 2.6.14-23_compat.patch patch
+      iscsiadm: fix login/logout message
+      do not use a semarg in shared-mem for semop calls
+      Fix wrong logs in log.c
+      update 2.6.26 compat patch
+      iscsi tools: Allow empty username for CHAP
+      iscsi ibft/boot: fix net dev loopup
+      iscsistart option to bring up NICs using configuration in iBFT.
+      ibft boot: mv setup nics to fw_entry.c so iscsiadm can use it
+      iscsistart ibft: fix fwparam network cmd
+      iscsid be2iscsi: don't set set_host_ip
+      iscsi tools: merge functions to get net iface name from mac address
+      ibft boot: do not setup nic if offload can be used
+      iscsistart ibft boot: setup iscsi offload during boot
+      ibft boot: remove be2iscsi
+      iscsi tools: idbm/fw function cleanup
+      iscsi tool: trivial fixes
+      ibft boot: add offload ibft support to iscsiadm
+      iscsiadm: only do auto iface setup when iface mode is run
+      ibft boot: add iscsiadm offload ibft rec support
+      doc: add iscsistart man page
+      doc: add iscsi-iname man page
+      ibft boot: fix dev to iface matching
+      offload boot: turn off
+      iscsi tools: nic setup cleanup
+      iscsi tools: fix compile errors
+      iscsi kern: fix 2.6.27 compat patch
+      iscsiadm: add nonpersistent mode to discovery mode
+      iscsi tool: mv idbm_node_setup_defaults to idbm.c
+      iscsi tools: cleanup get_global_string_param use
+      iscsi tools: make config file parser a little smarter.
+      iscsiadm: mv session management functions to new file
+      st discovery: fix reopen max handling
+      iscsid: have iscsid watch for new portals using sendtargets
+      iscsi tools: mv iscsid request helpers to its own file
+      iscsi tools: add str prefix to strings.c functions
+      iscsi tools: use open-isns services
+      iscsi tools: add MaxXmitDataSegmentLength param
+      iscsi tools: do not exit on mem alloc failures during discovery
+      Fix makefile cleanup
+      iscsid: add isns discovery daemon and SCN support
+      iscsid: support discovery daemon auto logout
+      isns: fix compilation
+      iscsi tools: fix null sysfs string handling
+      iscsi tools: fix compilation on s390
+      Update version number to 872
+      iscsi tools: fix MaxXmitDataSegmentLength=0 handling
+      be2iscsi iscsi tool: fix MaxXmitDataSegmentLength handling
+      iscsi tools: be2iscsi: fix initial_r2t_en handling
+      iscsi tools: prep for userspace libiscsi
+      iscsi tools: add log_info helper
+      iscsi tools: fix port handling for iscsiadm commands
+      iscsi tools: fix port handling for iscsiadm commands take 2
+      iscsid: fix discoveryd shutdown
+      iscsi scripts: use iscsiadm -k to shutdown daemon
+      iscsiadm: fix discovery record management
+      iscsid: fix sendtargets discovery daemon CHAP handling
+      iscsiadm: mv disc code to new function
+      iscsiadm: fix disc port handling
+      iscsiadm: add new discovery mode
+      iscsiadm: add isns db support
+      iscsiadm: cleanup default port handling
+      iscsid: use isns discovery rec for isns discoveryd setttings
+      iscsiadm: fix iface mode ENODEV handling
+      iscsiadm: mark discovery mode as depreciated
+      sync to upstream
+      2.6.33 - 34 kernel compat patch
+      2.6.28 - 32 kernel compat patch
+      2.6.27 kernel compat patch
+      2.6.26 kernel compat patch
+      2.6.24 - 25 kernel compat patch
+      2.6.14 - 23 kernel compat patch
+      iscsiadm: fix discovery2 db op return value
+      iscsiadm: print isns recs in discovery mode
+      iscsi boot: add support for iscsi boot sysfs module
+      iscsiadm: rename discovery2 mode as discoverydb
+      iscsiadm: fix boot code compile error
+      iscsiadm: fix iface update/delete return value fix
 
+Ritesh Raj Sarraf (3):
+      fix some spelling errors reported by lintian
+      minor manpage updates
+      Fix CVE-2009-1297
 
-
-
--------------------------------------------------------------------
-open-iscsi-2.0-870 - open-iscsi-2.0.869
-
-Doron Shoham (1):
-      log.c: add error messages when allocation shared memory
-
-Erez Zilber (2):
-      Minor fixes in iscsi_discovery documentation
-      rm unused variable in fw_entry.c
-
-Hannes Reinecke (1):
-      Add SLES10 SP2 compat
-
-Hans de Goede (1):
-      PATCH: add error checking to iscsi discovery db lock creation
-
-Mike Christie (58):
-      change mgmt_ipc to logout by sid
-      iscsi class/if kernel: add ifacename attr
-      add ifacename support tools
-      rm db param
-      rm num_transports from sysfs header.
-      Add bind by initiatorname
-      break up iface code and add default iser, tcp/default and bnx2i ifaces
-      Use startup definition in util.c.
-      set header digests to off by default
-      fix compile warning for missing iface.h
-      User 64 bit params mask.
-      Do not allow iface setting to be changed in node mode.
-      Fix bad merge. User iscsi param masks instead of params.
-      Support mutlple ifaces with the same binding (lack of binding).
-      Release transport entry when the transport is unloaded
-      Fix ep_disconnect handling of invalid ep
-      libiscsi: Fix nop timeout handling
-      libiscsi: fix recv tmo
-      Revert Release-transport-entry-when-the-transport-is-unload.patch
-      pass ep to session creation
-      Fix iser create bound session compat
-      fix compilation on Fedora 9
-      Fix sysfs handling of block:sdX and scsi bus changes
-      Only autobind to ifaces with transport = tcp
-      Increase login retry for iscsistart.
-      Sync kernel modules to scsi-misc for 2.6.27.
-      Update 2.6.14 - 2.6.19 compat patch
-      Update 2.6.20 - 2.6.24 patch
-      Update 2.6.24 - 2.6.25 patch
-      iscsid: don't print enosys errors.
-      libiscsi: support older tools that did not set can_queue/cmds_max
-      Fix transport_name compat support.
-      Fix idbm iscsid segfault when accsing ifaces
-      Fix discovery and autobinding
-      fix ipv6 login redirect support.
-      Fix login redirect failure handling.
-      remove sysfs_file
-      fix dynamic tpgt support.
-      Bump version for new release.
-      Add compat patch for RHEL 5.2
-      iscsid: adjust requested settings for user
-      Sync kernel modules with 2.6.27
-      Add 2.6.26 compat support
-      Add Makefile support for 2.6.26 compat patch
-      Add .gitignore files
-      Revert broken SLES 10 compat patch.
-      iscsi conf: increase default login max
-      iscsi conf: partially revert increase default login max change
-      modify initial login retry max
-      libiscsi: fix data corruption when target has to resend data-in packets
-      iscsi class: fix endpoint id handling
-      handle ISCSI_ERR_INVALID_HOST
-      iscsi_tcp: return a descriptive error value during connection errors
-      libiscsi: fix locking in iscsi_eh_device_reset
-      update 2.6.14-19_compat.patch
-      update 2.6.20-21_compat.patch
-      update 2.6.24_compat.patch
-      Fix initiator.c compile warning
+Wulf C. Krueger (1):
+      Use DESTDIR when generating an InitiatorName.
 
