@@ -459,7 +459,7 @@ static int iscsi_sysfs_read_iface(struct iface_rec *iface, int host_no,
 	 * host level because we cannot create different initiator ports
 	 * (cannot set isid either). The LLD also exports the iname at the
 	 * hba level so apps can see it, but we no longer set the iname for
-	 * each iscsid controlled host since bnx2i cxgb3i can support multiple
+	 * each iscsid controlled host since bnx2i cxgbi can support multiple
 	 * initiator names and of course software iscsi can support anything.
 	 */
 	ret = 1;

@@ -1,5 +1,5 @@
 /*
- * cxgb3i helpers
+ * cxgb3i/cxgb4i helpers
  *
  * Copyright (C) 2006 Mike Christie
  * Copyright (C) 2006 Red Hat, Inc. All rights reserved.
@@ -16,7 +16,7 @@
  */
 #include "initiator.h"
 
-void cxgb3i_create_conn(struct iscsi_conn *conn)
+void cxgbi_create_conn(struct iscsi_conn *conn)
 {
 	/* card can handle up to 15360 bytes */
 	if (conn->max_recv_dlength > 8192)

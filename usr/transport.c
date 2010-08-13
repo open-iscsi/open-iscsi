@@ -25,7 +25,7 @@
 #include "log.h"
 #include "iscsi_util.h"
 #include "iscsi_sysfs.h"
-#include "cxgb3i.h"
+#include "cxgbi.h"
 #include "be2iscsi.h"
 
 struct iscsi_transport_template iscsi_tcp = {
@@ -49,7 +49,16 @@ struct iscsi_transport_template cxgb3i = {
 	.ep_connect	= ktransport_ep_connect,
 	.ep_poll	= ktransport_ep_poll,
 	.ep_disconnect	= ktransport_ep_disconnect,
-	.create_conn	= cxgb3i_create_conn,
+	.create_conn	= cxgbi_create_conn,
+};
+
+struct iscsi_transport_template cxgb4i = {
+	.name		= "cxgb4i",
+	.set_host_ip	= 1,
+	.ep_connect	= ktransport_ep_connect,
+	.ep_poll	= ktransport_ep_poll,
+	.ep_disconnect	= ktransport_ep_disconnect,
+	.create_conn	= cxgbi_create_conn,
 };
 
 struct iscsi_transport_template bnx2i = {
@@ -76,6 +85,7 @@ static struct iscsi_transport_template *iscsi_transport_templates[] = {
 	&iscsi_tcp,
 	&iscsi_iser,
 	&cxgb3i,
+	&cxgb4i,
 	&bnx2i,
 	&qla4xxx,
 	&be2iscsi,
