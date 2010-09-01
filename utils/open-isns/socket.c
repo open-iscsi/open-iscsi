@@ -805,7 +805,7 @@ isns_net_stream_xmit(isns_socket_t *sock)
 void
 isns_net_stream_hup(isns_socket_t *sock)
 {
-	sock->is_poll_mask &= ~POLLIN;
+	sock->is_poll_mask &= ~(POLLIN|POLLOUT);
 	/* POLLHUP while connecting means we failed */
 	if (sock->is_state == ISNS_SOCK_CONNECTING)
 		isns_net_stream_error(sock, ECONNREFUSED);
