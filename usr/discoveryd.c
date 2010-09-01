@@ -366,7 +366,6 @@ static int isns_disc_new_portals(const char *targetname, const char *iname)
 	qry_data.targetname = targetname;
 	qry_data.iname = iname;
 
-log_error("isns_disc_new_portals");
 	iface_link_ifaces(&ifaces);
 	rc = idbm_bind_ifaces_to_nodes(isns_query_node, &qry_data, &ifaces,
 				       &rec_list);
