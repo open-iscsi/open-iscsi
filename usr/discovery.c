@@ -496,9 +496,6 @@ request_targets(iscsi_session_t *session)
 	text.ttt = ISCSI_RESERVED_TAG;
 	text.flags = ISCSI_FLAG_CMD_FINAL;
 
-	if (++session->itt == ISCSI_RESERVED_TAG)
-		session->itt = 1;
-
 	if (!iscsi_io_send_pdu(&session->conn[0], hdr, ISCSI_DIGEST_NONE, data,
 		    ISCSI_DIGEST_NONE, session->conn[0].active_timeout)) {
 		log_error("failed to send SendTargets PDU");
@@ -526,9 +523,6 @@ iterate_targets(iscsi_session_t *session, uint32_t ttt)
 
 	text.ttt = ttt;
 	text.flags = ISCSI_FLAG_CMD_FINAL;
-
-	if (++session->itt == ISCSI_RESERVED_TAG)
-		session->itt = 1;
 
 	if (!iscsi_io_send_pdu(&session->conn[0], pdu, ISCSI_DIGEST_NONE, data,
 		    ISCSI_DIGEST_NONE, session->conn[0].active_timeout)) {
