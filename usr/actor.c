@@ -113,14 +113,13 @@ actor_schedule_private(actor_t *thread, uint32_t ttschedule, int head)
 		 * state to scheduled, else add current time to ttschedule and
 		 * insert in the queue at the correct point */
 		if (delay_time == 0) {
-			if (poll_in_progress) {
+			/* For head addition, it must go onto the head of the
+			   actor_list regardless if poll is in progress or not
+			 */
+			if (poll_in_progress && !head) {
 				thread->state = ACTOR_POLL_WAITING;
-				if (head)
-					list_add(&thread->list,
-						 &poll_list);
-				else
-					list_add_tail(&thread->list,
-						      &poll_list);
+				list_add_tail(&thread->list,
+					      &poll_list);
 			} else {
 				thread->state = ACTOR_SCHEDULED;
 				if (head)
