@@ -401,12 +401,12 @@ static int get_targets(struct list_head *list, char *rootdir, char *subsys)
 
 		rc = fill_tgt_context(subsys, target_list[i], context);
 		if (rc)
-			break;
+			goto cleanup;
 
 		rc = sysfs_get_int(target_list[i], subsys, "nic-assoc",
 				   &nic_idx);
 		if (rc)
-			break;
+			goto cleanup;
 
 		for (nic = 0; nic < nic_cnt; nic++) {
 			int id;
@@ -420,21 +420,31 @@ static int get_targets(struct list_head *list, char *rootdir, char *subsys)
 		if (nic == nic_cnt) {
 			printf("Invalid nic-assoc of %d. Max id %d.\n",
 			       nic_idx, nic_cnt);
-			break;
+			goto cleanup;
 		}
 
 		rc = fill_nic_context(subsys, nic_list[nic], context);
 		if (rc)
-			break;
+			goto cleanup;
 
 		fill_initiator_context(subsys, context);
 		list_add_tail(&context->list, list);
+		continue;
+cleanup:
+		free(context);
+		context = NULL;
 	}
 
 	if (rc) {
 		if (context)
 			free(context);
-		fw_free_targets(list);
+		/*
+		 * If there are some valid targets return them. Most likely,
+		 * the driver/ibft-implementation reported partial info
+		 * for targets/initiators that were not used for boot.
+		 */
+		if (!list_empty(list))
+			rc = 0;
 	}
 
 	deallocate_lists();
@@ -463,14 +473,13 @@ int fwparam_sysfs_get_targets(struct list_head *list)
 		char lld_root[FILENAMESZ];
 
 		memset(&lld_root, 0 , FILENAMESZ);
-
 		if (!strcmp(dent->d_name, ".") || !strcmp(dent->d_name, ".."))
 			continue;
 
 		if (strncmp(dent->d_name, ISCSI_LLD_SUBSYS_PREFIX, 10))
 			continue;
 
-		snprintf(lld_root, FILENAMESZ, ISCSI_LLD_ROOT"%s",
+		snprintf(lld_root, FILENAMESZ, ISCSI_LLD_ROOT"%s/",
 			 dent->d_name);
 		get_targets(list, lld_root, dent->d_name);
 	}
