@@ -32,6 +32,7 @@
 #include "iscsi_sysfs.h"
 #include "log.h"
 #include "iscsid_req.h"
+#include "iscsi_err.h"
 
 static void log_login_msg(struct node_rec *rec, int rc)
 {
@@ -124,7 +125,7 @@ int iscsi_login_portal(void *data, struct list_head *list, struct node_rec *rec)
 		if (async_req)
 			free(async_req);
 		/* we raced with another app or instance of iscsiadm */
-		if (rc == MGMT_IPC_ERR_EXISTS)
+		if (rc == ISCSI_ERR_SESS_EXISTS)
 			return 0;
 
 		return ENOTCONN;
@@ -278,7 +279,7 @@ int iscsi_logout_portal(struct session_info *info, struct list_head *list)
 		if (async_req)
 			free(async_req);
 
-		if (rc == MGMT_IPC_ERR_NOT_FOUND)
+		if (rc == ISCSI_ERR_SESS_NOT_FOUND)
 			return 0;
 
 		return EIO;

@@ -26,30 +26,6 @@
 #define ISCSIADM_NAMESPACE	"ISCSIADM_ABSTRACT_NAMESPACE"
 #define PEERUSER_MAX		64
 
-typedef enum mgmt_ipc_err {
-	MGMT_IPC_OK			= 0,
-	MGMT_IPC_ERR			= 1,
-	MGMT_IPC_ERR_NOT_FOUND		= 2,
-	MGMT_IPC_ERR_NOMEM		= 3,
-	MGMT_IPC_ERR_TRANS_FAILURE	= 4,
-	MGMT_IPC_ERR_LOGIN_FAILURE	= 5,
-	MGMT_IPC_ERR_IDBM_FAILURE	= 6,
-	MGMT_IPC_ERR_INVAL		= 7,
-	MGMT_IPC_ERR_TRANS_TIMEOUT	= 8,
-	MGMT_IPC_ERR_INTERNAL		= 9,
-	MGMT_IPC_ERR_LOGOUT_FAILURE	= 10,
-	MGMT_IPC_ERR_PDU_TIMEOUT	= 11,
-	MGMT_IPC_ERR_TRANS_NOT_FOUND	= 12,
-	MGMT_IPC_ERR_ACCESS		= 13,
-	MGMT_IPC_ERR_TRANS_CAPS		= 14,
-	MGMT_IPC_ERR_EXISTS		= 15,
-	MGMT_IPC_ERR_INVALID_REQ	= 16,
-	MGMT_IPC_ERR_ISNS_UNAVAILABLE	= 17,
-	MGMT_IPC_ERR_ISCSID_COMM_ERR	= 18,
-	MGMT_IPC_ERR_FATAL_LOGIN_FAILURE = 19,
-	MGMT_IPC_ERR_ISCSID_NOTCONN	= 20,
-} mgmt_ipc_err_e;
-
 typedef enum iscsiadm_cmd {
 	MGMT_IPC_UNKNOWN		= 0,
 	MGMT_IPC_SESSION_LOGIN		= 1,
@@ -107,7 +83,7 @@ typedef struct iscsiadm_req {
 /* IPC Response */
 typedef struct iscsiadm_rsp {
 	iscsiadm_cmd_e command;
-	mgmt_ipc_err_e err;
+	int err;	/* ISCSI_ERR value */
 
 	union {
 #define MGMT_IPC_GETSTATS_BUF_MAX	(sizeof(struct iscsi_uevent) + \
@@ -131,10 +107,10 @@ typedef struct iscsiadm_rsp {
 } iscsiadm_rsp_t;
 
 struct queue_task;
-typedef mgmt_ipc_err_e	mgmt_ipc_fn_t(struct queue_task *);
+typedef int mgmt_ipc_fn_t(struct queue_task *);
 
 struct queue_task;
-void mgmt_ipc_write_rsp(struct queue_task *qtask, mgmt_ipc_err_e err);
+void mgmt_ipc_write_rsp(struct queue_task *qtask, int err);
 int mgmt_ipc_listen(void);
 void mgmt_ipc_close(int fd);
 void mgmt_ipc_handle(int accept_fd);

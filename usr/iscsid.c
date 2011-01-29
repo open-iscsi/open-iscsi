@@ -50,6 +50,7 @@
 #include "sysdeps.h"
 #include "discoveryd.h"
 #include "iscsid_req.h"
+#include "iscsi_err.h"
 
 /* global config info */
 struct iscsi_daemon_config daemon_config;
@@ -269,7 +270,7 @@ static int sync_session(void *data, struct session_info *info)
 
 retry:
 	rc = iscsid_exec_req(&req, &rsp, 0);
-	if (rc == MGMT_IPC_ERR_ISCSID_NOTCONN && retries < 30) {
+	if (rc == ISCSI_ERR_ISCSID_NOTCONN && retries < 30) {
 		retries++;
 		sleep(1);
 		goto retry;

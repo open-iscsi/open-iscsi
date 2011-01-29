@@ -35,6 +35,7 @@
 #include "transport.h"
 #include "sysdeps.h"
 #include "iscsi_ipc.h"
+#include "iscsi_err.h"
 
 #define PEERUSER_MAX	64
 #define EXTMSG_MAX	(64 * 1024)
@@ -79,13 +80,13 @@ mgmt_ipc_close(int fd)
 		close(fd);
 }
 
-static mgmt_ipc_err_e
+static int 
 mgmt_ipc_session_login(queue_task_t *qtask)
 {
 	return session_login_task(&qtask->req.u.session.rec, qtask);
 }
 
-static mgmt_ipc_err_e
+static int
 mgmt_ipc_session_getstats(queue_task_t *qtask)
 {
 	int sid = qtask->req.u.session.sid;
@@ -93,7 +94,7 @@ mgmt_ipc_session_getstats(queue_task_t *qtask)
 	int rc;
 
 	if (!(session = session_find_by_sid(sid)))
-		return MGMT_IPC_ERR_NOT_FOUND;
+		return ISCSI_ERR_SESS_NOT_FOUND;
 
 	rc = ipc->get_stats(session->t->handle,
 		session->id, session->conn[0].id,
@@ -102,33 +103,33 @@ mgmt_ipc_session_getstats(queue_task_t *qtask)
 	if (rc) {
 		log_error("get_stats(): IPC error %d "
 			"session [%02d]", rc, sid);
-		return MGMT_IPC_ERR_INTERNAL;
+		return ISCSI_ERR_INTERNAL;
 	}
 
-	mgmt_ipc_write_rsp(qtask, MGMT_IPC_OK);
-	return MGMT_IPC_OK;
+	mgmt_ipc_write_rsp(qtask, ISCSI_SUCCESS);
+	return ISCSI_SUCCESS;
 }
 
-static mgmt_ipc_err_e
+static int
 mgmt_ipc_send_targets(queue_task_t *qtask)
 {
 	iscsiadm_req_t *req = &qtask->req;
-	mgmt_ipc_err_e err;
+	int err;
 
 	err = iscsi_host_send_targets(qtask, req->u.st.host_no,
 					  req->u.st.do_login,
 					  &req->u.st.ss);
 	mgmt_ipc_write_rsp(qtask, err);
-	return MGMT_IPC_OK;
+	return ISCSI_SUCCESS;
 }
 
-static mgmt_ipc_err_e
+static int
 mgmt_ipc_session_logout(queue_task_t *qtask)
 {
 	return session_logout_task(qtask->req.u.session.sid, qtask);
 }
 
-static mgmt_ipc_err_e
+static int
 mgmt_ipc_session_sync(queue_task_t *qtask)
 {
 	struct ipc_msg_session *session= &qtask->req.u.session;
@@ -136,16 +137,16 @@ mgmt_ipc_session_sync(queue_task_t *qtask)
 	return iscsi_sync_session(&session->rec, qtask, session->sid);
 }
 
-static mgmt_ipc_err_e
+static int
 mgmt_ipc_cfg_initiatorname(queue_task_t *qtask)
 {
 	if (dconfig->initiator_name)
 		strcpy(qtask->rsp.u.config.var, dconfig->initiator_name);
-	mgmt_ipc_write_rsp(qtask, MGMT_IPC_OK);
-	return MGMT_IPC_OK;
+	mgmt_ipc_write_rsp(qtask, ISCSI_SUCCESS);
+	return ISCSI_SUCCESS;
 }
 
-static mgmt_ipc_err_e
+static int
 mgmt_ipc_session_info(queue_task_t *qtask)
 {
 	int sid = qtask->req.u.session.sid;
@@ -154,50 +155,50 @@ mgmt_ipc_session_info(queue_task_t *qtask)
 
 	if (!(session = session_find_by_sid(sid))) {
 		log_debug(1, "session with sid %d not found!", sid);
-		return MGMT_IPC_ERR_NOT_FOUND;
+		return ISCSI_ERR_SESS_NOT_FOUND;
 	}
 
 	info = &qtask->rsp.u.session_state;
 	info->conn_state = session->conn[0].state;
 	info->session_state = session->r_stage;
 
-	mgmt_ipc_write_rsp(qtask, MGMT_IPC_OK);
-	return MGMT_IPC_OK;
+	mgmt_ipc_write_rsp(qtask, ISCSI_SUCCESS);
+	return ISCSI_SUCCESS;
 }
 
-static mgmt_ipc_err_e
+static int
 mgmt_ipc_cfg_initiatoralias(queue_task_t *qtask)
 {
 	strcpy(qtask->rsp.u.config.var, dconfig->initiator_alias);
-	mgmt_ipc_write_rsp(qtask, MGMT_IPC_OK);
-	return MGMT_IPC_OK;
+	mgmt_ipc_write_rsp(qtask, ISCSI_SUCCESS);
+	return ISCSI_SUCCESS;
 }
 
-static mgmt_ipc_err_e
+static int
 mgmt_ipc_cfg_filename(queue_task_t *qtask)
 {
 	strcpy(qtask->rsp.u.config.var, dconfig->config_file);
-	mgmt_ipc_write_rsp(qtask, MGMT_IPC_OK);
-	return MGMT_IPC_OK;
+	mgmt_ipc_write_rsp(qtask, ISCSI_SUCCESS);
+	return ISCSI_SUCCESS;
 }
 
-static mgmt_ipc_err_e
+static int
 mgmt_ipc_conn_add(queue_task_t *qtask)
 {
-	return MGMT_IPC_ERR;
+	return ISCSI_ERR;
 }
 
-static mgmt_ipc_err_e
+static int
 mgmt_ipc_immediate_stop(queue_task_t *qtask)
 {
 	event_loop_exit(qtask);
-	return MGMT_IPC_OK;
+	return ISCSI_SUCCESS;
 }
 
-static mgmt_ipc_err_e
+static int
 mgmt_ipc_conn_remove(queue_task_t *qtask)
 {
-	return MGMT_IPC_ERR;
+	return ISCSI_ERR;
 }
 
 /*
@@ -252,12 +253,11 @@ again:
 	return argc;
 }
 
-static mgmt_ipc_err_e
-mgmt_ipc_notify_common(queue_task_t *qtask,
-		mgmt_ipc_err_e (*handler)(int, char **))
+static int
+mgmt_ipc_notify_common(queue_task_t *qtask, int (*handler)(int, char **))
 {
 	char	**argv = NULL;
-	int	argc, err = MGMT_IPC_ERR;
+	int	argc, err = ISCSI_ERR;
 
 	argc = mgmt_ipc_parse_strings(qtask, &argv);
 	if (argc > 0)
@@ -266,54 +266,54 @@ mgmt_ipc_notify_common(queue_task_t *qtask,
 	if (argv)
 		free(argv);
 	mgmt_ipc_write_rsp(qtask, err);
-	return MGMT_IPC_OK;
+	return ISCSI_SUCCESS;
 }
 
 /* Replace these dummies as you implement them
    elsewhere */
-static mgmt_ipc_err_e
+static int
 iscsi_discovery_add_node(int argc, char **argv)
 {
-	return MGMT_IPC_OK;
+	return ISCSI_SUCCESS;
 }
 
-static mgmt_ipc_err_e
+static int
 iscsi_discovery_del_node(int argc, char **argv)
 {
-	return MGMT_IPC_OK;
+	return ISCSI_SUCCESS;
 }
 
-static mgmt_ipc_err_e
+static int
 iscsi_discovery_add_portal(int argc, char **argv)
 {
-	return MGMT_IPC_OK;
+	return ISCSI_SUCCESS;
 }
 
-static mgmt_ipc_err_e
+static int
 iscsi_discovery_del_portal(int argc, char **argv)
 {
-	return MGMT_IPC_OK;
+	return ISCSI_SUCCESS;
 }
 
-static mgmt_ipc_err_e
+static int
 mgmt_ipc_notify_add_node(queue_task_t *qtask)
 {
 	return mgmt_ipc_notify_common(qtask, iscsi_discovery_add_node);
 }
 
-static mgmt_ipc_err_e
+static int
 mgmt_ipc_notify_del_node(queue_task_t *qtask)
 {
 	return mgmt_ipc_notify_common(qtask, iscsi_discovery_del_node);
 }
 
-static mgmt_ipc_err_e
+static int
 mgmt_ipc_notify_add_portal(queue_task_t *qtask)
 {
 	return mgmt_ipc_notify_common(qtask, iscsi_discovery_add_portal);
 }
 
-static mgmt_ipc_err_e
+static int
 mgmt_ipc_notify_del_portal(queue_task_t *qtask)
 {
 	return mgmt_ipc_notify_common(qtask, iscsi_discovery_del_portal);
@@ -422,7 +422,7 @@ mgmt_ipc_destroy_queue_task(queue_task_t *qtask)
  * is for.
  */
 void
-mgmt_ipc_write_rsp(queue_task_t *qtask, mgmt_ipc_err_e err)
+mgmt_ipc_write_rsp(queue_task_t *qtask, int err)
 {
 	if (!qtask)
 		return;
@@ -526,7 +526,7 @@ void mgmt_ipc_handle(int accept_fd)
 	qtask->mgmt_ipc_fd = fd;
 
 	if (!mgmt_peeruser(fd, user) || strncmp(user, "root", PEERUSER_MAX)) {
-		err = MGMT_IPC_ERR_ACCESS;
+		err = ISCSI_ERR_ACCESS;
 		goto err;
 	}
 
@@ -544,12 +544,12 @@ void mgmt_ipc_handle(int accept_fd)
 		/* If the handler returns OK, this means it
 		 * already sent the reply. */
 		err = handler(qtask);
-		if (err == MGMT_IPC_OK)
+		if (err == ISCSI_SUCCESS)
 			return;
 	} else {
 		log_error("unknown request: %s(%d) %u",
 			  __FUNCTION__, __LINE__, command);
-		err = MGMT_IPC_ERR_INVALID_REQ;
+		err = ISCSI_ERR_INVALID_MGMT_REQ;
 	}
 
 err:

@@ -336,9 +336,9 @@ extern int iscsi_io_recv_pdu(iscsi_conn_t *conn, struct iscsi_hdr *hdr,
 extern int session_login_task(node_rec_t *rec, queue_task_t *qtask);
 extern int session_logout_task(int sid, queue_task_t *qtask);
 extern iscsi_session_t *session_find_by_sid(uint32_t sid);
-extern mgmt_ipc_err_e iscsi_sync_session(node_rec_t *rec, queue_task_t
+extern int iscsi_sync_session(node_rec_t *rec, queue_task_t
 					 *tsk, uint32_t sid);
-extern mgmt_ipc_err_e iscsi_host_send_targets(queue_task_t *qtask,
+extern int iscsi_host_send_targets(queue_task_t *qtask,
 			int host_no, int do_login, struct sockaddr_storage *ss);
 
 extern void free_initiator(void);

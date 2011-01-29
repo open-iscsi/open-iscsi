@@ -35,6 +35,7 @@
 #include "iscsi_ipc.h"
 #include "actor.h"
 #include "initiator.h"
+#include "iscsi_err.h"
 
 static int reap_count;
 
@@ -174,5 +175,5 @@ void event_loop(struct iscsi_ipc *ipc, int control_fd, int mgmt_ipc_fd)
 		sysfs_cleanup();
 	}
 	if (shutdown_qtask)
-		mgmt_ipc_write_rsp(shutdown_qtask, MGMT_IPC_OK);
+		mgmt_ipc_write_rsp(shutdown_qtask, ISCSI_SUCCESS);
 }

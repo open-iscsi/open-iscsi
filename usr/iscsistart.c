@@ -47,6 +47,7 @@
 #include "iface.h"
 #include "sysdeps.h"
 #include "iscsid_req.h"
+#include "iscsi_err.h"
 
 /* global config info */
 /* initiator needs initiator name/alias */
@@ -153,7 +154,7 @@ retry:
 	 * handle race where iscsid proc is starting up while we are
 	 * trying to connect.
 	 */
-	if (rc == MGMT_IPC_ERR_ISCSID_NOTCONN && retries < 30) {
+	if (rc == ISCSI_ERR_ISCSID_NOTCONN && retries < 30) {
 		retries++;
 		sleep(1);
 		goto retry;

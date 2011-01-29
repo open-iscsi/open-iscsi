@@ -34,6 +34,7 @@
 #include "iface.h"
 #include "host.h"
 #include "sysdeps.h"
+#include "iscsi_err.h"
 
 struct iscsi_session *session_find_by_sid(uint32_t sid)
 {
@@ -249,7 +250,7 @@ int iscsi_setup_portal(struct iscsi_conn *conn, char *address, int port)
 	sprintf(serv, "%d", port);
 	if (resolve_address(address, serv, &conn->saddr)) {
 		log_error("cannot resolve host name %s", address);
-		return EINVAL;
+		return ISCSI_ERR_TRANS;
 	}
 	conn->failback_saddr = conn->saddr;
 
