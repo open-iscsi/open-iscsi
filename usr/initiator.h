@@ -112,14 +112,14 @@ typedef struct iscsi_login_context {
 
 struct iscsi_session;
 struct iscsi_conn;
-struct iscsi_conn_context;
+struct iscsi_ev_context;
 
 /* daemon's connection structure */
 typedef struct iscsi_conn {
 	uint32_t id;
 	struct iscsi_session *session;
 	iscsi_login_context_t login_context;
-	struct iscsi_conn_context *recv_context;
+	struct iscsi_ev_context *recv_context;
 	struct queue_task *logout_qtask;
 	char data[ISCSI_DEF_MAX_RECV_SEG_LEN];
 	char host[NI_MAXHOST];	/* scratch */
@@ -131,7 +131,7 @@ typedef struct iscsi_conn {
 	actor_t nop_out_timer;
 
 #define CONTEXT_POOL_MAX 32
-	struct iscsi_conn_context *context_pool[CONTEXT_POOL_MAX];
+	struct iscsi_ev_context *context_pool[CONTEXT_POOL_MAX];
 
 	/* login state machine */
 	int current_stage;
@@ -140,6 +140,11 @@ typedef struct iscsi_conn {
 	conn_login_status_e status;
 
 	/* tcp/socket settings */
+
+	/*
+	 * Either a tcp/ip or a netlink socket to do
+	 * IO through.
+	 */
 	int socket_fd;
 	/* address being used for normal session connection */
 	struct sockaddr_storage saddr;
@@ -173,7 +178,7 @@ typedef struct iscsi_conn {
 	uint32_t max_xmit_dlength;	/* the value declared by the target */
 } iscsi_conn_t;
 
-struct iscsi_conn_context {
+struct iscsi_ev_context {
 	struct actor actor;
 	struct iscsi_conn *conn;
 	int allocated;
@@ -201,6 +206,7 @@ typedef struct iscsi_session {
 	uint32_t hostno;
 	char netdev[IFNAMSIZ];
 	struct iscsi_transport *t;
+	uint8_t use_ipc;
 	node_rec_t nrec; /* copy of original Node record in database */
 	unsigned int irrelevant_keys_bitmap;
 	int send_async_text;
@@ -242,7 +248,6 @@ typedef struct iscsi_session {
 	uint8_t password_in[AUTH_STR_MAX_LEN];
 	int password_in_length;
 	iscsi_conn_t conn[ISCSI_CONN_MAX];
-	int ctrl_fd;
 	uint64_t param_mask;
 
 	/* connection reopens during recovery */
@@ -330,20 +335,25 @@ extern int iscsi_io_recv_pdu(iscsi_conn_t *conn, struct iscsi_hdr *hdr,
 /* initiator.c */
 extern int session_login_task(node_rec_t *rec, queue_task_t *qtask);
 extern int session_logout_task(int sid, queue_task_t *qtask);
-extern iscsi_session_t *session_find_by_sid(int sid);
-extern struct iscsi_conn_context *iscsi_conn_context_get(iscsi_conn_t *conn,
-						   int ev_size);
-extern void iscsi_conn_context_put(struct iscsi_conn_context *conn_context);
-extern void iscsi_sched_conn_context(struct iscsi_conn_context *context,
-				     struct iscsi_conn *conn, unsigned long tmo,
-				     int event);
+extern iscsi_session_t *session_find_by_sid(uint32_t sid);
 extern mgmt_ipc_err_e iscsi_sync_session(node_rec_t *rec, queue_task_t
 					 *tsk, uint32_t sid);
 extern mgmt_ipc_err_e iscsi_host_send_targets(queue_task_t *qtask,
 			int host_no, int do_login, struct sockaddr_storage *ss);
-extern mgmt_ipc_err_e iscsi_host_set_param(int host_no, int param, char *value);
-extern void iscsi_async_session_creation(uint32_t host_no, uint32_t sid);
-extern void iscsi_async_session_destruction(uint32_t host_no, uint32_t sid);
+
 extern void free_initiator(void);
+extern void iscsi_initiator_init(void);
+
+/* initiator code common to discovery and normal sessions */
+extern int iscsi_session_set_params(struct iscsi_conn *conn);
+extern int iscsi_host_set_params(struct iscsi_session *session);
+extern int iscsi_host_set_net_params(struct iface_rec *iface,
+				     struct iscsi_session *session);
+extern void iscsi_copy_operational_params(struct iscsi_conn *conn,
+			struct iscsi_session_operational_config *session_conf,
+			struct iscsi_conn_operational_config *conn_conf);
+extern int iscsi_setup_authentication(struct iscsi_session *session,
+				      struct iscsi_auth_config *auth_cfg);
+extern int iscsi_setup_portal(struct iscsi_conn *conn, char *address, int port);
 
 #endif /* INITIATOR_H */

@@ -200,17 +200,6 @@ mgmt_ipc_conn_remove(queue_task_t *qtask)
 	return MGMT_IPC_ERR;
 }
 
-static mgmt_ipc_err_e
-mgmt_ipc_host_set_param(queue_task_t *qtask)
-{
-	struct ipc_msg_set_host_param *hp = &qtask->req.u.set_host_param;
-	int err;
-
-	err = iscsi_host_set_param(hp->host_no, hp->param, hp->value);
-	mgmt_ipc_write_rsp(qtask, err);
-	return MGMT_IPC_OK;
-}
-
 /*
  * Parse a list of strings, encoded as a 32bit
  * length followed by the string itself (not necessarily
@@ -510,7 +499,6 @@ static mgmt_ipc_fn_t *	mgmt_ipc_functions[__MGMT_IPC_MAX_COMMAND] = {
 [MGMT_IPC_CONFIG_IALIAS]	= mgmt_ipc_cfg_initiatoralias,
 [MGMT_IPC_CONFIG_FILE]		= mgmt_ipc_cfg_filename,
 [MGMT_IPC_IMMEDIATE_STOP]	= mgmt_ipc_immediate_stop,
-[MGMT_IPC_SET_HOST_PARAM]	= mgmt_ipc_host_set_param,
 [MGMT_IPC_NOTIFY_ADD_NODE]	= mgmt_ipc_notify_add_node,
 [MGMT_IPC_NOTIFY_DEL_NODE]	= mgmt_ipc_notify_del_node,
 [MGMT_IPC_NOTIFY_ADD_PORTAL]	= mgmt_ipc_notify_add_portal,

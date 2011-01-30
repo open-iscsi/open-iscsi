@@ -49,9 +49,9 @@
 #include "iscsid_req.h"
 #include "isns-proto.h"
 
-struct iscsi_ipc *ipc = NULL; /* dummy */
 static char program_name[] = "iscsiadm";
 static char config_file[TARGET_NAME_MAXLEN];
+extern struct iscsi_ipc *ipc;
 
 enum iscsiadm_mode {
 	MODE_DISCOVERY,

@@ -141,7 +141,8 @@ struct iscsi_sendtargets_config {
 	int discoveryd_poll_inval;
 	struct iscsi_auth_config auth;
 	struct iscsi_connection_timeout_config conn_timeo;
-	struct iscsi_conn_operational_config iscsi;
+	struct iscsi_conn_operational_config conn_conf;
+	struct iscsi_session_operational_config session_conf;
 };
 
 struct iscsi_isns_config {

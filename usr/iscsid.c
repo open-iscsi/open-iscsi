@@ -31,6 +31,8 @@
 #include <sys/utsname.h>
 #include <sys/types.h>
 #include <sys/wait.h>
+#include <sys/types.h>
+#include <sys/stat.h>
 
 #include "iscsid.h"
 #include "mgmt_ipc.h"
@@ -54,10 +56,10 @@ struct iscsi_daemon_config daemon_config;
 struct iscsi_daemon_config *dconfig = &daemon_config;
 
 static char program_name[] = "iscsid";
-int control_fd, mgmt_ipc_fd;
 static pid_t log_pid;
 static gid_t gid;
 static int daemonize = 1;
+static int mgmt_ipc_fd;
 
 static struct option const long_options[] = {
 	{"config", required_argument, NULL, 'c'},
@@ -196,11 +198,6 @@ static int sync_session(void *data, struct session_info *info)
 	t = iscsi_sysfs_get_transport_by_sid(info->sid);
 	if (!t)
 		return 0;
-	if (set_transport_template(t)) {
-		log_error("Could not find userspace transport template for %s",
-			   t->name);
-		return 0;
-	}
 
 	/*
 	 * Just rescan the device in case this is the first startup.
@@ -337,6 +334,7 @@ int main(int argc, char *argv[])
 	uid_t uid = 0;
 	struct sigaction sa_old;
 	struct sigaction sa_new;
+	int control_fd;
 	pid_t pid;
 
 	/* do not allow ctrl-c for now... */
@@ -498,6 +496,7 @@ int main(int argc, char *argv[])
 	} else
 		reap_inc();
 
+	iscsi_initiator_init();
 	increase_max_files();
 	discoveryd_start(daemon_config.initiator_name);
 

@@ -34,6 +34,26 @@ enum {
 };
 
 struct iscsi_conn;
+struct iscsi_ev_context;
+
+/*
+ * When handling async events, the initiator may not be able to
+ * handle the event in the same context, so this allows the interface
+ * code to call into the initiator to shedule handling.
+ */
+struct iscsi_ipc_ev_clbk {
+	void (*create_session) (uint32_t host_no, uint32_t sid);
+	void (*destroy_session) (uint32_t host_no, uint32_t sid);
+
+	struct iscsi_ev_context *(*get_ev_context) (struct iscsi_conn *conn,
+						    int ev_size);
+	void (*put_ev_context) (struct iscsi_ev_context *ev_context);
+	int (*sched_ev_context) (struct iscsi_ev_context *ev_context,
+				 struct iscsi_conn *conn,
+				 unsigned long tmo, int event);
+};
+
+extern void ipc_register_ev_callback(struct iscsi_ipc_ev_clbk *ipc_ev_clbk);
 
 /**
  * struct iscsi_ipc - Open-iSCSI Interface for Kernel IPC

@@ -107,6 +107,7 @@ int set_transport_template(struct iscsi_transport *t)
 		}
 	}
 
-	log_error("Could not find uspace transport for %s\n", t->name);
+	log_error("Could not find template for %s. An updated iscsiadm "
+		  "is probably needed.\n", t->name);
 	return ENOSYS;
 }

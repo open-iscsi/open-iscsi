@@ -57,10 +57,8 @@ static node_rec_t config_rec;
 static LIST_HEAD(targets);
 
 static char program_name[] = "iscsistart";
-static int mgmt_ipc_fd;
 
 /* used by initiator */
-int control_fd;
 extern struct iscsi_ipc *ipc;
 
 static struct option const long_options[] = {
@@ -242,6 +240,7 @@ int main(int argc, char *argv[])
 	struct boot_context *context, boot_context;
 	struct sigaction sa_old;
 	struct sigaction sa_new;
+	int control_fd, mgmt_ipc_fd;
 	pid_t pid;
 
 	idbm_node_setup_defaults(&config_rec);
@@ -420,6 +419,7 @@ int main(int argc, char *argv[])
 	/*
 	 * Start Main Event Loop
 	 */
+	iscsi_initiator_init();
 	actor_init();
 	event_loop(ipc, control_fd, mgmt_ipc_fd);
 	ipc->ctldev_close();

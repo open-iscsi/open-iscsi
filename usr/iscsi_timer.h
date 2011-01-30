@@ -1,8 +1,7 @@
 /*
- * iSCSI Initiator Daemon
+ * iSCSI timer
  *
- * Copyright (C) 2004 Dmitry Yusupov, Alex Aizman
- * maintained by open-iscsi@@googlegroups.com
+ * Copyright (C) 2002 Cisco Systems, Inc.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published
@@ -16,20 +15,14 @@
  *
  * See the file COPYING included with this distribution for more details.
  */
+#ifndef ISCSI_TIMER_H
+#define ISCSI_TIMER_H
 
-#ifndef ISCSID_H
-#define ISCSID_H
+struct timeval;
 
-/* IPC API */
-extern struct iscsi_ipc *ipc;
+extern void iscsi_timer_clear(struct timeval *timer);
+extern void iscsi_timer_set(struct timeval *timer, int seconds);
+extern int iscsi_timer_expired(struct timeval *timer);
+extern int iscsi_timer_msecs_until(struct timeval *timer);
 
-/* iscsid.c: daemon config */
-struct iscsi_daemon_config {
-	char *config_file;
-	char *pid_file;
-	char *initiator_name;
-	char *initiator_alias;
-};
-extern struct iscsi_daemon_config *dconfig;
-
-#endif	/* ISCSID_H */
+#endif

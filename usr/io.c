@@ -503,7 +503,7 @@ iscsi_io_send_pdu(iscsi_conn_t *conn, struct iscsi_hdr *hdr,
 	/* set a timeout, since the socket calls may take a long time
 	 * to timeout on their own
 	 */
-	if (!ipc) {
+	if (!session->use_ipc) {
 		memset(&action, 0, sizeof (struct sigaction));
 		memset(&old, 0, sizeof (struct sigaction));
 		action.sa_sigaction = NULL;
@@ -566,7 +566,7 @@ iscsi_io_send_pdu(iscsi_conn_t *conn, struct iscsi_hdr *hdr,
 	else
 		pad_bytes = 0;
 
-	if (ipc)
+	if (session->use_ipc)
 		ipc->send_pdu_begin(session->t->handle, session->id,
 				    conn->id, end - header,
 				    ntoh24(hdr->dlength) + pad_bytes);
@@ -575,8 +575,8 @@ iscsi_io_send_pdu(iscsi_conn_t *conn, struct iscsi_hdr *hdr,
 		vec[0].iov_base = header;
 		vec[0].iov_len = end - header;
 
-		if (!ipc)
-			rc = writev(session->ctrl_fd, vec, 1);
+		if (!session->use_ipc)
+			rc = writev(conn->socket_fd, vec, 1);
 		else
 			rc = ipc->writev(0, vec, 1);
 		if (timedout) {
@@ -603,13 +603,13 @@ iscsi_io_send_pdu(iscsi_conn_t *conn, struct iscsi_hdr *hdr,
 		vec[1].iov_base = (void *) &pad;
 		vec[1].iov_len = pad_bytes;
 
-		if (!ipc)
-			rc = writev(session->ctrl_fd, vec, 2);
+		if (!session->use_ipc)
+			rc = writev(conn->socket_fd, vec, 2);
 		else
 			rc = ipc->writev(0, vec, 2);
 		if (timedout) {
 			log_error("socket %d write timed out",
-			       conn->socket_fd);
+				  conn->socket_fd);
 			ret = 0;
 			goto done;
 		} else if ((rc <= 0) && (errno != EAGAIN)) {
@@ -627,7 +627,7 @@ iscsi_io_send_pdu(iscsi_conn_t *conn, struct iscsi_hdr *hdr,
 		}
 	}
 
-	if (ipc) {
+	if (session->use_ipc) {
 		if (ipc->send_pdu_end(session->t->handle, session->id,
 				      conn->id, &rc)) {
 			ret = 0;
@@ -638,7 +638,7 @@ iscsi_io_send_pdu(iscsi_conn_t *conn, struct iscsi_hdr *hdr,
 	ret = 1;
 
       done:
-	if (!ipc) {
+	if (!session->use_ipc) {
 		alarm(0);
 		sigaction(SIGALRM, &old, NULL);
 		timedout = 0;
@@ -670,7 +670,7 @@ iscsi_io_recv_pdu(iscsi_conn_t *conn, struct iscsi_hdr *hdr,
 	/* set a timeout, since the socket calls may take a long
 	 * time to timeout on their own
 	 */
-	if (!ipc) {
+	if (!session->use_ipc) {
 		memset(&action, 0, sizeof (struct sigaction));
 		memset(&old, 0, sizeof (struct sigaction));
 		action.sa_sigaction = NULL;
@@ -680,7 +680,10 @@ iscsi_io_recv_pdu(iscsi_conn_t *conn, struct iscsi_hdr *hdr,
 		timedout = 0;
 		alarm(timeout);
 	} else {
-		if (ipc->recv_pdu_begin(conn)) {
+		failed = ipc->recv_pdu_begin(conn);
+		if (failed == -EAGAIN)
+			return -EAGAIN;
+		else if (failed < 0) {
 			failed = 1;
 			goto done;
 		}
@@ -688,14 +691,14 @@ iscsi_io_recv_pdu(iscsi_conn_t *conn, struct iscsi_hdr *hdr,
 
 	/* read a response header */
 	do {
-		if (!ipc)
-			rlen = read(session->ctrl_fd, header,
+		if (!session->use_ipc)
+			rlen = read(conn->socket_fd, header,
 					sizeof (*hdr) - h_bytes);
 		else
 			rlen = ipc->read(header, sizeof (*hdr) - h_bytes);
 		if (timedout) {
 			log_error("socket %d header read timed out",
-			       conn->socket_fd);
+				  conn->socket_fd);
 			failed = 1;
 			goto done;
 		} else if (rlen == 0) {
@@ -714,7 +717,7 @@ iscsi_io_recv_pdu(iscsi_conn_t *conn, struct iscsi_hdr *hdr,
 	} while (h_bytes < sizeof (*hdr));
 
 	log_debug(4, "read %d PDU header bytes, opcode 0x%x, dlength %u, "
-		 "data %p, max %u", h_bytes, hdr->opcode,
+		 "data %p, max %u", h_bytes, hdr->opcode & ISCSI_OPCODE_MASK,
 		 ntoh24(hdr->dlength), data, max_data_length);
 
 	/* check for additional headers */
@@ -745,14 +748,14 @@ iscsi_io_recv_pdu(iscsi_conn_t *conn, struct iscsi_hdr *hdr,
 	/* read the rest into our buffer */
 	d_bytes = 0;
 	while (d_bytes < dlength) {
-		if (!ipc)
-			rlen = read(session->ctrl_fd, data + d_bytes,
+		if (!session->use_ipc)
+			rlen = read(conn->socket_fd, data + d_bytes,
 					dlength - d_bytes);
 		else
 			rlen = ipc->read(data + d_bytes, dlength - d_bytes);
 		if (timedout) {
 			log_error("socket %d data read timed out",
-			       conn->socket_fd);
+				  conn->socket_fd);
 			failed = 1;
 			goto done;
 		} else if (rlen == 0) {
@@ -772,7 +775,7 @@ iscsi_io_recv_pdu(iscsi_conn_t *conn, struct iscsi_hdr *hdr,
 	/* handle PDU data padding.
 	 * data is padded in case of kernel_io */
 	pad = dlength % ISCSI_PAD_LEN;
-	if (pad && !ipc) {
+	if (pad && !session->use_ipc) {
 		int pad_bytes = pad = ISCSI_PAD_LEN - pad;
 		char bytes[ISCSI_PAD_LEN];
 
@@ -780,7 +783,7 @@ iscsi_io_recv_pdu(iscsi_conn_t *conn, struct iscsi_hdr *hdr,
 			rlen = read(conn->socket_fd, &bytes, pad_bytes);
 			if (timedout) {
 				log_error("socket %d pad read timed out",
-				       conn->socket_fd);
+					  conn->socket_fd);
 				failed = 1;
 				goto done;
 			} else if (rlen == 0) {
@@ -828,7 +831,7 @@ iscsi_io_recv_pdu(iscsi_conn_t *conn, struct iscsi_hdr *hdr,
 	}
 
 done:
-	if (!ipc) {
+	if (!session->use_ipc) {
 		alarm(0);
 		sigaction(SIGALRM, &old, NULL);
 	} else {
@@ -840,7 +843,7 @@ done:
 
 	if (timedout || failed) {
 		timedout = 0;
-		return 0;
+		return -EIO;
 	}
 
 	return h_bytes + ahs_bytes + d_bytes;

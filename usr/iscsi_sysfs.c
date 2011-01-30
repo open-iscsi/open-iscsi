@@ -115,6 +115,10 @@ static int read_transports(void)
 			INIT_LIST_HEAD(&t->list);
 			strlcpy(t->name, namelist[i]->d_name,
 				ISCSI_TRANSPORT_NAME_MAXLEN);
+			if (set_transport_template(t)) {
+				free(t);
+				return -1;
+			}
 		} else
 			log_debug(7, "Updating transport %s",
 				  namelist[i]->d_name);
@@ -970,7 +974,8 @@ struct iscsi_transport *iscsi_sysfs_get_transport_by_name(char *transport_name)
 	struct iscsi_transport *t;
 
 	/* sync up kernel and userspace */
-	read_transports();
+	if (read_transports())
+		return NULL;
 
 	/* check if the transport is loaded and matches */
 	list_for_each_entry(t, &transports, list) {

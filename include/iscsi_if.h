@@ -65,6 +65,8 @@ enum iscsi_uevent_e {
 
 	ISCSI_UEVENT_PATH_UPDATE	= UEVENT_BASE + 20,
 
+	ISCSI_UEVENT_MAX		= ISCSI_UEVENT_PATH_UPDATE,
+
 	/* up events */
 	ISCSI_KEVENT_RECV_PDU		= KEVENT_BASE + 1,
 	ISCSI_KEVENT_CONN_ERROR		= KEVENT_BASE + 2,
@@ -75,6 +77,8 @@ enum iscsi_uevent_e {
 
 	ISCSI_KEVENT_PATH_REQ		= KEVENT_BASE + 7,
 	ISCSI_KEVENT_IF_DOWN		= KEVENT_BASE + 8,
+
+	ISCSI_KEVENT_MAX		= ISCSI_KEVENT_IF_DOWN,
 };
 
 enum iscsi_tgt_dscvr {
@@ -386,7 +390,7 @@ enum iscsi_host_param {
 #define CAP_HDRDGST		0x10
 #define CAP_DATADGST		0x20
 #define CAP_MULTI_CONN		0x40
-#define CAP_TEXT_NEGO		0x80
+#define CAP_TEXT_NEGO		0x80	/* support for text requests */
 #define CAP_MARKERS		0x100
 #define CAP_FW_DB		0x200
 #define CAP_SENDTARGETS_OFFLOAD	0x400	/* offload discovery process */

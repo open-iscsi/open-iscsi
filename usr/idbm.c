@@ -179,7 +179,7 @@ idbm_recinfo_discovery(discovery_rec_t *r, recinfo_t *ri)
 			      u.sendtargets.conn_timeo.active_timeout,
 			      IDBM_SHOW, num, 1);
 		__recinfo_int(DISC_ST_MAX_RECV_DLEN, ri, r,
-			      u.sendtargets.iscsi.MaxRecvDataSegmentLength,
+			      u.sendtargets.conn_conf.MaxRecvDataSegmentLength,
 			      IDBM_SHOW, num, 1);
 		break;
 	case DISCOVERY_TYPE_ISNS:
@@ -426,6 +426,31 @@ void idbm_print(int type, void *rec, int show, FILE *f)
 }
 
 static void
+idbm_setup_session_defaults(struct iscsi_session_operational_config *conf)
+{
+	conf->InitialR2T = 0;
+	conf->ImmediateData = 1;
+	conf->FirstBurstLength = DEF_INI_FIRST_BURST_LEN;
+	conf->MaxBurstLength = DEF_INI_MAX_BURST_LEN;
+	conf->DefaultTime2Wait = ISCSI_DEF_TIME2WAIT;
+	conf->DefaultTime2Retain = 0;
+	conf->MaxConnections = 1;
+	conf->MaxOutstandingR2T = 1;
+	conf->ERL = 0;
+	conf->FastAbort = 1;
+}
+
+static void idbm_setup_conn_defaults(struct iscsi_conn_operational_config *conf)
+{
+	conf->MaxXmitDataSegmentLength = 0;
+	conf->MaxRecvDataSegmentLength = DEF_INI_MAX_RECV_SEG_LEN;
+	conf->HeaderDigest = CONFIG_DIGEST_NEVER;
+	conf->DataDigest = CONFIG_DIGEST_NEVER;
+	conf->IFMarker = 0;
+	conf->OFMarker = 0;
+}
+
+static void
 idbm_discovery_setup_defaults(discovery_rec_t *rec, discovery_type_e type)
 {
 	memset(rec, 0, sizeof(discovery_rec_t));
@@ -443,7 +468,10 @@ idbm_discovery_setup_defaults(discovery_rec_t *rec, discovery_type_e type)
 		rec->u.sendtargets.conn_timeo.login_timeout=15;
 		rec->u.sendtargets.conn_timeo.auth_timeout = 45;
 		rec->u.sendtargets.conn_timeo.active_timeout=30;
-		rec->u.sendtargets.iscsi.MaxRecvDataSegmentLength =
+		idbm_setup_session_defaults(&rec->u.sendtargets.session_conf);
+		idbm_setup_conn_defaults(&rec->u.sendtargets.conn_conf);
+		/* override def setting */
+		rec->u.sendtargets.conn_conf.MaxRecvDataSegmentLength =
 						DEF_INI_DISC_MAX_RECV_SEG_LEN;
 		break;
 	case DISCOVERY_TYPE_SLP:
@@ -2362,16 +2390,7 @@ void idbm_node_setup_defaults(node_rec_t *rec)
 	rec->session.err_timeo.tgt_reset_timeout = DEF_TGT_RESET_TIMEO;
 	rec->session.err_timeo.host_reset_timeout = DEF_HOST_RESET_TIMEO;
 	rec->session.timeo.replacement_timeout = DEF_REPLACEMENT_TIMEO;
-	rec->session.iscsi.InitialR2T = 0;
-	rec->session.iscsi.ImmediateData = 1;
-	rec->session.iscsi.FirstBurstLength = DEF_INI_FIRST_BURST_LEN;
-	rec->session.iscsi.MaxBurstLength = DEF_INI_MAX_BURST_LEN;
-	rec->session.iscsi.DefaultTime2Wait = ISCSI_DEF_TIME2WAIT;
-	rec->session.iscsi.DefaultTime2Retain = 0;
-	rec->session.iscsi.MaxConnections = 1;
-	rec->session.iscsi.MaxOutstandingR2T = 1;
-	rec->session.iscsi.ERL = 0;
-	rec->session.iscsi.FastAbort = 1;
+	idbm_setup_session_defaults(&rec->session.iscsi);
 
 	for (i=0; i<ISCSI_CONN_MAX; i++) {
 		rec->conn[i].startup = ISCSI_STARTUP_MANUAL;
@@ -2385,13 +2404,7 @@ void idbm_node_setup_defaults(node_rec_t *rec)
 		rec->conn[i].timeo.noop_out_interval = DEF_NOOP_OUT_INTERVAL;
 		rec->conn[i].timeo.noop_out_timeout = DEF_NOOP_OUT_TIMEO;
 
-		rec->conn[i].iscsi.MaxXmitDataSegmentLength = 0;
-		rec->conn[i].iscsi.MaxRecvDataSegmentLength =
-						DEF_INI_MAX_RECV_SEG_LEN;
-		rec->conn[i].iscsi.HeaderDigest = CONFIG_DIGEST_NEVER;
-		rec->conn[i].iscsi.DataDigest = CONFIG_DIGEST_NEVER;
-		rec->conn[i].iscsi.IFMarker = 0;
-		rec->conn[i].iscsi.OFMarker = 0;
+		idbm_setup_conn_defaults(&rec->conn[i].iscsi);
 	}
 
 	iface_setup_defaults(&rec->iface);
