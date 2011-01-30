@@ -143,7 +143,8 @@ nlpayload_read(int ctrl_fd, char *data, int count, int flags)
 	 */
 	rc = recvmsg(ctrl_fd, &msg, flags);
 
-	memcpy(data, NLMSG_DATA(iov.iov_base), count);
+	if (data)
+		memcpy(data, NLMSG_DATA(iov.iov_base), count);
 
 	return rc;
 }
@@ -908,23 +909,10 @@ kget_stats(uint64_t transport_handle, uint32_t sid, uint32_t cid,
 
 static void drop_data(struct nlmsghdr *nlh)
 {
-	int ev_size, read, curr_total;
+	int ev_size;
 
-	curr_total = nlh->nlmsg_len - NLMSG_ALIGN(sizeof(struct nlmsghdr));
-	while (curr_total > 0) {
-		ev_size = curr_total;
-		if (ev_size > NLM_BUF_DEFAULT_MAX)
-			ev_size = NLM_BUF_DEFAULT_MAX;
-
-		/* sendbuf will not be used here, so dump data to it */
-		read = nlpayload_read(ctrl_fd, nlm_sendbuf, ev_size, 0);
-		if (read < 0) {
-			log_error("Could not drop %d bytes of data.\n",
-				  read);
-		} else if (!read)
-			break;
-		curr_total -= read;
-	}
+	ev_size = nlh->nlmsg_len - NLMSG_ALIGN(sizeof(struct nlmsghdr));
+	nlpayload_read(ctrl_fd, NULL, ev_size, 0);
 }
 
 static int ctldev_handle(void)
