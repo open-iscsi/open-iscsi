@@ -46,6 +46,7 @@ static char *iscsi_err_msgs[] = {
 	/* 21 */ "no objects found",
 	/* 23 */ "sysfs lookup failure",
 	/* 23 */ "host not found",
+	/* 24 */ "iSCSI login failed due to authorization failure",
 };
 
 char *iscsi_err_to_str(int err)

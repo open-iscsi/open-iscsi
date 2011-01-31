@@ -67,6 +67,7 @@ typedef enum conn_login_status_e {
 	CONN_LOGIN_RETRY		= 3,
 	CONN_LOGIN_IMM_RETRY		= 4,
 	CONN_LOGIN_IMM_REDIRECT_RETRY	= 5,
+	CONN_LOGIN_AUTH_FAILED		= 6,
 } conn_login_status_e;
 
 enum iscsi_login_status {

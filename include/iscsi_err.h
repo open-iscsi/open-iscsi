@@ -52,6 +52,8 @@ enum {
 	ISCSI_ERR_SYSFS_LOOKUP		= 22,
 	/* Could not lookup host */
 	ISCSI_ERR_HOST_NOT_FOUND	= 23,
+	/* Login failed due to authorization failure */
+	ISCSI_ERR_LOGIN_AUTH_FAILED	= 24,
 
 	/* Always last. Indicates end of error code space */
 	ISCSI_MAX_ERR_VAL,

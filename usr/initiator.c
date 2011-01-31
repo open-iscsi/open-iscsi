@@ -192,11 +192,11 @@ __check_iscsi_status_class(iscsi_session_t *session, int cid,
 			log_error("session %d login rejected: Initiator "
 			       "failed authentication with target",
 				session->id);
-			return CONN_LOGIN_FAILED;
+			return CONN_LOGIN_AUTH_FAILED;
 		case ISCSI_LOGIN_STATUS_TGT_FORBIDDEN:
 			log_error("conn %d login rejected: initiator "
 			       "failed authorization with target", conn->id);
-			return CONN_LOGIN_FAILED;
+			return CONN_LOGIN_AUTH_FAILED;
 		case ISCSI_LOGIN_STATUS_TGT_NOT_FOUND:
 			log_error("conn %d login rejected: initiator "
 			       "error - target not found (%02x/%02x)",
@@ -654,6 +654,14 @@ static int iscsi_retry_initial_login(struct iscsi_conn *conn)
 	return 1;
 }
 
+static int iscsi_login_is_fatal_err(int err)
+{
+	if (err == ISCSI_ERR_LOGIN_AUTH_FAILED ||
+	    err == ISCSI_ERR_FATAL_LOGIN)
+		return 1;
+	return 0;
+}
+
 static void iscsi_login_eh(struct iscsi_conn *conn, struct queue_task *qtask,
 			   int err)
 {
@@ -673,7 +681,7 @@ static void iscsi_login_eh(struct iscsi_conn *conn, struct queue_task *qtask,
 				  "R_STAGE_NO_CHANGE");
 			/* timeout during initial connect.
 			 * clean connection. write ipc rsp or retry */
-			if (err == ISCSI_ERR_FATAL_LOGIN ||
+			if (iscsi_login_is_fatal_err(err) ||
 			    !iscsi_retry_initial_login(conn))
 				session_conn_shutdown(conn, qtask, err);
 			else {
@@ -689,7 +697,7 @@ static void iscsi_login_eh(struct iscsi_conn *conn, struct queue_task *qtask,
 				  "R_STAGE_SESSION_REDIRECT");
 			/* timeout during initial redirect connect
 			 * clean connection. write ipc rsp or retry */
-			if (err == ISCSI_ERR_FATAL_LOGIN ||
+			if (iscsi_login_is_fatal_err(err) ||
 			    !iscsi_retry_initial_login(conn))
 				session_conn_shutdown(conn, qtask, err);
 			else
@@ -722,7 +730,7 @@ static void iscsi_login_eh(struct iscsi_conn *conn, struct queue_task *qtask,
 			 * initial redirected connect. Clean connection
 			 * and write rsp or retry.
 			 */
-			if (err == ISCSI_ERR_FATAL_LOGIN ||
+			if (iscsi_login_is_fatal_err(err) ||
 			    !iscsi_retry_initial_login(conn))
 				session_conn_shutdown(conn, qtask, err);
 			else
@@ -1213,6 +1221,7 @@ static void iscsi_recv_login_rsp(struct iscsi_conn *conn)
 { 
 	struct iscsi_session *session = conn->session;
 	iscsi_login_context_t *c = &conn->login_context;
+	int err = ISCSI_ERR_FATAL_LOGIN;
 
 	if (iscsi_login_rsp(session, c)) {
 		log_debug(1, "login_rsp ret (%d)", c->ret);
@@ -1233,6 +1242,9 @@ static void iscsi_recv_login_rsp(struct iscsi_conn *conn)
 		switch (__check_iscsi_status_class(session, conn->id,
 						   c->status_class,
 						   c->status_detail)) {
+		case CONN_LOGIN_AUTH_FAILED:
+			err = ISCSI_ERR_LOGIN_AUTH_FAILED;
+			goto failed;
 		case CONN_LOGIN_FAILED:
 			goto failed;
 		case CONN_LOGIN_IMM_REDIRECT_RETRY:
@@ -1264,7 +1276,7 @@ retry:
 failed:
 	/* force failure if initial login */
 	session->reopen_cnt = session->nrec.session.initial_login_retry_max;
-	iscsi_login_eh(conn, c->qtask, ISCSI_ERR_FATAL_LOGIN);
+	iscsi_login_eh(conn, c->qtask, err);
 	return;
 }
 
