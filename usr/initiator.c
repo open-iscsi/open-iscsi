@@ -1758,7 +1758,6 @@ iscsi_sync_session(node_rec_t *rec, queue_task_t *qtask, uint32_t sid)
 	session->hostno = iscsi_sysfs_get_host_no_from_sid(sid, &err);
 	if (err) {
 		log_error("Could not get hostno for session %d\n", sid);
-		err = ISCSI_ERR_INTERNAL;
 		goto destroy_session;
 	}
 

@@ -34,6 +34,7 @@
 #include "fwparam.h"
 #include "idbm_fields.h"
 #include "iscsi_net_util.h"
+#include "iscsi_err.h"
 
 /**
  * fw_setup_nics - setup nics (ethXs) based on ibft net info
@@ -56,7 +57,7 @@ int fw_setup_nics(void)
 	ret = fw_get_targets(&targets);
 	if (ret || list_empty(&targets)) {
 		printf("Could not setup fw entries.\n");
-		return ENODEV;
+		return ISCSI_ERR_NO_OBJS_FOUND;
 	}
 
 	/*
@@ -85,7 +86,10 @@ int fw_setup_nics(void)
 	}
 
 	fw_free_targets(&targets);
-	return ret;
+	if (ret)
+		return ISCSI_ERR;
+	else
+		return 0;
 }
 
 /**

@@ -39,6 +39,7 @@
 #include "host.h"
 #include "fw_context.h"
 #include "sysdeps.h"
+#include "iscsi_err.h"
 
 /*
  * Default ifaces for use with transports that do not bind to hardware
@@ -101,13 +102,13 @@ struct iface_rec *iface_alloc(char *ifname, int *err)
 	struct iface_rec *iface;
 
 	if (!strlen(ifname) || strlen(ifname) + 1 > ISCSI_MAX_IFACE_LEN) {
-		*err = EINVAL;
+		*err = ISCSI_ERR_INVAL;
 		return NULL;
 	}
 
 	iface = calloc(1, sizeof(*iface));
 	if (!iface) {
-		*err = ENOMEM;
+		*err = ISCSI_ERR_NOMEM;
 		return NULL;
 	}
 
@@ -125,11 +126,11 @@ static int __iface_conf_read(struct iface_rec *iface)
 
 	iface_conf = calloc(1, PATH_MAX);
 	if (!iface_conf)
-		return ENOMEM;
+		return ISCSI_ERR_NOMEM;
 
 	info = idbm_recinfo_alloc(MAX_KEYS);
 	if (!info) {
-		rc = ENOMEM;
+		rc = ISCSI_ERR_NOMEM;
 		goto free_conf;
 	}
 
@@ -147,7 +148,7 @@ static int __iface_conf_read(struct iface_rec *iface)
 			iface_setup_defaults(iface);
 			rc = 0;
 		} else
-			rc = errno;
+			rc = ISCSI_ERR_IDBM;
 		goto free_info;
 	}
 
@@ -213,12 +214,12 @@ int iface_conf_delete(struct iface_rec *iface)
 	if (def_iface) {
 		log_error("iface %s is a special interface and "
 			  "cannot be deleted.\n", iface->name);
-		return EINVAL;
+		return ISCSI_ERR_INVAL;
 	}
 
 	iface_conf = calloc(1, PATH_MAX);
 	if (!iface_conf)
-		return ENOMEM;
+		return ISCSI_ERR_NOMEM;
 
 	sprintf(iface_conf, "%s/%s", IFACE_CONFIG_DIR, iface->name);
 	rc = idbm_lock();
@@ -226,7 +227,7 @@ int iface_conf_delete(struct iface_rec *iface)
 		goto free_conf;
 
 	if (unlink(iface_conf))
-		rc = errno;
+		rc = ISCSI_ERR_IDBM;
 	idbm_unlock();
 
 free_conf:
@@ -246,17 +247,17 @@ int iface_conf_write(struct iface_rec *iface)
 		log_error("iface %s is a special interface and "
 			  "is not stored in %s.\n", iface->name,
 			  IFACE_CONFIG_DIR);
-		return EINVAL;
+		return ISCSI_ERR_INVAL;
 	}
 
 	iface_conf = calloc(1, PATH_MAX);
 	if (!iface_conf)
-		return ENOMEM;
+		return ISCSI_ERR_NOMEM;
 
 	sprintf(iface_conf, "%s/%s", IFACE_CONFIG_DIR, iface->name);
 	f = fopen(iface_conf, "w");
 	if (!f) {
-		rc = errno;
+		rc = ISCSI_ERR_IDBM;
 		goto free_conf;
 	}
 
@@ -285,12 +286,12 @@ int iface_conf_update(struct db_set_param *param,
 	if (def_iface) {
 		log_error("iface %s is a special interface and "
 			  "cannot be modified.\n", iface->name);
-		return EINVAL;
+		return ISCSI_ERR_INVAL;
 	}
 
 	info = idbm_recinfo_alloc(MAX_KEYS);
 	if (!info)
-		return ENOMEM;
+		return ISCSI_ERR_NOMEM;
 
 	idbm_recinfo_iface(iface, info);
 	rc = idbm_verify_param(info, param->name);
@@ -298,10 +299,8 @@ int iface_conf_update(struct db_set_param *param,
 		goto free_info;
 
 	rc = idbm_rec_update_param(info, param->name, param->value, 0);
-	if (rc) {
-		rc = EIO;
+	if (rc)
 		goto free_info;
-	}
 
 	rc = iface_conf_write(iface);
 free_info:
@@ -418,7 +417,7 @@ int iface_get_by_net_binding(struct iface_rec *pattern,
 				  __iface_get_by_net_binding);
 	if (rc == 1)
 		return 0;
-	return ENODEV;
+	return ISCSI_ERR_NO_OBJS_FOUND;
 }
 
 static int __iface_setup_host_bindings(void *data, struct host_info *hinfo)
@@ -438,7 +437,8 @@ static int __iface_setup_host_bindings(void *data, struct host_info *hinfo)
 			return 0;
 	}
 
-	if (iface_get_by_net_binding(&hinfo->iface, &iface) == ENODEV) {
+	if (iface_get_by_net_binding(&hinfo->iface, &iface) ==
+	    ISCSI_ERR_NO_OBJS_FOUND) {
 		/* Must be a new port */
 		if (!strlen(hinfo->iface.hwaddress)) {
 			log_error("Invalid offload iSCSI host %u. Missing "
@@ -704,7 +704,7 @@ int iface_for_each_iface(void *data, int skip_def, int *nr_found,
 			 iface_dent->d_name);
 		iface = iface_alloc(iface_dent->d_name, &err);
 		if (!iface || err) {
-			if (err == EINVAL)
+			if (err == ISCSI_ERR_INVAL)
 				log_error("Invalid iface name %s. Must be "
 					  "from 1 to %d characters.",
 					   iface_dent->d_name,
@@ -756,7 +756,7 @@ static int iface_link(void *data, struct iface_rec *iface)
 
 	iface_copy = calloc(1, sizeof(*iface_copy));
 	if (!iface_copy)
-		return ENOMEM;
+		return ISCSI_ERR_NOMEM;
 
 	memcpy(iface_copy, iface, sizeof(*iface_copy));
 	INIT_LIST_HEAD(&iface_copy->list);

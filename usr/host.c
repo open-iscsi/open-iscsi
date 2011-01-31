@@ -33,6 +33,7 @@
 #include "transport.h"
 #include "initiator.h"
 #include "iface.h"
+#include "iscsi_err.h"
 
 static int match_host_to_session(void *data, struct session_info *info)
 {
@@ -200,13 +201,16 @@ int host_info_print(int info_level, uint32_t host_no)
 		break;
 	default:
 		log_error("Invalid info level %d. Try 0 - 4.", info_level);
-		return EINVAL;
+		return ISCSI_ERR_INVAL;
 	}
 
 	if (err) {
-		log_error("Can not get list of iSCSI hosts (%d)", err);
+		log_error("Can not get list of iSCSI hosts: %s",
+			  iscsi_err_to_str(err));
 		return err;
-	} else if (!num_found)
+	} else if (!num_found) {
 		log_error("No iSCSI hosts.");
+		return ISCSI_ERR_NO_OBJS_FOUND;
+	}
 	return 0;
 }

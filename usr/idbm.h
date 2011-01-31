@@ -93,9 +93,6 @@ struct rec_op_data {
 	node_rec_t *match_rec;
 	idbm_iface_op_fn *fn;
 };
-extern int idbm_for_each_iface(int *found, void *data,
-				idbm_iface_op_fn *fn,
-				char *targetname, int tpgt, char *ip, int port);
 extern int idbm_for_each_portal(int *found, void *data,
 				idbm_portal_op_fn *fn, char *targetname);
 extern int idbm_for_each_node(int *found, void *data,

@@ -190,31 +190,3 @@ int iscsid_req_by_sid(iscsiadm_cmd_e cmd, int sid)
 		return err;
 	return iscsid_req_wait(cmd, fd);
 }
-
-void iscsid_handle_error(int err)
-{
-	static char *err_msgs[] = {
-		/* 0 */ "",
-		/* 1 */ "unknown error",
-		/* 2 */ "not found",
-		/* 3 */ "no available memory",
-		/* 4 */ "encountered connection failure",
-		/* 5 */ "encountered iSCSI login failure",
-		/* 6 */ "encountered iSCSI database failure",
-		/* 7 */ "invalid parameter",
-		/* 8 */ "connection timed out",
-		/* 9 */ "internal error",
-		/* 10 */ "encountered iSCSI logout failure",
-		/* 11 */ "iSCSI PDU timed out",
-		/* 12 */ "iSCSI driver not found. Please make sure it is loaded, and retry the operation",
-		/* 13 */ "daemon access denied",
-		/* 14 */ "iSCSI driver does not support requested capability.",
-		/* 15 */ "already exists",
-		/* 16 */ "Unknown request",
-		/* 17 */ "encountered iSNS failure",
-		/* 18 */ "could not communicate to iscsid",
-		/* 19 */ "encountered non-retryable iSCSI login failure",
-		/* 20 */ "could not connect to iscsid",
-	};
-	log_error("initiator reported error (%d - %s)", err, err_msgs[err]);
-}

@@ -30,7 +30,7 @@ iscsi_login_all_nodes()
 {
 	echo -n "Setting up iSCSI targets: "
 	$ISCSIADM -m node --loginall=automatic 2> /dev/null
-	if [ $? == 19 ] ; then
+	if [ $? == 21 ] ; then
 	    rc_failed 6
 	fi
 	rc_status -v
@@ -41,7 +41,7 @@ iscsi_logout_all_nodes()
 	echo -n "Closing all iSCSI connections: "
 	# Logout from all sessions marked automatic
 	if ! $ISCSIADM -m node --logoutall=automatic 2> /dev/null; then
-		if [ $? == 19 ] ; then
+		if [ $? == 21 ] ; then
 		    RETVAL=6
 		else
 		    RETVAL=1

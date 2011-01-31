@@ -41,7 +41,7 @@ static void log_login_msg(struct node_rec *rec, int rc)
 			  "portal: %s,%d].", rec->iface.name,
 			  rec->name, rec->conn[0].address,
 			  rec->conn[0].port);
-		iscsid_handle_error(rc);
+		iscsi_err_print_msg(rc);
 	} else
 		log_info("Login to [iface: %s, target: %s, portal: "
 			 "%s,%d] successful.", rec->iface.name,
@@ -83,6 +83,8 @@ static int iscsid_login_reqs_wait(struct list_head *list)
 
 		rec = curr->data;
 		err = iscsid_req_wait(MGMT_IPC_SESSION_LOGIN, curr->fd);
+		if (err && !ret)
+			ret = err;
 		log_login_msg(rec, err);
 		list_del(&curr->list);
 		free(curr);
@@ -124,11 +126,7 @@ int iscsi_login_portal(void *data, struct list_head *list, struct node_rec *rec)
 		log_login_msg(rec, rc);
 		if (async_req)
 			free(async_req);
-		/* we raced with another app or instance of iscsiadm */
-		if (rc == ISCSI_ERR_SESS_EXISTS)
-			return 0;
-
-		return ENOTCONN;
+		return rc;
 	}
 
 	if (async_req) {
@@ -192,7 +190,6 @@ int iscsi_login_portals(void *data, int *nr_found, int wait,
 		if (!err)
 			(*nr_found)++;
 	}
-
 	if (wait) {
 		err = iscsid_login_reqs_wait(&login_list);
 		if (err && !ret)
@@ -214,7 +211,7 @@ static void log_logout_msg(struct session_info *info, int rc)
 			  "portal: %s,%d].", info->sid,
 			  info->targetname,
 			  info->persistent_address, info->port);
-		iscsid_handle_error(rc);
+		iscsi_err_print_msg(rc);
 	} else
 		log_info("Logout of [sid: %d, target: %s, "
 			 "portal: %s,%d] successful.",
@@ -278,11 +275,7 @@ int iscsi_logout_portal(struct session_info *info, struct list_head *list)
 		log_logout_msg(info, rc);
 		if (async_req)
 			free(async_req);
-
-		if (rc == ISCSI_ERR_SESS_NOT_FOUND)
-			return 0;
-
-		return EIO;
+		return rc;
 	}
 
 	if (async_req) {
@@ -326,10 +319,17 @@ int iscsi_logout_portals(void *data, int *nr_found, int wait,
 
 	err = iscsi_sysfs_for_each_session(&link_info, nr_found,
 					   session_info_create_list);
-	if (err || !*nr_found)
+	if (err && !list_empty(&session_list))
+		log_error("Could not read in all sessions: %s",
+			  iscsi_err_to_str(err));
+	else if (err && list_empty(&session_list)) {
+		log_error("Could not read session info.");
 		return err;
-
+	} else if (list_empty(&session_list))
+		return ISCSI_ERR_NO_OBJS_FOUND;
+	ret = err;
 	*nr_found = 0;
+
 	list_for_each_entry(curr_info, &session_list, list) {
 		err = logout_fn(data, &logout_list, curr_info);
 		if (err > 0 && !ret)
@@ -338,13 +338,22 @@ int iscsi_logout_portals(void *data, int *nr_found, int wait,
 			(*nr_found)++;
 	}
 
+	if (!*nr_found) {
+		ret = ISCSI_ERR_NO_OBJS_FOUND;
+		goto free_list;
+	}
+
 	if (wait) {
 		err = iscsid_logout_reqs_wait(&logout_list);
-		if (err)
+		if (err && !ret)
 			ret = err;
 	} else
 		iscsid_reqs_close(&logout_list);
 
+	if (ret)
+		log_error("Could not logout of all requested sessions");
+
+free_list:
 	session_info_free_list(&session_list);
 	return ret;
 }

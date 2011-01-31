@@ -13,6 +13,7 @@
 #include "initiator.h"
 #include "iface.h"
 #include "iscsid_req.h"
+#include "iscsi_err.h"
 
 int session_info_create_list(void *data, struct session_info *info)
 {
@@ -25,7 +26,7 @@ int session_info_create_list(void *data, struct session_info *info)
 
 	new = calloc(1, sizeof(*new));
 	if (!new)
-		return ENOMEM;
+		return ISCSI_ERR_NOMEM;
 	memcpy(new, info, sizeof(*new));
 	INIT_LIST_HEAD(&new->list);
 
@@ -346,13 +347,15 @@ int session_info_print(int info_level, struct session_info *info)
 		break;
 	default:
 		log_error("Invalid info level %d. Try 0 - 3.", info_level);
-		return EINVAL;
+		return ISCSI_ERR_INVAL;
 	}
 
 	if (err) {
 		log_error("Can not get list of active sessions (%d)", err);
 		return err;
-	} else if (!num_found)
+	} else if (!num_found) {
 		log_error("No active sessions.");
+		return ISCSI_ERR_NO_OBJS_FOUND;
+	}
 	return 0;
 }

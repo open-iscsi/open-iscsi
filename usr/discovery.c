@@ -48,6 +48,7 @@
 #include "iscsi_ipc.h"
 #include "iface.h"
 #include "iscsi_timer.h"
+#include "iscsi_err.h"
 /* libisns includes */
 #include "isns.h"
 #include "paths.h"
@@ -451,7 +452,7 @@ int discovery_offload_sendtargets(int host_no, int do_login,
 	if (rc) {
 		log_error("Could not offload sendtargets to %s.\n",
 			  drec->address);
-		iscsid_handle_error(rc);
+		iscsi_err_print_msg(rc);
 		return EIO;
 	}
 

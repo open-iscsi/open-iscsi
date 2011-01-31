@@ -8,7 +8,7 @@ enum {
 	ISCSI_SUCCESS			= 0,
 	/* Generic error */
 	ISCSI_ERR			= 1,
-	/* session/record could not be found */
+	/* session could not be found */
 	ISCSI_ERR_SESS_NOT_FOUND	= 2,
 	/* Could not allocate resource for operation */
 	ISCSI_ERR_NOMEM			= 3,
@@ -34,7 +34,7 @@ enum {
 	ISCSI_ERR_ACCESS		= 13,
 	/* Transport module did not support operation */
 	ISCSI_ERR_TRANS_CAPS		= 14,
-	/* Session is already logged in */
+	/* Session is logged in */
 	ISCSI_ERR_SESS_EXISTS		= 15,
 	/* Invalid IPC MGMT request */
 	ISCSI_ERR_INVALID_MGMT_REQ	= 16,
@@ -46,6 +46,18 @@ enum {
 	ISCSI_ERR_FATAL_LOGIN		= 19,
 	/* Could ont connect to iscsid */
 	ISCSI_ERR_ISCSID_NOTCONN	= 20,
+	/* No records/targets/sessions/portals found to execute operation on */
+	ISCSI_ERR_NO_OBJS_FOUND		= 21,
+	/* Could not lookup object in sysfs */
+	ISCSI_ERR_SYSFS_LOOKUP		= 22,
+	/* Could not lookup host */
+	ISCSI_ERR_HOST_NOT_FOUND	= 23,
+
+	/* Always last. Indicates end of error code space */
+	ISCSI_MAX_ERR_VAL,
 } iscsi_err;
+
+extern void iscsi_err_print_msg(int err);
+extern char *iscsi_err_to_str(int err);
 
 #endif

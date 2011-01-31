@@ -27,7 +27,6 @@ struct node_rec;
 
 extern int iscsid_exec_req(struct iscsiadm_req *req, struct iscsiadm_rsp *rsp,
 			   int iscsid_start);
-extern void iscsid_handle_error(int err);
 extern int iscsid_req_wait(int cmd, int fd);
 extern int iscsid_req_by_rec_async(int cmd, struct node_rec *rec, int *fd);
 extern int iscsid_req_by_rec(int cmd, struct node_rec *rec);

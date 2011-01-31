@@ -30,6 +30,7 @@
 #include "iscsi_obp.h"
 #include "prom_parse.h"
 #include "sysdeps.h"
+#include "iscsi_err.h"
 
 void* yy_scan_string(const char *str);
 int yyparse(struct ofw_dev *ofwdev);
@@ -449,7 +450,7 @@ int fwparam_ppc_boot_info(struct boot_context *context)
 
 	devtree = find_devtree(filename);
 	if (!devtree)
-		return EINVAL;
+		return ISCSI_ERR_INVAL;
 
 	/*
 	 * Always search the device-tree to find the capable nic devices.
@@ -459,7 +460,7 @@ int fwparam_ppc_boot_info(struct boot_context *context)
 		goto free_devtree;
 
 	if (find_file(filename) < 1)
-		error = ENODEV;
+		error = ISCSI_ERR_NO_OBJS_FOUND;
 	else {
 		if (debug)
 			printf("%s:\n%s\n\n", filename, bootpath_val);
@@ -469,12 +470,12 @@ int fwparam_ppc_boot_info(struct boot_context *context)
 		 */
 
 		if (!strstr(bootpath_val, "iscsi")) {
-			error = EINVAL;
+			error = ISCSI_ERR_INVAL;
 			goto free_devtree;
 		}
 		ofwdevs[0] = calloc(1, sizeof(struct ofw_dev));
 		if (!ofwdevs[0]) {
-			error = ENOMEM;
+			error = ISCSI_ERR_NOMEM;
 			goto free_devtree;
 		}
 
@@ -484,7 +485,7 @@ int fwparam_ppc_boot_info(struct boot_context *context)
 		if (!error) {
 			context = calloc(1, sizeof(*context));
 			if (!context)
-				error = ENOMEM;
+				error = ISCSI_ERR_NOMEM;
 			else
 				fill_context(context, ofwdevs[0]);
 		}
@@ -524,7 +525,7 @@ int fwparam_ppc_get_targets(struct list_head *list)
 
 	devtree = find_devtree(filename);
 	if (!devtree)
-		return EINVAL;
+		return ISCSI_ERR_INVAL;
 
 	/*
 	 * Always search the device-tree to find the capable nic devices.
@@ -534,7 +535,7 @@ int fwparam_ppc_get_targets(struct list_head *list)
 		goto free_devtree;
 
 	if (find_file(filename) < 1)
-		error = ENODEV;
+		error = ISCSI_ERR_NO_OBJS_FOUND;
 	else {
 		if (debug)
 			printf("%s:\n%s\n\n", filename, bootpath_val);
@@ -544,12 +545,12 @@ int fwparam_ppc_get_targets(struct list_head *list)
 		 */
 
 		if (!strstr(bootpath_val, "iscsi")) {
-			error = EINVAL;
+			error = ISCSI_ERR_INVAL;
 			goto free_devtree;
 		}
 		ofwdevs[0] = calloc(1, sizeof(struct ofw_dev));
 		if (!ofwdevs[0]) {
-			error = ENOMEM;
+			error = ISCSI_ERR_NOMEM;
 			goto free_devtree;
 		}
 
@@ -559,7 +560,7 @@ int fwparam_ppc_get_targets(struct list_head *list)
 		if (!error) {
 			context = calloc(1, sizeof(*context));
 			if (!context)
-				error = ENOMEM;
+				error = ISCSI_ERR_NOMEM;
 			else {
 				fill_context(context, ofwdevs[0]);
 				list_add_tail(&context->list, list);

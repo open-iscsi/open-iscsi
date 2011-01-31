@@ -36,6 +36,7 @@
 #include "iface.h"
 #include "session_info.h"
 #include "host.h"
+#include "iscsi_err.h"
 
 /*
  * TODO: remove the _DIR defines and search for subsys dirs like
@@ -242,7 +243,7 @@ uint32_t iscsi_sysfs_get_host_no_from_sid(uint32_t sid, int *err)
 					       ISCSI_SESSION_SUBSYS, id)) {
 		log_error("Could not lookup devpath for %s. Possible sysfs "
 			  "incompatibility.\n", id);
-		*err = EIO;
+		*err = ISCSI_ERR_SYSFS_LOOKUP;
 		return 0;
 	}
 
@@ -250,7 +251,7 @@ uint32_t iscsi_sysfs_get_host_no_from_sid(uint32_t sid, int *err)
 	if (!session_dev) {
 		log_error("Could not get dev for %s. Possible sysfs "
 			  "incompatibility.\n", id);
-		*err = EIO;
+		*err = ISCSI_ERR_SYSFS_LOOKUP;
 		return 0;
 	}
 
@@ -275,7 +276,7 @@ uint32_t iscsi_sysfs_get_host_no_from_sid(uint32_t sid, int *err)
 		if (!host_dev) {
 			log_error("Could not get host dev for %s. Possible "
 				  "sysfs incompatibility.\n", id);
-			*err = EIO;
+			*err = ISCSI_ERR_SYSFS_LOOKUP;
 			return 0;
 		}
 	}
@@ -305,7 +306,7 @@ static uint32_t get_host_no_from_netdev(char *netdev, int *rc)
 
 	info = calloc(1, sizeof(*info));
 	if (!info) {
-		*rc = ENOMEM;
+		*rc = ISCSI_ERR_NOMEM;
 		return -1;
 	}
 	strcpy(info->iface.netdev, netdev);
@@ -315,7 +316,7 @@ static uint32_t get_host_no_from_netdev(char *netdev, int *rc)
 	if (local_rc == 1)
 		host_no = info->host_no;
 	else
-		*rc = ENODEV;
+		*rc = ISCSI_ERR_HOST_NOT_FOUND;
 	free(info);
 	return host_no;
 }
@@ -341,7 +342,7 @@ static uint32_t get_host_no_from_hwaddress(char *address, int *rc)
 
 	info = calloc(1, sizeof(*info));
 	if (!info) {
-		*rc = ENOMEM;
+		*rc = ISCSI_ERR_NOMEM;
 		return -1;
 	}
 	strcpy(info->iface.hwaddress, address);
@@ -351,7 +352,7 @@ static uint32_t get_host_no_from_hwaddress(char *address, int *rc)
 	if (local_rc == 1)
 		host_no = info->host_no;
 	else
-		*rc = ENODEV;
+		*rc = ISCSI_ERR_HOST_NOT_FOUND;
 	free(info);
 	return host_no;
 }
@@ -378,7 +379,7 @@ static uint32_t get_host_no_from_ipaddress(char *address, int *rc)
 
 	info = calloc(1, sizeof(*info));
 	if (!info) {
-		*rc = ENOMEM;
+		*rc = ISCSI_ERR_NOMEM;
 		return -1;
 	}
 	strcpy(info->iface.ipaddress, address);
@@ -388,7 +389,7 @@ static uint32_t get_host_no_from_ipaddress(char *address, int *rc)
 	if (local_rc == 1)
 		host_no = info->host_no;
 	else
-		*rc = ENODEV;
+		*rc = ISCSI_ERR_HOST_NOT_FOUND;
 	free(info);
 	return host_no;
 }
@@ -408,7 +409,7 @@ uint32_t iscsi_sysfs_get_host_no_from_hwinfo(struct iface_rec *iface, int *rc)
 		 strcasecmp(iface->ipaddress, DEFAULT_IPADDRESS))
 		host_no = get_host_no_from_ipaddress(iface->ipaddress, &tmp_rc);
 	else
-		tmp_rc = EINVAL;
+		tmp_rc = ISCSI_ERR_INVAL;
 
 	*rc = tmp_rc;
 	return host_no;
@@ -527,7 +528,10 @@ static int iscsi_sysfs_read_iface(struct iface_rec *iface, int host_no,
 					  iface_str(iface));
 		}
 	}
-	return ret;
+	if (ret)
+		return ISCSI_ERR_SYSFS_LOOKUP;
+	else
+		return 0;
 }
 
 int iscsi_sysfs_get_hostinfo_by_host_no(struct host_info *hinfo)
@@ -544,7 +548,7 @@ int iscsi_sysfs_for_each_host(void *data, int *nr_found,
 
 	info = malloc(sizeof(*info));
 	if (!info)
-		return ENOMEM;
+		return ISCSI_ERR_NOMEM;
 
 	n = scandir(ISCSI_HOST_DIR, &namelist, trans_filter,
 		    alphasort);
@@ -635,7 +639,7 @@ int iscsi_sysfs_get_sid_from_path(char *session)
 	if (!dev) {
 		log_error("Could not get dev for %s. Possible sysfs "
 			  "incompatibility.\n", devpath);
-		exit(1);
+		return -1;
 	}
 
 	if (!strncmp(dev->kernel, "session", 7))
@@ -649,8 +653,7 @@ int iscsi_sysfs_get_sid_from_path(char *session)
 	}
 
 	log_error("Unable to find sid in path %s", session);
-	exit(1);
-	return 0;
+	return -1;
 }
 
 int iscsi_sysfs_get_sessioninfo_by_id(struct session_info *info, char *session)
@@ -661,21 +664,21 @@ int iscsi_sysfs_get_sessioninfo_by_id(struct session_info *info, char *session)
 
 	if (sscanf(session, "session%d", &info->sid) != 1) {
 		log_error("invalid session '%s'", session);
-		return EINVAL;
+		return ISCSI_ERR_INVAL;
 	}
 
 	ret = sysfs_get_str(session, ISCSI_SESSION_SUBSYS, "targetname",
 			    info->targetname, sizeof(info->targetname));
 	if (ret) {
 		log_error("could not read session targetname: %d", ret);
-		return ret;
+		return ISCSI_ERR_SYSFS_LOOKUP;
 	}
 
 	ret = sysfs_get_int(session, ISCSI_SESSION_SUBSYS, "tpgt",
 			    &info->tpgt);
 	if (ret) {
-		log_error("could not read session tpgt: %u", ret);
-		return ret;
+		log_error("could not read session tpgt: %d", ret);
+		return ISCSI_ERR_SYSFS_LOOKUP;
 	}
 
 	snprintf(id, sizeof(id), ISCSI_CONN_ID, info->sid);
@@ -731,8 +734,8 @@ int iscsi_sysfs_get_sessioninfo_by_id(struct session_info *info, char *session)
 	ret = 0;
 	host_no = iscsi_sysfs_get_host_no_from_sid(info->sid, &ret);
 	if (ret) {
-		log_error("could not get host_no for session%d err %d.",
-			  info->sid, ret);
+		log_error("could not get host_no for session%d: %s.",
+			  info->sid, iscsi_err_to_str(ret));
 		return ret;
 	}
 
@@ -759,7 +762,7 @@ int iscsi_sysfs_for_each_session(void *data, int *nr_found,
 
 	info = calloc(1, sizeof(*info));
 	if (!info)
-		return ENOMEM;
+		return ISCSI_ERR_NOMEM;
 
 	n = scandir(ISCSI_SESSION_DIR, &namelist, trans_filter,
 		    alphasort);
@@ -801,8 +804,10 @@ int iscsi_sysfs_get_session_state(char *state, int sid)
 	char id[NAME_SIZE];
 
 	snprintf(id, sizeof(id), ISCSI_SESSION_ID, sid);
-	return sysfs_get_str(id, ISCSI_SESSION_SUBSYS, "state", state,
-			     SCSI_MAX_STATE_VALUE);
+	if (sysfs_get_str(id, ISCSI_SESSION_SUBSYS, "state", state,
+			  SCSI_MAX_STATE_VALUE))
+		return ISCSI_ERR_SYSFS_LOOKUP;
+	return 0;
 }
 
 int iscsi_sysfs_get_host_state(char *state, int host_no)
@@ -810,8 +815,10 @@ int iscsi_sysfs_get_host_state(char *state, int host_no)
 	char id[NAME_SIZE];
 
 	snprintf(id, sizeof(id), ISCSI_HOST_ID, host_no);
-	return sysfs_get_str(id, SCSI_HOST_SUBSYS, "state", state,
-			     SCSI_MAX_STATE_VALUE);
+	if (sysfs_get_str(id, SCSI_HOST_SUBSYS, "state", state,
+			  SCSI_MAX_STATE_VALUE))
+		return ISCSI_ERR_SYSFS_LOOKUP;
+	return 0;
 }
 
 int iscsi_sysfs_get_device_state(char *state, int host_no, int target, int lun)
@@ -822,7 +829,7 @@ int iscsi_sysfs_get_device_state(char *state, int host_no, int target, int lun)
 	if (sysfs_get_str(id, SCSI_SUBSYS, "state", state,
 			  SCSI_MAX_STATE_VALUE)) {
 		log_debug(3, "Could not read attr state for %s\n", id);
-		return EIO;
+		return ISCSI_ERR_SYSFS_LOOKUP;
 	}
 
 	return 0;
@@ -923,7 +930,7 @@ static uint32_t get_target_no_from_sid(uint32_t sid, int *err)
 	uint32_t host, bus, target = 0;
 	size_t sysfs_len;
 
-	*err = ENODEV;
+	*err = ISCSI_ERR_SESS_NOT_FOUND;
 
 	snprintf(id, sizeof(id), "session%u", sid);
 	if (!sysfs_lookup_devpath_by_subsys_id(devpath, sizeof(devpath),
@@ -1066,7 +1073,7 @@ int iscsi_sysfs_for_each_device(void *data, int host_no, uint32_t sid,
 					       ISCSI_SESSION_SUBSYS, id)) {
 		log_debug(3, "Could not lookup devpath for %s %s\n",
 			  ISCSI_SESSION_SUBSYS, id);
-		return EIO;
+		return ISCSI_ERR_SYSFS_LOOKUP;
 	}
 
 	snprintf(path_full, sizeof(path_full), "%s%s/device/target%d:0:%d",

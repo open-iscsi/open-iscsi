@@ -294,6 +294,136 @@ or
 SendTargets (st)
 discovery type. An SLP implementation is under development.
 
+.SH EXIT STATUS
+ 
+On success 0 is returned. On error one of the return codes below will
+be returned.
+
+Commands that operation on multiple objects (sessions, records, etc),
+iscsiadm/iscsistart will return the first error that is encountered.
+iscsiadm/iscsistart will attempt to execute the operation on the objects it
+can. If no objects are found ISCSI_ERR_NO_OBJS_FOUND is returned.
+
+
+.TP
+.B
+0
+ISCSI_SUCCESS - command executed successfully.
+
+.TP
+.B
+1
+ISCSI_ERR - generic error code.
+
+.TP     
+.B
+2
+ISCSI_ERR_SESS_NOT_FOUND - session could not be found.
+
+.TP
+.B
+3
+ISCSI_ERR_NOMEM - could not allocate resource for operation.
+.TP
+.B
+4
+ISCSI_ERR_TRANS - connect problem caused operation to fail.
+
+.TP
+.B
+5
+ISCSI_ERR_LOGIN - generic iSCSI login failure.
+
+.TP
+.B
+6
+ISCSI_ERR_IDBM - error accessing/managing iSCSI DB.
+
+.TP
+.B
+7
+ISCSI_ERR_INVAL - invalid argument.
+
+.TP
+.B
+8
+ISCSI_ERR_TRANS_TIMEOUT - connection timer exired while trying to connect.
+
+.TP
+.B
+9
+ISCSI_ERR_INTERNAL - generic internal iscsid/kernel failure.
+
+.TP
+.B
+10
+ISCSI_ERR_LOGOUT - iSCSI logout failed.
+
+.TP
+.B
+11
+ISCSI_ERR_PDU_TIMEOUT - iSCSI PDU timedout.
+
+.TP
+.B
+12
+ISCSI_ERR_TRANS_NOT_FOUND - iSCSI transport module not loaded in kernel or iscsid.
+
+.TP
+.B
+13
+ISCSI_ERR_ACCESS - did not have proper OS permissions to access iscsid or execute iscsiadm command.
+
+.TP
+.B
+14
+ISCSI_ERR_TRANS_CAPS - transport module did not support operation.
+
+.TP
+.B
+15
+ISCSI_ERR_SESS_EXISTS - session is logged in.
+
+.TP
+.B
+16
+ISCSI_ERR_INVALID_MGMT_REQ - invalid IPC MGMT request.
+
+.TP
+.B
+17
+ISCSI_ERR_ISNS_UNAVAILABLE - iSNS service is not supported.
+
+.TP
+.B
+18
+ISCSI_ERR_ISCSID_COMM_ERR - a read/write to iscsid failed.
+
+.TP
+.B
+19
+ISCSI_ERR_FATAL_LOGIN - fatal iSCSI login error.
+
+.TP
+.B
+20
+ISCSI_ERR_ISCSID_NOTCONN - could ont connect to iscsid.
+
+.TP
+.B
+21
+ISCSI_ERR_NO_OBJS_FOUND - no records/targets/sessions/portals found to execute operation on.
+
+.TP
+.B
+22
+ISCSI_ERR_SYSFS_LOOKUP - could not lookup object in sysfs.
+
+.TP
+.B
+23
+ISCSI_ERR_HOST_NOT_FOUND - could not lookup host.
+
 .SH EXAMPLES
 
 .nf

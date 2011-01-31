@@ -36,6 +36,7 @@
 #include "fwparam.h"
 #include "sysdeps.h"
 #include "iscsi_net_util.h"
+#include "iscsi_err.h"
 
 #define ISCSI_BOOT_MAX		255
 #define IBFT_SYSFS_ROOT		"/sys/firmware/ibft/"
@@ -351,7 +352,7 @@ int fwparam_sysfs_boot_info(struct boot_context *context)
 	 */
 	dirfd = opendir(ISCSI_LLD_ROOT);
 	if (!dirfd)
-		return errno;
+		return ISCSI_ERR_SYSFS_LOOKUP;
 
 	while ((dent = readdir(dirfd))) {
 		char lld_root[FILENAMESZ];
@@ -369,7 +370,7 @@ int fwparam_sysfs_boot_info(struct boot_context *context)
 		if (!get_boot_info(context, lld_root, dent->d_name))
 			goto done;
 	}
-	rc = ENODEV;
+	rc = ISCSI_ERR_NO_OBJS_FOUND;
 done:
 	closedir(dirfd);
 	return rc;
@@ -465,7 +466,7 @@ int fwparam_sysfs_get_targets(struct list_head *list)
 	 */
 	dirfd = opendir(ISCSI_LLD_ROOT);
 	if (!dirfd) {
-		rc = errno;
+		rc = ISCSI_ERR_SYSFS_LOOKUP;
 		goto done;
 	}
 
@@ -486,7 +487,7 @@ int fwparam_sysfs_get_targets(struct list_head *list)
 	closedir(dirfd);
 done:
 	if (!rc && list_empty(list))
-		rc = ENODEV;
+		rc = ISCSI_ERR_NO_OBJS_FOUND;
 	if (rc)
 		fw_free_targets(list);
 	return rc;

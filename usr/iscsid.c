@@ -95,7 +95,7 @@ Open-iSCSI initiator daemon.\n\
   -v, --version           display version and exit\n\
 ");
 	}
-	exit(status == 0 ? 0 : -1);
+	exit(status);
 }
 
 static void
@@ -211,7 +211,8 @@ static int sync_session(void *data, struct session_info *info)
 		host_no = iscsi_sysfs_get_host_no_from_sid(info->sid, &err);
 		if (err) {
 			log_error("Could not get host no from sid %u. Can not "
-				  "sync session. Error %d", info->sid, err);
+				  "sync session: %s", info->sid,
+				  iscsi_err_to_str(err));
 			return 0;
 		}
 		iscsi_sysfs_scan_host(host_no, 0);
@@ -387,17 +388,17 @@ int main(int argc, char *argv[])
 	log_pid = log_init(program_name, DEFAULT_AREA_SIZE,
 		      daemonize ? log_do_log_daemon : log_do_log_std, NULL);
 	if (log_pid < 0)
-		exit(1);
+		exit(ISCSI_ERR);
 
 	sysfs_init();
 	if (idbm_init(iscsid_get_config_file)) {
 		log_close(log_pid);
-		exit(1);
+		exit(ISCSI_ERR);
 	}
 
 	if (iscsi_sysfs_check_class_version()) {
 		log_close(log_pid);
-		exit(1);
+		exit(ISCSI_ERR);
 	}
 
 	umask(0177);
@@ -409,7 +410,7 @@ int main(int argc, char *argv[])
 
 	if ((mgmt_ipc_fd = mgmt_ipc_listen()) < 0) {
 		log_close(log_pid);
-		exit(1);
+		exit(ISCSI_ERR);
 	}
 
 	if (daemonize) {
@@ -420,13 +421,13 @@ int main(int argc, char *argv[])
 		if (fd < 0) {
 			log_error("Unable to create pid file");
 			log_close(log_pid);
-			exit(1);
+			exit(ISCSI_ERR);
 		}
 		pid = fork();
 		if (pid < 0) {
 			log_error("Starting daemon failed");
 			log_close(log_pid);
-			exit(1);
+			exit(ISCSI_ERR);
 		} else if (pid) {
 			log_error("iSCSI daemon with pid=%d started!", pid);
 			exit(0);
@@ -434,14 +435,14 @@ int main(int argc, char *argv[])
 
 		if ((control_fd = ipc->ctldev_open()) < 0) {
 			log_close(log_pid);
-			exit(1);
+			exit(ISCSI_ERR);
 		}
 
 		chdir("/");
 		if (lockf(fd, F_TLOCK, 0) < 0) {
 			log_error("Unable to lock pid file");
 			log_close(log_pid);
-			exit(1);
+			exit(ISCSI_ERR);
 		}
 		ftruncate(fd, 0);
 		sprintf(buf, "%d\n", getpid());
@@ -509,7 +510,7 @@ int main(int argc, char *argv[])
 	if (mlockall(MCL_CURRENT | MCL_FUTURE)) {
 		log_error("failed to mlockall, exiting...");
 		log_close(log_pid);
-		exit(1);
+		exit(ISCSI_ERR);
 	}
 
 	actor_init();

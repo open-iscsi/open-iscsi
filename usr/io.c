@@ -401,7 +401,6 @@ iscsi_io_connect(iscsi_conn_t *conn)
 	int rc, ret;
 	struct sigaction action;
 	struct sigaction old;
-	char serv[NI_MAXSERV];
 
 	/* set a timeout, since the socket calls may take a long time to
 	 * timeout on their own
@@ -420,22 +419,21 @@ iscsi_io_connect(iscsi_conn_t *conn)
 	 */
 	rc = iscsi_io_tcp_connect(conn, 0);
 	if (timedout) {
+		log_error("connect to %s timed out", conn->host);
+			  
 		log_debug(1, "socket %d connect timed out", conn->socket_fd);
 		ret = 0;
 		goto done;
 	} else if (rc < 0) {
-		getnameinfo((struct sockaddr *) &conn->saddr,
-			    sizeof(conn->saddr),
-			    conn->host, sizeof(conn->host), serv, sizeof(serv),
-			    NI_NUMERICHOST|NI_NUMERICSERV);
-		log_error("cannot make connection to %s:%s (%d)",
-			  conn->host, serv, errno);
+		log_error("cannot make connection to %s: %s",
+			  conn->host, strerror(errno));
 		close(conn->socket_fd);
 		ret = 0;
 		goto done;
 	} else if (log_level > 0) {
 		struct sockaddr_storage ss;
 		char lserv[NI_MAXSERV];
+		char serv[NI_MAXSERV];
 		socklen_t salen = sizeof(ss);
 
 		if (getsockname(conn->socket_fd, (struct sockaddr *) &ss,
