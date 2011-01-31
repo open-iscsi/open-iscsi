@@ -948,8 +948,12 @@ do_software_sendtargets(discovery_rec_t *drec, struct list_head *ifaces,
 	rc = idbm_bind_ifaces_to_nodes(discovery_sendtargets, drec, ifaces,
 				       &rec_list);
 	if (rc) {
-		log_error("Could not perform SendTargets discovery.");
+		log_error("Could not perform SendTargets discovery: %s",
+			  iscsi_err_to_str(rc));
 		return rc;
+	} else if (list_empty(&rec_list)) {
+		log_error("No portals found");
+		return ISCSI_ERR_NO_OBJS_FOUND;
 	}
 
 	rc = exec_disc_op_on_recs(drec, &rec_list, info_level, do_login, op);
@@ -1043,8 +1047,12 @@ static int do_isns(discovery_rec_t *drec, struct list_head *ifaces,
 	rc = idbm_bind_ifaces_to_nodes(discovery_isns, drec, ifaces,
 				       &rec_list);
 	if (rc) {
-		log_error("Could not perform iSNS discovery.");
+		log_error("Could not perform iSNS discovery: %s",
+			  iscsi_err_to_str(rc));
 		return rc;
+	} else if (list_empty(&rec_list)) {
+		log_error("No portals found");
+		return ISCSI_ERR_NO_OBJS_FOUND;
 	}
 
 	rc = exec_disc_op_on_recs(drec, &rec_list, info_level, do_login, op);

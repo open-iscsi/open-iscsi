@@ -112,14 +112,14 @@ int discovery_isns_set_servername(char *address, int port)
 
 	if (port > USHRT_MAX) {
 		log_error("Invalid port %d\n", port);
-		return EINVAL;
+		return ISCSI_ERR_INVAL;
 	}
 
 	/* 5 for port and 1 for colon and 1 for null */
 	len = strlen(address) + 7;
 	server = calloc(1, len);
 	if (!server)
-		return ENOMEM;
+		return ISCSI_ERR_NOMEM;
 
 	snprintf(server, len, "%s:%d", address, port);
 	isns_assign_string(&isns_config.ic_server_name, server);
@@ -141,11 +141,11 @@ int discovery_isns_query(struct discovery_rec *drec, const char *iname,
 	isns_config.ic_security = 0;
 	source = isns_source_create_iscsi(iname);
 	if (!source)
-		return ENOMEM;
+		return ISCSI_ERR_NOMEM;
 
 	clnt = isns_create_client(NULL, iname); 
 	if (!clnt) {
-		rc = ENOMEM;
+		rc = ISCSI_ERR_NOMEM;
 		goto free_src;
 	}
 
@@ -163,7 +163,7 @@ int discovery_isns_query(struct discovery_rec *drec, const char *iname,
 
 	qry = isns_create_query2(clnt, &key_attrs, source);
 	if (!qry) {
-		rc = ENOMEM;
+		rc = ISCSI_ERR_NOMEM;
 		goto free_clnt;
 	}
 
@@ -182,11 +182,11 @@ int discovery_isns_query(struct discovery_rec *drec, const char *iname,
 		break;
 	case ISNS_SOURCE_UNKNOWN:
 		/* server requires that we are registered but we are not */
-		rc = ENOENT;
+		rc = ISCSI_ERR_ISNS_REG_FAILED;
 		goto free_query;
 	default:
 		log_error("iSNS discovery failed: %s", isns_strerror(status));
-		rc = EIO;
+		rc = ISCSI_ERR_ISNS_QUERY;
 		goto free_query;
 	}
 
@@ -194,7 +194,7 @@ int discovery_isns_query(struct discovery_rec *drec, const char *iname,
 	if (status) {
 		log_error("Unable to extract object list from query "
 			  "response: %s\n", isns_strerror(status));
-		rc = EIO;
+		rc = ISCSI_ERR;
 		goto free_query;
 	}
 
@@ -244,7 +244,7 @@ int discovery_isns_query(struct discovery_rec *drec, const char *iname,
 
 		rec = calloc(1, sizeof(*rec));
 		if (!rec) {
-			rc = ENOMEM;
+			rc = ISCSI_ERR_NOMEM;
 			goto destroy_list;
 		}
 
@@ -296,11 +296,11 @@ static int discovery_isns_reg_node(const char *iname, int op_reg)
 
 	source = isns_source_create_iscsi(iname);
 	if (!source)
-		return ENOMEM;
+		return ISCSI_ERR_NOMEM;
 
 	clnt = isns_create_client(NULL, iname); 
 	if (!clnt) {
-		rc = ENOMEM;
+		rc = ISCSI_ERR_NOMEM;
 		goto free_src;
 	}
 
@@ -308,7 +308,7 @@ static int discovery_isns_reg_node(const char *iname, int op_reg)
 				 ISNS_DEVICE_DEREGISTER,
 				 source, NULL);
 	if (!reg) {
-		rc = ENOMEM;
+		rc = ISCSI_ERR_NOMEM;
 		goto free_clnt;
 	}
 
@@ -323,7 +323,7 @@ static int discovery_isns_reg_node(const char *iname, int op_reg)
 		log_error("Could not %s %s with iSNS server: %s.",
 			  reg ? "register" : "deregister", iname,
 			  isns_strerror(status));
-		rc = EIO;
+		rc = ISCSI_ERR_ISNS_REG_FAILED;
 	} else
 		log_debug(1, "%s %s with iSNS server successful.",
 			  op_reg ? "register" : "deregister", iname);
@@ -347,7 +347,7 @@ int discovery_isns(void *data, struct iface_rec *iface,
 		if (request_initiator_name() || initiator_name[0] == '\0') {
 			log_error("Cannot perform discovery. Initiatorname "
 				  "required.");
-			return EINVAL;
+			return ISCSI_ERR_INVAL;
 		}
 		iname = initiator_name;
 	}
@@ -357,7 +357,7 @@ int discovery_isns(void *data, struct iface_rec *iface,
 		return rc;
 retry:
 	rc = discovery_isns_query(drec, iname, NULL, rec_list);
-	if (!registered && rc == ENOENT) {
+	if (!registered && rc == ISCSI_ERR_ISNS_REG_FAILED) {
 		rc = discovery_isns_reg_node(iname, 1);
 		if (!rc) {
 			registered = 1;
@@ -401,7 +401,7 @@ int discovery_fw(void *data, struct iface_rec *iface,
 		if (!rec) {
 			log_error("Could not convert firmware info to "
 				  "node record.\n");
-			rc = ENOMEM;
+			rc = ISCSI_ERR_NOMEM;
 			goto free_targets;
 		}
 		rec->disc_type = drec->type;
@@ -433,10 +433,10 @@ int discovery_offload_sendtargets(int host_no, int do_login,
 
 	/* resolve the DiscoveryAddress to an IP address */
 	sprintf(default_port, "%d", drec->port);
-	if (resolve_address(drec->address, default_port, &ss)) {
-		log_error("Cannot resolve host name %s.", drec->address);
-		return EIO;
-	}       
+	rc = resolve_address(drec->address, default_port, &ss);
+	if (rc)
+		return rc;
+
 	req.u.st.ss = ss;
 
 	/*
@@ -453,7 +453,7 @@ int discovery_offload_sendtargets(int host_no, int do_login,
 		log_error("Could not offload sendtargets to %s.\n",
 			  drec->address);
 		iscsi_err_print_msg(rc);
-		return EIO;
+		return rc;
 	}
 
 	return 0;
@@ -495,7 +495,7 @@ request_targets(iscsi_session_t *session)
 
 	if (!iscsi_add_text(hdr, data, sizeof (data), "SendTargets", "All")) {
 		log_error("failed to add SendTargets text key");
-		exit(1);
+		return 0;
 	}
 
 	text.ttt = ISCSI_RESERVED_TAG;
@@ -1060,7 +1060,7 @@ static int iscsi_create_leading_conn(struct iscsi_session *session)
 		session->use_ipc = 0;
 
 		if (!iscsi_io_connect(conn))
-			return ENOTCONN;
+			return ISCSI_ERR_TRANS;
 
 		session->id = 1;
 		return 0;
@@ -1075,7 +1075,7 @@ static int iscsi_create_leading_conn(struct iscsi_session *session)
 	if (conn->socket_fd < 0) {
 		log_error("Could not open netlink interface (err %d)\n",
 			  errno);
-		return errno;
+		return ISCSI_ERR_INTERNAL;
 	}
 
 	host_no = iscsi_sysfs_get_host_no_from_hwinfo(iface, &rc);
@@ -1093,6 +1093,7 @@ static int iscsi_create_leading_conn(struct iscsi_session *session)
 	if (rc) {
 		log_error("Could not set host net params (err %d)\n",
 			  rc);
+		rc = ISCSI_ERR_INTERNAL;
 		goto close_ipc;
 	}
 
@@ -1100,17 +1101,18 @@ static int iscsi_create_leading_conn(struct iscsi_session *session)
 	log_debug(2, "%s discovery ep connect\n", __FUNCTION__);
 	rc = t->template->ep_connect(conn, 1);
 	if (rc < 0) {
-		rc = ENOTCONN;
+		rc = ISCSI_ERR_TRANS;
 		goto fail;
 	}
 
 	do {
 		rc = t->template->ep_poll(conn, 1);
-		if (rc < 0)
+		if (rc < 0) {
+			rc = ISCSI_ERR_TRANS;
 			goto disconnect;
-		else if (rc == 0) {
+		} else if (rc == 0) {
 			if (sleep_count == conn->login_timeout) {
-				rc = ETIMEDOUT;
+				rc = ISCSI_ERR_TRANS_TIMEOUT;
 				goto disconnect;
 			}
 			sleep_count++;
@@ -1126,6 +1128,7 @@ static int iscsi_create_leading_conn(struct iscsi_session *session)
 				 &session->id, &host_no);
 	if (rc) {
 		log_error("Could not create kernel session (err %d).\n", rc);
+		rc = ISCSI_ERR_INTERNAL;
 		goto disconnect;
 	}
 	log_debug(2, "%s discovery created session %u\n", __FUNCTION__,
@@ -1136,6 +1139,7 @@ static int iscsi_create_leading_conn(struct iscsi_session *session)
 	rc = ipc->create_conn(t->handle, session->id, conn->id, &conn->id);
 	if (rc) {
 		log_error("Could not create connection (err %d)", rc);
+		rc = ISCSI_ERR_INTERNAL;
 		goto disconnect;
 	}
 
@@ -1146,6 +1150,7 @@ static int iscsi_create_leading_conn(struct iscsi_session *session)
 		log_error("Could not bind conn %d:%d to session %d, "
 			  "(err %d)", session->id, conn->id,
 			  session->id, rc);
+		rc = ISCSI_ERR_INTERNAL;
 		goto disconnect;
 	}
 
@@ -1176,8 +1181,8 @@ close_ipc:
 		conn->socket_fd = -1;
 	}
 fail:
-	log_error("Connection to discovery portal %s failed (err %d)",
-		  conn->host, rc);
+	log_error("Connection to discovery portal %s failed: %s",
+		  conn->host, iscsi_err_to_str(rc));
 	return rc;
 }
 
@@ -1223,7 +1228,7 @@ static int iscsi_create_session(struct iscsi_session *session,
 				char *data, unsigned int data_len)
 {
 	struct iscsi_conn *conn = &session->conn[0];
-	int rc, login_delay = 0;
+	int login_status, rc = 0, login_delay = 0;
 	uint8_t status_class = 0, status_detail = 0;
 	unsigned int login_failures = 0;
 	char serv[NI_MAXSERV];
@@ -1279,7 +1284,8 @@ redirect_reconnect:
 			 conn->host, serv, login_delay);
 		sleep(login_delay);
 	}
-	if (iscsi_create_leading_conn(session)) {
+	rc = iscsi_create_leading_conn(session);
+	if (rc) {
 		login_failures++;
 		goto reconnect;
 	}
@@ -1298,12 +1304,13 @@ redirect_reconnect:
 
 	status_class = 0;
 	status_detail = 0;
+	rc = ISCSI_ERR_LOGIN;
 
 	memset(data, 0, data_len);
-	rc = iscsi_login(session, 0, data, data_len,
-			 &status_class, &status_detail);
+	login_status = iscsi_login(session, 0, data, data_len,
+				   &status_class, &status_detail);
 
-	switch (rc) {
+	switch (login_status) {
 	case LOGIN_OK:
 	case LOGIN_REDIRECT:
 		break;
@@ -1322,7 +1329,8 @@ redirect_reconnect:
 	case LOGIN_VERSION_MISMATCH:
 	case LOGIN_INVALID_PDU:
 		log_error("discovery login to %s failed, giving up %d",
-			  conn->host, rc);
+			  conn->host, login_status);
+		rc = ISCSI_ERR_FATAL_LOGIN;
 		goto login_failed;
 	}
 
@@ -1361,10 +1369,20 @@ redirect_reconnect:
 		}
 		break;
 	case ISCSI_STATUS_CLS_INITIATOR_ERR:
-		log_error(
-			"discovery login to %s rejected: "
-			"initiator error (%02x/%02x), non-retryable, giving up",
-			conn->host, status_class, status_detail);
+		switch (status_detail) {
+		case ISCSI_LOGIN_STATUS_AUTH_FAILED:
+		case ISCSI_LOGIN_STATUS_TGT_FORBIDDEN:
+			log_error("discovery login to %s rejected: "
+				  "initiator failed authorization\n",
+				 conn->host);
+			rc = ISCSI_ERR_LOGIN_AUTH_FAILED;
+			goto login_failed;
+		default:
+			log_error("discovery login to %s rejected: initiator "
+				  "error (%02x/%02x), non-retryable, giving up",
+				  conn->host, status_class, status_detail);
+			rc = ISCSI_ERR_FATAL_LOGIN;
+		}
 		goto login_failed;
 	case ISCSI_STATUS_CLS_TARGET_ERR:
 		log_error(
@@ -1391,6 +1409,7 @@ redirect_reconnect:
 	if (rc) {
 		log_error("Could not set iscsi params for conn %d:%d (err "
 			  "%d)\n", session->id, conn->id, rc);
+		rc = ISCSI_ERR_INTERNAL;
 		goto login_failed;
 	}
 
@@ -1398,6 +1417,7 @@ redirect_reconnect:
 	if (ipc->start_conn(t->handle, session->id, conn->id, &rc) || rc) {
 		log_error("Cannot start conn %d:%d (err %d)",
 			  session->id, conn->id, rc);
+		rc = ISCSI_ERR_INTERNAL;
 		goto login_failed;
 	}
 
@@ -1405,7 +1425,7 @@ redirect_reconnect:
 
 login_failed:
 	iscsi_destroy_session(session);
-	return ENOTCONN;
+	return rc;
 }
 
 int discovery_sendtargets(void *fndata, struct iface_rec *iface,
@@ -1437,7 +1457,7 @@ int discovery_sendtargets(void *fndata, struct iface_rec *iface,
 		log_error("Discovery process to %s:%d failed to "
 			  "create a discovery session.",
 			  drec->address, drec->port);
-		return 1;
+		return ISCSI_ERR_NOMEM;
 	}
 
 	ipc_ev_context.conn = &session->conn[0];
@@ -1452,7 +1472,7 @@ int discovery_sendtargets(void *fndata, struct iface_rec *iface,
 	/* allocate data buffers for SendTargets data */
 	data = malloc(session->conn[0].max_recv_dlength);
 	if (!data) {
-		rc = 1;
+		rc = ISCSI_ERR_NOMEM;
 		goto free_session;
 	}
 	data_len = session->conn[0].max_recv_dlength;
@@ -1460,10 +1480,10 @@ int discovery_sendtargets(void *fndata, struct iface_rec *iface,
 	str_init_buffer(&sendtargets, 0);
 
 	/* resolve the DiscoveryAddress to an IP address */
-	if (iscsi_setup_portal(&session->conn[0], drec->address,
-			       drec->port)) {
+	rc = iscsi_setup_portal(&session->conn[0], drec->address,
+				drec->port);
+	if (rc) {
 		log_error("cannot resolve host name %s", drec->address);
-		rc = 1;
 		goto free_sendtargets;
 	}
 
@@ -1474,10 +1494,8 @@ int discovery_sendtargets(void *fndata, struct iface_rec *iface,
 reconnect:
 	rc = iscsi_create_session(session, &drec->u.sendtargets,
 				  data, data_len);
-	if (rc) {
-		rc = 1;
+	if (rc)
 		goto free_sendtargets;
-	}
 
 	/* reinitialize */
 	str_truncate_buffer(&sendtargets, 0);
@@ -1517,7 +1535,7 @@ repoll:
 	if (iscsi_timer_expired(&connection_timer)) {
 		log_warning("Discovery session to %s:%d timed out.",
 			    drec->address, drec->port);
-		rc = 1;
+		rc = ISCSI_ERR_TRANS_TIMEOUT;
 		goto reconnect;
 	}
 
@@ -1537,7 +1555,7 @@ repoll:
 					  "response, terminating",
 					   drec->address,
 					   drec->port);
-				rc = 1;
+				rc = ISCSI_ERR_PDU_TIMEOUT;
 				goto free_sendtargets;
 			}
 
@@ -1562,7 +1580,7 @@ repoll:
 			log_warning("discovery session to %s:%d "
 				    "terminating after hangup",
 				     drec->address, drec->port);
-			rc = 1;
+			rc = ISCSI_ERR_TRANS;
 			goto free_sendtargets;
 		}
 
@@ -1579,7 +1597,7 @@ repoll:
 		}
 	} else if (rc < 0) {
 		log_error("poll error");
-		rc = 1;
+		rc = ISCSI_ERR;
 		goto free_sendtargets;
 	}
 

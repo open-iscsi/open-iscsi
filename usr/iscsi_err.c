@@ -47,6 +47,8 @@ static char *iscsi_err_msgs[] = {
 	/* 23 */ "sysfs lookup failure",
 	/* 23 */ "host not found",
 	/* 24 */ "iSCSI login failed due to authorization failure",
+	/* 25 */ "iSNS query failed",
+	/* 26 */ "iSNS registration failed",
 };
 
 char *iscsi_err_to_str(int err)

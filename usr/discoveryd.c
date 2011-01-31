@@ -44,6 +44,7 @@
 #include "isns.h"
 #include "paths.h"
 #include "message.h"
+#include "iscsi_err.h"
 
 #define DISC_DEF_POLL_INVL	30
 
@@ -242,12 +243,12 @@ static int isns_build_objs(isns_portal_info_t *portal_info,
 		nportals = isns_get_nr_portals();
 		log_debug(4, "got %d portals", nportals);
 		if (!nportals)
-			return ENODEV;
+			return ISCSI_ERR_NO_OBJS_FOUND;
 
 		iflist = calloc(nportals, sizeof(isns_portal_info_t));
 		if (!iflist) {
 			log_error("Unable to allocate %d portals.", nportals);
-			return ENOMEM;
+			return ISCSI_ERR_NOMEM;
 		}
 
 		nportals = isns_enumerate_portals(iflist, nportals);
@@ -255,7 +256,7 @@ static int isns_build_objs(isns_portal_info_t *portal_info,
 			log_error("Unable to enumerate portals - "
 				  "no usable interfaces found\n");
 			free(iflist);
-			return ENODEV;
+			return ISCSI_ERR_NO_OBJS_FOUND;
 		}
 		for (i = 0; i < nportals; ++i) {
 			iflist[i].addr.sin6_port = portal_info->addr.sin6_port;
@@ -267,7 +268,7 @@ static int isns_build_objs(isns_portal_info_t *portal_info,
 	if (!isns_entity_id) {
 		isns_entity_id = calloc(1, 256);
 		if (!isns_entity_id)
-			return ENOMEM;
+			return ISCSI_ERR_NOMEM;
 
 		rc = getnameinfo((struct sockaddr *) &portal_info->addr,
 				 sizeof(portal_info->addr),
@@ -277,14 +278,14 @@ static int isns_build_objs(isns_portal_info_t *portal_info,
 			isns_entity_id = NULL;
 
 			log_error("Could not get hostname for EID.");
-			return EIO;
+			return ISCSI_ERR;
 		}
 	}
 
 	entity = isns_create_entity(ISNS_ENTITY_PROTOCOL_ISCSI, isns_entity_id);
 	if (!entity) {
 		log_error("Could not create iSNS entity.");
-		return ENOMEM;
+		return ISCSI_ERR_NOMEM;
 	}
 	isns_object_list_append(objs, entity);
 
@@ -293,14 +294,14 @@ static int isns_build_objs(isns_portal_info_t *portal_info,
 
 		portal = isns_create_portal(portal_info, entity);
 		if (!portal) {
-			rc = ENOMEM;
+			rc = ISCSI_ERR_NOMEM;
 			goto fail;
 		}
 		isns_object_list_append(objs, portal);
 
 		if (!isns_object_set_uint32(portal, ISNS_TAG_SCN_PORT,
 				isns_portal_tcpudp_port(portal_info))) {
-			rc = EINVAL;
+			rc = ISCSI_ERR_INVAL;
 			goto fail;
 		}
 	}
@@ -310,7 +311,7 @@ static int isns_build_objs(isns_portal_info_t *portal_info,
 						  ISNS_ISCSI_INITIATOR_MASK,
 						  NULL);
 		if (!inode) {
-			rc = ENOMEM;
+			rc = ISCSI_ERR_NOMEM;
 			goto fail;
 		}
 		isns_object_list_append(objs, inode);		
@@ -558,7 +559,7 @@ static int isns_setup_registration_refresh(isns_simple_t *rsp, int poll_inval)
 		log_error("Unable to extract object list from "
                            "registration response: %s\n",
                            isns_strerror(status));
-		return EIO;
+		return ISCSI_ERR;
 	}
 
 	for (i = 0; i < objs.iol_count; ++i) {
@@ -577,7 +578,7 @@ static int isns_setup_registration_refresh(isns_simple_t *rsp, int poll_inval)
 
 	refresh_data = calloc(1, sizeof(*refresh_data));
 	if (!refresh_data) {
-		rc = ENOMEM;
+		rc = ISCSI_ERR_NOMEM;
 		goto free_objs;
 	}
 	INIT_LIST_HEAD(&refresh_data->list);
@@ -653,7 +654,7 @@ static int isns_register_objs(isns_client_t *clnt, isns_object_list_t *objs,
 
 	reg = isns_create_registration(clnt, entity);
 	if (!reg)
-		return ENOMEM;
+		return ISCSI_ERR_NOMEM;
 
 	for (i = 0; i < objs->iol_count; ++i)
 		isns_registration_add_object(reg, objs->iol_data[i]);
@@ -663,7 +664,7 @@ static int isns_register_objs(isns_client_t *clnt, isns_object_list_t *objs,
 	if (status != ISNS_SUCCESS) {
 		log_error("Could not register with iSNS server: %s",
 			  isns_strerror(status));
-		rc = EIO;
+		rc = ISCSI_ERR;
 		goto free_reg;
 	}
 	log_debug(4, "Registered objs");
@@ -686,7 +687,7 @@ static int isns_register_objs(isns_client_t *clnt, isns_object_list_t *objs,
 
 		if (!reg) {
 			isns_cancel_refresh_timers();
-			rc = ENOMEM;
+			rc = ISCSI_ERR_NOMEM;
 			goto done;
 		}
 
@@ -702,7 +703,7 @@ static int isns_register_objs(isns_client_t *clnt, isns_object_list_t *objs,
 			 */
 			if (poll_inval < 0) {
 				isns_cancel_refresh_timers();
-				rc = EIO;
+				rc = ISCSI_ERR;
 				break;
 			}
 		}
@@ -726,7 +727,7 @@ static int isns_scn_register(isns_socket_t *svr_sock, int poll_inval)
 	clnt = isns_create_default_client(NULL);
 	if (!clnt) {
 		log_error("iSNS setup failed. Could not connect to server.");
-		return ENOTCONN;
+		return ISCSI_ERR_TRANS;
 	}
 	isns_socket_set_disconnect_fatal(clnt->ic_socket);
 
@@ -734,7 +735,7 @@ static int isns_scn_register(isns_socket_t *svr_sock, int poll_inval)
 
 	if (!isns_socket_get_portal_info(svr_sock, &portal_info)) {
 		log_error("Could not get portal info for iSNS registration.");
-		rc = ENODEV;
+		rc = ISCSI_ERR_NO_OBJS_FOUND;
 		goto destroy_clnt;
 	}
 
@@ -796,7 +797,7 @@ static int isns_create_node_list(const char *def_iname)
 	if (def_iname) {
 		node = isns_create_node(def_iname);
 		if (!node) {
-			rc = ENOMEM;
+			rc = ISCSI_ERR_NOMEM;
 			goto fail;
 		}
 		list_add_tail(&node->list, &isns_initiators);
@@ -807,7 +808,7 @@ static int isns_create_node_list(const char *def_iname)
 		    !isns_lookup_node(iface->iname)) {
 			node = isns_create_node(iface->iname);
 			if (!node) {
-				rc = ENOMEM;
+				rc = ISCSI_ERR_NOMEM;
 				goto fail;
 			}
 			list_add_tail(&node->list, &isns_initiators);
@@ -942,7 +943,7 @@ static int isns_eventd(const char *def_iname, char *disc_addr, int port,
 	isns_create_node_list(def_iname);
 	if (list_empty(&isns_initiators)) {
 		log_error("iSNS registration failed. Initiatorname not set.");
-		return EINVAL;
+		return ISCSI_ERR_INVAL;
 	}
 
 	/* use def_iname or if not set the first iface's iname for the src */
@@ -954,7 +955,7 @@ static int isns_eventd(const char *def_iname, char *disc_addr, int port,
 	isns_config.ic_control_socket = ISNS_EVENTD_CTL;
 
 	if (discovery_isns_set_servername(disc_addr, port)) {
-		rc = ENOMEM;
+		rc = ISCSI_ERR_NOMEM;
 		goto fail;
 	}
 
@@ -963,13 +964,13 @@ static int isns_eventd(const char *def_iname, char *disc_addr, int port,
 	db = isns_db_open(NULL);
 	if (!db) {
 		log_error("iSNS setup failed. Could not create db.");
-		rc = ENOMEM;
+		rc = ISCSI_ERR_NOMEM;
 		goto fail;
 	}
 	svr = isns_create_server(node->source, db, &isns_callback_service_ops);
 	if (!svr) {
 		log_error("iSNS setup failed. Could not create server.");
-		rc = ENOTCONN;
+		rc = ISCSI_ERR_TRANS;
 		goto fail;
 	}
 	isns_server_set_scn_callback(svr, isns_scn_callback);
@@ -977,7 +978,7 @@ static int isns_eventd(const char *def_iname, char *disc_addr, int port,
 	svr_sock = isns_create_server_socket(NULL, NULL, AF_INET6, SOCK_DGRAM);
 	if (!svr_sock) {
 		log_error("iSNS setup failed. Could not create server socket.");
-		rc = ENOTCONN;
+		rc = ISCSI_ERR_TRANS;
 		goto fail;
 	}
 
@@ -1076,7 +1077,7 @@ static int st_start(void *data, struct discovery_rec *drec)
 	log_debug(1, "st_start %s:%d %d", drec->address, drec->port,
 		  drec->u.sendtargets.use_discoveryd);
 	if (!drec->u.sendtargets.use_discoveryd)
-		return ENOSYS;
+		return ISCSI_ERR_INVAL;
 
 	fork_disc(NULL, drec, drec->u.sendtargets.discoveryd_poll_inval,
 		  do_st_disc_and_login);
@@ -1093,7 +1094,7 @@ static int isns_start(void *data, struct discovery_rec *drec)
 	log_debug(1, "isns_start %s:%d %d", drec->address, drec->port,
 		  drec->u.isns.use_discoveryd);
 	if (!drec->u.isns.use_discoveryd)
-		return ENOSYS;
+		return ISCSI_ERR_INVAL;
 
 	fork_disc(data, drec, drec->u.isns.discoveryd_poll_inval, start_isns);
 	return 0;

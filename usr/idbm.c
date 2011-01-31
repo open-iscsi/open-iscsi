@@ -1860,10 +1860,12 @@ static int idbm_bind_iface_to_nodes(idbm_disc_nodes_fn *disc_node_fn,
 {
 	struct node_rec *rec, *tmp;
 	struct list_head new_recs;
+	int rc;
 
 	INIT_LIST_HEAD(&new_recs);
-	if (disc_node_fn(data, iface, &new_recs))
-		return ISCSI_ERR;
+	rc = disc_node_fn(data, iface, &new_recs);
+	if (rc)
+		return rc;
 
 	list_for_each_entry_safe(rec, tmp, &new_recs, list) {
 		list_del_init(&rec->list);

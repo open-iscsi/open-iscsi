@@ -54,6 +54,10 @@ enum {
 	ISCSI_ERR_HOST_NOT_FOUND	= 23,
 	/* Login failed due to authorization failure */
 	ISCSI_ERR_LOGIN_AUTH_FAILED	= 24,
+	/* iSNS query failure */
+	ISCSI_ERR_ISNS_QUERY		= 25,
+	/* iSNS registration/deregistration failed */
+	ISCSI_ERR_ISNS_REG_FAILED	= 26,
 
 	/* Always last. Indicates end of error code space */
 	ISCSI_MAX_ERR_VAL,
