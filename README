@@ -408,8 +408,9 @@ this the following is not needed for software iscsi.
 Warning!!!!!!
 This feature is experimental. The interface may change. When reporting
 bugs, if you cannot do a "ping -I ethX target_portal", then check your
-network settings first. If you cannot ping the portal, then you will
-not be able to bind a session to a NIC.
+network settings first. Make sure the rp_filter setting is set to 0 or 2
+(see Prep section below for more info). If you cannot ping the portal,
+then you will not be able to bind a session to a NIC.
 
 What is a scsi_host and iface for software, hardware and partial
 offload iscsi?
@@ -426,6 +427,32 @@ To manage both types of initiator stacks, iscsiadm uses the interface (iface)
 structure. For each HBA port or for software iscsi for each network
 device (ethX) or NIC, that you wish to bind sessions to you must create
 a iface config /etc/iscsi/ifaces.
+
+Prep:
+
+The iface binding feature requires the sysctl setting
+net.ipv4.conf.default.rp_filter to be set to 0 or 2. This can be set
+in /etc/sysctl.conf by having the line:
+
+net.ipv4.conf.default.rp_filter = N
+
+where N is 0 or 2. Note that when setting this you may have to reboot
+the box for the value to take effect.
+
+
+rp_filter information from Documentation/networking/ip-sysctl.txt:
+
+rp_filter - INTEGER
+        0 - No source validation.
+        1 - Strict mode as defined in RFC3704 Strict Reverse Path
+            Each incoming packet is tested against the FIB and if the interface
+            is not the best reverse path the packet check will fail.
+            By default failed packets are discarded.
+        2 - Loose mode as defined in RFC3704 Loose Reverse Path
+            Each incoming packet's source address is also tested against the FIB
+            and if the source address is not reachable via any interface
+            the packet check will fail.
+
 
 Running:
 
