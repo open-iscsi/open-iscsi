@@ -27,7 +27,7 @@ IFACEFILES = etc/iface.example
 all: user kernel
 
 user: ;
-	cd utils/open-isns; ./configure; $(MAKE)
+	cd utils/open-isns; ./configure --with-security=no; $(MAKE)
 	$(MAKE) -C utils/sysdeps
 	$(MAKE) -C utils/fwparam_ibft
 	$(MAKE) -C usr

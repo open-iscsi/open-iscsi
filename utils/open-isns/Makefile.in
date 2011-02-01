@@ -32,7 +32,6 @@ LIBOBJS	= server.o \
 	  security.o \
 	  authblock.o \
 	  policy.o \
-	  pki.o \
 	  register.o \
 	  query.o \
 	  getnext.o \
