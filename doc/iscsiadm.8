@@ -171,8 +171,14 @@ sid is passed in.
 
 .TP
 \fB\-p\fR, \fB\-\-portal=\fIip[:port]\fR
-Use target portal with ip-address \fIip\fR and \fIport\fR, the default
-\fIport\fR value is 3260.
+Use target portal with ip-address \fIip\fR and \fIport\fR. If port is not passed
+in the default \fIport\fR value is 3260.
+.IP
+IPv6 addresses can bs specified as [ddd.ddd.ddd.ddd]:port or
+ddd.ddd.ddd.ddd.
+.IP
+Hostnames can also be used for the ip argument.
+
 .IP
 This option is only valid for discovery, or for node operations with
 the \fInew\fR operator.

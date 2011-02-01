@@ -651,6 +651,9 @@ To now log into targets it is the same as with sofware iscsi. See section
 	If a record does not exist, it will be created using the iscsid.conf
 	discovery settings.
 
+	The argument to -p may also be a hostname instead of an address.
+	    ./iscsiadm -m discoverydb -t st -p smoehost --discover
+
 	For the ifaces, iscsiadm will first search /etc/iscsi/ifaces for
 	interfaces using software iscsi. If any are found then nodes found
 	during discovery will be setup so that they can logged in through
@@ -774,6 +777,10 @@ To now log into targets it is the same as with sofware iscsi. See section
 
 	    ./iscsiadm -m node -T iqn.2005-03.com.max \
 				-p [2001:c90::211:9ff:feb8:a9e9]:3260 -l
+
+	To specify a hostname the following can be used:
+
+	    ./iscsiadm -m node -T iqn.2005-03.com.max -p somehost -l
 
     - iSCSI Login to a specific portal through the NIC setup as iface0:
 

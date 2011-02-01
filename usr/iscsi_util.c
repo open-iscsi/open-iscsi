@@ -217,6 +217,64 @@ char *cfg_get_string_param(char *pathname, const char *key)
 	return value;
 }
 
+/**
+ * iscsi_addr_match - check if the addrs are to the same ip
+ * @address1: pattern
+ * @address2: address to check
+ *
+ * If address1 is blank then it matches any string passed in.
+ */
+static int iscsi_addr_match(char *address1, char *address2)
+{
+	struct addrinfo hints1, hints2, *res1, *res2;
+	int rc;
+
+	if (!strlen(address1))
+		return 1;
+
+	if (!strcmp(address1, address2))
+		return 1;
+
+	memset(&hints1, 0, sizeof(struct addrinfo));
+	hints1.ai_family = AF_UNSPEC;
+	hints1.ai_socktype = SOCK_STREAM;
+
+	memset(&hints2, 0, sizeof(struct addrinfo));
+	hints2.ai_family = AF_UNSPEC;
+	hints2.ai_socktype = SOCK_STREAM;
+
+	/*
+	 * didn't match so we have to resolve to see if one is a dnsname
+	 * that matches a ip address.
+	 */
+	rc = getaddrinfo(address1, NULL, &hints1, &res1);
+	if (rc) {
+		log_debug(1, "Match error. Could not resolve %s: %s", address1,
+			  gai_strerror(rc));
+		return 0;
+
+	}
+
+	rc = getaddrinfo(address2, NULL, &hints2, &res2);
+	if (rc) {
+		log_debug(1, "Match error. Could not resolve %s: %s", address2,
+			  gai_strerror(rc));
+		rc = 0;
+		goto free_res1;
+	}
+
+	if ((res1->ai_addrlen != res2->ai_addrlen) ||
+	    memcmp(res1->ai_addr, res2->ai_addr, res2->ai_addrlen))
+		rc = 0;
+	else
+		rc = 1;
+
+	freeaddrinfo(res2);
+free_res1:
+	freeaddrinfo(res1);
+	return rc;
+}
+
 int __iscsi_match_session(node_rec_t *rec, char *targetname,
 			  char *address, int port, struct iface_rec *iface)
 {
@@ -240,8 +298,7 @@ int __iscsi_match_session(node_rec_t *rec, char *targetname,
 	if (strlen(rec->name) && strcmp(rec->name, targetname))
 		return 0;
 
-	if (strlen(rec->conn[0].address) &&
-	    strcmp(rec->conn[0].address, address))
+	if (!iscsi_addr_match(rec->conn[0].address, address))
 		return 0;
 
 	if (rec->conn[0].port != -1 && port != rec->conn[0].port)
