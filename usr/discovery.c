@@ -796,18 +796,23 @@ static void iscsi_free_session(struct iscsi_session *session)
 
 static iscsi_session_t *
 iscsi_alloc_session(struct iscsi_sendtargets_config *config,
-		    struct iface_rec *iface)
+		    struct iface_rec *iface, int *rc)
 {
 	iscsi_session_t *session;
 
+	*rc = 0;
+
 	session = calloc(1, sizeof (*session));
-	if (session == NULL)
+	if (session == NULL) {
+		*rc = ISCSI_ERR_NOMEM;
 		return NULL;
+	}
 
 	session->t = iscsi_sysfs_get_transport_by_name(iface->transport_name);
 	if (!session->t) {
 		log_error("iSCSI driver %s is not loaded. Load the module "
 			  "then retry the command.\n", iface->transport_name);
+		*rc = ISCSI_ERR_TRANS_NOT_FOUND;
 		goto fail;
 	}
 
@@ -842,6 +847,7 @@ iscsi_alloc_session(struct iscsi_sendtargets_config *config,
 		if (initiator_name[0] == '\0') {
 			log_error("Cannot perform discovery. Initiatorname "
 				  "required.");
+			*rc = ISCSI_ERR_INVAL;
 			goto fail;
 		}
 	}
@@ -854,7 +860,8 @@ iscsi_alloc_session(struct iscsi_sendtargets_config *config,
 	session->id = -1;
 
 	/* setup authentication variables for the session*/
-	if (iscsi_setup_authentication(session, &config->auth))
+	*rc = iscsi_setup_authentication(session, &config->auth);
+	if (*rc)
 		goto fail;
 
 	list_add_tail(&session->list, &session->t->sessions);
@@ -1440,7 +1447,7 @@ int discovery_sendtargets(void *fndata, struct iface_rec *iface,
 	int active = 0, valid_text = 0;
 	struct timeval connection_timer;
 	int timeout;
-	int rc;
+	int rc = 0;
 	struct str_buffer sendtargets;
 	unsigned int data_len;
 	struct iscsi_sendtargets_config *config = &drec->u.sendtargets;
@@ -1452,13 +1459,9 @@ int discovery_sendtargets(void *fndata, struct iface_rec *iface,
 	iscsi_timer_clear(&connection_timer);
 
 	/* allocate a new session, and initialize default values */
-	session = iscsi_alloc_session(config, iface);
-	if (session == NULL) {
-		log_error("Discovery process to %s:%d failed to "
-			  "create a discovery session.",
-			  drec->address, drec->port);
-		return ISCSI_ERR_NOMEM;
-	}
+	session = iscsi_alloc_session(config, iface, &rc);
+	if (rc)
+		return rc;
 
 	ipc_ev_context.conn = &session->conn[0];
 	ipc_register_ev_callback(&ipc_clbk);
