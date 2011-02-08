@@ -365,7 +365,7 @@ int fwparam_sysfs_boot_info(struct boot_context *context)
 		if (strncmp(dent->d_name, ISCSI_LLD_SUBSYS_PREFIX, 10))
 			continue;
 
-		snprintf(lld_root, FILENAMESZ, ISCSI_LLD_ROOT"%s",
+		snprintf(lld_root, FILENAMESZ, ISCSI_LLD_ROOT"%s/",
 			 dent->d_name);
 		if (!get_boot_info(context, lld_root, dent->d_name))
 			goto done;
