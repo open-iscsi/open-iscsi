@@ -1109,7 +1109,7 @@ static int iscsi_create_leading_conn(struct iscsi_session *session)
 	rc = t->template->ep_connect(conn, 1);
 	if (rc < 0) {
 		rc = ISCSI_ERR_TRANS;
-		goto fail;
+		goto close_ipc;
 	}
 
 	do {
@@ -1187,7 +1187,7 @@ close_ipc:
 		ipc->ctldev_close();
 		conn->socket_fd = -1;
 	}
-fail:
+
 	log_error("Connection to discovery portal %s failed: %s",
 		  conn->host, iscsi_err_to_str(rc));
 	return rc;
