@@ -301,7 +301,7 @@ static void iscsid_shutdown(void)
 
 static void catch_signal(int signo)
 {
-	log_debug(1, "%d caught signal -%d...", signo, getpid());
+	log_debug(1, "pid %d caught signal %d", getpid(), signo);
 	switch (signo) {
 	case SIGTERM:
 		iscsid_shutdown();
