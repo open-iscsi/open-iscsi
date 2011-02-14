@@ -80,7 +80,7 @@ static int request_initiator_name(void)
 
 	rc = iscsid_exec_req(&req, &rsp, 1);
 	if (rc)
-		return EIO;
+		return rc;
 
 	if (rsp.u.config.var[0] != '\0')
 		strcpy(initiator_name, rsp.u.config.var);
@@ -344,11 +344,17 @@ int discovery_isns(void *data, struct iface_rec *iface,
 	if (iface && strlen(iface->iname))
 		iname = iface->iname;
 	else {
-		if (request_initiator_name() || initiator_name[0] == '\0') {
+		rc = request_initiator_name();
+		if (rc) {
 			log_error("Cannot perform discovery. Initiatorname "
 				  "required.");
+			return rc;
+		} else if (initiator_name[0] == '\0') {
+			log_error("Cannot perform discovery. Invalid "
+				  "Initiatorname.");
 			return ISCSI_ERR_INVAL;
 		}
+
 		iname = initiator_name;
 	}
 
@@ -838,15 +844,18 @@ iscsi_alloc_session(struct iscsi_sendtargets_config *config,
 	session->isid[4] = 0;
 	session->isid[5] = 0;
 
-	request_initiator_name();
-
 	if (iface && strlen(iface->iname)) {
 		strcpy(initiator_name, iface->iname);
 		/* MNC TODO add iface alias */
 	} else {
-		if (initiator_name[0] == '\0') {
+		*rc = request_initiator_name();
+		if (*rc) {
 			log_error("Cannot perform discovery. Initiatorname "
 				  "required.");
+			goto fail;
+		} else if (initiator_name[0] == '\0') {
+			log_error("Cannot perform discovery. Invalid "
+				  "Initiatorname.");
 			*rc = ISCSI_ERR_INVAL;
 			goto fail;
 		}
