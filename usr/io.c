@@ -26,11 +26,14 @@
 #include <fcntl.h>
 #include <sys/poll.h>
 #include <sys/ioctl.h>
+#include <sys/types.h>
+#include <ifaddrs.h>
 #include <netinet/tcp.h>
 #include <arpa/inet.h>
 
 #include "types.h"
 #include "iscsi_proto.h"
+#include "iscsi_settings.h"
 #include "initiator.h"
 #include "iscsi_ipc.h"
 #include "log.h"
@@ -38,6 +41,7 @@
 #include "idbm.h"
 #include "iface.h"
 #include "sysdeps.h"
+#include "dcb_app.h"
 
 #define LOG_CONN_CLOSED(conn) \
 do { \
@@ -52,6 +56,13 @@ do { \
 		    conn->host, sizeof(conn->host), NULL, 0, NI_NUMERICHOST); \
 	log_error("Connection to Discovery Address %s failed", conn->host); \
 } while (0)
+
+union sockaddr_u {
+	struct sockaddr_storage	ss;
+	struct sockaddr sa;
+	struct sockaddr_in si;
+	struct sockaddr_in6 si6;
+};
 
 static int timedout;
 
@@ -74,6 +85,93 @@ set_non_blocking(int fd)
 	} else
 		log_warning("unable to get fd flags (%s)!", strerror(errno));
 
+}
+
+static int select_priority(struct iscsi_conn *conn, int pri_mask)
+{
+	int msk;
+
+	if (!pri_mask)
+		return 0;
+
+	/*
+	 * TODO: Configure priority selection from the mask
+	 * For now, just always take the highest
+	 */
+
+	/* Find highest bit set */
+	while ((msk = pri_mask & (pri_mask - 1)))
+		pri_mask = msk;
+
+	return ffs(pri_mask) - 1;
+}
+
+static int
+inet_cmp_addr(const union sockaddr_u *s1, const union sockaddr_u *s2)
+{
+	const struct sockaddr_in *si1 = &s1->si;
+	const struct sockaddr_in *si2 = &s2->si;
+
+	return si1->sin_addr.s_addr != si2->sin_addr.s_addr;
+}
+
+static int
+inet6_cmp_addr(const union sockaddr_u *s1, const union sockaddr_u *s2)
+{
+	const struct sockaddr_in6 *si1 = &s1->si6;
+	const struct sockaddr_in6 *si2 = &s2->si6;
+
+	return memcmp(&si1->sin6_addr, &si2->sin6_addr, sizeof(si1->sin6_addr));
+}
+
+static char *
+find_ifname(const struct ifaddrs *ifa, const union sockaddr_u *ss)
+{
+	for (; ifa; ifa = ifa->ifa_next) {
+		if (!ifa->ifa_addr)
+			continue;
+
+		if (ss->ss.ss_family != ifa->ifa_addr->sa_family)
+			continue;
+		switch (ss->ss.ss_family) {
+		case AF_INET:
+			if (inet_cmp_addr(ss, (union sockaddr_u *)ifa->ifa_addr) == 0)
+				return ifa->ifa_name;
+			break;
+		case AF_INET6:
+			if (inet6_cmp_addr(ss, (union sockaddr_u *)ifa->ifa_addr) == 0)
+				return ifa->ifa_name;
+			break;
+		}
+	}
+
+	return NULL;
+}
+
+static void set_dcb_priority(struct iscsi_conn *conn, const char *devname)
+{
+	int pri_mask = 0;
+
+	pri_mask = get_dcb_app_pri_by_port(devname, ISCSI_DEFAULT_PORT);
+	if (pri_mask < 0)
+		log_debug(2, "Getting priority for %s returned %d",
+				devname, pri_mask);
+	else if (pri_mask == 0)
+		log_debug(2, "No priority for %s", devname);
+	else {
+		int pri = select_priority(conn, pri_mask);
+		int rc;
+
+		log_debug(1, "Setting socket %d priority to %d",
+				conn->socket_fd, pri);
+		rc = setsockopt(conn->socket_fd, SOL_SOCKET,
+				SO_PRIORITY, &pri, sizeof(pri));
+		if (rc < 0) {
+			log_warning("Setting socket %d priority to %d failed "
+					"with errno %d", conn->socket_fd,
+					pri, errno);
+		}
+	}
 }
 
 #if 0
@@ -320,6 +418,10 @@ iscsi_io_tcp_connect(iscsi_conn_t *conn, int non_blocking)
 	log_debug(1, "connecting to %s:%s", conn->host, serv);
 	if (non_blocking)
 		set_non_blocking(conn->socket_fd);
+
+	if (conn->session->netdev[0])
+		set_dcb_priority(conn, conn->session->netdev);
+
 	rc = connect(conn->socket_fd, (struct sockaddr *) ss, sizeof (*ss));
 	return rc;
 }
@@ -368,8 +470,9 @@ iscsi_io_tcp_poll(iscsi_conn_t *conn, int timeout_ms)
 	}
 
 	len = sizeof(ss);
-	if (log_level > 0 &&
-	    getsockname(conn->socket_fd, (struct sockaddr *) &ss, &len) >= 0) {
+	if (log_level > 0 || !conn->session->netdev)
+		rc = getsockname(conn->socket_fd, (struct sockaddr *)&ss, &len);
+	if (log_level > 0 && rc >= 0) {
 		getnameinfo((struct sockaddr *) &conn->saddr,
 			    sizeof(conn->saddr), conn->host,
 			    sizeof(conn->host), serv, sizeof(serv),
@@ -381,6 +484,22 @@ iscsi_io_tcp_poll(iscsi_conn_t *conn, int timeout_ms)
 		log_debug(1, "connected local port %s to %s:%s",
 			  lserv, conn->host, serv);
 	}
+
+	if (!conn->session->netdev[0] && rc >= 0) {
+		struct ifaddrs *ifa;
+		char *ifname;
+
+		rc = getifaddrs(&ifa);
+		if (rc < 0)
+			log_error("getifaddrs failed with %d\n", errno);
+		else {
+			ifname = find_ifname(ifa, (union sockaddr_u *)&ss);
+			if (ifname)
+				set_dcb_priority(conn, ifname);
+			freeifaddrs(ifa);
+		}
+	}
+
 	return 1;
 }
 
