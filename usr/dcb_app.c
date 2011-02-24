@@ -35,7 +35,7 @@
 #include <net/if.h>
 #include <linux/netlink.h>
 #include <linux/rtnetlink.h>
-#include <linux/dcbnl.h>
+#include "dcbnl.h"
 #include "dcb_app.h"
 #include "sysfs.h"
 
