@@ -1719,19 +1719,22 @@ session_login_task(node_rec_t *rec, queue_task_t *qtask)
 		return ISCSI_ERR_LOGIN;
 	}
 
-	conn->state = STATE_XPT_WAIT;
-	if (iscsi_conn_connect(conn, qtask)) {
-		__session_destroy(session);
-		return ISCSI_ERR_TRANS;
-	}
-
 	if (gettimeofday(&conn->initial_connect_time, NULL))
 		log_error("Could not get initial connect time. If "
 			  "login errors iscsid may give up the initial "
 			  "login early. You should manually login.");
 
+	conn->state = STATE_XPT_WAIT;
 	qtask->rsp.command = MGMT_IPC_SESSION_LOGIN;
 	qtask->rsp.err = ISCSI_SUCCESS;
+
+	if (iscsi_conn_connect(conn, qtask)) {
+		log_debug(4, "Initial connect failed. Waiting %u seconds "
+			  "before trying to reconnect.\n",
+			  ISCSI_CONN_ERR_REOPEN_DELAY);
+		queue_delayed_reopen(qtask, ISCSI_CONN_ERR_REOPEN_DELAY);
+	}
+
 	return ISCSI_SUCCESS;
 }
 
