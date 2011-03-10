@@ -24,7 +24,7 @@ IFACEFILES = etc/iface.example
 # using '$(MAKE)' instead of just 'make' allows make to run in parallel
 # over multiple makefile.
 
-all: user kernel
+all: user
 
 user: ;
 	cd utils/open-isns; ./configure --with-security=no; $(MAKE)
@@ -68,7 +68,7 @@ clean:
 	install_initd_suse install_initd_redhat install_initd_debian \
 	install_etc install_iface install_doc install_kernel install_iname
 
-install: install_kernel install_programs install_doc install_etc \
+install: install_programs install_doc install_etc \
 	install_initd install_iname install_iface
 
 install_user: install_programs install_doc install_etc \
