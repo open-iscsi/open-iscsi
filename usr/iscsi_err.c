@@ -44,7 +44,7 @@ static char *iscsi_err_msgs[] = {
 	/* 19 */ "encountered non-retryable iSCSI login failure",
 	/* 20 */ "could not connect to iscsid",
 	/* 21 */ "no objects found",
-	/* 23 */ "sysfs lookup failure",
+	/* 22 */ "sysfs lookup failure",
 	/* 23 */ "host not found",
 	/* 24 */ "iSCSI login failed due to authorization failure",
 	/* 25 */ "iSNS query failed",
