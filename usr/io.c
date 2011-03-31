@@ -470,7 +470,7 @@ iscsi_io_tcp_poll(iscsi_conn_t *conn, int timeout_ms)
 	}
 
 	len = sizeof(ss);
-	if (log_level > 0 || !conn->session->netdev)
+	if (log_level > 0 || !conn->session->netdev[0])
 		rc = getsockname(conn->socket_fd, (struct sockaddr *)&ss, &len);
 	if (log_level > 0 && rc >= 0) {
 		getnameinfo((struct sockaddr *) &conn->saddr,
