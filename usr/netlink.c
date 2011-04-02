@@ -53,15 +53,15 @@ static struct iscsi_ipc_ev_clbk *ipc_ev_clbk;
 
 static int ctldev_handle(void);
 
-#define NLM_BUF_DEFAULT_MAX \
-	(NLMSG_SPACE(ISCSI_DEF_MAX_RECV_SEG_LEN + \
-			 sizeof(struct iscsi_hdr)))
+#define NLM_BUF_DEFAULT_MAX (NLMSG_SPACE(ISCSI_DEF_MAX_RECV_SEG_LEN +	\
+					sizeof(struct iscsi_uevent) +	\
+					sizeof(struct iscsi_hdr)))
 
-#define PDU_SENDBUF_DEFAULT_MAX \
-	(ISCSI_DEF_MAX_RECV_SEG_LEN + sizeof(struct iscsi_hdr))
+#define PDU_SENDBUF_DEFAULT_MAX	(ISCSI_DEF_MAX_RECV_SEG_LEN +		\
+					sizeof(struct iscsi_uevent) +	\
+					sizeof(struct iscsi_hdr))
 
-#define NLM_SETPARAM_DEFAULT_MAX \
-	(NI_MAXHOST + 1 + sizeof(struct iscsi_uevent))
+#define NLM_SETPARAM_DEFAULT_MAX (NI_MAXHOST + 1 + sizeof(struct iscsi_uevent))
 
 static int
 kread(char *data, int count)
@@ -108,6 +108,12 @@ nlpayload_read(int ctrl_fd, char *data, int count, int flags)
 
 	iov.iov_base = nlm_recvbuf;
 	iov.iov_len = NLMSG_SPACE(count);
+
+	if (iov.iov_len > NLM_BUF_DEFAULT_MAX) {
+		log_error("Cannot read %lu bytes. nlm_recvbuf too small.",
+			  iov.iov_len);
+		return -1;
+	}
 	memset(iov.iov_base, 0, iov.iov_len);
 
 	memset(&msg, 0, sizeof(msg));
@@ -517,6 +523,7 @@ ksend_pdu_begin(uint64_t transport_handle, uint32_t sid, uint32_t cid,
 			int hdr_size, int data_size)
 {
 	struct iscsi_uevent *ev;
+	int total_xmitlen = sizeof(*ev) + hdr_size + data_size;
 
 	log_debug(7, "in %s", __FUNCTION__);
 
@@ -525,8 +532,13 @@ ksend_pdu_begin(uint64_t transport_handle, uint32_t sid, uint32_t cid,
 		exit(-EIO);
 	}
 
+	if (total_xmitlen > PDU_SENDBUF_DEFAULT_MAX) {
+		log_error("BUG: Cannot send %d bytes.", total_xmitlen);
+		exit(-EINVAL);
+	}
+
 	xmitbuf = pdu_sendbuf;
-	memset(xmitbuf, 0, sizeof(*ev) + hdr_size + data_size);
+	memset(xmitbuf, 0, total_xmitlen);
 	xmitlen = sizeof(*ev);
 	ev = xmitbuf;
 	memset(ev, 0, sizeof(*ev));
