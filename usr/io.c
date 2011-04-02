@@ -299,6 +299,9 @@ static int bind_conn_to_iface(iscsi_conn_t *conn, struct iface_rec *iface)
 {
 	struct iscsi_session *session = conn->session;
 
+	if (strcmp(iface->transport_name, DEFAULT_TRANSPORT))
+		return 0;
+
 	memset(session->netdev, 0, IFNAMSIZ);
 	if (iface_is_bound_by_hwaddr(iface) &&
 	    net_get_netdev_from_hwaddress(iface->hwaddress, session->netdev)) {
