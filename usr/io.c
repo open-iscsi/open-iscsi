@@ -436,7 +436,7 @@ iscsi_io_tcp_poll(iscsi_conn_t *conn, int timeout_ms)
 	struct pollfd pdesc;
 	char serv[NI_MAXSERV], lserv[NI_MAXSERV];
 	struct sockaddr_storage ss;
-	socklen_t len = sizeof(ss);
+	socklen_t len;
 
 	pdesc.fd = conn->socket_fd;
 	pdesc.events = POLLOUT;
