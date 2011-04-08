@@ -25,6 +25,8 @@
 #include <string.h>
 #include <errno.h>
 #include <ctype.h>
+#include <sys/types.h>
+#include <sys/stat.h>
 #include <sys/resource.h>
 
 #include "log.h"
@@ -48,21 +50,28 @@ void daemon_init(void)
 	chdir("/");
 }
 
+#define ISCSI_OOM_PATH_LEN 48
+
 int oom_adjust(void)
 {
 	int fd;
-	char path[48];
+	char path[ISCSI_OOM_PATH_LEN];
+	struct stat statb;
 
 	nice(-10);
-	sprintf(path, "/proc/%d/oom_adj", getpid());
-	fd = open(path, O_WRONLY);
-	if (fd < 0) {
-		return -1;
-	}
-	write(fd, "-16\n", 3); /* for 2.6.11 */
-	write(fd, "-17\n", 3); /* for Andrea's patch */
-	close(fd);
 
+	snprintf(path, ISCSI_OOM_PATH_LEN, "/proc/%d/oom_score_adj", getpid());
+	if (stat(path, &statb)) {
+		/* older kernel so use old oom_adj file */
+		snprintf(path, ISCSI_OOM_PATH_LEN, "/proc/%d/oom_adj",
+			 getpid());
+	}
+	fd = open(path, O_WRONLY);
+	if (fd < 0)
+		return -1;
+	write(fd, "-16", 3); /* for 2.6.11 */
+	write(fd, "-17", 3); /* for Andrea's patch */
+	close(fd);
 	return 0;
 }
 
