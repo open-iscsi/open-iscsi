@@ -332,7 +332,7 @@ static int __get_host_no_from_hwaddress(void *data, struct host_info *info)
 	return 0;
 }
 
-static uint32_t get_host_no_from_hwaddress(char *address, int *rc)
+uint32_t iscsi_sysfs_get_host_no_from_hwaddress(char *hwaddress, int *rc)
 {
 	uint32_t host_no = -1;
 	struct host_info *info;
@@ -345,7 +345,7 @@ static uint32_t get_host_no_from_hwaddress(char *address, int *rc)
 		*rc = ISCSI_ERR_NOMEM;
 		return -1;
 	}
-	strcpy(info->iface.hwaddress, address);
+	strcpy(info->iface.hwaddress, hwaddress);
 
 	local_rc = iscsi_sysfs_for_each_host(info, &nr_found,
 					__get_host_no_from_hwaddress);
@@ -401,7 +401,8 @@ uint32_t iscsi_sysfs_get_host_no_from_hwinfo(struct iface_rec *iface, int *rc)
 
 	if (strlen(iface->hwaddress) &&
 	    strcasecmp(iface->hwaddress, DEFAULT_HWADDRESS))
-		host_no = get_host_no_from_hwaddress(iface->hwaddress, &tmp_rc);
+		host_no = iscsi_sysfs_get_host_no_from_hwaddress(
+						iface->hwaddress, &tmp_rc);
 	else if (strlen(iface->netdev) &&
 		strcasecmp(iface->netdev, DEFAULT_NETDEV))
 		host_no = get_host_no_from_netdev(iface->netdev, &tmp_rc);

@@ -788,42 +788,55 @@ void iface_link_ifaces(struct list_head *ifaces)
 int iface_setup_from_boot_context(struct iface_rec *iface,
 				   struct boot_context *context)
 {
+	struct iscsi_transport *t;
+	uint32_t hostno;
+	int rc;
+
 	if (strlen(context->initiatorname))
 		strlcpy(iface->iname, context->initiatorname,
 			sizeof(iface->iname));
 
 	if (strlen(context->scsi_host_name)) {
-		struct iscsi_transport *t;
-		uint32_t hostno;
-
 		if (sscanf(context->scsi_host_name, "iscsi_boot%u", &hostno) != 		    1) {
 			log_error("Could not parse %s's host no.",
 				  context->scsi_host_name);
 			return 0;
 		}
-		t = iscsi_sysfs_get_transport_by_hba(hostno);
-		if (!t) {
-			log_error("Could not get transport for %s. "
-				  "Make sure the iSCSI driver is loaded.",
-				  context->scsi_host_name);
+	} else if (strlen(context->iface)) {
+/* this ifdef is only temp until distros and firmwares are updated */
+#ifdef OFFLOAD_BOOT_SUPPORTED
+		hostno = iscsi_sysfs_get_host_no_from_hwaddress(context->mac,
+								&rc);
+		if (rc) {
+			/*
+			 * If the MAC in the boot info does not match a iscsi
+			 * host then the MAC must be for network card, so boot
+			 * is not going to be offloaded.
+			 */
+			log_debug(3, "Could not match %s to host\n",
+				  context->mac);
 			return 0;
 		}
 
-		log_debug(3, "boot context has %s transport %s",
-			  context->scsi_host_name, t->name);
-		strcpy(iface->transport_name, t->name);
-	} else if (strlen(context->iface) &&
-		 (!net_get_transport_name_from_netdev(context->iface,
-						iface->transport_name))) {
-		log_debug(3, "boot context has netdev %s",
-			  context->iface);
-		strlcpy(iface->netdev, context->iface,
-			sizeof(iface->netdev));
+		strlcpy(iface->netdev, context->iface, sizeof(iface->netdev));
+#else
+		return 0;
+#endif
 	} else
 		return 0;
+
 	/*
 	 * set up for access through a offload card.
 	 */
+	t = iscsi_sysfs_get_transport_by_hba(hostno);
+	if (!t) {
+		log_error("Could not get transport for host%u. "
+			  "Make sure the iSCSI driver is loaded.",
+			  hostno);
+		return 0;
+	}
+	strcpy(iface->transport_name, t->name);
+
 	memset(iface->name, 0, sizeof(iface->name));
 	snprintf(iface->name, sizeof(iface->name), "%s.%s",
 		 iface->transport_name, context->mac);

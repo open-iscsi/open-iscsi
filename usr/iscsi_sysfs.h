@@ -51,6 +51,7 @@ extern int iscsi_sysfs_for_each_host(void *data, int *nr_found,
 extern uint32_t iscsi_sysfs_get_host_no_from_sid(uint32_t sid, int *err);
 extern uint32_t iscsi_sysfs_get_host_no_from_hwinfo(struct iface_rec *iface,
 						    int *rc);
+extern uint32_t iscsi_sysfs_get_host_no_from_hwaddress(char *hwaddress, int *rc);
 extern int iscsi_sysfs_get_hostinfo_by_host_no(struct host_info *hinfo);
 extern int iscsi_sysfs_get_sid_from_path(char *session);
 extern char *iscsi_sysfs_get_blockdev_from_lun(int hostno, int target, int sid);
