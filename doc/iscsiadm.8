@@ -10,7 +10,7 @@ iscsiadm \- open-iscsi administration utility
 \fBiscsiadm\fR \-m node [ \-hV ] [ \-d debug_level ] [ \-P printlevel ] [ \-L all,manual,automatic ] [ \-U all,manual,automatic ] [ \-S ] [ [ \-T targetname \-p ip:port \-I iface ] [ \-l | \-u | \-R | \-s] ]
 [ [ \-o operation ]  [ \-n name ] [ \-v value ] [ \-p ip:port ] ]
 
-\fBiscsiadm\fR \-m session [ \-hV ] [ \-d debug_level ] [ \-P printlevel ] [ \-r sessionid | sysfsdir [ \-R ] [ \-u | \-s ] ]
+\fBiscsiadm\fR \-m session [ \-hV ] [ \-d debug_level ] [ \-P printlevel ] [ \-r sessionid | sysfsdir [ \-R ] [ \-u | \-s | \-o new ] ]
 
 \fBiscsiadm\fR \-m iface [ \-hV ] [ \-d debug_level ] [ \-P printlevel ] [ \-I ifacename ] [ [ \-o  operation  ] [ \-n name ] [ \-v value ] ]
 
@@ -154,7 +154,8 @@ record.
 \fIrecid\fR is the target name and portal (IP:port). In iface mode, the \fIrecid\fR
 is the iface name. In discovery mode, the \fIrecid\fR is the portal and
 discovery type.
-
+.IP
+In session mode, the \fInew\fR operation logs in a new session using the same node database and iface information as the specified session.
 .IP
 In discovery mode, if the \fIrecid\fR and new operation is passed in, but the \fI--discover\fR argument is not, then iscsiadm will only create a discovery record (it will not perform discovery). If the \fI--discover\fR argument is passed in with the portal and discovery type, then iscsiadm will create the discovery record if needed, and it will create records for portals returned by the target that do not yet have a node DB record.
 .IP

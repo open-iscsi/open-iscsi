@@ -2154,6 +2154,16 @@ main(int argc, char **argv)
 			rec->session.info = info;
 			rec->session.sid = sid;
 
+			/*
+			 * A "new" session means to login a multiple of the
+			 * currently-detected session.
+			 */
+			if (op == OP_NEW) {
+				op = OP_NOOP;
+				do_login = 1;
+				rec->session.multiple = 1;
+			}
+
 			/* drop down to node ops */
 			rc = exec_node_op(op, do_login, do_logout, do_show,
 					  do_rescan, do_stats, info_level,
@@ -2162,6 +2172,12 @@ free_info:
 			free(info);
 			goto out;
 		} else {
+			if (op == OP_NEW) {
+				log_error("session mode: Operation 'new' only "
+					  "allowed with specific session IDs");
+				rc = ISCSI_ERR_INVAL;
+				goto out;
+			}
 			if (do_logout || do_rescan || do_stats) {
 				rc = exec_node_op(op, do_login, do_logout,
 						 do_show, do_rescan, do_stats,
