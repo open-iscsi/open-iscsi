@@ -33,6 +33,7 @@
 #include "iscsi_settings.h"
 #include "iface.h"
 #include "session_info.h"
+#include "iscsi_util.h"
 
 void daemon_init(void)
 {
@@ -285,24 +286,28 @@ free_res1:
 }
 
 int __iscsi_match_session(node_rec_t *rec, char *targetname,
-			  char *address, int port, struct iface_rec *iface)
+			  char *address, int port, struct iface_rec *iface,
+			  unsigned sid)
 {
 	if (!rec) {
 		log_debug(6, "no rec info to match\n");
 		return 1;
 	}
 
-	log_debug(6, "match session [%s,%s,%d][%s %s,%s,%s]",
+	log_debug(6, "match session [%s,%s,%d][%s %s,%s,%s]:%u",
 		  rec->name, rec->conn[0].address, rec->conn[0].port,
 		  rec->iface.name, rec->iface.transport_name,
-		  rec->iface.hwaddress, rec->iface.ipaddress);
+		  rec->iface.hwaddress, rec->iface.ipaddress,
+		  rec->session.sid);
 
 	if (iface)
-		log_debug(6, "to [%s,%s,%d][%s %s,%s,%s]",
+		log_debug(6, "to [%s,%s,%d][%s %s,%s,%s]:%u",
 			  targetname, address, port, iface->name,
 			  iface->transport_name, iface->hwaddress,
-			  iface->ipaddress);
+			  iface->ipaddress, sid);
 
+	if (rec->session.sid && sid && rec->session.sid != sid)
+		return 0;
 
 	if (strlen(rec->name) && strcmp(rec->name, targetname))
 		return 0;
@@ -323,5 +328,6 @@ int iscsi_match_session(void *data, struct session_info *info)
 {
 	return __iscsi_match_session(data, info->targetname,
 				     info->persistent_address,
-				     info->persistent_port, &info->iface);
+				     info->persistent_port, &info->iface,
+				     info->sid);
 }

@@ -1611,7 +1611,8 @@ static iscsi_session_t* session_find_by_rec(node_rec_t *rec)
 			if (__iscsi_match_session(rec, session->nrec.name,
 					 session->nrec.conn[0].address,
 					 session->nrec.conn[0].port,
-					 &session->nrec.iface))
+					 &session->nrec.iface,
+					 MATCH_ANY_SID))
 				return session;
 		}
 	}

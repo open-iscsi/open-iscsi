@@ -292,7 +292,12 @@ for_each_session(struct node_rec *rec, iscsi_sysfs_session_op_fn *fn)
 {
 	int err, num_found = 0;
 
-	err = iscsi_sysfs_for_each_session(rec, &num_found, fn);
+	if (rec && rec->session.info) {
+		num_found = 1;
+		err = fn(rec, rec->session.info);
+	} else {
+		err = iscsi_sysfs_for_each_session(rec, &num_found, fn);
+	}
 	if (err)
 		log_error("Could not execute operation on all sessions: %s",
 			  iscsi_err_to_str(err));
@@ -465,7 +470,7 @@ static int rec_match_fn(void *data, node_rec_t *rec)
 
 	if (!__iscsi_match_session(op_data->match_rec, rec->name,
 				   rec->conn[0].address, rec->conn[0].port,
-				   &rec->iface))
+				   &rec->iface, rec->session.sid))
 		return -1;
 	return op_data->fn(op_data->data, rec);
 }
@@ -850,7 +855,8 @@ static int delete_stale_rec(void *data, struct node_rec *rec)
 					  new_rec->name,
 					  new_rec->conn[0].address,
 					  new_rec->conn[0].port,
-					  &new_rec->iface))
+					  &new_rec->iface,
+					  new_rec->session.sid))
 			return -1;
 	}
 	/* if there is a error we can continue on */
@@ -1239,9 +1245,10 @@ static int exec_node_op(int op, int do_login, int do_logout,
 	struct db_set_param set_param;
 
 	if (rec)
-		log_debug(2, "%s: %s:%s node [%s,%s,%d]", __FUNCTION__,
+		log_debug(2, "%s: %s:%s node [%s,%s,%d] sid %u", __FUNCTION__,
 			  rec->iface.transport_name, rec->iface.name,
-			  rec->name, rec->conn[0].address, rec->conn[0].port);
+			  rec->name, rec->conn[0].address, rec->conn[0].port,
+			  rec->session.sid);
 
 	if (op == OP_NEW) {
 		rc = add_static_recs(rec);
@@ -2144,6 +2151,8 @@ main(int argc, char **argv)
 				rc = ISCSI_ERR_NOMEM;
 				goto free_info;
 			}
+			rec->session.info = info;
+			rec->session.sid = sid;
 
 			/* drop down to node ops */
 			rc = exec_node_op(op, do_login, do_logout, do_show,

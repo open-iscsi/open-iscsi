@@ -2412,6 +2412,8 @@ void idbm_node_setup_defaults(node_rec_t *rec)
 	rec->session.err_timeo.tgt_reset_timeout = DEF_TGT_RESET_TIMEO;
 	rec->session.err_timeo.host_reset_timeout = DEF_HOST_RESET_TIMEO;
 	rec->session.timeo.replacement_timeout = DEF_REPLACEMENT_TIMEO;
+	rec->session.info = NULL;
+	rec->session.sid = 0;
 	idbm_setup_session_defaults(&rec->session.iscsi);
 
 	for (i=0; i<ISCSI_CONN_MAX; i++) {
@@ -2439,7 +2441,8 @@ idbm_find_rec_in_list(struct list_head *rec_list, char *targetname, char *addr,
 	struct node_rec *rec;
 
 	list_for_each_entry(rec, rec_list, list) {
-		if (__iscsi_match_session(rec, targetname, addr, port, iface))
+		if (__iscsi_match_session(rec, targetname, addr, port, iface,
+					  MATCH_ANY_SID))
 			return rec;
 	}
 

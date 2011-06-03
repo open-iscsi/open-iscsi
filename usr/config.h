@@ -193,6 +193,8 @@ typedef struct session_rec {
 	struct iscsi_session_timeout_config	timeo;
 	struct iscsi_error_timeout_config	err_timeo;
 	struct iscsi_session_operational_config	iscsi;
+	struct session_info			*info;
+	unsigned                                sid;
 } session_rec_t;
 
 #define ISCSI_TRANSPORT_NAME_MAXLEN 16
