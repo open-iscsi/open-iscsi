@@ -94,7 +94,8 @@ static int iscsid_login_reqs_wait(struct list_head *list)
 
 /**
  * iscsi_login_portal - request iscsid to login to portal
- * @data: Unused. Only needed so this can be used in iscsi_login_portals
+ * @data: If set, copies the session.multiple value to the portal record
+ *        so it is propagated to iscsid.
  * @list: If async, list to add session to
  * @rec: portal rec to log into
  */
@@ -103,9 +104,15 @@ int iscsi_login_portal(void *data, struct list_head *list, struct node_rec *rec)
 	struct iscsid_async_req *async_req = NULL;
 	int rc = 0, fd;
 
-	log_info("Logging in to [iface: %s, target: %s, portal: %s,%d]",
+	if (data) {
+		struct node_rec *pattern_rec = data;
+		rec->session.multiple = pattern_rec->session.multiple;
+	}
+
+	log_info("Logging in to [iface: %s, target: %s, portal: %s,%d]%s",
 		 rec->iface.name, rec->name, rec->conn[0].address,
-		 rec->conn[0].port);
+		 rec->conn[0].port,
+		 (rec->session.multiple ? " (multiple)" : ""));
 
 	if (list) {
 		async_req = calloc(1, sizeof(*async_req));

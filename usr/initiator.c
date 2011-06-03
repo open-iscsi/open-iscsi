@@ -1644,8 +1644,12 @@ session_login_task(node_rec_t *rec, queue_task_t *qtask)
 	struct iscsi_transport *t;
 	int rc;
 
-	if (session_is_running(rec))
-		return ISCSI_ERR_SESS_EXISTS;
+	if (session_is_running(rec)) {
+		if (rec->session.multiple)
+			log_debug(2, "Adding a copy of an existing session");
+		else
+			return ISCSI_ERR_SESS_EXISTS;
+	}
 
 	t = iscsi_sysfs_get_transport_by_name(rec->iface.transport_name);
 	if (!t)

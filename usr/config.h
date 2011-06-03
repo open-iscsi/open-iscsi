@@ -195,6 +195,11 @@ typedef struct session_rec {
 	struct iscsi_session_operational_config	iscsi;
 	struct session_info			*info;
 	unsigned                                sid;
+	/*
+	 * This is a flag passed to iscsid.  If set, multiple sessions are
+	 * allowed to be initiated on this record
+	 */
+	unsigned char                           multiple;
 } session_rec_t;
 
 #define ISCSI_TRANSPORT_NAME_MAXLEN 16

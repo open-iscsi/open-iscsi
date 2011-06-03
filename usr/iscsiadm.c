@@ -522,7 +522,7 @@ static int login_portals(struct node_rec *pattern_rec)
 	rc = err;
 	/* if there is an err but some recs then try to login to what we have */
 
-	err = iscsi_login_portals(NULL, &nr_found, 1, &rec_list,
+	err = iscsi_login_portals(pattern_rec, &nr_found, 1, &rec_list,
 				  iscsi_login_portal);
 	if (err)
 		log_error("Could not log into all portals");

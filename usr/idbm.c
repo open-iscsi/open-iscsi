@@ -2414,6 +2414,7 @@ void idbm_node_setup_defaults(node_rec_t *rec)
 	rec->session.timeo.replacement_timeout = DEF_REPLACEMENT_TIMEO;
 	rec->session.info = NULL;
 	rec->session.sid = 0;
+	rec->session.multiple = 0;
 	idbm_setup_session_defaults(&rec->session.iscsi);
 
 	for (i=0; i<ISCSI_CONN_MAX; i++) {
