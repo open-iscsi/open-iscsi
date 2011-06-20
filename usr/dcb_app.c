@@ -1,7 +1,7 @@
 /*******************************************************************************
 
   DCB application support
-  Copyright(c) 2007-2010 Intel Corporation.
+  Copyright(c) 2007-2011 Intel Corporation.
 
   This program is free software; you can redistribute it and/or modify it
   under the terms and conditions of the GNU General Public License,
@@ -20,8 +20,7 @@
   the file called "COPYING".
 
   Contact Information:
-  e1000-eedc Mailing List <e1000-eedc@lists.sourceforge.net>
-  Intel Corporation, 5200 N.E. Elam Young Parkway, Hillsboro, OR 97124-6497
+  open-lldp Mailing List <lldp-devel@open-lldp.org>
 
 *******************************************************************************/
 
@@ -39,7 +38,13 @@
 #include "dcb_app.h"
 #include "sysfs.h"
 
-#define NLA_DATA(nla)        ((void *)((char*)(nla) + NLA_HDRLEN))
+#define IEEE_SMASK_ETHTYPE	(1 << IEEE_8021QAZ_APP_SEL_ETHERTYPE)
+#define IEEE_SMASK_STREAM	(1 << IEEE_8021QAZ_APP_SEL_STREAM)
+#define IEEE_SMASK_DGRAM	(1 << IEEE_8021QAZ_APP_SEL_DGRAM)
+#define IEEE_SMASK_ANY		(1 << IEEE_8021QAZ_APP_SEL_ANY)
+
+#define NLA_DATA(nla)        ((void *)((char *)(nla) + NLA_HDRLEN))
+#define NLA_NEXT(nla) (struct rtattr *)((char *)nla + NLMSG_ALIGN(nla->rta_len))
 
 /* Maximum size of response requested or message sent */
 #define MAX_MSG_SIZE    1024
@@ -72,7 +77,7 @@ static struct nlmsghdr *start_dcbmsg(__u16 msg_type, __u8 arg)
 }
 
 static struct rtattr *add_rta(struct nlmsghdr *nlh, __u16 rta_type,
-                              void *attr, __u16 rta_len)
+			      void *attr, __u16 rta_len)
 {
 	struct rtattr *rta;
 
@@ -127,14 +132,49 @@ static struct nlmsghdr *dcbnl_get_msg(int nl_sd)
 	return nlh;
 }
 
-static int get_app_cfg(const char *ifname, __u8 req_idtype, __u16 req_id)
+static int get_dcbx_cap(int nl_sd, const char *ifname)
+{
+	struct nlmsghdr *nlh;
+	struct dcbmsg *d;
+	struct rtattr *rta;
+	int rval;
+
+	nlh = start_dcbmsg(RTM_GETDCB, DCB_CMD_GDCBX);
+	if (!nlh)
+		return -EIO;
+
+	add_rta(nlh, DCB_ATTR_IFNAME, (void *)ifname, strlen(ifname) + 1);
+	rval = dcbnl_send_msg(nl_sd, nlh);
+	free(nlh);
+	if (rval)
+		return -EIO;
+
+	/* Receive DCBX capabilities */
+	nlh = dcbnl_get_msg(nl_sd);
+	if (!nlh)
+		return -EIO;
+
+	d = (struct dcbmsg *)NLMSG_DATA(nlh);
+	rta = (struct rtattr *)(((char *)d) +
+			NLMSG_ALIGN(sizeof(struct dcbmsg)));
+
+	if (d->cmd != DCB_CMD_GDCBX || rta->rta_type != DCB_ATTR_DCBX) {
+		free(nlh);
+		return -EIO;
+	}
+
+	rval = *(__u8 *)NLA_DATA(rta);
+	free(nlh);
+	return rval;
+}
+
+static int get_cee_app_pri(int nl_sd, const char *ifname,
+			   __u8 req_idtype, __u16 req_id)
 {
 	struct nlmsghdr *nlh;
 	struct dcbmsg *d;
 	struct rtattr *rta_parent, *rta_child;
 	int rval = 0;
-	int nl_sd;
-	unsigned int seq;
 	__u8 idtype;
 	__u16 id;
 
@@ -142,7 +182,6 @@ static int get_app_cfg(const char *ifname, __u8 req_idtype, __u16 req_id)
 	if (!nlh)
 		return -EIO;
 
-	seq = nlh->nlmsg_seq;
 	add_rta(nlh, DCB_ATTR_IFNAME, (void *)ifname, strlen(ifname) + 1);
 	rta_parent = add_rta(nlh, DCB_ATTR_APP, NULL, 0);
 
@@ -154,19 +193,12 @@ static int get_app_cfg(const char *ifname, __u8 req_idtype, __u16 req_id)
 		(void *)&req_id, sizeof(__u16));
 	rta_parent->rta_len += NLA_ALIGN(rta_child->rta_len);
 
-	nl_sd = socket(PF_NETLINK, SOCK_RAW, NETLINK_ROUTE);
-	if (nl_sd < 0)
-		return nl_sd;
-
 	rval = dcbnl_send_msg(nl_sd, nlh);
 	free(nlh);
-	if (rval) {
-		close(nl_sd);
+	if (rval)
 		return -EIO;
-	}
 
 	nlh = dcbnl_get_msg(nl_sd);
-	close(nl_sd);
 	if (!nlh)
 		return -EIO;
 
@@ -184,28 +216,100 @@ static int get_app_cfg(const char *ifname, __u8 req_idtype, __u16 req_id)
 	}
 
 	rta_child = NLA_DATA(rta_parent);
-	rta_parent = (struct rtattr *)((char *)rta_parent +
-	                               NLMSG_ALIGN(rta_parent->rta_len));
+	rta_parent = NLA_NEXT(rta_parent);
 
 	idtype = *(__u8 *)NLA_DATA(rta_child);
-	rta_child = (struct rtattr *)((char *)rta_child +
-		             NLMSG_ALIGN(rta_child->rta_len));
+	rta_child = NLA_NEXT(rta_child);
 	if (idtype != req_idtype) {
 		rval = -EIO;
 		goto get_error;
 	}
 
 	id = *(__u16 *)NLA_DATA(rta_child);
-	rta_child = (struct rtattr *)((char *)rta_child +
-		             NLMSG_ALIGN(rta_child->rta_len));
+	rta_child = NLA_NEXT(rta_child);
 	if (id != req_id) {
 		rval = -EIO;
 		goto get_error;
 	}
 
 	rval = *(__u8 *)NLA_DATA(rta_child);
-	rta_child = (struct rtattr *)((char *)rta_child +
-		             NLMSG_ALIGN(rta_child->rta_len));
+
+get_error:
+	free(nlh);
+	return rval;
+}
+
+static int
+get_ieee_app_pri(int nl_sd, const char *ifname, __u8 ieee_mask, __u16 req_id)
+{
+	struct nlmsghdr *nlh;
+	struct dcbmsg *d;
+	struct rtattr *rta_parent, *rta_child;
+	int rval;
+
+	nlh = start_dcbmsg(RTM_GETDCB, DCB_CMD_IEEE_GET);
+	if (!nlh)
+		return -EIO;
+
+	add_rta(nlh, DCB_ATTR_IFNAME, (void *)ifname, strlen(ifname) + 1);
+
+	rval = dcbnl_send_msg(nl_sd, nlh);
+	free(nlh);
+	if (rval)
+		return -EIO;
+
+	nlh = dcbnl_get_msg(nl_sd);
+	if (!nlh)
+		return -EIO;
+
+	d = (struct dcbmsg *)NLMSG_DATA(nlh);
+	rta_parent = (struct rtattr *)(((char *)d) +
+		NLMSG_ALIGN(sizeof(struct dcbmsg)));
+
+	if (d->cmd != DCB_CMD_IEEE_GET) {
+		rval = -EIO;
+		goto get_error;
+	}
+	if (rta_parent->rta_type != DCB_ATTR_IFNAME) {
+		rval = -EIO;
+		goto get_error;
+	}
+
+	rta_parent = NLA_NEXT(rta_parent);
+
+	if (rta_parent->rta_type != DCB_ATTR_IEEE) {
+		rval = -EIO;
+		goto get_error;
+	}
+
+	rta_child = NLA_DATA(rta_parent);
+	rta_parent = NLA_NEXT(rta_parent);
+
+	for (; rta_parent > rta_child; rta_child = NLA_NEXT(rta_child)) {
+		if (rta_child->rta_type == DCB_ATTR_IEEE_APP_TABLE)
+			break;
+	}
+	if (rta_parent <= rta_child) {
+		rval = -EIO;
+		goto get_error;
+	}
+
+	rta_parent = rta_child;
+	rta_child = NLA_DATA(rta_parent);
+	rta_parent = NLA_NEXT(rta_parent);
+
+	rval = 0;
+	for (; rta_parent > rta_child; rta_child = NLA_NEXT(rta_child)) {
+		struct dcb_app *app;
+
+		if (rta_child->rta_type != DCB_ATTR_IEEE_APP)
+			continue;
+		app = (struct dcb_app *)NLA_DATA(rta_child);
+		if (app->protocol != req_id)
+			continue;
+		if ((1 << app->selector) & ieee_mask)
+			rval |= 1 << app->priority;
+	}
 
 get_error:
 	free(nlh);
@@ -225,22 +329,51 @@ static int get_link_ifname(const char *ifname, char *link_ifname)
 	return 0;
 }
 
-int get_dcb_app_pri_by_port(const char *ifname, int port)
+static int get_app_pri(const char *iface, __u8 req_idtype, __u16 req_id,
+		       __u8 ieee_mask)
 {
-	char link_ifname[IFNAMSIZ];
+	int dcbx_cap;
+	int pri;
+	int nl_sd;
+	char ifname[IFNAMSIZ];
 
-	if (get_link_ifname(ifname, link_ifname))
+	if (get_link_ifname(iface, ifname))
 		return 0;
 
-	return get_app_cfg(link_ifname, DCB_APP_IDTYPE_PORTNUM, port);
+	nl_sd = socket(PF_NETLINK, SOCK_RAW, NETLINK_ROUTE);
+	if (nl_sd < 0)
+		return -errno;
+
+	dcbx_cap = get_dcbx_cap(nl_sd, ifname);
+	if (dcbx_cap < 0 || !(dcbx_cap & DCB_CAP_DCBX_VER_IEEE))
+		pri = get_cee_app_pri(nl_sd, ifname, req_idtype, req_id);
+	else
+		pri = get_ieee_app_pri(nl_sd, ifname, ieee_mask, req_id);
+
+	close(nl_sd);
+	return pri;
+}
+
+int get_dcb_app_pri_by_stream_port(const char *ifname, int port)
+{
+	return get_app_pri(ifname, DCB_APP_IDTYPE_PORTNUM, port,
+			IEEE_SMASK_STREAM | IEEE_SMASK_ANY);
+}
+
+int get_dcb_app_pri_by_datagram_port(const char *ifname, int port)
+{
+	return get_app_pri(ifname, DCB_APP_IDTYPE_PORTNUM, port,
+			IEEE_SMASK_DGRAM | IEEE_SMASK_ANY);
+}
+
+int get_dcb_app_pri_by_port_sel(const char *ifname, int port, int sel)
+{
+	return get_app_pri(ifname, DCB_APP_IDTYPE_PORTNUM, port,
+			1 << sel);
 }
 
 int get_dcb_app_pri_by_ethtype(const char *ifname, int ethtype)
 {
-	char link_ifname[IFNAMSIZ];
-
-	if (get_link_ifname(ifname, link_ifname))
-		return 0;
-
-	return get_app_cfg(link_ifname, DCB_APP_IDTYPE_ETHTYPE, ethtype);
+	return get_app_pri(ifname, DCB_APP_IDTYPE_ETHTYPE, ethtype,
+			IEEE_SMASK_ETHTYPE);
 }

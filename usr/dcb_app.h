@@ -1,7 +1,7 @@
 /*******************************************************************************
 
   DCB application support
-  Copyright(c) 2007-2010 Intel Corporation.
+  Copyright(c) 2010-2011 Intel Corporation.
 
   This program is free software; you can redistribute it and/or modify it
   under the terms and conditions of the GNU General Public License,
@@ -20,15 +20,22 @@
   the file called "COPYING".
 
   Contact Information:
-  e1000-eedc Mailing List <e1000-eedc@lists.sourceforge.net>
-  Intel Corporation, 5200 N.E. Elam Young Parkway, Hillsboro, OR 97124-6497
+  open-lldp Mailing List <lldp-devel@open-lldp.org>
 
 *******************************************************************************/
 
 #ifndef _DCB_APP_H_
 #define _DCB_APP_H_
 
-int get_dcb_app_pri_by_port(const char *iface, int port);
-int get_dcb_app_pri_by_ethtype(const char *iface, int ethtype);
+int get_dcb_app_pri_by_ethtype(const char *ifname, int ethtype);
+
+int get_dcb_app_pri_by_stream_port(const char *ifname, int port);
+int get_dcb_app_pri_by_datagram_port(const char *ifname, int port);
+
+/*
+ * The selector values for the following call are defined in recent versions
+ * of the dcbnl.h file.
+ */
+int get_dcb_app_pri_by_port_sel(const char *ifname, int port, int sel);
 
 #endif  /* _DCB_APP_H_ */

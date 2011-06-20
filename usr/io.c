@@ -152,7 +152,7 @@ static void set_dcb_priority(struct iscsi_conn *conn, const char *devname)
 {
 	int pri_mask = 0;
 
-	pri_mask = get_dcb_app_pri_by_port(devname, ISCSI_DEFAULT_PORT);
+	pri_mask = get_dcb_app_pri_by_stream_port(devname, ISCSI_DEFAULT_PORT);
 	if (pri_mask < 0)
 		log_debug(2, "Getting priority for %s returned %d",
 				devname, pri_mask);
