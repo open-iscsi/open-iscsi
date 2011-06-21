@@ -39,9 +39,11 @@
 #define INITIATOR_NAME_FILE	ISCSI_CONFIG_ROOT"initiatorname.iscsi"
 
 #define PID_FILE		"/var/run/iscsid.pid"
+#ifndef LOCK_DIR
 #define LOCK_DIR		"/var/lock/iscsi"
-#define LOCK_FILE		"/var/lock/iscsi/lock"
-#define LOCK_WRITE_FILE		"/var/lock/iscsi/lock.write"
+#endif
+#define LOCK_FILE		LOCK_DIR"/lock"
+#define LOCK_WRITE_FILE		LOCK_DIR"/lock.write"
 
 typedef enum iscsi_conn_state_e {
 	STATE_FREE,
