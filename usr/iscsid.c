@@ -339,14 +339,6 @@ int main(int argc, char *argv[])
 	int control_fd;
 	pid_t pid;
 
-	/* do not allow ctrl-c for now... */
-	sa_new.sa_handler = catch_signal;
-	sigemptyset(&sa_new.sa_mask);
-	sa_new.sa_flags = 0;
-	sigaction(SIGINT, &sa_new, &sa_old );
-	sigaction(SIGPIPE, &sa_new, &sa_old );
-	sigaction(SIGTERM, &sa_new, &sa_old );
-
 	while ((ch = getopt_long(argc, argv, "c:i:fd:u:g:p:vh", long_options,
 				 &longindex)) >= 0) {
 		switch (ch) {
@@ -389,6 +381,14 @@ int main(int argc, char *argv[])
 		      daemonize ? log_do_log_daemon : log_do_log_std, NULL);
 	if (log_pid < 0)
 		exit(ISCSI_ERR);
+
+	/* do not allow ctrl-c for now... */
+	sa_new.sa_handler = catch_signal;
+	sigemptyset(&sa_new.sa_mask);
+	sa_new.sa_flags = 0;
+	sigaction(SIGINT, &sa_new, &sa_old );
+	sigaction(SIGPIPE, &sa_new, &sa_old );
+	sigaction(SIGTERM, &sa_new, &sa_old );
 
 	sysfs_init();
 	if (idbm_init(iscsid_get_config_file)) {

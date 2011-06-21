@@ -474,6 +474,8 @@ void log_close(pid_t pid)
 		return;
 	}
 
-	kill(pid, SIGTERM);
-	waitpid(pid, &status, 0);
+	if (pid > 0) {
+		kill(pid, SIGTERM);
+		waitpid(pid, &status, 0);
+	}
 }
