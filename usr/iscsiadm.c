@@ -265,15 +265,10 @@ static int print_ifaces(struct iface_rec *iface, int info_level)
 static int
 match_startup_mode(node_rec_t *rec, char *mode)
 {
-	/*
-	 * we always skip onboot because this should be handled by
-	 * something else
-	 */
-	if (rec->startup == ISCSI_STARTUP_ONBOOT)
-		return -1;
-
 	if ((!strcmp(mode, "automatic") &&
 	    rec->startup == ISCSI_STARTUP_AUTOMATIC) ||
+	    (!strcmp(mode, "onboot") &&
+	    rec->startup == ISCSI_STARTUP_ONBOOT) ||
 	    (!strcmp(mode, "manual") &&
 	    rec->startup == ISCSI_STARTUP_MANUAL) ||
 	    !strcmp(mode, "all"))
@@ -282,6 +277,8 @@ match_startup_mode(node_rec_t *rec, char *mode)
 	/* support conn or session startup params */
 	if ((!strcmp(mode, "automatic") &&
 	    rec->conn[0].startup == ISCSI_STARTUP_AUTOMATIC) ||
+	    (!strcmp(mode, "onboot") &&
+	    rec->conn[0].startup == ISCSI_STARTUP_ONBOOT) ||
 	    (!strcmp(mode, "manual") &&
 	    rec->conn[0].startup == ISCSI_STARTUP_MANUAL) ||
 	    !strcmp(mode, "all"))
@@ -385,12 +382,6 @@ static int
 __login_by_startup(void *data, struct list_head *list, struct node_rec *rec)
 {
 	char *mode = data;
-	/*
-	 * we always skip onboot because this should be handled by
-	 * something else
-	 */
-	if (rec->startup == ISCSI_STARTUP_ONBOOT)
-		return -1;
 
 	if (match_startup_mode(rec, mode))
 		return -1;
@@ -405,7 +396,7 @@ login_by_startup(char *mode)
 	struct list_head rec_list;
 
 	if (!mode || !(!strcmp(mode, "automatic") || !strcmp(mode, "all") ||
-	    !strcmp(mode,"manual"))) {
+		       !strcmp(mode,"manual") || !strcmp(mode, "onboot"))) {
 		log_error("Invalid loginall option %s.", mode);
 		usage(ISCSI_ERR_INVAL);
 		return ISCSI_ERR_INVAL;
