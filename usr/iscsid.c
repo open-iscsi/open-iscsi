@@ -69,6 +69,7 @@ static struct option const long_options[] = {
 	{"debug", required_argument, NULL, 'd'},
 	{"uid", required_argument, NULL, 'u'},
 	{"gid", required_argument, NULL, 'g'},
+	{"no-pid-file", no_argument, NULL, 'n'},
 	{"pid", required_argument, NULL, 'p'},
 	{"help", no_argument, NULL, 'h'},
 	{"version", no_argument, NULL, 'v'},
@@ -90,6 +91,7 @@ Open-iSCSI initiator daemon.\n\
   -d, --debug debuglevel  print debugging information\n\
   -u, --uid=uid           run as uid, default is current user\n\
   -g, --gid=gid           run as gid, default is current user group\n\
+  -n, --no-pid-file       do not use a pid file\n\
   -p, --pid=pidfile       use pid file (default " PID_FILE ").\n\
   -h, --help              display this help and exit\n\
   -v, --version           display version and exit\n\
@@ -339,7 +341,7 @@ int main(int argc, char *argv[])
 	int control_fd;
 	pid_t pid;
 
-	while ((ch = getopt_long(argc, argv, "c:i:fd:u:g:p:vh", long_options,
+	while ((ch = getopt_long(argc, argv, "c:i:fd:nu:g:p:vh", long_options,
 				 &longindex)) >= 0) {
 		switch (ch) {
 		case 'c':
@@ -359,6 +361,9 @@ int main(int argc, char *argv[])
 			break;
 		case 'g':
 			gid = strtoul(optarg, NULL, 10);
+			break;
+		case 'n':
+			pid_file = NULL;
 			break;
 		case 'p':
 			pid_file = optarg;
@@ -415,13 +420,15 @@ int main(int argc, char *argv[])
 
 	if (daemonize) {
 		char buf[64];
-		int fd;
+		int fd = -1;
 
-		fd = open(pid_file, O_WRONLY|O_CREAT, 0644);
-		if (fd < 0) {
-			log_error("Unable to create pid file");
-			log_close(log_pid);
-			exit(ISCSI_ERR);
+		if (pid_file) {
+			fd = open(pid_file, O_WRONLY|O_CREAT, 0644);
+			if (fd < 0) {
+				log_error("Unable to create pid file");
+				log_close(log_pid);
+				exit(ISCSI_ERR);
+			}
 		}
 		pid = fork();
 		if (pid < 0) {
@@ -439,15 +446,16 @@ int main(int argc, char *argv[])
 		}
 
 		chdir("/");
-		if (lockf(fd, F_TLOCK, 0) < 0) {
-			log_error("Unable to lock pid file");
-			log_close(log_pid);
-			exit(ISCSI_ERR);
+		if (fd > 0) {
+			if (lockf(fd, F_TLOCK, 0) < 0) {
+				log_error("Unable to lock pid file");
+				log_close(log_pid);
+				exit(ISCSI_ERR);
+			}
+			ftruncate(fd, 0);
+			sprintf(buf, "%d\n", getpid());
+			write(fd, buf, strlen(buf));
 		}
-		ftruncate(fd, 0);
-		sprintf(buf, "%d\n", getpid());
-		write(fd, buf, strlen(buf));
-
 		daemon_init();
 	} else {
 		if ((control_fd = ipc->ctldev_open()) < 0) {
