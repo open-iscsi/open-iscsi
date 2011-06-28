@@ -331,3 +331,16 @@ int iscsi_match_session(void *data, struct session_info *info)
 				     info->persistent_port, &info->iface,
 				     info->sid);
 }
+
+int iscsi_match_session_count(void *data, struct session_info *info)
+{
+	/*
+	 * iscsi_sysfs_for_each_session expects:
+	 *   0==match -1==nomatch >0==error
+	 * but iscsi_match_session returns:
+	 *   1==match 0==nomatch
+	 */
+	if (iscsi_match_session(data, info))
+		return 0;
+	return -1;
+}

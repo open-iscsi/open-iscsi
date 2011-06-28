@@ -248,6 +248,8 @@ idbm_recinfo_node(node_rec_t *r, recinfo_t *ri)
 		      session.cmds_max, IDBM_SHOW, num, 1);
 	__recinfo_int(SESSION_QDEPTH, ri, r,
 		       session.queue_depth, IDBM_SHOW, num, 1);
+	__recinfo_int(SESSION_NR_SESSIONS, ri, r,
+		       session.nr_sessions, IDBM_SHOW, num, 1);
 	__recinfo_int_o2(SESSION_AUTH_METHOD, ri, r, session.auth.authmethod,
 			 IDBM_SHOW, "None", "CHAP", num, 1);
 	__recinfo_str(SESSION_USERNAME, ri, r,
@@ -2402,6 +2404,7 @@ void idbm_node_setup_defaults(node_rec_t *rec)
 	rec->session.xmit_thread_priority = XMIT_THREAD_PRIORITY;
 	rec->session.initial_cmdsn = 0;
 	rec->session.queue_depth = QUEUE_DEPTH;
+	rec->session.nr_sessions = 1;
 	rec->session.initial_login_retry_max = DEF_INITIAL_LOGIN_RETRIES_MAX;
 	rec->session.reopen_max = 32;
 	rec->session.auth.authmethod = 0;

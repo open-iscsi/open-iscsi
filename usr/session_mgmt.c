@@ -3,7 +3,7 @@
  *
  * Copyright (C) 2010 Mike Christie
  * Copyright (C) 2010 Red Hat, Inc. All rights reserved.
-
+ * Copyright (C) 2011 Dell Inc.
  * maintained by open-iscsi@googlegroups.com
  *
  * This program is free software; you can redistribute it and/or modify
@@ -93,18 +93,19 @@ static int iscsid_login_reqs_wait(struct list_head *list)
 }
 
 /**
- * iscsi_login_portal - request iscsid to login to portal
+ * __iscsi_login_portal - request iscsid to login to portal
  * @data: If set, copies the session.multiple value to the portal record
  *        so it is propagated to iscsid.
  * @list: If async, list to add session to
  * @rec: portal rec to log into
  */
-int iscsi_login_portal(void *data, struct list_head *list, struct node_rec *rec)
+static int
+__iscsi_login_portal(void *data, struct list_head *list, struct node_rec *rec)
 {
 	struct iscsid_async_req *async_req = NULL;
 	int rc = 0, fd;
 
-	if (data) {
+	if (data && !rec->session.multiple) {
 		struct node_rec *pattern_rec = data;
 		rec->session.multiple = pattern_rec->session.multiple;
 	}
@@ -144,6 +145,63 @@ int iscsi_login_portal(void *data, struct list_head *list, struct node_rec *rec)
 		log_login_msg(rec, rc);
 
 	return 0;
+}
+
+/**
+ * iscsi_login_portal - request iscsid to login to portal multiple
+ * times, based on the session.nr_sessions in the portal record.
+ * @data: If set, session.multiple will cause an additional session to
+ *        be created regardless of the value of session.nr_sessions
+ * @list: If async, list to add session to
+ * @rec: portal rec to log into
+ */
+int iscsi_login_portal(void *data, struct list_head *list, struct node_rec *rec)
+{
+	struct node_rec *pattern_rec = data;
+	int rc = 0, session_count = 0, i;
+
+	/*
+	 * If pattern_rec->session.multiple is set, just add a single new
+	 * session by passing things along to __iscsi_login_portal
+	 */
+	if (pattern_rec && pattern_rec->session.multiple)
+		return __iscsi_login_portal(data, list, rec);
+
+	/*
+	 * Count the current number of sessions, and only create those
+	 * that are missing.
+	 */
+	rc = iscsi_sysfs_for_each_session(rec, &session_count,
+					  iscsi_match_session_count);
+	if (rc) {
+		log_error("Could not count current number of sessions");
+		goto done;
+	}
+	if (session_count >= rec->session.nr_sessions) {
+		log_debug(1, "%s: %d session%s requested, but %d "
+			  "already present.",
+			  rec->iface.name, rec->session.nr_sessions,
+			  rec->session.nr_sessions == 1 ? "" : "s",
+			  session_count);
+		rc = 0;
+		goto done;
+	}
+
+	/*
+	 * Ensure the record's 'multiple' flag is set so __iscsi_login_portal
+	 * will allow multiple logins.
+	 */
+	rec->session.multiple = 1;
+	for (i = session_count; i < rec->session.nr_sessions; ++i) {
+		log_debug(1, "%s: Creating session %d/%d", rec->iface.name,
+			  i + 1, rec->session.nr_sessions);
+		int err = __iscsi_login_portal(pattern_rec, list, rec);
+		if (err && !rc)
+			rc = err;
+	}
+
+done:
+	return rc;
 }
 
 /**

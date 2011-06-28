@@ -14,6 +14,7 @@ extern int increase_max_files(void);
 extern char *str_to_ipport(char *str, int *port, int *tgpt);
 
 extern int iscsi_match_session(void *data, struct session_info *info);
+extern int iscsi_match_session_count(void *data, struct session_info *info);
 extern int __iscsi_match_session(struct node_rec *rec, char *targetname,
 				 char *address, int port,
 				 struct iface_rec *iface,
