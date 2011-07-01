@@ -344,3 +344,11 @@ int iscsi_match_session_count(void *data, struct session_info *info)
 		return 0;
 	return -1;
 }
+
+int iscsi_match_target(void *data, struct session_info *info)
+{
+	return __iscsi_match_session(data, info->targetname,
+				     info->persistent_address,
+				     info->persistent_port, NULL,
+				     MATCH_ANY_SID);
+}

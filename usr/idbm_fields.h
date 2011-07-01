@@ -10,6 +10,7 @@
 #define NODE_NAME	"node.name"
 #define NODE_TPGT	"node.tpgt"
 #define NODE_STARTUP	"node.startup"
+#define NODE_LEADING_LOGIN "node.leading_login"
 #define NODE_DISC_ADDR	"node.discovery_address"
 #define NODE_DISC_PORT	"node.discovery_port"
 #define NODE_DISC_TYPE	"node.discovery_type"

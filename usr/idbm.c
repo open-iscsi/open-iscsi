@@ -209,6 +209,8 @@ idbm_recinfo_node(node_rec_t *r, recinfo_t *ri)
 	__recinfo_int(NODE_TPGT, ri, r, tpgt, IDBM_SHOW, num, 0);
 	__recinfo_int_o3(NODE_STARTUP, ri, r, startup,
 			IDBM_SHOW, "manual", "automatic", "onboot", num, 1);
+	__recinfo_int_o2(NODE_LEADING_LOGIN, ri, r, leading_login, IDBM_SHOW,
+			 "No", "Yes", num, 1);
 	/*
 	 * Note: because we do not add the iface.iscsi_ifacename to
 	 * sysfs iscsiadm does some weird matching. We can change the iface
@@ -2400,6 +2402,7 @@ void idbm_node_setup_defaults(node_rec_t *rec)
 
 	rec->tpgt = PORTAL_GROUP_TAG_UNKNOWN;
 	rec->disc_type = DISCOVERY_TYPE_STATIC;
+	rec->leading_login = 0;
 	rec->session.cmds_max = CMDS_MAX;
 	rec->session.xmit_thread_priority = XMIT_THREAD_PRIORITY;
 	rec->session.initial_cmdsn = 0;

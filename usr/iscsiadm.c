@@ -4,6 +4,7 @@
  * Copyright (C) 2004 Dmitry Yusupov, Alex Aizman
  * Copyright (C) 2006 Mike Christie
  * Copyright (C) 2006 Red Hat, Inc. All rights reserved.
+ * Copyright (C) 2011 Dell Inc.
  * maintained by open-iscsi@googlegroups.com
  *
  * This program is free software; you can redistribute it and/or modify
@@ -379,18 +380,54 @@ logout_by_startup(char *mode)
 	return rc; 
 }
 
-/*
- * TODO: merged this and logout into the common for_each_matched_rec by making
- * the matching more generic
- */
-static int
-__login_by_startup(void *data, struct list_head *list, struct node_rec *rec)
-{
-	char *mode = data;
+struct startup_data {
+	char *mode;
+	struct list_head all_logins;
+	struct list_head leading_logins;
+};
 
-	if (match_startup_mode(rec, mode))
+static int link_startup_recs(void *data, struct node_rec *rec)
+{
+	struct startup_data *startup = data;
+	struct node_rec *rec_copy;
+
+	if (match_startup_mode(rec, startup->mode))
 		return -1;
 
+	rec_copy = calloc(1, sizeof(*rec_copy));
+	if (!rec_copy)
+		return ISCSI_ERR_NOMEM;
+	memcpy(rec_copy, rec, sizeof(*rec_copy));
+	INIT_LIST_HEAD(&rec_copy->list);
+
+	if (rec_copy->leading_login)
+		list_add_tail(&rec_copy->list, &startup->leading_logins);
+	else
+		list_add_tail(&rec_copy->list, &startup->all_logins);
+	return 0;
+}
+
+static int
+__do_leading_login(void *data, struct list_head *list, struct node_rec *rec)
+{
+	struct iface_rec *pattern_iface = data;
+	int nr_found;
+
+	/* Skip any records that do not match the pattern iface */
+	if (!iface_match(pattern_iface, &rec->iface))
+		return -1;
+
+	/*
+	 * If there is an existing session that matcthes the target,
+	 * the leading login is complete.
+	 */
+	if (iscsi_sysfs_for_each_session(rec, &nr_found, iscsi_match_target)) {
+		log_debug(1, "Skipping %s: Already a session for that target",
+			  rec->name);
+		return -1;
+	}
+
+	/* No existing session: Attempt a login. */
 	return iscsi_login_portal(NULL, list, rec);
 }
 
@@ -398,7 +435,7 @@ static int
 login_by_startup(char *mode)
 {
 	int nr_found = 0, err, rc;
-	struct list_head rec_list;
+	struct startup_data startup;
 
 	if (!mode || !(!strcmp(mode, "automatic") || !strcmp(mode, "all") ||
 		       !strcmp(mode,"manual") || !strcmp(mode, "onboot"))) {
@@ -407,29 +444,99 @@ login_by_startup(char *mode)
 		return ISCSI_ERR_INVAL;
 	}
 
-	INIT_LIST_HEAD(&rec_list);
-	err = idbm_for_each_rec(&nr_found, &rec_list, link_recs);
-	if (err && !list_empty(&rec_list))
+	/*
+	 * Filter all node records that match the given 'mode' into 2 lists:
+	 * Those with leading_login enabled, and those without.
+	 */
+	startup.mode = mode;
+	INIT_LIST_HEAD(&startup.all_logins);
+	INIT_LIST_HEAD(&startup.leading_logins);
+	err = idbm_for_each_rec(&nr_found, &startup, link_startup_recs);
+	if (err && (!list_empty(&startup.all_logins) ||
+		    !list_empty(&startup.leading_logins)))
 		/* log msg and try to log into what we found */
 		log_error("Could not read all records: %s",
 			  iscsi_err_to_str(err));
-	else if (err && list_empty(&rec_list)) {
-		log_error("Could not read node DB: %s.",
-			  iscsi_err_to_str(err));
+	else if (list_empty(&startup.all_logins) &&
+		 list_empty(&startup.leading_logins)) {
+		if (err) {
+			log_error("Could not read node DB: %s.",
+				  iscsi_err_to_str(err));
+		} else {
+			log_error("No records found");
+			err = ISCSI_ERR_NO_OBJS_FOUND;
+		}
 		return err;
-	} else if (list_empty(&rec_list)) {
-		log_error("No records found");
-		return ISCSI_ERR_NO_OBJS_FOUND;
 	}
 	rc = err;
 
-	err = iscsi_login_portals(mode, &nr_found, 1, &rec_list,
-				  __login_by_startup);
-	if (err)
-		log_error("Could not log into all portals");
+	if (!list_empty(&startup.all_logins)) {
+		log_debug(1, "Logging into normal (non-leading-login) portals");
+		/* Login all regular (non-leading-login) portals first */
+		err = iscsi_login_portals(NULL, &nr_found, 1,
+				&startup.all_logins, iscsi_login_portal);
+		if (err)
+			log_error("Could not log into all portals");
+		if (err && !rc)
+			rc = err;
+	}
 
-	if (err && !rc)
-		rc = err;
+	if (!list_empty(&startup.leading_logins)) {
+		/*
+		 * For each iface in turn, try to login all portals on that
+		 * iface that do not already have a session present.
+		 */
+		struct iface_rec *pattern_iface, *tmp_iface;
+		struct node_rec *rec, *tmp_rec;
+		struct list_head iface_list;
+		int missed_leading_login = 0;
+		log_debug(1, "Logging into leading-login portals");
+		INIT_LIST_HEAD(&iface_list);
+		iface_link_ifaces(&iface_list);
+		list_for_each_entry_safe(pattern_iface, tmp_iface, &iface_list,
+					 list) {
+			log_debug(1, "Establishing leading-logins via iface %s",
+				  pattern_iface->name);
+			err = iscsi_login_portals_safe(pattern_iface, &nr_found,
+						       1,
+						       &startup.leading_logins,
+						       __do_leading_login);
+			if (err)
+				log_error("Could not log into all portals on "
+					  "%s, trying next interface",
+					  pattern_iface->name);
+
+			/*
+			 * Note: We always try all iface records in case there
+			 * are targets that are associated with only a subset
+			 * of iface records.  __do_leading_login already
+			 * prevents duplicate sessions if an iface has succeded
+			 * for a particular target.
+			 */
+		}
+		/*
+		 * Double-check that all leading-login portals have at least
+		 * one session
+		 */
+		list_for_each_entry_safe(rec, tmp_rec, &startup.leading_logins,
+					 list) {
+			if (!iscsi_sysfs_for_each_session(rec, &nr_found,
+							  iscsi_match_target))
+				missed_leading_login++;
+			/*
+			 * Cleanup the list, since 'iscsi_login_portals_safe'
+			 * does not
+			 */
+			list_del(&rec->list);
+			free(rec);
+		}
+		if (missed_leading_login) {
+			log_error("Could not login all leading-login portals");
+			if (!rc)
+				rc = ISCSI_ERR_FATAL_LOGIN;
+		}
+	}
+
 	return rc;
 }
 

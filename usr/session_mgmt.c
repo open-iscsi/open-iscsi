@@ -225,20 +225,22 @@ int iscsi_login_portal_nowait(struct node_rec *rec)
 }
 
 /**
- * iscsi_login_portals - login into portals on @rec_list,
+ * __iscsi_login_portals - login into portals on @rec_list,
  * @data: data to pass to login_fn
  * @nr_found: returned with number of portals logged into
  * @wait: bool indicating if the fn should wait for the result
  * @rec_list: list of portals to log into
+ * @clear_list: If set, delete and free rec_list after iterating through.
  * @login_fn: list iter function
  *
  * This will loop over the list of portals and login. It
  * will attempt to login asynchronously, and then wait for
  * them to complete if wait is set.
  */
-int iscsi_login_portals(void *data, int *nr_found, int wait,
-			struct list_head *rec_list,
-			int (* login_fn)(void *, struct list_head *,
+static
+int __iscsi_login_portals(void *data, int *nr_found, int wait,
+			struct list_head *rec_list, int clear_list,
+			int (*login_fn)(void *, struct list_head *,
 					 struct node_rec *))
 {
 	struct node_rec *curr_rec, *tmp;
@@ -262,11 +264,48 @@ int iscsi_login_portals(void *data, int *nr_found, int wait,
 	} else
 		iscsid_reqs_close(&login_list);
 
-	list_for_each_entry_safe(curr_rec, tmp, rec_list, list) {
-		list_del(&curr_rec->list);
-		free(curr_rec);
+	if (clear_list) {
+		list_for_each_entry_safe(curr_rec, tmp, rec_list, list) {
+			list_del(&curr_rec->list);
+			free(curr_rec);
+		}
 	}
 	return ret;
+}
+
+/**
+ * iscsi_login_portals - login into portals on @rec_list,
+ * @data: data to pass to login_fn
+ * @nr_found: returned with number of portals logged into
+ * @wait: bool indicating if the fn should wait for the result
+ * @rec_list: list of portals to log into.  This list is deleted after
+ *            iterating through it.
+ * @login_fn: list iter function
+ *
+ * This will loop over the list of portals and login. It
+ * will attempt to login asynchronously, and then wait for
+ * them to complete if wait is set.
+ */
+int iscsi_login_portals(void *data, int *nr_found, int wait,
+			struct list_head *rec_list,
+			int (*login_fn)(void *, struct list_head *,
+					 struct node_rec *))
+{
+	return __iscsi_login_portals(data, nr_found, wait, rec_list,
+				     1, login_fn);
+}
+
+/**
+ * iscsi_login_portals_safe - login into portals on @rec_list, but do not
+ *			      clear out rec_list.
+ */
+int iscsi_login_portals_safe(void *data, int *nr_found, int wait,
+			struct list_head *rec_list,
+			int (*login_fn)(void *, struct list_head *,
+					 struct node_rec *))
+{
+	return __iscsi_login_portals(data, nr_found, wait, rec_list,
+				     0, login_fn);
 }
 
 static void log_logout_msg(struct session_info *info, int rc)

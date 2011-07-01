@@ -231,6 +231,7 @@ typedef struct node_rec {
 	char			name[TARGET_NAME_MAXLEN];
 	int			tpgt;
 	iscsi_startup_e		startup;
+	int			leading_login;
 	session_rec_t		session;
 	conn_rec_t		conn[ISCSI_CONN_MAX];
 	iface_rec_t		iface;
