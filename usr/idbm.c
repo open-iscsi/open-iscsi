@@ -598,8 +598,6 @@ void idbm_recinfo_config(recinfo_t *info, FILE *f)
 	char name[NAME_MAXVAL];
 	char value[VALUE_MAXVAL];
 	char *line, *nl, buffer[2048];
-	char *node_startup_value = NULL;
-	char *conn_startup_value = NULL;
 	int line_number = 0;
 	int c = 0, i;
 
@@ -658,29 +656,8 @@ void idbm_recinfo_config(recinfo_t *info, FILE *f)
 		}
 		*(value+i) = 0;
 
-		if (!strcmp(name, "node.startup")) {
-			node_startup_value = strdup(value);
-		}
-		if (!strcmp(name, "node.conn[0].startup")) {
-			conn_startup_value = strdup(value);
-		}
-		(void)idbm_rec_update_param(info, name, value, line_number);
+		idbm_rec_update_param(info, name, value, line_number);
 	} while (line);
-	/*
-	 * Compat hack:
-	 * Keep node.startup and node.conn[0].startup in sync even
-	 * if only one of those has been specified in the config file.
-	 */
-	if (node_startup_value && !conn_startup_value) {
-		(void)idbm_rec_update_param(info, "node.conn[0].startup",
-					    node_startup_value, 0);
-		free(node_startup_value);
-	}
-	if (conn_startup_value && !node_startup_value) {
-		(void)idbm_rec_update_param(info, "node.startup",
-					    conn_startup_value, 0);
-		free(conn_startup_value);
-	}
 }
 
 /*
