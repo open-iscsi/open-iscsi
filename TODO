@@ -1,6 +1,6 @@
 iSCSI DEVELOPMENT HOWTO AND TODO
 --------------------------------
-July 5th 2011
+July 7th 2011
 
 
 If you are admin or user and just want to send a fix, just send the fix any
@@ -151,6 +151,9 @@ always just 0. The offload drivers allocate a host per pci resource, so they
 will have multiple sessions for each host. When a session is added,
 iscsi_add_session will try to find a target_id to use by looping over
 all the targets on the host. We could replace that loop with idr.
+
+
+* Being worked on by John Jose.
 
 ---------------------------------------------------------------------------
 
