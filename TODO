@@ -1,0 +1,397 @@
+iSCSI DEVELOPMENT HOWTO AND TODO
+--------------------------------
+July 5th 2011
+
+
+If you are admin or user and just want to send a fix, just send the fix any
+way you can. We can port the patch to the proper tree and fix up the patch
+for you. Engineers that would like to do more advanced development then the
+following guideline should be followed.
+
+Submitting Patches
+------------------
+Code should follow the Linux kernel codying style doc:
+http://www.kernel.org/doc/Documentation/CodingStyle
+
+Patches should be submitted to the open-iscsi list open-iscsi@googlegroups.com.
+They should be made with "git diff" or "diff -up" or "diff -uprN", and
+kernel patches must have a "Signed-off-by" line. See section 12
+http://www.kernel.org/doc/Documentation/SubmittingPatches for more
+information on the the signed off line.
+
+Getting the Code
+----------------
+Kernel patches should be made against the linux-2.6-iscsi tree. This can
+be downloaded from kernel.org with git with the following commands:
+
+git clone git://git.kernel.org/pub/scm/linux/kernel/git/mnc/linux-2.6-iscsi.git
+
+Userspace patches should be made against the open-iscsi git tree:
+
+git clone git://git.kernel.org/pub/scm/linux/kernel/git/mnc/open-iscsi.git
+
+
+
+KERNEL TODO ITEMS
+-----------------
+
+1. Make iSCSI log messages humanly readable. In many cases the iscsi tools
+and modules will log a error number value. The most well known is conn
+error 1011. Users should not have to search on google for what this means.
+
+We should:
+
+1. Write a simple table to convert the error values to a string and print
+them out.
+
+2. Document the values, how you commonly hit them and common solutions
+in the iSCSI docs.
+
+See scsi_transport_iscsi.c:iscsi_conn_error_event for where the evil
+"detected conn error 1011" is printed. See the enum iscsi_err in iscsi_if.h
+for a definition of the error code values.
+
+---------------------------------------------------------------------------
+
+2. Implement iSCSI dev loss support.
+
+Currently if a session is down for longer than replacement/recovery_timeout
+seconds, the iscsi layer will unblock the devices and fail IO. Other
+transport, like FC and SAS, will do something similar. FC has a
+fast_io_fail tmo which will unblock devices and fail IO, then it has a
+dev_loss_tmo which will delete the devices accessed through that port.
+
+iSCSI needs to implement dev_loss_tmo behavior, because apps are beginning
+to expect this behavior. An initial path was made here:
+http://groups.google.com/group/open-iscsi/msg/031510ab4cecccfd?dmode=source 
+
+Since all drivers want this behavior we want to make it common. We need to
+change the patch in that link to add a dev_loss_tmo handler callback to the
+scsi_transport_template struct, and add some common sysfs and helpers
+functions to manage the dev_loss_tmo variable.
+
+
+---------------------------------------------------------------------------
+
+3. Reduce locking contention between session lock.
+
+The session lock is basically one big lock that protects everything
+in the iscsi_session. This lock could be broken down into smaller locks
+and maybe even replaced with something that would not require a lock.
+
+For example:
+
+1. The session lock serializes access to the current R2T the initiator is
+handling (a R2T from the target or the initialR2T if being used). libiscsi/
+libiscsi_tcp will call iscsi_tcp_get_curr_r2t and grab the session lock in
+the xmit path from the xmit thread and then in the recv path
+libiscsi_tcp/iscsi_tcp will call iscsi_tcp_r2t_rsp (this function is called
+with the session lock held). We could add a new per iscsi_task lock and
+use that to gaurd the R2T.
+
+2. For iscsi_tcp and cxgb*i, libiscsi uses the session->cmdqueue linked list
+and the session lock to queue IO from the queuecommand function (run from
+scsi softirq or kblockd context) to the iscsi xmit thread. Once the task is
+sent from that thread, it is deleted from the list.
+
+It seems we should be able to remove the linked list use here. The tasks
+are all preallocated in the session->cmds array. We can access that
+array and check the task->state (see fail_scsi_tasks for an example).
+We just need to come up with a way to safely set the task state,
+wake the xmit thread and make sure that tasks are executed in the order
+that the scsi layer sent them to our queuecommand function.
+
+A starting point on the queueing:
+We might be able to create a workqueue per processor, queue the work,
+which in this case is the execution of the task, from the queuecommand,
+then rely on the work queue synchronization and serialization code.
+Not 100% sure about this.
+
+Alternative to changing the threading:
+Can we figure out a way to just remove the xmit thread? We currently
+cannot because the network may only be able to send 1000 bytes, but
+to send the current command we need to send 2000. We cannot sleep
+from the queuecommand context until another 1000 bytes frees up and for
+iscsi_tcp we cannot sleep from the recv conext (this happens because we
+could have got a R2T from target and are handling it from the recv path).
+
+
+Note: that for iser and offload drivers like bnx2i and be2iscsi their
+is no xmit thread used.
+
+Note2: cxgb*i does not actually need the xmit thread so a side project
+could be to convert that driver.
+
+
+---------------------------------------------------------------------------
+
+4. Make memory access more efficient on multi-processor machines.
+We are moving twords per process queues in the block layer, so it would
+be a good idea to move the iscsi structs to be allocated on a per process
+basis.
+
+---------------------------------------------------------------------------
+
+5. Make blk_iopoll support (see block/blk-iopoll.c and be2iscsi for an
+example) being able to round robin IO across processors or complete
+on the processor it was queued on
+(today it always completes the IO on the processor the softirq was raised on),
+and convert bnx2i, ib_iser and cxgb*i to it.
+
+Not sure if it will help iscsi_tcp and cxgb, because their completion is done
+from the network softirq which does polling already. With irq balancing it
+can also be spread over all processors too.
+
+---------------------------------------------------------------------------
+
+6. Replace iscsi_get_next_target_id with idr use.
+
+iscsi_tcp and ib_iser allocate a session per host, so the target_id is
+always just 0. The offload drivers allocate a host per pci resource, so they
+will have multiple sessions for each host. When a session is added,
+iscsi_add_session will try to find a target_id to use by looping over
+all the targets on the host. We could replace that loop with idr.
+
+---------------------------------------------------------------------------
+
+7. When userspace calls into the kernel using the iscsi netlink interface
+to execute oprations like creating/destroying a session, create a connection
+to a target, etc the rx_queue_mutex is held the entire time (see
+iscsi_if_rx for the iscsi netlink interface entry point). This means
+if the driver should block every thing will be held up.
+
+iscsi_tcp does not block, but some offload drivers might for a couple seconds
+to 10 or 15 secs while it figures out what is going on or cleans up. This a 
+major problem for things like multipath where one connection blocking up the
+recovery of every other connection will delay IO from re-flowing quickly.
+
+We should looking into breaking up the rx_queue_mutex into finer grained
+locks or making it multi threaded. For the latter we could queue operations
+into workqueues.
+
+---------------------------------------------------------------------------
+
+7. Add tracing support to iscsi modules. See the scsi layer's
+trace_scsi_dispatch_cmd_start for an example.
+
+Well, actually in general look into all the tracing stuff available
+(trace_printk/ftrace, etc) and use one.
+
+See http://lwn.net/Articles/291091/ for some details on what is out
+there. We can only use something that is upstream though.
+
+---------------------------------------------------------------------------
+
+8. Improve the iscsi driver logging. Each driver has a different
+way to control logging. We should unify them and make it managable
+by iscsiadm. So each driver would use a common format, there would
+be a common kernel interface to set the logging level, etc.
+
+---------------------------------------------------------------------------
+
+9. Implement more features from the iSCSI RFC if they are worth it.
+
+- Error Recovery Level (ERL) 1 support - will help tape support.
+- Multi R2T support - Might improve write performance.
+- OutOfOrder support - Might imrpove performance.
+
+---------------------------------------------------------------------------
+
+10. Add support for digest/CRC offload.
+
+---------------------------------------------------------------------------
+
+11. Finish intel IOAT support. I started this here:
+http://groups.google.com/group/open-iscsi/msg/2626b8606edbe690?dmode=source
+but could only test on boxes with 1 gig interfaces which showed no
+difference in performance. Intel had said they saw significant throughput
+gains when using 10 gig.
+
+---------------------------------------------------------------------------
+
+12. Remove the login buffer preallocated buffer. Storage drivers must be able
+to make forward process, so that they can always write out a page incase the
+kernel needs to allocate the page to another process. If the connection were
+to be disconnected and the initiator needed to relogin to the target at this
+time, we might not be abe to allocate a page for the login commands buffer.
+
+To work around the problem the initiator prealloctes a 8K (sometimes
+more depending on the page size) buffer for each session (see iscsi_conn_setup'
+s __get_free_pages call). This is obviously very wasteful since it will be
+a rate occurance. Can we think of a way to allow multiple sessions to
+be relogged in at the same time, but not have to preallocate so many
+buffers?
+
+---------------------------------------------------------------------------
+
+13. Support iSCSI over swap safely.
+
+Basically just need to hook iscsi_tcp into the patches that
+were submitted here for NBD.
+
+https://lwn.net/Articles/446831/
+
+
+---------------------------------------------------------------------------
+
+
+
+
+
+USERSPACE TODO ITEMS
+--------------------
+1. The iscsi tools, iscsid, iscsiadm and iscsid, have a debug flag, -d N, that
+allows the user to control the amount of output that is logged. The argument
+N is a integer from 1 to 8, with 8 printing out the most output.
+
+The problem is that the values from 1 to 8 do not really mean much. It would
+helpful if we could replace them with something that controls what exactly
+the iscsi tools and kernel modules log.
+
+For example, if we made the debug level argument a bitmap then
+
+iscsiadm -m node --login -d LOGIN_ERRS,PDUS,FUNCTION
+
+might print out extended iscsi login error information (LOGIN_ERRS),
+the iSCSI packets that were sent/receieved (PDUS), and the functions
+that were run (FUNCTION). Note, the use of a bitmapp and the debug
+levels are just an example. Feel free to do something else.
+
+
+We would want to be able to have iscsiadm control the iscsi kernel
+logging as well. There are interfaces like
+/sys/module/libiscsi/paramters/*debug*
+/sys/module/libiscsi_tcp/paramters/*debug*
+/sys/module/iscsi_tcp/paramters/*debug*
+/sys/module/scsi_transport_iscsi/paramters/*debug*
+
+but we would want to extend the debugging options to be finer grained
+and we would want to make it supportable by all iscsi drivers.
+(see #8 on the kernel todo).
+
+
+---------------------------------------------------------------------------
+
+2. "iscsiadm -m session -P 3" can print out a lot of information about the
+session, but not all configuration values are printed.
+
+iscsiadm should be modified to print out other settings like timeouts,
+Chap settings,  the iSCSI values that were requested vs negotiated for, etc.
+
+---------------------------------------------------------------------------
+
+3. iscsiadm cannot update a setting of a running session. If you want
+to change a timeout you have to run the iscsiadm logout command,
+then update the record value, then login:
+
+iscsiadm -m node -T target -p ip -u
+iscsidm -m node -T target -p ip -o update -n node.session.timeo.replacement_timeout -v 30
+iscsiadm -m node -T target -p ip -l
+
+iscsiadm should be modified to allow updating of a setting without having
+to run the iscsiadm command.
+
+Note that for some settings like iSCSI ones (ImmediateData, FirstBurstLength,
+etc)  that must be negotiated with the target we will have to logout the
+target then re-login, but we should not have to completely destroy the session
+and scsi devices like is done when running the iscsiadm logout command. We
+should be able to pass iscsid the new values and then have iscsid logout and
+relogin.
+
+Other settings like the abort timeout will not need a logout/login. We can
+just pass those to the kernel or iscsid to use.
+
+---------------------------------------------------------------------------
+
+4. iscsiadm will attempt to perform logins/logouts in parallel. Running
+iscsiadm -m node -L, will cause iscsiadm to login to all portals with
+the startup=automatic field set at the same time.
+
+To log into a target, iscsiadm opens a socket to iscsid, sends iscsid a
+request to login to a target, iscsid performs the iSCSI login operation,
+then iscsid sends iscsiadm a reply.
+
+To perform multiple logins iscsiadm will open a socket for each login
+request, then wait for a reply. This is a problem because for 1000s of targets
+we will have 1000s of sockets open. There is a rlimit to control how many
+files a process can have open and iscsiadm currently runs setrlimit to
+increase this.
+
+With users creating lots of virtual iscsi interfaces on the target and
+initiator with each having multiple paths it beomes inefficient to open
+a socket for each requests.
+
+At the very least we want to handle setrlimit RLIMIT_NOFILE limit better,
+and it would be best to just stop openening a socket per login request.
+
+---------------------------------------------------------------------------
+
+5. Make iSCSI log messages humanly readable. In many cases the iscsi tools
+will log a error number value. The most well known is conn error 1011.
+Users should not have to search on google for what this means.
+
+We should:
+
+1. Write a simple table to convert the error values to a string and print
+them out.
+
+2. Document the values, how you commonly hit them and common solutions
+in the iSCSI docs.
+
+
+See session_conn_error and __check_iscsi_status_class as a start.
+
+---------------------------------------------------------------------------
+
+6. Implement broadcast/multicasts support, so the initiator can
+find iSNS servers without the user having to set the iSNS server address.
+
+See
+5.6.5.14. Name Service Heartbeat (Heartbeat)
+in
+http://tools.ietf.org/html//rfc4171
+
+---------------------------------------------------------------------------
+
+7. Open-iscsi uses the open-isns iSNS library. The library might be a little
+too complicated and a little too heavy for what we need. Investigate
+replacing it.
+
+Also explore merging the open-isns and linux-isns projects, so we do not have
+to support multiple isns clients/servers in linux.
+
+---------------------------------------------------------------------------
+
+8. Implement the DHCP iSNS option support, so we the initiator can
+find the iSNS sever without the user having to set the iSNS server address.
+See:
+http://www.ietf.org/rfc/rfc4174.txt
+
+---------------------------------------------------------------------------
+
+9. Some iscsiadm/iscsid operations that access the iscsi DB and sysfs can be
+up to Big O(N^2). Some of the code was written when we thought 64 sessions
+would be a lot and the norm would be 4 or 8. Due to virtualization, cloud use,
+and targets like equallogic that do a target per logical unit (device) we can
+see 1000s of sessions.
+
+- We should look into making the record DB more efficient. Maybe
+time to use a real DB (something small simple and efficient since this
+needs to run in places like the initramfs).
+
+- Rewrite code to look up a running session so we do not have loop
+over every session in sysfs.
+
+
+---------------------------------------------------------------------------
+
+10. Look into using udev's libudev for our sysfs access in iscsiadm/iscsid/
+iscsistart.
+
+---------------------------------------------------------------------------
+
+11. iSCSI lib.
+
+I am working on this one. Hopefully it should be done soon.
+
+---------------------------------------------------------------------------
