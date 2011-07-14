@@ -71,6 +71,8 @@ scsi_transport_template struct, and add some common sysfs and helpers
 functions to manage the dev_loss_tmo variable.
 
 
+*Being worked on by Vikek S
+
 ---------------------------------------------------------------------------
 
 3. Reduce locking contention between session lock.
@@ -272,7 +274,6 @@ but we would want to extend the debugging options to be finer grained
 and we would want to make it supportable by all iscsi drivers.
 (see #8 on the kernel todo).
 
-
 ---------------------------------------------------------------------------
 
 2. "iscsiadm -m session -P 3" can print out a lot of information about the
@@ -303,6 +304,9 @@ relogin.
 
 Other settings like the abort timeout will not need a logout/login. We can
 just pass those to the kernel or iscsid to use.
+
+
+*Being worked on by Tomoaki Nishimura
 
 ---------------------------------------------------------------------------
 
