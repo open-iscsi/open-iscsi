@@ -303,14 +303,16 @@ static int bind_conn_to_iface(iscsi_conn_t *conn, struct iface_rec *iface)
 		return 0;
 
 	memset(session->netdev, 0, IFNAMSIZ);
-	if (iface_is_bound_by_hwaddr(iface) &&
-	    net_get_netdev_from_hwaddress(iface->hwaddress, session->netdev)) {
-		log_error("Cannot match %s to net/scsi interface.",
-			  iface->hwaddress);
-                return -1;
-	} else if (iface_is_bound_by_netdev(iface))
+	if (iface_is_bound_by_hwaddr(iface)) {
+		if (net_get_netdev_from_hwaddress(iface->hwaddress,
+						  session->netdev)) {
+			log_error("Cannot match %s to net/scsi interface.",
+				  iface->hwaddress);
+			return -1;
+		}
+	} else if (iface_is_bound_by_netdev(iface)) {
 		strcpy(session->netdev, iface->netdev);
-	else if (iface_is_bound_by_ipaddr(iface)) {
+	} else if (iface_is_bound_by_ipaddr(iface)) {
 		/*
 		 * we never supported this but now with offload having to
 		 * set the ip address in the iface, useris may forget to
