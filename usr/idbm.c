@@ -1879,6 +1879,20 @@ static int idbm_bind_iface_to_nodes(idbm_disc_nodes_fn *disc_node_fn,
 	return 0;
 }
 
+static int
+discovery_error_fatal(int err)
+{
+	switch (err) {
+	/* No error */
+	case ISCSI_SUCCESS:
+	/* Transport errors or timeouts are not fatal */
+	case ISCSI_ERR_TRANS:
+	case ISCSI_ERR_TRANS_TIMEOUT:
+		return 0;
+	}
+	return 1;
+}
+
 int idbm_bind_ifaces_to_nodes(idbm_disc_nodes_fn *disc_node_fn,
 			      void *data, struct list_head *ifaces,
 			      struct list_head *bound_recs)
@@ -1910,7 +1924,7 @@ int idbm_bind_ifaces_to_nodes(idbm_disc_nodes_fn *disc_node_fn,
 			rc = idbm_bind_iface_to_nodes(disc_node_fn, data, iface,
 						      bound_recs);
 			free(iface);
-			if (rc)
+			if (discovery_error_fatal(rc))
 				goto fail;
 			found = 1;
 		}
@@ -1937,7 +1951,7 @@ int idbm_bind_ifaces_to_nodes(idbm_disc_nodes_fn *disc_node_fn,
 
 			rc = idbm_bind_iface_to_nodes(disc_node_fn, data, iface,
 						      bound_recs);
-			if (rc)
+			if (discovery_error_fatal(rc))
 				goto fail;
 		}
 	}
