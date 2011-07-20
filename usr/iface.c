@@ -308,6 +308,7 @@ free_info:
 	return rc;
 }
 
+#if 0 /* Unused */
 static int iface_get_next_id(void)
 {
 	struct stat statb;
@@ -345,6 +346,7 @@ static int iface_get_next_id(void)
 	free(iface_conf);
         return rc;
 }
+#endif /* Unused */
 
 struct iface_search {
 	struct iface_rec *pattern;
@@ -790,7 +792,6 @@ int iface_setup_from_boot_context(struct iface_rec *iface,
 {
 	struct iscsi_transport *t;
 	uint32_t hostno;
-	int rc;
 
 	if (strlen(context->initiatorname))
 		strlcpy(iface->iname, context->initiatorname,

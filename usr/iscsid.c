@@ -450,17 +450,27 @@ int main(int argc, char *argv[])
 			exit(ISCSI_ERR);
 		}
 
-		chdir("/");
+		if (chdir("/") < 0)
+			log_debug(1, "Unable to chdir to /");
 		if (fd > 0) {
 			if (lockf(fd, F_TLOCK, 0) < 0) {
 				log_error("Unable to lock pid file");
 				log_close(log_pid);
 				exit(ISCSI_ERR);
 			}
-			ftruncate(fd, 0);
+			if (ftruncate(fd, 0) < 0) {
+				log_error("Unable to truncate pid file");
+				log_close(log_pid);
+				exit(ISCSI_ERR);
+			}
 			sprintf(buf, "%d\n", getpid());
-			write(fd, buf, strlen(buf));
+			if (write(fd, buf, strlen(buf)) < 0) {
+				log_error("Unable to write pid file");
+				log_close(log_pid);
+				exit(ISCSI_ERR);
+			}
 		}
+
 		daemon_init();
 	} else {
 		if ((control_fd = ipc->ctldev_open()) < 0) {

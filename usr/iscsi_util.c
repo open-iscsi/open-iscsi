@@ -48,7 +48,8 @@ void daemon_init(void)
 	dup2(fd, 1);
 	dup2(fd, 2);
 	setsid();
-	chdir("/");
+	if (chdir("/") < 0)
+		log_debug(1, "Could not chdir to /: %s", strerror(errno));
 }
 
 #define ISCSI_OOM_PATH_LEN 48
@@ -59,7 +60,9 @@ int oom_adjust(void)
 	char path[ISCSI_OOM_PATH_LEN];
 	struct stat statb;
 
-	nice(-10);
+	if (nice(-10) < 0)
+		log_debug(1, "Could not increase process priority: %s",
+			  strerror(errno));
 
 	snprintf(path, ISCSI_OOM_PATH_LEN, "/proc/%d/oom_score_adj", getpid());
 	if (stat(path, &statb)) {
@@ -70,8 +73,12 @@ int oom_adjust(void)
 	fd = open(path, O_WRONLY);
 	if (fd < 0)
 		return -1;
-	write(fd, "-16", 3); /* for 2.6.11 */
-	write(fd, "-17", 3); /* for Andrea's patch */
+	if (write(fd, "-16", 3) < 0) /* for 2.6.11 */
+		log_debug(1, "Could not set oom score to -16: %s",
+			  strerror(errno));
+	if (write(fd, "-17", 3) < 0) /* for Andrea's patch */
+		log_debug(1, "Could not set oom score to -17: %s",
+			  strerror(errno));
 	close(fd);
 	return 0;
 }

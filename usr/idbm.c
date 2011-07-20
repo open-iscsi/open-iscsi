@@ -1108,7 +1108,6 @@ int idbm_for_each_isns_drec(void *data, idbm_drec_op_fn *fn)
 static int __idbm_print_all_by_drec(void *data, struct discovery_rec *drec)
 {
 	int info_level = *(int *)data;
-	int rc;
 
 	if (info_level >= 1) {
 		printf("DiscoveryAddress: %s,%d\n",

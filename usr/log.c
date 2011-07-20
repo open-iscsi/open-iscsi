@@ -326,6 +326,7 @@ void log_info(const char *fmt, ...)
 	va_end(ap);
 }
 
+#if 0 /* Unused */
 static void __dump_line(int level, unsigned char *buf, int *cp)
 {
 	char line[16*3+5], *lp = line;
@@ -359,6 +360,7 @@ static void __dump_char(int level, unsigned char *buf, int *cp, int ch)
 
 #define dump_line() __dump_line(level, char_buf, &char_cnt)
 #define dump_char(ch) __dump_char(level, char_buf, &char_cnt, ch)
+#endif /* Unused */
 
 static void log_flush(void)
 {

@@ -962,6 +962,7 @@ process_recvd_pdu(struct iscsi_hdr *pdu,
 	return(rc);
 }
 
+#if 0 /* Unused */
 /*
  * Make a best effort to logout the session.
  */
@@ -1012,6 +1013,7 @@ static void iscsi_logout(iscsi_session_t * session)
 		       logout_resp.response);
 	}
 }
+#endif /* Unused */
 
 static void iscsi_destroy_session(struct iscsi_session *session)
 {
