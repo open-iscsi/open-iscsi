@@ -43,6 +43,8 @@ void dbgprint(const char *item) { fprintf(stderr, "%s: \"%s\" len=%d ", item, yy
 
 %option noyywrap
 %option never-interactive
+%option nounput
+%option noinput
 
 VDEVICE     vdevice
 VDEVINST    gscsi
