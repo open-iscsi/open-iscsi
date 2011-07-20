@@ -38,6 +38,14 @@
 #include "dcb_app.h"
 #include "sysfs.h"
 
+/* Older kernels' rtnetlink.h may not have RTM_[GS]ETDCB */
+#ifndef RTM_GETDCB
+# define RTM_GETDCB 78
+#endif
+#ifndef RTM_SETDCB
+# define RTM_SETDCB 79
+#endif
+
 #define IEEE_SMASK_ETHTYPE	(1 << IEEE_8021QAZ_APP_SEL_ETHERTYPE)
 #define IEEE_SMASK_STREAM	(1 << IEEE_8021QAZ_APP_SEL_STREAM)
 #define IEEE_SMASK_DGRAM	(1 << IEEE_8021QAZ_APP_SEL_DGRAM)
