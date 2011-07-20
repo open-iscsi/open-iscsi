@@ -310,7 +310,7 @@ __dbe_file_load_object(const char *filename, const char *basename,
 
 	/* Stash away the parent's index; we resolve them later on
 	 * once we've loaded all objects */
-	obj->ie_container = (isns_object_t *) ntohl(info.db_parent);
+	obj->ie_container_idx = ntohl(info.db_parent);
 
 	isns_object_list_append(result, obj);
 
@@ -493,7 +493,7 @@ isns_dbe_file_reload(isns_db_t *db)
 	/* Resolve parent/child relationship for all nodes */
 	for (i = 0; i < db->id_objects->iol_count; ++i) {
 		isns_object_t	*obj = db->id_objects->iol_data[i];
-		uint32_t	index = (uint32_t) obj->ie_container;
+		uint32_t	index = obj->ie_container_idx;
 		isns_object_t	*parent;
 
 		if (index == 0)

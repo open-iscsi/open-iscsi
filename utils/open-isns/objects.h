@@ -83,6 +83,7 @@ struct isns_object {
 
 	isns_attr_list_t	ie_attrs;
 	isns_object_t *		ie_container;
+	uint32_t		ie_container_idx;
 	isns_object_template_t *ie_template;
 
 	isns_relation_t *	ie_relation;

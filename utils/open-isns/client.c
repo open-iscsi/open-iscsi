@@ -123,8 +123,10 @@ static isns_security_t *
 __create_security_context(const char *name, const char *auth_key,
 		const char *server_key)
 {
+#ifdef WITH_SECURITY
 	isns_security_t 	*ctx;
 	isns_principal_t	*princ;
+#endif /* WITH_SECURITY */
 
 	if (!isns_config.ic_security)
 		return NULL;

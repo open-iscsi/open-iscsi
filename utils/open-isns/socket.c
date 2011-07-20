@@ -562,7 +562,7 @@ void
 isns_net_stream_accept(isns_socket_t *sock)
 {
 	isns_socket_t *child;
-	size_t	optlen;
+	socklen_t optlen;
 	int	fd, passcred = 0;
 
 	fd = accept(sock->is_desc, NULL, NULL);
