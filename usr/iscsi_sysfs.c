@@ -842,7 +842,6 @@ char *iscsi_sysfs_get_blockdev_from_lun(int host_no, int target, int lun)
 {
 	char devpath[PATH_SIZE];
 	char path_full[PATH_SIZE];
-	char *path;
 	char id[NAME_SIZE];
 	DIR *dirfd;
 	struct dirent *dent;
@@ -861,7 +860,6 @@ char *iscsi_sysfs_get_blockdev_from_lun(int host_no, int target, int lun)
 	sysfs_len = strlcpy(path_full, sysfs_path, sizeof(path_full));
 	if(sysfs_len >= sizeof(path_full))
 		sysfs_len = sizeof(path_full) - 1;
-	path = &path_full[sysfs_len];
 	strlcat(path_full, devpath, sizeof(path_full));
 
 	dirfd = opendir(path_full);
@@ -926,7 +924,6 @@ static uint32_t get_target_no_from_sid(uint32_t sid, int *err)
 {
 	char devpath[PATH_SIZE];
 	char path_full[PATH_SIZE];
-	char *path;
 	char id[NAME_SIZE];
 	DIR *dirfd;
 	struct dirent *dent;
@@ -951,7 +948,6 @@ static uint32_t get_target_no_from_sid(uint32_t sid, int *err)
 	sysfs_len = strlcpy(path_full, sysfs_path, sizeof(path_full));
 	if(sysfs_len >= sizeof(path_full))
 		sysfs_len = sizeof(path_full) - 1;
-	path = &path_full[sysfs_len];
 	strlcat(path_full, devpath, sizeof(path_full));
 	strlcat(path_full, "/device", sizeof(devpath));
 
