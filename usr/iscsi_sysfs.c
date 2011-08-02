@@ -499,6 +499,8 @@ static int iscsi_sysfs_read_iface(struct iface_rec *iface, int host_no,
 			 */
 			log_debug(7, "Could not read initiatorname for "
 				  "host%d\n", host_no);
+		/* optional so do not return error */
+		ret = 0;
 	}
 
 	/*
