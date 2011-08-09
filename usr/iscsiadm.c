@@ -2245,7 +2245,8 @@ main(int argc, char **argv)
 
 			if (!do_logout && !do_rescan && !do_stats &&
 			    op == OP_NOOP && info_level > 0) {
-				rc = session_info_print(info_level, info);
+				rc = session_info_print(info_level, info,
+							do_show);
 				goto free_info;
 			}
 
@@ -2292,7 +2293,7 @@ free_info:
 				goto out;
 			}
 
-			rc = session_info_print(info_level, NULL);
+			rc = session_info_print(info_level, NULL, do_show);
 		}
 		break;
 	default:

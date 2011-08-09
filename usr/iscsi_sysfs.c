@@ -677,6 +677,46 @@ int iscsi_sysfs_get_sessioninfo_by_id(struct session_info *info, char *session)
 		return ISCSI_ERR_SYSFS_LOOKUP;
 	}
 
+	ret = sysfs_get_str(session, ISCSI_SESSION_SUBSYS, "username",
+				(info->chap).username,
+				sizeof((info->chap).username));
+
+	if ((info->chap).username[0] == '\0' || ret)
+		strcpy((info->chap).username, "<NULL>");
+
+	ret = sysfs_get_str(session, ISCSI_SESSION_SUBSYS, "password",
+				(info->chap).password,
+				sizeof((info->chap).password));
+	if ((info->chap).password[0] == '\0' || ret)
+		strcpy((info->chap).password, "<NULL>");
+
+	ret = sysfs_get_str(session, ISCSI_SESSION_SUBSYS, "username_in",
+				(info->chap).username_in,
+				sizeof((info->chap).username_in));
+	if ((info->chap).username_in[0] == '\0' || ret)
+		strcpy((info->chap).username_in, "<NULL>");
+
+	ret = sysfs_get_str(session, ISCSI_SESSION_SUBSYS, "password_in",
+				(info->chap).password_in,
+				sizeof((info->chap).password_in));
+	if ((info->chap).password_in[0] == '\0' || ret)
+		strcpy((info->chap).password_in, "<NULL>");
+
+	ret = sysfs_get_int(session, ISCSI_SESSION_SUBSYS, "recovery_tmo",
+				&((info->tmo).recovery_tmo));
+	if (ret)
+		(info->tmo).recovery_tmo = -1;
+
+	ret = sysfs_get_int(session, ISCSI_SESSION_SUBSYS, "lu_reset_tmo",
+				&((info->tmo).lu_reset_tmo));
+	if (ret)
+		(info->tmo).lu_reset_tmo = -1;
+
+	sysfs_get_int(session, ISCSI_SESSION_SUBSYS, "abort_tmo",
+				&((info->tmo).abort_tmo));
+	if (ret)
+		(info->tmo).abort_tmo = -1;
+
 	ret = sysfs_get_int(session, ISCSI_SESSION_SUBSYS, "tpgt",
 			    &info->tpgt);
 	if (ret) {
@@ -743,7 +783,7 @@ int iscsi_sysfs_get_sessioninfo_by_id(struct session_info *info, char *session)
 	}
 
 	iscsi_sysfs_read_iface(&info->iface, host_no, session);
- 
+
 	log_debug(7, "found targetname %s address %s pers address %s port %d "
 		 "pers port %d driver %s iface name %s ipaddress %s "
 		 "netdev %s hwaddress %s iname %s",
@@ -755,7 +795,7 @@ int iscsi_sysfs_get_sessioninfo_by_id(struct session_info *info, char *session)
 		  info->iface.iname);
 	return 0;
 }
- 
+
 int iscsi_sysfs_for_each_session(void *data, int *nr_found,
 				 iscsi_sysfs_session_op_fn *fn)
 {
@@ -858,7 +898,7 @@ char *iscsi_sysfs_get_blockdev_from_lun(int host_no, int target, int lun)
 	}
 
 	sysfs_len = strlcpy(path_full, sysfs_path, sizeof(path_full));
-	if(sysfs_len >= sizeof(path_full))
+	if (sysfs_len >= sizeof(path_full))
 		sysfs_len = sizeof(path_full) - 1;
 	strlcat(path_full, devpath, sizeof(path_full));
 
@@ -946,7 +986,7 @@ static uint32_t get_target_no_from_sid(uint32_t sid, int *err)
 	 * /class/iscsi_session/sessionX/device.
 	 */
 	sysfs_len = strlcpy(path_full, sysfs_path, sizeof(path_full));
-	if(sysfs_len >= sizeof(path_full))
+	if (sysfs_len >= sizeof(path_full))
 		sysfs_len = sizeof(path_full) - 1;
 	strlcat(path_full, devpath, sizeof(path_full));
 	strlcat(path_full, "/device", sizeof(devpath));

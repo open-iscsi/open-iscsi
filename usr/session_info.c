@@ -224,7 +224,7 @@ static int print_scsi_state(int sid, char *prefix, unsigned int flags)
 }
 
 void session_info_print_tree(struct list_head *list, char *prefix,
-			     unsigned int flags)
+			     unsigned int flags, int do_show)
 {
 	struct session_info *curr, *prev = NULL;
 
@@ -278,6 +278,48 @@ void session_info_print_tree(struct list_head *list, char *prefix,
 			printf("%s\t\tSID: %d\n", prefix, curr->sid);
 			print_iscsi_state(curr->sid, prefix);
 		}
+		if (flags & SESSION_INFO_ISCSI_TIM) {
+			printf("%s\t\t*********\n", prefix);
+			printf("%s\t\tTimeouts:\n", prefix);
+			printf("%s\t\t*********\n", prefix);
+
+			if (~(curr->tmo).recovery_tmo)
+				printf("%s\t\tRecovery Timeout: %d\n", prefix,
+					((curr->tmo).recovery_tmo));
+			else
+				printf("%s\t\tRecovery Timeout: %s\n", prefix,
+					"<NULL>");
+			if (~(curr->tmo).lu_reset_tmo)
+				printf("%s\t\tLUN reset Timeout: %d\n", prefix,
+					((curr->tmo).lu_reset_tmo));
+			else
+				printf("%s\t\tLUN reset Timeout: %s\n", prefix,
+					"<NULL>");
+			if (~(curr->tmo).lu_reset_tmo)
+				printf("%s\t\tAbort Timeout: %d\n", prefix,
+					((curr->tmo).abort_tmo));
+			else
+				printf("%s\t\tAbort Timeout: %s\n", prefix,
+					"<NULL>");
+
+		}
+		if (flags & SESSION_INFO_ISCSI_AUTH) {
+			printf("%s\t\t*****\n", prefix);
+			printf("%s\t\tCHAP:\n", prefix);
+			printf("%s\t\t*****\n", prefix);
+			if (!do_show) {
+				strcpy(curr->chap.password, "********");
+				strcpy(curr->chap.password_in, "********");
+			}
+			printf("%s\t\tusername: %s\n", prefix,
+				((curr->chap).username));
+			printf("%s\t\tpassword: %s\n", prefix,
+				((curr->chap).password));
+			printf("%s\t\tusername_in: %s\n", prefix,
+				((curr->chap).username_in));
+			printf("%s\t\tpassword_in: %s\n", prefix,
+				((curr->chap).password_in));
+		}
 
 		if (flags & SESSION_INFO_ISCSI_PARAMS)
 			print_iscsi_params(curr->sid, prefix);
@@ -289,7 +331,7 @@ void session_info_print_tree(struct list_head *list, char *prefix,
 	}
 }
 
-int session_info_print(int info_level, struct session_info *info)
+int session_info_print(int info_level, struct session_info *info, int do_show)
 {
 	struct list_head list;
 	int num_found = 0, err = 0;
@@ -317,17 +359,18 @@ int session_info_print(int info_level, struct session_info *info)
 		flags |= (SESSION_INFO_SCSI_DEVS | SESSION_INFO_HOST_DEVS);
 		/* fall through */
 	case 2:
-		flags |= SESSION_INFO_ISCSI_PARAMS;
+		flags |= (SESSION_INFO_ISCSI_PARAMS | SESSION_INFO_ISCSI_TIM
+				| SESSION_INFO_ISCSI_AUTH);
 		/* fall through */
 	case 1:
 		INIT_LIST_HEAD(&list);
 		struct session_link_info link_info;
 
-		flags |= (SESSION_INFO_ISCSI_STATE |SESSION_INFO_IFACE);
+		flags |= (SESSION_INFO_ISCSI_STATE | SESSION_INFO_IFACE);
 		if (info) {
 			INIT_LIST_HEAD(&info->list);
 			list_add_tail(&list, &info->list);
-			session_info_print_tree(&list, "", flags);
+			session_info_print_tree(&list, "", flags, do_show);
 			num_found = 1;
 			break;
 		}
@@ -342,7 +385,7 @@ int session_info_print(int info_level, struct session_info *info)
 		if (err || !num_found)
 			break;
 
-		session_info_print_tree(&list, "", flags);
+		session_info_print_tree(&list, "", flags, do_show);
 		session_info_free_list(&list);
 		break;
 	default:
