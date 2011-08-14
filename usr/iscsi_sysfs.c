@@ -777,27 +777,26 @@ int iscsi_sysfs_get_sessioninfo_by_id(struct session_info *info, char *session)
 	ret = sysfs_get_str(session, ISCSI_SESSION_SUBSYS, "username",
 				(info->chap).username,
 				sizeof((info->chap).username));
-
-	if ((info->chap).username[0] == '\0' || ret)
-		strcpy((info->chap).username, "<NULL>");
+	if (ret)
+		log_debug(5, "could not read username: %d", ret);
 
 	ret = sysfs_get_str(session, ISCSI_SESSION_SUBSYS, "password",
 				(info->chap).password,
 				sizeof((info->chap).password));
-	if ((info->chap).password[0] == '\0' || ret)
-		strcpy((info->chap).password, "<NULL>");
+	if (ret)
+		log_debug(5, "could not read password: %d", ret);
 
 	ret = sysfs_get_str(session, ISCSI_SESSION_SUBSYS, "username_in",
 				(info->chap).username_in,
 				sizeof((info->chap).username_in));
-	if ((info->chap).username_in[0] == '\0' || ret)
-		strcpy((info->chap).username_in, "<NULL>");
+	if (ret)
+		log_debug(5, "could not read username in: %d", ret);
 
 	ret = sysfs_get_str(session, ISCSI_SESSION_SUBSYS, "password_in",
 				(info->chap).password_in,
 				sizeof((info->chap).password_in));
-	if ((info->chap).password_in[0] == '\0' || ret)
-		strcpy((info->chap).password_in, "<NULL>");
+	if (ret)
+		log_debug(5, "could not read password in: %d", ret);
 
 	ret = sysfs_get_int(session, ISCSI_SESSION_SUBSYS, "recovery_tmo",
 				&((info->tmo).recovery_tmo));
@@ -806,6 +805,11 @@ int iscsi_sysfs_get_sessioninfo_by_id(struct session_info *info, char *session)
 
 	ret = sysfs_get_int(session, ISCSI_SESSION_SUBSYS, "lu_reset_tmo",
 				&((info->tmo).lu_reset_tmo));
+	if (ret)
+		(info->tmo).lu_reset_tmo = -1;
+
+	ret = sysfs_get_int(session, ISCSI_SESSION_SUBSYS, "tgt_reset_tmo",
+				&((info->tmo).tgt_reset_tmo));
 	if (ret)
 		(info->tmo).lu_reset_tmo = -1;
 

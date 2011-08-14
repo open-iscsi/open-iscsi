@@ -283,24 +283,30 @@ void session_info_print_tree(struct list_head *list, char *prefix,
 			printf("%s\t\tTimeouts:\n", prefix);
 			printf("%s\t\t*********\n", prefix);
 
-			if (~(curr->tmo).recovery_tmo)
-				printf("%s\t\tRecovery Timeout: %d\n", prefix,
-					((curr->tmo).recovery_tmo));
+			printf("%s\t\tRecovery Timeout: %d\n", prefix,
+			      ((curr->tmo).recovery_tmo));
+
+			if ((curr->tmo).tgt_reset_tmo >= 0)
+				printf("%s\t\tTarget Reset Timeout: %d\n",
+					prefix,
+					((curr->tmo).tgt_reset_tmo));
 			else
-				printf("%s\t\tRecovery Timeout: %s\n", prefix,
-					"<NULL>");
-			if (~(curr->tmo).lu_reset_tmo)
-				printf("%s\t\tLUN reset Timeout: %d\n", prefix,
+				printf("%s\t\tTarget Reset Timeout: %s\n",
+					prefix, UNKNOWN_VALUE);
+
+			if ((curr->tmo).lu_reset_tmo >= 0)
+				printf("%s\t\tLUN Reset Timeout: %d\n", prefix,
 					((curr->tmo).lu_reset_tmo));
 			else
-				printf("%s\t\tLUN reset Timeout: %s\n", prefix,
-					"<NULL>");
-			if (~(curr->tmo).lu_reset_tmo)
+				printf("%s\t\tLUN Reset Timeout: %s\n", prefix,
+					UNKNOWN_VALUE);
+
+			if ((curr->tmo).lu_reset_tmo >= 0)
 				printf("%s\t\tAbort Timeout: %d\n", prefix,
 					((curr->tmo).abort_tmo));
 			else
 				printf("%s\t\tAbort Timeout: %s\n", prefix,
-					"<NULL>");
+					UNKNOWN_VALUE);
 
 		}
 		if (flags & SESSION_INFO_ISCSI_AUTH) {
@@ -311,14 +317,30 @@ void session_info_print_tree(struct list_head *list, char *prefix,
 				strcpy(curr->chap.password, "********");
 				strcpy(curr->chap.password_in, "********");
 			}
-			printf("%s\t\tusername: %s\n", prefix,
-				((curr->chap).username));
-			printf("%s\t\tpassword: %s\n", prefix,
-				((curr->chap).password));
-			printf("%s\t\tusername_in: %s\n", prefix,
-				((curr->chap).username_in));
-			printf("%s\t\tpassword_in: %s\n", prefix,
-				((curr->chap).password_in));
+			if (strlen((curr->chap).username))
+				printf("%s\t\tusername: %s\n", prefix,
+					(curr->chap).username);
+			else
+				printf("%s\t\tusername: %s\n", prefix,
+					UNKNOWN_VALUE);
+			if (strlen((curr->chap).password))
+				printf("%s\t\tpassword: %s\n", prefix,
+					(curr->chap).password);
+			else
+				printf("%s\t\tpassword: %s\n", prefix,
+					UNKNOWN_VALUE);
+			if (strlen((curr->chap).username_in))
+				printf("%s\t\tusername_in: %s\n", prefix,
+					(curr->chap).username_in);
+			else
+				printf("%s\t\tusername_in: %s\n", prefix,
+					UNKNOWN_VALUE);
+			if (strlen((curr->chap).password_in))
+				printf("%s\t\tpassword_in: %s\n", prefix,
+					(curr->chap).password_in);
+			else
+				printf("%s\t\tpassword_in: %s\n", prefix,
+					UNKNOWN_VALUE);
 		}
 
 		if (flags & SESSION_INFO_ISCSI_PARAMS)
