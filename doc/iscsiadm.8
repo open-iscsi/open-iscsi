@@ -12,11 +12,11 @@ iscsiadm \- open-iscsi administration utility
 
 \fBiscsiadm\fR \-m session [ \-hV ] [ \-d debug_level ] [ \-P printlevel ] [ \-r sessionid | sysfsdir [ \-R ] [ \-u | \-s | \-o new ] ]
 
-\fBiscsiadm\fR \-m iface [ \-hV ] [ \-d debug_level ] [ \-P printlevel ] [ \-I ifacename ] [ [ \-o  operation  ] [ \-n name ] [ \-v value ] ]
+\fBiscsiadm\fR \-m iface [ \-hV ] [ \-d debug_level ] [ \-P printlevel ] [ \-I ifacename | \-H hostno|MAC ]   [ [ \-o  operation  ] [ \-n name ] [ \-v value ] ]
 
 \fBiscsiadm\fR \-m fw [\-l]
 
-\fBiscsiadm\fR \-m host [ \-P printlevel ] [ \-H hostno ]
+\fBiscsiadm\fR \-m host [ \-P printlevel ] [ \-H hostno|MAC ]
 
 \fBiscsiadm\fR \-k priority
 
@@ -49,10 +49,10 @@ print debugging information. Valid values for debug_level are 0 to 8.
 display help text and exit
 
 .TP
-\fB\-H\fR, \fB\-\-host=\fI[hostno]\fR
-The host agrument specifies the SCSI host to use for the operation. The
-hostno value is the host number assigned to the host by the kernel's
-scsi layer.
+\fB\-H\fR, \fB\-\-host=\fI[hostno|MAC]\fR
+The host agrument specifies the SCSI host to use for the operation. It can be
+the scsi host number assigned to the host by the kernel's scsi layer, or the
+MAC address of a scsi host.
 
 .TP
 \fB\-I\fR, \fB\-\-interface=\fI[iface]\fR
@@ -147,6 +147,8 @@ operator.
 Specifies a database operator \fIop\fR. \fIop\fR must be one of
 \fInew\fR, \fIdelete\fR, \fIupdate\fR, \fIshow\fR or \fInonpersistent\fR.
 .IP
+For iface mode, \fIapply\fR and \fIapplyall\fR  are also applicable.
+.IP
 This option is valid for all modes except fw. Delete should not be used on a running session. If it is iscsiadm will stop the session and then delete the
 record.
 .IP
@@ -169,6 +171,12 @@ sid is passed in.
 \fIname\fR and \fIvalue\fR are currently ignored when used with \fIshow\fR.
 .IP
 \fInonpersistent\fR instructs iscsiadm to not manipulate the node DB.
+
+.IP
+\fIapply\fR will cause the network settings to take effect on the specified iface.
+
+.IP
+\fIapplyall\fR will cause the network settings to take effect on all the ifaces whose MAC address or host number matches that of the specific host.
 
 .TP
 \fB\-p\fR, \fB\-\-portal=\fIip[:port]\fR

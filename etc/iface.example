@@ -60,3 +60,138 @@
 #    the same subnet.
 # iface.net_ifacename = eth0
 # iface.ipaddress = 102.50.50.101
+
+# OPTIONAL: iface.bootproto
+#
+# Valid values are:
+# "dhcp" and "static"
+#
+# REQUIRED when IPv4 address need to be obtained dynamically using DHCP
+# example:
+# iface.bootproto = dhcp
+#
+# OPTIONAL when the IPv4 address is set statically
+# example:
+# iface.ipaddress = 102.50.50.101
+# iface.bootproto = static
+#
+
+# OPTIONAL: iface.vlan_id
+# Used to set the VLAN ID for the iSCSI interfae.
+# example
+# iface.vlan_id = 1022
+
+# OPTIONAL: iface.vlan_priority
+# Used to set the VLAN priority for the iSCSI interfae.
+# example
+# iface.vlan_priority = 1
+
+# OPTIONAL: iface.vlan_state
+# Used to enable or disable the VLAN on the iSCSI interface
+# example
+# iface.vlan_state = enable
+
+# OPTIONAL: iface.ipv6_linklocal
+# Specify the IPV6 Link Local Address with the
+# link local prefix of FE80::0/64
+# example:
+# iface.ipv6_linklocal = fe80:0000:0000:0000:020e:1eff:1111:2221
+
+# OPTIONAL: iface.ipv6_router
+# Used to set a default IPV6 router
+# example:
+# iface.ipv6_router = fe80:0000:0000:0000:7ae7:d1ff:fe72:4048
+
+# OPTIONAL: iface.ipv6_autocfg
+# Used to set the discovery protocol to obtain IPV6 address
+# For example qla4xxx support neighbor discovery
+# example:
+# iface.ipv6_autocfg = nd
+
+# OPTIONAL: iface.linklocal_autocfg
+# For transport like qla4xxx this allows to auto configure the
+# IPV6 link local address based on the MAC address of the iSCSI
+# interface
+
+# OPTIONAL: iface.router_autocfg
+# Required to set the IPv6 router discovery protocol
+# To set the  router discovery  protocol to Neighbor Discovery specify "nd"
+# example:
+# iface.router_autocfg = nd
+
+# OPTIONAL: iface.state
+# By default the iface is enabled
+# iface.state = enable
+# To disable the iface set the state to "disable"
+# iface.state = disable
+
+# iface.iface_num
+# REQUIRED: When there are more than 1 interface to be configured.
+# For transports like qla4xxx, one can specify two IPV6 interfaces
+# in such case the iface_num must be set correctly
+# example:
+# iface settings for first IPV6 interface
+# iface.iscsi_ifacename = iface-qla4xxx-ipv6-1
+# iface.iface_num = 0
+#
+# iface settings for second IPV6 interface
+# iface.iscsi_ifacename = iface-qla4xxx-ipv6-2
+# iface.iface_num = 1
+
+# Here are some example iface files
+# IPV4 sample config file with static IP address:
+# BEGIN RECORD 2.0-872
+# iface.iscsi_ifacename = qla4xxx-3
+# iface.ipaddress = 192.168.1.75
+# iface.hwaddress = 00:0e:1e:04:93:92
+# iface.transport_name = qla4xxx
+# iface.bootproto = static
+# iface.subnet_mask = 255.255.255.0
+# iface.gateway = 192.168.1.1
+# iface.state = enable
+# iface.vlan = <empty>
+# iface.iface_num = 0
+# END RECORD
+#
+# IPV6 sample config file with neighbor discovery:
+#  BEGIN RECORD 2.0-872
+# iface.iscsi_ifacename = qla4xxx-3-1
+# iface.ipaddress =
+# iface.hwaddress = 00:0e:1e:04:93:92
+# iface.transport_name = qla4xxx
+# iface.ipv6_autocfg = nd
+# iface.linklocal_autocfg = auto
+# iface.router_autocfg = nd
+# iface.ipv6_linklocal = fe80:0000:0000:0000:020e:1eff:1111:2221
+# iface.ipv6_router = auto
+# iface.state = enable
+# iface.vlan = <empty>
+# iface.iface_num = 0
+# END RECORD
+
+# Ipv4 sample config file (DHCP configuration):
+#  BEGIN RECORD 2.0-872
+# iface.iscsi_ifacename = qla4xxx-3
+# iface.hwaddress = 00:0e:1e:04:93:92
+# iface.transport_name = qla4xxx
+# iface.bootproto = dhcp
+# iface.state = enable
+# iface.vlan = <empty>
+# iface.iface_num = 0
+# END RECORD
+
+# Sample ipv6 config file(manual configured IPs):
+# BEGIN RECORD 2.0-872
+# iface.iscsi_ifacename = iface-new-file
+# iface.ipaddress = fec0:ce00:7014:0041:1111:2222:1e04:9392
+# iface.hwaddress = 00:0e:1e:04:93:92
+# iface.transport_name = qla4xxx
+# iface.ipv6_autocfg = <empty>
+# iface.linklocal_autocfg = <empty>
+# iface.router_autocfg = <empty>
+# iface.ipv6_linklocal = fe80:0000:0000:0000:0000:0000:1e04:9392
+# iface.ipv6_router = fe80:0000:0000:0000:7ae7:d1ff:fe72:4048
+# iface.state = enable
+# iface.vlan = <empty>
+# iface.iface_num = 0
+# END RECORD

@@ -72,6 +72,28 @@ static struct idbm *db;
 	_n++; \
 } while(0)
 
+#define __recinfo_uint8(_key, _info, _rec, _name, _show, _n, _mod) do { \
+	_info[_n].type = TYPE_UINT8; \
+	strlcpy(_info[_n].name, _key, NAME_MAXVAL); \
+	snprintf(_info[_n].value, VALUE_MAXVAL, "%d", _rec->_name); \
+	_info[_n].data = &_rec->_name; \
+	_info[_n].data_len = sizeof(_rec->_name); \
+	_info[_n].visible = _show; \
+	_info[_n].can_modify = _mod; \
+	_n++; \
+} while (0)
+
+#define __recinfo_uint16(_key, _info, _rec, _name, _show, _n, _mod) do { \
+	_info[_n].type = TYPE_UINT16; \
+	strlcpy(_info[_n].name, _key, NAME_MAXVAL); \
+	snprintf(_info[_n].value, VALUE_MAXVAL, "%d", _rec->_name); \
+	_info[_n].data = &_rec->_name; \
+	_info[_n].data_len = sizeof(_rec->_name); \
+	_info[_n].visible = _show; \
+	_info[_n].can_modify = _mod; \
+	_n++; \
+} while (0)
+
 #define __recinfo_int_o2(_key,_info,_rec,_name,_show,_op0,_op1,_n, _mod) do { \
 	_info[_n].type = TYPE_INT_O; \
 	strlcpy(_info[_n].name, _key, NAME_MAXVAL); \
@@ -374,6 +396,27 @@ void idbm_recinfo_iface(iface_rec_t *r, recinfo_t *ri)
 	__recinfo_str(IFACE_TRANSPORTNAME, ri, r, transport_name,
 		      IDBM_SHOW, num, 1);
 	__recinfo_str(IFACE_INAME, ri, r, iname, IDBM_SHOW, num, 1);
+	__recinfo_str(IFACE_BOOT_PROTO, ri, r, bootproto, IDBM_SHOW, num, 1);
+	__recinfo_str(IFACE_SUBNET_MASK, ri, r, subnet_mask,
+		      IDBM_SHOW, num, 1);
+	__recinfo_str(IFACE_GATEWAY, ri, r, gateway, IDBM_SHOW, num, 1);
+	__recinfo_str(IFACE_IPV6_AUTOCFG, ri, r, ipv6_autocfg,
+		      IDBM_SHOW, num, 1);
+	__recinfo_str(IFACE_LINKLOCAL_AUTOCFG, ri, r, linklocal_autocfg,
+		      IDBM_SHOW, num, 1);
+	__recinfo_str(IFACE_ROUTER_AUTOCFG, ri, r, router_autocfg,
+		      IDBM_SHOW, num, 1);
+	__recinfo_str(IFACE_LINKLOCAL, ri, r, ipv6_linklocal,
+		      IDBM_SHOW, num, 1);
+	__recinfo_str(IFACE_ROUTER, ri, r, ipv6_router, IDBM_SHOW, num, 1);
+	__recinfo_str(IFACE_STATE, ri, r, state, IDBM_SHOW, num, 1);
+	__recinfo_uint16(IFACE_VLAN_ID, ri, r, vlan_id, IDBM_SHOW, num, 1);
+	__recinfo_uint8(IFACE_VLAN_PRIORITY, ri, r, vlan_priority,
+		      IDBM_SHOW, num, 1);
+	__recinfo_str(IFACE_VLAN_STATE, ri, r, vlan_state, IDBM_SHOW, num, 1);
+	__recinfo_int(IFACE_NUM, ri, r, iface_num, IDBM_SHOW, num, 1);
+	__recinfo_uint16(IFACE_MTU, ri, r, mtu, IDBM_SHOW, num, 1);
+	__recinfo_uint16(IFACE_PORT, ri, r, port, IDBM_SHOW, num, 1);
 }
 
 recinfo_t *idbm_recinfo_alloc(int max_keys)
@@ -516,6 +559,20 @@ setup_passwd_len:
 					continue;
 
 				*(int*)info[i].data =
+					strtoul(value, NULL, 10);
+				goto updated;
+			} else if (info[i].type == TYPE_UINT8) {
+				if (!info[i].data)
+					continue;
+
+				*(uint8_t *)info[i].data =
+					strtoul(value, NULL, 10);
+				goto updated;
+			} else if (info[i].type == TYPE_UINT16) {
+				if (!info[i].data)
+					continue;
+
+				*(uint16_t *)info[i].data =
 					strtoul(value, NULL, 10);
 				goto updated;
 			} else if (info[i].type == TYPE_STR) {

@@ -200,7 +200,7 @@ static void dump_network(struct boot_context *context)
 	if (strlen(context->secondary_dns))
 		printf("%s = %s\n", IFACE_SEC_DNS, context->secondary_dns);
 	if (strlen(context->vlan))
-		printf("%s = %s\n", IFACE_VLAN, context->vlan);
+		printf("%s = %s\n", IFACE_VLAN_ID, context->vlan);
 	if (strlen(context->iface))
 		printf("%s = %s\n", IFACE_NETNAME, context->iface);
 }

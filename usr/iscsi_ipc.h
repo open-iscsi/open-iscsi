@@ -129,6 +129,9 @@ struct iscsi_ipc {
 	int (*recv_pdu_begin) (struct iscsi_conn *conn);
 
 	int (*recv_pdu_end) (struct iscsi_conn *conn);
+
+	int (*set_net_config) (uint64_t transport_handle, uint32_t host_no,
+			       struct iovec *iovs, uint32_t param_count);
 };
 
 #endif /* ISCSI_IPC_H */

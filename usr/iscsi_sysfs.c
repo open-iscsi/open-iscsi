@@ -325,7 +325,7 @@ static int __get_host_no_from_hwaddress(void *data, struct host_info *info)
 {
 	struct host_info *ret_info = data;
 
-	if (!strcmp(ret_info->iface.hwaddress, info->iface.hwaddress)) {
+	if (!strcasecmp(ret_info->iface.hwaddress, info->iface.hwaddress)) {
 		ret_info->host_no = info->host_no;
 		return 1;
 	}

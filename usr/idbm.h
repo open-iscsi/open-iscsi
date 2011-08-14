@@ -39,6 +39,8 @@
 #define TYPE_INT	0
 #define TYPE_INT_O	1
 #define TYPE_STR	2
+#define TYPE_UINT8	3
+#define TYPE_UINT16	4
 #define MAX_KEYS	256   /* number of keys total(including CNX_MAX) */
 #define NAME_MAXVAL	128   /* the maximum length of key name */
 #define VALUE_MAXVAL	256   /* the maximum length of 223 bytes in the RFC. */

@@ -204,14 +204,31 @@ typedef struct session_rec {
 } session_rec_t;
 
 #define ISCSI_TRANSPORT_NAME_MAXLEN 16
+#define ISCSI_MAX_STR_LEN 80
 
 typedef struct iface_rec {
 	struct list_head	list;
 	/* iscsi iface record name */
 	char			name[ISCSI_MAX_IFACE_LEN];
+	uint32_t		iface_num;
 	/* network layer iface name (eth0) */
 	char			netdev[IFNAMSIZ];
 	char			ipaddress[NI_MAXHOST];
+	char			subnet_mask[NI_MAXHOST];
+	char			gateway[NI_MAXHOST];
+	char			bootproto[ISCSI_MAX_STR_LEN];
+	char			ipv6_linklocal[NI_MAXHOST];
+	char			ipv6_router[NI_MAXHOST];
+	char			ipv6_autocfg[NI_MAXHOST];
+	char			linklocal_autocfg[NI_MAXHOST];
+	char			router_autocfg[NI_MAXHOST];
+	uint16_t		vlan_id;
+	uint8_t			vlan_priority;
+	char			vlan_state[ISCSI_MAX_STR_LEN];
+	char			state[ISCSI_MAX_STR_LEN]; /* 0 = disable,
+							   * 1 = enable */
+	uint16_t		mtu;
+	uint16_t		port;
 	/*
 	 * TODO: we may have to make this bigger and interconnect
 	 * specific for infinniband 

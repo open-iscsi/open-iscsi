@@ -371,9 +371,10 @@ Usage: iscsiadm [OPTION]
 			  iscsi_ifacename.
 
 			  See below for examples.
-  -m host --host=hostno --print=level
-			  Display information for a specific host if hostno
-			  is passed in. If no hostno is passed in then info
+  -m host --host=hostno|MAC --print=level
+			  Display information for a specific host. The host
+			  can be passed in by host number or by MAC address.
+			  If a host is not passed in then info
 			  for all hosts is printed.
 
 			  Print level can be 0 to 4.
@@ -515,10 +516,10 @@ some helpful management commands.
 5.1.2 Setting up a iface for a iSCSI offload card
 =================================================
 
-This section describes how to setup ifaces for use with Chelsio
-and Broadcom cards.
+This section describes how to setup ifaces for use with Chelsio, Broadcom and
+QLogic cards.
 
-By default, iscsiadm will create a iface for each Broadcom and Chelsio
+By default, iscsiadm will create a iface for each Broadcom, QLogic and Chelsio
 port. The iface name will be of the form:
 
 $transport/driver_name.$MAC_ADDRESS
@@ -529,6 +530,7 @@ Running:
 default tcp,<empty>,<empty>,<empty>,<empty>
 iser iser,<empty>,<empty>,<empty>,<empty>
 cxgb3i.00:07:43:05:97:07 cxgb3i,00:07:43:05:97:07,<empty>,<empty>,<empty>
+qla4xxx.00:0e:1e:04:8b:2e qla4xxx,00:0e:1e:04:8b:2e,<empty>,<empty>,<empty>
 
 
 Will report iface configurations that are setup in /etc/iscsi/ifaces.
@@ -547,7 +549,7 @@ default one in /etc/iscsi/initiatorname.iscsi.
 
 
 
-To display these values in a more friendly run:
+To display these values in a more friendly way, run:
 
 iscsiadm -m iface -I cxgb3i.00:07:43:05:97:07
 # BEGIN RECORD 2.0-871
@@ -571,6 +573,38 @@ For the name of the value we want to update we use the name from
 the "iscsiadm -m iface -I cxgb3i.00:07:43:05:97:07" command which is
 "iface.ipaddress".
 
+Note2.
+
+For QLogic ports after updating the iface record, for network settings to take
+effect, one must apply or applyall the settings.
+
+iscsiadm -m iface -I qla4xxx.00:0e:1e:04:8b:2e -o apply or
+iscsiadm -m iface -H 00:0e:1e:04:8b:2e -o applyall
+
+With operation "apply" network setting for the specified iface will take effect.
+With operation "applyall" network settings for all ifaces on a specific host
+will take take effect. The host can be specified using the -H/--host argument
+by either the MAC address of the host or the host number.
+
+
+Here is an example of setting multiple IPv6 address on single iSCSI interface
+port.
+First interface (no need to set iface_num, it is 0 by default)
+
+iscsiadm -m iface -I qla4xxx.00:0e:1e:04:8b:2a -o update \
+	 -n iface.ipaddress -v fec0:ce00:7014:0041:1111:2222:1e04:9392
+
+Create the second interface if it does not exist
+
+iscsiadm -m iface -I qla4xxx.00:0e:1e:04:8b:2a.1 -op=new
+iscsiadm -m iface -I qla4xxx.00:0e:1e:04:8b:2a -o update \
+	 -n iface.iface_num -v 1 (iface_num is mandatory for second iface)
+iscsiadm -m iface -I qla4xxx.00:0e:1e:04:8b:2a -o update \
+	 -n iface.ipaddress -v = fec0:ce00:7014:0041:1111:2222:1e04:9393
+iscsiadm -m iface -H 00:0e:1e:04:8b:2a --op=applyall
+
+Note: If there are common settings for multiple interfaces then the
+settings from 0th iface would be considered valid.
 
 Now, we can use this iface to login into targets, which is described in the
 next section.

@@ -50,6 +50,7 @@
 #include "iscsid_req.h"
 #include "isns-proto.h"
 #include "iscsi_err.h"
+#include "iscsi_ipc.h"
 
 static char program_name[] = "iscsiadm";
 static char config_file[TARGET_NAME_MAXLEN];
@@ -71,7 +72,9 @@ enum iscsiadm_op {
 	OP_DELETE		= 0x2,
 	OP_UPDATE		= 0x4,
 	OP_SHOW			= 0x8,
-	OP_NONPERSISTENT	= 0x10
+	OP_NONPERSISTENT	= 0x10,
+	OP_APPLY		= 0x20,
+	OP_APPLY_ALL		= 0x40
 };
 
 static struct option const long_options[] =
@@ -116,9 +119,9 @@ iscsiadm -m discovery [ -hV ] [ -d debug_level ] [-P printlevel] [ -t type -p ip
 iiscsiadm -m node [ -hV ] [ -d debug_level ] [ -P printlevel ] [ -L all,manual,automatic ] [ -U all,manual,automatic ] [ -S ] [ [ -T targetname -p ip:port -I ifaceN ] [ -l | -u | -R | -s] ] \
 [ [ -o  operation  ] [ -n name ] [ -v value ] ]\n\
 iscsiadm -m session [ -hV ] [ -d debug_level ] [ -P  printlevel] [ -r sessionid | sysfsdir [ -R | -u | -s ] [ -o operation ] [ -n name ] [ -v value ] ]\n\
-iscsiadm -m iface [ -hV ] [ -d debug_level ] [ -P printlevel ] [ -I ifacename ] [ [ -o  operation  ] [ -n name ] [ -v value ] ]\n\
+iscsiadm -m iface [ -hV ] [ -d debug_level ] [ -P printlevel ] [ -I ifacename | -H hostno|MAC ] [ [ -o  operation  ] [ -n name ] [ -v value ] ]\n\
 iscsiadm -m fw [ -l ]\n\
-iscsiadm -m host [ -P printlevel ] [ -H hostno ]\n\
+iscsiadm -m host [ -P printlevel ] [ -H hostno|MAC ]\n\
 iscsiadm -k priority\n");
 	}
 	exit(status);
@@ -139,6 +142,10 @@ str_to_op(char *str)
 		op = OP_SHOW;
 	else if (!strcmp("nonpersistent", str))
 		op = OP_NONPERSISTENT;
+	else if (!strcmp("apply", str))
+		op = OP_APPLY;
+	else if (!strcmp("applyall", str))
+		op = OP_APPLY_ALL;
 	else
 		op = OP_NOOP;
 
@@ -1195,10 +1202,97 @@ static void catch_sigint( int signo ) {
 	exit(1);
 }
 
+static int iface_apply_net_config(struct iface_rec *iface, int op)
+{
+	int rc = ISCSI_ERR;
+	uint32_t host_no;
+	int param_count;
+	int param_used;
+	int iface_all = 0;
+	int i;
+	struct iovec *iovs = NULL;
+	struct iovec *iov = NULL;
+	struct iscsi_transport *t = NULL;
+	int fd;
+
+	log_debug(8, "Calling iscsid, to apply net config for"
+		  "iface.name = %s\n", iface->name);
+
+	if (op == OP_APPLY_ALL)
+		iface_all = 1;
+
+	param_count = iface_get_param_count(iface, iface_all);
+	if (!param_count) {
+		log_error("Nothing to configure.");
+		return ISCSI_SUCCESS;
+	}
+
+	/*
+	 * TODO: create a nicer interface where the caller does not have
+	 * know the packet/hdr details
+	 */
+
+	/* +2 for event and nlmsghdr */
+	param_count += 2;
+	iovs = calloc((param_count * sizeof(struct iovec)),
+		       sizeof(char));
+	if (!iovs) {
+		log_error("Out of Memory.");
+		return ISCSI_ERR_NOMEM;
+	}
+
+	/* param_used gives actual number of iovecs used for netconfig */
+	param_used = iface_build_net_config(iface, iface_all, iovs);
+	if (!param_used) {
+		log_error("Build netconfig failed.");
+		goto free_buf;
+	}
+
+	t = iscsi_sysfs_get_transport_by_name(iface->transport_name);
+	if (!t) {
+		log_error("Can't find transport.");
+		goto free_buf;
+	}
+
+	host_no = iscsi_sysfs_get_host_no_from_hwinfo(iface, &rc);
+	if (host_no == -1) {
+		log_error("Can't find host_no.");
+		goto free_buf;
+	}
+	rc = ISCSI_ERR;
+
+	fd = ipc->ctldev_open();
+	if (fd < 0) {
+		log_error("Netlink open failed.");
+		goto free_buf;
+	}
+
+	rc = ipc->set_net_config(t->handle, host_no, iovs, param_count);
+	if (rc < 0)
+		log_error("Set net_config failed. errno=%d", errno);
+
+	ipc->ctldev_close();
+
+free_buf:
+	/* start at 2, because 0 is for nlmsghdr and 1 for event */
+	iov = iovs + 2;
+	for (i = 0; i < param_used; i++, iov++) {
+		if (iov->iov_base)
+			free(iov->iov_base);
+	}
+
+	free(iovs);
+	if (rc)
+		return ISCSI_ERR;
+	return ISCSI_SUCCESS;
+}
+
 /* TODO: merge iter helpers and clean them up, so we can use them here */
 static int exec_iface_op(int op, int do_show, int info_level,
-			 struct iface_rec *iface, char *name, char *value)
+			 struct iface_rec *iface, uint32_t host_no,
+			 char *name, char *value)
 {
+	struct host_info hinfo;
 	struct db_set_param set_param;
 	struct node_rec *rec = NULL;
 	int rc = 0;
@@ -1320,6 +1414,55 @@ delete_fail:
 update_fail:
 		log_error("Could not update iface %s: %s",
 			  iface->name, iscsi_err_to_str(rc));
+		break;
+	case OP_APPLY:
+		if (!iface) {
+			log_error("Apply requires iface.");
+			rc = ISCSI_ERR_INVAL;
+			break;
+		}
+		rc = iface_conf_read(iface);
+		if (rc) {
+			log_error("Could not read iface %s (%d).",
+				  iface->name, rc);
+			break;
+		}
+
+		rc = iface_apply_net_config(iface, op);
+		if (rc) {
+			log_error("Could not apply net configuration: %s",
+				  iscsi_err_to_str(rc));
+			break;
+		}
+		printf("%s applied.\n", iface->name);
+		break;
+	case OP_APPLY_ALL:
+		if (host_no == -1) {
+			log_error("Applyall requires a host number or MAC "
+				  "passed in with the --host argument.");
+			rc = ISCSI_ERR_INVAL;
+			break;
+		}
+
+		/*
+		 * Need to get other iface info like transport.
+		 */
+		memset(&hinfo, 0, sizeof(struct host_info));
+		hinfo.host_no = host_no;
+		if (iscsi_sysfs_get_hostinfo_by_host_no(&hinfo)) {
+			log_error("Could not match host%u to ifaces.", host_no);
+			rc = ISCSI_ERR_INVAL;
+			break;
+		}
+		rc = iface_apply_net_config(&hinfo.iface, op);
+		if (rc) {
+			log_error("Could not apply net configuration: %s",
+				  iscsi_err_to_str(rc));
+			break;
+		}
+
+		printf("Applied settings to ifaces attached to host%u.\n",
+		       host_no);
 		break;
 	default:
 		if (!iface || (iface && info_level > 0)) {
@@ -1925,6 +2068,30 @@ done:
 	return rc;
 }
 
+static uint32_t parse_host_info(char *optarg, int *rc)
+{
+	int err = 0;
+	uint32_t host_no = -1;
+
+	*rc = 0;
+	if (strstr(optarg, ":")) {
+		host_no = iscsi_sysfs_get_host_no_from_hwaddress(optarg,
+								 &err);
+		if (err) {
+			log_error("Could not match MAC to host.");
+			*rc = ISCSI_ERR_INVAL;
+		}
+	} else {
+		host_no = strtoul(optarg, NULL, 10);
+		if (errno) {
+			log_error("Invalid host no %s. %s.",
+				  optarg, strerror(errno));
+			*rc = ISCSI_ERR_INVAL;
+		}
+	}
+	return host_no;
+}
+
 int
 main(int argc, char **argv)
 {
@@ -1991,14 +2158,9 @@ main(int argc, char **argv)
 			value = optarg;
 			break;
 		case 'H':
-			errno = 0;
-			host_no = strtoul(optarg, NULL, 10);
-			if (errno) {
-				log_error("invalid host no %s. %s.",
-					  optarg, strerror(errno));
-				rc = ISCSI_ERR_INVAL;
+			host_no = parse_host_info(optarg, &rc);
+			if (rc)
 				goto free_ifaces;
-			}
 			break;
 		case 'r':
 			sid = iscsi_sysfs_get_sid_from_path(optarg);
@@ -2122,7 +2284,7 @@ main(int argc, char **argv)
 	case MODE_IFACE:
 		iface_setup_host_bindings();
 
-		if ((rc = verify_mode_params(argc, argv, "IdnvmPo", 0))) {
+		if ((rc = verify_mode_params(argc, argv, "HIdnvmPo", 0))) {
 			log_error("iface mode: option '-%c' is not "
 				  "allowed/supported", rc);
 			rc = ISCSI_ERR_INVAL;
@@ -2137,7 +2299,7 @@ main(int argc, char **argv)
 					  "interface. Using the first one "
 					  "%s.", iface->name);
 		}
-		rc = exec_iface_op(op, do_show, info_level, iface,
+		rc = exec_iface_op(op, do_show, info_level, iface, host_no,
 				   name, value);
 		break;
 	case MODE_DISCOVERYDB:

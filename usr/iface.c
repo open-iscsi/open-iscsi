@@ -26,6 +26,7 @@
 #include <unistd.h>
 #include <sys/types.h>
 #include <sys/stat.h>
+#include <arpa/inet.h>
 
 #include "log.h"
 #include "list.h"
@@ -363,7 +364,8 @@ static int __iface_get_by_net_binding(void *data, struct iface_rec *iface)
 	}
 
 	if (iface_is_bound_by_hwaddr(search->pattern)) {
-		if (!strcmp(iface->hwaddress, search->pattern->hwaddress)) {
+		if (!strcasecmp(iface->hwaddress,
+				search->pattern->hwaddress)) {
 			iface_copy(search->found, iface);
 			return 1;
 		} else
@@ -898,4 +900,822 @@ fail:
 		free(iface);
 	}
 	return rc;
+}
+
+struct iface_param_count {
+	struct iface_rec *primary;
+	int count;
+};
+
+/**
+ * __iface_get_param_count - Gets netconfig parameter count for given iface
+ * @data: iface_param_count structure
+ * @iface: iface to setup
+ */
+static int __iface_get_param_count(void *data, struct iface_rec *iface)
+{
+	struct iface_param_count *iface_params = data;
+	int iptype = ISCSI_IFACE_TYPE_IPV4;
+	int count = 0;
+
+	if (strcmp(iface_params->primary->hwaddress, iface->hwaddress))
+		return 0;
+
+	if (strcmp(iface->bootproto, "dhcp") && !strstr(iface->ipaddress, "."))
+		iptype = ISCSI_IFACE_TYPE_IPV6;
+
+	if (iptype == ISCSI_IFACE_TYPE_IPV4) {
+
+		if (strcmp(iface->state, "disable")) {
+			if (strstr(iface->bootproto, "dhcp"))
+				/* DHCP enabled */
+				count++;
+			else {
+				/* DHCP disabled */
+				count++;
+
+				if (strstr(iface->ipaddress, ".")) {
+					/* User configured IPv4 Address */
+					count++;
+
+					if (strstr(iface->subnet_mask, "."))
+						/* User configured Subnet */
+						count++;
+
+					if (strstr(iface->gateway, "."))
+						/* User configured Gateway */
+						count++;
+				} else
+					/*
+					 * IPv4 Address not valid, decrement
+					 * count of DHCP
+					 */
+					count--;
+			}
+
+			/*
+			 * If IPv4 configuration in iface file is valid,
+			 * enable state and other parameters (if any)
+			 */
+			if (count) {
+				/* iface state */
+				count++;
+
+				if (strcmp(iface->vlan_state, "disable")) {
+					/* vlan_state enabled */
+					count++;
+
+					if (iface->vlan_id)
+						/* For vlan value */
+						count++;
+				} else
+					/* vlan_state disabled */
+					count++;
+
+				if (iface->mtu)
+					count++;
+
+				if (iface->port)
+					count++;
+			}
+		} else
+			/* IPv4 is disabled, iface state */
+			count++;
+
+	} else if (iptype == ISCSI_IFACE_TYPE_IPV6) {
+
+		if (strcmp(iface->state, "disable")) {
+
+			/* IPv6 Address */
+			if (strstr(iface->ipv6_autocfg, "nd") ||
+			    strstr(iface->ipv6_autocfg, "dhcpv6"))
+				/* Autocfg enabled */
+				count++;
+			else {
+				/* Autocfg disabled */
+				count++;
+
+				if (strstr(iface->ipaddress, ":"))
+					/* User configured IPv6 Address */
+					count++;
+				else
+					/*
+					 * IPv6 Address not valid, decrement
+					 * count of IPv6 Autocfg
+					 */
+					count--;
+			}
+
+			/* IPv6 LinkLocal Address */
+			if (strstr(iface->linklocal_autocfg, "auto"))
+				/* Autocfg enabled */
+				count++;
+			else {
+				/* Autocfg disabled */
+				count++;
+
+				if (strstr(iface->ipv6_linklocal, ":"))
+					/* User configured LinkLocal Address */
+					count++;
+				else
+					/*
+					 * LinkLocal Address not valid,
+					 * decrement count of LinkLocal Autocfg
+					 */
+					count--;
+			}
+
+			/* IPv6 Router Address */
+			if (strstr(iface->router_autocfg, "auto"))
+				/* Autocfg enabled */
+				count++;
+			else {
+				/* Autocfg disabled */
+				count++;
+
+				if (strstr(iface->ipv6_router, ":"))
+					/* User configured Router Address */
+					count++;
+				else
+					/*
+					 * Router Address not valid,
+					 * decrement count of Router Autocfg
+					 */
+					count--;
+			}
+
+			/*
+			 * If IPv6 configuration in iface file is valid,
+			 * enable state and other parameters (if any)
+			 */
+			if (count) {
+				/* iface state */
+				count++;
+
+				if (strcmp(iface->vlan_state, "disable")) {
+					/* vlan_state enabled */
+					count++;
+
+					if (iface->vlan_id)
+						/* For vlan value */
+						count++;
+				} else
+					/* vlan_state disabled */
+					count++;
+
+				if (iface->mtu)
+					count++;
+
+				if (iface->port)
+					count++;
+			}
+		} else
+			/* IPv6 is disabled, iface state */
+			count++;
+	}
+
+	iface_params->count += count;
+	return 0;
+}
+
+/**
+ * iface_get_param_count - Gets netconfig parameter count from iface
+ * @iface: iface to setup
+ * @iface_all: Flag for number of ifaces to traverse (1 for all)
+ *
+ * Returns netconfig parameter count.
+ */
+int iface_get_param_count(struct iface_rec *iface, int iface_all)
+{
+	int num_found = 0, rc;
+	struct iface_param_count iface_params;
+
+	log_debug(8, "In iface_get_param_count\n");
+
+	iface_params.primary = iface;
+	iface_params.count = 0;
+
+	if (iface_all)
+		rc = iface_for_each_iface(&iface_params, 0, &num_found,
+					  __iface_get_param_count);
+	else
+		rc = __iface_get_param_count(&iface_params, iface);
+
+	log_debug(8, "iface_get_param_count: rc = %d, count = %d\n",
+		  rc, iface_params.count);
+	return iface_params.count;
+}
+
+/* IPv4/IPv6 Port: 3260 or User defined */
+static int iface_fill_port(struct iovec *iov, struct iface_rec *iface,
+			   uint32_t iface_type)
+{
+	int len;
+	struct iscsi_iface_param_info *net_param;
+	uint16_t port = 3260;
+
+	len = sizeof(struct iscsi_iface_param_info) + 2;
+	iov->iov_base = calloc(len, sizeof(char));
+	if (!(iov->iov_base))
+		return 1;
+
+	iov->iov_len = len;
+	net_param = (struct iscsi_iface_param_info *)(iov->iov_base);
+	net_param->param = ISCSI_NET_PARAM_PORT;
+	net_param->iface_type = iface_type;
+	net_param->iface_num = iface->iface_num;
+	net_param->param_type = ISCSI_NET_PARAM;
+	net_param->len = 2;
+	if (iface->port)
+		port = iface->port;
+	memcpy(net_param->value, &port, net_param->len);
+	return 0;
+}
+
+static int iface_fill_mtu(struct iovec *iov, struct iface_rec *iface,
+			  uint32_t iface_type)
+{
+	int len;
+	struct iscsi_iface_param_info *net_param;
+	uint16_t mtu = 0;
+
+	len = sizeof(struct iscsi_iface_param_info) + 2;
+	iov->iov_base = calloc(len, sizeof(char));
+	if (!(iov->iov_base))
+		return 1;
+
+	iov->iov_len = len;
+	net_param = (struct iscsi_iface_param_info *)(iov->iov_base);
+	net_param->param = ISCSI_NET_PARAM_MTU;
+	net_param->iface_type = iface_type;
+	net_param->iface_num = iface->iface_num;
+	net_param->param_type = ISCSI_NET_PARAM;
+	net_param->len = 2;
+	mtu = iface->mtu;
+	memcpy(net_param->value, &mtu, net_param->len);
+	return 0;
+}
+
+/* IPv4/IPv6 VLAN_ID: decimal value <= 4095 */
+static int iface_fill_vlan_id(struct iovec *iov, struct iface_rec *iface,
+			      uint32_t iface_type)
+{
+	int len;
+	struct iscsi_iface_param_info *net_param;
+	uint16_t vlan = 0;
+
+	len = sizeof(struct iscsi_iface_param_info) + 2;
+	iov->iov_base = calloc(len, sizeof(char));
+	if (!(iov->iov_base))
+		return 1;
+
+	iov->iov_len = len;
+	net_param = (struct iscsi_iface_param_info *)(iov->iov_base);
+	net_param->param = ISCSI_NET_PARAM_VLAN_ID;
+	net_param->iface_type = iface_type;
+	net_param->iface_num = iface->iface_num;
+	net_param->param_type = ISCSI_NET_PARAM;
+	net_param->len = 2;
+	if (iface->vlan_id <= ISCSI_MAX_VLAN_ID &&
+	    iface->vlan_priority <= ISCSI_MAX_VLAN_PRIORITY)
+		/*
+		 * Bit 15-13: User Priority of VLAN
+		 * Bit 11-00: VLAN ID
+		 */
+		vlan = (iface->vlan_priority << 13) |
+		       (iface->vlan_id & ISCSI_MAX_VLAN_ID);
+	memcpy(net_param->value, &vlan, net_param->len);
+	return 0;
+}
+
+/* IPv4/IPv6 VLAN state: disable/enable */
+static int iface_fill_vlan_state(struct iovec *iov, struct iface_rec *iface,
+				 uint32_t iface_type)
+{
+	int len;
+	struct iscsi_iface_param_info *net_param;
+
+	len = sizeof(struct iscsi_iface_param_info) + 1;
+	iov->iov_base = calloc(len, sizeof(char));
+	if (!(iov->iov_base))
+		return 1;
+
+	iov->iov_len = len;
+	net_param = (struct iscsi_iface_param_info *)(iov->iov_base);
+	net_param->param = ISCSI_NET_PARAM_VLAN_ENABLED;
+	net_param->iface_type = iface_type;
+	net_param->iface_num = iface->iface_num;
+	net_param->param_type = ISCSI_NET_PARAM;
+	net_param->len = 1;
+	if (strcmp(iface->vlan_state, "disable") && iface->vlan_id)
+		net_param->value[0] = ISCSI_VLAN_ENABLE;
+	else /* Assume disabled */
+		net_param->value[0] = ISCSI_VLAN_DISABLE;
+	return 0;
+}
+
+/* IPv4/IPv6 Network state: disable/enable */
+static int iface_fill_net_state(struct iovec *iov, struct iface_rec *iface,
+				uint32_t iface_type)
+{
+	int len;
+	struct iscsi_iface_param_info *net_param;
+
+	len = sizeof(struct iscsi_iface_param_info) + 1;
+	iov->iov_base = calloc(len, sizeof(char));
+	if (!(iov->iov_base))
+		return 1;
+
+	iov->iov_len = len;
+	net_param = (struct iscsi_iface_param_info *)(iov->iov_base);
+	net_param->param = ISCSI_NET_PARAM_IFACE_ENABLE;
+	net_param->iface_type = iface_type;
+	net_param->iface_num = iface->iface_num;
+	net_param->param_type = ISCSI_NET_PARAM;
+	net_param->len = 1;
+	if (!strcmp(iface->state, "disable"))
+		net_param->value[0] = ISCSI_IFACE_DISABLE;
+	else /* Assume enabled */
+		net_param->value[0] = ISCSI_IFACE_ENABLE;
+	return 0;
+}
+
+/* IPv4 Bootproto: DHCP/static */
+static int iface_fill_net_bootproto(struct iovec *iov, struct iface_rec *iface)
+{
+	int len;
+	struct iscsi_iface_param_info *net_param;
+
+	len = sizeof(struct iscsi_iface_param_info) + 1;
+	iov->iov_base = calloc(len, sizeof(char));
+	if (!(iov->iov_base))
+		return 1;
+
+	iov->iov_len = len;
+	net_param = (struct iscsi_iface_param_info *)(iov->iov_base);
+	net_param->param = ISCSI_NET_PARAM_IPV4_BOOTPROTO;
+	net_param->iface_type = ISCSI_IFACE_TYPE_IPV4;
+	net_param->iface_num = iface->iface_num;
+	net_param->param_type = ISCSI_NET_PARAM;
+	net_param->len = 1;
+	if (!strcmp(iface->bootproto, "dhcp"))
+		net_param->value[0] = ISCSI_BOOTPROTO_DHCP;
+	else
+		net_param->value[0] = ISCSI_BOOTPROTO_STATIC;
+	return 0;
+}
+
+/* IPv6 IPAddress Autocfg: nd/dhcpv6/disable */
+static int iface_fill_net_autocfg(struct iovec *iov, struct iface_rec *iface)
+{
+	int len;
+	struct iscsi_iface_param_info *net_param;
+
+	len = sizeof(struct iscsi_iface_param_info) + 1;
+	iov->iov_base = calloc(len, sizeof(char));
+	if (!(iov->iov_base))
+		return 1;
+
+	iov->iov_len = len;
+	net_param = (struct iscsi_iface_param_info *)(iov->iov_base);
+	net_param->param = ISCSI_NET_PARAM_IPV6_ADDR_AUTOCFG;
+	net_param->iface_type = ISCSI_IFACE_TYPE_IPV6;
+	net_param->param_type = ISCSI_NET_PARAM;
+	net_param->len = 1;
+
+	if (!strcmp(iface->ipv6_autocfg, "nd"))
+		net_param->value[0] = ISCSI_IPV6_AUTOCFG_ND_ENABLE;
+	else if (!strcmp(iface->ipv6_autocfg, "dhcpv6"))
+		net_param->value[0] = ISCSI_IPV6_AUTOCFG_DHCPV6_ENABLE;
+	else
+		net_param->value[0] = ISCSI_IPV6_AUTOCFG_DISABLE;
+
+	return 0;
+}
+
+/* IPv6 LinkLocal Autocfg: enable/disable */
+static int iface_fill_linklocal_autocfg(struct iovec *iov,
+					struct iface_rec *iface)
+{
+	int len;
+	struct iscsi_iface_param_info *net_param;
+
+	len = sizeof(struct iscsi_iface_param_info) + 1;
+	iov->iov_base = calloc(len, sizeof(char));
+	if (!(iov->iov_base))
+		return 1;
+
+	iov->iov_len = len;
+	net_param = (struct iscsi_iface_param_info *)(iov->iov_base);
+	net_param->param = ISCSI_NET_PARAM_IPV6_LINKLOCAL_AUTOCFG;
+	net_param->iface_type = ISCSI_IFACE_TYPE_IPV6;
+	net_param->param_type = ISCSI_NET_PARAM;
+	net_param->len = 1;
+
+	if (strstr(iface->linklocal_autocfg, "auto"))
+		net_param->value[0] = ISCSI_IPV6_LINKLOCAL_AUTOCFG_ENABLE;
+	else
+		net_param->value[0] = ISCSI_IPV6_LINKLOCAL_AUTOCFG_DISABLE;
+
+	return 0;
+}
+
+/* IPv6 Router Autocfg: enable/disable */
+static int iface_fill_router_autocfg(struct iovec *iov, struct iface_rec *iface)
+{
+	int len;
+	struct iscsi_iface_param_info *net_param;
+
+	len = sizeof(struct iscsi_iface_param_info) + 1;
+	iov->iov_base = calloc(len, sizeof(char));
+	if (!(iov->iov_base))
+		return 1;
+
+	iov->iov_len = len;
+	net_param = (struct iscsi_iface_param_info *)(iov->iov_base);
+	net_param->param = ISCSI_NET_PARAM_IPV6_ROUTER_AUTOCFG;
+	net_param->iface_type = ISCSI_IFACE_TYPE_IPV6;
+	net_param->param_type = ISCSI_NET_PARAM;
+	net_param->len = 1;
+
+	if (strstr(iface->router_autocfg, "auto"))
+		net_param->value[0] = ISCSI_IPV6_ROUTER_AUTOCFG_ENABLE;
+	else
+		net_param->value[0] = ISCSI_IPV6_ROUTER_AUTOCFG_DISABLE;
+
+	return 0;
+}
+
+/* IPv4 IPAddress/Subnet Mask/Gateway: 4 bytes */
+static int iface_fill_net_ipv4_addr(struct iovec *iov, struct iface_rec *iface,
+				    uint32_t param)
+{
+	int rc = 1;
+	int len;
+	struct iscsi_iface_param_info *net_param;
+
+	len = sizeof(struct iscsi_iface_param_info) + 4;
+	iov->iov_base = calloc(len, sizeof(char));
+	if (!(iov->iov_base))
+		return 1;
+
+	iov->iov_len = len;
+	net_param = (struct iscsi_iface_param_info *)(iov->iov_base);
+	net_param->param = param;
+	net_param->iface_type = ISCSI_IFACE_TYPE_IPV4;
+	net_param->iface_num = iface->iface_num;
+	net_param->len = 4;
+	net_param->param_type = ISCSI_NET_PARAM;
+
+	switch (param) {
+	case ISCSI_NET_PARAM_IPV4_ADDR:
+		rc = inet_pton(AF_INET, iface->ipaddress, net_param->value);
+		if (rc <= 0)
+			goto free;
+		break;
+	case ISCSI_NET_PARAM_IPV4_SUBNET:
+		rc = inet_pton(AF_INET, iface->subnet_mask, net_param->value);
+		if (rc <= 0)
+			goto free;
+		break;
+	case ISCSI_NET_PARAM_IPV4_GW:
+		rc = inet_pton(AF_INET, iface->gateway, net_param->value);
+		if (rc <= 0)
+			goto free;
+		break;
+	default:
+		goto free;
+	}
+
+	/* validate */
+	if (!net_param->value[0] && !net_param->value[1] &&
+	    !net_param->value[2] && !net_param->value[3])
+		goto free;
+
+	return 0;
+free:
+	free(iov->iov_base);
+	iov->iov_base = NULL;
+	iov->iov_len = 0;
+	return 1;
+}
+
+/* IPv6 IPAddress/LinkLocal/Router: 16 bytes */
+static int iface_fill_net_ipv6_addr(struct iovec *iov, struct iface_rec *iface,
+				    uint32_t param)
+{
+	int rc;
+	int len;
+	struct iscsi_iface_param_info *net_param;
+
+	len = sizeof(struct iscsi_iface_param_info) + 16;
+	iov->iov_base = calloc(len, sizeof(char));
+	if (!(iov->iov_base))
+		return 1;
+
+	iov->iov_len = len;
+	net_param = (struct iscsi_iface_param_info *)(iov->iov_base);
+	net_param->param = param;
+	net_param->iface_type = ISCSI_IFACE_TYPE_IPV6;
+	net_param->iface_num = iface->iface_num;
+	net_param->param_type = ISCSI_NET_PARAM;
+	net_param->len = 16;
+
+	switch (param) {
+	case ISCSI_NET_PARAM_IPV6_ADDR:
+		rc = inet_pton(AF_INET6, iface->ipaddress, net_param->value);
+		if (rc <= 0)
+			goto free;
+		break;
+	case ISCSI_NET_PARAM_IPV6_LINKLOCAL:
+		rc = inet_pton(AF_INET6, iface->ipv6_linklocal,
+			       net_param->value);
+		if (rc <= 0)
+			goto free;
+		break;
+	case ISCSI_NET_PARAM_IPV6_ROUTER:
+		rc = inet_pton(AF_INET6, iface->ipv6_router, net_param->value);
+		if (rc <= 0)
+			goto free;
+		break;
+	default:
+		goto free;
+	}
+
+	return 0;
+free:
+	free(iov->iov_base);
+	iov->iov_base = NULL;
+	iov->iov_len = 0;
+	return 1;
+}
+
+struct iface_net_config {
+	struct iface_rec *primary;
+	struct iovec *iovs;
+	int count;
+};
+
+static int __iface_build_net_config(void *data, struct iface_rec *iface)
+{
+	struct iface_net_config *net_config = data;
+	struct iovec *iov;
+	int iptype = ISCSI_IFACE_TYPE_IPV4;
+	int count = 0;
+
+	if (strcmp(net_config->primary->hwaddress, iface->hwaddress))
+		return 0;
+
+	if (strcmp(iface->bootproto, "dhcp") && !strstr(iface->ipaddress, "."))
+		iptype = ISCSI_IFACE_TYPE_IPV6;
+
+	/* start at 2, because 0 is for nlmsghdr and 1 for event */
+	iov = net_config->iovs + 2;
+
+	if (iptype == ISCSI_IFACE_TYPE_IPV4) {
+		if (!strcmp(iface->state, "disable")) {
+			if (!iface_fill_net_state(&iov[net_config->count],
+						  iface,
+						  ISCSI_IFACE_TYPE_IPV4)) {
+				net_config->count++;
+				count++;
+			}
+
+			return 0;
+		}
+
+		if (strstr(iface->bootproto, "dhcp")) {
+			if (!iface_fill_net_bootproto(&iov[net_config->count],
+						      iface)) {
+				net_config->count++;
+				count++;
+			}
+		} else if (strstr(iface->ipaddress, ".")) {
+			if (!iface_fill_net_bootproto(&iov[net_config->count],
+						      iface)) {
+				net_config->count++;
+				count++;
+			}
+			if (!iface_fill_net_ipv4_addr(&iov[net_config->count],
+						iface,
+						ISCSI_NET_PARAM_IPV4_ADDR)) {
+				net_config->count++;
+				count++;
+			}
+			if (strstr(iface->subnet_mask, ".")) {
+				if (!iface_fill_net_ipv4_addr(
+						&iov[net_config->count], iface,
+						ISCSI_NET_PARAM_IPV4_SUBNET)) {
+					net_config->count++;
+					count++;
+				}
+			}
+			if (strstr(iface->gateway, ".")) {
+				if (!iface_fill_net_ipv4_addr(
+						&iov[net_config->count], iface,
+						ISCSI_NET_PARAM_IPV4_GW)) {
+					net_config->count++;
+					count++;
+				}
+			}
+		}
+
+		/*
+		 * If IPv4 configuration in iface file is valid,
+		 * fill state and other parameters (if any)
+		 */
+		if (count) {
+			if (!iface_fill_net_state(&iov[net_config->count],
+						  iface,
+						  ISCSI_IFACE_TYPE_IPV4)) {
+				net_config->count++;
+				count++;
+			}
+			if (!iface_fill_vlan_state(&iov[net_config->count],
+						iface,
+						ISCSI_IFACE_TYPE_IPV4)) {
+				net_config->count++;
+				count++;
+			}
+			if (strcmp(iface->vlan_state, "disable") &&
+			    iface->vlan_id) {
+				if (!iface_fill_vlan_id(&iov[net_config->count],
+						iface, ISCSI_IFACE_TYPE_IPV4)) {
+					net_config->count++;
+					count++;
+				}
+			}
+			if (iface->mtu) {
+				if (!iface_fill_mtu(&iov[net_config->count],
+						    iface,
+						    ISCSI_IFACE_TYPE_IPV4)) {
+					net_config->count++;
+					count++;
+				}
+			}
+			if (iface->port) {
+				if (!iface_fill_port(&iov[net_config->count],
+						iface,
+						ISCSI_IFACE_TYPE_IPV4)) {
+					net_config->count++;
+					count++;
+				}
+			}
+		}
+	} else if (iptype == ISCSI_IFACE_TYPE_IPV6) {
+		if (!strcmp(iface->state, "disable")) {
+			if (!iface_fill_net_state(&iov[net_config->count],
+						  iface,
+						  ISCSI_IFACE_TYPE_IPV6)) {
+				net_config->count++;
+				count++;
+			}
+			return 0;
+		}
+
+		/* For IPv6 Address */
+		if (strstr(iface->ipv6_autocfg, "nd") ||
+		    strstr(iface->ipv6_autocfg, "dhcpv6")) {
+			if (!iface_fill_net_autocfg(&iov[net_config->count],
+						    iface)) {
+				net_config->count++;
+				count++;
+			}
+		} else if (strstr(iface->ipaddress, ":")) {
+			if (!iface_fill_net_autocfg(&iov[net_config->count],
+						    iface)) {
+				net_config->count++;
+				count++;
+			}
+			/* User provided IPv6 Address */
+			if (!iface_fill_net_ipv6_addr(&iov[net_config->count],
+						iface,
+						ISCSI_NET_PARAM_IPV6_ADDR)) {
+				net_config->count++;
+				count++;
+			}
+		}
+
+		/* For LinkLocal Address */
+		if (strstr(iface->linklocal_autocfg, "auto")) {
+			if (!iface_fill_linklocal_autocfg(
+						&iov[net_config->count],
+						iface)) {
+				net_config->count++;
+				count++;
+			}
+		} else if (strstr(iface->ipv6_linklocal, ":")) {
+			if (!iface_fill_linklocal_autocfg(
+						&iov[net_config->count],
+						iface)) {
+				net_config->count++;
+				count++;
+			}
+			/* User provided Link Local Address */
+			if (!iface_fill_net_ipv6_addr(&iov[net_config->count],
+					iface,
+					ISCSI_NET_PARAM_IPV6_LINKLOCAL)) {
+				net_config->count++;
+				count++;
+			}
+		}
+
+		/* For Router Address */
+		if (strstr(iface->router_autocfg, "auto")) {
+			if (!iface_fill_router_autocfg(&iov[net_config->count],
+						       iface)) {
+				net_config->count++;
+				count++;
+			}
+		} else if (strstr(iface->ipv6_router, ":")) {
+			if (!iface_fill_router_autocfg(&iov[net_config->count],
+						       iface)) {
+				net_config->count++;
+				count++;
+			}
+			/* User provided Router Address */
+			if (!iface_fill_net_ipv6_addr(&iov[net_config->count],
+						iface,
+						ISCSI_NET_PARAM_IPV6_ROUTER)) {
+				net_config->count++;
+				count++;
+			}
+		}
+
+		/*
+		 * If IPv6 configuration in iface file is valid,
+		 * fill state and other parameters
+		 */
+		if (count) {
+			if (!iface_fill_net_state(&iov[net_config->count],
+						  iface,
+						  ISCSI_IFACE_TYPE_IPV6)) {
+				net_config->count++;
+				count++;
+			}
+			if (!iface_fill_vlan_state(&iov[net_config->count],
+						   iface,
+						   ISCSI_IFACE_TYPE_IPV6)) {
+				net_config->count++;
+				count++;
+			}
+			if (strcmp(iface->vlan_state, "disable") &&
+			    iface->vlan_id) {
+				if (!iface_fill_vlan_id(&iov[net_config->count],
+						iface,
+						ISCSI_IFACE_TYPE_IPV6)) {
+					net_config->count++;
+					count++;
+				}
+			}
+			if (iface->mtu) {
+				if (!iface_fill_mtu(&iov[net_config->count],
+						    iface,
+						    ISCSI_IFACE_TYPE_IPV6)) {
+					net_config->count++;
+					count++;
+				}
+			}
+			if (iface->port) {
+				if (!iface_fill_port(&iov[net_config->count],
+						     iface,
+						     ISCSI_IFACE_TYPE_IPV6)) {
+					net_config->count++;
+					count++;
+				}
+			}
+		}
+	}
+	return 0;
+}
+
+/**
+ * iface_build_net_config - Setup neconfig parameter buffers
+ * @iface: iface to setup
+ * @iface_all: Flag for number of ifaces to traverse (1 for all)
+ * @iovs: iovec buffer for netconfig parameters
+ *
+ * Returns total number of netconfig parameter buffers used.
+ */
+int iface_build_net_config(struct iface_rec *iface, int iface_all,
+			   struct iovec *iovs)
+{
+	int num_found = 0, rc;
+	struct iface_net_config net_config;
+
+	log_debug(8, "In iface_build_net_config\n");
+
+	net_config.primary = iface;
+	net_config.iovs = iovs;
+	net_config.count = 0;
+
+	if (iface_all)
+		rc = iface_for_each_iface(&net_config, 0, &num_found,
+					  __iface_build_net_config);
+	else
+		rc = __iface_build_net_config(&net_config, iface);
+
+	log_debug(8, "iface_build_net_config: rc = %d, count = %d\n",
+		  rc, net_config.count);
+	return net_config.count;
 }
