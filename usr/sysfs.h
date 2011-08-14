@@ -59,6 +59,10 @@ extern int sysfs_get_str(char *id, char *subsys, char *param, char *value,
 			 int value_size);
 extern int sysfs_get_uint64(char *id, char *subsys, char *param,
 			    uint64_t *value);
+extern int sysfs_get_uint8(char *id, char *subsys, char *param,
+			   uint8_t *value);
+extern int sysfs_get_uint16(char *id, char *subsys, char *param,
+			    uint16_t *value);
 extern int sysfs_set_param(char *id, char *subsys, char *attr_name,
 			   char *write_buf, ssize_t buf_size);
 

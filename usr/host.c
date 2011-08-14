@@ -118,6 +118,47 @@ static int host_info_print_flat(void *data, struct host_info *hinfo)
 	return 0;
 }
 
+static int print_host_iface(void *data, struct iface_rec *iface)
+{
+	char *prefix = data;
+
+	printf("%s**********\n", prefix);
+	printf("%sInterface:\n", prefix);
+	printf("%s**********\n", prefix);
+
+	printf("%sKernel Name: %s\n", prefix, iface->name);
+
+	if (!strlen(iface->ipaddress))
+		printf("%sIPaddress: %s\n", prefix, UNKNOWN_VALUE);
+	else if (strchr(iface->ipaddress, '.')) {
+		printf("%sIPaddress: %s\n", prefix, iface->ipaddress);
+		printf("%sGateway: %s\n", prefix, iface->gateway);
+		printf("%sSubnet: %s\n", prefix, iface->subnet_mask);
+		printf("%sBootProto: %s\n", prefix, iface->bootproto);
+	} else {
+		printf("%sIPaddress: [%s]\n", prefix, iface->ipaddress);
+		printf("%sIPaddress Autocfg: %s\n", prefix, iface->ipv6_autocfg);
+		printf("%sLink Local Address: [%s]\n", prefix,
+		       iface->ipv6_linklocal);
+		printf("%sLink Local Autocfg: %s\n", prefix,
+		       iface->linklocal_autocfg);
+		printf("%sRouter Address: [%s]\n", prefix, iface->ipv6_router);
+	}
+
+	printf("%sMTU: %u\n", prefix, iface->mtu);
+	printf("%svlan ID: %u\n", prefix, iface->vlan_id);
+	printf("%svlan priority: %u\n", prefix, iface->vlan_priority);
+	return 0;
+}
+
+static void print_host_ifaces(struct host_info *hinfo, char *prefix)
+{
+	int nr_found;
+
+	iscsi_sysfs_for_each_iface_on_host(prefix, hinfo->host_no, &nr_found,
+					   print_host_iface);
+}
+
 static int host_info_print_tree(void *data, struct host_info *hinfo)
 {
 	struct list_head sessions;
@@ -128,12 +169,15 @@ static int host_info_print_tree(void *data, struct host_info *hinfo)
 
 	INIT_LIST_HEAD(&sessions);
 
+
 	printf("Host Number: %u\n", hinfo->host_no);
 	if (!iscsi_sysfs_get_host_state(state, hinfo->host_no))
 		printf("\tState: %s\n", state);
 	else
 		printf("\tState: Unknown\n");
 	print_host_info(&hinfo->iface, "\t");
+
+	print_host_ifaces(hinfo, "\t");
 
 	if (!session_info_flags)
 		return 0;
