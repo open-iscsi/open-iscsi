@@ -114,7 +114,7 @@ static int print_iscsi_state(int sid, char *prefix)
 	 * anything here since it does not know about it.
 	 */
 	if (!err && rsp.u.session_state.conn_state >= 0 &&
-	    rsp.u.session_state.conn_state <= STATE_CLEANUP_WAIT)
+	    rsp.u.session_state.conn_state <= ISCSI_CONN_STATE_CLEANUP_WAIT)
 		state = conn_state[rsp.u.session_state.conn_state];
 	printf("%s\t\tiSCSI Connection State: %s\n", prefix,
 	       state ? state : "Unknown");

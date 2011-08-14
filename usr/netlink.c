@@ -988,6 +988,28 @@ kset_net_config(uint64_t transport_handle, uint32_t host_no,
 	return 0;
 }
 
+static int krecv_conn_state(struct iscsi_conn *conn, int *state)
+{
+	int rc;
+
+	rc = ipc->ctldev_handle();
+	if (rc == -ENXIO) {
+		/* event for some other conn */
+		rc = -EAGAIN;
+		goto exit;
+	} else if (rc < 0)
+		/* fatal handling error or conn error */
+		goto exit;
+
+	*state = *(enum iscsi_conn_state *)conn->recv_context->data;
+
+	ipc_ev_clbk->put_ev_context(conn->recv_context);
+	conn->recv_context = NULL;
+
+exit:
+	return rc;
+}
+
 static void drop_data(struct nlmsghdr *nlh)
 {
 	int ev_size;
@@ -1005,7 +1027,7 @@ static int ctldev_handle(void)
 	char nlm_ev[NLMSG_SPACE(sizeof(struct iscsi_uevent))];
 	struct nlmsghdr *nlh;
 	struct iscsi_ev_context *ev_context;
-	uint32_t sid = 0, cid = 0;
+	uint32_t sid = 0, cid = 0, state = 0;
 
 	log_debug(7, "in %s", __FUNCTION__);
 
@@ -1041,6 +1063,11 @@ static int ctldev_handle(void)
 	case ISCSI_KEVENT_CONN_ERROR:
 		sid = ev->r.connerror.sid;
 		cid = ev->r.connerror.cid;
+		break;
+	case ISCSI_KEVENT_CONN_LOGIN_STATE:
+		sid = ev->r.conn_login.sid;
+		cid = ev->r.conn_login.cid;
+		state = ev->r.conn_login.state;
 		break;
 	case ISCSI_KEVENT_UNBIND_SESSION:
 		sid = ev->r.unbind_session.sid;
@@ -1112,6 +1139,12 @@ static int ctldev_handle(void)
 			sizeof(ev->r.connerror.error));
 		rc = ipc_ev_clbk->sched_ev_context(ev_context, conn, 0,
 						   EV_CONN_ERROR);
+		break;
+	case ISCSI_KEVENT_CONN_LOGIN_STATE:
+		memcpy(ev_context->data, &ev->r.conn_login.state,
+			sizeof(ev->r.conn_login.state));
+		rc = ipc_ev_clbk->sched_ev_context(ev_context, conn, 0,
+						   EV_CONN_LOGIN);
 		break;
 	case ISCSI_KEVENT_UNBIND_SESSION:
 		rc = ipc_ev_clbk->sched_ev_context(ev_context, conn, 0,
@@ -1233,6 +1266,7 @@ struct iscsi_ipc nl_ipc = {
 	.recv_pdu_begin         = krecv_pdu_begin,
 	.recv_pdu_end           = krecv_pdu_end,
 	.set_net_config         = kset_net_config,
+	.recv_conn_state        = krecv_conn_state,
 };
 struct iscsi_ipc *ipc = &nl_ipc;
 

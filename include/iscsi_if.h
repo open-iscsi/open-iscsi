@@ -78,8 +78,9 @@ enum iscsi_uevent_e {
 
 	ISCSI_KEVENT_PATH_REQ		= KEVENT_BASE + 7,
 	ISCSI_KEVENT_IF_DOWN		= KEVENT_BASE + 8,
+	ISCSI_KEVENT_CONN_LOGIN_STATE   = KEVENT_BASE + 9,
 
-	ISCSI_KEVENT_MAX		= ISCSI_KEVENT_IF_DOWN,
+	ISCSI_KEVENT_MAX		= ISCSI_KEVENT_CONN_LOGIN_STATE,
 };
 
 enum iscsi_tgt_dscvr {
@@ -207,6 +208,11 @@ struct iscsi_uevent {
 			uint32_t	cid;
 			uint64_t	recv_handle;
 		} recv_req;
+		struct msg_conn_login {
+			uint32_t	sid;
+			uint32_t	cid;
+			uint32_t	state; /* enum iscsi_conn_state */
+		} conn_login;
 		struct msg_conn_error {
 			uint32_t	sid;
 			uint32_t	cid;
@@ -318,6 +324,16 @@ enum iscsi_net_param {
 	ISCSI_NET_PARAM_IFACE_NAME		= 17,
 	ISCSI_NET_PARAM_MTU			= 18,
 	ISCSI_NET_PARAM_PORT			= 19,
+};
+
+enum iscsi_conn_state {
+	ISCSI_CONN_STATE_FREE,
+	ISCSI_CONN_STATE_XPT_WAIT,
+	ISCSI_CONN_STATE_IN_LOGIN,
+	ISCSI_CONN_STATE_LOGGED_IN,
+	ISCSI_CONN_STATE_IN_LOGOUT,
+	ISCSI_CONN_STATE_LOGOUT_REQUESTED,
+	ISCSI_CONN_STATE_CLEANUP_WAIT,
 };
 
 /*
@@ -475,6 +491,7 @@ enum iscsi_host_param {
 #define CAP_DIGEST_OFFLOAD	0x1000	/* offload hdr and data digests */
 #define CAP_PADDING_OFFLOAD	0x2000	/* offload padding insertion, removal,
 					 and verification */
+#define CAP_LOGIN_OFFLOAD	0x4000  /* offload normal session login */
 
 /*
  * These flags describes reason of stop_conn() call

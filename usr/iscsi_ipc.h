@@ -132,6 +132,8 @@ struct iscsi_ipc {
 
 	int (*set_net_config) (uint64_t transport_handle, uint32_t host_no,
 			       struct iovec *iovs, uint32_t param_count);
+
+	int (*recv_conn_state) (struct iscsi_conn *conn, uint32_t *state);
 };
 
 #endif /* ISCSI_IPC_H */

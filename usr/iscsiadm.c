@@ -566,15 +566,6 @@ static int iscsi_logout_matched_portal(void *data, struct list_head *list,
 	if (!iscsi_match_session(pattern_rec, info))
 		return -1;
 
-	/* we do not support this yet */
-	if (t->caps & CAP_FW_DB) {
-		log_error("Could not logout session of [sid: %d, "
-			  "target: %s, portal: %s,%d].", info->sid,
-			  info->targetname, info->persistent_address,
-			  info->port);
-		log_error("Logout not supported for driver: %s.", t->name);
-		return -1;
-	}
 	return iscsi_logout_portal(info, list);
 }
 
@@ -1102,7 +1093,6 @@ do_sendtargets(discovery_rec_t *drec, struct list_head *ifaces,
 			free(iface);
 			continue;
 		}
-
 		host_no = iscsi_sysfs_get_host_no_from_hwinfo(iface, &rc);
 		if (rc || host_no == -1) {
 			log_debug(1, "Could not match iface" iface_fmt " to "

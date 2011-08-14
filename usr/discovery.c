@@ -1227,7 +1227,7 @@ static int iscsi_sched_ev_context(struct iscsi_ev_context *ev_context,
 				  struct iscsi_conn *conn, unsigned long tmo,
 				  int event)
 {
-	if (event == EV_CONN_RECV_PDU) {
+	if (event == EV_CONN_RECV_PDU || event == EV_CONN_LOGIN) {
 		conn->recv_context = ev_context;
 		return 0;
 	}
@@ -1240,6 +1240,89 @@ static struct iscsi_ipc_ev_clbk ipc_clbk = {
         .put_ev_context         = iscsi_ev_context_put,
         .sched_ev_context       = iscsi_sched_ev_context,
 };
+
+static int iscsi_wait_for_login(struct iscsi_conn *conn)
+{
+	struct iscsi_session *session = conn->session;
+	struct iscsi_transport *t = session->t;
+	struct pollfd pfd;
+	struct timeval connection_timer;
+	int timeout, rc;
+	uint32_t conn_state;
+	int status = 0;
+
+	if (!(t->caps & CAP_LOGIN_OFFLOAD))
+		return 0;
+
+	iscsi_timer_set(&connection_timer, conn->active_timeout);
+
+	/* prepare to poll */
+	memset(&pfd, 0, sizeof(pfd));
+	pfd.fd = conn->socket_fd;
+	pfd.events = POLLIN | POLLPRI;
+
+	timeout = iscsi_timer_msecs_until(&connection_timer);
+
+login_repoll:
+	log_debug(4, "discovery login process polling fd %d, "
+		 "timeout in %f seconds", pfd.fd, timeout / 1000.0);
+
+	pfd.revents = 0;
+	rc = poll(&pfd, 1, timeout);
+
+	log_debug(7, "discovery login process returned from poll, rc %d", rc);
+
+	if (iscsi_timer_expired(&connection_timer)) {
+		log_warning("Discovery login session timed out.");
+		rc = ISCSI_ERR_INTERNAL;
+		goto done;
+	}
+
+	if (rc > 0) {
+		if (pfd.revents & (POLLIN | POLLPRI)) {
+			timeout = iscsi_timer_msecs_until(&connection_timer);
+			status = ipc->recv_conn_state(conn, &conn_state);
+			if (status == -EAGAIN)
+				goto login_repoll;
+			else if (status < 0) {
+				rc = ISCSI_ERR_TRANS;
+				goto done;
+			}
+
+			if (conn_state != ISCSI_CONN_STATE_LOGGED_IN)
+				rc = ISCSI_ERR_TRANS;
+			else
+				rc = 0;
+			goto done;
+		}
+
+		if (pfd.revents & POLLHUP) {
+			log_warning("discovery session"
+				    "terminating after hangup");
+			 rc = ISCSI_ERR_TRANS;
+			 goto done;
+		}
+
+		if (pfd.revents & POLLNVAL) {
+			log_warning("discovery POLLNVAL");
+			rc = ISCSI_ERR_INTERNAL;
+			goto done;
+		}
+
+		if (pfd.revents & POLLERR) {
+			log_warning("discovery POLLERR");
+			rc = ISCSI_ERR_INTERNAL;
+			goto done;
+		}
+	} else if (rc < 0) {
+		log_error("Login poll error");
+		rc = ISCSI_ERR_INTERNAL;
+		goto done;
+	}
+
+done:
+	return rc;
+}
 
 static int iscsi_create_session(struct iscsi_session *session,
 				struct iscsi_sendtargets_config *config,
@@ -1319,6 +1402,9 @@ redirect_reconnect:
 	 */
 	iscsi_copy_operational_params(&session->conn[0], &config->session_conf,
 				      &config->conn_conf);
+
+	if ((session->t->caps & CAP_LOGIN_OFFLOAD))
+		goto start_conn;
 
 	status_class = 0;
 	status_detail = 0;
@@ -1422,6 +1508,7 @@ redirect_reconnect:
 	if (!(t->caps & CAP_TEXT_NEGO))
 		return 0;
 
+start_conn:
 	log_debug(2, "%s discovery set params\n", __FUNCTION__);
 	rc = iscsi_session_set_params(conn);
 	if (rc) {
@@ -1439,7 +1526,9 @@ redirect_reconnect:
 		goto login_failed;
 	}
 
-	return 0;
+	rc = iscsi_wait_for_login(conn);
+	if (!rc)
+		return 0;
 
 login_failed:
 	iscsi_destroy_session(session);

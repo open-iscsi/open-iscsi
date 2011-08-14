@@ -510,6 +510,12 @@ int iscsi_session_set_params(struct iscsi_conn *conn)
 		session->param_mask &= ~ISCSI_OFMARKER_EN;
 	}
 
+	/* some llds will send nops internally */
+	if (!iscsi_sysfs_session_supports_nop(session->id)) {
+		session->param_mask &= ~ISCSI_PING_TMO;
+		session->param_mask &= ~ISCSI_RECV_TMO;
+	}
+
 	/* Entered full-feature phase! */
 	for (i = 0; i < MAX_SESSION_PARAMS; i++) {
 		if (conn->id != 0 && !conntbl[i].conn_only)

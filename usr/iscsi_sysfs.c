@@ -149,7 +149,6 @@ static int read_transports(void)
 		 */
 		if (!strcmp(t->name, "qla4xxx")) {
 			t->caps |= CAP_DATA_PATH_OFFLOAD;
-			t->caps |= CAP_FW_DB;
 		}
 
 		if (list_empty(&t->list))
@@ -1190,6 +1189,19 @@ int iscsi_sysfs_get_exp_statsn(int sid)
 		exp_statsn = 0;
 	}
 	return exp_statsn;
+}
+
+int iscsi_sysfs_session_supports_nop(int sid)
+{
+	char id[NAME_SIZE];
+	uint32_t ping_tmo = 0;
+
+	snprintf(id, sizeof(id), ISCSI_CONN_ID, sid);
+	if (sysfs_get_uint(id, ISCSI_CONN_SUBSYS, "ping_tmo",
+			   &ping_tmo)) {
+		return 0;
+	}
+	return 1;
 }
 
 int iscsi_sysfs_for_each_device(void *data, int host_no, uint32_t sid,

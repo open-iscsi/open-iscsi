@@ -79,6 +79,10 @@ struct iscsi_transport_template be2iscsi = {
 
 struct iscsi_transport_template qla4xxx = {
 	.name		= "qla4xxx",
+	.set_host_ip	= 0,
+	.ep_connect	= ktransport_ep_connect,
+	.ep_poll	= ktransport_ep_poll,
+	.ep_disconnect	= ktransport_ep_disconnect,
 };
 
 static struct iscsi_transport_template *iscsi_transport_templates[] = {

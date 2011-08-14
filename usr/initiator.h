@@ -45,21 +45,12 @@
 #define LOCK_FILE		LOCK_DIR"/lock"
 #define LOCK_WRITE_FILE		LOCK_DIR"/lock.write"
 
-typedef enum iscsi_conn_state_e {
-	STATE_FREE,
-	STATE_XPT_WAIT,
-	STATE_IN_LOGIN,
-	STATE_LOGGED_IN,
-	STATE_IN_LOGOUT,
-	STATE_LOGOUT_REQUESTED,
-	STATE_CLEANUP_WAIT,
-} iscsi_conn_state_e;
-
 typedef enum iscsi_session_r_stage_e {
 	R_STAGE_NO_CHANGE,
 	R_STAGE_SESSION_CLEANUP,
 	R_STAGE_SESSION_REOPEN,
 	R_STAGE_SESSION_REDIRECT,
+	R_STAGE_SESSION_DESTOYED,
 } iscsi_session_r_stage_e;
 
 typedef enum conn_login_status_e {
@@ -91,6 +82,7 @@ typedef enum iscsi_event_e {
 	EV_CONN_ERROR,
 	EV_CONN_LOGOUT_TIMER,
 	EV_CONN_STOP,
+	EV_CONN_LOGIN,
 } iscsi_event_e;
 
 struct queue_task;
@@ -126,7 +118,7 @@ typedef struct iscsi_conn {
 	struct queue_task *logout_qtask;
 	char data[ISCSI_DEF_MAX_RECV_SEG_LEN];
 	char host[NI_MAXHOST];	/* scratch */
-	iscsi_conn_state_e state;
+	enum iscsi_conn_state state;
 	int userspace_nop;
 
 	struct timeval initial_connect_time;
@@ -264,8 +256,11 @@ typedef struct iscsi_session {
 	int lu_reset_timeout;
 	int abort_timeout;
 
-	/* sync up fields */
-	queue_task_t *sync_qtask;
+	/*
+	 * used for hw and sync up to notify caller that the operation
+	 * is complete
+	 */
+	queue_task_t *notify_qtask;
 } iscsi_session_t;
 
 /* login.c */

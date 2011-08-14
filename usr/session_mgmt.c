@@ -216,7 +216,6 @@ int iscsi_login_portal_nowait(struct node_rec *rec)
 	int err;
 
 	INIT_LIST_HEAD(&list);
-
 	err = iscsi_login_portal(NULL, &list, rec);
 	if (err > 0)
 		return err;

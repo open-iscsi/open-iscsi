@@ -363,10 +363,8 @@ iscsi_io_tcp_connect(iscsi_conn_t *conn, int non_blocking)
 		return -1;
 	}
 
-	if (conn->session) {
-		if (bind_conn_to_iface(conn, &conn->session->nrec.iface))
-			return -1;
-	}
+	if (bind_conn_to_iface(conn, &conn->session->nrec.iface))
+		return -1;
 
 	onearg = 1;
 	rc = setsockopt(conn->socket_fd, IPPROTO_TCP, TCP_NODELAY, &onearg,
