@@ -425,9 +425,10 @@ uint32_t iscsi_sysfs_get_host_no_from_hwinfo(struct iface_rec *iface, int *rc)
 static int iscsi_sysfs_read_iface(struct iface_rec *iface, int host_no,
 				  char *session, char *iface_kern_id)
 {
+	uint32_t tmp_host_no, iface_num;
 	char host_id[NAME_SIZE];
 	struct iscsi_transport *t;
-	int ret;
+	int ret, iface_type;
 
 	t = iscsi_sysfs_get_transport_by_hba(host_no);
 	if (!t)
@@ -582,6 +583,10 @@ static int iscsi_sysfs_read_iface(struct iface_rec *iface, int host_no,
 			 &iface->vlan_id);
 	sysfs_get_uint8(iface_kern_id, ISCSI_IFACE_SUBSYS, "vlan_priority",
 			 &iface->vlan_priority);
+
+	if (sscanf(iface_kern_id, "ipv%d-iface-%u-%u", &iface_type,
+		   &tmp_host_no, &iface_num) == 3)
+		iface->iface_num = iface_num;
 done:
 	if (ret)
 		return ISCSI_ERR_SYSFS_LOOKUP;

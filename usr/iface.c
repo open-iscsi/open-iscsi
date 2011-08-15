@@ -424,12 +424,61 @@ int iface_get_by_net_binding(struct iface_rec *pattern,
 	return ISCSI_ERR_NO_OBJS_FOUND;
 }
 
+static int iface_get_iptype(struct iface_rec *iface)
+{
+	if (strcmp(iface->bootproto, "dhcp") && !strstr(iface->ipaddress, "."))
+		return ISCSI_IFACE_TYPE_IPV6;
+	else
+		return ISCSI_IFACE_TYPE_IPV4;
+}
+
+static int iface_setup_binding_from_kern_iface(void *data,
+					       struct iface_rec *kern_iface)
+{
+	struct host_info *hinfo = data;
+	struct iface_rec iface;
+
+	if (!strlen(hinfo->iface.hwaddress)) {
+		log_error("Invalid offload iSCSI host %u. Missing "
+			  "hwaddress. Try upgrading %s driver.\n",
+			  hinfo->host_no, hinfo->iface.transport_name);
+		return 0;
+	}
+
+	memset(&iface, 0, sizeof(struct iface_rec));
+	strcpy(iface.hwaddress, hinfo->iface.hwaddress);
+	strcpy(iface.transport_name, hinfo->iface.transport_name);
+
+	if (kern_iface) {
+		iface.iface_num = kern_iface->iface_num;
+
+		snprintf(iface.name, sizeof(iface.name), "%s.%s.%s.%u",
+			 kern_iface->transport_name,
+			 kern_iface->hwaddress,
+			 iface_get_iptype(kern_iface) == ISCSI_IFACE_TYPE_IPV4 ?
+			 "ipv4" : "ipv6", kern_iface->iface_num);
+	} else {
+		snprintf(iface.name, sizeof(iface.name), "%s.%s",
+			 hinfo->iface.transport_name, hinfo->iface.hwaddress);
+	}
+
+	if (iface_conf_read(&iface)) {
+		/* not found so create it */
+		if (iface_conf_write(&iface)) {
+			log_error("Could not create default iface conf %s.",
+				  iface.name);
+			/* fall through - will not be persistent */
+		}
+	}
+
+	return 0;
+}
+
 static int __iface_setup_host_bindings(void *data, struct host_info *hinfo)
 {
 	struct iface_rec *def_iface;
-	struct iface_rec iface;
 	struct iscsi_transport *t;
-	int i = 0;
+	int i = 0, nr_found;
 
 	t = iscsi_sysfs_get_transport_by_hba(hinfo->host_no);
 	if (!t)
@@ -441,26 +490,12 @@ static int __iface_setup_host_bindings(void *data, struct host_info *hinfo)
 			return 0;
 	}
 
-	if (iface_get_by_net_binding(&hinfo->iface, &iface) ==
-	    ISCSI_ERR_NO_OBJS_FOUND) {
-		/* Must be a new port */
-		if (!strlen(hinfo->iface.hwaddress)) {
-			log_error("Invalid offload iSCSI host %u. Missing "
-				  "hwaddress. Try upgrading %s driver.\n",
-				  hinfo->host_no, t->name);
-			return 0;
-		}
-
-		memset(&iface, 0, sizeof(struct iface_rec));
-		strcpy(iface.hwaddress, hinfo->iface.hwaddress);
-		strcpy(iface.transport_name, hinfo->iface.transport_name);
-		snprintf(iface.name, sizeof(iface.name), "%s.%s",
-			 t->name, hinfo->iface.hwaddress);
-		if (iface_conf_write(&iface))
-			log_error("Could not create default iface conf %s.",
-				  iface.name);
-			/* fall through - will not be persistent */
-	}
+	nr_found = 0;
+	iscsi_sysfs_for_each_iface_on_host(hinfo, hinfo->host_no,
+					   &nr_found,
+					   iface_setup_binding_from_kern_iface);
+	if (!nr_found)
+		iface_setup_binding_from_kern_iface(hinfo, NULL);	
 	return 0;
 }
 
@@ -843,7 +878,6 @@ int iface_setup_from_boot_context(struct iface_rec *iface,
 	memset(iface->name, 0, sizeof(iface->name));
 	snprintf(iface->name, sizeof(iface->name), "%s.%s",
 		 iface->transport_name, context->mac);
-
 	strlcpy(iface->hwaddress, context->mac,
 		sizeof(iface->hwaddress));
 	strlcpy(iface->ipaddress, context->ipaddr,
@@ -921,9 +955,7 @@ static int __iface_get_param_count(void *data, struct iface_rec *iface)
 	if (strcmp(iface_params->primary->hwaddress, iface->hwaddress))
 		return 0;
 
-	if (strcmp(iface->bootproto, "dhcp") && !strstr(iface->ipaddress, "."))
-		iptype = ISCSI_IFACE_TYPE_IPV6;
-
+	iptype = iface_get_iptype(iface);
 	if (iptype == ISCSI_IFACE_TYPE_IPV4) {
 
 		if (strcmp(iface->state, "disable")) {
@@ -1466,12 +1498,10 @@ static int __iface_build_net_config(void *data, struct iface_rec *iface)
 	if (strcmp(net_config->primary->hwaddress, iface->hwaddress))
 		return 0;
 
-	if (strcmp(iface->bootproto, "dhcp") && !strstr(iface->ipaddress, "."))
-		iptype = ISCSI_IFACE_TYPE_IPV6;
-
 	/* start at 2, because 0 is for nlmsghdr and 1 for event */
 	iov = net_config->iovs + 2;
 
+	iptype = iface_get_iptype(iface);
 	if (iptype == ISCSI_IFACE_TYPE_IPV4) {
 		if (!strcmp(iface->state, "disable")) {
 			if (!iface_fill_net_state(&iov[net_config->count],
