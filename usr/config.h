@@ -73,7 +73,7 @@ struct iscsi_connection_timeout_config {
 	int noop_out_timeout;
 };
 
-/* all per-connection timeouts go in this structure.
+/* all per-session timeouts go in this structure.
  * this structure is per-session, and can be configured
  * by TargetName but not by Subnet.
  */
