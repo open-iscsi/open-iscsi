@@ -483,8 +483,7 @@ cleanup:
 	if (session->id != -1) {
 		log_debug(2, "kdestroy session %u", session->id);
 		session->r_stage = R_STAGE_SESSION_DESTOYED;
-		err = ipc->destroy_session(session->t->handle, session->id);
-		if (err) {
+		if (ipc->destroy_session(session->t->handle, session->id)) {
 			log_error("can not safely destroy session %d",
 				  session->id);
 			return ISCSI_ERR_INTERNAL;
