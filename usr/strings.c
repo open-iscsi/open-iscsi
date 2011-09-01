@@ -97,11 +97,17 @@ int str_enlarge_data(struct str_buffer *s, int length)
 
 void str_remove_initial(struct str_buffer *s, int length)
 {
-	char *remaining = s->buffer + length;
-	int amount = s->data_length - length;
+	char *remaining;
+	int amount;
 
 	if (s && length) {
-		memmove(s->buffer, remaining, amount);
+		remaining = s->buffer + length;
+		amount = s->data_length - length;
+
+		if (amount < 0)
+			amount = 0;
+		if (amount)
+			memmove(s->buffer, remaining, amount);
 		s->data_length = amount;
 		s->buffer[amount] = '\0';
 	}
