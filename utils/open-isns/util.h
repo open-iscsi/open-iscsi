@@ -9,6 +9,7 @@
 
 #include <sys/types.h>
 #include <stdint.h>
+#include <stdlib.h>
 #include <stdio.h>
 #include <stddef.h>
 #include <string.h>	// for strdup

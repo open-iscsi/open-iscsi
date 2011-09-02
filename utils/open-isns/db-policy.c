@@ -7,8 +7,10 @@
 #include <sys/stat.h>
 #include <string.h>
 #include <unistd.h>
+#ifdef WITH_SECURITY
 #include <openssl/pem.h>
 #include <openssl/err.h>
+#endif
 #include "isns.h"
 #include "security.h"
 #include "objects.h"

@@ -6,10 +6,15 @@
 
 #ifndef ISNS_SECURITY_H
 #define ISNS_SECURITY_H
-
-#include <openssl/evp.h>
 #include "buffer.h"
 #include "util.h"
+
+
+#ifdef WITH_SECURITY
+#include <openssl/evp.h>
+#else
+#define EVP_PKEY void
+#endif
 
 /*
  * Security context
