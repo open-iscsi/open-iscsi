@@ -166,7 +166,7 @@ term node to refer to a portal on a target, so tools like iscsiadm
 require that --targetname and --portal argument be used when in node mode.
 
 For session mode, a session id (sid) is used. The sid of a session can be
-found by running iscsiadm -m session -i. The session id is not currently
+found by running iscsiadm -m session -P 1. The session id is not currently
 persistent and is partially determined by when the session is setup.
 
 Note that some of the iSCSI Node and iSCSI Discovery operations 
