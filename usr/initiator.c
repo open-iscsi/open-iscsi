@@ -1634,9 +1634,10 @@ static void session_conn_process_login(void *data)
 			    session->nrec.conn[conn->id].address,
 			    session->nrec.conn[conn->id].port,
 			    session->nrec.iface.name);
-	} else
+	} else {
 		session->notify_qtask = NULL;
-
+		mgmt_ipc_write_rsp(c->qtask, ISCSI_SUCCESS);
+	}
 
 	/*
 	 * reset ERL=0 reopen counter
