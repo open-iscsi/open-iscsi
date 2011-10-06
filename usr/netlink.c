@@ -38,6 +38,7 @@
 #include "initiator.h"
 #include "iscsi_sysfs.h"
 #include "transport.h"
+#include "iscsi_netlink.h"
 
 static int ctrl_fd;
 static struct sockaddr_nl src_addr, dest_addr;
@@ -62,6 +63,19 @@ static int ctldev_handle(void);
 					sizeof(struct iscsi_hdr))
 
 #define NLM_SETPARAM_DEFAULT_MAX (NI_MAXHOST + 1 + sizeof(struct iscsi_uevent))
+
+struct nlattr *iscsi_nla_alloc(uint16_t type, uint16_t len)
+{
+	struct nlattr *attr;
+
+	attr = calloc(1, ISCSI_NLA_TOTAL_LEN(len));
+	if (!attr)
+		return NULL; 
+
+	attr->nla_len = ISCSI_NLA_LEN(len);
+	attr->nla_type = type;
+	return attr;
+}
 
 static int
 kread(char *data, int count)
@@ -185,7 +199,7 @@ kwritev(enum iscsi_uevent_e type, struct iovec *iovp, int count)
 	for (i = 1; i < count; i++)
 		datalen += iovp[i].iov_len;
 
-	nlh->nlmsg_len = NLMSG_ALIGN(datalen);
+	nlh->nlmsg_len = datalen + sizeof(*nlh);
 	nlh->nlmsg_pid = getpid();
 	nlh->nlmsg_flags = 0;
 	nlh->nlmsg_type = type;

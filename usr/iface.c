@@ -41,6 +41,7 @@
 #include "fw_context.h"
 #include "sysdeps.h"
 #include "iscsi_err.h"
+#include "iscsi_netlink.h"
 
 /*
  * Default ifaces for use with transports that do not bind to hardware
@@ -1145,14 +1146,16 @@ static int iface_fill_port(struct iovec *iov, struct iface_rec *iface,
 	int len;
 	struct iscsi_iface_param_info *net_param;
 	uint16_t port = 3260;
+	struct nlattr *attr;
 
-	len = sizeof(struct iscsi_iface_param_info) + 2;
-	iov->iov_base = calloc(len, sizeof(char));
-	if (!(iov->iov_base))
+	len = sizeof(struct iscsi_iface_param_info) + sizeof(port);
+	iov->iov_base = iscsi_nla_alloc(ISCSI_NET_PARAM_PORT, len);
+	if (!iov->iov_base)
 		return 1;
+	attr = iov->iov_base;
+	iov->iov_len = NLA_ALIGN(attr->nla_len);
 
-	iov->iov_len = len;
-	net_param = (struct iscsi_iface_param_info *)(iov->iov_base);
+	net_param = (struct iscsi_iface_param_info *)ISCSI_NLA_DATA(attr);
 	net_param->param = ISCSI_NET_PARAM_PORT;
 	net_param->iface_type = iface_type;
 	net_param->iface_num = iface->iface_num;
@@ -1170,14 +1173,16 @@ static int iface_fill_mtu(struct iovec *iov, struct iface_rec *iface,
 	int len;
 	struct iscsi_iface_param_info *net_param;
 	uint16_t mtu = 0;
+	struct nlattr *attr;
 
 	len = sizeof(struct iscsi_iface_param_info) + 2;
-	iov->iov_base = calloc(len, sizeof(char));
+	iov->iov_base = iscsi_nla_alloc(ISCSI_NET_PARAM_MTU, len);
 	if (!(iov->iov_base))
 		return 1;
+	attr = iov->iov_base;
+	iov->iov_len = NLA_ALIGN(attr->nla_len);
 
-	iov->iov_len = len;
-	net_param = (struct iscsi_iface_param_info *)(iov->iov_base);
+	net_param = (struct iscsi_iface_param_info *)ISCSI_NLA_DATA(attr);
 	net_param->param = ISCSI_NET_PARAM_MTU;
 	net_param->iface_type = iface_type;
 	net_param->iface_num = iface->iface_num;
@@ -1195,14 +1200,16 @@ static int iface_fill_vlan_id(struct iovec *iov, struct iface_rec *iface,
 	int len;
 	struct iscsi_iface_param_info *net_param;
 	uint16_t vlan = 0;
+	struct nlattr *attr;
 
 	len = sizeof(struct iscsi_iface_param_info) + 2;
-	iov->iov_base = calloc(len, sizeof(char));
+	iov->iov_base = iscsi_nla_alloc(ISCSI_NET_PARAM_VLAN_ID, len);
 	if (!(iov->iov_base))
 		return 1;
 
-	iov->iov_len = len;
-	net_param = (struct iscsi_iface_param_info *)(iov->iov_base);
+	attr = iov->iov_base;
+	iov->iov_len = NLA_ALIGN(attr->nla_len);
+	net_param = (struct iscsi_iface_param_info *)ISCSI_NLA_DATA(attr);
 	net_param->param = ISCSI_NET_PARAM_VLAN_ID;
 	net_param->iface_type = iface_type;
 	net_param->iface_num = iface->iface_num;
@@ -1226,14 +1233,16 @@ static int iface_fill_vlan_state(struct iovec *iov, struct iface_rec *iface,
 {
 	int len;
 	struct iscsi_iface_param_info *net_param;
+	struct nlattr *attr;
 
 	len = sizeof(struct iscsi_iface_param_info) + 1;
-	iov->iov_base = calloc(len, sizeof(char));
+	iov->iov_base = iscsi_nla_alloc(ISCSI_NET_PARAM_VLAN_ENABLED, len);
 	if (!(iov->iov_base))
 		return 1;
 
-	iov->iov_len = len;
-	net_param = (struct iscsi_iface_param_info *)(iov->iov_base);
+	attr = iov->iov_base;
+	iov->iov_len = NLA_ALIGN(attr->nla_len);
+	net_param = (struct iscsi_iface_param_info *)ISCSI_NLA_DATA(attr);
 	net_param->param = ISCSI_NET_PARAM_VLAN_ENABLED;
 	net_param->iface_type = iface_type;
 	net_param->iface_num = iface->iface_num;
@@ -1252,14 +1261,16 @@ static int iface_fill_net_state(struct iovec *iov, struct iface_rec *iface,
 {
 	int len;
 	struct iscsi_iface_param_info *net_param;
+	struct nlattr *attr;
 
 	len = sizeof(struct iscsi_iface_param_info) + 1;
-	iov->iov_base = calloc(len, sizeof(char));
+	iov->iov_base = iscsi_nla_alloc(ISCSI_NET_PARAM_IFACE_ENABLE, len);
 	if (!(iov->iov_base))
 		return 1;
 
-	iov->iov_len = len;
-	net_param = (struct iscsi_iface_param_info *)(iov->iov_base);
+	attr = iov->iov_base;
+	iov->iov_len = NLA_ALIGN(attr->nla_len);
+	net_param = (struct iscsi_iface_param_info *)ISCSI_NLA_DATA(attr);
 	net_param->param = ISCSI_NET_PARAM_IFACE_ENABLE;
 	net_param->iface_type = iface_type;
 	net_param->iface_num = iface->iface_num;
@@ -1277,14 +1288,16 @@ static int iface_fill_net_bootproto(struct iovec *iov, struct iface_rec *iface)
 {
 	int len;
 	struct iscsi_iface_param_info *net_param;
+	struct nlattr *attr;
 
 	len = sizeof(struct iscsi_iface_param_info) + 1;
-	iov->iov_base = calloc(len, sizeof(char));
+	iov->iov_base = iscsi_nla_alloc(ISCSI_NET_PARAM_IPV4_BOOTPROTO, len);
 	if (!(iov->iov_base))
 		return 1;
 
-	iov->iov_len = len;
-	net_param = (struct iscsi_iface_param_info *)(iov->iov_base);
+	attr = iov->iov_base;
+	iov->iov_len = NLA_ALIGN(attr->nla_len);
+	net_param = (struct iscsi_iface_param_info *)ISCSI_NLA_DATA(attr);
 	net_param->param = ISCSI_NET_PARAM_IPV4_BOOTPROTO;
 	net_param->iface_type = ISCSI_IFACE_TYPE_IPV4;
 	net_param->iface_num = iface->iface_num;
@@ -1302,14 +1315,16 @@ static int iface_fill_net_autocfg(struct iovec *iov, struct iface_rec *iface)
 {
 	int len;
 	struct iscsi_iface_param_info *net_param;
+	struct nlattr *attr;
 
 	len = sizeof(struct iscsi_iface_param_info) + 1;
-	iov->iov_base = calloc(len, sizeof(char));
+	iov->iov_base = iscsi_nla_alloc(ISCSI_NET_PARAM_IPV6_ADDR_AUTOCFG, len);
 	if (!(iov->iov_base))
 		return 1;
 
-	iov->iov_len = len;
-	net_param = (struct iscsi_iface_param_info *)(iov->iov_base);
+	attr = iov->iov_base;
+	iov->iov_len = NLA_ALIGN(attr->nla_len);
+	net_param = (struct iscsi_iface_param_info *)ISCSI_NLA_DATA(attr);
 	net_param->param = ISCSI_NET_PARAM_IPV6_ADDR_AUTOCFG;
 	net_param->iface_type = ISCSI_IFACE_TYPE_IPV6;
 	net_param->param_type = ISCSI_NET_PARAM;
@@ -1331,14 +1346,17 @@ static int iface_fill_linklocal_autocfg(struct iovec *iov,
 {
 	int len;
 	struct iscsi_iface_param_info *net_param;
+	struct nlattr *attr;
 
 	len = sizeof(struct iscsi_iface_param_info) + 1;
-	iov->iov_base = calloc(len, sizeof(char));
+	iov->iov_base = iscsi_nla_alloc(ISCSI_NET_PARAM_IPV6_LINKLOCAL_AUTOCFG,
+					len);
 	if (!(iov->iov_base))
 		return 1;
 
-	iov->iov_len = len;
-	net_param = (struct iscsi_iface_param_info *)(iov->iov_base);
+	attr = iov->iov_base;
+	iov->iov_len = NLA_ALIGN(attr->nla_len);
+	net_param = (struct iscsi_iface_param_info *)ISCSI_NLA_DATA(attr);
 	net_param->param = ISCSI_NET_PARAM_IPV6_LINKLOCAL_AUTOCFG;
 	net_param->iface_type = ISCSI_IFACE_TYPE_IPV6;
 	net_param->param_type = ISCSI_NET_PARAM;
@@ -1357,14 +1375,17 @@ static int iface_fill_router_autocfg(struct iovec *iov, struct iface_rec *iface)
 {
 	int len;
 	struct iscsi_iface_param_info *net_param;
+	struct nlattr *attr;
 
 	len = sizeof(struct iscsi_iface_param_info) + 1;
-	iov->iov_base = calloc(len, sizeof(char));
+	iov->iov_base = iscsi_nla_alloc(ISCSI_NET_PARAM_IPV6_ROUTER_AUTOCFG,
+					len);
 	if (!(iov->iov_base))
 		return 1;
 
-	iov->iov_len = len;
-	net_param = (struct iscsi_iface_param_info *)(iov->iov_base);
+	attr = iov->iov_base;
+	iov->iov_len = NLA_ALIGN(attr->nla_len);
+	net_param = (struct iscsi_iface_param_info *)ISCSI_NLA_DATA(attr);
 	net_param->param = ISCSI_NET_PARAM_IPV6_ROUTER_AUTOCFG;
 	net_param->iface_type = ISCSI_IFACE_TYPE_IPV6;
 	net_param->param_type = ISCSI_NET_PARAM;
@@ -1385,14 +1406,16 @@ static int iface_fill_net_ipv4_addr(struct iovec *iov, struct iface_rec *iface,
 	int rc = 1;
 	int len;
 	struct iscsi_iface_param_info *net_param;
+	struct nlattr *attr;
 
 	len = sizeof(struct iscsi_iface_param_info) + 4;
-	iov->iov_base = calloc(len, sizeof(char));
+	iov->iov_base = iscsi_nla_alloc(param, len);
 	if (!(iov->iov_base))
 		return 1;
 
-	iov->iov_len = len;
-	net_param = (struct iscsi_iface_param_info *)(iov->iov_base);
+	attr = iov->iov_base;
+	iov->iov_len = NLA_ALIGN(attr->nla_len);
+	net_param = (struct iscsi_iface_param_info *)ISCSI_NLA_DATA(attr);
 	net_param->param = param;
 	net_param->iface_type = ISCSI_IFACE_TYPE_IPV4;
 	net_param->iface_num = iface->iface_num;
@@ -1439,14 +1462,16 @@ static int iface_fill_net_ipv6_addr(struct iovec *iov, struct iface_rec *iface,
 	int rc;
 	int len;
 	struct iscsi_iface_param_info *net_param;
+	struct nlattr *attr;
 
 	len = sizeof(struct iscsi_iface_param_info) + 16;
-	iov->iov_base = calloc(len, sizeof(char));
+	iov->iov_base = iscsi_nla_alloc(param, len);
 	if (!(iov->iov_base))
 		return 1;
 
-	iov->iov_len = len;
-	net_param = (struct iscsi_iface_param_info *)(iov->iov_base);
+	attr = iov->iov_base;
+	iov->iov_len = NLA_ALIGN(attr->nla_len);
+	net_param = (struct iscsi_iface_param_info *)ISCSI_NLA_DATA(attr);
 	net_param->param = param;
 	net_param->iface_type = ISCSI_IFACE_TYPE_IPV6;
 	net_param->iface_num = iface->iface_num;
