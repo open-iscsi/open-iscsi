@@ -146,19 +146,6 @@ can also be spread over all processors too.
 
 ---------------------------------------------------------------------------
 
-6. Replace iscsi_get_next_target_id with idr use.
-
-iscsi_tcp and ib_iser allocate a session per host, so the target_id is
-always just 0. The offload drivers allocate a host per pci resource, so they
-will have multiple sessions for each host. When a session is added,
-iscsi_add_session will try to find a target_id to use by looping over
-all the targets on the host. We could replace that loop with idr.
-
-
-* Being worked on by John Jose.
-
----------------------------------------------------------------------------
-
 7. When userspace calls into the kernel using the iscsi netlink interface
 to execute oprations like creating/destroying a session, create a connection
 to a target, etc the rx_queue_mutex is held the entire time (see
