@@ -1203,14 +1203,14 @@ static int iface_fill_vlan_id(struct iovec *iov, struct iface_rec *iface,
 	struct nlattr *attr;
 
 	len = sizeof(struct iscsi_iface_param_info) + 2;
-	iov->iov_base = iscsi_nla_alloc(ISCSI_NET_PARAM_VLAN_ID, len);
+	iov->iov_base = iscsi_nla_alloc(ISCSI_NET_PARAM_VLAN_TAG, len);
 	if (!(iov->iov_base))
 		return 1;
 
 	attr = iov->iov_base;
 	iov->iov_len = NLA_ALIGN(attr->nla_len);
 	net_param = (struct iscsi_iface_param_info *)ISCSI_NLA_DATA(attr);
-	net_param->param = ISCSI_NET_PARAM_VLAN_ID;
+	net_param->param = ISCSI_NET_PARAM_VLAN_TAG;
 	net_param->iface_type = iface_type;
 	net_param->iface_num = iface->iface_num;
 	net_param->param_type = ISCSI_NET_PARAM;

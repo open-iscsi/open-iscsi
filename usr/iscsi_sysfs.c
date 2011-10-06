@@ -561,28 +561,27 @@ static int iscsi_sysfs_read_iface(struct iface_rec *iface, int host_no,
 			      "link_local_addr", iface->ipv6_linklocal,
 			      sizeof(iface->ipv6_linklocal));
 
-		if (sysfs_get_str(iface_kern_id, ISCSI_IFACE_SUBSYS,
-				  "linklocal_autocfg",
-				   iface->linklocal_autocfg,
-				   sizeof(iface->linklocal_autocfg))) {
-			/* misspelled in some test kernels */
-			sysfs_get_str(iface_kern_id, ISCSI_IFACE_SUBSYS,
-				      "link_local_autocfg",
-				      iface->linklocal_autocfg,
-				      sizeof(iface->linklocal_autocfg));
-		}
+		sysfs_get_str(iface_kern_id, ISCSI_IFACE_SUBSYS,
+			      "link_local_autocfg", iface->linklocal_autocfg,
+			      sizeof(iface->linklocal_autocfg));
 
 		sysfs_get_str(iface_kern_id, ISCSI_IFACE_SUBSYS, "router_addr",
 			      iface->ipv6_router,
 			      sizeof(iface->ipv6_router));
 	}
 
-	sysfs_get_uint16(iface_kern_id, ISCSI_IFACE_SUBSYS, "mtu",
-			 &iface->mtu);
-	sysfs_get_uint16(iface_kern_id, ISCSI_IFACE_SUBSYS, "vlan",
-			 &iface->vlan_id);
-	sysfs_get_uint8(iface_kern_id, ISCSI_IFACE_SUBSYS, "vlan_priority",
-			 &iface->vlan_priority);
+	if (sysfs_get_uint16(iface_kern_id, ISCSI_IFACE_SUBSYS, "port",
+			     &iface->port))
+		iface->port = 0;
+	if (sysfs_get_uint16(iface_kern_id, ISCSI_IFACE_SUBSYS, "mtu",
+			     &iface->mtu))
+		iface->mtu = 0;
+	if (sysfs_get_uint16(iface_kern_id, ISCSI_IFACE_SUBSYS, "vlan_id",
+			     &iface->vlan_id))
+		iface->vlan_id = 0;
+	if (sysfs_get_uint8(iface_kern_id, ISCSI_IFACE_SUBSYS, "vlan_priority",
+			    &iface->vlan_priority))
+		iface->vlan_priority = 0;
 
 	if (sscanf(iface_kern_id, "ipv%d-iface-%u-%u", &iface_type,
 		   &tmp_host_no, &iface_num) == 3)

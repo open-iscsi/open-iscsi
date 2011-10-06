@@ -145,9 +145,10 @@ static int print_host_iface(void *data, struct iface_rec *iface)
 		printf("%sRouter Address: [%s]\n", prefix, iface->ipv6_router);
 	}
 
+	printf("%sPort: %u\n", prefix, iface->port);
 	printf("%sMTU: %u\n", prefix, iface->mtu);
-	printf("%svlan ID: %u\n", prefix, iface->vlan_id);
-	printf("%svlan priority: %u\n", prefix, iface->vlan_priority);
+	printf("%sVLAN ID: %u\n", prefix, iface->vlan_id);
+	printf("%sVLAN priority: %u\n", prefix, iface->vlan_priority);
 	return 0;
 }
 
