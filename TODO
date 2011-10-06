@@ -333,23 +333,6 @@ and it would be best to just stop openening a socket per login request.
 
 ---------------------------------------------------------------------------
 
-5. Make iSCSI log messages humanly readable. In many cases the iscsi tools
-will log a error number value. The most well known is conn error 1011.
-Users should not have to search on google for what this means.
-
-We should:
-
-1. Write a simple table to convert the error values to a string and print
-them out.
-
-2. Document the values, how you commonly hit them and common solutions
-in the iSCSI docs.
-
-
-See session_conn_error and __check_iscsi_status_class as a start.
-
----------------------------------------------------------------------------
-
 6. Implement broadcast/multicasts support, so the initiator can
 find iSNS servers without the user having to set the iSNS server address.
 

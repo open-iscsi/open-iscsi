@@ -44,7 +44,7 @@ ISCSI_LIB_SRCS = iscsi_util.o io.o auth.o iscsi_timer.o login.o log.o md5.o \
 	iscsi_net_util.o iscsid_req.o transport.o cxgbi.o be2iscsi.o \
 	initiator_common.o iscsi_err.o $(IPC_OBJ)  $(SYSDEPS_SRCS) $(DCB_OBJ)
 # core initiator files
-INITIATOR_SRCS = initiator.o scsi.o actor.o event_poll.o mgmt_ipc.o
+INITIATOR_SRCS = initiator.o scsi.o actor.o event_poll.o mgmt_ipc.o kern_err_table.o
 
 # fw boot files
 FW_BOOT_SRCS = $(wildcard ../utils/fwparam_ibft/*.o)

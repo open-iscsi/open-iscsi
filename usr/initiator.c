@@ -47,6 +47,7 @@
 #include "iface.h"
 #include "sysdeps.h"
 #include "iscsi_err.h"
+#include "kern_err_table.h"
 
 #define ISCSI_CONN_ERR_REOPEN_DELAY	3
 #define ISCSI_INTERNAL_ERR_REOPEN_DELAY	5
@@ -847,9 +848,10 @@ static void session_conn_error(void *data)
 	iscsi_conn_t *conn = ev_context->conn;
 	iscsi_session_t *session = conn->session;
 
-	log_warning("Kernel reported iSCSI connection %d:%d error (%d) "
+	log_warning("Kernel reported iSCSI connection %d:%d error (%d - %s) "
 		    "state (%d)", session->id, conn->id, error,
-		    conn->state);
+		    kern_err_code_to_string(error), conn->state);
+
 	iscsi_ev_context_put(ev_context);
 
 	switch (error) {
