@@ -132,23 +132,67 @@ static int print_host_iface(void *data, struct iface_rec *iface)
 		printf("%sIPaddress: %s\n", prefix, UNKNOWN_VALUE);
 	else if (strchr(iface->ipaddress, '.')) {
 		printf("%sIPaddress: %s\n", prefix, iface->ipaddress);
-		printf("%sGateway: %s\n", prefix, iface->gateway);
-		printf("%sSubnet: %s\n", prefix, iface->subnet_mask);
-		printf("%sBootProto: %s\n", prefix, iface->bootproto);
+
+		if (!strlen(iface->gateway))
+			printf("%sGateway: %s\n", prefix, UNKNOWN_VALUE);
+		else
+			printf("%sGateway: %s\n", prefix, iface->gateway);
+		if (!strlen(iface->subnet_mask))
+			printf("%sSubnet: %s\n", prefix, UNKNOWN_VALUE);
+		else
+			printf("%sSubnet: %s\n", prefix, iface->subnet_mask);
+		if (!strlen(iface->bootproto))
+			printf("%sBootProto: %s\n", prefix, UNKNOWN_VALUE);
+		else
+			printf("%sBootProto: %s\n", prefix, iface->bootproto);
 	} else {
 		printf("%sIPaddress: [%s]\n", prefix, iface->ipaddress);
-		printf("%sIPaddress Autocfg: %s\n", prefix, iface->ipv6_autocfg);
-		printf("%sLink Local Address: [%s]\n", prefix,
-		       iface->ipv6_linklocal);
-		printf("%sLink Local Autocfg: %s\n", prefix,
-		       iface->linklocal_autocfg);
-		printf("%sRouter Address: [%s]\n", prefix, iface->ipv6_router);
+
+		if (!strlen(iface->ipv6_autocfg))
+			printf("%sIPaddress Autocfg: %s\n", prefix,
+			       UNKNOWN_VALUE);
+		else
+			printf("%sIPaddress Autocfg: %s\n", prefix,
+			       iface->ipv6_autocfg);
+		if (!strlen(iface->ipv6_linklocal))
+			printf("%sLink Local Address: %s\n", prefix,
+			       UNKNOWN_VALUE);
+		else
+			printf("%sLink Local Address: [%s]\n", prefix,
+			       iface->ipv6_linklocal);
+		if (!strlen(iface->linklocal_autocfg))
+			printf("%sLink Local Autocfg: %s\n", prefix,
+			       UNKNOWN_VALUE);
+		else
+			printf("%sLink Local Autocfg: %s\n", prefix,
+			       iface->linklocal_autocfg);
+		if (!strlen(iface->ipv6_router))
+			printf("%sRouter Address: %s\n", prefix,
+			      UNKNOWN_VALUE);
+		else
+			printf("%sRouter Address: [%s]\n", prefix,
+			       iface->ipv6_router);
 	}
 
-	printf("%sPort: %u\n", prefix, iface->port);
-	printf("%sMTU: %u\n", prefix, iface->mtu);
-	printf("%sVLAN ID: %u\n", prefix, iface->vlan_id);
-	printf("%sVLAN priority: %u\n", prefix, iface->vlan_priority);
+	if (!iface->port)
+		printf("%sPort: %s\n", prefix, UNKNOWN_VALUE);
+	else
+		printf("%sPort: %u\n", prefix, iface->port);
+
+	if (!iface->mtu)
+		printf("%sMTU: %s\n", prefix, UNKNOWN_VALUE);
+	else
+		printf("%sMTU: %u\n", prefix, iface->mtu);
+
+	if (iface->vlan_id == UINT16_MAX)
+		printf("%sVLAN ID: %s\n", prefix, UNKNOWN_VALUE);
+	else
+		printf("%sVLAN ID: %u\n", prefix, iface->vlan_id);
+
+	if (iface->vlan_priority == UINT8_MAX)
+		printf("%sVLAN priority: %s\n", prefix, UNKNOWN_VALUE);
+	else
+		printf("%sVLAN priority: %u\n", prefix, iface->vlan_priority);
 	return 0;
 }
 

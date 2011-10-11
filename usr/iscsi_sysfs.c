@@ -578,10 +578,11 @@ static int iscsi_sysfs_read_iface(struct iface_rec *iface, int host_no,
 		iface->mtu = 0;
 	if (sysfs_get_uint16(iface_kern_id, ISCSI_IFACE_SUBSYS, "vlan_id",
 			     &iface->vlan_id))
-		iface->vlan_id = 0;
+		iface->vlan_id = UINT16_MAX;
+
 	if (sysfs_get_uint8(iface_kern_id, ISCSI_IFACE_SUBSYS, "vlan_priority",
 			    &iface->vlan_priority))
-		iface->vlan_priority = 0;
+		iface->vlan_priority = UINT8_MAX;
 
 	if (sscanf(iface_kern_id, "ipv%d-iface-%u-%u", &iface_type,
 		   &tmp_host_no, &iface_num) == 3)
