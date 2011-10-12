@@ -21,6 +21,7 @@
 #ifndef FWPARAM_CONTEXT_H_
 #define FWPARAM_CONTEXT_H_
 
+#include <netdb.h>
 #include <net/if.h>
 
 #include "iscsi_proto.h"
@@ -33,7 +34,7 @@ struct boot_context {
 	/* target settings */
 	int target_port;
 	char targetname[TARGET_NAME_MAXLEN + 1];
-	char target_ipaddr[32];
+	char target_ipaddr[NI_MAXHOST];
 	char chap_name[AUTH_STR_MAX_LEN];
 	char chap_password[AUTH_STR_MAX_LEN];
 	char chap_name_in[AUTH_STR_MAX_LEN];
@@ -44,14 +45,14 @@ struct boot_context {
 	char initiatorname[TARGET_NAME_MAXLEN + 1];
 
 	/* network settings */
-	char dhcp[18];
+	char dhcp[NI_MAXHOST];
 	char iface[IF_NAMESIZE];
 	char mac[18];
-	char ipaddr[18];
-	char gateway[18];
-	char primary_dns[18];
-	char secondary_dns[18];
-	char mask[18];
+	char ipaddr[NI_MAXHOST];
+	char gateway[NI_MAXHOST];
+	char primary_dns[NI_MAXHOST];
+	char secondary_dns[NI_MAXHOST];
+	char mask[NI_MAXHOST];
 	char lun[17];
 	char vlan[15];
 

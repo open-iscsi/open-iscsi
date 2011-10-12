@@ -28,7 +28,7 @@ CLEANFILES = $(OBJS) *.output *~
 
 OPTFLAGS ?= -O2 -g -fPIC
 WARNFLAGS ?= -Wall -Wstrict-prototypes
-CFLAGS += $(OPTFLAGS) $(WARNFLAGS) -I../../include -I../../usr
+CFLAGS += $(OPTFLAGS) $(WARNFLAGS) -I../../include -I../../usr -D_GNU_SOURCE
 
 all: $(OBJS)
 
