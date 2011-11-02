@@ -1477,9 +1477,15 @@ static void setup_offload_login_phase(iscsi_conn_t *conn)
 	conn->state = ISCSI_CONN_STATE_IN_LOGIN;
 	if (ipc->start_conn(session->t->handle, session->id, conn->id,
 			    &rc) || rc) {
-		log_error("can't start connection %d:%d retcode %d (%d)",
-			  session->id, conn->id, rc, errno);
-		iscsi_login_eh(conn, c->qtask, ISCSI_ERR_INTERNAL);
+		if (rc == -EEXIST) {
+			log_error("Session already exists.");
+			session_conn_shutdown(conn, c->qtask,
+					      ISCSI_ERR_SESS_EXISTS);
+		} else {
+			log_error("can't start connection %d:%d retcode (%d)",
+				  session->id, conn->id, rc);
+			iscsi_login_eh(conn, c->qtask, ISCSI_ERR_INTERNAL);
+		}
 		return;
 	}
 
