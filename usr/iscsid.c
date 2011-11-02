@@ -221,6 +221,9 @@ static int sync_session(void *data, struct session_info *info)
 		return 0;
 	}
 
+	if (!iscsi_sysfs_session_user_created(info->sid))
+		return 0;
+
 	memset(&rec, 0, sizeof(node_rec_t));
 	/*
 	 * We might get the local ip address for software. We do not

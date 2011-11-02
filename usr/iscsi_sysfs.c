@@ -231,6 +231,29 @@ void iscsi_sysfs_get_negotiated_session_conf(int sid,
 		      &conf->MaxOutstandingR2T);
 }
 
+/*
+ * iscsi_sysfs_session_user_created - return if session was setup by userspace
+ * @sid: id of session to test
+ *
+ * Returns -1 if we could not tell due to kernel not supporting the
+ * feature. 0 is returned if kernel created it. And 1 is returned
+ * if userspace created it.
+ */
+int iscsi_sysfs_session_user_created(int sid)
+{
+	char id[NAME_SIZE];
+	pid_t pid;
+
+	snprintf(id, sizeof(id), ISCSI_SESSION_ID, sid);
+	if (sysfs_get_int(id, ISCSI_SESSION_SUBSYS, "creator", &pid))
+		return -1;
+
+	if (pid == -1)
+		return 0;
+	else
+		return 1;
+}
+
 uint32_t iscsi_sysfs_get_host_no_from_sid(uint32_t sid, int *err)
 {
 	struct sysfs_device *session_dev, *host_dev;
