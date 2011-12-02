@@ -255,6 +255,32 @@ idbm_recinfo_node(node_rec_t *r, recinfo_t *ri)
 	__recinfo_str(IFACE_TRANSPORTNAME, ri, r, iface.transport_name,
 		      IDBM_SHOW, num, 1);
 	__recinfo_str(IFACE_INAME, ri, r, iface.iname, IDBM_SHOW, num, 1);
+	__recinfo_str(IFACE_BOOT_PROTO, ri, r, iface.bootproto, IDBM_SHOW,
+		      num, 1);
+	__recinfo_str(IFACE_SUBNET_MASK, ri, r, iface.subnet_mask,
+		      IDBM_SHOW, num, 1);
+	__recinfo_str(IFACE_GATEWAY, ri, r, iface.gateway, IDBM_SHOW, num, 1);
+	__recinfo_str(IFACE_IPV6_AUTOCFG, ri, r, iface.ipv6_autocfg,
+		      IDBM_SHOW, num, 1);
+	__recinfo_str(IFACE_LINKLOCAL_AUTOCFG, ri, r, iface.linklocal_autocfg,
+		      IDBM_SHOW, num, 1);
+	__recinfo_str(IFACE_ROUTER_AUTOCFG, ri, r, iface.router_autocfg,
+		      IDBM_SHOW, num, 1);
+	__recinfo_str(IFACE_LINKLOCAL, ri, r, iface.ipv6_linklocal,
+		      IDBM_SHOW, num, 1);
+	__recinfo_str(IFACE_ROUTER, ri, r, iface.ipv6_router, IDBM_SHOW, num,
+		      1);
+	__recinfo_str(IFACE_STATE, ri, r, iface.state, IDBM_SHOW, num, 1);
+	__recinfo_uint16(IFACE_VLAN_ID, ri, r, iface.vlan_id, IDBM_SHOW, num,
+			 1);
+	__recinfo_uint8(IFACE_VLAN_PRIORITY, ri, r, iface.vlan_priority,
+			IDBM_SHOW, num, 1);
+	__recinfo_str(IFACE_VLAN_STATE, ri, r, iface.vlan_state, IDBM_SHOW,
+		      num, 1);
+	__recinfo_int(IFACE_NUM, ri, r, iface.iface_num, IDBM_SHOW, num, 1);
+	__recinfo_uint16(IFACE_MTU, ri, r, iface.mtu, IDBM_SHOW, num, 1);
+	__recinfo_uint16(IFACE_PORT, ri, r, iface.port, IDBM_SHOW, num, 1);
+
 	__recinfo_str(NODE_DISC_ADDR, ri, r, disc_address, IDBM_SHOW,
 		      num, 0);
 	__recinfo_int(NODE_DISC_PORT, ri, r, disc_port, IDBM_SHOW,
