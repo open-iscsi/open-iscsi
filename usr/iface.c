@@ -532,10 +532,40 @@ void iface_copy(struct iface_rec *dst, struct iface_rec *src)
 {
 	if (strlen(src->name))
 		strcpy(dst->name, src->name);
+	if (src->iface_num)
+		dst->iface_num = src->iface_num;
 	if (strlen(src->netdev))
 		strcpy(dst->netdev, src->netdev);
 	if (strlen(src->ipaddress))
 		strcpy(dst->ipaddress, src->ipaddress);
+	if (strlen(src->subnet_mask))
+		strcpy(dst->subnet_mask, src->subnet_mask);
+	if (strlen(src->gateway))
+		strcpy(dst->gateway, src->gateway);
+	if (strlen(src->bootproto))
+		strcpy(dst->bootproto, src->bootproto);
+	if (strlen(src->ipv6_linklocal))
+		strcpy(dst->ipv6_linklocal, src->ipv6_linklocal);
+	if (strlen(src->ipv6_router))
+		strcpy(dst->ipv6_router, src->ipv6_router);
+	if (strlen(src->ipv6_autocfg))
+		strcpy(dst->ipv6_autocfg, src->ipv6_autocfg);
+	if (strlen(src->linklocal_autocfg))
+		strcpy(dst->linklocal_autocfg, src->linklocal_autocfg);
+	if (strlen(src->router_autocfg))
+		strcpy(dst->router_autocfg, src->router_autocfg);
+	if (src->vlan_id)
+		dst->vlan_id = src->vlan_id;
+	if (src->vlan_priority)
+		dst->vlan_priority = src->vlan_priority;
+	if (strlen(src->vlan_state))
+		strcpy(dst->vlan_state, src->vlan_state);
+	if (strlen(src->state))
+		strcpy(dst->state, src->state);
+	if (src->mtu)
+		dst->mtu = src->mtu;
+	if (src->port)
+		dst->port = src->port;
 	if (strlen(src->hwaddress))
 		strcpy(dst->hwaddress, src->hwaddress);
 	if (strlen(src->transport_name))
