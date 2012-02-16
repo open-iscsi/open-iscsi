@@ -371,6 +371,8 @@ Usage: iscsiadm [OPTION]
 			  iscsi_ifacename.
 
 			  See below for examples.
+  -m iface --interface=iscsi_ifacename -C ping --ip=[ipaddr] --packetsize=[size]
+				--count=[count] --interval=[interval]
   -m host --host=hostno|MAC --print=level
 			  Display information for a specific host. The host
 			  can be passed in by host number or by MAC address.
