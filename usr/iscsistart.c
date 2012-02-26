@@ -76,6 +76,7 @@ static struct option const long_options[] = {
 	{"fwparam_connect", no_argument, NULL, 'b'},
 	{"fwparam_network", no_argument, NULL, 'N'},
 	{"fwparam_print", no_argument, NULL, 'f'},
+	{"param", required_argument, NULL, 'P'},
 	{"help", no_argument, NULL, 'h'},
 	{"version", no_argument, NULL, 'v'},
 	{NULL, 0, NULL, 0},
@@ -103,6 +104,7 @@ Open-iSCSI initiator.\n\
   -b, --fwparam_connect    create a session to the target using iBFT or OF\n\
   -N, --fwparam_network    bring up the network as specified by iBFT or OF\n\
   -f, --fwparam_print      print the iBFT or OF info to STDOUT \n\
+  -P, --param=NAME=VALUE   set parameter with the name NAME to VALUE\n\
   -h, --help               display this help and exit\n\
   -v, --version            display version and exit\n\
 ");
@@ -241,7 +243,7 @@ int main(int argc, char *argv[])
 	struct boot_context *context, boot_context;
 	struct sigaction sa_old;
 	struct sigaction sa_new;
-	int control_fd, mgmt_ipc_fd;
+	int control_fd, mgmt_ipc_fd, err;
 	pid_t pid;
 
 	idbm_node_setup_defaults(&config_rec);
@@ -262,7 +264,7 @@ int main(int argc, char *argv[])
 	if (iscsi_sysfs_check_class_version())
 		exit(ISCSI_ERR_SYSFS_LOOKUP);
 
-	while ((ch = getopt_long(argc, argv, "i:t:g:a:p:d:u:w:U:W:bNfvh",
+	while ((ch = getopt_long(argc, argv, "P:i:t:g:a:p:d:u:w:U:W:bNfvh",
 				 long_options, &longindex)) >= 0) {
 		switch (ch) {
 		case 'i':
@@ -341,6 +343,11 @@ int main(int argc, char *argv[])
 
 			fw_free_targets(&targets);
 			exit(0);
+		case 'P':
+			err = idbm_parse_param(optarg, &config_rec);
+			if (err)
+				exit(err);
+			break;
 		case 'v':
 			printf("%s version %s\n", program_name,
 				ISCSI_VERSION_STR);

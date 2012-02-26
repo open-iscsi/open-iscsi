@@ -2320,6 +2320,38 @@ idbm_slp_defaults(struct iscsi_slp_config *cfg)
 	       sizeof(struct iscsi_slp_config));
 }
 
+int idbm_parse_param(char *param, struct node_rec *rec)
+{
+	char *name, *value;
+	recinfo_t *info;
+	int rc;
+
+	name = param;
+
+	value = strchr(param, '=');
+	if (!value) {
+		log_error("Invalid --param %s. Missing setting.\n", param);
+		return ISCSI_ERR_INVAL;
+	}
+	*value = '\0';
+	value++;
+
+	info = idbm_recinfo_alloc(MAX_KEYS);
+	if (!info) {
+		log_error("Could not allocate memory to setup params.\n");
+		return ISCSI_ERR_NOMEM;
+	}
+
+	idbm_recinfo_node(rec, info);
+
+	rc = idbm_rec_update_param(info, name, value, 0);
+	if (rc)
+		log_error("Could not set %s to %s. Check that %s is a "
+			  "valid parameter.\n", name, value, name);
+	free(info);
+	return rc;
+}
+
 int idbm_node_set_param(void *data, node_rec_t *rec)
 {
 	struct db_set_param *param = data;
