@@ -56,6 +56,12 @@ struct iscsi_daemon_config *dconfig = &daemon_config;
 
 static node_rec_t config_rec;
 static LIST_HEAD(targets);
+static LIST_HEAD(user_params);
+
+struct user_param {
+	struct list_head list;
+	char *param_string;
+};
 
 static char program_name[] = "iscsistart";
 
@@ -128,20 +134,69 @@ static int stop_event_loop(void)
 	return rc;
 }
 
+static int apply_params(struct node_rec *rec)
+{
+	struct user_param *param;
+	int rc;
+
+	/* Must init this so we can check if user overrode them */
+	rec->session.initial_login_retry_max = -1;
+	rec->conn[0].timeo.noop_out_interval = -1;
+	rec->conn[0].timeo.noop_out_timeout = -1;
+
+	list_for_each_entry(param, &user_params, list) {
+		rc = idbm_parse_param(param->param_string, rec);
+		if (rc)
+			return rc;
+	}
+
+	/*
+	 * For root boot we could not change this in older versions so
+	 * if user did not override then use the defaults.
+	 *
+	 * Increase to account for boot using static setup.
+	 */
+	if (rec->session.initial_login_retry_max == -1)
+		rec->session.initial_login_retry_max = 30;
+	/* we used to not be able to answer so turn off */
+	if (rec->conn[0].timeo.noop_out_interval == -1)
+		rec->conn[0].timeo.noop_out_interval = 0;
+	if (rec->conn[0].timeo.noop_out_timeout == -1)
+		rec->conn[0].timeo.noop_out_timeout = 0;
+
+	return 0;
+}
+
+static int alloc_param(char *param_string)
+{
+	struct user_param *param;
+
+	param = calloc(1, sizeof(*param));
+	if (!param) {
+		printf("Could not allocate for param.\n");
+		return ISCSI_ERR_NOMEM;
+	}
+
+	INIT_LIST_HEAD(&param->list);
+	param->param_string = strdup(param_string);
+	if (!param->param_string) {
+		printf("Could not allocate for param.\n");
+		free(param);
+		return ISCSI_ERR_NOMEM;
+	}
+	list_add(&param->list, &user_params);
+	return 0;
+}
 
 static int login_session(struct node_rec *rec)
 {
 	iscsiadm_req_t req;
 	iscsiadm_rsp_t rsp;
 	int rc, retries = 0;
-	/*
-	 * For root boot we cannot change this so increase to account
-	 * for boot using static setup.
-	 */
-	rec->session.initial_login_retry_max = 30;
-	/* we cannot answer so turn off */
-	rec->conn[0].timeo.noop_out_interval = 0;
-	rec->conn[0].timeo.noop_out_timeout = 0;
+
+	rc = apply_params(rec);
+	if (rc)
+		exit(rc);
 
 	printf("%s: Logging into %s %s:%d,%d\n", program_name, rec->name,
 		rec->conn[0].address, rec->conn[0].port,
@@ -344,7 +399,7 @@ int main(int argc, char *argv[])
 			fw_free_targets(&targets);
 			exit(0);
 		case 'P':
-			err = idbm_parse_param(optarg, &config_rec);
+			err = alloc_param(optarg);
 			if (err)
 				exit(err);
 			break;
