@@ -373,7 +373,7 @@ Usage: iscsiadm [OPTION]
 			  See below for examples.
   -m iface --interface=iscsi_ifacename -C ping --ip=[ipaddr] --packetsize=[size]
 				--count=[count] --interval=[interval]
-  -m host --host=hostno|MAC --print=level
+  -m host --host=hostno|MAC --print=level -C chap --op=[op] --value=[chap_tbl_idx]
 			  Display information for a specific host. The host
 			  can be passed in by host number or by MAC address.
 			  If a host is not passed in then info

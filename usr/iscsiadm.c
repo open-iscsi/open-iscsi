@@ -129,7 +129,7 @@ iscsiadm -m node [ -hV ] [ -d debug_level ] [ -P printlevel ] [ -L all,manual,au
 iscsiadm -m session [ -hV ] [ -d debug_level ] [ -P  printlevel] [ -r sessionid | sysfsdir [ -R | -u | -s ] [ -o operation ] [ -n name ] [ -v value ] ]\n\
 iscsiadm -m iface [ -hV ] [ -d debug_level ] [ -P printlevel ] [ -I ifacename | -H hostno|MAC ] [ [ -o  operation  ] [ -n name ] [ -v value ] ] [ -C ping [ -a ip ] [ -b packetsize ] [ -c count ] [ -i interval ] ]\n\
 iscsiadm -m fw [ -l ]\n\
-iscsiadm -m host [ -P printlevel ] [ -H hostno|MAC ]\n\
+iscsiadm -m host [ -P printlevel ] [ -H hostno|MAC ] [ -C chap [ -o operation ] [ -v chap_tbl_idx ] ]\n\
 iscsiadm -k priority\n");
 	}
 	exit(status);
