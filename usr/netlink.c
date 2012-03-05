@@ -1088,6 +1088,24 @@ static int ctldev_handle(void)
 		/* session wide event so cid is 0 */
 		cid = 0;
 		break;
+	case ISCSI_KEVENT_HOST_EVENT:
+		switch (ev->r.host_event.code) {
+		case ISCSI_EVENT_LINKUP:
+			log_warning("Host%u: Link Up.\n",
+				    ev->r.host_event.host_no);
+			break;
+		case ISCSI_EVENT_LINKDOWN:
+			log_warning("Host%u: Link Down.\n",
+				    ev->r.host_event.host_no);
+			break;
+		default:
+			log_debug(7, "Host%u: Unknwon host event: %u.\n",
+				  ev->r.host_event.host_no,
+				  ev->r.host_event.code);
+		}
+
+		drop_data(nlh);
+		return 0;
 	default:
 		if ((ev->type > ISCSI_UEVENT_MAX && ev->type < KEVENT_BASE) ||
 		    (ev->type > ISCSI_KEVENT_MAX))
