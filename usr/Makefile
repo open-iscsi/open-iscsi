@@ -41,7 +41,7 @@ SYSDEPS_SRCS = $(wildcard ../utils/sysdeps/*.o)
 # sources shared between iscsid, iscsiadm and iscsistart
 ISCSI_LIB_SRCS = iscsi_util.o io.o auth.o iscsi_timer.o login.o log.o md5.o \
 	sha1.o iface.o idbm.o sysfs.o host.o session_info.o iscsi_sysfs.o \
-	iscsi_net_util.o iscsid_req.o transport.o cxgbi.o be2iscsi.o \
+	iscsi_net_util.o iscsid_req.o transport.o iser.o cxgbi.o be2iscsi.o \
 	initiator_common.o iscsi_err.o $(IPC_OBJ)  $(SYSDEPS_SRCS) $(DCB_OBJ)
 # core initiator files
 INITIATOR_SRCS = initiator.o scsi.o actor.o event_poll.o mgmt_ipc.o kern_err_table.o

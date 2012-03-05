@@ -27,6 +27,7 @@
 #include "iscsi_sysfs.h"
 #include "cxgbi.h"
 #include "be2iscsi.h"
+#include "iser.h"
 
 struct iscsi_transport_template iscsi_tcp = {
 	.name		= "tcp",
@@ -41,6 +42,7 @@ struct iscsi_transport_template iscsi_iser = {
 	.ep_connect	= ktransport_ep_connect,
 	.ep_poll	= ktransport_ep_poll,
 	.ep_disconnect	= ktransport_ep_disconnect,
+	.create_conn	= iser_create_conn,
 };
 
 struct iscsi_transport_template cxgb3i = {
