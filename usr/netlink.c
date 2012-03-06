@@ -25,10 +25,12 @@
 #include <unistd.h>
 #include <stdint.h>
 #include <errno.h>
+#include <time.h>
 #include <inttypes.h>
 #include <asm/types.h>
 #include <sys/socket.h>
 #include <sys/types.h>
+#include <sys/poll.h>
 #include <linux/netlink.h>
 
 #include "types.h"
@@ -39,6 +41,8 @@
 #include "iscsi_sysfs.h"
 #include "transport.h"
 #include "iscsi_netlink.h"
+#include "iscsi_err.h"
+#include "iscsi_timer.h"
 
 static int ctrl_fd;
 static struct sockaddr_nl src_addr, dest_addr;
@@ -63,6 +67,15 @@ static int ctldev_handle(void);
 					sizeof(struct iscsi_hdr))
 
 #define NLM_SETPARAM_DEFAULT_MAX (NI_MAXHOST + 1 + sizeof(struct iscsi_uevent))
+
+struct iscsi_ping_event {
+	uint32_t host_no;
+	uint32_t pid;
+	int32_t status;
+	int active;
+};
+
+struct iscsi_ping_event ping_event;
 
 struct nlattr *iscsi_nla_alloc(uint16_t type, uint16_t len)
 {
@@ -1024,6 +1037,149 @@ exit:
 	return rc;
 }
 
+
+
+
+static int
+ksend_ping(uint64_t transport_handle, uint32_t host_no, struct sockaddr *addr,
+	   uint32_t iface_num, uint32_t iface_type, uint32_t pid, uint32_t size)
+{
+	int rc, addrlen;
+	struct iscsi_uevent *ev;
+	struct iovec iov[2];
+
+	log_debug(8, "in %s", __FUNCTION__);
+
+	memset(setparam_buf, 0, NLM_SETPARAM_DEFAULT_MAX);
+	ev = (struct iscsi_uevent *)setparam_buf;
+	ev->type = ISCSI_UEVENT_PING;
+	ev->transport_handle = transport_handle;
+	ev->u.iscsi_ping.host_no = host_no;
+	ev->u.iscsi_ping.iface_num = iface_num;
+	ev->u.iscsi_ping.iface_type = iface_type;
+	ev->u.iscsi_ping.payload_size = size;
+	ev->u.iscsi_ping.pid = pid;
+
+	if (addr->sa_family == PF_INET)
+		addrlen = sizeof(struct sockaddr_in);
+	else if (addr->sa_family == PF_INET6)
+		addrlen = sizeof(struct sockaddr_in6);
+	else {
+		log_error("%s unknown addr family %d\n",
+			  __FUNCTION__, addr->sa_family);
+		return -EINVAL;
+	}
+	memcpy(setparam_buf + sizeof(*ev), addr, addrlen);
+
+	iov[1].iov_base = ev;
+	iov[1].iov_len = sizeof(*ev) + addrlen;
+	rc = __kipc_call(iov, 2);
+	if (rc < 0)
+		return rc;
+
+	return 0;
+}
+
+static int kexec_ping(uint64_t transport_handle, uint32_t host_no,
+		      struct sockaddr *addr, uint32_t iface_num,
+		      uint32_t iface_type, uint32_t size)
+{
+	struct pollfd pfd;
+	struct timeval ping_timer;
+	int timeout, fd, rc;
+	uint32_t pid;
+
+	fd = ipc->ctldev_open();
+	if (fd < 0) {
+		log_error("Could not open netlink socket.");
+		return ISCSI_ERR;
+	}
+
+	/* prepare to poll */
+	memset(&pfd, 0, sizeof(pfd));
+	pfd.fd = fd;
+	pfd.events = POLLIN | POLLPRI;
+
+	/* get unique ping id */
+	pid = rand();
+
+	rc = ksend_ping(transport_handle, host_no, addr, iface_num,
+			iface_type, pid, size);
+	if (rc != 0) {
+		switch (rc) {
+		case -ENOSYS:
+			rc = ISCSI_ERR_OP_NOT_SUPP;
+			break;
+		case -EINVAL:
+			rc = ISCSI_ERR_INVAL;
+			break;
+		default:
+			rc = ISCSI_ERR;
+		}
+		goto close_nl;
+	}
+
+	ping_event.host_no = -1;
+	ping_event.pid = -1;
+	ping_event.status = -1;
+	ping_event.active = -1;
+
+	iscsi_timer_set(&ping_timer, 30);
+
+	timeout = iscsi_timer_msecs_until(&ping_timer);
+
+	while (1) {
+		pfd.revents = 0;
+		rc = poll(&pfd, 1, timeout);
+
+		if (iscsi_timer_expired(&ping_timer)) {
+			rc = ISCSI_ERR_TRANS_TIMEOUT;
+			break;
+		}
+
+		if (rc > 0) {
+			if (pfd.revents & (POLLIN | POLLPRI)) {
+				timeout = iscsi_timer_msecs_until(&ping_timer);
+				rc = ipc->ctldev_handle();
+
+				if (ping_event.active != 1)
+					continue;
+
+				if (pid != ping_event.pid)
+					continue;
+
+				if (ping_event.status == 0)
+					rc = 0;
+				else
+					rc = ISCSI_ERR;
+				break;
+			}
+
+			if (pfd.revents & POLLHUP) {
+				rc = ISCSI_ERR_TRANS;
+				break;
+			}
+
+			if (pfd.revents & POLLNVAL) {
+				rc = ISCSI_ERR_INTERNAL;
+				break;
+			}
+
+			if (pfd.revents & POLLERR) {
+				rc = ISCSI_ERR_INTERNAL;
+				break;
+			}
+		} else if (rc < 0) {
+			rc = ISCSI_ERR_INTERNAL;
+			break;
+		}
+	}
+
+close_nl:
+	ipc->ctldev_close();
+	return rc;
+}
+
 static void drop_data(struct nlmsghdr *nlh)
 {
 	int ev_size;
@@ -1103,6 +1259,14 @@ static int ctldev_handle(void)
 				  ev->r.host_event.host_no,
 				  ev->r.host_event.code);
 		}
+
+		drop_data(nlh);
+		return 0;
+	case ISCSI_KEVENT_PING_COMP:
+		ping_event.host_no = ev->r.ping_comp.host_no;
+		ping_event.pid = ev->r.ping_comp.pid;
+		ping_event.status = ev->r.ping_comp.status;
+		ping_event.active = 1;
 
 		drop_data(nlh);
 		return 0;
@@ -1299,6 +1463,7 @@ struct iscsi_ipc nl_ipc = {
 	.recv_pdu_end           = krecv_pdu_end,
 	.set_net_config         = kset_net_config,
 	.recv_conn_state        = krecv_conn_state,
+	.exec_ping		= kexec_ping,
 };
 struct iscsi_ipc *ipc = &nl_ipc;
 

@@ -27,6 +27,7 @@
 #include <unistd.h>
 #include <string.h>
 #include <signal.h>
+#include <time.h>
 #include <sys/stat.h>
 
 #include "initiator.h"
@@ -51,6 +52,7 @@
 #include "isns-proto.h"
 #include "iscsi_err.h"
 #include "iscsi_ipc.h"
+#include "iscsi_timer.h"
 
 static char program_name[] = "iscsiadm";
 static char config_file[TARGET_NAME_MAXLEN];
@@ -64,6 +66,7 @@ enum iscsiadm_mode {
 	MODE_HOST,
 	MODE_IFACE,
 	MODE_FW,
+	MODE_PING,
 };
 
 enum iscsiadm_op {
@@ -102,9 +105,13 @@ static struct option const long_options[] =
 	{"show", no_argument, NULL, 'S'},
 	{"version", no_argument, NULL, 'V'},
 	{"help", no_argument, NULL, 'h'},
+	{"submode", required_argument, NULL, 'C'},
+	{"ip", required_argument, NULL, 'a'},
+	{"packetsize", required_argument, NULL, 'b'},
+	{"count", required_argument, NULL, 'c'},
 	{NULL, 0, NULL, 0},
 };
-static char *short_options = "RlDVhm:p:P:T:H:I:U:k:L:d:r:n:v:o:sSt:u";
+static char *short_options = "RlDVhm:a:b:c:C:p:P:T:H:i:I:U:k:L:d:r:n:v:o:sSt:u";
 
 static void usage(int status)
 {
@@ -116,10 +123,10 @@ static void usage(int status)
 iscsiadm -m discoverydb [ -hV ] [ -d debug_level ] [-P printlevel] [ -t type -p ip:port -I ifaceN ... [ -Dl ] ] | [ [ -p ip:port -t type] \
 [ -o operation ] [ -n name ] [ -v value ] [ -lD ] ] \n\
 iscsiadm -m discovery [ -hV ] [ -d debug_level ] [-P printlevel] [ -t type -p ip:port -I ifaceN ... [ -l ] ] | [ [ -p ip:port ] [ -l | -D ] ] \n\
-iiscsiadm -m node [ -hV ] [ -d debug_level ] [ -P printlevel ] [ -L all,manual,automatic ] [ -U all,manual,automatic ] [ -S ] [ [ -T targetname -p ip:port -I ifaceN ] [ -l | -u | -R | -s] ] \
+iscsiadm -m node [ -hV ] [ -d debug_level ] [ -P printlevel ] [ -L all,manual,automatic ] [ -U all,manual,automatic ] [ -S ] [ [ -T targetname -p ip:port -I ifaceN ] [ -l | -u | -R | -s] ] \
 [ [ -o  operation  ] [ -n name ] [ -v value ] ]\n\
 iscsiadm -m session [ -hV ] [ -d debug_level ] [ -P  printlevel] [ -r sessionid | sysfsdir [ -R | -u | -s ] [ -o operation ] [ -n name ] [ -v value ] ]\n\
-iscsiadm -m iface [ -hV ] [ -d debug_level ] [ -P printlevel ] [ -I ifacename | -H hostno|MAC ] [ [ -o  operation  ] [ -n name ] [ -v value ] ]\n\
+iscsiadm -m iface [ -hV ] [ -d debug_level ] [ -P printlevel ] [ -I ifacename | -H hostno|MAC ] [ [ -o  operation  ] [ -n name ] [ -v value ] ] [ -C ping [ -a ip ] [ -b packetsize ] [ -c count ] [ -i interval ] ]\n\
 iscsiadm -m fw [ -l ]\n\
 iscsiadm -m host [ -P printlevel ] [ -H hostno|MAC ]\n\
 iscsiadm -k priority\n");
@@ -175,6 +182,19 @@ str_to_mode(char *str)
 		mode = -1;
 
 	return mode;
+}
+
+static int
+str_to_submode(char *str)
+{
+	int sub_mode;
+
+	if (!strcmp("ping", str))
+		sub_mode = MODE_PING;
+	else
+		sub_mode = -1;
+
+	return sub_mode;
 }
 
 static int
@@ -2082,6 +2102,101 @@ static uint32_t parse_host_info(char *optarg, int *rc)
 	return host_no;
 }
 
+static int exec_ping_op(struct iface_rec *iface, char *ip, int size, int count,
+			int interval)
+{
+	int rc = ISCSI_ERR;
+	uint32_t iface_type = ISCSI_IFACE_TYPE_IPV4;
+	struct iscsi_transport *t = NULL;
+	uint32_t host_no;
+	struct sockaddr_storage addr;
+	int i;
+
+	if (!iface) {
+		log_error("Ping requires iface.");
+		rc = ISCSI_ERR_INVAL;
+		goto ping_exit;
+	}
+
+	if (!ip) {
+		log_error("Ping requires destination ipaddress.");
+		rc = ISCSI_ERR_INVAL;
+		goto ping_exit;
+	}
+
+	if (size <= 0) {
+		log_error("Invalid packet size: %d.", size);
+		rc = ISCSI_ERR_INVAL;
+		goto ping_exit;
+	}
+
+	if (count <= 0) {
+		log_error("Invalid number of packets to transmit: %d.", count);
+		rc = ISCSI_ERR_INVAL;
+		goto ping_exit;
+	}
+
+	if (interval < 0) {
+		log_error("Invalid timing interval: %d.", interval);
+		rc = ISCSI_ERR_INVAL;
+		goto ping_exit;
+	}
+
+	rc = iface_conf_read(iface);
+	if (rc) {
+		log_error("Could not read iface %s (%d).", iface->name, rc);
+		goto ping_exit;
+	}
+
+
+	iface_type = iface_get_iptype(iface);
+
+	t = iscsi_sysfs_get_transport_by_name(iface->transport_name);
+	if (!t) {
+		log_error("Can't find transport.");
+		rc = ISCSI_ERR_INVAL;
+		goto ping_exit;
+	}
+
+	host_no = iscsi_sysfs_get_host_no_from_hwinfo(iface, &rc);
+	if (host_no == -1) {
+		log_error("Can't find host_no.");
+		rc = ISCSI_ERR_INVAL;
+		goto ping_exit;
+	}
+
+	rc = resolve_address(ip, NULL, &addr);
+	if (rc) {
+		log_error("Invalid IP address.");
+		rc = ISCSI_ERR_INVAL;
+		goto ping_exit;
+	}
+
+	/* TODO: move this. It is needed by interface for pid */
+	srand(time(NULL));
+
+	for (i = 1; i <= count; i++) {
+		/*
+		 * To support drivers like bnx2i that do not use
+		 * the iscsi if to send a ping, we can add a transport
+		 * callout here.
+		 */
+		rc = ipc->exec_ping(t->handle, host_no,
+				    (struct sockaddr *)&addr, iface->iface_num,
+				    iface_type, size);
+		if (!rc)
+			printf("Ping %d completed\n", i);
+		else
+			printf("Ping %d failed: %s\n", i, iscsi_err_to_str(rc));
+
+		if (i < count)
+			sleep(interval);
+	}
+
+ping_exit:
+	return rc;
+}
+
 int
 main(int argc, char **argv)
 {
@@ -2091,7 +2206,8 @@ main(int argc, char **argv)
 	int rc=0, sid=-1, op=OP_NOOP, type=-1, do_logout=0, do_stats=0;
 	int do_login_all=0, do_logout_all=0, info_level=-1, num_ifaces = 0;
 	int tpgt = PORTAL_GROUP_TAG_UNKNOWN, killiscsid=-1, do_show=0;
-	int do_discover = 0;
+	int packet_size=32, ping_count=1, ping_interval=0;
+	int do_discover = 0, sub_mode = -1;
 	struct sigaction sa_old;
 	struct sigaction sa_new;
 	struct list_head ifaces;
@@ -2196,11 +2312,26 @@ main(int argc, char **argv)
 		case 'm':
 			mode = str_to_mode(optarg);
 			break;
+		case 'C':
+			sub_mode = str_to_submode(optarg);
+			break;
 		case 'T':
 			targetname = optarg;
 			break;
 		case 'p':
 			ip = str_to_ipport(optarg, &port, &tpgt);
+			break;
+		case 'a':
+			ip = optarg;
+			break;
+		case 'b':
+			packet_size = atoi(optarg);
+			break;
+		case 'c':
+			ping_count = atoi(optarg);
+			break;
+		case 'i':
+			ping_interval = atoi(optarg);
 			break;
 		case 'I':
 			iface = iface_alloc(optarg, &rc);
@@ -2274,7 +2405,7 @@ main(int argc, char **argv)
 	case MODE_IFACE:
 		iface_setup_host_bindings();
 
-		if ((rc = verify_mode_params(argc, argv, "HIdnvmPo", 0))) {
+		if ((rc = verify_mode_params(argc, argv, "HIdnvmPoCabci", 0))) {
 			log_error("iface mode: option '-%c' is not "
 				  "allowed/supported", rc);
 			rc = ISCSI_ERR_INVAL;
@@ -2289,8 +2420,14 @@ main(int argc, char **argv)
 					  "interface. Using the first one "
 					  "%s.", iface->name);
 		}
-		rc = exec_iface_op(op, do_show, info_level, iface, host_no,
-				   name, value);
+
+		if (sub_mode == MODE_PING)
+			rc = exec_ping_op(iface, ip, packet_size, ping_count,
+					  ping_interval);
+		else
+			rc = exec_iface_op(op, do_show, info_level, iface,
+					   host_no, name, value);
+
 		break;
 	case MODE_DISCOVERYDB:
 		if ((rc = verify_mode_params(argc, argv, "DSIPdmntplov", 0))) {

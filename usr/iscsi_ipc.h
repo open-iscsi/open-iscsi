@@ -134,6 +134,10 @@ struct iscsi_ipc {
 			       struct iovec *iovs, uint32_t param_count);
 
 	int (*recv_conn_state) (struct iscsi_conn *conn, uint32_t *state);
+
+	int (*exec_ping) (uint64_t transport_handle, uint32_t host_no,
+			  struct sockaddr *addr, uint32_t iface_num,
+			  uint32_t iface_type, uint32_t size);
 };
 
 #endif /* ISCSI_IPC_H */

@@ -65,8 +65,9 @@ enum iscsi_uevent_e {
 
 	ISCSI_UEVENT_PATH_UPDATE	= UEVENT_BASE + 20,
 	ISCSI_UEVENT_SET_IFACE_PARAMS	= UEVENT_BASE + 21,
+	ISCSI_UEVENT_PING		= UEVENT_BASE + 22,
 
-	ISCSI_UEVENT_MAX		= ISCSI_UEVENT_SET_IFACE_PARAMS,
+	ISCSI_UEVENT_MAX		= ISCSI_UEVENT_PING,
 
 	/* up events */
 	ISCSI_KEVENT_RECV_PDU		= KEVENT_BASE + 1,
@@ -80,8 +81,9 @@ enum iscsi_uevent_e {
 	ISCSI_KEVENT_IF_DOWN		= KEVENT_BASE + 8,
 	ISCSI_KEVENT_CONN_LOGIN_STATE   = KEVENT_BASE + 9,
 	ISCSI_KEVENT_HOST_EVENT		= KEVENT_BASE + 10,
+	ISCSI_KEVENT_PING_COMP		= KEVENT_BASE + 11,
 
-	ISCSI_KEVENT_MAX		= ISCSI_KEVENT_HOST_EVENT,
+	ISCSI_KEVENT_MAX		= ISCSI_KEVENT_PING_COMP,
 };
 
 enum iscsi_tgt_dscvr {
@@ -195,6 +197,14 @@ struct iscsi_uevent {
 			uint32_t	host_no;
 			uint32_t	count;
 		} set_iface_params;
+		struct msg_iscsi_ping {
+			uint32_t	host_no;
+			uint32_t	iface_num;
+			uint32_t	iface_type;
+			uint32_t	payload_size;
+			uint32_t	pid;	/* unique ping id associated
+						   with each ping request */
+		} iscsi_ping;
 	} u;
 	union {
 		/* messages k -> u */
@@ -244,6 +254,13 @@ struct iscsi_uevent {
 			uint32_t	data_size;
 			enum iscsi_host_event_code code;
 		} host_event;
+		struct msg_ping_comp {
+			uint32_t	host_no;
+			uint32_t	status;
+			uint32_t	pid;	/* unique ping id associated
+						   with each ping request */
+			uint32_t	data_size;
+		} ping_comp;
 	} r;
 } __attribute__ ((aligned (sizeof(uint64_t))));
 

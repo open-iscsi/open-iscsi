@@ -425,12 +425,23 @@ int iface_get_by_net_binding(struct iface_rec *pattern,
 	return ISCSI_ERR_NO_OBJS_FOUND;
 }
 
-static int iface_get_iptype(struct iface_rec *iface)
+int iface_get_iptype(struct iface_rec *iface)
 {
-	if (strcmp(iface->bootproto, "dhcp") && !strstr(iface->ipaddress, "."))
-		return ISCSI_IFACE_TYPE_IPV6;
-	else
-		return ISCSI_IFACE_TYPE_IPV4;
+	/* address might not be set if user config with another tool */
+	if (!strlen(iface->ipaddress) ||
+	    !strcmp(UNKNOWN_VALUE, iface->ipaddress)) {
+		/* try to figure out by name */
+		if (strstr(iface->name, "ipv4"))
+			return ISCSI_IFACE_TYPE_IPV4;
+		else
+			return ISCSI_IFACE_TYPE_IPV6;
+	} else {
+		if (strcmp(iface->bootproto, "dhcp") &&
+		    !strstr(iface->ipaddress, "."))
+			return ISCSI_IFACE_TYPE_IPV6;
+		else
+			return ISCSI_IFACE_TYPE_IPV4;
+	}
 }
 
 static int iface_setup_binding_from_kern_iface(void *data,
