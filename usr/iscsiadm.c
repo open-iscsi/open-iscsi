@@ -67,6 +67,7 @@ enum iscsiadm_mode {
 	MODE_IFACE,
 	MODE_FW,
 	MODE_PING,
+	MODE_CHAP
 };
 
 enum iscsiadm_op {
@@ -191,6 +192,8 @@ str_to_submode(char *str)
 
 	if (!strcmp("ping", str))
 		sub_mode = MODE_PING;
+	else if (!strcmp("chap", str))
+		sub_mode = MODE_CHAP;
 	else
 		sub_mode = -1;
 
@@ -1297,6 +1300,146 @@ free_buf:
 	return ISCSI_SUCCESS;
 }
 
+static int get_host_chap_info(uint32_t host_no)
+{
+	struct iscsi_transport *t = NULL;
+	struct iscsi_chap_rec *crec = NULL;
+	char *req_buf = NULL;
+	uint32_t valid_chap_entries;
+	uint32_t num_entries;
+	uint16_t chap_tbl_idx = 0;
+	int rc = 0;
+	int fd, i = 0;
+
+	t = iscsi_sysfs_get_transport_by_hba(host_no);
+	if (!t) {
+		log_error("Could not match hostno %d to "
+			  "transport.", host_no);
+		rc = ISCSI_ERR_TRANS_NOT_FOUND;
+		goto exit_chap_info;
+	}
+
+	num_entries = MAX_CHAP_BUF_SZ / sizeof(*crec);
+
+	req_buf = calloc(1, REQ_CHAP_BUF_SZ);
+	if (!req_buf) {
+		log_error("Could not allocate memory for CHAP request.");
+		rc = ISCSI_ERR_NOMEM;
+		goto exit_chap_info;
+	}
+
+	fd = ipc->ctldev_open();
+	if (fd < 0) {
+		rc = ISCSI_ERR_INTERNAL;
+		log_error("Netlink open failed.");
+		goto exit_chap_info;
+	}
+
+get_chap:
+	memset(req_buf, 0, REQ_CHAP_BUF_SZ);
+
+	rc = ipc->get_chap(t->handle, host_no, chap_tbl_idx, num_entries,
+			   req_buf, &valid_chap_entries);
+	if (rc < 0) {
+		log_error("get_chap_info failed. errno=%d", errno);
+		rc = ISCSI_ERR;
+		goto exit_chap_info;
+	}
+
+	log_info("Valid CHAP Entries = %d\n", valid_chap_entries);
+
+	crec = (struct iscsi_chap_rec *) (req_buf +
+					  sizeof(struct iscsi_uevent));
+
+	if (valid_chap_entries)
+		chap_tbl_idx =
+		(crec + (valid_chap_entries - 1))->chap_tbl_idx + 1;
+
+	/* print chap info */
+	for (i = 0; i < valid_chap_entries; i++) {
+		idbm_print_host_chap_info(crec);
+		crec++;
+	}
+
+	if (valid_chap_entries != num_entries)
+		goto exit_chap_info;
+	else
+		goto get_chap;
+
+	ipc->ctldev_close();
+
+exit_chap_info:
+	if (req_buf)
+		free(req_buf);
+
+	return rc;
+}
+
+static int delete_host_chap_info(uint32_t host_no, char *value)
+{
+	struct iscsi_transport *t = NULL;
+	int fd, rc = 0;
+	uint16_t chap_tbl_idx;
+
+	if (!value) {
+		log_error("CHAP deletion requires --value=table_index.");
+		return ISCSI_ERR_INVAL;
+	}
+
+	chap_tbl_idx = (uint16_t)atoi(value);
+
+	t = iscsi_sysfs_get_transport_by_hba(host_no);
+	if (!t) {
+		log_error("Could not match hostno %d to "
+			  "transport.", host_no);
+		rc = ISCSI_ERR_TRANS_NOT_FOUND;
+		goto exit_delete_chap;
+	}
+
+	fd = ipc->ctldev_open();
+	if (fd < 0) {
+		log_error("Netlink open failed.");
+		rc = ISCSI_ERR_INTERNAL;
+		goto exit_delete_chap;
+	}
+
+	log_info("Deleteing CHAP index: %d\n", chap_tbl_idx);
+	rc = ipc->delete_chap(t->handle, host_no, chap_tbl_idx);
+	if (rc < 0) {
+		log_error("CHAP Delete failed.");
+		if (rc == -EBUSY) {
+			rc = ISCSI_ERR_BUSY;
+			log_error("CHAP index %d is in use.", chap_tbl_idx);
+		} else
+			rc = ISCSI_ERR;
+	}
+
+	ipc->ctldev_close();
+
+exit_delete_chap:
+	return rc;
+}
+
+static int exec_host_chap_op(int op, int info_level, uint32_t host_no,
+			     char *value)
+{
+	int rc = ISCSI_ERR_INVAL;
+
+	switch (op) {
+	case OP_SHOW:
+		rc = get_host_chap_info(host_no);
+		break;
+	case OP_DELETE:
+		rc = delete_host_chap_info(host_no, value);
+		break;
+	default:
+		log_error("Invalid operation.");
+		break;
+	}
+
+	return rc;
+}
+
 /* TODO: merge iter helpers and clean them up, so we can use them here */
 static int exec_iface_op(int op, int do_show, int info_level,
 			 struct iface_rec *iface, uint32_t host_no,
@@ -2393,14 +2536,30 @@ main(int argc, char **argv)
 
 	switch (mode) {
 	case MODE_HOST:
-		if ((rc = verify_mode_params(argc, argv, "HdmP", 0))) {
+		if ((rc = verify_mode_params(argc, argv, "CHdmPov", 0))) {
 			log_error("host mode: option '-%c' is not "
 				  "allowed/supported", rc);
 			rc = ISCSI_ERR_INVAL;
 			goto out;
 		}
-
-		rc = host_info_print(info_level, host_no);
+		if (sub_mode != -1) {
+			switch (sub_mode) {
+			case MODE_CHAP:
+				if (!op || !host_no) {
+					log_error("CHAP mode requires host "
+						"no and valid operation");
+					rc = ISCSI_ERR_INVAL;
+					break;
+				}
+				rc = exec_host_chap_op(op, info_level, host_no,
+						       value);
+				break;
+			default:
+				log_error("Invalid Sub Mode");
+				break;
+			}
+		} else
+			rc = host_info_print(info_level, host_no);
 		break;
 	case MODE_IFACE:
 		iface_setup_host_bindings();

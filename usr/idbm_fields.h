@@ -116,4 +116,14 @@
 #define DISC_ISNS_ADDR		"discovery.sendtargets.address"
 #define DISC_ISNS_PORT		"discovery.sendtargets.port"
 
+/* host auth fields */
+#define HOST_AUTH_INDEX			"host.auth.tbl_idx"
+#define HOST_AUTH_METHOD		"host.auth.authmethod"
+#define HOST_AUTH_USERNAME		"host.auth.username"
+#define HOST_AUTH_PASSWORD		"host.auth.password"
+#define HOST_AUTH_PASSWORD_LEN		"host.auth.password_length"
+#define HOST_AUTH_USERNAME_IN		"host.auth.username_in"
+#define HOST_AUTH_PASSWORD_IN		"host.auth.password_in"
+#define HOST_AUTH_PASSWORD_IN_LEN	"host.auth.password_in_length"
+
 #endif

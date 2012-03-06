@@ -50,6 +50,7 @@ static char *iscsi_err_msgs[] = {
 	/* 25 */ "iSNS query failed",
 	/* 26 */ "iSNS registration failed",
 	/* 27 */ "operation not supported",
+	/* 28 */ "device or resource in use",
 };
 
 char *iscsi_err_to_str(int err)

@@ -445,6 +445,30 @@ void idbm_recinfo_iface(iface_rec_t *r, recinfo_t *ri)
 	__recinfo_uint16(IFACE_PORT, ri, r, port, IDBM_SHOW, num, 1);
 }
 
+static void idbm_recinfo_host_chap(struct iscsi_chap_rec *r, recinfo_t *ri)
+{
+	int num = 0;
+
+	__recinfo_uint16(HOST_AUTH_INDEX, ri, r, chap_tbl_idx, IDBM_SHOW,
+			 num, 1);
+
+	if (r->chap_type == CHAP_TYPE_OUT) {
+		__recinfo_str(HOST_AUTH_USERNAME, ri, r, username, IDBM_SHOW,
+			      num, 0);
+		__recinfo_str(HOST_AUTH_PASSWORD, ri, r, password, IDBM_MASKED,
+			      num, 1);
+		__recinfo_int(HOST_AUTH_PASSWORD_LEN, ri, r, password_length,
+			      IDBM_HIDE, num, 1);
+	} else {
+		__recinfo_str(HOST_AUTH_USERNAME_IN, ri, r, username, IDBM_SHOW,
+			      num, 0);
+		__recinfo_str(HOST_AUTH_PASSWORD_IN, ri, r, password,
+			      IDBM_MASKED, num, 1);
+		__recinfo_int(HOST_AUTH_PASSWORD_IN_LEN, ri, r, password_length,
+			      IDBM_HIDE, num, 1);
+	}
+}
+
 recinfo_t *idbm_recinfo_alloc(int max_keys)
 {
 	recinfo_t *info;
@@ -474,6 +498,9 @@ void idbm_print(int type, void *rec, int show, FILE *f)
 		break;
 	case IDBM_PRINT_TYPE_IFACE:
 		idbm_recinfo_iface((struct iface_rec *)rec, info);
+		break;
+	case IDBM_PRINT_TYPE_HOST_CHAP:
+		idbm_recinfo_host_chap((struct iscsi_chap_rec *)rec, info);
 		break;
 	}
 
@@ -842,6 +869,13 @@ int idbm_print_iface_info(void *data, struct iface_rec *iface)
 	int show = *((int *)data);
 
 	idbm_print(IDBM_PRINT_TYPE_IFACE, iface, show, stdout);
+	return 0;
+}
+
+int idbm_print_host_chap_info(struct iscsi_chap_rec *chap)
+{
+	/* User only calls this to print chap so always print */
+	idbm_print(IDBM_PRINT_TYPE_HOST_CHAP, chap, 1, stdout);
 	return 0;
 }
 

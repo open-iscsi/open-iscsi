@@ -336,6 +336,9 @@ __kipc_call(struct iovec *iovp, int count)
 		} else if (ev->type == ISCSI_UEVENT_GET_STATS) {
 			/* kget_stats() will read */
 			return 0;
+		} else if (ev->type == ISCSI_UEVENT_GET_CHAP) {
+			/* kget_chap() will read */
+			return 0;
 		} else {
 			if ((rc = nlpayload_read(ctrl_fd, (void*)ev,
 						 sizeof(*ev), 0)) < 0) {
@@ -1180,6 +1183,75 @@ close_nl:
 	return rc;
 }
 
+static int kget_chap(uint64_t transport_handle, uint32_t host_no,
+		     uint16_t chap_tbl_idx, uint32_t num_entries,
+		     char *chap_buf, uint32_t *valid_chap_entries)
+{
+	int rc = 0;
+	int ev_size;
+	struct iscsi_uevent ev;
+	struct iovec iov[2];
+	char nlm_ev[NLMSG_SPACE(sizeof(struct iscsi_uevent))];
+	struct nlmsghdr *nlh;
+
+	memset(&ev, 0, sizeof(struct iscsi_uevent));
+
+	ev.type = ISCSI_UEVENT_GET_CHAP;
+	ev.transport_handle = transport_handle;
+	ev.u.get_chap.host_no = host_no;
+	ev.u.get_chap.chap_tbl_idx = chap_tbl_idx;
+	ev.u.get_chap.num_entries = num_entries;
+
+	iov[1].iov_base = &ev;
+	iov[1].iov_len = sizeof(ev);
+	rc = __kipc_call(iov, 2);
+	if (rc < 0)
+		return rc;
+
+	if ((rc = nl_read(ctrl_fd, nlm_ev,
+			  NLMSG_SPACE(sizeof(struct iscsi_uevent)),
+			  MSG_PEEK)) < 0) {
+		log_error("can not read nlm_ev, error %d", rc);
+		return rc;
+	}
+
+	nlh = (struct nlmsghdr *)nlm_ev;
+	ev_size = nlh->nlmsg_len - NLMSG_ALIGN(sizeof(struct nlmsghdr));
+
+	if ((rc = nlpayload_read(ctrl_fd, (void *)chap_buf, ev_size, 0)) < 0) {
+		log_error("can not read from NL socket, error %d", rc);
+		return rc;
+	}
+
+	*valid_chap_entries = ev.u.get_chap.num_entries;
+
+	return rc;
+}
+
+static int kdelete_chap(uint64_t transport_handle, uint32_t host_no,
+			uint16_t chap_tbl_idx)
+{
+	int rc = 0;
+	struct iscsi_uevent ev;
+	struct iovec iov[2];
+
+	memset(&ev, 0, sizeof(struct iscsi_uevent));
+
+	ev.type = ISCSI_UEVENT_DELETE_CHAP;
+	ev.transport_handle = transport_handle;
+	ev.u.delete_chap.host_no = host_no;
+	ev.u.delete_chap.chap_tbl_idx = chap_tbl_idx;
+
+	iov[1].iov_base = &ev;
+	iov[1].iov_len = sizeof(ev);
+
+	rc = __kipc_call(iov, 2);
+	if (rc < 0)
+		return rc;
+
+	return rc;
+}
+
 static void drop_data(struct nlmsghdr *nlh)
 {
 	int ev_size;
@@ -1216,11 +1288,17 @@ static int ctldev_handle(void)
 	/* old kernels sent ISCSI_UEVENT_CREATE_SESSION on creation */
 	case ISCSI_UEVENT_CREATE_SESSION:
 		drop_data(nlh);
+		if (!ipc_ev_clbk)
+			return 0;
+
 		if (ipc_ev_clbk->create_session)
 			ipc_ev_clbk->create_session(ev->r.c_session_ret.host_no,
 						    ev->r.c_session_ret.sid);
 		return 0;
 	case ISCSI_KEVENT_DESTROY_SESSION:
+		if (!ipc_ev_clbk)
+			return 0;
+
 		drop_data(nlh);
 		if (ipc_ev_clbk->destroy_session)
 			ipc_ev_clbk->destroy_session(ev->r.d_session.host_no,
@@ -1464,6 +1542,8 @@ struct iscsi_ipc nl_ipc = {
 	.set_net_config         = kset_net_config,
 	.recv_conn_state        = krecv_conn_state,
 	.exec_ping		= kexec_ping,
+	.get_chap		= kget_chap,
+	.delete_chap		= kdelete_chap,
 };
 struct iscsi_ipc *ipc = &nl_ipc;
 

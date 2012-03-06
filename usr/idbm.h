@@ -162,6 +162,7 @@ enum {
 	IDBM_PRINT_TYPE_DISCOVERY,
 	IDBM_PRINT_TYPE_NODE,
 	IDBM_PRINT_TYPE_IFACE,
+	IDBM_PRINT_TYPE_HOST_CHAP,
 };
 
 extern void idbm_print(int type, void *rec, int show, FILE *f);
@@ -173,5 +174,7 @@ extern struct node_rec *idbm_create_rec(char *targetname, int tpgt,
 					int verbose);
 extern struct node_rec *
 idbm_create_rec_from_boot_context(struct boot_context *context);
+
+extern int idbm_print_host_chap_info(struct iscsi_chap_rec *chap);
 
 #endif /* IDBM_H */
