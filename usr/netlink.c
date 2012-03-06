@@ -1018,7 +1018,7 @@ kset_net_config(uint64_t transport_handle, uint32_t host_no,
 	return 0;
 }
 
-static int krecv_conn_state(struct iscsi_conn *conn, int *state)
+static int krecv_conn_state(struct iscsi_conn *conn, uint32_t *state)
 {
 	int rc;
 
@@ -1269,7 +1269,7 @@ static int ctldev_handle(void)
 	char nlm_ev[NLMSG_SPACE(sizeof(struct iscsi_uevent))];
 	struct nlmsghdr *nlh;
 	struct iscsi_ev_context *ev_context;
-	uint32_t sid = 0, cid = 0, state = 0;
+	uint32_t sid = 0, cid = 0;
 
 	log_debug(7, "in %s", __FUNCTION__);
 
@@ -1315,7 +1315,6 @@ static int ctldev_handle(void)
 	case ISCSI_KEVENT_CONN_LOGIN_STATE:
 		sid = ev->r.conn_login.sid;
 		cid = ev->r.conn_login.cid;
-		state = ev->r.conn_login.state;
 		break;
 	case ISCSI_KEVENT_UNBIND_SESSION:
 		sid = ev->r.unbind_session.sid;
