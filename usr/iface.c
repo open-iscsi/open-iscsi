@@ -617,7 +617,7 @@ int iface_match(struct iface_rec *pattern, struct iface_rec *iface)
 		return 1;
 
 	if (!strcmp(pattern->name, iface->name)) {
-		if (strcmp(pattern->name, DEFAULT_IFACENAME))
+		if (!strcmp(pattern->name, DEFAULT_IFACENAME))
 			return 1;
 		/*
 		 * For default we allow the same name, but different
