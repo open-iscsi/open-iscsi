@@ -1346,8 +1346,6 @@ get_chap:
 		goto exit_chap_info;
 	}
 
-	log_info("Valid CHAP Entries = %d\n", valid_chap_entries);
-
 	crec = (struct iscsi_chap_rec *) (req_buf +
 					  sizeof(struct iscsi_uevent));
 
