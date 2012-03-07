@@ -137,7 +137,7 @@ struct iscsi_ipc {
 
 	int (*exec_ping) (uint64_t transport_handle, uint32_t host_no,
 			  struct sockaddr *addr, uint32_t iface_num,
-			  uint32_t iface_type, uint32_t size);
+			  uint32_t iface_type, uint32_t size, uint32_t *status);
 
 	int (*get_chap) (uint64_t transport_handle, uint32_t host_no,
 			 uint16_t chap_tbl_idx, uint32_t num_entries,

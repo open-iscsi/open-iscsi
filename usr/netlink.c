@@ -1085,12 +1085,14 @@ ksend_ping(uint64_t transport_handle, uint32_t host_no, struct sockaddr *addr,
 
 static int kexec_ping(uint64_t transport_handle, uint32_t host_no,
 		      struct sockaddr *addr, uint32_t iface_num,
-		      uint32_t iface_type, uint32_t size)
+		      uint32_t iface_type, uint32_t size, uint32_t *status)
 {
 	struct pollfd pfd;
 	struct timeval ping_timer;
 	int timeout, fd, rc;
 	uint32_t pid;
+
+	*status = 0;
 
 	fd = ipc->ctldev_open();
 	if (fd < 0) {
@@ -1151,10 +1153,8 @@ static int kexec_ping(uint64_t transport_handle, uint32_t host_no,
 				if (pid != ping_event.pid)
 					continue;
 
-				if (ping_event.status == 0)
-					rc = 0;
-				else
-					rc = ISCSI_ERR;
+				rc = 0;
+				*status = ping_event.status;
 				break;
 			}
 

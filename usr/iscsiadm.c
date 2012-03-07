@@ -2245,13 +2245,46 @@ static uint32_t parse_host_info(char *optarg, int *rc)
 	return host_no;
 }
 
+static char *iscsi_ping_stat_strs[] = {
+	/* ISCSI_PING_SUCCESS */
+	"success",
+	/* ISCSI_PING_FW_DISABLED */
+	"firmware disabled",
+	/* ISCSI_PING_IPADDR_INVALID */
+	"invalid IP address",
+	/* ISCSI_PING_LINKLOCAL_IPV6_ADDR_INVALID */
+	"invalid link local IPv6 address",
+	/* ISCSI_PING_TIMEOUT */
+	"timed out",
+	/* ISCSI_PING_INVALID_DEST_ADDR */
+	"invalid destination address",
+	/* ISCSI_PING_OVERSIZE_PACKET */
+	"oversized packet",
+	/* ISCSI_PING_ICMP_ERROR */
+	"ICMP error",
+	/* ISCSI_PING_MAX_REQ_EXCEEDED */
+	"Max request exceeded",
+	/* ISCSI_PING_NO_ARP_RECEIVED */
+	"No ARP response received",
+};
+
+static char *iscsi_ping_stat_to_str(uint32_t status)
+{
+	if (status < 0 || status > ISCSI_PING_NO_ARP_RECEIVED) {
+		log_error("Invalid ping status %u\n", status);
+		return NULL;
+	}
+
+	return iscsi_ping_stat_strs[status];
+}
+
 static int exec_ping_op(struct iface_rec *iface, char *ip, int size, int count,
 			int interval)
 {
 	int rc = ISCSI_ERR;
 	uint32_t iface_type = ISCSI_IFACE_TYPE_IPV4;
 	struct iscsi_transport *t = NULL;
-	uint32_t host_no;
+	uint32_t host_no, status = 0;
 	struct sockaddr_storage addr;
 	int i;
 
@@ -2324,11 +2357,15 @@ static int exec_ping_op(struct iface_rec *iface, char *ip, int size, int count,
 		 * the iscsi if to send a ping, we can add a transport
 		 * callout here.
 		 */
+		status = 0;
 		rc = ipc->exec_ping(t->handle, host_no,
 				    (struct sockaddr *)&addr, iface->iface_num,
-				    iface_type, size);
-		if (!rc)
+				    iface_type, size, &status);
+		if (!rc && !status)
 			printf("Ping %d completed\n", i);
+		else if (status)
+			printf("Ping %d failed: %s\n", i,
+				iscsi_ping_stat_to_str(status));
 		else
 			printf("Ping %d failed: %s\n", i, iscsi_err_to_str(rc));
 
