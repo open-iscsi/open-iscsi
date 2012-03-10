@@ -33,7 +33,7 @@ endif
 OPTFLAGS ?= -O2 -g
 WARNFLAGS ?= -Wall -Wstrict-prototypes
 CFLAGS += $(OPTFLAGS) $(WARNFLAGS) -I../include -I. -I../utils/open-isns \
-					-D$(OSNAME) $(IPC_CFLAGS)
+				-l kmod -D$(OSNAME) $(IPC_CFLAGS)
 PROGRAMS = iscsid iscsiadm iscsistart
 
 # libc compat files
@@ -56,7 +56,7 @@ all: $(PROGRAMS)
 
 iscsid: $(ISCSI_LIB_SRCS) $(INITIATOR_SRCS) $(DISCOVERY_SRCS) \
 	iscsid.o session_mgmt.o discoveryd.o
-	$(CC) $(CFLAGS) $^ -o $@ -L../utils/open-isns -lisns
+	$(CC) $(CFLAGS) $^ -o $@  -L../utils/open-isns -lisns
 
 iscsiadm: $(ISCSI_LIB_SRCS) $(DISCOVERY_SRCS) iscsiadm.o session_mgmt.o
 	$(CC) $(CFLAGS) $^ -o $@ -L../utils/open-isns -lisns

@@ -19,7 +19,9 @@
 #include <stdio.h>
 #include <unistd.h>
 #include <errno.h>
+#include <libkmod.h>
 
+#include "iscsi_err.h"
 #include "initiator.h"
 #include "transport.h"
 #include "log.h"
@@ -97,6 +99,51 @@ static struct iscsi_transport_template *iscsi_transport_templates[] = {
 	&be2iscsi,
 	NULL
 };
+
+int transport_load_kmod(char *transport_name)
+{
+	struct kmod_ctx *ctx;
+	struct kmod_module *mod;
+	int rc;
+
+	ctx = kmod_new(NULL, NULL);
+	if (!ctx) {
+		log_error("Could not load transport module %s. Out of "
+			  "memory.", transport_name);
+		return ISCSI_ERR_NOMEM;
+	}
+
+	kmod_load_resources(ctx);
+
+	/*
+	 * dumb dumb dumb - named iscsi_tcp and ib_iser differently from
+	 * transport name
+	 */
+	if (!strcmp(transport_name, "tcp"))
+		rc = kmod_module_new_from_name(ctx, "iscsi_tcp", &mod);
+	else if (!strcmp(transport_name, "iser"))
+		rc = kmod_module_new_from_name(ctx, "ib_iser", &mod);
+	else
+		rc = kmod_module_new_from_name(ctx, transport_name, &mod);
+	if (rc) {
+		log_error("Failed to load module %s.", transport_name);
+		rc = ISCSI_ERR_TRANS_NOT_FOUND;
+		goto unref_mod;
+	}
+
+	rc = kmod_module_probe_insert_module(mod, KMOD_PROBE_APPLY_BLACKLIST,
+					     NULL, NULL, NULL, NULL);
+	if (rc) {
+		log_error("Could not insert module %s. Kmod error %d",
+			  transport_name, rc);
+		rc = ISCSI_ERR_TRANS_NOT_FOUND;
+	}
+	kmod_module_unref(mod);
+
+unref_mod:
+	kmod_unref(ctx);
+	return rc;
+}
 
 int set_transport_template(struct iscsi_transport *t)
 {

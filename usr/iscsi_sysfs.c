@@ -1147,7 +1147,9 @@ static uint32_t get_target_no_from_sid(uint32_t sid, int *err)
 struct iscsi_transport *iscsi_sysfs_get_transport_by_name(char *transport_name)
 {
 	struct iscsi_transport *t;
+	int retry = 0;
 
+retry:
 	/* sync up kernel and userspace */
 	if (read_transports())
 		return NULL;
@@ -1158,6 +1160,13 @@ struct iscsi_transport *iscsi_sysfs_get_transport_by_name(char *transport_name)
 					  ISCSI_TRANSPORT_NAME_MAXLEN))
 			return t;
 	}
+
+	if (retry < 1) {
+		retry++;
+		if (!transport_load_kmod(transport_name))
+			goto retry;
+	}
+
 	return NULL;
 }
 
