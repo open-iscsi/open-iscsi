@@ -17,8 +17,6 @@ RETVAL=0
 start()
 {
 	echo -n $"Starting iSCSI initiator service: "
-	modprobe -q iscsi_tcp
-	modprobe -q ib_iser
 	daemon iscsid
 	RETVAL=$?
 	success
@@ -26,6 +24,9 @@ start()
 	[ $RETVAL -eq 0 ] || return
 
 	touch /var/lock/subsys/open-iscsi
+
+	# load offload drivers and setup default ifaces if needed
+	iscsiadm -m iface 2>&1 > /dev/null
 
 	echo -n $"Setting up iSCSI targets: "
 	iscsiadm -m node --loginall=automatic
