@@ -49,5 +49,6 @@ struct iscsi_transport {
 
 extern int set_transport_template(struct iscsi_transport *t);
 extern int transport_load_kmod(char *transport_name);
+extern int transport_probe_for_offload(void);
 
 #endif

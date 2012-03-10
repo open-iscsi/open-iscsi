@@ -532,6 +532,8 @@ void iface_setup_host_bindings(void)
 	}
 	idbm_unlock();
 
+	transport_probe_for_offload();
+
 	if (iscsi_sysfs_for_each_host(NULL, &nr_found,
 				      __iface_setup_host_bindings))
 		log_error("Could not scan scsi hosts. HW/OFFLOAD iscsi "

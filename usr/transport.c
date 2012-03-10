@@ -20,7 +20,11 @@
 #include <unistd.h>
 #include <errno.h>
 #include <libkmod.h>
+#include <net/if.h>
+#include <sys/ioctl.h>
+#include <sys/socket.h>
 
+#include "sysdeps.h"
 #include "iscsi_err.h"
 #include "initiator.h"
 #include "transport.h"
@@ -99,6 +103,52 @@ static struct iscsi_transport_template *iscsi_transport_templates[] = {
 	&be2iscsi,
 	NULL
 };
+
+int transport_probe_for_offload(void)
+{
+	struct if_nameindex *ifni;
+	char transport_name[ISCSI_TRANSPORT_NAME_MAXLEN];
+	int i, sockfd;
+	struct ifreq if_hwaddr;
+
+	ifni = if_nameindex();
+	if (!ifni) {
+		log_error("Could not search for transport modules: %s",
+			  strerror(errno));
+		return ISCSI_ERR_TRANS_NOT_FOUND;
+	}
+
+	sockfd = socket(AF_INET, SOCK_DGRAM, 0);
+	if (sockfd < 0) {
+		log_error("Could not open socket for ioctl: %s",
+			  strerror(errno));
+		goto free_ifni;
+	}
+
+	for (i = 0; ifni[i].if_index && ifni[i].if_name; i++) {
+		struct if_nameindex *n = &ifni[i];
+
+		log_debug(6, "kmod probe found %s\n", n->if_name);
+
+		strlcpy(if_hwaddr.ifr_name, n->if_name, IFNAMSIZ);
+		if (ioctl(sockfd, SIOCGIFHWADDR, &if_hwaddr) < 0)
+			continue;
+
+		/* check for ARPHRD_ETHER (ethernet) */
+		if (if_hwaddr.ifr_hwaddr.sa_family != 1)
+			continue;
+
+		if (net_get_transport_name_from_netdev(n->if_name,
+						       transport_name))
+			continue;
+
+		transport_load_kmod(transport_name);
+	}
+
+free_ifni:
+	if_freenameindex(ifni);
+	return 0;
+}
 
 int transport_load_kmod(char *transport_name)
 {

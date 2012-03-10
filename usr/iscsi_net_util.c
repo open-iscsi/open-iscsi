@@ -39,12 +39,10 @@ struct iscsi_net_driver {
 };
 
 static struct iscsi_net_driver net_drivers[] = {
-#ifdef OFFLOAD_BOOT_SUPPORTED
 	{"cxgb3", "cxgb3i" },
 	{"cxgb4", "cxgb4i" },
 	{"bnx2", "bnx2i" },
 	{"bnx2x", "bnx2i"},
-#endif
 	{NULL, NULL}
 };
 
@@ -74,7 +72,7 @@ int net_get_transport_name_from_netdev(char *netdev, char *transport)
 	ifr.ifr_data = (caddr_t)&drvinfo;
 	err = ioctl(fd, SIOCETHTOOL, &ifr);
 	if (err < 0) {
-		log_error("Could not get driver.");
+		log_error("Could not get driver %s.", netdev);
 		err = errno;
 		goto close_sock;
 	}
