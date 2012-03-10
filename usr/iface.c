@@ -169,7 +169,7 @@ free_conf:
 int iface_conf_read(struct iface_rec *iface)
 {
 	struct iface_rec *def_iface;
-	int rc;
+	int rc, retry = 0;
 
 	def_iface = iface_match_default(iface);
 	if (def_iface) {
@@ -197,12 +197,24 @@ int iface_conf_read(struct iface_rec *iface)
 		return 0;
 	}
 
+retry_read:
 	rc = idbm_lock();
 	if (rc)
 		return rc;
 
 	rc = __iface_conf_read(iface);
 	idbm_unlock();
+
+	/*
+	 * cmd was run before running -m iface, so force def bindings
+	 * creation to see if that was the one requested
+	 */
+	if (retry < 1 && rc == ISCSI_ERR_IDBM) {
+		iface_setup_host_bindings();
+		retry++;
+		goto retry_read;
+	}
+
 	return rc;
 }
 
@@ -449,6 +461,7 @@ static int iface_setup_binding_from_kern_iface(void *data,
 {
 	struct host_info *hinfo = data;
 	struct iface_rec iface;
+	char iface_path[PATH_MAX];
 
 	if (!strlen(hinfo->iface.hwaddress)) {
 		log_error("Invalid offload iSCSI host %u. Missing "
@@ -474,7 +487,11 @@ static int iface_setup_binding_from_kern_iface(void *data,
 			 hinfo->iface.transport_name, hinfo->iface.hwaddress);
 	}
 
-	if (iface_conf_read(&iface)) {
+	memset(iface_path, 0, sizeof(iface_path));
+	snprintf(iface_path, PATH_MAX, "%s/%s", IFACE_CONFIG_DIR,
+		 iface.name);
+
+	if (access(iface_path, F_OK) != 0) {
 		/* not found so create it */
 		if (iface_conf_write(&iface)) {
 			log_error("Could not create default iface conf %s.",
