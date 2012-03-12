@@ -316,8 +316,6 @@ int main(int argc, char *argv[])
 	log_init(program_name, DEFAULT_AREA_SIZE, log_do_log_std, NULL);
 
 	sysfs_init();
-	if (iscsi_sysfs_check_class_version())
-		exit(ISCSI_ERR_SYSFS_LOOKUP);
 
 	while ((ch = getopt_long(argc, argv, "P:i:t:g:a:p:d:u:w:U:W:bNfvh",
 				 long_options, &longindex)) >= 0) {
