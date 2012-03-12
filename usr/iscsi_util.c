@@ -181,7 +181,6 @@ char *strstrip(char *s)
 char *cfg_get_string_param(char *pathname, const char *key)
 {
 	FILE *f = NULL;
-	int len;
 	char *line, buffer[1024];
 	char *value = NULL, *param, *comment;
 
@@ -190,7 +189,6 @@ char *cfg_get_string_param(char *pathname, const char *key)
 		return NULL;
 	}
 
-	len = strlen(key);
 	if ((f = fopen(pathname, "r"))) {
 		while ((line = fgets(buffer, sizeof (buffer), f))) {
 			param = strstr(line, key);
