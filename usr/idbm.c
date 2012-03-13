@@ -2386,9 +2386,37 @@ int idbm_parse_param(char *param, struct node_rec *rec)
 	return rc;
 }
 
+struct user_param *idbm_alloc_user_param(char *name, char *value)
+{
+	struct user_param *param;
+
+	param = calloc(1, sizeof(*param));
+	if (!param)
+		return NULL;
+
+	INIT_LIST_HEAD(&param->list);
+
+	param->name = strdup(name);
+	if (!param->name)
+		goto free_param;
+
+	param->value = strdup(value);
+	if (!param->value)
+		goto free_name;
+
+	return param;
+
+free_name:
+	free(param->name);
+free_param:
+	free(param);
+	return NULL;
+}
+
 int idbm_node_set_param(void *data, node_rec_t *rec)
 {
-	struct db_set_param *param = data;
+	struct list_head *params = data;
+	struct user_param *param;
 	recinfo_t *info;
 	int rc = 0;
 
@@ -2398,13 +2426,17 @@ int idbm_node_set_param(void *data, node_rec_t *rec)
 
 	idbm_recinfo_node(rec, info);
 
-	rc = idbm_verify_param(info, param->name);
-	if (rc)
-		goto free_info;
+	list_for_each_entry(param, params, list) {
+		rc = idbm_verify_param(info, param->name);
+		if (rc)
+			goto free_info;
+	}
 
-	rc = idbm_rec_update_param(info, param->name, param->value, 0);
-	if (rc)
-		goto free_info;
+	list_for_each_entry(param, params, list) {
+		rc = idbm_rec_update_param(info, param->name, param->value, 0);
+		if (rc)
+			goto free_info;
+	}
 
 	rc = idbm_rec_write(rec);
 	if (rc)
@@ -2417,7 +2449,8 @@ free_info:
 
 int idbm_discovery_set_param(void *data, discovery_rec_t *rec)
 {
-	struct db_set_param *param = data;
+	struct list_head *params = data;
+	struct user_param *param;
 	recinfo_t *info;
 	int rc = 0;
 
@@ -2427,13 +2460,17 @@ int idbm_discovery_set_param(void *data, discovery_rec_t *rec)
 
 	idbm_recinfo_discovery((discovery_rec_t *)rec, info);
 
-	rc = idbm_verify_param(info, param->name);
-	if (rc)
-		goto free_info;
+	list_for_each_entry(param, params, list) {
+		rc = idbm_verify_param(info, param->name);
+		if (rc)
+			goto free_info;
+	}
 
-	rc = idbm_rec_update_param(info, param->name, param->value, 0);
-	if (rc)
-		goto free_info;
+	list_for_each_entry(param, params, list) {
+		rc = idbm_rec_update_param(info, param->name, param->value, 0);
+		if (rc)
+			goto free_info;
+	}
 
 	rc = idbm_discovery_write((discovery_rec_t *)rec);
 	if (rc)

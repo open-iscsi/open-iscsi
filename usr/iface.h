@@ -24,7 +24,6 @@
 
 struct iface_rec;
 struct list_head;
-struct db_set_param;
 struct boot_context;
 
 extern void iface_copy(struct iface_rec *dst, struct iface_rec *src);
@@ -44,7 +43,7 @@ extern int iface_print_tree(void *data, struct iface_rec *iface);
 extern void iface_setup_host_bindings(void);
 extern int iface_get_by_net_binding(struct iface_rec *pattern,
 				    struct iface_rec *out_rec);
-extern int iface_conf_update(struct db_set_param *set_param,
+extern int iface_conf_update(struct list_head *params,
 			     struct iface_rec *iface);
 extern int iface_conf_write(struct iface_rec *iface);
 extern int iface_conf_delete(struct iface_rec *iface);

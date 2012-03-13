@@ -289,11 +289,11 @@ free_conf:
 	return rc;
 }
 
-int iface_conf_update(struct db_set_param *param,
-		       struct iface_rec *iface)
+int iface_conf_update(struct list_head *params, struct iface_rec *iface)
 {
 	struct iface_rec *def_iface;
 	recinfo_t *info;
+	struct user_param *param;
 	int rc = 0;
 
 	def_iface = iface_match_default(iface);
@@ -308,13 +308,18 @@ int iface_conf_update(struct db_set_param *param,
 		return ISCSI_ERR_NOMEM;
 
 	idbm_recinfo_iface(iface, info);
-	rc = idbm_verify_param(info, param->name);
-	if (rc)
-		goto free_info;
 
-	rc = idbm_rec_update_param(info, param->name, param->value, 0);
-	if (rc)
-		goto free_info;
+	list_for_each_entry(param, params, list) {
+		rc = idbm_verify_param(info, param->name);
+		if (rc)
+			goto free_info;
+	}
+
+	list_for_each_entry(param, params, list) {
+		rc = idbm_rec_update_param(info, param->name, param->value, 0);
+		if (rc)
+			goto free_info;
+	}
 
 	rc = iface_conf_write(iface);
 free_info:

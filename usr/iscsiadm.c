@@ -1438,13 +1438,45 @@ static int exec_host_chap_op(int op, int info_level, uint32_t host_no,
 	return rc;
 }
 
+static int verify_iface_params(struct list_head *params, struct node_rec *rec)
+{
+	struct user_param *param;
+
+	list_for_each_entry(param, params, list) {
+		if (!strcmp(param->name, IFACE_ISCSINAME)) {
+			log_error("Can not update "
+				  "iface.iscsi_ifacename. Delete it, "
+				  "and then create a new one.");
+			return ISCSI_ERR_INVAL;
+		}
+
+		if (iface_is_bound_by_hwaddr(&rec->iface) &&
+		    !strcmp(param->name, IFACE_NETNAME)) {
+			log_error("Can not update interface binding "
+				  "from hwaddress to net_ifacename. "
+				  "You must delete the interface and "
+				  "create a new one");
+			return ISCSI_ERR_INVAL;
+		}
+
+		if (iface_is_bound_by_netdev(&rec->iface) &&
+		    !strcmp(param->name, IFACE_HWADDR)) {
+			log_error("Can not update interface binding "
+				  "from net_ifacename to hwaddress. "
+				  "You must delete the interface and "
+				  "create a new one");
+			return ISCSI_ERR_INVAL;
+		}
+	}
+	return 0;
+}
+
 /* TODO: merge iter helpers and clean them up, so we can use them here */
 static int exec_iface_op(int op, int do_show, int info_level,
 			 struct iface_rec *iface, uint32_t host_no,
-			 char *name, char *value)
+			 struct list_head *params)
 {
 	struct host_info hinfo;
-	struct db_set_param set_param;
 	struct node_rec *rec = NULL;
 	int rc = 0;
 
@@ -1500,7 +1532,7 @@ delete_fail:
 			  iscsi_err_to_str(rc));
 		break;
 	case OP_UPDATE:
-		if (!iface || !name || !value) {
+		if (!iface || list_empty(params)) {
 			log_error("Update requires name, value, and iface.");
 			rc = ISCSI_ERR_INVAL;
 			break;
@@ -1518,42 +1550,16 @@ delete_fail:
 				    "sessions then log back in for the "
 				    "new settings to take affect.");
 
-		if (!strcmp(name, IFACE_ISCSINAME)) {
-			log_error("Can not update "
-				  "iface.iscsi_ifacename. Delete it, "
-				  "and then create a new one.");
-			rc = ISCSI_ERR_INVAL;
+		rc = verify_iface_params(params, rec);
+		if (rc)
 			break;
-		}
-
-		if (iface_is_bound_by_hwaddr(&rec->iface) &&
-		    !strcmp(name, IFACE_NETNAME)) {
-			log_error("Can not update interface binding "
-				  "from hwaddress to net_ifacename. ");
-			log_error("You must delete the interface and "
-				  "create a new one");
-			rc = ISCSI_ERR_INVAL;
-			break;
-		}
-
-		if (iface_is_bound_by_netdev(&rec->iface) &&
-		    !strcmp(name, IFACE_HWADDR)) {
-			log_error("Can not update interface binding "
-				  "from net_ifacename to hwaddress. ");
-			log_error("You must delete the interface and "
-				  "create a new one");
-			rc = ISCSI_ERR_INVAL;
-			break;
-		}
-		set_param.name = name;
-		set_param.value = value;
 
 		/* pass rec's iface because it has the db values */
-		rc = iface_conf_update(&set_param, &rec->iface);
+		rc = iface_conf_update(params, &rec->iface);
 		if (rc)
 			goto update_fail;
 
-		rc = __for_each_matched_rec(0, rec, &set_param,
+		rc = __for_each_matched_rec(0, rec, params,
 					    idbm_node_set_param);
 		if (rc == ISCSI_ERR_NO_OBJS_FOUND)
 			rc = 0;
@@ -1636,14 +1642,62 @@ update_fail:
 	return rc;
 }
 
+static int verify_node_params(struct list_head *params, struct node_rec *rec)
+{
+	struct user_param *param;
+
+	if (list_empty(params)) {
+		log_error("update requires name and value");
+		return ISCSI_ERR_INVAL;
+	}
+
+	list_for_each_entry(param, params, list) {
+		/* compat - old tools used node and iface transport name */
+		if (!strncmp(param->name, "iface.", 6) &&
+		     strcmp(param->name, "iface.transport_name")) {
+			log_error("Cannot modify %s. Use iface mode to update "
+				  "this value.", param->name);
+			return ISCSI_ERR_INVAL;
+		}
+
+		if (!strcmp(param->name, "node.transport_name")) {
+			free(param->name);
+			param->name = strdup("iface.transport_name");
+			if (!param->name) {
+				log_error("Could not allocate memory for "
+					  "param.");
+				return ISCSI_ERR_NOMEM;
+			}
+		}
+		/*
+		 * tmp hack - we added compat crap above for the transport,
+		 * but want to fix Doran's issue in this release too. However
+		 * his patch is too harsh on many settings and we do not have
+		 * time to update apps so we have this tmp hack until we
+		 * can settle on a good interface that distros can use
+		 * and we can mark stable.
+		 */
+		if (!strcmp(param->name, "iface.transport_name")) {
+			if (iscsi_check_for_running_session(rec)) {
+				log_warning("Cannot modify node/iface "
+					    "transport name while a session "
+					    "is using it. Log out the session "
+					    "then update record.");
+				return ISCSI_ERR_SESS_EXISTS;
+			}
+		}
+	}
+
+	return 0;
+}
+
 /* TODO cleanup arguments */
 static int exec_node_op(int op, int do_login, int do_logout,
 			int do_show, int do_rescan, int do_stats,
 			int info_level, struct node_rec *rec,
-			char *name, char *value)
+			struct list_head *params)
 {
 	int rc = 0;
-	struct db_set_param set_param;
 
 	if (rec)
 		log_debug(2, "%s: %s:%s node [%s,%s,%d] sid %u", __FUNCTION__,
@@ -1706,46 +1760,11 @@ static int exec_node_op(int op, int do_login, int do_logout,
 	}
 
 	if (op == OP_UPDATE) {
-		if (!name || !value) {
-			log_error("update requires name and value");
-			rc = ISCSI_ERR_INVAL;
+		rc = verify_node_params(params, rec);
+		if (rc)
 			goto out;
-		}
 
-		/* compat - old tools used node and iface transport name */
-		if (!strncmp(name, "iface.", 6) &&
-		     strcmp(name, "iface.transport_name")) {
-			log_error("Cannot modify %s. Use iface mode to update "
-				  "this value.", name);
-			rc = ISCSI_ERR_INVAL;
-			goto out;
-		}
-
-		if (!strcmp(name, "node.transport_name"))
-			name = "iface.transport_name";
-		/*
-		 * tmp hack - we added compat crap above for the transport,
-		 * but want to fix Doran's issue in this release too. However
-		 * his patch is too harsh on many settings and we do not have
-		 * time to update apps so we have this tmp hack until we
-		 * can settle on a good interface that distros can use
-		 * and we can mark stable.
-		 */
-		if (!strcmp(name, "iface.transport_name")) {
-			if (iscsi_check_for_running_session(rec)) {
-				log_warning("Cannot modify node/iface "
-					    "transport name while a session "
-					    "is using it. Log out the session "
-					    "then update record.");
-				rc = ISCSI_ERR_SESS_EXISTS;
-				goto out;
-			}
-		}
-
-		set_param.name = name;
-		set_param.value = value;
-
-		rc = for_each_matched_rec(rec, &set_param, idbm_node_set_param);
+		rc = for_each_matched_rec(rec, params, idbm_node_set_param);
 		goto out;
 	} else if (op == OP_DELETE) {
 		rc = for_each_matched_rec(rec, NULL, delete_node);
@@ -2000,7 +2019,7 @@ static int exec_discover(int disc_type, char *ip, int port,
 
 static int exec_disc2_op(int disc_type, char *ip, int port,
 			 struct list_head *ifaces, int info_level, int do_login,
-			 int do_discover, int op, char *name, char *value,
+			 int do_discover, int op, struct list_head *params,
 			 int do_show)
 {
 	struct discovery_rec drec;
@@ -2079,16 +2098,12 @@ do_db_op:
 		if (rc)
 			log_error("Unable to delete record!");
 	} else if (op == OP_UPDATE) {
-		struct db_set_param set_param;
-
-		if (!name || !value) {
+		if (list_empty(params)) {
 			log_error("Update requires name and value.");
 			rc = ISCSI_ERR_INVAL;
 			goto done;
 		}
-		set_param.name = name;
-		set_param.value = value;
-		rc = idbm_discovery_set_param(&set_param, &drec);
+		rc = idbm_discovery_set_param(params, &drec);
 	} else {
 		log_error("Operation is not supported.");
 		rc = ISCSI_ERR_INVAL;
@@ -2100,7 +2115,7 @@ done:
 
 static int exec_disc_op(int disc_type, char *ip, int port,
 			struct list_head *ifaces, int info_level, int do_login,
-			int do_discover, int op, char *name, char *value,
+			int do_discover, int op, struct list_head *params,
 			int do_show)
 {
 	struct discovery_rec drec;
@@ -2392,7 +2407,10 @@ main(int argc, char **argv)
 	struct iface_rec *iface = NULL, *tmp;
 	struct node_rec *rec = NULL;
 	uint32_t host_no = -1;
+	struct user_param *param;
+	struct list_head params;
 
+	INIT_LIST_HEAD(&params);
 	INIT_LIST_HEAD(&ifaces);
 	/* do not allow ctrl-c for now... */
 	memset(&sa_old, 0, sizeof(struct sigaction));
@@ -2534,6 +2552,18 @@ main(int argc, char **argv)
 		case 'h':
 			usage(0);
 		}
+
+		if (name && value) {
+			param = idbm_alloc_user_param(name, value);
+			if (!param) {
+				log_error("Cannot allocate memory for params.");
+				rc = ISCSI_ERR_NOMEM;
+				goto free_ifaces;
+			}
+			list_add_tail(&param->list, &params);
+			name = NULL;
+			value = NULL;
+		}
 	}
 
 	if (optopt) {
@@ -2620,7 +2650,7 @@ main(int argc, char **argv)
 					  ping_interval);
 		else
 			rc = exec_iface_op(op, do_show, info_level, iface,
-					   host_no, name, value);
+					   host_no, &params);
 
 		break;
 	case MODE_DISCOVERYDB:
@@ -2632,7 +2662,7 @@ main(int argc, char **argv)
 		}
 
 		rc = exec_disc2_op(type, ip, port, &ifaces, info_level,
-				   do_login, do_discover, op, name, value,
+				   do_login, do_discover, op, &params,
 				   do_show);
 		break;
 	case MODE_DISCOVERY:
@@ -2644,7 +2674,7 @@ main(int argc, char **argv)
 		}
 
 		rc = exec_disc_op(type, ip, port, &ifaces, info_level,
-				  do_login, do_discover, op, name, value,
+				  do_login, do_discover, op, &params,
 				  do_show);
 		break;
 	case MODE_NODE:
@@ -2688,7 +2718,7 @@ main(int argc, char **argv)
 
 		rc = exec_node_op(op, do_login, do_logout, do_show,
 				  do_rescan, do_stats, info_level, rec,
-				  name, value);
+				  &params);
 		break;
 	case MODE_SESSION:
 		if ((rc = verify_mode_params(argc, argv,
@@ -2758,7 +2788,7 @@ main(int argc, char **argv)
 			/* drop down to node ops */
 			rc = exec_node_op(op, do_login, do_logout, do_show,
 					  do_rescan, do_stats, info_level,
-					  rec, name, value);
+					  rec, &params);
 free_info:
 			free(info);
 			goto out;
@@ -2772,7 +2802,7 @@ free_info:
 			if (do_logout || do_rescan || do_stats) {
 				rc = exec_node_op(op, do_login, do_logout,
 						 do_show, do_rescan, do_stats,
-						 info_level, NULL, name, value);
+						 info_level, NULL, &params);
 				goto out;
 			}
 
