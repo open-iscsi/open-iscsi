@@ -21,12 +21,10 @@ ifeq ($(OSNAME),Linux)
 	endif
 	endif
 IPC_OBJ=netlink.o
-DCB_OBJ=dcb_app.o
 else
 ifeq ($(OSNAME),FreeBSD)
 IPC_CFLAGS=
 IPC_OBJ=ioctl.o
-DCB_OBJ=
 endif
 endif
 
@@ -42,7 +40,7 @@ SYSDEPS_SRCS = $(wildcard ../utils/sysdeps/*.o)
 ISCSI_LIB_SRCS = iscsi_util.o io.o auth.o iscsi_timer.o login.o log.o md5.o \
 	sha1.o iface.o idbm.o sysfs.o host.o session_info.o iscsi_sysfs.o \
 	iscsi_net_util.o iscsid_req.o transport.o iser.o cxgbi.o be2iscsi.o \
-	initiator_common.o iscsi_err.o $(IPC_OBJ)  $(SYSDEPS_SRCS) $(DCB_OBJ)
+	initiator_common.o iscsi_err.o $(IPC_OBJ)  $(SYSDEPS_SRCS)
 # core initiator files
 INITIATOR_SRCS = initiator.o scsi.o actor.o event_poll.o mgmt_ipc.o kern_err_table.o
 
