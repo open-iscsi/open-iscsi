@@ -33,7 +33,7 @@ endif
 OPTFLAGS ?= -O2 -g
 WARNFLAGS ?= -Wall -Wstrict-prototypes
 CFLAGS += $(OPTFLAGS) $(WARNFLAGS) -I../include -I. -I../utils/open-isns \
-				-l kmod -D$(OSNAME) $(IPC_CFLAGS)
+				-D$(OSNAME) $(IPC_CFLAGS)
 PROGRAMS = iscsid iscsiadm iscsistart
 
 # libc compat files
