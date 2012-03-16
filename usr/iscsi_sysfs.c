@@ -532,6 +532,12 @@ static int iscsi_sysfs_read_iface(struct iface_rec *iface, int host_no,
 		ret = 0;
 	}
 
+	sysfs_get_str(host_id, ISCSI_HOST_SUBSYS, "port_state",
+		      iface->port_state, sizeof(iface->port_state));
+
+	sysfs_get_str(host_id, ISCSI_HOST_SUBSYS, "port_speed",
+		      iface->port_speed, sizeof(iface->port_speed));
+
 	/*
 	 * this is on the session, because we support multiple bindings
 	 * per device.
