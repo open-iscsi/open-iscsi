@@ -1150,6 +1150,23 @@ static uint32_t get_target_no_from_sid(uint32_t sid, int *err)
 
 }
 
+int iscsi_sysfs_is_transport_loaded(char *transport_name)
+{
+	struct iscsi_transport *t;
+
+	/* sync up kernel and userspace */
+	read_transports();
+
+	/* check if the transport is loaded and matches */
+	list_for_each_entry(t, &transports, list) {
+		if (t->handle && !strncmp(t->name, transport_name,
+					  ISCSI_TRANSPORT_NAME_MAXLEN))
+			return 1;
+	}
+
+	return 0;
+}
+
 struct iscsi_transport *iscsi_sysfs_get_transport_by_name(char *transport_name)
 {
 	struct iscsi_transport *t;
@@ -1157,8 +1174,7 @@ struct iscsi_transport *iscsi_sysfs_get_transport_by_name(char *transport_name)
 
 retry:
 	/* sync up kernel and userspace */
-	if (read_transports())
-		return NULL;
+	read_transports();
 
 	/* check if the transport is loaded and matches */
 	list_for_each_entry(t, &transports, list) {

@@ -226,6 +226,9 @@ int transport_load_kmod(char *transport_name)
 	else
 		cmdline[2] = transport_name;
 
+	if (iscsi_sysfs_is_transport_loaded(cmdline[2]))
+		return 0;
+
 	pid = fork();
 	if (pid == 0) {
 		if (execv("/sbin/modprobe", cmdline) < 0) {

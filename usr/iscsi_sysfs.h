@@ -88,6 +88,7 @@ extern struct iscsi_transport *iscsi_sysfs_get_transport_by_hba(uint32_t host_no
 extern struct iscsi_transport *iscsi_sysfs_get_transport_by_session(char *sys_session);
 extern struct iscsi_transport *iscsi_sysfs_get_transport_by_sid(uint32_t sid);
 extern struct iscsi_transport *iscsi_sysfs_get_transport_by_name(char *transport_name);
+extern int iscsi_sysfs_is_transport_loaded(char *transport_name);
 extern int iscsi_sysfs_session_supports_nop(int sid);
 extern int iscsi_sysfs_session_user_created(int sid);
 
