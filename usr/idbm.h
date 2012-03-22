@@ -142,7 +142,8 @@ extern int idbm_discovery_read(discovery_rec_t *rec, int type, char *addr,
 extern int idbm_rec_read(node_rec_t *out_rec, char *target_name,
 			 int tpgt, char *addr, int port,
 			 struct iface_rec *iface);
-extern int idbm_parse_param(char *param, struct node_rec *rec);
+extern int idbm_node_set_rec_from_param(struct list_head *params,
+					node_rec_t *rec, int verify);
 extern int idbm_node_set_param(void *data, node_rec_t *rec);
 extern int idbm_discovery_set_param(void *data, discovery_rec_t *rec);
 struct user_param *idbm_alloc_user_param(char *name, char *value);

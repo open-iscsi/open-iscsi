@@ -2354,38 +2354,6 @@ idbm_slp_defaults(struct iscsi_slp_config *cfg)
 	       sizeof(struct iscsi_slp_config));
 }
 
-int idbm_parse_param(char *param, struct node_rec *rec)
-{
-	char *name, *value;
-	recinfo_t *info;
-	int rc;
-
-	name = param;
-
-	value = strchr(param, '=');
-	if (!value) {
-		log_error("Invalid --param %s. Missing setting.\n", param);
-		return ISCSI_ERR_INVAL;
-	}
-	*value = '\0';
-	value++;
-
-	info = idbm_recinfo_alloc(MAX_KEYS);
-	if (!info) {
-		log_error("Could not allocate memory to setup params.\n");
-		return ISCSI_ERR_NOMEM;
-	}
-
-	idbm_recinfo_node(rec, info);
-
-	rc = idbm_rec_update_param(info, name, value, 0);
-	if (rc)
-		log_error("Could not set %s to %s. Check that %s is a "
-			  "valid parameter.\n", name, value, name);
-	free(info);
-	return rc;
-}
-
 struct user_param *idbm_alloc_user_param(char *name, char *value)
 {
 	struct user_param *param;
@@ -2413,12 +2381,15 @@ free_param:
 	return NULL;
 }
 
-int idbm_node_set_param(void *data, node_rec_t *rec)
+int idbm_node_set_rec_from_param(struct list_head *params, node_rec_t *rec,
+				 int verify)
 {
-	struct list_head *params = data;
 	struct user_param *param;
 	recinfo_t *info;
 	int rc = 0;
+
+	if (list_empty(params))
+		return 0;
 
 	info = idbm_recinfo_alloc(MAX_KEYS);
 	if (!info)
@@ -2426,10 +2397,12 @@ int idbm_node_set_param(void *data, node_rec_t *rec)
 
 	idbm_recinfo_node(rec, info);
 
-	list_for_each_entry(param, params, list) {
-		rc = idbm_verify_param(info, param->name);
-		if (rc)
-			goto free_info;
+	if (verify) {
+		list_for_each_entry(param, params, list) {
+			rc = idbm_verify_param(info, param->name);
+			if (rc)
+				goto free_info;
+		}
 	}
 
 	list_for_each_entry(param, params, list) {
@@ -2438,13 +2411,20 @@ int idbm_node_set_param(void *data, node_rec_t *rec)
 			goto free_info;
 	}
 
-	rc = idbm_rec_write(rec);
-	if (rc)
-		goto free_info;
-
 free_info:
 	free(info);
 	return rc;
+}
+
+int idbm_node_set_param(void *data, node_rec_t *rec)
+{
+	int rc;
+
+	rc = idbm_node_set_rec_from_param(data, rec, 1);
+	if (rc)
+		return rc;
+
+	return idbm_rec_write(rec);
 }
 
 int idbm_discovery_set_param(void *data, discovery_rec_t *rec)

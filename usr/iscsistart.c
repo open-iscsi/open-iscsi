@@ -58,11 +58,6 @@ static node_rec_t config_rec;
 static LIST_HEAD(targets);
 static LIST_HEAD(user_params);
 
-struct user_param {
-	struct list_head list;
-	char *param_string;
-};
-
 static char program_name[] = "iscsistart";
 
 /* used by initiator */
@@ -136,7 +131,6 @@ static int stop_event_loop(void)
 
 static int apply_params(struct node_rec *rec)
 {
-	struct user_param *param;
 	int rc;
 
 	/* Must init this so we can check if user overrode them */
@@ -144,11 +138,9 @@ static int apply_params(struct node_rec *rec)
 	rec->conn[0].timeo.noop_out_interval = -1;
 	rec->conn[0].timeo.noop_out_timeout = -1;
 
-	list_for_each_entry(param, &user_params, list) {
-		rc = idbm_parse_param(param->param_string, rec);
-		if (rc)
-			return rc;
-	}
+	rc = idbm_node_set_rec_from_param(&user_params, rec, 0);
+	if (rc)
+		return rc;
 
 	/*
 	 * For root boot we could not change this in older versions so
@@ -167,23 +159,32 @@ static int apply_params(struct node_rec *rec)
 	return 0;
 }
 
-static int alloc_param(char *param_string)
+static int parse_param(char *param_str)
 {
 	struct user_param *param;
+	char *name, *value;
 
-	param = calloc(1, sizeof(*param));
+	name = param_str;
+
+	value = strchr(param_str, '=');
+	if (!value) {
+		log_error("Invalid --param %s. Missing value.", param_str);
+		return ISCSI_ERR_INVAL;
+	}
+	*value = '\0';
+
+	value++;
+	if (!strlen(value)) {
+		log_error("Invalid --param %s. Missing value.", param_str);
+		return ISCSI_ERR_INVAL;
+	}
+
+	param = idbm_alloc_user_param(name, value);
 	if (!param) {
-		printf("Could not allocate for param.\n");
+		log_error("Could not allocate memory for param.");
 		return ISCSI_ERR_NOMEM;
 	}
 
-	INIT_LIST_HEAD(&param->list);
-	param->param_string = strdup(param_string);
-	if (!param->param_string) {
-		printf("Could not allocate for param.\n");
-		free(param);
-		return ISCSI_ERR_NOMEM;
-	}
 	list_add(&param->list, &user_params);
 	return 0;
 }
@@ -397,7 +398,7 @@ int main(int argc, char *argv[])
 			fw_free_targets(&targets);
 			exit(0);
 		case 'P':
-			err = alloc_param(optarg);
+			err = parse_param(optarg);
 			if (err)
 				exit(err);
 			break;
