@@ -306,4 +306,57 @@ done:
 	return ret;
 }
 
+/**
+ * net_ifup_netdev - bring up network interface
+ * @netdev: netdevice to bring up.
+ */
+int net_ifup_netdev(char *netdev)
+{
+	struct ifreq ifr;
+	int sock;
+	int ret = 0;
+
+	if (!strlen(netdev)) {
+		log_error("No netdev name in fw entry.\n");
+		return EINVAL;
+	}		
+
+	/* Create socket for making networking changes */
+	if ((sock = socket(AF_INET, SOCK_DGRAM, 0)) == -1) {
+		log_error("Could not open socket to manage network "
+			  "(err %d - %s)", errno, strerror(errno));
+		return errno;
+	}
+
+	memset(&ifr, 0, sizeof(ifr));
+	strncpy(ifr.ifr_name, netdev, IFNAMSIZ);
+	if (ioctl(sock, SIOCSIFFLAGS, &ifr) < 0) {
+		log_error("Could not bring up netdev %s (err %d - %s)",
+			  netdev, errno, strerror(errno));
+		ret = errno;
+		goto done;
+	}
+
+	if (ifr.ifr_flags & IFF_UP) {
+		log_debug(3, "%s up\n", netdev);
+		goto done;
+	}
+
+	log_debug(3, "bringing %s up\n", netdev);
+
+	/* Bring up interface */
+	memset(&ifr, 0, sizeof(ifr));
+	strncpy(ifr.ifr_name, netdev, IFNAMSIZ);
+	ifr.ifr_flags = IFF_UP;
+	if (ioctl(sock, SIOCSIFFLAGS, &ifr) < 0) {
+		log_error("Could not bring up netdev %s (err %d - %s)",
+			  netdev, errno, strerror(errno));
+		ret = errno;
+		goto done;
+	}
+done:
+	close(sock);
+	return ret;
+}
+
 

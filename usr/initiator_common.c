@@ -35,6 +35,7 @@
 #include "host.h"
 #include "sysdeps.h"
 #include "iscsi_err.h"
+#include "iscsi_net_util.h"
 
 struct iscsi_session *session_find_by_sid(uint32_t sid)
 {
@@ -566,6 +567,8 @@ int iscsi_host_set_net_params(struct iface_rec *iface,
 {
 	struct iscsi_transport *t = session->t;
 	int rc = 0;
+	char *netdev;
+	struct host_info hinfo;
 
 	log_debug(3, "setting iface %s, dev %s, set ip %s, hw %s, "
 		  "transport %s.\n",
@@ -581,6 +584,21 @@ int iscsi_host_set_net_params(struct iface_rec *iface,
 			    "then retry the login command.\n", iface->name);
 		return EINVAL;
 	}
+
+	/* these type of drivers need the netdev upd */
+	if (strlen(iface->netdev))
+		netdev = iface->netdev;
+	else {
+		memset(&hinfo, 0, sizeof(hinfo));
+		hinfo.host_no = session->hostno;
+		iscsi_sysfs_get_hostinfo_by_host_no(&hinfo);
+
+		netdev = hinfo.iface.netdev;
+	}
+
+	if (net_ifup_netdev(netdev))
+		log_warning("Could not brining up netdev %s. Try running "
+			    "'ifup %s' first if login fails.", netdev, netdev);
 
 	rc = host_set_param(t, session->hostno,
 			    ISCSI_HOST_PARAM_IPADDRESS,
