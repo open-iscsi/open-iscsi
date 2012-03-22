@@ -893,7 +893,8 @@ void iface_link_ifaces(struct list_head *ifaces)
 int iface_setup_from_boot_context(struct iface_rec *iface,
 				   struct boot_context *context)
 {
-	struct iscsi_transport *t;
+	struct iscsi_transport *t = NULL;
+	char transport_name[ISCSI_TRANSPORT_NAME_MAXLEN];
 	uint32_t hostno;
 
 	if (strlen(context->initiatorname))
@@ -909,6 +910,13 @@ int iface_setup_from_boot_context(struct iface_rec *iface,
 	} else if (strlen(context->iface)) {
 /* this ifdef is only temp until distros and firmwares are updated */
 #ifdef OFFLOAD_BOOT_SUPPORTED
+
+		memset(transport_name, 0, ISCSI_TRANSPORT_NAME_MAXLEN);
+		/* make sure offload driver is loaded */
+		if (!net_get_transport_name_from_netdev(context->iface,
+							transport_name))
+			t = iscsi_sysfs_get_transport_by_name(transport_name);
+
 		hostno = iscsi_sysfs_get_host_no_from_hwaddress(context->mac,
 								&rc);
 		if (rc) {
@@ -932,7 +940,8 @@ int iface_setup_from_boot_context(struct iface_rec *iface,
 	/*
 	 * set up for access through a offload card.
 	 */
-	t = iscsi_sysfs_get_transport_by_hba(hostno);
+	if (!t)
+		t = iscsi_sysfs_get_transport_by_hba(hostno);
 	if (!t) {
 		log_error("Could not get transport for host%u. "
 			  "Make sure the iSCSI driver is loaded.",
