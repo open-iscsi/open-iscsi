@@ -1116,23 +1116,22 @@ do_sendtargets(discovery_rec_t *drec, struct list_head *ifaces,
 			free(iface);
 			continue;
 		}
+		/* check for transport name first to make sure it is loaded */
+		t = iscsi_sysfs_get_transport_by_name(iface->transport_name);
+		if (!t) {
+			log_error("Could not load transport %s."
+				  "Dropping interface %s.",
+				   iface->transport_name, iface->name);
+			list_del(&iface->list);
+			free(iface);
+			continue;
+		}
+
 		host_no = iscsi_sysfs_get_host_no_from_hwinfo(iface, &rc);
 		if (rc || host_no == -1) {
 			log_debug(1, "Could not match iface" iface_fmt " to "
 				  "host.", iface_str(iface)); 
 			/* try software iscsi */
-			continue;
-		}
-
-		t = iscsi_sysfs_get_transport_by_hba(host_no);
-		if (!t) {
-			log_error("Could not match hostno %d to "
-				  "transport. Dropping interface %s,"
-				   iface_fmt " ,%s.",
-				   host_no, iface->transport_name,
-				   iface_str(iface), iface->ipaddress);
-			list_del(&iface->list);
-			free(iface);
 			continue;
 		}
 
