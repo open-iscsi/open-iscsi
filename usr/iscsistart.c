@@ -40,6 +40,7 @@
 #include "log.h"
 #include "iscsi_util.h"
 #include "idbm.h"
+#include "idbm_fields.h"
 #include "version.h"
 #include "iscsi_sysfs.h"
 #include "iscsi_settings.h"
@@ -48,6 +49,7 @@
 #include "sysdeps.h"
 #include "iscsid_req.h"
 #include "iscsi_err.h"
+#include "iface.h"
 
 /* global config info */
 /* initiator needs initiator name/alias */
@@ -131,12 +133,38 @@ static int stop_event_loop(void)
 
 static int apply_params(struct node_rec *rec)
 {
+	struct user_param *param;
 	int rc;
 
 	/* Must init this so we can check if user overrode them */
 	rec->session.initial_login_retry_max = -1;
 	rec->conn[0].timeo.noop_out_interval = -1;
 	rec->conn[0].timeo.noop_out_timeout = -1;
+
+	list_for_each_entry(param, &user_params, list) {
+		/*
+		 * user may not have passed in all params that were set by
+		 * ibft/iscsi_boot, so clear out values that might conflict
+		 * with user overrides
+		 */
+		if (!strcmp(param->name, IFACE_NETNAME)) {
+			/* overriding netname so MAC will be for old netdev */
+			memset(rec->iface.hwaddress, 0,
+				sizeof(rec->iface.hwaddress));
+		} else if (!strcmp(param->name, IFACE_HWADDR)) {
+			/* overriding MAC so netdev will be for old MAC */
+			memset(rec->iface.netdev, 0, sizeof(rec->iface.netdev));
+		} else if (!strcmp(param->name, IFACE_TRANSPORTNAME)) {
+			/*
+			 * switching drivers so all old binding info is no
+			 * longer valid. Old values were either for offload
+			 * and we are switching to software or the reverse,
+			 * or switching types of cards (bnx2i to cxgb3i).
+			 */
+			memset(&rec->iface, 0, sizeof(rec->iface));
+			iface_setup_defaults(&rec->iface);
+		}
+	}
 
 	rc = idbm_node_set_rec_from_param(&user_params, rec, 0);
 	if (rc)
