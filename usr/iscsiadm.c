@@ -2240,6 +2240,8 @@ static uint32_t parse_host_info(char *optarg, int *rc)
 
 	*rc = 0;
 	if (strstr(optarg, ":")) {
+		transport_probe_for_offload();
+
 		host_no = iscsi_sysfs_get_host_no_from_hwaddress(optarg,
 								 &err);
 		if (err) {

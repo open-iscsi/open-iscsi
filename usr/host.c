@@ -295,6 +295,7 @@ int host_info_print(int info_level, uint32_t host_no)
 			break;
 		}
 
+		transport_probe_for_offload();
 		err = iscsi_sysfs_for_each_host(&flags, &num_found,
 						host_info_print_tree);
 		break;
