@@ -96,10 +96,18 @@ str_to_ipport(char *str, int *port, int *tpgt)
 			*sport++ = '\0';
 			ip++;
 			str = sport;
-		} else if (!strchr(ip, ':'))
-			/* IPv6 no brackets and no port */
-			sport = NULL;
-		/* else hostname with domain info */
+		} else {
+			/* hostname or ipv6 */
+			sport = strchr(ip, ':');
+			if (sport) {
+				if (strchr(sport + 1, ':'))
+					/* ipv6 */
+					sport = NULL;
+				else
+					/* hostname:port */
+					str = sport;
+			}
+		}
 	}
 
 	if (sport && (sport = strchr(str, ':'))) {
