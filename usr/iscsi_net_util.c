@@ -330,7 +330,7 @@ int net_ifup_netdev(char *netdev)
 
 	memset(&ifr, 0, sizeof(ifr));
 	strncpy(ifr.ifr_name, netdev, IFNAMSIZ);
-	if (ioctl(sock, SIOCSIFFLAGS, &ifr) < 0) {
+	if (ioctl(sock, SIOCGIFFLAGS, &ifr) < 0) {
 		log_error("Could not bring up netdev %s (err %d - %s)",
 			  netdev, errno, strerror(errno));
 		ret = errno;
