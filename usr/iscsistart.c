@@ -225,7 +225,7 @@ static int login_session(struct node_rec *rec)
 
 	rc = apply_params(rec);
 	if (rc)
-		exit(rc);
+		return rc;
 
 	printf("%s: Logging into %s %s:%d,%d\n", program_name, rec->name,
 		rec->conn[0].address, rec->conn[0].port,
