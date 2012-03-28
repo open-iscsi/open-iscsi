@@ -110,6 +110,7 @@ static struct option const long_options[] =
 	{"ip", required_argument, NULL, 'a'},
 	{"packetsize", required_argument, NULL, 'b'},
 	{"count", required_argument, NULL, 'c'},
+	{"interval", required_argument, NULL, 'i'},
 	{NULL, 0, NULL, 0},
 };
 static char *short_options = "RlDVhm:a:b:c:C:p:P:T:H:i:I:U:k:L:d:r:n:v:o:sSt:u";
