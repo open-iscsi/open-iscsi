@@ -844,7 +844,7 @@ iscsi_alloc_session(struct iscsi_sendtargets_config *config,
 	session->isid[4] = 0;
 	session->isid[5] = 0;
 
-	if (iface && strlen(iface->iname)) {
+	if (strlen(iface->iname)) {
 		strcpy(initiator_name, iface->iname);
 		/* MNC TODO add iface alias */
 	} else {
