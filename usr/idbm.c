@@ -599,14 +599,12 @@ int idbm_rec_update_param(recinfo_t *info, char *name, char *value,
 	int i;
 	int passwd_done = 0;
 	char passwd_len[8];
-	int found = 0;
 
 setup_passwd_len:
 	for (i=0; i<MAX_KEYS; i++) {
 		if (!strcmp(name, info[i].name)) {
 			int j;
 
-			found = 1;
 			log_debug(7, "updated '%s', '%s' => '%s'", name,
 				  info[i].value, value);
 			/* parse recinfo by type */
@@ -660,9 +658,6 @@ setup_passwd_len:
 			break;
 		}
 	}
-
-	if (!found)
-		log_error("Unknown parameter %s.", name);
 
 	return ISCSI_ERR_INVAL;
 
@@ -2413,8 +2408,11 @@ int idbm_node_set_rec_from_param(struct list_head *params, node_rec_t *rec,
 
 	list_for_each_entry(param, params, list) {
 		rc = idbm_rec_update_param(info, param->name, param->value, 0);
-		if (rc)
+		if (rc) {
+			if (rc == ISCSI_ERR_INVAL)
+				log_error("Unknown parameter %s.", param->name);
 			goto free_info;
+		}
 	}
 
 free_info:
