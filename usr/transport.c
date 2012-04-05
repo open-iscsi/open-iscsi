@@ -148,6 +148,7 @@ int transport_probe_for_offload(void)
 
 		transport_load_kmod(transport_name);
 	}
+	close(sockfd);
 
 free_ifni:
 	if_freenameindex(ifni);
