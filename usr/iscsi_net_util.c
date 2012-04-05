@@ -228,7 +228,7 @@ int net_setup_netdev(char *netdev, char *local_ip, char *mask, char *gateway,
 
 		/* Bring up interface */
 		memset(&ifr, 0, sizeof(ifr));
-		strncpy(ifr.ifr_name, netdev, IFNAMSIZ);
+		strlcpy(ifr.ifr_name, netdev, IFNAMSIZ);
 		ifr.ifr_flags = IFF_UP | IFF_RUNNING;
 		if (ioctl(sock, SIOCSIFFLAGS, &ifr) < 0) {
 			log_error("Could not bring up netdev %s (err %d - %s)",
@@ -238,7 +238,7 @@ int net_setup_netdev(char *netdev, char *local_ip, char *mask, char *gateway,
 		}
 		/* Set IP address */
 		memset(&ifr, 0, sizeof(ifr));
-		strncpy(ifr.ifr_name, netdev, IFNAMSIZ);
+		strlcpy(ifr.ifr_name, netdev, IFNAMSIZ);
 		memcpy(&ifr.ifr_addr, &sk_ipaddr, sizeof(struct sockaddr));
 		if (ioctl(sock, SIOCSIFADDR, &ifr) < 0) {
 			log_error("Could not set ip for %s (err %d - %s)",
@@ -249,7 +249,7 @@ int net_setup_netdev(char *netdev, char *local_ip, char *mask, char *gateway,
 	
 		/* Set netmask */
 		memset(&ifr, 0, sizeof(ifr));
-		strncpy(ifr.ifr_name, netdev, IFNAMSIZ);
+		strlcpy(ifr.ifr_name, netdev, IFNAMSIZ);
 		memcpy(&ifr.ifr_addr, &sk_netmask, sizeof(struct sockaddr));
 		if (ioctl(sock, SIOCSIFNETMASK, &ifr) < 0) {
 			log_error("Could not set ip for %s (err %d - %s)",
@@ -329,7 +329,7 @@ int net_ifup_netdev(char *netdev)
 	}
 
 	memset(&ifr, 0, sizeof(ifr));
-	strncpy(ifr.ifr_name, netdev, IFNAMSIZ);
+	strlcpy(ifr.ifr_name, netdev, IFNAMSIZ);
 	if (ioctl(sock, SIOCGIFFLAGS, &ifr) < 0) {
 		log_error("Could not bring up netdev %s (err %d - %s)",
 			  netdev, errno, strerror(errno));
@@ -346,7 +346,7 @@ int net_ifup_netdev(char *netdev)
 
 	/* Bring up interface */
 	memset(&ifr, 0, sizeof(ifr));
-	strncpy(ifr.ifr_name, netdev, IFNAMSIZ);
+	strlcpy(ifr.ifr_name, netdev, IFNAMSIZ);
 	ifr.ifr_flags = IFF_UP;
 	if (ioctl(sock, SIOCSIFFLAGS, &ifr) < 0) {
 		log_error("Could not bring up netdev %s (err %d - %s)",
