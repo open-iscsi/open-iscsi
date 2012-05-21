@@ -6,7 +6,7 @@
  * This may not be the same value as the kernel versions because
  * some other maintainer could merge a patch without going through us
  */
-#define ISCSI_VERSION_STR	"2.0-872"
+#define ISCSI_VERSION_STR	"2.0-873"
 #define ISCSI_VERSION_FILE	"/sys/module/scsi_transport_iscsi/version"
 
 #endif

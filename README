@@ -4,7 +4,7 @@
 
 =================================================================
 
-                                                   July 1, 2010
+                                                   May 20, 2012
 Contents
 ========
 
@@ -79,29 +79,44 @@ kernel config. And you must enable "CRC32c CRC algorithm" even if
 you do not use header or data digests. They are the kernel options,
 CONFIG_CRYPTO and CONFIG_CRYPTO_CRC32C, respectively.
 
-By default the kernel source found at
+By default the kernel's iSCSI modules will be used. Running:
+
+	make
+	make install
+
+will install the iSCSI tools iscsiadm and iscsid to /sbin.
+
+For 2.6.14 - 2.6.34 the modules in the kernel dir can built and install
+by running:
+
+	make kernel
+
+When building those modules the kernel source found at
 /lib/modules/`uname -a`/build
 will be used to compile the open-iscsi modules. To specify a different
 kernel to build against use:
 
-	make KSRC=<kernel-src>
+	make kernel KSRC=<kernel-src>
 
 or cross-compilation:
 
-	make KSRC=<kernel-src> KARCH="ARCH=um"
+	make kernel KSRC=<kernel-src> KARCH="ARCH=um"
 
 To compile on SUSE Linux you'll have to use
 
-	make KSRC=/usr/src/linux \
+	make kernel KSRC=/usr/src/linux \
 	     KBUILD_OUTPUT=/usr/src/linux-obj/<arch>/<config>
 
 where <config> is the kernel configuration to use (eg. 'smp').
 
-For Red Hat/Fedora and Debian distributions open-iscsi can be installed by
-typing "make install". This will copy iscsid and iscsiadm to /usr/sbin, the
-init script to /etc/init.d, and the kernel modules: iscsi_tcp.ko,
-libiscsi_tcp.ko, libiscsi.ko and scsi_transport_iscsi to
-/lib/modules/`uname -r`/kernel/drivers/scsi/ overwriting existing iscsi modules.
+To install the kernel modules that were built run:
+
+	make install_kernel
+
+This will copy: iscsi_tcp.ko, libiscsi_tcp.ko, libiscsi.ko and
+scsi_transport_iscsi to
+/lib/modules/`uname -r`/kernel/drivers/scsi/
+overwriting existing iscsi modules.
 
 For Debian, be sure to install the linux-headers package that
 corresponds to your kernel in order to compile the kernel modules
