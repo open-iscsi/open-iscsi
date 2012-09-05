@@ -917,6 +917,10 @@ int iface_setup_from_boot_context(struct iface_rec *iface,
 							transport_name))
 			t = iscsi_sysfs_get_transport_by_name(transport_name);
 
+		if (net_ifup_netdev(context->iface))
+			log_warning("Could not bring up netdev %s for boot",
+				    context->iface);
+
 		hostno = iscsi_sysfs_get_host_no_from_hwaddress(context->mac,
 								&rc);
 		if (rc) {
