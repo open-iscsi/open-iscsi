@@ -962,6 +962,11 @@ int iface_setup_from_boot_context(struct iface_rec *iface,
 		sizeof(iface->hwaddress));
 	strlcpy(iface->ipaddress, context->ipaddr,
 		sizeof(iface->ipaddress));
+	iface->vlan_id = atoi(context->vlan);
+	strlcpy(iface->subnet_mask, context->mask,
+		sizeof(iface->subnet_mask));
+	strlcpy(iface->gateway, context->gateway,
+		sizeof(iface->gateway));
 	log_debug(1, "iface " iface_fmt "\n", iface_str(iface));
 	return 1;
 }
