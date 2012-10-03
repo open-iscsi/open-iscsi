@@ -740,7 +740,7 @@ int iscsi_sysfs_session_has_leadconn(uint32_t sid)
  * /sys/devices/platform/hostH/sessionS/targetH:B:I
  * /sys/devices/platform/hostH/sessionS
  *
- * return the sid S. If just the sid is passed in it will be covnerted
+ * return the sid S. If just the sid is passed in it will be converted
  * to a int.
  */
 int iscsi_sysfs_get_sid_from_path(char *session)
@@ -748,15 +748,16 @@ int iscsi_sysfs_get_sid_from_path(char *session)
 	struct sysfs_device *dev_parent, *dev;
 	struct stat statb;
 	char devpath[PATH_SIZE];
+	char *end;
+	int sid;
+
+	sid = strtol(session, &end, 10);
+	if (sid > 0 && *session != '\0' && *end == '\0')
+		return sid;
 
 	if (lstat(session, &statb)) {
-		log_debug(1, "Could not stat %s failed with %d",
-			  session, errno);
-		if (index(session, '/')) {
-			log_error("%s is an invalid session path\n", session);
-			exit(1);
-		}
-		return atoi(session);
+		log_error("%s is an invalid session ID or path\n", session);
+		exit(1);
 	}
 
 	if (!S_ISDIR(statb.st_mode) && !S_ISLNK(statb.st_mode)) {
