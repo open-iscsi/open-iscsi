@@ -159,15 +159,20 @@ Usage: iscsid [OPTION]
 5. Open-iSCSI Configuration Utility
 ===================================
 
-Open-iSCSI persistent configuration is implemented as a DBM database
-available on all Linux installations.
+Open-iSCSI persistent configuration is stored in a number of
+directories under a configuration root directory, using a flat-file
+format. This configuration root directory is /etc/iscsi by default,
+but may also commonly be in /var/lib/iscsi.
 
-The database contains two tables:
+Configuration is contained in directories for:
 
-- Discovery table (/etc/iscsi/send_targets);
-- Node table (/etc/iscsi/nodes).
-
-The regular place for iSCSI database files: /etc/iscsi/nodes
+- nodes
+- slp
+- isns
+- static
+- fw
+- send_targets
+- ifaces
 
 The iscsiadm utility is a command-line tool to manage (update, delete,
 insert, query) the persistent database.
