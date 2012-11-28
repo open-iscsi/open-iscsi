@@ -112,6 +112,7 @@ typedef int mgmt_ipc_fn_t(struct queue_task *);
 struct queue_task;
 void mgmt_ipc_write_rsp(struct queue_task *qtask, int err);
 int mgmt_ipc_listen(void);
+int mgmt_ipc_systemd(void);
 void mgmt_ipc_close(int fd);
 void mgmt_ipc_handle(int accept_fd);
 

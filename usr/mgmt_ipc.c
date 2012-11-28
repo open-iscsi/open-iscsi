@@ -39,6 +39,7 @@
 
 #define PEERUSER_MAX	64
 #define EXTMSG_MAX	(64 * 1024)
+#define SD_SOCKET_FDS_START 3
 
 int
 mgmt_ipc_listen(void)
@@ -46,6 +47,12 @@ mgmt_ipc_listen(void)
 	int fd, err, addr_len;
 	struct sockaddr_un addr;
 
+	/* first check if we have fd handled by systemd */
+	fd = mgmt_ipc_systemd();
+	if (fd >= 0)
+		return fd;
+
+	/* manually establish a socket */
 	fd = socket(AF_LOCAL, SOCK_STREAM, 0);
 	if (fd < 0) {
 		log_error("Can not create IPC socket");
@@ -71,6 +78,28 @@ mgmt_ipc_listen(void)
 	}
 
 	return fd;
+}
+
+int mgmt_ipc_systemd(void)
+{
+	const char *env;
+
+	env = getenv("LISTEN_PID");
+
+	if (!env || (strtoul(env, NULL, 10) != getpid()))
+		return -EINVAL;
+
+	env = getenv("LISTEN_FDS");
+
+	if (!env)
+		return -EINVAL;
+
+	if (strtoul(env, NULL, 10) != 1) {
+		log_error("Did not receive exactly one IPC socket from systemd");
+		return -EINVAL;
+	}
+
+	return SD_SOCKET_FDS_START;
 }
 
 void
