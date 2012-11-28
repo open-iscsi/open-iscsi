@@ -56,7 +56,7 @@ static void iscsid_startup(void)
 
 static int iscsid_connect(int *fd, int start_iscsid)
 {
-	int nsec;
+	int nsec, addr_len;
 	struct sockaddr_un addr;
 
 	*fd = socket(AF_LOCAL, SOCK_STREAM, 0);
@@ -65,15 +65,17 @@ static int iscsid_connect(int *fd, int start_iscsid)
 		return ISCSI_ERR_ISCSID_NOTCONN;
 	}
 
+	addr_len = offsetof(struct sockaddr_un, sun_path) + strlen(ISCSIADM_NAMESPACE) + 1;
+
 	memset(&addr, 0, sizeof(addr));
 	addr.sun_family = AF_LOCAL;
-	memcpy((char *) &addr.sun_path + 1, ISCSIADM_NAMESPACE,
-		strlen(ISCSIADM_NAMESPACE));
+	memcpy((char *) &addr.sun_path + 1, ISCSIADM_NAMESPACE, addr_len);
+
 	/*
 	 * Trying to connect with exponential backoff
 	 */
 	for (nsec = 1; nsec <= MAXSLEEP; nsec <<= 1) {
-		if (connect(*fd, (struct sockaddr *) &addr, sizeof(addr)) == 0)
+		if (connect(*fd, (struct sockaddr *) &addr, addr_len) == 0)
 			/* Connection established */
 			return ISCSI_SUCCESS;
 
