@@ -1133,17 +1133,55 @@ do_software_sendtargets(discovery_rec_t *drec, struct list_head *ifaces,
 	return rc;
 }
 
-static int
-do_sendtargets(discovery_rec_t *drec, struct list_head *ifaces,
-	       int info_level, int do_login, int op, int sync_drec)
+static int do_isns(discovery_rec_t *drec, struct list_head *ifaces,
+		   int info_level, int do_login, int op)
 {
+	struct list_head rec_list;
+	struct node_rec *rec, *tmp;
+	int rc;
+
+	INIT_LIST_HEAD(&rec_list);
+	/*
+	 * compat: if the user did not pass any op then we do all
+	 * ops for them
+	 */
+	if (!op)
+		op = OP_NEW | OP_DELETE | OP_UPDATE;
+
+
+	rc = idbm_bind_ifaces_to_nodes(discovery_isns, drec, ifaces,
+				       &rec_list);
+	if (rc) {
+		log_error("Could not perform iSNS discovery: %s",
+			  iscsi_err_to_str(rc));
+		return rc;
+	} else if (list_empty(&rec_list)) {
+		log_error("No portals found");
+		return ISCSI_ERR_NO_OBJS_FOUND;
+	}
+
+	rc = exec_disc_op_on_recs(drec, &rec_list, info_level, do_login, op);
+
+	list_for_each_entry_safe(rec, tmp, &rec_list, list) {
+		list_del(&rec->list);
+		free(rec);
+	}
+
+	return rc;
+}
+
+static int
+do_target_discovery(discovery_rec_t *drec, struct list_head *ifaces,
+		    int info_level, int do_login, int op, int sync_drec)
+{
+
 	struct iface_rec *tmp, *iface;
 	int rc, host_no;
 	struct iscsi_transport *t;
 
 	if (list_empty(ifaces)) {
 		ifaces = NULL;
-		goto sw_st;
+		goto sw_discovery;
 	}
 
 	/* we allow users to mix hw and sw iscsi so we have to sort it out */
@@ -1177,58 +1215,29 @@ do_sendtargets(discovery_rec_t *drec, struct list_head *ifaces,
 			continue;
 		}
 
-		if (t->caps & CAP_SENDTARGETS_OFFLOAD) {
-			do_offload_sendtargets(drec, host_no, do_login);
-			list_del(&iface->list);
-			free(iface);
-		}
+		if (drec->type ==  DISCOVERY_TYPE_SENDTARGETS)
+			if (t->caps & CAP_SENDTARGETS_OFFLOAD) {
+				do_offload_sendtargets(drec, host_no, do_login);
+				list_del(&iface->list);
+				free(iface);
+			}
 	}
 
 	if (list_empty(ifaces))
 		return ISCSI_ERR_NO_OBJS_FOUND;
 
-sw_st:
-	return do_software_sendtargets(drec, ifaces, info_level, do_login,
-				       op, sync_drec);
+sw_discovery:
+	switch (drec->type) {
+	case DISCOVERY_TYPE_SENDTARGETS:
+		return do_software_sendtargets(drec, ifaces, info_level,
+						do_login, op, sync_drec);
+	case DISCOVERY_TYPE_ISNS:
+		return do_isns(drec, ifaces, info_level, do_login, op);
+	default:
+		log_debug(1, "Unknown Discovery Type : %d\n", drec->type);
+	}
 }
 
-static int do_isns(discovery_rec_t *drec, struct list_head *ifaces,
-		   int info_level, int do_login, int op)
-{
-	struct list_head rec_list;
-	struct node_rec *rec, *tmp;
-	int rc;
-
-	INIT_LIST_HEAD(&rec_list);
-	/*
-	 * compat: if the user did not pass any op then we do all
-	 * ops for them
-	 */
-	if (!op)
-		op = OP_NEW | OP_DELETE | OP_UPDATE;
-
-	drec->type = DISCOVERY_TYPE_ISNS;
-
-	rc = idbm_bind_ifaces_to_nodes(discovery_isns, drec, ifaces,
-				       &rec_list);
-	if (rc) {
-		log_error("Could not perform iSNS discovery: %s",
-			  iscsi_err_to_str(rc));
-		return rc;
-	} else if (list_empty(&rec_list)) {
-		log_error("No portals found");
-		return ISCSI_ERR_NO_OBJS_FOUND;
-	}
-
-	rc = exec_disc_op_on_recs(drec, &rec_list, info_level, do_login, op);
-
-	list_for_each_entry_safe(rec, tmp, &rec_list, list) {
-		list_del(&rec->list);
-		free(rec);
-	}
-
-	return rc;
-}
 
 static int
 verify_mode_params(int argc, char **argv, char *allowed, int skip_m)
@@ -2394,15 +2403,9 @@ static int exec_discover(int disc_type, char *ip, int port,
 	rc = 0;
 	switch (disc_type) {
 	case DISCOVERY_TYPE_SENDTARGETS:
-		/*
-		 * idbm_add_discovery call above handles drec syncing so
-		 * we always pass in 0 here.
-		 */
-		rc = do_sendtargets(drec, ifaces, info_level, do_login, op,
-				    0);
-		break;
 	case DISCOVERY_TYPE_ISNS:
-		rc = do_isns(drec, ifaces, info_level, do_login, op);
+		rc = do_target_discovery(drec, ifaces, info_level, do_login, op,
+				    0);
 		break;
 	default:
 		log_error("Unsupported discovery type.");
@@ -2535,8 +2538,7 @@ static int exec_disc_op(int disc_type, char *ip, int port,
 		idbm_sendtargets_defaults(&drec.u.sendtargets);
 		strlcpy(drec.address, ip, sizeof(drec.address));
 		drec.port = port;
-
-		rc = do_sendtargets(&drec, ifaces, info_level,
+		rc = do_target_discovery(&drec, ifaces, info_level,
 				    do_login, op, 1);
 		if (rc)
 			goto done;
@@ -2559,7 +2561,9 @@ static int exec_disc_op(int disc_type, char *ip, int port,
 		else
 			drec.port = port;
 
-		rc = do_isns(&drec, ifaces, info_level, do_login, op);
+		drec.type = DISCOVERY_TYPE_ISNS;
+		rc = do_target_discovery(&drec, ifaces, info_level,
+					do_login, op, 0);
 		if (rc)
 			goto done;
 		break;
@@ -2590,8 +2594,9 @@ static int exec_disc_op(int disc_type, char *ip, int port,
 			}
 			if ((do_discover || do_login) &&
 			    drec.type == DISCOVERY_TYPE_SENDTARGETS) {
-				rc = do_sendtargets(&drec, ifaces, info_level,
-						    do_login, op, 0);
+				rc = do_target_discovery(&drec, ifaces,
+						info_level, do_login,
+						op, 0);
 			} else if (op == OP_NOOP || op == OP_SHOW) {
 				if (!idbm_print_discovery_info(&drec,
 							       do_show)) {
