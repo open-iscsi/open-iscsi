@@ -1,0 +1,10 @@
+/var/log/iscsiuio.log {
+    weekly
+    missingok
+    notifempty
+    rotate 4
+    sharedscripts
+    postrotate
+    pkill -USR1 iscsiuio 2> /dev/null || true
+    endscript
+}

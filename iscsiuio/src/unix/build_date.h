@@ -1,0 +1,1 @@
+char *build_date;

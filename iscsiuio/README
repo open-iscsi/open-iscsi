@@ -1,0 +1,225 @@
+Iscsiuio Userspace Tool
+Version 0.7.6.1g
+Jan 14, 2013
+------------------------------------------------------
+
+This tool is to be used in conjunction with the Broadcom NetXtreme II Linux
+driver (Kernel module name: 'bnx2' and 'bnx2x'), Broadcom CNIC driver,
+and the Broadcom iSCSI driver (Kernel module name: 'bnx2i').
+This user space tool is used in conjunction with the following
+Broadcom Network Controllers:
+  bnx2:  BCM5706, BCM5708, BCM5709 devices
+  bnx2x: BCM57710, BCM57711, BCM57711E, BCM57712, BCM57712E,
+         BCM57800, BCM57810, BCM57840 devices
+
+This utility will provide the ARP and DHCP functionality for the iSCSI offload.
+The communication to the driver is done via Userspace I/O (Kernel module name
+'uio').
+
+There is one component to this application:
+
+1.  'iscsiuio' - This is the daemon which aids in creating iSCSI offloaded
+                      connections.
+
+Dependencies:
+=======================================
+
+Linux Kernel Dependencies:
+1.  Broadcom CNIC driver (cnic)
+1.  Broadcom iSCSI offload driver (bnx2i)
+2.  Userspace I/O driver (uio)
+
+Directory Structure of this Package:
+=======================================
+
+<root>
+  |
+  +-doc (documentation directory: man pages)
+  |
+  +-src
+     |
+     +- uip - the uIP stack
+     |
+     +- unix - iscsiuio source
+
+
+
+Compiling / Installing
+=======================================
+
+1.  Please untar the tarball.
+2.  Run the configure script.  This will create the Makefiles and proper
+    header files needed for the build.
+3.  Run 'make'.  This will create the binary, 'iscsiuio'
+4.  Run 'make install' to place the binaries in their installed location.
+    (The default location is '/sbin')
+
+iscsid IFACE Configuration File:
+=======================================
+The network interface configuration files are driven by the iscsid iface
+files.  The configuration data is parsed by iscsid and passed to the uIP
+stack when the connection is established.
+
+One can use the following iscsiadm commands to create/set the configuration
+using the iface files:
+
+1.  Create the iface file:
+
+      iscsiadm -m iface -I <iface name> --op=new
+
+2.  Discover the targets associated with the new iface
+
+     iscsiadm -m discovery -t st -p <iSCSI target IP address> -I <iface name>
+
+3.  Update the iface file:
+
+  To use a static IPv4 address:
+      iscsiadm -m iface -I <iface name> --op=update --name=iface.ipaddress --value=<static IPv4 address ie: 192.168.0.1>
+
+  To use a DHCP address:
+      iscsiadm -m iface -I <iface name> --op=update --name=iface.ipaddress --value=0.0.0.0
+
+  The following values are required.
+
+  To specify the bnx2i as the transport:
+      iscsiadm -m iface -I <iface name> --op=update --name=iface.transport_name --value=bnx2i
+
+  To specify the network interface to offload with:
+
+  a.  Specify the physical network interface name <ie. eth0, eth1, eth2 ...>
+      iscsiadm -m iface -I <iface name> --op=update --name=iface.net_ifacename --value=<network interface name>
+
+  b.  Specify the iSCSI MAC address of the iSCSI HBA
+      iscsiadm -m iface -I <iface name> --op=update --name=iface.hwaddress --value=<MAC address of the iSCSI HBA>
+
+4.  Now all the settings should be set so that one could connect to their
+    desired iSCSI target.
+
+      iscsiadm -m node -p <iSCSI target IP address> -T <target name> -I <iface name> --login
+
+bnx2 Limitations:
+=======================================
+*  RX iSCSI ring:
+      *  default ring size is 3 entries
+      *  default buffer size is 0x400 bytes
+*  TX iSCSI ring:
+      *  default ring size of 1 entry
+      *  default buffer size is 0x400 bytes
+
+bnx2x Limitations:
+=======================================
+*  RX iSCSI ring:
+      *  default ring size is 15 entries
+      *  default buffer size is 0x400 bytes
+*  TX iSCSI ring:
+      *  default ring size of 1 entry
+      *  default buffer size is 0x400 bytes
+
+Other Limiations:
+
+Any packets larger then the buffer size will not be sent/received by the
+hardware and will be dropped.
+
+IPv6 support:
+
+IPv6 NDP (neighbor discovery protocol), DHCPv6 and Static IPv6 are now
+supported.  The IPv6 address used for the connection will be matched against
+the DHCPv6/static IPv6 address, the RA (router advertise) address, and the
+assigned link local address.
+
+VLAN support:
+
+VLAN support is only supported when using static IP addresses.
+Also, currently only 1 VLAN is supported per physical network interface.
+Either non-VLAN offloaded traffic is allowed or VLAN offloaded traffic
+is allowed.  The current implementation does not support both at the
+same time.
+
+Currently there is no explicit VLAN attributes in the iface file.
+To configure the VLAN offload, the iface.hwaddress attribute or
+physical net_ifacename (without the VLAN identifier) must be used
+to specify the HBA device.  For the proper CNIC routing, the
+corresponding L2 interface which has the associated VLAN interface must
+have an IP address on the same subnet.
+
+The following attributes need to be filled when offloading via the
+VLAN interface:
+
+	iface.iscsi_ifacename = <name of this iface file>
+	iface.hwaddress = XX:XX:XX:XX:XX:XX
+	iface.ipaddress = XX.XX.XX.XX
+	iface.transport_name = bnx2i
+
+Setting IP address:
+
+On RHEL5.4, RHEL5.5+, RHEL6.0+, and SLES11SP1 distributions,
+discovery login is done over the Linux TCP/IP stack and L2 network
+interface.  The ethx interface corresponding to the HBA must
+therefore be in the same IP subnet in order to reach the iSCSI
+target during discovery.  However, the HBA's IP address should not
+be the same as the L2 ethx's IP address.
+
+Starting with RHEL6.1 and all other newer distributions, discovery
+using SendTargets is done over the HBA interface, so there is no
+need for the HBA and L2 network to be on the same subnet.  However,
+if VLAN is used on the HBA, they still have to be on the same subnet
+as described above.
+
+
+Setting Netmask and Gateway addresses:
+
+With the current limitations of the iface file, there are no entries
+to allow the user to enter a netmask or gateway IP address.
+
+The only way to explicitly configure these options is to use DHCP
+addressing.  Then the netmask/gateway are set on the DHCP server.
+These settings are then sent to uIP via the DHCPOFFERs.
+
+If the netmask is not defined then the netmask are automatically
+generated depending on the destination IP address.
+
+Debugging:
+=======================================
+
+By default, the iscsiuio daemon does not output any messages to the log file,
+'/var/log/iscsiuio.log'.  Message logging is only enabled when the daemon is
+run under debug mode.
+
+To run the daemon in debug mode please pass the parameter  '-d <debug level>'
+
+where the following debug levels are defined:
+
+PACKET        5 - Print all messages
+DEBUG         4 - Print debug messages
+INFO          3 - Print messages needed to follow the uIP code
+WARN          2 - Print warning messages
+ERROR         1 - Only print critical errors
+
+A sample banner message:
+
+INFO  [Mon Jun 20 11:23:14 2011]Started iSCSI uio stack: Ver 0.7.0.6
+INFO  [Mon Jun 20 11:23:14 2011]Build date: Mon Jun 20 11:22:05 PDT 2011
+INFO  [Mon Jun 20 11:23:14 2011]Debug mode enabled
+
+These messages can be used to help debug any issues.
+
+When debugging issues like the iscsid, the iscsiuio daemon can be run
+in the foreground and the maximum debugging level should be used.
+
+To place the daemon in foreground mode please pass the parameter '-f'
+
+Note: The messages to the log file are not flushed unless debugging is enabled.
+
+Note:  If the daemon iscsiuio is running, one will not be able to
+       trample over the existing binary.  One might see the following message:
+
+       'cannot create regular file `/sbin/iscsiuio': Text file busy'
+
+       The solve this, please stop the iscsid service and then install.
+
+Warning:  If full debug is enabled, this may quickly fill the partition
+containing the iscsiuio logs.  This is because full debugging will log
+packet activity which on a busy network will quickly fill the logs.
+
+Note:  If the bnx2i and cnic drivers are unloaded, then iscsiuio will also
+need to be restarted so that it can determine the iscsid version.

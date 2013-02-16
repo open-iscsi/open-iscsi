@@ -1,0 +1,1988 @@
+                              Release Notes
+                        Broadcom uIP Linux Driver
+                            Version 0.7.6.1g
+                               01/14/2013
+
+                          Broadcom Corporation
+                         5300 California Avenue,
+                            Irvine, CA 92617
+
+               Copyright (c) 2004 - 2013 Broadcom Corporation
+                           All rights reserved
+
+
+uIP v0.7.6.1g (Jan 14, 2013)
+=======================================================
+   Fixes
+   -----
+   1. Problem: Cont00067316 - IPv6 address prefix length < 32
+               bits fails to connect
+      Cause:   CIDR notation has an order bug in the IPv6 section
+               whenever the prefix length specified is < 32
+      Change:  Fixed the network order bug
+      Impact:  IPv6 only
+
+
+uIP v0.7.6.1f (Nov 14, 2012)
+=======================================================
+   Fixes
+   -----
+   1. Problem: Cont00065768 - RHEL5.X iscsiuio segfault possible
+               if there is a specific 1024 byte size broadcast
+               packet
+      Cause:   This is another corner case where the packet size
+               is also exactly 1024 bytes + padding that exceeded
+               the DMA rx buffer.  The previous fix was not
+               sufficient
+      Change:  Ensure that the packet size + padding do not
+               exceed this limit.
+      Impact:  10G only.  1G already has the guard against it.
+
+
+uIP v0.7.6.1e (Nov 07, 2012)
+=======================================================
+   Fixes
+   -----
+   1. Problem: Cont00066397 - Unable to connect to iSCSI target
+               with NPAR enabled on 57840
+      Cause:   The PCI device ID for 57840_MF has been changed from
+               0x16ab to 0x16a4
+      Change:  Updated the PCI id table to match exactly what the
+               bnx2x 1.76 indicates
+      Impact:  57840 MF
+
+
+uIP v0.7.6.1d (Oct 31, 2012)
+=======================================================
+   Enhancements
+   ------------
+   1. Change:  Added support for open-iscsi-2.0.873
+      Impact:  All
+
+
+uIP v0.7.6.1c (Oct 15, 2012)
+=======================================================
+   Enhancements
+   ------------
+   1. Change:  Added support for 10G 57840 4x10 and 2x20
+      Impact:  10G 57840
+
+
+uIP v0.7.6.1b (Oct 09, 2012)
+=======================================================
+   Fixes
+   -----
+   1. Problem: Cont00065690 - Vconfig method of connecting over
+               tagged vlan with IPv6 failed
+      Cause:   The new net param support changes has prevented
+               the old vconfig method from execising the IPv6
+               acquisition engine properly
+      Change:  Ensure that this old vconfig method to run the IPv6
+               acquisition engine properly and to its entirety
+      Impact:  IPv6 + VLAN using the network VLAN configuration
+               method
+
+   2. Problem: Cont00065768 - RHEL5.X iscsiuio segfault possible
+               if there is a specific 1024 byte size broadcast
+               packet
+      Cause:   This is a corner case where the packet size is
+               exactly 1024 bytes + padding that exceeded the
+               DMA rx buffer.  This has been there since day 1.
+      Change:  Ensure that the packet size + padding do not
+               exceed this limit.
+      Impact:  10G only.  1G already has the guard against it.
+
+
+   Enhancements
+   ------------
+   1. Change:  Source optimization - backported source code fixes
+               as reported from the upstream submission patch
+      Impact:  ALL
+
+
+uIP v0.7.4.2k (Aug 10, 2012)
+=======================================================
+   Enhancements
+   ------------
+   1. Change:  Enable HP SD mode
+      Impact:  577XX/578XX
+
+
+uIP v0.7.4.2j (Jul 18, 2012)
+=======================================================
+   Fixes
+   -----
+   1. Problem: Cont00064665 - Linux iSCSI connects via gateway address
+               on the wrong subnet
+      Cause:   The gateway address used was not checked against the
+               subnet mask specified before the ARP requests.  Since
+               this behavior deters from how L2 operates, therefore,
+               a change was made to correct this.
+      Change:  Added check of the gateway specified against the subnet
+               specified.
+      Impact:  Static IPv4 operation
+
+   2. Problem: Cont00064722 - Linux iSCSI unable to force IPv6 LL
+               override (advanced iface parameters)
+      Cause:   The override LL address was not being populated to the
+               IPv6 address database correctly
+      Change:  Added this correctly to the IPv6 initialization
+      Impact:  Static/DHCP IPv6 LL address override only
+
+
+uIP v0.7.4.2i (Jul 11, 2012)
+=======================================================
+   Fixes
+   -----
+   1. Problem: Cont00064604 - Fails to connect to routed IPv6 target
+               via RA
+      Cause:   The default router IPv6 address was not being retrieved
+               correctly.
+      Change:  Fixed the default router IPv6 address read
+      Impact:  All
+
+
+uIP v0.7.4.2h (Jun 15, 2012)
+=======================================================
+   Fixes
+   -----
+   1. Problem: Cont00063863 - can't boot into offload image
+               when VLAN is enabled
+      Cause:   During the iSCSI login exchange, certain iSCSI targets
+               will send an ARP request even though the TCP connection
+               has been made.  The bug was in this ARP reply where
+               the local MAC was corrupted when VLAN is enabled.
+      Change:  Fixed the ARP reply packet
+      Impact:  All
+
+
+uIP v0.7.4.2g (Jun 08, 2012)
+=======================================================
+   Fixes
+   -----
+   1. Problem: Cont00063816 - The initiator is not able to connect
+               to the iSCSI targets over VLAN
+      Cause:   The process packet routine did not consider the PCP
+               of the VLAN tag to be non-zero.  This created a
+               mismatch when this VLAN tag was compared against the
+               nic_iface->vlan_id which doesn't include the PCP.
+      Change:  Added the consideration of non-zero PCP
+      Impact:  All
+
+
+uIP v0.7.4.2f (Jun 04, 2012)
+=======================================================
+   Fixes
+   -----
+   1. Problem: Cont00063626 - Static IPv6 does not connect when
+               the prefix len is not set explicitly
+      Cause:   The IPv6 prefix length was not set correctly
+               for Static IPv6 operation when CIDR notation is
+               not specified
+      Change:  Fixed the default prefix length
+      Impact:  Static IPv6
+
+   2. Problem: Cont00063651 - Cannot connect to iSCSI targets
+               HP PTM/SF
+      Cause:   Switch-Dependent mode + invalid Outer VLAN was
+               not supported
+      Change:  Allow SD+invalid OV to fallback to SF operation mode
+      Impact:  5771X/578XX
+
+
+uIP v0.7.4.2e (May 30, 2012)
+=======================================================
+   Fixes
+   -----
+   1. Problem: Cont00063443 - Compilation error on SLES11sp1
+      Cause:   The iface_num field was not defined
+      Change:  Fixed all references to iface_num
+      Impact:  SLES11sp1
+
+   2. Problem: Cont00063518 - HBA fails to connect across router
+               using iface.gateway address
+      Cause:   The gateway override code did not populate the
+               address into the lower level engine
+      Change:  Fixed the gateway override code
+      Impact:  IPv4 Static IP operation
+
+   3. Problem: Cont00063567 - IPv6 LL and RA override does not work
+      Cause:   The IPv6 LL/RA override addresses were overwritten
+               by the NDP engine
+      Change:  Fixed the LL/RA override code
+      Impact:  IPv6 operation
+
+   Enhancements
+   ------------
+   1. Added support for jumbo MTU (independent from the L2 MTU)
+
+
+uIP v0.7.4.2d (May 21, 2012)
+=======================================================
+   Fixes
+   -----
+   1. Problem: Cont00063421 - Static IPv6 cannot connect via RA/LL
+      Cause:   The router advertise and the linklocal address
+               were corrupted due to the override capabilities
+               added for the newer open-iscsi util
+      Change:  Fixed the address override code
+      Impact:  Static IPv6
+
+   Enhancements
+   ------------
+   1. Allow VLAN tag = 1 (router management) to connect offload
+
+
+uIP v0.7.4.2c (May 09, 2012)
+=======================================================
+   Fixes
+   -----
+   1. Problem: RHEL BZ 734010/804580 - issues found by the Coverity
+               scan
+      Cause:   10 code issues were flagged for revision
+      Change:  Fixed all area of concern
+      Impact:  All
+
+   2. Problem: Cont00063177 - IPv4 DHCP with VLAN specification in
+               iface file gets wrong address
+      Cause:   The DHCPv4 handler was not discriminating the VLAN tag
+               associated with the DHCP offers from multiple DHCP
+               servers
+      Change:  Changed the DHCPv4 handler to drop DHCP offer packets
+               that doesn't match the VLAN tag of the intended DHCP
+               discovery packet
+      Impact:  DHCPv4 operation
+
+
+uIP v0.7.4.2b (May 01, 2012)
+=======================================================
+   Fixes
+   -----
+   1. Problem: Cont00062993 - IPv6 DHCP with VLAN specification in
+               iface file gets wrong address
+      Cause:   The DHCPv6 request was using the same DUID as always
+               so the non-VLAN DHCP server responded to our broadcast
+               instead
+      Change:  Changed the DHCPv6 request DUID to link address + time
+               instead of link address alone
+      Impact:  DHCPv6 operation
+
+
+uIP v0.7.4.1j (Apr 24, 2012)
+=======================================================
+   Fixes
+   -----
+   1. Problem: Cont00062805 - Cannot login to iSCSI targets on RHEL6.3
+      Cause:   The problem was caused by a change made to the iface_rec
+               structure in the RHEL6.3 inbox open-iscsi util
+      Change:  The new changes is now incorporated
+      Impact:  All
+
+
+uIP v0.7.4.1i (Apr 16, 2012)
+=======================================================
+   Fixes
+   -----
+   1. Problem: Cont00062660 - Unable to login with VLAN iscsiuio
+               on RHEL6.2
+      Cause:   The open-iscsi util in RHEL6.2 has a bug which
+               does not pass the correct iface_num to iscsiuio
+      Change:  Added workaround to fall back to do the legacy
+               VLAN support if iface_num and vlan_id = 0
+      Impact:  RHEL6.2
+
+
+uIP v0.7.4.1h (Apr 13, 2012)
+=======================================================
+   Enhancements
+   ------------
+   1. Added support for the new iface_num field in the iscsi_uevent
+      path
+
+   2. Fixed bug in the nic_iface search engine based on iface_num
+
+
+uIP v0.7.4.1g (Mar 22, 2012)
+=======================================================
+   Fixes
+   -----
+   1. Problem: Cont00061869 - Unable to setup an offload iSCSI
+               connection with FLR/NPAR under ESX5.0:PDA
+      Cause:   The physical function ID was previously extracted
+               from the sysfs of the VM which might not be consistent
+               to the actual physical setup due to the function
+               remapping in the hypervisor
+      Change:  Read the physical function ID directly from the BAR0
+               ME register
+      Impact:  All
+
+   2. Problem: Cont00062170 - IPv6 login/logout stress fails
+      Cause:   The packet interrupt was lost after running the test
+               for a much longer period of time.  A bug in the
+               packet processing routine was found to exit prematurely
+      Change:  Fixed the packet processing routine to process all
+               packets before exiting
+      Impact:  All
+
+
+uIP v0.7.4.1f (Mar 19, 2012)
+=======================================================
+   Fixes
+   -----
+   1. Problem: Cont00062170 - IPv6 login/logout stress fails
+      Cause:   The packet buffer routine for IPv6 did not take
+               network order <-> host order into consideration
+      Change:  Added a htons call to compensate for the ntohs pair
+      Impact:  All
+
+
+uIP v0.7.4.1e (Mar 08, 2012)
+=======================================================
+   Fixes
+   -----
+   1. Problem: Cont00061978 - Load/unload stress test fails
+      Cause:   The bnx2x open request was failing due to the module
+               request procedure.  However, the open failure was
+               not being handled correctly.
+      Change:  Fixed the device open error handling
+      Impact:  5771X/578XX
+
+
+uIP v0.7.4.1d (Mar 02, 2012)
+=======================================================
+   Fixes
+   -----
+   1. Problem: Cont00061708 - Unable to log into target after running
+               driver load/unload
+      Cause:   A bug was introduced in the previous bug fix (CQ61459)
+               where a pthread_cond_broadcast call was erroneously
+               enabled
+      Change:  Restored this back
+      Impact:  All
+
+
+uIP v0.7.4.1c (Feb 16, 2012)
+=======================================================
+   Fixes
+   -----
+   1. Problem: Cont00061529 - Unable to connect to target after an
+               initial failed login attempt until iscsi service is
+               restarted
+      Cause:   Upon a failed DHCPv4 acquisition due to the wrong VLAN
+               tag in the initial iface setup, any iscsid connect request
+               from the same NIC will get dropped due to a bug.
+      Change:  Fixed the bug which prevented new iscsid connect requests
+               from getting honored
+      Impact:  All
+
+   Enhancements
+   ------------
+   1. Updated README
+
+
+uIP v0.7.4.1b (Feb 08, 2012)
+=======================================================
+   Fixes
+   -----
+   1. Problem: Cont00061513 - Unable to connect to target over VLAN
+               interface
+      Cause:   The VLAN id was not properly passed back to the CNIC
+               driver for the offload request
+      Change:  Fixed the VLAN id being passed back to the CNIC driver
+      Impact:  All
+
+
+uIP v0.7.4.1a (Feb 01, 2012)
+=======================================================
+   Fixes
+   -----
+   1. Problem: Cont00049383 - No mechanism in iface file to support
+               gateway/routing
+      Change:  Added support for the additional network parameters
+               as passed from the newer iscsi-util.
+               These parameters include:
+               IPv4: subnet_mask, gateway
+               IPv6: ipv6_linklocal, ipv6_router,
+                     ipv6_autocfg, linklocal_autocfg, router_autocfg
+               VLAN: vlan_id, vlan_priority, vlan_state
+               Other: mtu, port
+      Impact:  All
+
+   2. Problem: Cont00060806 - Unable to connect target using DHCP over
+               tagged VLAN
+      Change:  DHCP+VLAN is a new feature enhancement that was added
+               alongside all other new iface parameters.
+      Impact:  All
+
+
+   Enhancements
+   ------------
+   1. Lock iscsid's connect request with path_req so connect requests
+      with DHCP/Static will no longer override each other
+
+   2. Fixed the if_down handler from global to nic specific
+
+   3. Fixed various synchronization issues
+
+
+uIP v0.7.2.1e (Jan 05, 2012)
+=======================================================
+   Fixes
+   -----
+   1. Problem: Cont00060734 - ifupdown-mtu change stress with active
+               session causes iscsiuio to fail
+      Change:  Fixed a race condition between the nic enable thread
+               and when DHCP fails
+      Impact:  All
+
+
+uIP v0.7.2.1d (Dec 28, 2011)
+=======================================================
+   Fixes
+   -----
+   1. Problem: Cont00060368 - segfault observed after failing both
+               mpio paths
+      Change:  Various memory leaks were identified and resolved in
+               the nic cleanup path
+      Impact:  All
+
+
+uIP v0.7.2.1c (Dec 16, 2011)
+=======================================================
+   Enhancements
+   ------------
+   1. Change:  Disable HP SD mode
+
+
+uIP v0.7.2.1b (Dec 14, 2011)
+=======================================================
+   Enhancements
+   ------------
+   1. Change:  Default iscsiuio logging to off.  Use the '-d'
+               option to enable
+
+
+uIP v0.7.0.14g (Oct 25, 2011)
+=======================================================
+   Enhancements
+   ------------
+   1. Change:  Fixed the compilation under RHEL6.2
+   2. Change:  Added oom_adjust call to prevent OOM Killer from killing
+               iscsiuio when memory is low
+   3. Change:  Added mlockall setting to prevent page swap
+
+
+uIP v0.7.0.14f (Oct 20, 2011)
+=======================================================
+   Fixes
+   -----
+   1. Problem: Cont00058994 - DOS vulnerability in uip during UDP flood
+      Cause:   The warning messages from the UDP handler was logging
+               at a rate faster than the log file logrotate rate
+               Therefore, the system's OOM eventually got kicked in to
+               start terminating running processes which includes iscsiuio
+      Change:  Moved several UDP warning messages from the default log
+               level to the debug log level
+      Impact:  All (minor)
+
+   2. Problem: Cont00059288 - Show segfault w/ SLES11 SP1 Xen kernel
+      Cause:   The bnx2x chip_id was not read correctly from the PCIe BAR1
+               under the Xen kernel.  The error was in the mmap area.
+      Change:  Corrected the mmapping of the PCI MMIO space.
+      Impact:  Xen kernels
+
+   Enhancements
+   ------------
+   1. Change:  Changed the log file open error to a warning and let
+               the daemon progress.  This was only observed under iSCSI boot
+
+
+uIP v0.7.0.14e (Sep 19, 2011)
+=======================================================
+   Fixes
+   -----
+   1. Problem: Cont00058678 - Can not iboot target from ipv6 path
+               using VLAN
+      Cause:   A bug was found in the path request path where the vlan
+               iface's protocol family was not used correctly in the
+               iface search
+      Change:  This has been corrected
+
+
+uIP v0.7.0.14d (Sep 16, 2011)
+=======================================================
+   Fixes
+   -----
+   1. Problem: Cont00058602 - Can't iboot using IPv6 offload path
+      Cause:   The bug was exposed by a fix in 0.7.0.14c where the
+               IPv6 router solicitation timeout exceeded the nic
+               enable thread timeout.
+      Change:  The IPv6 router solicitation timeout has been adjusted
+
+
+uIP v0.7.0.14c (Sep 01, 2011)
+=======================================================
+   Fixes
+   -----
+   1. Problem: Cont00058256 - Sessions fail after loginstress to via
+               simultaneous ipv4 and ipv6 dhcp
+      Cause:   Switching between DHCPv4/v6 coupled with VLAN exposed
+               a drawback in our nic_iface architecture design where
+               VLAN is not specified by iscsid.
+      Change:  The code was optimized and improved the performance when
+               switching between DHCPv4/v6+VLAN.  However, the ultimate
+               fix is to make use of the net config parameters introduced
+               in the newer open-iscsi util which will identify the
+               specific VLAN nic_iface to use.
+
+   Enhancements
+   ------------
+   1. Change:  Added support for bnx2x-1.71.00
+
+
+uIP v0.7.0.14b (Aug 23, 2011)
+=======================================================
+   Fixes
+   -----
+   1. Problem: Cont00057840 - RHEL6.2 inbox: Unable to connect to
+               targets with 5709
+      Cause:   For cases when the bnx2/bnx2x driver gets removed, the
+               uio database that was built by cnic would have the device
+               ->net reference removed.  This has caused an unnecessary
+               timeout of 5s for each stale uio entry in the database.
+      Change:  Adjusted the routine which seeks the device->net entry
+               to include more logic instead of hard waiting for 5s.
+
+   Enhancements
+   ------------
+   1. Change:  Added support for RHEL6.2 for out-of-box release
+   2. Change:  Updated the man page with -h and -p info
+   3. Change:  Updated the -h info
+
+
+uIP v0.7.0.13 (Aug 10, 2011)
+=======================================================
+   Fixes
+   -----
+   1. Problem: Cont00057768 - iscsiuio logrotate causes daemon failure
+      Cause:   The logrotate script will send a SIGUSR1 signal to notify
+               the iscsiuio daemon of such action.  However, the daemon
+               wasn't programmed to catch this signal.
+      Change:  Restored the catching of this signal
+
+
+uIP v0.7.0.12 (Aug 04, 2011)
+=======================================================
+   Fixes
+   -----
+   1. Problem: Cont00050634 - brcm_iscsiuio Tainted: running IoZone,
+               Iometer and receiving a UDP flood on 3260
+      Cause:   Upon iscsiuio termination, because of the UDP flood,
+               the nic thread will be busy servicing those UDP packets
+               while the signal handling thread will free up all nic
+               resources.  The two threads were not in sync.
+      Change:  Added a nic_remove_all routine to destroy all nic threads
+               before the nic resources get freed.
+
+   Enhancements
+   ------------
+   1. Change:  Fixed all warnings as reported by RHELS' Coverity testing.
+
+
+uIP v0.7.0.11 (Aug 02, 2011)
+=======================================================
+   Fixes
+   -----
+   1. Problem: Erroneous VLAN tag was being passed by iscsid for connect
+               request
+      Cause:   The iscsid's iface_rec_t ipc message does not contain this
+               vlan field.  This field was added in uIP for future vlan
+               support.  Since the buffer allocated to receive such message
+               in uIP didn't get initialized, therefore, garbled up VLAN
+               tag was getting used.
+      Change:  Added the initialization of this buffer.
+
+
+uIP v0.7.0.10 (Jul 26, 2011)
+=======================================================
+   Fixes
+   -----
+   1. Problem: Can't offload when switching from Static to DHCP then back to
+               Static IPv4 when connecting through a VLAN interface
+      Cause:   The VLAN processing code did not reinstall the IP address
+               from the default nic_iface to the associated VLAN nic_iface.
+               This was only done on the very first time when the VLAN
+               interface was created and not on subsequent instances.
+      Change:  Added code to mirror the default nic_iface IP/netmask/ip_config
+               on the VLAN nic_iface on every new connection request.
+
+
+uIP v0.7.0.9 (Jul 19, 2011)
+=======================================================
+   Fixes
+   -----
+   1. Problem: Can't offload to 57810 NPAR NIC
+      Cause:   The MF/VF variant of the PCI IDs were not supported previously
+      Change:  Added support for the MF/VF variants for 57800/57810/57840
+
+
+uIP v0.7.0.8 (Jun 30, 2011)
+=======================================================
+   Fixes
+   -----
+   1. Problem: Cont00056522 - Unable to connect to iSCSI target using
+               netxtreme2 package 7.0.9
+      Cause:   The iSCSI L2 ring's CID has changed from 17 to 49
+      Change:  The code now gets L2 iSCSI ring CID from the l2_buf directly.
+               This will work with any version of the cnic driver because
+               the location is a zero before this change.
+
+
+uIP v0.7.0.7 (Jun 23, 2011)
+=======================================================
+   Fixes
+   -----
+   1. Problem: Cont00056460 - iSCSI Offload boot RHEL5u5 x64 dropped tagged
+               packets with iSCSI Offload Boot with untagged
+      Cause:   The ICMP echo replies to the target was corrupted in both
+               1g and 10g mode
+      Change:  The code will now handle both VLAN stripped and no VLAN stripped
+               incoming packets correctly.  Also modified the transmit routine
+               to strip out any inline VLAN tag before setting up the hw to
+               insert VLAN tag.
+
+
+uIP v0.7.0.6 (Jun 21, 2011)
+=======================================================
+   Fixes
+   -----
+   1. Problem: Cont00056231 - DHCPv4 not working with iSCSI HBA w/
+               linux-nx2 v7.0.7
+      Cause:   The 10g L2 FW HSI has been modified for PCIe performance
+               enhancement in the 7.0.7 package (FW 1.70.20) which uIP
+               has not adapted to.
+      Change:  The eth_rx_cqe size has been increased from 32B to 64B.
+
+   Enhancements
+   ------------
+   1. Change:  The utility name has changed from brcm_iscsiuio to iscsiuio
+               as preparation for upstream submission.
+   2. Change:  Updated README
+
+
+uIP v0.7.0.5 (Jun 02, 2011)
+=======================================================
+   Fixes
+   -----
+   1. Problem: Cont00055915 - iSCSI does not connect on 57800 in 4-port mode
+      Cause:   The 4-port mode was not being determined correctly
+      Change:  Fixed the PORT4MODE register offset and the QZONE_ID macros
+
+
+uIP v0.7.0.4 (May 24, 2011)
+=======================================================
+   Fixes
+   -----
+   1. Problem: Cont00055832 - linux iscsiboot can not login to target using
+               offload path (57800)
+      Cause:   The device ID comparison routine did not take care of the case
+               when one device ID is bitwise superset of another.
+      Change:  Fixed the device ID comparison routine.
+
+
+uIP v0.7.0.3 (May. 19, 2011)
+=======================================================
+   Enhancements
+   ------------
+   1. Change:  Updated all fixes to match the released uIP 0.6.4.17
+
+   2. Change:  Modified source and Copyright info as preparation for upstream
+               submission
+
+
+uIP v0.7.0.2 (May. 03, 2011)
+=======================================================
+   Fixes
+   -----
+   1. Problem: Cont00048972 - brcm-iscsi.log has no max size and would grow
+               to consume all free space on hard disk
+      Cause:   There was no mechanism to rotate the log
+      Change:  Added logrotate entry and SIGUSR1 signal handling for log rotate
+               action
+
+   2. Problem: Cont00054996 - Multi-session, multi-protocol mtu stress
+               does not recover all sessions
+      Cause:   A segfault was observed during the load/unload module.  The
+               problem was caused by an illegal dereference of a pointer
+               when IPv6 couldn't find the longest match address from
+               the ARP (Neighbor) table.
+      Change:  Fixed the dereferencing error
+
+   3. Problem: Cont00054900 - Linux uIP - Please add ability to connect
+               to routed target with static iface IPv6
+      Cause:   Static IPv6 never runs the IPv6 NDP router sol/adv engine.
+      Change:  IPv6 NDP router sol/adv has now been added to static IPv6
+               operation.
+
+   4. Problem: Cont00054996 - Multi-session, multi-protocol mtu stress
+               does not recover all sessions
+      Cause:   Segfaults were observed caused by the accessing of the IPv6
+               NDP structure while the nic is undergoing a reset either
+               due to a DHCPv4 request from iscsid or the handling of
+               if_down due to the NL handler from CNIC.
+      Change:  The fix involves the following:
+               - Fixed the handling of staggered IPv4/v6 DHCP/static requests
+               - Fixed memory leak due to reallocation of IPv4 and IPv6
+                 DHCP structs
+               - Fixed the pthread join stuck problem in the handling
+                 of the if_down NL message
+
+   5. Problem: Cont00054810 - Linux NMI - bnx2x_init_hw_common:PXP2 CFG
+               failed running iSCSI MTU stress test
+      Cause:   This only happens in DHCPv4 mode.  The problem was caused
+               by contention between the elongated window of performing
+               DHCP in the enable_nic thread while receiving the asynchronous
+               if_down NL message (from the MTU change event) from the
+               CNIC NL thread.  The problem occurs when the enable_nic
+               thread tries to call bnx2x_open while the other thread
+               calls the bnx2x_close routine.
+      Change:  Fixed mutex lock bugs for the enable_nic thread.  Also
+               extended the nic_disable timeout to 10s to compensate for
+               the DHCP operation.
+
+   6. Problem: Cont00054818 - RH6.0 - Unable to logout of iSCSI session
+               after running PQA baseline scripts
+      Cause:   This was caused by the call to cancel the enable_nic
+               thread when disabling the nic but failed to unlock the
+               nic mutex that the enable_nic thread held.
+      Change:  Wake up the enable_nic thread and wait for it to complete
+               instead of canceling it in the nic_disable path.
+
+   7. Problem: Cont00054725 - Previous static HBA IP will be used after
+               a new static HBA IP has been created
+      Cause:   There was an assumption in the code where if the same
+               nic_iface structure was found based on the nic/vlan pair,
+               the specified IP address would not be used.  Instead, it
+               will continue to use the previous defined IP address.
+      Change:  The previous IP address will now be compared against the
+               the specified IP address before finishing the parce
+               iface request from iscsid.  If different, the current
+               nic will be disabled and then re-enabled with the newly
+               specified IP address.
+
+   8. Problem: Cont00054571 - Unable to connect to routed ipv6 target
+               with RA address and iface DHCPv6
+      Cause:   The default router address was not being employed for
+               the IPv6 neighbor negotiation.  Additionally, the return
+               address of our neighbor advertisement was incorrect as
+               it should use the best matched src address instead.
+      Change:  Fixed both the IPv6 neighbor solicitation and advertisement
+               transmission and handling.
+
+   9. Problem: Cont00054510 - fails to login to 32 session with blanket
+               login IPv6
+      Cause:   A bug was introduced in uIP 0.6.4.6 where the NIC_RUNNING
+               flag might not be set when entering the main loop under
+               certain situations depending on the nic bring up.
+      Change:  A new NIC_STARTED_RUNNING flag is now defined to fix CQ53511.
+
+  10. Problem: Cont00053807 - RA and link local are unable to connect if DHCPv6
+               fails
+      Cause:   The host link local address was not being searched as one of
+               the host address to be replied to CNIC for the connect request.
+      Change:  The path reply now includes the search of host link local
+               address as well.
+
+  11. Problem: Cont00054236 - iSCSI service must be restarted before an IPv6
+               connection can be made to the Equalogic target
+      Cause:   The problem was intermittent as it depends on which IPv6 address
+               the target was redirecting to.  Since uIP was only extracting
+               the target's IPv6 address + MAC from the target's neighbor
+               advertisement packet itself and not from the ICMPv6 option, so
+               the wrong or no MAC address will get send down to CNIC for the
+               connection establishment; hence the no connect.
+      Change:  Added the updating of the neighbor discovery table to also use
+               the Target IPv6 address + MAC specified in the incoming neighbor
+               advertisement's ICMPv6 option field.
+
+  12. Problem: Cont00053255 - bnx2x panic dump logging into multiple
+               discovered IPv6 nodes (Equalogic IPv6 target)
+      Cause:   The bnx2x panic was fixed in the 10g fw 6.4.29.
+               A IPv6 connectivity issue was then found and led to different
+               kernel/uIP crashes.  This was caused by the same IPv6
+               connectivity problem mentioned above.
+      Change:  Same as above
+
+  13. Problem: Cont00053728 - Sessions never recover after doing initiator-side
+               cable pull test with IPv6 traffic against Equalogic targets
+      Cause:   It was discovered that the Equalogic would send out periodic
+               neighbor solicitation to maintain the connection to the
+               initiator.  Since uIP was responding with the assigned IPv6
+               link local address in the neighbor advertisement
+               unconditionally, the target was observed to stop transmitting on
+               the connection specified.
+      Change:  The neighbor advertisement generated will now use the dst IPv6
+               address from the input neighbor solicitation packet instead of
+               the assigned IPv6 link local address for both the packet and the
+               ICMPv6 source IPv6 address.
+
+  14. Problem: Compile error under 32-bit OS
+      Cause:   A bug was introduced in the previous release 0.6.4.6 which
+               caused a compilation error in 32-bit OS (64-bit compiles
+               fine)
+      Change:  Fixed the bug
+
+  15. Problem: Cont00053807 - RA and Link local are unable to connect if dhcpv6
+               fails
+      Cause:   There was a bug in the nl reply where the RA address will never
+               be sent back to CNIC for the connection request
+      Change:  The best matched address to the dst will now be sent back to
+               CNIC in the path rsp.
+
+   Enhancements
+   ------------
+   1. Change:  Updated README to remove the 57713/E references
+
+   2. Change:  Allow the ICMP option field in the IPv6 Neighbor Advertisement
+               response to be included without discrimination.  This fixes
+               an issue connecting against the EQL via RA for DHCPv6.
+
+   3. Change:  Updated README for the IPv6 operation, VLAN, and discovery.
+
+
+uIP v0.7.0.1 (Mar. 29, 2011)
+=======================================================
+   Fixes
+   -----
+   1. Problem: Cont00053511 - bnx2x panic dump during ifup/down stress with
+               iSCSI traffic
+      Cause:   The panic dump was resolved by the driver's rq dbell size fix.
+               After that, uIP crashed due to the asynchronous if_down event
+               that took the chip resources away while the nic thread is still
+               continuing to try to send DHCP request.
+      Change:  Added synchronization between the two threads so proper clean up
+               of the threads can occur.
+
+   Enhancements
+   ------------
+   1. Change:  Added support for E3 (57800, 57810, and 57840)
+
+
+uIP v0.6.4.5 (Mar. 23, 2011)
+=======================================================
+   Enhancements
+   ------------
+   1. Change:  Optimized the double VLAN fix of CQ53870 to match
+               what will be submitted for RHELS5.7 and RHELS6.1 inbox
+
+
+uIP v0.6.4.4 (Mar. 17, 2011)
+=======================================================
+   Fixes
+   -----
+   1. Problem: Cont00053870 - Unable to login to iSCSI target via offload
+               through a Nexus 5020 switch with DCBx enabled
+      Cause:   Double VLAN tagging was observed due to DCBx enabled.
+               The chip actually adds a VLAN tag if the txbd does not have
+               VLAN tag enabled under the DCBx environment for PRI setting.
+               Since uIP does not make use of hw assisted VLAN tagging,
+               2 VLAN tag was observed in the data stream.
+      Change:  Enabled hw assisted VLAN tagging in uIP for both 1g and 10g.
+
+   2. Problem: Cont00053792 - maxconnections intermittently fail and
+               recover using iface DHCPv4
+      Cause:   The DHCPv4 engine erroneously keeps on requesting for a
+               new lease which tremendously hamper normal path_req
+               operation.  The problem is that the lease time parameter
+               has overflowed when converted to ticks count.
+      Change:  Expanded the lease timer ticks count parameter from 16 to
+               32 bits.
+
+   3. Problem: Cont00053807 - RA and link local are unable to connect if
+               DHCPv6 fails
+      Cause:   The DHCPv6 engine does not have the failover to use RA
+               mechanism
+      Change:  Expanded to use best match address instead regardless of
+               DHCPv6 success or not, or using static v6.
+
+   Enhancements
+   ------------
+   1. Change:  Cont00051823 - Added man page for brcm_iscsiuio
+
+
+uIP v0.6.4.3 (Mar. 15, 2011)
+=======================================================
+   Fixes
+   -----
+   1. Problem: Cont00053719 - intermittent logging into targets that
+               are not in the same subnet as defined in the iface
+      Cause:   The default route was used erroneously due to a miscompare
+      Change:  Fixed this comparison so if the requested dst is not in
+               in the same subnet, uIP would not even ARP out.
+
+   2. Problem: Cont00053580 - Unable to do iSCSI boot into Linux OS using
+               57710 adapters
+      Cause:   The E1 iro USTORM_RX_PROD_OFFSET doesn't match the t6.4 fw
+      Change:  This is now fixed
+
+
+uIP v0.6.4.2 (Feb. 24, 2011)
+=======================================================
+   Fixes
+   -----
+   1. Problem: Cont00050343 - HBA does not follow RFC2131 spec for IPv4
+               DHCP lease expiration
+      Cause:   The dhcp engine did not have this feature implemented
+      Change:  Added lease time tracking and renewal
+
+   2. Problem: Cont00050801 - Unable to connect to target after switching
+               between DHCPv4 to static v4
+      Cause:   The configuration flags got corrupted when switching between
+               dhcp and static or vice versa.
+      Change:  Fixed the flag handling.  Also needed to zero out the static
+               ip address in the host memory when switching to dhcp.
+               Otherwise, the static ip address will get used mistakenly.
+
+   Enhancements
+   ------------
+   1. Change:  Cont00051936 - Added IPv6 NDP and DHCPv6 support.
+
+
+uIP v0.6.4.1 (Jan. 27, 2011)
+=======================================================
+   Fixes
+   -----
+   1. Problem: Cont00049766 - segfault seen while stopping iscsi service
+      Cause:   The logger output routine was accessing the log resource
+               while another thread calls fini_logger to free the same
+               resources
+      Change:  Added pthread mutex lock to the logger routine to exclude
+               the initializer, user, and finisher
+
+   Enhancements
+   ------------
+   1. Change:  Added new t6.4 HSI and 57713 support.
+
+
+uIP v0.6.2.13 (Jan. 04, 2011)
+=======================================================
+   Fixes
+   -----
+   1. Problem: Cont00049665 - iscsiboot:linux failed to boot into iscsi
+               boot image in offload path after 5 iterations
+      Cause:   The hw consumer index for the uIP ring got out of sync
+               with the producer index.  This has led to the xmit mutex
+               lock be held forever so subsequent ARP requests will not
+               get transmitted to the wire
+      Change:  Added this out of sync detection and rescue the xmit mutex
+               lock
+
+uIP v0.6.2.12 (Dec. 21, 2010)
+=======================================================
+   Fixes
+   -----
+   1. Problem: Cont00051820 - Session fails to reconnect after gateway
+               fallback
+      Cause:   Under the HSRP test scenario, it was found that an ARP
+               request from the SUT is required in order for the HSRP
+               router to begin sending packets downstream to the SUT.
+               The default ARP age was originally set to 20 minutes
+               before a new ARP request will get sent,
+      Change:  Changed the ARP age default to Linux default at 5 minutes
+
+uIP v0.6.2.11 (Dec. 17, 2010)
+=======================================================
+   Fixes
+   -----
+   1. Problem: For IPv4, the gateway route was not being utilized
+               when the subnet mask given or calculated does not
+               match.  This resulted in many unwanted connection
+               attempts.
+      Cause:   A bug was found in the default gateway calculation
+               logic which prevented the gateway address from being
+               used.
+      Change:  Fixed the default gateway logic
+
+   2. Problem: For IPv6, there are scenarios where it won't connect
+      Cause:   The IPv6 subnet mask as extracted from the CIDR
+               format might contain garbage data.  This garbage data
+               was then used as part of the subnet mask which would
+               prevent the correct address mask.
+      Change:  Fixed the subnet mask
+
+uIP v0.6.2.10 (Dec. 15, 2010)
+=======================================================
+   Fixes
+   -----
+   1. Problem: IPv6 does not connect for non-CIDR iface.ipaddress
+               specification
+      Cause:   A bug where all ones was used as the IPv6 netmask
+               instead of all zeroes.  This prevented all IPv6
+               path requests from being honored
+      Change:  Fixed the subnet mask used
+
+uIP v0.6.2.9 (Dec. 14, 2010)
+=======================================================
+   Enhancements
+   ------------
+   1. Change:  Added IP address CIDR notation support for the
+               iface.ipaddress field in the iface file.
+               This will allow subnet mask to be defined and used.
+
+uIP v0.6.2.8 (Dec. 9, 2010)
+=======================================================
+   Fixes
+   -----
+   1. Problem: ipv6 + ifup/down fails to reconnect
+
+      Cause:   There were 2 problems found:
+               - the xmit_mutex lock was being held indefinitely
+               - the nl_process_if_down flag for 10g doorbell ringing
+                 did not get reinitialized
+
+      Change:  Fixed the xmit_mutex deadlock via trylock
+               Added nl_process_if_down initialization in the IF_DOWN
+               process
+
+   2. Problem: Added fix for the NPAR disabled for 57712
+
+      Cause:   The mac address was not handled correctly
+
+      Change:  Fixed the mac address handling.  Also requires corresponding
+               kernel component for the complete fix
+
+uIP v0.6.2.7 (Dec. 7, 2010)
+=======================================================
+   Enhancements
+   ------------
+   1. Change: Use the gateway address from the DHCP server the
+              destination IP address is not in the current subnet.
+
+uIP v0.6.2.6 (Nov. 16, 2010)
+=======================================================
+   Fixes
+   -----
+   1. Problem: Warning message seen in the kernel logs,
+               "uio uio2: uevent: unsupported action string"
+
+      Cause:   The improper string was echo'ed into the UIO trigger
+               field.  With an improper string, this message would
+	       appear in the kernel logs.
+
+      Change:  uIP will now write the string "online" to the UIO
+               trigger field.  This is the string expected by the
+	       Linux kernel base driver.
+
+   2. Problem: uIP would segfault during a heavily login/logout
+               iSCSI subsystem reset senario
+
+      Cause:   A double free occurred in the logging portion of the
+               uIP code, but this was root cause to a double free when
+	       manipulating the NetLink buffers.
+
+      Change:  Properly look at the return code from the routine which
+               will read NetLink messages.  Also only free buffers
+	       if they are allocated.
+
+   Enhancements
+   ------------
+   1. Change: Add ability to print kernel version and machine
+              architecture to further help debug problems.
+
+   2. Change: Apply the netmask from DHCP if provided.
+
+uIP v0.6.2.5 (Nov. 10, 2010)
+=======================================================
+   Fixes
+   -----
+   1. Problem: iscsid would try to conenct with unintended iSCSI
+               targets
+
+      Cause:   uIP would blindly return the iSCSI target MAC address
+               regardless if the iSCSI target is reachable via the
+	       given port.
+
+      Change:  uIP will try to filter the requests coming from CNIC
+               by automatically generating a network mask based off
+	       the configured IP addressed.  Then this netmask is
+	       masked with the destination IP address.  If there is
+	       a match, then the path_req is allowed through.
+
+   2. Problem: Problems reconnecting back to the target when running
+               MTU stress tests.
+
+      Cause:   cnic/bnx2i and uIP could possibly get out of sync when
+               an if_down message is sent.
+
+      Change:  uIP will now immediately react to the if_down message,
+               and flush all the path req's and then to process to
+               if_close.
+
+   Enhancements
+   ------------
+   1. Change: Fix compile warnings for src/unix/nic_nl.c,
+              and src/unix/main.c
+
+uIP v0.6.2.4 (Nov. 4, 2010)
+=======================================================
+   Fixes
+   -----
+   1. Problem: iSCSI HBA: brcm_iscsiuio segfault during ifdown
+               with many active sessions
+
+      Cause:   uIP will segfault when traversing the error path when
+               an iSCSI connection is starting but the sysfs entries
+	       have not been created yet.
+
+      Change:  Use the errno value rather then the one from the file
+               descriptor because the file descriptor will be NULL and
+	       the NULL dereference will cause a segfault.
+
+   Enhancements
+   ------------
+   1. Change: Added initial changes for iSCSI multi-function support for
+              10G NIC's.
+   2. Change: Add more detailed messages for error pathes in nic_utils
+
+uIP v0.6.2.3 (October 28, 2010)
+=======================================================
+   Enhancements
+   ------------
+   1. Change: Add support for bnx2x-1.62.x drivers
+
+uIP v0.6.2.2 (October 18, 2010)
+=======================================================
+   Enhancements
+   ------------
+   1. Change: Only allow iSCSI connections with known bnx2x HSI's.
+
+uIP v0.6.2.1 (October 7, 2010)
+=======================================================
+   Fixes
+   -----
+   1. Problem: After multiple MTU changes, the ethtool IOCTL used to
+               determine the bnx2x driver version fails and eventually
+	       iSCSI connections would not reconnect.
+
+      Cause:   The socket file descriptor used during the ethtool IOCTL
+               call was never closed and leaked.
+
+      Change:  On the error path when calling the ethtool IOCTL, the
+               file descriptor is now properly closed.
+
+uIP v0.5.39 (September 15, 2010)
+=======================================================
+   Fixes
+   -----
+   1. Problem: Could not offload IPv4 VLAN connection when the target tries
+               to ARP the iSCSI initiator
+
+      Cause:   In the ARP reply, the ether field was incorrect.
+
+      Change:  Properly set the ether field to 802.1Q type (0x8100)
+
+uIP v0.5.38 (September 14, 2010)
+=======================================================
+   Fixes
+   -----
+   1. Problem: uIP would cause a panic dump when the NIC was going down
+
+      Cause:  uIP and CNIC where not synchonized on NIC state
+
+      Change:  Check if the RX BD's which are zero'ed by CNIC when the
+               NIC is going down.  If the BD addresses are zero, then
+	       uIP will drop the TX packets.
+
+uIP v0.5.37 (August 21, 2010)
+=======================================================
+   Fixes
+   -----
+   1. Problem: uIP would segfault on ifup/ifdown stress test when using
+               DHCP to determine local IP address.
+
+      Cause: The uIP would use a NULL buffer during data transmission.
+
+      Change:  Drop packets when there are no buffer avaliable.
+
+uIP v0.5.36 (August 21, 2010)
+=======================================================
+   Fixes
+   -----
+   1. Problem: iSCSI boot would not completely login after the pivot
+               root operation.
+
+      Cause: The uIP would not properly start the NIC interface.
+
+      Change: uIP should only check the NIC state to determine whether
+              to start the NIC thread or not.
+
+   2. Problem: uIP would segfault during if'up if'down testing.
+
+      Cause: The uIP would improperly start 2 NIC threads for the
+             same NIC interface.
+
+      Change: uIP should properly lock the NIC list when disabling/removing
+              the NIC threads.
+
+
+uIP v0.5.35 (August 20, 2010)
+=======================================================
+   Fixes
+   -----
+   1. Problem: Sessions would hang with ethtool self-test
+
+      Cause: The uIP would hang because the socket layer was stuck
+             because there is much contention for that socket.  This
+             would hang the CNIC thread.
+
+      Change: Remove any IOCTL calls in uIP which may colide with
+              the ethtool self test.  The driver version is only
+              capture during uIP initialization.
+
+   2. Problem: There were session recovery issue when using DHCP
+               if up/down tests.
+
+      Cause: The uIP would hang because the DHCP requests would
+             timeout if the network interface is downed which would
+             hang all the other uIP threads.
+
+      Change:  Ensure that the DHCP state machine had exit points
+               if the network interface was down'ed.
+
+
+uIP v0.5.34 (August 18, 2010)
+=======================================================
+   Fixes
+   -----
+   1. Problem: Sessions would not recover with ethtool self-test
+
+      Cause: The uIP would hang because either the NetLink buffer is
+             full or that any socket operations used to manipulate
+             multicast addresses would block.
+
+      Change: Ensure that the socket used for multicast addressing is
+              set to nonblocking.  Drain the NetLink buffer without
+              using the eventing, but with a more aggressive poll routine.
+
+   2. Problem: Sessions would not recover with L2 driver load/unload on
+               RHEL 6.0 SS9
+
+      Cause: The uIP would close the NIC thread too early and would
+             deadlock on cloing the NIC thread.
+
+      Change: Ensure that the NIC thread is canceled/closed only in one
+              location, in the NIC remove routine.
+
+
+uIP v0.5.33 (August 17, 2010)
+=======================================================
+   Fixes
+   -----
+   1. Problem: Error message seen from the uIP stack for valid packets.
+
+      Cause: The uIP was incorrectly marking logging messages for valid
+             packets as errors because it didn't know how to parase them.
+
+      Change: Changed the following from error to debug message
+                ipv6: invalid version
+                ipv4: invalid version or header length.
+                icmpv6: unknown ICMP message.
+                ip: neither tcp nor icmp
+              Changed the following from error to warn message
+                udp: bad checksum
+                tcp: bad checksum
+                tcp: got reset, aborting connection.
+
+   2. Problem: After multiple iterations the loading and unloading of
+               the Broadcom Linux drivers with active connections
+	       would not cause the sessions to recover on RHEL 6.0
+	       snapshot 9.
+
+      Cause:  There was a deadlock in the nic mutex
+
+      Change:  Lock ordering for the nic mutex and nic list mutex must
+               be inforced.
+
+   3. Problem: After multiple iterations of running the ethtool selftest
+               the Broadcom Linux drivers with active connections
+	       would not cause the sessions to recover on RHEL 5.5.
+
+      Cause: The Netlink buffer between uIP and CNIC would get full.
+
+      Change:  Poll more regularly for packets in the Netlink buffer
+               from 4 times a second to 100 times a 1 second.
+               Drain packets during the PATH_REQ packet pull.
+
+
+uIP v0.5.32 (August 14, 2010)
+=======================================================
+   Fixes
+   -----
+   1. Problem: Error message 'nic eth0: Didn't find type 0xaa bb' seen.
+
+      Cause: Valid non-DIX Ethernet packets as being passed to the
+             uIP.  uIP will drop these packets but should be logged
+	     correctly.
+
+      Change: These packets are valid, and should only be logged for
+              debugging purposes.
+
+   2. Problem: Error message 'Dropped previous transmitted packet' seen.
+
+      Cause: The TX ring is full, and here uIP is trying to transmit a
+             packet which will be dropped.  This is a valid state but
+	     the log message is marked incorrectly
+
+      Change: These messages are not warnings and should be logging when
+              debugging is enabled.
+
+   3. Problem: Error message: "iscsi_ipc eth0 Transport name is not
+               equal expected:  got: bnx2i" seen.
+
+      Cause:  The iface_rec structure is different between iscsid version.
+              For RHEL 5.5, iscsid is versioned 871, for RHEL 6.0 is
+	      versioned 872.
+
+      Change: Allow uIP to compile against a different version of iscsid.
+
+
+uIP v0.5.31 (August 12, 2010)
+=======================================================
+   Fixes
+   -----
+   1. Problem: Softlock would occur showing that the NetLink table
+               lock was taken but never released.
+
+      Cause: NetLink socket buffer would fill with constant PATH_REQ
+             messages preventing PATH_REQ response from libiscsi
+
+      Change: Now uIP will drain the NetLink buffer while looking for
+              a response.
+
+   Enhancements
+   ------------
+   1. Change: Add documentation for VLAN configuration and restrictions.
+
+
+uIP v0.5.30 (August 6, 2010)
+=======================================================
+   Fixes
+   -----
+   1. Problem: iscsid thread will stall if closing the uio files nodes
+               is stuck
+
+      Cause:  uIP would indefinitely block waiting for the mutex shared
+              by the close routine.
+
+      Change: Now uIP will try and poll a bit for the mutex.  If it can't
+              get this mutex in the iscsid thread then an error is return
+	      rather then hold the thread.
+
+   2. Problem: IPv6 Unicast Neighbor Adveriserments would have the
+               ICMPv6 option header specifying a MAC.
+
+      Cause:  uIP should use the source IPv6 address to detmine whether
+              to strip the option header or not and not the target address
+	      in the ICMPv6 field.
+
+      Change:  The uIP stack return a unicast IPv6 Neighbor Advertisement
+               without the ICMPv6 option as a response to unicast
+	       IPv6 Neighbor Solicitations.
+
+   3. Problem: There would be TCP SYN packets with improper MAC address.
+
+      Cause:   A zero'ed MAC address was not passed to CNIC to indicate an
+               error or if the IP address didn't resolve.
+
+      Change:  The uIP stack will now return a zero'ed MAC address if it
+               can't find any entries.
+
+
+uIP v0.5.29 (August 6, 2010)
+=======================================================
+   Fixes
+   -----
+   1. Problem: "uip udp: no matching connection found: lport: 35072"
+               seen numerous times in the brcm_iscsiuio log file
+
+      Cause:  This message was incorrectly marked as an error
+
+      Change: These messages are valid log entries especially if the
+              packet was a broadcast UDP packet not destined for the SUT
+              I will change the code to mark these logs entries as debug.
+
+
+uIP v0.5.28 (August 5, 2010)
+=======================================================
+   Fixes
+   -----
+   1. Problem: Can't login into a redirected Equilogic Target
+
+      Cause:  The Equilogic Target uses a unicast IPv6 Neighbor
+              Solicitation to test if the host is up.  The uIP stack
+	      would return a Neighbor Advertisement with an unneeded
+	      ICMPv6 option.
+
+      Change: Only have the uIP stack return a unicast IPv6 Neighbor
+              Advertisement without the ICMPv6 option.
+
+   2. Problem: With older bnx2/bnx2x/cnic/bnx2i driver combinations
+               uIP would segfault when these drivers were unloaded.
+
+      Cause:  When the older drivers were removed, the underlying uio
+              instance was removed causing uIP to have a stale file handle.
+	      When uIP finally closes using this stale file handle, either
+	      uIP would segfault, or there would be an error in the
+	      uio_release() path.
+
+      Change: Only have the uIP close if the UIO file node exists.
+
+
+uIP v0.5.27 (July 31, 2010)
+=======================================================
+   Fixes
+   -----
+   1. Problem: iSCSI HBA: Unable to use DHCP address for iSCSI interface
+               if a connection was previously made with a static address
+	       on bnx2 devices.
+
+      Cause:  Because the device is closed and reopen'ed the TX consumer
+              indexes were not persisted
+
+      Change: Only discard the TX consumer indexes only when the devices
+              will be discarded or closed
+
+   Enhancements
+   ------------
+   1. Change: Change CNIC references to bnx2 in the bnx2 user space
+              driver.
+
+
+uIP v0.5.26 (July 30, 2010)
+=======================================================
+   Fixes
+   -----
+   1. Problem: iSCSI HBA: Unable to use DHCP address for iSCSI interface
+               if a connection was previously made with a static address on
+	       bnx2x devices.
+
+      Cause:  Because the device is closed and reopen'ed the TX consumer
+              indexes were not persisted
+
+      Change: Only discard the TX consumer indexes only when the devices
+              will be discarded
+
+   2. Problem: IPv6 using VLAN's didn't login
+
+      Cause:  The uIP code used to determine if the packet was an IPv6
+              or not was not working.  This VLAN packets for IPv6 were
+	      being mis-interpreted.
+
+      Change: Make the function is_ipv6() VLAN aware
+
+   3. Problem: Persistant targets was not loggin in during boot
+
+      Cause:  If udev was slow and the /dev/uio* were creatly slowly
+              uIP would fail.
+
+      Change: Poll uIP waiting for /dev/uio* file nodes.
+
+uIP v0.5.25 (July 27, 2010)
+=======================================================
+   Fixes
+   -----
+   1. Problem: When using IPv4 DHCP, there are no initial DHCP Discover
+               packets were not seen on the wire.
+
+      Cause:  Packets generated from the app handler from the uIP stack
+              were not placed on the wire.
+
+      Change: Packets originating from the uIP stack are now always placed
+              on the wire.
+
+uIP v0.5.24 (July 25, 2010)
+=======================================================
+   Fixes
+   -----
+   1. Problem: One would see invalid packet packets flow through the
+               uIP stack, where the logs would indicate there is a packet
+               with an invalid length
+
+      Cause:  The BD and CQE consumer indexes were not properly incremented
+              and masked.
+
+      Change: The BD index is now properly masked.  The CQE index is not
+              incremented using the CQE index rather the mistaken BD index.
+
+      Impact: 10G only
+
+   2. Problem: uIP would segfault during the booting of the machine.
+
+      Cause:  uIP was using a NULL data pointer because there was an
+              incorrect packet passed to the stack.
+
+      Change: Only allow uIP to process data if the packet exists.
+
+   3. Problem: uIP would stop processing packets
+
+      Cause:  The uIP code would not properly drain the CQE ring causing
+              it to eventually be full
+
+      Change: Consume all the CQE elements even if they are ethernet types
+              or not.
+
+      Impact: 10G only
+
+   4. Problem: uIP would stop after if/down of the network interface.
+
+      Cause:  uIP was not kick starting the NIC loop thread properly.
+
+      Change: Ensure that the NIC loop thread is started by when iscsid
+              request that the interface start the offload.  Mark the NIC
+	      only if the thread is truly canceled.
+
+
+uIP v0.5.23 (July 20, 2010)
+=======================================================
+   Fixes
+   -----
+   1. Problem:  Segfault during brcm_iscsiuio initialization
+
+      Cause:  uIP was using a NULL data pointer, because a different
+              thread re-initialized the uIP stack
+
+      Change: Properly synchronize the initialization of the stack
+
+   2. Problem:  Deadlock during the printing of heavy debug messages
+
+      Cause:  The variable macro structures would point to invalid
+              data
+
+      Change:  With each invocation of va_copy() a corresponding
+               invocation of va_end() in the same function for the proper
+	       cleanup
+
+   3. Problem:  uIP would hang when the interface could go up/down
+
+      Cause:  uIP would get out of sync with the state of the network
+              interface
+
+      Change:  Instead of detriving state from the UIO file nodes, uIP
+               will take direction from iscsid on when interfaces will be
+	       started.
+
+uIP v0.5.22 (July 15, 2010)
+=======================================================
+   Fixes
+   -----
+   1. Problem:  Unable to reconnect via iSCSI offload after
+		ifup/ifdown
+
+      Cause:  uIP was stuck on the thread when closing the NIC main
+              loop
+
+      Change: Properly synchronize the NetLink CNIC and uevent threads
+
+   2. Problem:  uIP would crash during boot up.
+
+      Cause:  uIP would overwrite a memory location which was already
+              freed during nic_remove().
+
+      Change: Since the NIC is freed there is no need to write to
+              update the NIC flags
+
+   Enhancements
+   ------------
+
+   1. Change:  Added IPv6 Link Local support
+
+
+uIP v0.5.21 (July 5, 2010)
+=======================================================
+   Fixes
+   -----
+   1. Problem:  Unable to connect via iSCSI offload after
+		changing L2 address
+
+      Cause:  uIP didn't notice the network inferface going down
+
+      Change: Allow uIP to persist the stack's IP address after
+              a reset
+
+   2. Problem:   Unable to connect via IPv4 and IPv6 concurrently
+
+      Cause:  uIP didn't notice the network inferface going down
+
+      Change: Allow uIP to persist the stack's IP address after
+              a reset and properly bring up the interface
+
+   3. Problem:   Unable to connect via VLAN
+
+      Cause:  IP address was no persisted after a device reset
+
+      Change: When CNIC requests a path request, uIP will use the
+              VLAN passed by the CNIC.
+
+
+uIP v0.5.20 (June 24, 2010)
+
+
+uIP v0.5.20 (June 24, 2010)
+=======================================================
+   Fixes
+   -----
+   1. Problem: Certain IPv6 addresses are not repsonded to by
+               the target.
+
+      Cause:  The MAC was generated from the target's IPv6
+              address not the deterived multicast IPv6 address.
+
+      Change: The destination MAC address should be deterived
+              from the packet's destination IPv6 address and
+	      not the target.
+
+   2. Problem: brcm_iscsiuio would segfault when L2 interface is
+               bought up and down after being logged into
+
+      Cause:  The NIC thread was not stopped properly
+
+      Change: When the UIO device is remove and when the
+              cooresponding NIC tracked by brcm_iscsiuio, the
+	      daemon would properly wait for the NIC thread to
+	      stop.
+
+
+uIP v0.5.19 (June 22, 2010)
+=======================================================
+   Fixes
+   -----
+   1. Problem: Can't login after boot
+
+      Cause:  If NIC interfaces are brough up and down quickly
+              uIP wait on an invalid NIC thread
+
+      Change: Only wait for the NIC thread if the NIC thread
+              exists.
+
+uIP v0.5.18 (June 21, 2010)
+=======================================================
+   Fixes
+   -----
+   1. Problem: Does not compile on SLES 11 SP1
+
+      Cause:  Automake cached files were included as part of the
+              uIP-0.5.17 package
+
+      Change: Remove automake cached files, and allow these files
+              to be generated each time the source is compiled
+
+   2. Problem: Does not always receive multicast packets
+
+      Cause:  Multicast bit was not set in SORT USER 2 register
+
+      Change: brcm_iscsiuio will now set the SORT USER 2 registers
+              with both the broadcast and multicast bits.
+
+   3. Problem: Existing iSCSI connections do not reconnect after
+               operations which require equivalent driver
+	       load/unload operations
+
+      Cause:  Multiple path requests would trample NIC configurations
+
+      Change: Allow only one path request at a time
+
+uIP v0.5.17 (June 16, 2010)
+=======================================================
+   Fixes
+   -----
+   1. Problem: IPv6 neighbor solicitations from brcm_iscsiuio could
+               not be responded to
+
+      Cause:  The IPv6 neighbor solicitation packet had an invalid
+              multicast MAC address
+
+      Change: Properly set the MAC address multicast bit and OR
+              with the IPv6 destination address
+
+   2. Problem: NIC state was not properly synchronized and noticed
+               by Shyam Iyer <shiyer@redhat.com>
+
+      Change: Properly lock the NIC device when changing state
+
+   Enhancements
+   ------------
+
+   1. Change: Listen for iscsid before daemonizing to close a timing
+              gap which might allow iscsid to start before uIP is
+	      completely initialized.
+
+uIP v0.5.16 (June 2, 2010)
+=======================================================
+
+   Enhancements
+   ------------
+
+   1. Change: Formally add IPv6 support.  Only a static IPv6 address
+              is supported.
+
+uIP v0.5.15 (May 20, 2010)
+=======================================================
+
+   Fixes
+   -----
+   1. Problem: brcm_iscsiuio would echo packets off the wire
+
+      Cause:  Stale packets from the uIP stack could potentially
+              make it onto the wire causing a network flood
+
+      Change: Only place on the wire packets uIP intended to place
+              on the wire.  Drop all other packets.
+
+uIP v0.5.14 (May 18, 2010)
+=======================================================
+
+   Fixes
+   -----
+   1. Problem: brcm_iscsiuio would crash when offloading using a
+               bnx2x device /dev/mem could not be
+               opened, (ie. SE Linux enabled)
+
+      Cause:  /dev/mem could not be opened, (ie. SE Linux enabled)
+              and then the NIC would be improperly initialized.
+
+      Change: If /dev/mem is not able to be opened, then the device
+              is closed
+
+   2. Problem: brcm_iscsiuio would crash when brcm_iscsiuio is
+               being shutdown
+
+      Cause:  The NIC mutex was deferenced imporperly when the NIC
+              is being closed
+
+      Change: Take the NIC mutex lock only when the NIC is closed.
+
+uIP v0.5.13 (May 16, 2010)
+=======================================================
+
+   Fixes
+   -----
+   1. Problem: brcm_iscsiuio would crash with heavy traffic directed
+               at the iSCSI traffic
+
+      Cause:  Packets which are sized between 1006-1024 bytes would
+              crash brcm_iscsiuio because brcm_iscsiuio is not sized
+	      to handle such large packets
+
+      Change: Drop large packets, properly hold the NIC mutex lock
+              for the duration when NIC fields are being used.
+
+
+uIP v0.5.12 (May 13, 2010)
+=======================================================
+
+   Fixes
+   -----
+   1. Problem: brcm_iscsiuio could crash on when L2 interface is
+               ifdown'ed
+
+      Cause:  The local NIC pointer was not initialized properly
+              in the routine parse_iface()
+
+      Change: Properly initialize the NIC pointer
+
+   2. Problem: Documentation referred to older admin_client which
+               doesn't exist any more because brcm_iscsiuio uses
+	       the iscsid iface file
+
+      Change: Remove the stale references
+
+
+uIP v0.5.11 (May 11, 2010)
+=======================================================
+
+   Fixes
+   -----
+   1. Problem: brcm_iscsiuio could crash on invalid packet sizes
+
+      Cause:  The hardware BD could be a large value because of a
+              hardware error
+
+      Change: Limit the size of the packet dumped to the MTU size
+
+   Enhancements
+   ------------
+
+   1. Change: During the running of the configure script now
+              the script will check for ar and ranlib binaries
+
+
+uIP v0.5.10 (May 03, 2010)
+=======================================================
+
+   Fixes
+   -----
+   1. Problem: BCM57712 not recognized
+
+      Cause:  The PCI ID's in the bnx2x file were missing.
+
+      Change: Added proper BCM57712, BCM57712E, BCM57713, BCM57713E
+              PCI ID's
+
+   2. Problem: (CQ 47481) brcm_iscsiuio not installed in correct location
+
+      Cause:  Default install path for autoconf is /usr/local
+
+      Change: Change the default prefix to '/' so the brcm_iscsiuio
+              binary is installed to /sbin/
+
+   Enhancements
+   ------------
+
+   1. Change: Remove dependency on Yacc and Lex
+
+
+uIP v0.5.9 (April 28, 2010)
+=======================================================
+
+   Fixes
+   -----
+   1. Problem: bnx2x T6.0 driver would not login
+
+      Cause:  The bnx2x code was not using the T6.0 HSI offsets
+
+      Change: Determine to bnx2x driver version eariler to properly use the
+              T4.8 or T6.0 HSI
+
+   Enhancements
+   ------------
+
+   1. Change: Collapse all the various locks to use the NIC lock to shrink
+              memory footprint
+
+   2. Change: Consolidate upper layer checksumming code
+
+
+uIP v0.5.5 (March 02, 2010)
+=======================================================
+
+   Enhancements
+   ------------
+
+   1. Change: Add support for T6.0 bnx2x HSI and 57712.
+
+   2. Change: Initial support for IPv6
+
+uIP v0.5.8 (April 22, 2010)
+=======================================================
+
+   Enhancements
+   ------------
+
+   1. Change: Add support for T6.0 bnx2x HSI and 57712.
+
+   2. Change: Initial support for IPv6
+
+uIP v0.5.7 (March 17, 2010)
+=======================================================
+
+   Enhancements
+   ------------
+
+   1. Change: Add to documentation on discovering on a particular
+	      iface before logging in
+
+uIP v0.5.6 (Mar 05, 2009)
+=======================================================
+   Fixes
+   -----
+   1. Problem: bnx2x panic dump would be seen when sending
+               traffic to uIP
+
+      Cause: The TX producer index was not properly
+             incrementing when the wrapping occured
+
+      Change: Do not skip the last TX producer index like the
+              TX BD's
+
+      Impact: None.
+
+uIP v0.5.5 (March 02, 2010)
+=======================================================
+   Initial release
+
+   Enhancements
+   ------------
+
+   1. Change: Add to documentation on debugging/logging for uIP
+
+
+uIP v0.5.4 (Feb 22, 2010)
+=======================================================
+   Fixes
+   -----
+   1. Problem: Compile error where 'ETHERTYPE_VLAN' define
+               is missing
+
+      Cause: Certain distributions do not define 'ETHERTYPE_VLAN'
+             in the header file "net/ethernet.h".
+
+      Change: Added proper defines for ETHERTYPE_VLAN when necessary
+
+      Impact: None.
+
+
+uIP v0.5.3 (Feb 18, 2010)
+=======================================================
+   Fixes
+   -----
+   1. Problem: Using VLAN's on offloaded iSCSI connections
+
+      Cause: (CQ45983) VLAN tags were not being properly inserted
+             when sending the ARP request packets
+
+      Change: Added VLAN tags when sending ARP request packets
+
+      Impact: None.
+
+
+uIP v0.5.2 (Dec 10, 2009)
+=======================================================
+   Fixes
+   -----
+   1. Problem: Switching between 10G and 1G iSCSI offloaded
+               devices caused login connectivity problems
+
+      Cause: The NIC devices within uIP were not cleanup
+             properly.
+
+      Change: The NIC structure is not re-initialized and the
+              NIC thread is destroyed when the host network
+              interface is brought down.
+
+      Impact: None.
+
+
+uIP v0.5.1 (Dec 9, 2009)
+=======================================================
+   Fixes
+   -----
+   1. Problem: 10G devices behind PCI bridges would not collect
+
+      Cause: PCI bus:slot.func string was parsed incorrectly
+             because the bridge string was used
+
+      Change: Parse the proper PCI bus:slot.func string.
+
+      Impact: None.
+
+
+uIP v0.5.0b (Nov 24, 2009)
+=======================================================
+   Initial release
+
+   Enhancements
+   ------------
+
+   1. Change: Add Broadcom 10G iSCSI offload support
+
+      Impact: Linux

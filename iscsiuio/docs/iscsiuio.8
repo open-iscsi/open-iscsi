@@ -1,0 +1,86 @@
+.\" Copyright (c) 2010-2013 Broadcom Corporation
+.\" This is free documentation; you can redistribute it and/or
+.\" modify it under the terms of the GNU General Public License as
+.\" published by the Free Software Foundation.
+.\"
+.\" bnx2.4,v 0.7.6.1g
+.\"
+.TH iscsiuio 8 "01/14/2013" "Broadcom Corporation"
+.\"
+.\" NAME part
+.\"
+.SH NAME
+iscsiuio \- iSCSI UserSpace I/O driver
+.\"
+.\" SYNOPSIS part
+.\"
+.SH SYNOPSIS
+.B iscsiuio
+.RB [ -d -f -v ]
+.PP
+.\"
+.\" DESCRIPTION part
+.\"
+.SH DESCRIPTION
+iscsiuio is the UserSpace I/O driver for the Broadcom NetXtreme II
+BCM5706/5708/5709 series PCI/PCI-X Gigabit Ethernet Network Interface Card
+(NIC) and for the Broadcom NetXtreme II BCM57710/57711/57712/57800/57810/57840
+series PCI-E 10 Gigabit Ethernet Network Interface Card.
+The driver has been tested on 2.6.28 kernels and above.
+.PP
+Refer to the README.TXT from the driver package on how to
+compile and install the driver.
+.PP
+Refer to various Linux documentations
+on how to configure network protocol and address.
+.\"
+.\" DRIVER DEPENDENCIES part
+.\"
+.SH DRIVER DEPENDENCIES
+
+.\"
+.\" PARAMETER part
+.\"
+.SH PARAMETERS
+There are very few parameters when running this application.
+.TP
+.BI -d <debug level>
+This is to enable debug mode where debug messages will be sent to stdout
+The following debug modes are supported
+.P
+.RS
+DEBUG         4 - Print all messages
+.P
+INFO          3 - Print messages needed to follow the uIP code (default)
+.P
+WARN          2 - Print warning messages
+.P
+ERROR         1 - Only print critical errors
+.RE
+.PP
+.TP
+.TP
+.BI -f
+This is to enable forground mode so that this application doesn't get sent
+into the background.
+.PP
+.TP
+.BI -v
+This is to print the version.
+.PP
+.TP
+.BI -p <pidfile>
+Use pidfile (default  /var/run/iscsiuio.pid )
+.PP
+.TP
+.BI -h
+Display this help and exit.
+
+
+.\"
+.\" AUTHOR part
+.\"
+.SH AUTHOR
+Eddie Wai \- eddie.wai@broadcom.com
+.P
+Benjamin Li \- benli@broadcom.com
