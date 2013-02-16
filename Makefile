@@ -14,8 +14,8 @@ mandir = $(prefix)/share/man
 etcdir = /etc
 initddir = $(etcdir)/init.d
 
-MANPAGES = doc/iscsid.8 doc/iscsiadm.8 doc/iscsi_discovery.8
-PROGRAMS = usr/iscsid usr/iscsiadm utils/iscsi_discovery utils/iscsi-iname
+MANPAGES = doc/iscsid.8 doc/iscsiadm.8 doc/iscsi_discovery.8 iscsiuio/docs/iscsiuio.8
+PROGRAMS = usr/iscsid usr/iscsiadm utils/iscsi_discovery utils/iscsi-iname iscsiuio/src/unix/iscsiuio
 INSTALL = install
 ETCFILES = etc/iscsid.conf
 IFACEFILES = etc/iface.example
@@ -26,23 +26,28 @@ IFACEFILES = etc/iface.example
 
 all: user
 
-user: utils/open-isns/Makefile
+user: utils/open-isns/Makefile iscsiuio/Makefile
 	$(MAKE) -C utils/open-isns
 	$(MAKE) -C utils/sysdeps
 	$(MAKE) -C utils/fwparam_ibft
 	$(MAKE) -C usr
 	$(MAKE) -C utils
+	$(MAKE) -C iscsiuio
 	@echo
 	@echo "Compilation complete                 Output file"
 	@echo "-----------------------------------  ----------------"
 	@echo "Built iSCSI daemon:                  usr/iscsid"
 	@echo "Built management application:        usr/iscsiadm"
 	@echo "Built boot tool:                     usr/iscsistart"
+	@echo "Built iscsiuio daemon:               iscsiuio/src/unix/iscsiuio"
 	@echo
 	@echo "Read README file for detailed information."
 
 utils/open-isns/Makefile: utils/open-isns/configure utils/open-isns/Makefile.in
 	cd utils/open-isns; ./configure CFLAGS="$(OPTFLAGS)" --with-security=no
+
+iscsiuio/Makefile: iscsiuio/configure iscsiuio/Makefile.in
+	cd iscsiuio; ./configure
 
 kernel: force
 	$(MAKE) -C kernel
@@ -61,6 +66,7 @@ clean:
 	$(MAKE) -C utils clean
 	$(MAKE) -C usr clean
 	$(MAKE) -C kernel clean
+	$(MAKE) -C iscsiuio clean
 	$(MAKE) -C utils/open-isns clean
 	$(MAKE) -C utils/open-isns distclean
 
