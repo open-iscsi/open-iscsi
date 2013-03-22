@@ -406,6 +406,29 @@ Usage: iscsiadm [OPTION]
 			  is connected to.
 			  3 = Print iscsi params used.
 			  4 = Print SCSI info like LUNs, device state.
+  -m host --host=hostno|MAC -C flashnode
+			  Display list of all the targets in adapter's
+			  flash (flash node), for the specified host,
+			  with ip, port, tpgt and iqn.
+  -m host --host=hostno|MAC -C flashnode --op=[NEW] --portal_type=[ipv4|ipv6]
+			  Create new flash node entry for the given host of the
+			  specified portal_type. This returns the index of the
+			  newly created entry on success.
+  -m host --host=hostno|MAC -C flashnode --flashnode_idx=[flashnode index] \
+				--op=[UPDATE] --name=[name] --value=[value]
+			  Update the params of the speficied flash node.
+			  The [name] and [value] pairs must be provided for the
+			  params that need to be updated. Multiple params can
+			  be updated using a single command.
+  -m host --host=hostno|MAC -C flashnode--flashnode_idx=[flashnode index] \
+				--op=[SHOW | DELETE | LOGIN | LOGOUT]
+			  op=DELETE|LOGIN|LOGOUT will perform deletion/login/
+			  logout operation on the specified flash node.
+
+			  op=SHOW will list all params with the values for the
+			  specified flash node. This is the default operation.
+
+			  See the iscsiadm example section for more info.
   -d, --debug debuglevel  print debugging information
   -V, --version           display version and exit
   -h, --help              display this help and exit
@@ -959,6 +982,56 @@ To now log into targets it is the same as with sofware iscsi. See section
     - Display running sessions:
 
 	    ./iscsiadm -m session -P 1
+
+
+    Host mode with flashnode submode:
+
+    - Display list of flash nodes for a host
+
+	    ./iscsiadm -m host -H 6 -C flashnode
+
+	This will print list of all the flash node entries for the given host 6
+	along with their ip, port, tpgt and iqn values.
+
+    - Display all parameters of a flash node entry for a host
+
+	    ./iscsiadm -m host -H 6 -C flashnode -x 0
+
+	This will list all the parameter name,value pairs for flash node entry at
+	index 0 of host 6.
+
+    - Add a new flash node entry for a host
+
+	    ./iscsiadm -m host -H 6 -C flashnode -o new -A ipv4
+	or
+	    ./iscsiadm -m host -H 6 -C flashnode -o new -A ipv6
+
+	This will add new flash node entry for the given host 6 with portal
+	type of either ipv4 or ipv6. The new operation returns the index of
+	the newly created flash node entry.
+
+    - Update a flashnode entry
+	    ./iscsiadm -m host -H 6 -C flashnode -x 1 -o update \
+		-n flashnode.conn[0].ipaddress -v 192.168.1.12 \
+		-n flashnode.session.targetname \
+		-v iqn.2002-03.com.compellent:5000d310004b0716
+
+	This will update the values of ipaddress and targetname params of
+	flash node entry at index 1 of host 6.
+
+    - Login to a flash node entry
+	    ./iscsiadm -m host -H 6 -C flashnode -x 1 -o login
+
+    - Logout from a flash node entry
+	    ./iscsiadm -m host -H 6 -C flashnode -x 1 -o logout
+	or
+	    ./iscsiadm -m session -r $sid -u
+
+	Logout can be performed either using the flash node index or using the
+	corresponding session index.
+
+    - Delete a flash node entry
+	    ./iscsiadm -m host -H 6 -C flashnode -x 1 -o delete
 
 6. Configuration
 ================
