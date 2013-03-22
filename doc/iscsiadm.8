@@ -16,7 +16,7 @@ iscsiadm \- open-iscsi administration utility
 
 \fBiscsiadm\fR \-m fw [\-l]
 
-\fBiscsiadm\fR \-m host [ \-P printlevel ] [ \-H hostno|MAC ] [ -C chap [ -o operation ] [ -v chap_tbl_idx ] ]
+\fBiscsiadm\fR \-m host [ \-P printlevel ] [ \-H hostno|MAC ] [ [ \-C chap [ \-o operation ] [ \-v chap_tbl_idx ] ] | [ \-C flashnode [ \-o operation ] [ \-A portal_type ] [ \-x flashnode_idx ] [ \-n name ] [ \-v value ] ] ]
 
 \fBiscsiadm\fR \-k priority
 
@@ -47,6 +47,12 @@ daemon (iscsid) be running.
 This option is only valid for ping submode.
 
 .TP
+\fB\-A\fR, \fB\-\-portal_type=\fI[ipv4|ipv6]\fR
+Specify the portal type for the new flash node entry to be created.
+.IP
+This option is only valid for flashnode submode of host mode and only with \fInew\fR operation.
+
+.TP
 \fB\-b\fR, \fB\-\-packetsize=\fIpacketsize\fP
 Specify the ping \fIpacketsize\fR.
 
@@ -65,6 +71,12 @@ Specify the submode for mode. op must be name of submode.
 Currently iscsiadm support ping as submode for iface. For example,
 
 iscsiadm -m iface -I ifacename -C ping -a ipaddr -b packetsize -c count -i interval
+
+For host, it supports chap and flashnode as submodes. For example,
+
+iscsiadm -m host -H hostno -C chap -v chap_tbl_idx -o operation
+
+iscsiadm -m host -H hostno -C flashnode -x flashnode_idx -o operation
 
 .TP
 \fB\-d\fR, \fB\-\-debug=\fIdebug_level\fP
@@ -170,8 +182,9 @@ for \fIiface\fR, all ifaces setup in /etc/iscsi/ifaces are displayed.
 
 .TP
 \fB\-n\fR, \fB\-\-name=\fIname\fR
-Specify a field \fIname\fR in a record. For use with the \fIupdate\fR
-operator.
+In node mode, specify a field \fIname\fR in a record. In flashnode submode of host mode, specify name of the flash node parameter.
+
+For use with the \fIupdate\fR operator.
 .IP
 
 .TP
@@ -180,6 +193,8 @@ Specifies a database operator \fIop\fR. \fIop\fR must be one of
 \fInew\fR, \fIdelete\fR, \fIupdate\fR, \fIshow\fR or \fInonpersistent\fR.
 .IP
 For iface mode, \fIapply\fR and \fIapplyall\fR  are also applicable.
+.IP
+For flashnode submode of host mode, \fIlogin\fR and \fIlogout\fR are also applicable.
 .IP
 This option is valid for all modes except fw. Delete should not be used on a running session. If it is iscsiadm will stop the session and then delete the
 record.
@@ -209,6 +224,12 @@ sid is passed in.
 
 .IP
 \fIapplyall\fR will cause the network settings to take effect on all the ifaces whose MAC address or host number matches that of the specific host.
+
+.IP
+\fIlogin\fR will log into the specified flash node entry.
+
+.IP
+\fIlogout\fR does the logout from the given flash node entry.
 
 .TP
 \fB\-p\fR, \fB\-\-portal=\fIip[:port]\fR
@@ -292,11 +313,17 @@ for session mode).
 \fB\-v\fR, \fB\-\-value=\fIvalue\fR
 Specify a \fIvalue\fR for use with the \fIupdate\fR operator.
 .IP
-This option is only valid for node mode.
+This option is only valid for node mode and flashnode submode of host mode.
 
 .TP
 \fB\-V\fR, \fB\-\-version\fR
 display version and exit
+
+.TP
+\fB\-x\fR, \fB\-\-flashnode_idx=\fIindex\fR
+Specify the \fIindex\fR of the flash node to operate on.
+.IP
+This option is only valid for flashnode submode of host mode.
 
 .SH DISCOVERY TYPES
 iSCSI defines 3 discovery types: SendTargets, SLP, and iSNS.
