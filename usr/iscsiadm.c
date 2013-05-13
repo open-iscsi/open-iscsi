@@ -135,7 +135,7 @@ iscsiadm -m node [ -hV ] [ -d debug_level ] [ -P printlevel ] [ -L all,manual,au
 [ [ -o  operation  ] [ -n name ] [ -v value ] ]\n\
 iscsiadm -m session [ -hV ] [ -d debug_level ] [ -P  printlevel] [ -r sessionid | sysfsdir [ -R | -u | -s ] [ -o operation ] [ -n name ] [ -v value ] ]\n\
 iscsiadm -m iface [ -hV ] [ -d debug_level ] [ -P printlevel ] [ -I ifacename | -H hostno|MAC ] [ [ -o  operation  ] [ -n name ] [ -v value ] ] [ -C ping [ -a ip ] [ -b packetsize ] [ -c count ] [ -i interval ] ]\n\
-iscsiadm -m fw [ -l ]\n\
+iscsiadm -m fw [ -d debug_level ] [ -l ]\n\
 iscsiadm -m host [ -P printlevel ] [ -H hostno|MAC ] [ [ -C chap [ -o operation ] [ -v chap_tbl_idx ] ] | [ -C flashnode [ -o operation ] [ -A portal_type ] [ -x flashnode_idx ] [ -n name ] [ -v value ] ] ]\n\
 iscsiadm -k priority\n");
 	}
@@ -2987,7 +2987,7 @@ main(int argc, char **argv)
 		usage(ISCSI_ERR_INVAL);
 
 	if (mode == MODE_FW) {
-		if ((rc = verify_mode_params(argc, argv, "ml", 0))) {
+		if ((rc = verify_mode_params(argc, argv, "dml", 0))) {
 			log_error("fw mode: option '-%c' is not "
 				  "allowed/supported", rc);
 			rc = ISCSI_ERR_INVAL;
