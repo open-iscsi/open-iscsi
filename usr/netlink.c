@@ -1252,6 +1252,169 @@ static int kdelete_chap(uint64_t transport_handle, uint32_t host_no,
 	return rc;
 }
 
+static int
+kset_flashnode_params(uint64_t transport_handle, uint32_t host_no,
+		      uint32_t flashnode_idx, struct iovec *iovs,
+		      uint32_t param_count)
+{
+	struct iscsi_uevent ev;
+	int rc, ev_len;
+	struct iovec *iov = iovs + 1;
+
+	log_debug(8, "in %s", __FUNCTION__);
+
+	ev_len = sizeof(ev);
+	ev.type = ISCSI_UEVENT_SET_FLASHNODE_PARAMS;
+	ev.transport_handle = transport_handle;
+	ev.u.set_flashnode.host_no = host_no;
+	ev.u.set_flashnode.flashnode_idx = flashnode_idx;
+	/* first two iovs for nlmsg hdr and ev */
+	ev.u.set_flashnode.count = param_count - 2;
+
+	iov->iov_base = &ev;
+	iov->iov_len = ev_len;
+	rc = __kipc_call(iovs, param_count);
+	if (rc < 0)
+		return rc;
+
+	return 0;
+}
+
+static int
+knew_flashnode(uint64_t transport_handle, uint32_t host_no, void *value,
+	       uint32_t *flashnode_idx)
+{
+	struct iscsi_uevent *ev;
+	char *param_str;
+	int rc, len;
+	struct iovec iov[2];
+
+	log_debug(7, "in %s", __FUNCTION__);
+
+	memset(setparam_buf, 0, NLM_SETPARAM_DEFAULT_MAX);
+	ev = (struct iscsi_uevent *)setparam_buf;
+	ev->type = ISCSI_UEVENT_NEW_FLASHNODE;
+	ev->transport_handle = transport_handle;
+	ev->u.new_flashnode.host_no = host_no;
+
+	param_str = setparam_buf + sizeof(*ev);
+	if (!strlen(value))
+		return 0;
+	sprintf(param_str, "%s", (char *)value);
+	len = strlen(param_str) + 1;
+	ev->u.new_flashnode.len = len;
+
+
+	iov[1].iov_base = ev;
+	iov[1].iov_len = sizeof(*ev) + len;
+	rc = __kipc_call(iov, 2);
+	if (rc < 0)
+		return rc;
+
+	*flashnode_idx = ev->r.new_flashnode_ret.flashnode_idx;
+	return 0;
+}
+
+static int
+kdel_flashnode(uint64_t transport_handle, uint32_t host_no,
+	       uint32_t flashnode_idx)
+{
+	struct iscsi_uevent ev;
+	int rc;
+	struct iovec iov[2];
+
+	log_debug(7, "in %s", __FUNCTION__);
+
+	memset(&ev, 0, sizeof(struct iscsi_uevent));
+	ev.type = ISCSI_UEVENT_DEL_FLASHNODE;
+	ev.transport_handle = transport_handle;
+	ev.u.del_flashnode.host_no = host_no;
+	ev.u.del_flashnode.flashnode_idx = flashnode_idx;
+
+	iov[1].iov_base = &ev;
+	iov[1].iov_len = sizeof(ev);
+	rc = __kipc_call(iov, 2);
+	if (rc < 0)
+		return rc;
+
+	return 0;
+}
+
+static int
+klogin_flashnode(uint64_t transport_handle, uint32_t host_no,
+		 uint32_t flashnode_idx)
+{
+	struct iscsi_uevent ev;
+	int rc;
+	struct iovec iov[2];
+
+	log_debug(7, "in %s", __FUNCTION__);
+
+	memset(&ev, 0, sizeof(struct iscsi_uevent));
+	ev.type = ISCSI_UEVENT_LOGIN_FLASHNODE;
+	ev.transport_handle = transport_handle;
+	ev.u.login_flashnode.host_no = host_no;
+	ev.u.login_flashnode.flashnode_idx = flashnode_idx;
+
+	iov[1].iov_base = &ev;
+	iov[1].iov_len = sizeof(ev);
+	rc = __kipc_call(iov, 2);
+	if (rc < 0)
+		return rc;
+
+	return 0;
+}
+
+static int
+klogout_flashnode(uint64_t transport_handle, uint32_t host_no,
+		  uint32_t flashnode_idx)
+{
+	struct iscsi_uevent ev;
+	int rc;
+	struct iovec iov[2];
+
+	log_debug(7, "in %s", __FUNCTION__);
+
+	memset(&ev, 0, sizeof(struct iscsi_uevent));
+	ev.type = ISCSI_UEVENT_LOGOUT_FLASHNODE;
+	ev.transport_handle = transport_handle;
+	ev.u.logout_flashnode.host_no = host_no;
+	ev.u.logout_flashnode.flashnode_idx = flashnode_idx;
+
+	iov[1].iov_base = &ev;
+	iov[1].iov_len = sizeof(ev);
+	rc = __kipc_call(iov, 2);
+	if (rc < 0)
+		return rc;
+
+	return 0;
+}
+
+static int
+klogout_flashnode_sid(uint64_t transport_handle, uint32_t host_no,
+		      uint32_t sid)
+{
+	struct iscsi_uevent ev;
+	int rc;
+	struct iovec iov[2];
+
+	log_debug(7, "in %s", __FUNCTION__);
+
+	memset(&ev, 0, sizeof(struct iscsi_uevent));
+	ev.type = ISCSI_UEVENT_LOGOUT_FLASHNODE_SID;
+	ev.transport_handle = transport_handle;
+	ev.u.logout_flashnode_sid.host_no = host_no;
+	ev.u.logout_flashnode_sid.sid = sid;
+
+	iov[1].iov_base = &ev;
+	iov[1].iov_len = sizeof(ev);
+	rc = __kipc_call(iov, 2);
+	if (rc < 0)
+		return rc;
+
+	return 0;
+}
+
 static void drop_data(struct nlmsghdr *nlh)
 {
 	int ev_size;
@@ -1296,10 +1459,10 @@ static int ctldev_handle(void)
 						    ev->r.c_session_ret.sid);
 		return 0;
 	case ISCSI_KEVENT_DESTROY_SESSION:
+		drop_data(nlh);
 		if (!ipc_ev_clbk)
 			return 0;
 
-		drop_data(nlh);
 		if (ipc_ev_clbk->destroy_session)
 			ipc_ev_clbk->destroy_session(ev->r.d_session.host_no,
 						     ev->r.d_session.sid);
@@ -1543,6 +1706,12 @@ struct iscsi_ipc nl_ipc = {
 	.exec_ping		= kexec_ping,
 	.get_chap		= kget_chap,
 	.delete_chap		= kdelete_chap,
+	.set_flash_node_params	= kset_flashnode_params,
+	.new_flash_node		= knew_flashnode,
+	.del_flash_node		= kdel_flashnode,
+	.login_flash_node	= klogin_flashnode,
+	.logout_flash_node	= klogout_flashnode,
+	.logout_flash_node_sid	= klogout_flashnode_sid,
 };
 struct iscsi_ipc *ipc = &nl_ipc;
 

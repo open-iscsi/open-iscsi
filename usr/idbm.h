@@ -27,6 +27,7 @@
 #include "initiator.h"
 #include "config.h"
 #include "list.h"
+#include "flashnode.h"
 
 #define NODE_CONFIG_DIR		ISCSI_CONFIG_ROOT"nodes"
 #define SLP_CONFIG_DIR		ISCSI_CONFIG_ROOT"slp"
@@ -42,6 +43,7 @@
 #define TYPE_STR	2
 #define TYPE_UINT8	3
 #define TYPE_UINT16	4
+#define TYPE_UINT32	5
 #define MAX_KEYS	256   /* number of keys total(including CNX_MAX) */
 #define NAME_MAXVAL	128   /* the maximum length of key name */
 #define VALUE_MAXVAL	256   /* the maximum length of 223 bytes in the RFC. */
@@ -85,6 +87,7 @@ struct user_param {
 	struct list_head list;
 	char *name;
 	char *value;
+	int param;
 };
 
 typedef int (idbm_iface_op_fn)(void *data, node_rec_t *rec);
@@ -168,6 +171,7 @@ enum {
 	IDBM_PRINT_TYPE_NODE,
 	IDBM_PRINT_TYPE_IFACE,
 	IDBM_PRINT_TYPE_HOST_CHAP,
+	IDBM_PRINT_TYPE_FLASHNODE
 };
 
 extern void idbm_print(int type, void *rec, int show, FILE *f);
@@ -181,5 +185,8 @@ extern struct node_rec *
 idbm_create_rec_from_boot_context(struct boot_context *context);
 
 extern int idbm_print_host_chap_info(struct iscsi_chap_rec *chap);
+
+extern int idbm_print_flashnode_info(struct flashnode_rec *target);
+extern void idbm_recinfo_flashnode(struct flashnode_rec *r, recinfo_t *ri);
 
 #endif /* IDBM_H */

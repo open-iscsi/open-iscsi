@@ -53,6 +53,7 @@
 #include "iscsi_err.h"
 #include "iscsi_ipc.h"
 #include "iscsi_timer.h"
+#include "flashnode.h"
 
 static char program_name[] = "iscsiadm";
 static char config_file[TARGET_NAME_MAXLEN];
@@ -67,7 +68,8 @@ enum iscsiadm_mode {
 	MODE_IFACE,
 	MODE_FW,
 	MODE_PING,
-	MODE_CHAP
+	MODE_CHAP,
+	MODE_FLASHNODE
 };
 
 enum iscsiadm_op {
@@ -78,7 +80,9 @@ enum iscsiadm_op {
 	OP_SHOW			= 0x8,
 	OP_NONPERSISTENT	= 0x10,
 	OP_APPLY		= 0x20,
-	OP_APPLY_ALL		= 0x40
+	OP_APPLY_ALL		= 0x40,
+	OP_LOGIN		= 0x80,
+	OP_LOGOUT		= 0x100
 };
 
 static struct option const long_options[] =
@@ -111,9 +115,11 @@ static struct option const long_options[] =
 	{"packetsize", required_argument, NULL, 'b'},
 	{"count", required_argument, NULL, 'c'},
 	{"interval", required_argument, NULL, 'i'},
+	{"flashnode_idx", optional_argument, NULL, 'x'},
+	{"portal_type", optional_argument, NULL, 'A'},
 	{NULL, 0, NULL, 0},
 };
-static char *short_options = "RlDVhm:a:b:c:C:p:P:T:H:i:I:U:k:L:d:r:n:v:o:sSt:u";
+static char *short_options = "RlDVhm:a:b:c:C:p:P:T:H:i:I:U:k:L:d:r:n:v:o:sSt:ux:A:";
 
 static void usage(int status)
 {
@@ -130,7 +136,7 @@ iscsiadm -m node [ -hV ] [ -d debug_level ] [ -P printlevel ] [ -L all,manual,au
 iscsiadm -m session [ -hV ] [ -d debug_level ] [ -P  printlevel] [ -r sessionid | sysfsdir [ -R | -u | -s ] [ -o operation ] [ -n name ] [ -v value ] ]\n\
 iscsiadm -m iface [ -hV ] [ -d debug_level ] [ -P printlevel ] [ -I ifacename | -H hostno|MAC ] [ [ -o  operation  ] [ -n name ] [ -v value ] ] [ -C ping [ -a ip ] [ -b packetsize ] [ -c count ] [ -i interval ] ]\n\
 iscsiadm -m fw [ -l ]\n\
-iscsiadm -m host [ -P printlevel ] [ -H hostno|MAC ] [ -C chap [ -o operation ] [ -v chap_tbl_idx ] ]\n\
+iscsiadm -m host [ -P printlevel ] [ -H hostno|MAC ] [ [ -C chap [ -o operation ] [ -v chap_tbl_idx ] ] | [ -C flashnode [ -o operation ] [ -A portal_type ] [ -x flashnode_idx ] [ -n name ] [ -v value ] ] ]\n\
 iscsiadm -k priority\n");
 	}
 	exit(status);
@@ -155,6 +161,10 @@ str_to_op(char *str)
 		op = OP_APPLY;
 	else if (!strcmp("applyall", str))
 		op = OP_APPLY_ALL;
+	else if (!strcmp("login", str))
+		op = OP_LOGIN;
+	else if (!strcmp("logout", str))
+		op = OP_LOGOUT;
 	else
 		op = OP_NOOP;
 
@@ -195,6 +205,8 @@ str_to_submode(char *str)
 		sub_mode = MODE_PING;
 	else if (!strcmp("chap", str))
 		sub_mode = MODE_CHAP;
+	else if (!strcmp("flashnode", str))
+		sub_mode = MODE_FLASHNODE;
 	else
 		sub_mode = -1;
 
@@ -219,6 +231,21 @@ str_to_type(char *str)
 		type = -1;
 
 	return type;
+}
+
+static int
+str_to_portal_type(char *str)
+{
+	int ptype;
+
+	if (!strcmp("ipv4", str))
+		ptype = IPV4;
+	else if (!strcmp("ipv6", str))
+		ptype = IPV6;
+	else
+		ptype = -1;
+
+	return ptype;
 }
 
 static void kill_iscsid(int priority)
@@ -582,6 +609,8 @@ static int iscsi_logout_matched_portal(void *data, struct list_head *list,
 {
 	struct node_rec *pattern_rec = data;
 	struct iscsi_transport *t;
+	uint32_t host_no;
+	int rc = 0;
 
 	t = iscsi_sysfs_get_transport_by_sid(info->sid);
 	if (!t)
@@ -590,7 +619,19 @@ static int iscsi_logout_matched_portal(void *data, struct list_head *list,
 	if (!iscsi_match_session(pattern_rec, info))
 		return -1;
 
-	return iscsi_logout_portal(info, list);
+	host_no = iscsi_sysfs_get_host_no_from_sid(info->sid, &rc);
+	if (rc) {
+		log_error("could not get host_no for session%d: %s.",
+			  info->sid, iscsi_err_to_str(rc));
+		return -1;
+	}
+
+	if (!iscsi_sysfs_session_user_created(info->sid))
+		rc = iscsi_logout_flashnode_sid(t, host_no, info->sid);
+	else
+		rc = iscsi_logout_portal(info, list);
+
+	return rc;
 }
 
 static int rec_match_fn(void *data, node_rec_t *rec)
@@ -1435,6 +1476,360 @@ static int exec_host_chap_op(int op, int info_level, uint32_t host_no,
 		break;
 	}
 
+	return rc;
+}
+
+static int get_flashnode_info(uint32_t host_no, uint32_t flashnode_idx)
+{
+	struct flashnode_rec fnode;
+	int rc = 0;
+
+	memset(&fnode, 0, sizeof(fnode));
+	rc = iscsi_sysfs_get_flashnode_info(&fnode, host_no, flashnode_idx);
+	if (rc) {
+		log_error("Could not read info for flashnode %u of host %u, %s",
+			  flashnode_idx, host_no, strerror(rc));
+		return rc;
+	}
+
+	idbm_print_flashnode_info(&fnode);
+	return rc;
+}
+
+static int list_flashnodes(int info_level, uint32_t host_no)
+{
+	int rc = 0;
+	int num_found = 0;
+
+	rc = iscsi_sysfs_for_each_flashnode(NULL, host_no, &num_found,
+					    flashnode_info_print_flat);
+
+	if (!num_found) {
+		log_error("No flashnodes attached to host %u.", host_no);
+		rc = ISCSI_ERR_NO_OBJS_FOUND;
+	}
+
+	return rc;
+}
+
+int iscsi_set_flashnode_params(struct iscsi_transport *t, uint32_t host_no,
+			       uint32_t flashnode_idx, struct list_head *params)
+{
+	struct flashnode_rec fnode;
+	recinfo_t *flashnode_info;
+	struct user_param *param;
+	struct iovec *iovs = NULL;
+	struct iovec *iov = NULL;
+	int fd, rc = 0;
+	int param_count = 0;
+	int param_used = 0;
+	int i;
+
+	flashnode_info = idbm_recinfo_alloc(MAX_KEYS);
+	if (!flashnode_info) {
+		log_error("Out of Memory.");
+		rc = ISCSI_ERR_NOMEM;
+		goto free_info_rec;
+	}
+
+	memset(&fnode, 0, sizeof(fnode));
+	rc = iscsi_sysfs_get_flashnode_info(&fnode, host_no, flashnode_idx);
+	if (rc) {
+		log_error("Could not read info for flashnode %u, %s",
+			  flashnode_idx, strerror(rc));
+		goto free_info_rec;
+	}
+
+	idbm_recinfo_flashnode(&fnode, flashnode_info);
+
+	i = 0;
+	list_for_each_entry(param, params, list) {
+		param_count++;
+		rc = idbm_verify_param(flashnode_info, param->name);
+		if (rc)
+			goto free_info_rec;
+	}
+
+	list_for_each_entry(param, params, list) {
+		rc = idbm_rec_update_param(flashnode_info, param->name,
+					   param->value, 0);
+		if (rc)
+			goto free_info_rec;
+	}
+
+	/* +2 for event and nlmsghdr */
+	param_count += 2;
+	iovs = calloc((param_count * sizeof(struct iovec)),
+		       sizeof(char));
+	if (!iovs) {
+		log_error("Out of Memory.");
+		rc = ISCSI_ERR_NOMEM;
+		goto free_info_rec;
+	}
+
+	/* param_used gives actual number of iovecs used for flashnode */
+	param_used = flashnode_build_config(params, &fnode, iovs);
+	if (!param_used) {
+		log_error("Build flashnode config failed.");
+		rc = ISCSI_ERR;
+		goto free_iovec;
+	}
+
+	fd = ipc->ctldev_open();
+	if (fd < 0) {
+		log_error("Netlink open failed.");
+		rc = ISCSI_ERR_INTERNAL;
+		goto free_iovec;
+	}
+
+	log_info("Update flashnode %u.", flashnode_idx);
+	rc = ipc->set_flash_node_params(t->handle, host_no, flashnode_idx,
+					iovs, param_count);
+	if (rc < 0)
+		rc = ISCSI_ERR;
+
+
+	ipc->ctldev_close();
+
+free_iovec:
+	/* start at 2, because 0 is for nlmsghdr and 1 for event */
+	iov = iovs + 2;
+	for (i = 0; i < param_used; i++, iov++) {
+		if (iov->iov_base)
+			free(iov->iov_base);
+	}
+
+	free(iovs);
+
+free_info_rec:
+	if (flashnode_info)
+		free(flashnode_info);
+
+	return rc;
+}
+
+int iscsi_new_flashnode(struct iscsi_transport *t, uint32_t host_no, char *val,
+			uint32_t *flashnode_idx)
+{
+	int fd, rc = 0;
+
+	fd = ipc->ctldev_open();
+	if (fd < 0) {
+		log_error("Netlink open failed.");
+		rc = ISCSI_ERR_INTERNAL;
+		goto exit_new_flashnode;
+	}
+
+	log_info("Create new flashnode for host %u.", host_no);
+	rc = ipc->new_flash_node(t->handle, host_no, val, flashnode_idx);
+	if (rc < 0)
+		rc = ISCSI_ERR;
+
+	ipc->ctldev_close();
+
+exit_new_flashnode:
+	return rc;
+}
+
+int iscsi_del_flashnode(struct iscsi_transport *t, uint32_t host_no,
+			uint32_t flashnode_idx)
+{
+	int fd, rc = 0;
+
+	fd = ipc->ctldev_open();
+	if (fd < 0) {
+		log_error("Netlink open failed.");
+		rc = ISCSI_ERR_INTERNAL;
+		goto exit_del_flashnode;
+	}
+
+	log_info("Delete flashnode %u.", flashnode_idx);
+	rc = ipc->del_flash_node(t->handle, host_no, flashnode_idx);
+	if (rc < 0)
+		rc = ISCSI_ERR;
+
+	ipc->ctldev_close();
+
+exit_del_flashnode:
+	return rc;
+}
+
+int iscsi_login_flashnode(struct iscsi_transport *t, uint32_t host_no,
+			  uint32_t flashnode_idx)
+{
+	int fd, rc = 0;
+
+	fd = ipc->ctldev_open();
+	if (fd < 0) {
+		log_error("Netlink open failed.");
+		rc = ISCSI_ERR_INTERNAL;
+		goto exit_login_flashnode;
+	}
+
+	log_info("Login to flashnode %u.", flashnode_idx);
+	rc = ipc->login_flash_node(t->handle, host_no, flashnode_idx);
+	if (rc == -EPERM)
+		rc = ISCSI_ERR_SESS_EXISTS;
+	else if (rc < 0)
+		rc = ISCSI_ERR_LOGIN;
+
+	ipc->ctldev_close();
+
+exit_login_flashnode:
+	return rc;
+}
+
+int iscsi_logout_flashnode(struct iscsi_transport *t, uint32_t host_no,
+			   uint32_t flashnode_idx)
+{
+	int fd, rc = 0;
+
+	fd = ipc->ctldev_open();
+	if (fd < 0) {
+		log_error("Netlink open failed.");
+		rc = ISCSI_ERR_INTERNAL;
+		goto exit_logout;
+	}
+
+	log_info("Logout flashnode %u.", flashnode_idx);
+	rc = ipc->logout_flash_node(t->handle, host_no, flashnode_idx);
+	if (rc == -ESRCH)
+		rc = ISCSI_ERR_SESS_NOT_FOUND;
+	else if (rc < 0)
+		rc = ISCSI_ERR_LOGOUT;
+
+	ipc->ctldev_close();
+
+exit_logout:
+	return rc;
+}
+
+int iscsi_logout_flashnode_sid(struct iscsi_transport *t, uint32_t host_no,
+			       uint32_t sid)
+{
+	int fd, rc = 0;
+
+	fd = ipc->ctldev_open();
+	if (fd < 0) {
+		log_error("Netlink open failed.");
+		rc = ISCSI_ERR_INTERNAL;
+		goto exit_logout_sid;
+	}
+
+	log_info("Logout sid %u.", sid);
+	rc = ipc->logout_flash_node_sid(t->handle, host_no, sid);
+	if (rc < 0) {
+		log_error("Logout of sid %u failed.", sid);
+		rc = ISCSI_ERR_LOGOUT;
+	} else {
+		log_info("Logout of sid %u successful.", sid);
+	}
+
+	ipc->ctldev_close();
+
+exit_logout_sid:
+	return rc;
+}
+
+static int exec_flashnode_op(int op, int info_level, uint32_t host_no,
+			     uint32_t flashnode_idx, int type,
+			     struct list_head *params)
+{
+	struct iscsi_transport *t = NULL;
+	int rc = ISCSI_SUCCESS;
+	char *portal_type;
+
+	if (op != OP_SHOW && op != OP_NOOP && op != OP_NEW &&
+	    flashnode_idx == 0xffffffff) {
+		log_error("Invalid flashnode index");
+		rc = ISCSI_ERR_INVAL;
+		goto exit_flashnode_op;
+	}
+
+	t = iscsi_sysfs_get_transport_by_hba(host_no);
+	if (!t) {
+		log_error("Could not match hostno %u to transport.", host_no);
+		rc = ISCSI_ERR_TRANS_NOT_FOUND;
+		goto exit_flashnode_op;
+	}
+
+	switch (op) {
+	case OP_NOOP:
+	case OP_SHOW:
+		if (flashnode_idx == 0xffffffff)
+			rc = list_flashnodes(info_level, host_no);
+		else
+			rc = get_flashnode_info(host_no, flashnode_idx);
+		break;
+	case OP_NEW:
+		if (type == IPV4) {
+			portal_type = "ipv4";
+		} else if (type == IPV6) {
+			portal_type = "ipv6";
+		} else {
+			log_error("Invalid type mentioned for flashnode");
+			rc = ISCSI_ERR_INVAL;
+			goto exit_flashnode_op;
+		}
+		rc = iscsi_new_flashnode(t, host_no, portal_type,
+					 &flashnode_idx);
+		if (!rc)
+			log_info("New flashnode for host %u added at index %u.",
+				 host_no, flashnode_idx);
+		else
+			log_error("Creation of flashnode for host %u failed.",
+				  host_no);
+		break;
+	case OP_DELETE:
+		rc = iscsi_del_flashnode(t, host_no, flashnode_idx);
+		if (!rc)
+			log_info("Flashnode %u of host %u deleted.",
+				 flashnode_idx, host_no);
+		else
+			log_error("Deletion of flashnode %u of host %u failed.",
+				  flashnode_idx, host_no);
+		break;
+	case OP_UPDATE:
+		rc = iscsi_set_flashnode_params(t, host_no, flashnode_idx,
+						params);
+		if (!rc)
+			log_info("Update for flashnode %u of host %u successful.",
+				 flashnode_idx, host_no);
+		else
+			log_error("Update for flashnode %u of host %u failed.",
+				  flashnode_idx, host_no);
+		break;
+	case OP_LOGIN:
+		rc = iscsi_login_flashnode(t, host_no, flashnode_idx);
+		if (!rc)
+			log_info("Login to flashnode %u of host %u successful.",
+				 flashnode_idx, host_no);
+		else if (rc == ISCSI_ERR_SESS_EXISTS)
+			log_info("Flashnode %u of host %u already logged in.",
+				 flashnode_idx, host_no);
+		else
+			log_error("Login to flashnode %u of host %u failed.",
+				  flashnode_idx, host_no);
+		break;
+	case OP_LOGOUT:
+		rc = iscsi_logout_flashnode(t, host_no, flashnode_idx);
+		if (!rc)
+			log_info("Logout of flashnode %u of host %u successful.",
+				 flashnode_idx, host_no);
+		else if (rc == ISCSI_ERR_SESS_NOT_FOUND)
+			log_info("Flashnode %u of host %u not logged in.",
+				 flashnode_idx, host_no);
+		else
+			log_error("Logout of flashnode %u of host %u failed.",
+				  flashnode_idx, host_no);
+		break;
+	default:
+		log_error("Invalid operation");
+		rc = ISCSI_ERR_INVAL;
+		break;
+	}
+
+exit_flashnode_op:
 	return rc;
 }
 
@@ -2403,6 +2798,7 @@ main(int argc, char **argv)
 	int tpgt = PORTAL_GROUP_TAG_UNKNOWN, killiscsid=-1, do_show=0;
 	int packet_size=32, ping_count=1, ping_interval=0;
 	int do_discover = 0, sub_mode = -1;
+	int flashnode_idx = -1, portal_type = -1;
 	struct sigaction sa_old;
 	struct sigaction sa_new;
 	struct list_head ifaces;
@@ -2551,11 +2947,19 @@ main(int argc, char **argv)
 			printf("%s version %s\n", program_name,
 				ISCSI_VERSION_STR);
 			return 0;
+		case 'x':
+			flashnode_idx = atoi(optarg);
+			break;
+		case 'A':
+			portal_type = str_to_portal_type(optarg);
+			break;
 		case 'h':
 			usage(0);
 		}
 
-		if (name && value) {
+		if ((mode == MODE_IFACE ||
+		     (mode == MODE_HOST && sub_mode == MODE_FLASHNODE)) &&
+		    name && value) {
 			param = idbm_alloc_user_param(name, value);
 			if (!param) {
 				log_error("Cannot allocate memory for params.");
@@ -2603,7 +3007,7 @@ main(int argc, char **argv)
 
 	switch (mode) {
 	case MODE_HOST:
-		if ((rc = verify_mode_params(argc, argv, "CHdmPov", 0))) {
+		if ((rc = verify_mode_params(argc, argv, "CHdmPotnvxA", 0))) {
 			log_error("host mode: option '-%c' is not "
 				  "allowed/supported", rc);
 			rc = ISCSI_ERR_INVAL;
@@ -2620,6 +3024,17 @@ main(int argc, char **argv)
 				}
 				rc = exec_host_chap_op(op, info_level, host_no,
 						       value);
+				break;
+			case MODE_FLASHNODE:
+				if (!host_no) {
+					log_error("FLASHNODE mode requires host no");
+					rc = ISCSI_ERR_INVAL;
+					break;
+				}
+
+				rc = exec_flashnode_op(op, info_level, host_no,
+						       flashnode_idx,
+						       portal_type, &params);
 				break;
 			default:
 				log_error("Invalid Sub Mode");

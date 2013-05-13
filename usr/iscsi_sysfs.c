@@ -29,6 +29,7 @@
 #include "initiator.h"
 #include "transport.h"
 #include "idbm.h"
+#include "idbm_fields.h"
 #include "version.h"
 #include "iscsi_sysfs.h"
 #include "sysdeps.h"
@@ -37,6 +38,7 @@
 #include "session_info.h"
 #include "host.h"
 #include "iscsi_err.h"
+#include "flashnode.h"
 
 /*
  * TODO: remove the _DIR defines and search for subsys dirs like
@@ -45,18 +47,22 @@
 #define ISCSI_TRANSPORT_DIR	"/sys/class/iscsi_transport"
 #define ISCSI_SESSION_DIR	"/sys/class/iscsi_session"
 #define ISCSI_HOST_DIR		"/sys/class/iscsi_host"
+#define ISCSI_FLASHNODE_DIR	"/sys/bus/iscsi_flashnode/devices"
 
 #define ISCSI_SESSION_SUBSYS		"iscsi_session"
 #define ISCSI_CONN_SUBSYS		"iscsi_connection"
 #define ISCSI_HOST_SUBSYS		"iscsi_host"
 #define ISCSI_TRANSPORT_SUBSYS		"iscsi_transport"
 #define ISCSI_IFACE_SUBSYS		"iscsi_iface"
+#define ISCSI_FLASHNODE_SUBSYS		"iscsi_flashnode"
 #define SCSI_HOST_SUBSYS		"scsi_host"
 #define SCSI_SUBSYS			"scsi"
 
 #define ISCSI_SESSION_ID		"session%d"
 #define ISCSI_CONN_ID			"connection%d:0"
 #define ISCSI_HOST_ID			"host%d"
+#define ISCSI_FLASHNODE_SESS		"flashnode_sess-%d:%d"
+#define ISCSI_FLASHNODE_CONN		"flashnode_conn-%d:%d:0"
 
 /*
  * TODO: make this into a real API and check inputs better and add doc.
@@ -437,6 +443,234 @@ uint32_t iscsi_sysfs_get_host_no_from_hwinfo(struct iface_rec *iface, int *rc)
 
 	*rc = tmp_rc;
 	return host_no;
+}
+
+/*
+ * Read the flash node attributes based on host and flash node index.
+ */
+int iscsi_sysfs_get_flashnode_info(struct flashnode_rec *fnode,
+				   uint32_t host_no,
+				   uint32_t flashnode_idx)
+{
+	char sess_id[NAME_SIZE] = {'\0'};
+	char conn_id[NAME_SIZE] = {'\0'};
+	char fnode_path[PATH_SIZE] = {'\0'};
+	struct iscsi_transport *t;
+	int ret = 0;
+
+	t = iscsi_sysfs_get_transport_by_hba(host_no);
+	if (!t)
+		log_debug(7, "could not get transport name for host%d",
+			  host_no);
+	else
+		strncpy(fnode->transport_name, t->name,
+			ISCSI_TRANSPORT_NAME_MAXLEN);
+
+	snprintf(sess_id, sizeof(sess_id), ISCSI_FLASHNODE_SESS, host_no,
+		 flashnode_idx);
+
+	snprintf(fnode_path, sizeof(fnode_path), ISCSI_FLASHNODE_DIR"/%s",
+		 sess_id);
+	if (access(fnode_path, F_OK) != 0)
+		return errno;
+
+	snprintf(conn_id, sizeof(conn_id), ISCSI_FLASHNODE_CONN, host_no,
+		 flashnode_idx);
+
+	snprintf(fnode_path, sizeof(fnode_path), ISCSI_FLASHNODE_DIR"/%s",
+		 conn_id);
+	if (access(fnode_path, F_OK) != 0)
+		return errno;
+
+
+	sysfs_get_uint8(conn_id, ISCSI_FLASHNODE_SUBSYS, "is_fw_assigned_ipv6",
+			&((fnode->conn[0]).is_fw_assigned_ipv6));
+	sysfs_get_str(sess_id, ISCSI_FLASHNODE_SUBSYS, "portal_type",
+		      (fnode->sess).portal_type,
+		      sizeof((fnode->sess).portal_type));
+	sysfs_get_uint8(sess_id, ISCSI_FLASHNODE_SUBSYS, "auto_snd_tgt_disable",
+			&((fnode->sess).auto_snd_tgt_disable));
+	sysfs_get_uint8(sess_id, ISCSI_FLASHNODE_SUBSYS, "discovery_session",
+			&((fnode->sess).discovery_session));
+	sysfs_get_uint8(sess_id, ISCSI_FLASHNODE_SUBSYS, "entry_enable",
+			&((fnode->sess).entry_enable));
+	sysfs_get_uint8(conn_id, ISCSI_FLASHNODE_SUBSYS, "header_digest",
+			&((fnode->conn[0]).header_digest_en));
+	sysfs_get_uint8(conn_id, ISCSI_FLASHNODE_SUBSYS, "data_digest",
+			&((fnode->conn[0]).data_digest_en));
+	sysfs_get_uint8(sess_id, ISCSI_FLASHNODE_SUBSYS, "immediate_data",
+			&((fnode->sess).immediate_data));
+	sysfs_get_uint8(sess_id, ISCSI_FLASHNODE_SUBSYS, "initial_r2t",
+			&((fnode->sess).initial_r2t));
+	sysfs_get_uint8(sess_id, ISCSI_FLASHNODE_SUBSYS, "data_seq_in_order",
+			&((fnode->sess).data_seq_in_order));
+	sysfs_get_uint8(sess_id, ISCSI_FLASHNODE_SUBSYS, "data_pdu_in_order",
+			&((fnode->sess).data_pdu_in_order));
+	sysfs_get_uint8(sess_id, ISCSI_FLASHNODE_SUBSYS, "chap_auth",
+			&((fnode->sess).chap_auth_en));
+	sysfs_get_uint8(conn_id, ISCSI_FLASHNODE_SUBSYS, "snack_req",
+			&((fnode->conn[0]).snack_req_en));
+	sysfs_get_uint8(sess_id, ISCSI_FLASHNODE_SUBSYS, "discovery_logout",
+			&((fnode->sess).discovery_logout_en));
+	sysfs_get_uint8(sess_id, ISCSI_FLASHNODE_SUBSYS, "bidi_chap",
+			&((fnode->sess).bidi_chap_en));
+	sysfs_get_uint8(sess_id, ISCSI_FLASHNODE_SUBSYS,
+			"discovery_auth_optional",
+			&((fnode->sess).discovery_auth_optional));
+	sysfs_get_uint8(sess_id, ISCSI_FLASHNODE_SUBSYS, "erl",
+			&((fnode->sess).erl));
+	sysfs_get_uint8(conn_id, ISCSI_FLASHNODE_SUBSYS, "tcp_timestamp_stat",
+			&((fnode->conn[0]).tcp_timestamp_stat));
+	sysfs_get_uint8(conn_id, ISCSI_FLASHNODE_SUBSYS, "tcp_nagle_disable",
+			&((fnode->conn[0]).tcp_nagle_disable));
+	sysfs_get_uint8(conn_id, ISCSI_FLASHNODE_SUBSYS, "tcp_wsf_disable",
+			&((fnode->conn[0]).tcp_wsf_disable));
+	sysfs_get_uint8(conn_id, ISCSI_FLASHNODE_SUBSYS, "tcp_timer_scale",
+			&((fnode->conn[0]).tcp_timer_scale));
+	sysfs_get_uint8(conn_id, ISCSI_FLASHNODE_SUBSYS, "tcp_timestamp_enable",
+			&((fnode->conn[0]).tcp_timestamp_en));
+	sysfs_get_uint8(conn_id, ISCSI_FLASHNODE_SUBSYS, "fragment_disable",
+			&((fnode->conn[0]).fragment_disable));
+	sysfs_get_uint(conn_id, ISCSI_FLASHNODE_SUBSYS, "max_recv_dlength",
+		       &((fnode->conn[0]).max_recv_dlength));
+	sysfs_get_uint(conn_id, ISCSI_FLASHNODE_SUBSYS, "max_xmit_dlength",
+		       &((fnode->conn[0]).max_xmit_dlength));
+	sysfs_get_uint(sess_id, ISCSI_FLASHNODE_SUBSYS, "first_burst_len",
+		       &((fnode->sess).first_burst_len));
+	sysfs_get_uint16(sess_id, ISCSI_FLASHNODE_SUBSYS, "def_time2wait",
+			 &((fnode->sess).def_time2wait));
+	sysfs_get_uint16(sess_id, ISCSI_FLASHNODE_SUBSYS, "def_time2retain",
+			 &((fnode->sess).def_time2retain));
+	sysfs_get_uint16(sess_id, ISCSI_FLASHNODE_SUBSYS, "max_outstanding_r2t",
+			 &((fnode->sess).max_outstanding_r2t));
+	sysfs_get_uint16(conn_id, ISCSI_FLASHNODE_SUBSYS, "keepalive_tmo",
+			 &((fnode->conn[0]).keepalive_tmo));
+	sysfs_get_str(sess_id, ISCSI_FLASHNODE_SUBSYS, "isid",
+		      (fnode->sess).isid, sizeof((fnode->sess).isid));
+	sysfs_get_uint16(sess_id, ISCSI_FLASHNODE_SUBSYS, "tsid",
+			 &((fnode->sess).tsid));
+	sysfs_get_uint16(conn_id, ISCSI_FLASHNODE_SUBSYS, "port",
+			 &((fnode->conn[0]).port));
+	sysfs_get_uint(sess_id, ISCSI_FLASHNODE_SUBSYS, "max_burst_len",
+		       &((fnode->sess).max_burst_len));
+	sysfs_get_uint16(sess_id, ISCSI_FLASHNODE_SUBSYS, "def_taskmgmt_tmo",
+			 &((fnode->sess).def_taskmgmt_tmo));
+	sysfs_get_str(sess_id, ISCSI_FLASHNODE_SUBSYS, "targetalias",
+		      (fnode->sess).targetalias,
+		      sizeof((fnode->sess).targetalias));
+	sysfs_get_str(conn_id, ISCSI_FLASHNODE_SUBSYS, "ipaddress",
+		      (fnode->conn[0]).ipaddress,
+		      sizeof((fnode->conn[0]).ipaddress));
+	sysfs_get_str(conn_id, ISCSI_FLASHNODE_SUBSYS, "redirect_ipaddr",
+		      (fnode->conn[0]).redirect_ipaddr,
+		      sizeof((fnode->conn[0]).redirect_ipaddr));
+	sysfs_get_uint(conn_id, ISCSI_FLASHNODE_SUBSYS, "max_segment_size",
+		       &((fnode->conn[0]).max_segment_size));
+	sysfs_get_uint16(conn_id, ISCSI_FLASHNODE_SUBSYS, "local_port",
+			 &((fnode->conn[0]).local_port));
+	sysfs_get_uint8(conn_id, ISCSI_FLASHNODE_SUBSYS, "ipv4_tos",
+			&((fnode->conn[0]).ipv4_tos));
+	sysfs_get_uint8(conn_id, ISCSI_FLASHNODE_SUBSYS, "ipv6_traffic_class",
+			&((fnode->conn[0]).ipv6_traffic_class));
+	sysfs_get_uint16(conn_id, ISCSI_FLASHNODE_SUBSYS, "ipv6_flow_label",
+			 &((fnode->conn[0]).ipv6_flow_lbl));
+	sysfs_get_str(sess_id, ISCSI_FLASHNODE_SUBSYS, "targetname",
+		      (fnode->sess).targetname,
+		      sizeof((fnode->sess).targetname));
+	sysfs_get_str(conn_id, ISCSI_FLASHNODE_SUBSYS, "link_local_ipv6",
+		      (fnode->conn[0]).link_local_ipv6,
+		      sizeof((fnode->conn[0]).link_local_ipv6));
+	sysfs_get_uint16(sess_id, ISCSI_FLASHNODE_SUBSYS,
+			 "discovery_parent_idx",
+			 &((fnode->sess).discovery_parent_idx));
+	sysfs_get_str(sess_id, ISCSI_FLASHNODE_SUBSYS,
+		      "discovery_parent_type",
+		      (fnode->sess).discovery_parent_type,
+		      sizeof((fnode->sess).discovery_parent_type));
+	sysfs_get_uint16(sess_id, ISCSI_FLASHNODE_SUBSYS, "tpgt",
+			 &((fnode->sess).tpgt));
+	sysfs_get_uint(conn_id, ISCSI_FLASHNODE_SUBSYS, "tcp_xmit_wsf",
+		       &((fnode->conn[0]).tcp_xmit_wsf));
+	sysfs_get_uint(conn_id, ISCSI_FLASHNODE_SUBSYS, "tcp_recv_wsf",
+		       &((fnode->conn[0]).tcp_recv_wsf));
+	sysfs_get_uint16(sess_id, ISCSI_FLASHNODE_SUBSYS, "chap_out_idx",
+			 &((fnode->sess).chap_out_idx));
+	sysfs_get_uint16(sess_id, ISCSI_FLASHNODE_SUBSYS, "chap_in_idx",
+			 &((fnode->sess).chap_in_idx));
+	sysfs_get_str(sess_id, ISCSI_FLASHNODE_SUBSYS, "username",
+		      (fnode->sess).username, sizeof((fnode->sess).username));
+	sysfs_get_str(sess_id, ISCSI_FLASHNODE_SUBSYS, "username_in",
+		      (fnode->sess).username,
+		      sizeof((fnode->sess).username_in));
+	sysfs_get_str(sess_id, ISCSI_FLASHNODE_SUBSYS, "password",
+		      (fnode->sess).password, sizeof((fnode->sess).password));
+	sysfs_get_str(sess_id, ISCSI_FLASHNODE_SUBSYS, "password_in",
+		      (fnode->sess).password,
+		      sizeof((fnode->sess).password_in));
+	sysfs_get_uint(conn_id, ISCSI_FLASHNODE_SUBSYS, "statsn",
+		       &((fnode->conn[0]).stat_sn));
+	sysfs_get_uint(conn_id, ISCSI_FLASHNODE_SUBSYS, "exp_statsn",
+		       &((fnode->conn[0]).exp_stat_sn));
+	sysfs_get_uint8(sess_id, ISCSI_FLASHNODE_SUBSYS, "is_boot_target",
+			&((fnode->sess).is_boot_target));
+	return ret;
+}
+
+/*
+ * For each flash node of the given host, perform operation specified in fn.
+ */
+int iscsi_sysfs_for_each_flashnode(void *data, uint32_t host_no, int *nr_found,
+				   iscsi_sysfs_flashnode_op_fn *fn)
+{
+	struct dirent **namelist;
+	int rc = 0, i, n;
+	struct flashnode_rec *fnode;
+	uint32_t flashnode_idx;
+	uint32_t hostno;
+
+	fnode = malloc(sizeof(*fnode));
+	if (!fnode)
+		return ISCSI_ERR_NOMEM;
+
+	n = scandir(ISCSI_FLASHNODE_DIR, &namelist, trans_filter, alphasort);
+	if (n <= 0)
+		goto free_fnode;
+
+	for (i = 0; i < n; i++) {
+		memset(fnode, 0, sizeof(*fnode));
+
+		if (!strncmp(namelist[i]->d_name, "flashnode_conn",
+			     strlen("flashnode_conn")))
+			continue;
+
+		if (sscanf(namelist[i]->d_name, ISCSI_FLASHNODE_SESS,
+			   &hostno, &flashnode_idx) != 2) {
+			log_error("Invalid iscsi target dir: %s",
+				  namelist[i]->d_name);
+			break;
+		}
+
+		if (host_no != hostno)
+			continue;
+
+		rc = iscsi_sysfs_get_flashnode_info(fnode, host_no,
+						    flashnode_idx);
+		if (rc)
+			break;
+
+		rc = fn(data, fnode, host_no, flashnode_idx);
+		if (rc != 0)
+			break;
+		(*nr_found)++;
+	}
+
+	for (i = 0; i < n; i++)
+		free(namelist[i]);
+	free(namelist);
+
+free_fnode:
+	free(fnode);
+	return rc;
 }
 
 /*

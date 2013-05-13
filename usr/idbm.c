@@ -94,6 +94,17 @@ static struct idbm *db;
 	_n++; \
 } while (0)
 
+#define __recinfo_uint32(_key, _info, _rec, _name, _show, _n, _mod) do { \
+	_info[_n].type = TYPE_UINT32; \
+	strlcpy(_info[_n].name, _key, NAME_MAXVAL); \
+	snprintf(_info[_n].value, VALUE_MAXVAL, "%d", _rec->_name); \
+	_info[_n].data = &_rec->_name; \
+	_info[_n].data_len = sizeof(_rec->_name); \
+	_info[_n].visible = _show; \
+	_info[_n].can_modify = _mod; \
+	_n++; \
+} while (0)
+
 #define __recinfo_int_o2(_key,_info,_rec,_name,_show,_op0,_op1,_n, _mod) do { \
 	_info[_n].type = TYPE_INT_O; \
 	strlcpy(_info[_n].name, _key, NAME_MAXVAL); \
@@ -469,6 +480,158 @@ static void idbm_recinfo_host_chap(struct iscsi_chap_rec *r, recinfo_t *ri)
 	}
 }
 
+void idbm_recinfo_flashnode(struct flashnode_rec *r, recinfo_t *ri)
+{
+	int num = 0;
+	int i;
+
+	__recinfo_uint8(FLASHNODE_SESS_AUTO_SND_TGT_DISABLE, ri, r,
+			sess.auto_snd_tgt_disable, IDBM_SHOW, num, 1);
+	__recinfo_uint8(FLASHNODE_SESS_DISCOVERY_SESS, ri, r,
+			sess.discovery_session, IDBM_SHOW, num, 1);
+	__recinfo_str(FLASHNODE_SESS_PORTAL_TYPE, ri, r, sess.portal_type,
+		      IDBM_SHOW, num, 1);
+	__recinfo_uint8(FLASHNODE_SESS_ENTRY_EN, ri, r,
+			sess.entry_enable, IDBM_SHOW, num, 1);
+	__recinfo_uint8(FLASHNODE_SESS_IMM_DATA_EN, ri, r, sess.immediate_data,
+			IDBM_SHOW, num, 1);
+	__recinfo_uint8(FLASHNODE_SESS_INITIAL_R2T_EN, ri, r, sess.initial_r2t,
+			IDBM_SHOW, num, 1);
+	__recinfo_uint8(FLASHNODE_SESS_DATASEQ_INORDER, ri, r,
+			sess.data_seq_in_order, IDBM_SHOW, num, 1);
+	__recinfo_uint8(FLASHNODE_SESS_PDU_INORDER, ri, r,
+			sess.data_pdu_in_order, IDBM_SHOW, num, 1);
+	__recinfo_uint8(FLASHNODE_SESS_CHAP_AUTH_EN, ri, r, sess.chap_auth_en,
+			IDBM_SHOW, num, 1);
+	__recinfo_uint8(FLASHNODE_SESS_DISCOVERY_LOGOUT_EN, ri, r,
+			sess.discovery_logout_en, IDBM_SHOW, num, 1);
+	__recinfo_uint8(FLASHNODE_SESS_BIDI_CHAP_EN, ri, r, sess.bidi_chap_en,
+			IDBM_SHOW, num, 1);
+	__recinfo_uint8(FLASHNODE_SESS_DISCOVERY_AUTH_OPTIONAL, ri, r,
+			sess.discovery_auth_optional, IDBM_SHOW, num, 1);
+	__recinfo_uint8(FLASHNODE_SESS_ERL, ri, r, sess.erl, IDBM_SHOW, num, 1);
+	__recinfo_uint32(FLASHNODE_SESS_FIRST_BURST, ri, r,
+			 sess.first_burst_len, IDBM_SHOW, num, 1);
+	__recinfo_uint16(FLASHNODE_SESS_DEF_TIME2WAIT, ri, r,
+			 sess.def_time2wait, IDBM_SHOW, num, 1);
+	__recinfo_uint16(FLASHNODE_SESS_DEF_TIME2RETAIN, ri, r,
+			 sess.def_time2retain, IDBM_SHOW, num, 1);
+	__recinfo_uint16(FLASHNODE_SESS_MAX_R2T, ri, r,
+			 sess.max_outstanding_r2t, IDBM_SHOW, num, 1);
+	__recinfo_str(FLASHNODE_SESS_ISID, ri, r, sess.isid, IDBM_SHOW, num, 1);
+	__recinfo_uint16(FLASHNODE_SESS_TSID, ri, r, sess.tsid, IDBM_SHOW,
+			 num, 1);
+	__recinfo_uint32(FLASHNODE_SESS_MAX_BURST, ri, r, sess.max_burst_len,
+			 IDBM_SHOW, num, 1);
+	__recinfo_uint16(FLASHNODE_SESS_DEF_TASKMGMT_TMO, ri, r,
+			 sess.def_taskmgmt_tmo, IDBM_SHOW, num, 1);
+	__recinfo_str(FLASHNODE_SESS_ALIAS, ri, r, sess.targetalias, IDBM_SHOW,
+		      num, 1);
+	__recinfo_str(FLASHNODE_SESS_NAME, ri, r, sess.targetname, IDBM_SHOW,
+		      num, 1);
+	__recinfo_uint16(FLASHNODE_SESS_DISCOVERY_PARENT_IDX, ri, r,
+			 sess.discovery_parent_idx, IDBM_SHOW, num, 1);
+	__recinfo_str(FLASHNODE_SESS_DISCOVERY_PARENT_TYPE, ri, r,
+		      sess.discovery_parent_type, IDBM_SHOW, num, 1);
+	__recinfo_uint16(FLASHNODE_SESS_TPGT, ri, r, sess.tpgt, IDBM_SHOW,
+			 num, 1);
+	__recinfo_uint16(FLASHNODE_SESS_CHAP_OUT_IDX, ri, r, sess.chap_out_idx,
+			 IDBM_SHOW, num, 1);
+	__recinfo_uint16(FLASHNODE_SESS_CHAP_IN_IDX, ri, r, sess.chap_in_idx,
+			 IDBM_SHOW, num, 1);
+	__recinfo_str(FLASHNODE_SESS_USERNAME, ri, r, sess.username, IDBM_SHOW,
+		      num, 1);
+	__recinfo_str(FLASHNODE_SESS_USERNAME_IN, ri, r, sess.username_in,
+		      IDBM_SHOW, num, 1);
+	__recinfo_str(FLASHNODE_SESS_PASSWORD, ri, r, sess.password, IDBM_SHOW,
+		      num, 1);
+	__recinfo_str(FLASHNODE_SESS_PASSWORD_IN, ri, r, sess.password_in,
+		      IDBM_SHOW, num, 1);
+	__recinfo_uint8(FLASHNODE_SESS_IS_BOOT_TGT, ri, r, sess.is_boot_target,
+			IDBM_SHOW, num, 1);
+
+	for (i = 0; i < ISCSI_CONN_MAX; i++) {
+		char key[NAME_MAXVAL];
+
+		sprintf(key, FLASHNODE_CONN_IS_FW_ASSIGNED_IPV6, i);
+		__recinfo_uint8(key, ri, r, conn[i].is_fw_assigned_ipv6,
+				IDBM_SHOW, num, 1);
+		sprintf(key, FLASHNODE_CONN_HDR_DGST_EN, i);
+		__recinfo_uint8(key, ri, r, conn[i].header_digest_en, IDBM_SHOW,
+				num, 1);
+		sprintf(key, FLASHNODE_CONN_DATA_DGST_EN, i);
+		__recinfo_uint8(key, ri, r, conn[i].data_digest_en, IDBM_SHOW,
+				num, 1);
+		sprintf(key, FLASHNODE_CONN_SNACK_REQ_EN, i);
+		__recinfo_uint8(key, ri, r, conn[i].snack_req_en, IDBM_SHOW,
+				num, 1);
+		sprintf(key, FLASHNODE_CONN_TCP_TIMESTAMP_STAT, i);
+		__recinfo_uint8(key, ri, r, conn[i].tcp_timestamp_stat,
+				IDBM_SHOW, num, 1);
+		sprintf(key, FLASHNODE_CONN_TCP_NAGLE_DISABLE, i);
+		__recinfo_uint8(key, ri, r, conn[i].tcp_nagle_disable,
+				IDBM_SHOW, num, 1);
+		sprintf(key, FLASHNODE_CONN_TCP_WSF_DISABLE, i);
+		__recinfo_uint8(key, ri, r, conn[i].tcp_wsf_disable, IDBM_SHOW,
+				num, 1);
+		sprintf(key, FLASHNODE_CONN_TCP_TIMER_SCALE, i);
+		__recinfo_uint8(key, ri, r, conn[i].tcp_timer_scale, IDBM_SHOW,
+				num, 1);
+		sprintf(key, FLASHNODE_CONN_TCP_TIMESTAMP_EN, i);
+		__recinfo_uint8(key, ri, r, conn[i].tcp_timestamp_en,
+				IDBM_SHOW, num, 1);
+		sprintf(key, FLASHNODE_CONN_IP_FRAG_DISABLE, i);
+		__recinfo_uint8(key, ri, r, conn[i].fragment_disable, IDBM_SHOW,
+				num, 1);
+		sprintf(key, FLASHNODE_CONN_MAX_XMIT_DLENGTH, i);
+		__recinfo_uint32(key, ri, r, conn[i].max_xmit_dlength,
+				 IDBM_SHOW, num, 1);
+		sprintf(key, FLASHNODE_CONN_MAX_RECV_DLENGTH, i);
+		__recinfo_uint32(key, ri, r, conn[i].max_recv_dlength,
+				 IDBM_SHOW, num, 1);
+		sprintf(key, FLASHNODE_CONN_KEEPALIVE_TMO, i);
+		__recinfo_uint16(key, ri, r, conn[i].keepalive_tmo, IDBM_SHOW,
+				 num, 1);
+		sprintf(key, FLASHNODE_CONN_PORT, i);
+		__recinfo_uint16(key, ri, r, conn[i].port, IDBM_SHOW, num, 1);
+		sprintf(key, FLASHNODE_CONN_IPADDR, i);
+		__recinfo_str(key, ri, r, conn[i].ipaddress, IDBM_SHOW, num, 1);
+		sprintf(key, FLASHNODE_CONN_REDIRECT_IPADDR, i);
+		__recinfo_str(key, ri, r, conn[i].redirect_ipaddr, IDBM_SHOW,
+			      num, 1);
+		sprintf(key, FLASHNODE_CONN_MAX_SEGMENT_SIZE, i);
+		__recinfo_uint32(key, ri, r, conn[i].max_segment_size,
+				 IDBM_SHOW, num, 1);
+		sprintf(key, FLASHNODE_CONN_LOCAL_PORT, i);
+		__recinfo_uint16(key, ri, r, conn[i].local_port, IDBM_SHOW,
+				 num, 1);
+		sprintf(key, FLASHNODE_CONN_IPV4_TOS, i);
+		__recinfo_uint8(key, ri, r, conn[i].ipv4_tos, IDBM_SHOW,
+				num, 1);
+		sprintf(key, FLASHNODE_CONN_IPV6_TC, i);
+		__recinfo_uint8(key, ri, r, conn[i].ipv6_traffic_class,
+				IDBM_SHOW, num, 1);
+		sprintf(key, FLASHNODE_CONN_IPV6_FLOW_LABEL, i);
+		__recinfo_uint16(key, ri, r, conn[i].ipv6_flow_lbl, IDBM_SHOW,
+				 num, 1);
+		sprintf(key, FLASHNODE_CONN_LINK_LOCAL_IPV6, i);
+		__recinfo_str(key, ri, r, conn[i].link_local_ipv6, IDBM_SHOW,
+			      num, 1);
+		sprintf(key, FLASHNODE_CONN_TCP_XMIT_WSF, i);
+		__recinfo_uint32(key, ri, r, conn[i].tcp_xmit_wsf, IDBM_SHOW,
+				 num, 1);
+		sprintf(key, FLASHNODE_CONN_TCP_RECV_WSF, i);
+		__recinfo_uint32(key, ri, r, conn[i].tcp_recv_wsf, IDBM_SHOW,
+				 num, 1);
+		sprintf(key, FLASHNODE_CONN_STATSN, i);
+		__recinfo_uint32(key, ri, r, conn[i].stat_sn, IDBM_SHOW,
+				 num, 1);
+		sprintf(key, FLASHNODE_CONN_EXP_STATSN, i);
+		__recinfo_uint32(key, ri, r, conn[i].exp_stat_sn, IDBM_SHOW,
+				 num, 1);
+	}
+}
+
 recinfo_t *idbm_recinfo_alloc(int max_keys)
 {
 	recinfo_t *info;
@@ -501,6 +664,9 @@ void idbm_print(int type, void *rec, int show, FILE *f)
 		break;
 	case IDBM_PRINT_TYPE_HOST_CHAP:
 		idbm_recinfo_host_chap((struct iscsi_chap_rec *)rec, info);
+		break;
+	case IDBM_PRINT_TYPE_FLASHNODE:
+		idbm_recinfo_flashnode((struct flashnode_rec *)rec, info);
 		break;
 	}
 
@@ -627,6 +793,13 @@ setup_passwd_len:
 					continue;
 
 				*(uint16_t *)info[i].data =
+					strtoul(value, NULL, 10);
+				goto updated;
+			} else if (info[i].type == TYPE_UINT32) {
+				if (!info[i].data)
+					continue;
+
+				*(uint32_t *)info[i].data =
 					strtoul(value, NULL, 10);
 				goto updated;
 			} else if (info[i].type == TYPE_STR) {
@@ -877,6 +1050,12 @@ int idbm_print_host_chap_info(struct iscsi_chap_rec *chap)
 {
 	/* User only calls this to print chap so always print */
 	idbm_print(IDBM_PRINT_TYPE_HOST_CHAP, chap, 1, stdout);
+	return 0;
+}
+
+int idbm_print_flashnode_info(struct flashnode_rec *fnode)
+{
+	idbm_print(IDBM_PRINT_TYPE_FLASHNODE, fnode, 1, stdout);
 	return 0;
 }
 
