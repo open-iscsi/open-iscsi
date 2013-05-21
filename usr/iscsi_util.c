@@ -60,7 +60,8 @@ int oom_adjust(void)
 	char path[ISCSI_OOM_PATH_LEN];
 	struct stat statb;
 
-	if (nice(-10) < 0)
+	errno = 0;
+	if (nice(-10) == -1 && errno != 0)
 		log_debug(1, "Could not increase process priority: %s",
 			  strerror(errno));
 
