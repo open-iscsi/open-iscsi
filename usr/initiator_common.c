@@ -562,6 +562,36 @@ TODO handle this
 	return 0;
 }
 
+int iscsi_set_net_config(struct iscsi_transport *t, iscsi_session_t *session,
+			 struct iface_rec *iface)
+{
+	if (t->template->set_net_config) {
+		/* uip needs the netdev name */
+		struct host_info hinfo;
+		int hostno, rc;
+
+		/* this assumes that the netdev or hw address is going to be
+		   set */
+		hostno = iscsi_sysfs_get_host_no_from_hwinfo(iface, &rc);
+		if (rc) {
+			log_debug(4, "Couldn't get host no.\n");
+			return rc;
+		}
+
+		/* uip needs the netdev name */
+		if (!strlen(iface->netdev)) {
+			memset(&hinfo, 0, sizeof(hinfo));
+			hinfo.host_no = hostno;
+			iscsi_sysfs_get_hostinfo_by_host_no(&hinfo);
+			strcpy(iface->netdev, hinfo.iface.netdev);
+		}
+
+		return t->template->set_net_config(t, iface, session);
+	}
+
+	return 0;
+}
+
 int iscsi_host_set_net_params(struct iface_rec *iface,
 			      struct iscsi_session *session)
 {
@@ -599,6 +629,10 @@ int iscsi_host_set_net_params(struct iface_rec *iface,
 	if (net_ifup_netdev(netdev))
 		log_warning("Could not brining up netdev %s. Try running "
 			    "'ifup %s' first if login fails.", netdev, netdev);
+
+	rc = iscsi_set_net_config(t, session, iface);
+	if (rc != 0)
+		return rc;
 
 	rc = host_set_param(t, session->hostno,
 			    ISCSI_HOST_PARAM_IPADDRESS,

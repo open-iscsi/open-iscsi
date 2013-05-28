@@ -35,6 +35,7 @@
 #include "log.h"
 #include "iscsi_util.h"
 #include "iscsi_sysfs.h"
+#include "uip_mgmt_ipc.h"
 #include "cxgbi.h"
 #include "be2iscsi.h"
 #include "iser.h"
@@ -79,6 +80,7 @@ struct iscsi_transport_template bnx2i = {
 	.ep_connect	= ktransport_ep_connect,
 	.ep_poll	= ktransport_ep_poll,
 	.ep_disconnect	= ktransport_ep_disconnect,
+	.set_net_config = uip_broadcast_params,
 };
 
 struct iscsi_transport_template be2iscsi = {

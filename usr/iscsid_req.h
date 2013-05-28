@@ -33,4 +33,6 @@ extern int iscsid_req_by_rec(int cmd, struct node_rec *rec);
 extern int iscsid_req_by_sid_async(int cmd, int sid, int *fd);
 extern int iscsid_req_by_sid(int cmd, int sid);
 
+extern int uip_broadcast(void *buf, size_t buf_len);
+
 #endif
