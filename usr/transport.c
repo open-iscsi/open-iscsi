@@ -99,6 +99,13 @@ struct iscsi_transport_template qla4xxx = {
 	.ep_disconnect	= ktransport_ep_disconnect,
 };
 
+struct iscsi_transport_template ocs = {
+	.name		= "ocs",
+	.ep_connect	= ktransport_ep_connect,
+	.ep_poll	= ktransport_ep_poll,
+	.ep_disconnect	= ktransport_ep_disconnect,
+};
+
 static struct iscsi_transport_template *iscsi_transport_templates[] = {
 	&iscsi_tcp,
 	&iscsi_iser,
@@ -107,6 +114,7 @@ static struct iscsi_transport_template *iscsi_transport_templates[] = {
 	&bnx2i,
 	&qla4xxx,
 	&be2iscsi,
+	&ocs,
 	NULL
 };
 
