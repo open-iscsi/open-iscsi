@@ -576,7 +576,7 @@ static int bnx2_open(nic_t *nic)
 
 	bp->sblk_map = mmap(NULL, bp->status_blk_size,
 			    PROT_READ | PROT_WRITE, MAP_SHARED,
-			    nic->fd, (off_t) getpagesize());
+			    nic->fd, (off_t) nic->page_size);
 	if (bp->sblk_map == MAP_FAILED) {
 		LOG_INFO(PFX "%s: Could not mmap status block: %s",
 			 nic->log_name, strerror(errno));
@@ -602,9 +602,9 @@ static int bnx2_open(nic_t *nic)
 			  BNX2_SBLK_EVEN_IDX(bp->status_blk.msi->rx2));
 	}
 
-	bp->tx_ring = mmap(NULL, 2 * getpagesize(),
+	bp->tx_ring = mmap(NULL, 2 * nic->page_size,
 			   PROT_READ | PROT_WRITE, MAP_SHARED, nic->fd,
-			   (off_t) 2 * getpagesize());
+			   (off_t) 2 * nic->page_size);
 	if (bp->tx_ring == MAP_FAILED) {
 		LOG_INFO(PFX "%s: Could not mmap tx ring: %s",
 			 nic->log_name, strerror(errno));
@@ -614,7 +614,7 @@ static int bnx2_open(nic_t *nic)
 
 	bp->bufs = mmap(NULL, (bp->rx_ring_size + 1) * bp->rx_buffer_size,
 			PROT_READ | PROT_WRITE,
-			MAP_SHARED, nic->fd, (off_t) 3 * getpagesize());
+			MAP_SHARED, nic->fd, (off_t) 3 * nic->page_size);
 	if (bp->bufs == MAP_FAILED) {
 		LOG_INFO(PFX "%s: Could not mmap buffers: %s",
 			 nic->log_name, strerror(errno));
@@ -693,7 +693,7 @@ static int bnx2_open(nic_t *nic)
 	return 0;
 
 error_bufs:
-	munmap(bp->tx_ring, 2 * getpagesize());
+	munmap(bp->tx_ring, 2 * nic->page_size);
 
 error_tx_ring:
 	munmap(bp->status_blk.msi, bp->status_blk_size);
@@ -765,7 +765,7 @@ static int bnx2_uio_close_resources(nic_t *nic, NIC_SHUTDOWN_T graceful)
 	}
 
 	if (bp->tx_ring != NULL) {
-		rc = munmap(bp->tx_ring, 2 * getpagesize());
+		rc = munmap(bp->tx_ring, 2 * nic->page_size);
 		if (rc != 0)
 			LOG_WARN(PFX "%s: Couldn't unmap tx_rings",
 				 nic->log_name);
@@ -884,7 +884,7 @@ void bnx2_start_xmit(nic_t *nic, size_t len, u16_t vlan_id)
 	uint16_t ring_prod;
 	struct tx_bd *txbd;
 	struct rx_bd *rxbd;
-	rxbd = (struct rx_bd *)(((__u8 *) bp->tx_ring) + getpagesize());
+	rxbd = (struct rx_bd *)(((__u8 *) bp->tx_ring) + nic->page_size);
 
 	if ((rxbd->rx_bd_haddr_hi == 0) && (rxbd->rx_bd_haddr_lo == 0)) {
 		LOG_PACKET(PFX "%s: trying to transmit when device is closed",

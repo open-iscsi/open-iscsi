@@ -1,7 +1,7 @@
                               Release Notes
                         Broadcom uIP Linux Driver
-                            Version 0.7.6.1g
-                               01/14/2013
+                            Version 0.7.8.1b
+                               05/01/2013
 
                           Broadcom Corporation
                          5300 California Avenue,
@@ -9,6 +9,16 @@
 
                Copyright (c) 2004 - 2013 Broadcom Corporation
                            All rights reserved
+
+uIP v0.7.8.1b (May 01, 2013)
+=======================================================
+   Enhancements
+   ------------
+   1. Change:  Performance optimization by caching the page size
+      Impact:  All
+
+   2. Change:  Fixed a bug in the tx completion interrupt handler
+      Impact:  10G only
 
 
 uIP v0.7.6.1g (Jan 14, 2013)
@@ -1986,3 +1996,4 @@ uIP v0.5.0b (Nov 24, 2009)
    1. Change: Add Broadcom 10G iSCSI offload support
 
       Impact: Linux
+

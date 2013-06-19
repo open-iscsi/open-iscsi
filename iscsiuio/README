@@ -1,6 +1,6 @@
 Iscsiuio Userspace Tool
-Version 0.7.6.1g
-Jan 14, 2013
+Version 0.7.8.1b
+May 01, 2013
 ------------------------------------------------------
 
 This tool is to be used in conjunction with the Broadcom NetXtreme II Linux
@@ -189,9 +189,8 @@ To run the daemon in debug mode please pass the parameter  '-d <debug level>'
 
 where the following debug levels are defined:
 
-PACKET        5 - Print all messages
-DEBUG         4 - Print debug messages
-INFO          3 - Print messages needed to follow the uIP code
+DEBUG         4 - Print all messages
+INFO          3 - Print messages needed to follow the uIP code (default)
 WARN          2 - Print warning messages
 ERROR         1 - Only print critical errors
 

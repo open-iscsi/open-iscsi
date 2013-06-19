@@ -140,7 +140,9 @@ typedef struct nic_interface {
 	time_t start_time;
 
 	struct uip_stack ustack;
-#define IFACE_NUM_INVALID	-1
+
+#define IFACE_NUM_PRESENT (1<<0)
+#define IFACE_NUM_INVALID -1
 	int iface_num;
 	int request_type;
 } nic_interface_t;
@@ -246,6 +248,8 @@ typedef struct nic {
 	char *uio_device_name;	/* UIO device name                      */
 
 	uint32_t intr_count;	/* Total UIO interrupt count            */
+
+	int page_size;
 
 	/* Held for nic ops manipulation */
 	pthread_mutex_t nic_mutex;

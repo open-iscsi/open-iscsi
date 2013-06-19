@@ -818,7 +818,7 @@ static int bnx2x_open(nic_t *nic)
 
 	bp->status_blk.def = mmap(NULL, bp->status_blk_size,
 				  PROT_READ | PROT_WRITE, MAP_SHARED,
-				  nic->fd, (off_t) getpagesize());
+				  nic->fd, (off_t) nic->page_size);
 	if (bp->status_blk.def == MAP_FAILED) {
 		LOG_INFO(PFX "%s: Could not mmap status block: %s",
 			 nic->log_name, strerror(errno));
@@ -827,10 +827,10 @@ static int bnx2x_open(nic_t *nic)
 		goto open_error;
 	}
 
-	bp->tx_ring = mmap(NULL, 4 * getpagesize(),
+	bp->tx_ring = mmap(NULL, 4 * nic->page_size,
 			   PROT_READ | PROT_WRITE,
 			   MAP_SHARED | MAP_LOCKED,
-			   nic->fd, (off_t) 2 * getpagesize());
+			   nic->fd, (off_t) 2 * nic->page_size);
 	if (bp->tx_ring == MAP_FAILED) {
 		LOG_INFO(PFX "%s: Could not mmap tx ring: %s",
 			 nic->log_name, strerror(errno));
@@ -840,12 +840,12 @@ static int bnx2x_open(nic_t *nic)
 	}
 
 	bp->rx_comp_ring.cqe = (union eth_rx_cqe *)
-	    (((__u8 *) bp->tx_ring) + 2 * getpagesize());
+	    (((__u8 *) bp->tx_ring) + 2 * nic->page_size);
 
 	bp->bufs = mmap(NULL, (bp->rx_ring_size + 1) * bp->rx_buffer_size,
 			PROT_READ | PROT_WRITE,
 			MAP_SHARED | MAP_LOCKED,
-			nic->fd, (off_t) 3 * getpagesize());
+			nic->fd, (off_t) 3 * nic->page_size);
 	if (bp->bufs == MAP_FAILED) {
 		LOG_INFO(PFX "%s: Could not mmap buffers: %s",
 			 nic->log_name, strerror(errno));
@@ -937,7 +937,7 @@ static int bnx2x_open(nic_t *nic)
 		bp->rx_prod_io = BAR_USTRORM_INTMEM +
 		    USTORM_RX_PRODS_OFFSET(bp->port, bp->client_id);
 
-		bp->tx_doorbell = bp->cid * getpagesize() + 0x40;
+		bp->tx_doorbell = bp->cid * nic->page_size + 0x40;
 
 		bp->get_rx_cons = bnx2x_get_rx;
 		bp->get_tx_cons = bnx2x_get_tx;
@@ -1073,7 +1073,7 @@ SF:
 
 open_error:
 	if (bp->tx_ring) {
-		munmap(bp->tx_ring, 4 * getpagesize());
+		munmap(bp->tx_ring, 4 * nic->page_size);
 		bp->tx_ring = NULL;
 	}
 
@@ -1150,7 +1150,7 @@ static int bnx2x_uio_close_resources(nic_t *nic, NIC_SHUTDOWN_T graceful)
 	}
 
 	if (bp->tx_ring != NULL) {
-		rc = munmap(bp->tx_ring, 4 * getpagesize());
+		rc = munmap(bp->tx_ring, 4 * nic->page_size);
 		if (rc != 0)
 			LOG_WARN(PFX "%s: Couldn't unmap tx_rings",
 				 nic->log_name);
@@ -1284,7 +1284,7 @@ void bnx2x_start_xmit(nic_t *nic, size_t len, u16_t vlan_id)
 	struct eth_tx_start_bd *txbd;
 	struct eth_tx_bd *txbd2;
 	struct eth_rx_bd *rx_bd;
-	rx_bd = (struct eth_rx_bd *)(((__u8 *) bp->tx_ring) + getpagesize());
+	rx_bd = (struct eth_rx_bd *)(((__u8 *) bp->tx_ring) + nic->page_size);
 
 	if ((rx_bd->addr_hi == 0) && (rx_bd->addr_lo == 0)) {
 		LOG_PACKET(PFX "%s: trying to transmit when device is closed",
@@ -1539,6 +1539,7 @@ static int bnx2x_clear_tx_intr(nic_t *nic)
 				LOG_ERR(PFX "bnx2x tx lock with prod == cons");
 
 			pthread_mutex_unlock(&nic->xmit_mutex);
+			return 0;
 		}
 		return -EAGAIN;
 	}

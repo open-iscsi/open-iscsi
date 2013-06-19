@@ -400,6 +400,7 @@ nic_t *nic_init()
 	nic->tx_packet_queue = NULL;
 	nic->nic_library = NULL;
 	nic->pci_id = NULL;
+	nic->page_size = getpagesize();
 
 	/* nic_mutex is used to protect nic ops */
 	pthread_mutex_init(&nic->nic_mutex, NULL);

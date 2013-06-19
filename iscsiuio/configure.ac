@@ -11,9 +11,9 @@ dnl             Benjamin Li  (benli@broadcom.com)
 dnl
 
 PACKAGE=iscsiuio
-VERSION=0.7.6.1g
+VERSION=0.7.8.1b
 
-AC_INIT(iscsiuio, 0.7.6.1g, eddie.wai@broadcom.com)
+AC_INIT(iscsiuio, 0.7.8.1b, eddie.wai@broadcom.com)
 
 AM_INIT_AUTOMAKE($PACKAGE, $VERSION)
 AC_CONFIG_HEADER(config.h)
