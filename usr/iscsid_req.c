@@ -67,7 +67,7 @@ static int ipc_connect(int *fd, char *unix_sock_name, int start_iscsid)
 		return ISCSI_ERR_ISCSID_NOTCONN;
 	}
 
-	addr_len = offsetof(struct sockaddr_un, sun_path) + strlen(ISCSIADM_NAMESPACE) + 1;
+	addr_len = offsetof(struct sockaddr_un, sun_path) + strlen(unix_sock_name) + 1;
 
 	memset(&addr, 0, sizeof(addr));
 	addr.sun_family = AF_LOCAL;
