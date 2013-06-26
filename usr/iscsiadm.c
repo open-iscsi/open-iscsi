@@ -1235,6 +1235,7 @@ sw_discovery:
 		return do_isns(drec, ifaces, info_level, do_login, op);
 	default:
 		log_debug(1, "Unknown Discovery Type : %d\n", drec->type);
+		return ISCSI_ERR_UNKNOWN_DISCOVERY_TYPE;
 	}
 }
 
