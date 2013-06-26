@@ -958,7 +958,7 @@ static void *iscsid_loop(void *arg)
  */
 int iscsid_init()
 {
-	int rc;
+	int rc, addr_len;
 	struct sockaddr_un addr;
 
 	iscsid_opts.fd = socket(AF_LOCAL, SOCK_STREAM, 0);
@@ -967,12 +967,14 @@ int iscsid_init()
 		return iscsid_opts.fd;
 	}
 
+	addr_len = offsetof(struct sockaddr_un, sun_path) + strlen(ISCSID_UIP_NAMESPACE) + 1;
+
 	memset(&addr, 0, sizeof(addr));
 	addr.sun_family = AF_LOCAL;
 	memcpy((char *)&addr.sun_path + 1, ISCSID_UIP_NAMESPACE,
 	       strlen(ISCSID_UIP_NAMESPACE));
 
-	rc = bind(iscsid_opts.fd, (struct sockaddr *)&addr, sizeof(addr));
+	rc = bind(iscsid_opts.fd, (struct sockaddr *)&addr, addr_len);
 	if (rc < 0) {
 		LOG_ERR(PFX "Can not bind IPC socket: %s", strerror(errno));
 		goto error;
