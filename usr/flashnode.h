@@ -26,6 +26,8 @@
 #include "config.h"
 #include "auth.h"
 
+#define MAX_FLASHNODE_IDX UINT_MAX
+
 typedef enum portal_type {
 	IPV4,
 	IPV6,

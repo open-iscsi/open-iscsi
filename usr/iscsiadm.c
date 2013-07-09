@@ -1744,20 +1744,22 @@ exit_logout_sid:
 }
 
 static int exec_flashnode_op(int op, int info_level, uint32_t host_no,
-			     uint32_t flashnode_idx, int type,
+			     uint64_t fnode_idx, int type,
 			     struct list_head *params)
 {
 	struct iscsi_transport *t = NULL;
 	int rc = ISCSI_SUCCESS;
 	char *portal_type;
+	uint32_t flashnode_idx;
 
 	if (op != OP_SHOW && op != OP_NOOP && op != OP_NEW &&
-	    flashnode_idx == 0xffffffff) {
+	    fnode_idx > MAX_FLASHNODE_IDX) {
 		log_error("Invalid flashnode index");
 		rc = ISCSI_ERR_INVAL;
 		goto exit_flashnode_op;
 	}
 
+	flashnode_idx = (uint32_t)fnode_idx;
 	t = iscsi_sysfs_get_transport_by_hba(host_no);
 	if (!t) {
 		log_error("Could not match hostno %u to transport.", host_no);
@@ -1768,7 +1770,7 @@ static int exec_flashnode_op(int op, int info_level, uint32_t host_no,
 	switch (op) {
 	case OP_NOOP:
 	case OP_SHOW:
-		if (flashnode_idx == 0xffffffff)
+		if (fnode_idx > MAX_FLASHNODE_IDX)
 			rc = list_flashnodes(info_level, host_no);
 		else
 			rc = get_flashnode_info(host_no, flashnode_idx);
@@ -1880,7 +1882,7 @@ static int verify_iface_params(struct list_head *params, struct node_rec *rec)
 
 /* TODO: merge iter helpers and clean them up, so we can use them here */
 static int exec_iface_op(int op, int do_show, int info_level,
-			 struct iface_rec *iface, uint32_t host_no,
+			 struct iface_rec *iface, uint64_t host_no,
 			 struct list_head *params)
 {
 	struct host_info hinfo;
@@ -2001,9 +2003,9 @@ update_fail:
 		printf("%s applied.\n", iface->name);
 		break;
 	case OP_APPLY_ALL:
-		if (host_no == -1) {
-			log_error("Applyall requires a host number or MAC "
-				  "passed in with the --host argument.");
+		if (host_no > MAX_HOST_NO) {
+			log_error("Applyall requires a valid host number or MAC"
+				  " passed in with the --host argument.");
 			rc = ISCSI_ERR_INVAL;
 			break;
 		}
@@ -2014,7 +2016,7 @@ update_fail:
 		memset(&hinfo, 0, sizeof(struct host_info));
 		hinfo.host_no = host_no;
 		if (iscsi_sysfs_get_hostinfo_by_host_no(&hinfo)) {
-			log_error("Could not match host%u to ifaces.", host_no);
+			log_error("Could not match host%lu to ifaces.", host_no);
 			rc = ISCSI_ERR_INVAL;
 			break;
 		}
@@ -2025,7 +2027,7 @@ update_fail:
 			break;
 		}
 
-		printf("Applied settings to ifaces attached to host%u.\n",
+		printf("Applied settings to ifaces attached to host%lu.\n",
 		       host_no);
 		break;
 	default:
@@ -2637,10 +2639,10 @@ done:
 	return rc;
 }
 
-static uint32_t parse_host_info(char *optarg, int *rc)
+static uint64_t parse_host_info(char *optarg, int *rc)
 {
 	int err = 0;
-	uint32_t host_no = -1;
+	uint64_t host_no;
 
 	*rc = 0;
 	if (strstr(optarg, ":")) {
@@ -2653,8 +2655,11 @@ static uint32_t parse_host_info(char *optarg, int *rc)
 			*rc = ISCSI_ERR_INVAL;
 		}
 	} else {
-		host_no = strtoul(optarg, NULL, 10);
-		if (errno) {
+		host_no = strtoull(optarg, NULL, 10);
+		if (errno || (host_no > MAX_HOST_NO)) {
+			if (host_no > MAX_HOST_NO)
+				errno = ERANGE;
+
 			log_error("Invalid host no %s. %s.",
 				  optarg, strerror(errno));
 			*rc = ISCSI_ERR_INVAL;
@@ -2806,13 +2811,14 @@ main(int argc, char **argv)
 	int tpgt = PORTAL_GROUP_TAG_UNKNOWN, killiscsid=-1, do_show=0;
 	int packet_size=32, ping_count=1, ping_interval=0;
 	int do_discover = 0, sub_mode = -1;
-	int flashnode_idx = -1, portal_type = -1;
+	int portal_type = -1;
 	struct sigaction sa_old;
 	struct sigaction sa_new;
 	struct list_head ifaces;
 	struct iface_rec *iface = NULL, *tmp;
 	struct node_rec *rec = NULL;
-	uint32_t host_no = -1;
+	uint64_t host_no =  (uint64_t)MAX_HOST_NO + 1;
+	uint64_t flashnode_idx = (uint64_t)MAX_FLASHNODE_IDX + 1;
 	struct user_param *param;
 	struct list_head params;
 
@@ -2956,7 +2962,13 @@ main(int argc, char **argv)
 				ISCSI_VERSION_STR);
 			return 0;
 		case 'x':
-			flashnode_idx = atoi(optarg);
+			flashnode_idx = strtoull(optarg, NULL, 10);
+			if (errno) {
+				log_error("Invalid flashnode index %s. %s.",
+					  optarg, strerror(errno));
+				rc = ISCSI_ERR_INVAL;
+				goto free_ifaces;
+			}
 			break;
 		case 'A':
 			portal_type = str_to_portal_type(optarg);
@@ -3022,7 +3034,7 @@ main(int argc, char **argv)
 		if (sub_mode != -1) {
 			switch (sub_mode) {
 			case MODE_CHAP:
-				if (!op || !host_no) {
+				if (!op || (host_no > MAX_HOST_NO)) {
 					log_error("CHAP mode requires host "
 						"no and valid operation");
 					rc = ISCSI_ERR_INVAL;
@@ -3032,7 +3044,7 @@ main(int argc, char **argv)
 						       value);
 				break;
 			case MODE_FLASHNODE:
-				if (!host_no) {
+				if (host_no > MAX_HOST_NO) {
 					log_error("FLASHNODE mode requires host no");
 					rc = ISCSI_ERR_INVAL;
 					break;

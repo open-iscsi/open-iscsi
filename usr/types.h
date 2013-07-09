@@ -10,6 +10,7 @@
 #include <netinet/in.h>
 #include <stdint.h>
 #include <sys/types.h>
+#include <limits.h>
 
 /*
  * using the __be types allows stricter static

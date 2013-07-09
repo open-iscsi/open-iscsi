@@ -5,6 +5,8 @@
 #include "types.h"
 #include "config.h"
 
+#define MAX_HOST_NO UINT_MAX
+
 #define MAX_CHAP_BUF_SZ 4096
 #define REQ_CHAP_BUF_SZ (MAX_CHAP_BUF_SZ + sizeof(struct iscsi_uevent))
 
