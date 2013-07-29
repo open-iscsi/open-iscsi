@@ -347,7 +347,8 @@ match_startup_mode(node_rec_t *rec, char *mode)
 }
 
 static int
-for_each_session(struct node_rec *rec, iscsi_sysfs_session_op_fn *fn)
+for_each_session(struct node_rec *rec, iscsi_sysfs_session_op_fn *fn,
+		 int in_parallel)
 {
 	int err, num_found = 0;
 
@@ -355,7 +356,8 @@ for_each_session(struct node_rec *rec, iscsi_sysfs_session_op_fn *fn)
 		num_found = 1;
 		err = fn(rec, rec->session.info);
 	} else {
-		err = iscsi_sysfs_for_each_session(rec, &num_found, fn);
+		err = iscsi_sysfs_for_each_session(rec, &num_found, fn,
+						   in_parallel);
 	}
 	if (err)
 		log_error("Could not execute operation on all sessions: %s",
@@ -435,7 +437,7 @@ logout_by_startup(char *mode)
 	rc = iscsi_logout_portals(mode, &nr_found, 1, __logout_by_startup);
 	if (rc == ISCSI_ERR_NO_OBJS_FOUND)
 		log_error("No matching sessions found");
-	return rc; 
+	return rc;
 }
 
 struct startup_data {
@@ -479,7 +481,7 @@ __do_leading_login(void *data, struct list_head *list, struct node_rec *rec)
 	 * If there is an existing session that matcthes the target,
 	 * the leading login is complete.
 	 */
-	if (iscsi_sysfs_for_each_session(rec, &nr_found, iscsi_match_target)) {
+	if (iscsi_sysfs_for_each_session(rec, &nr_found, iscsi_match_target, 0)) {
 		log_debug(1, "Skipping %s: Already a session for that target",
 			  rec->name);
 		return -1;
@@ -579,7 +581,7 @@ login_by_startup(char *mode)
 		list_for_each_entry_safe(rec, tmp_rec, &startup.leading_logins,
 					 list) {
 			if (!iscsi_sysfs_for_each_session(rec, &nr_found,
-							  iscsi_match_target))
+							  iscsi_match_target, 0))
 				missed_leading_login++;
 			/*
 			 * Cleanup the list, since 'iscsi_login_portals_safe'
@@ -1210,7 +1212,7 @@ do_target_discovery(discovery_rec_t *drec, struct list_head *ifaces,
 		host_no = iscsi_sysfs_get_host_no_from_hwinfo(iface, &rc);
 		if (rc || host_no == -1) {
 			log_debug(1, "Could not match iface" iface_fmt " to "
-				  "host.", iface_str(iface)); 
+				  "host.", iface_str(iface));
 			/* try software iscsi */
 			continue;
 		}
@@ -2116,12 +2118,12 @@ static int exec_node_op(int op, int do_login, int do_logout,
 	}
 
 	if (do_rescan) {
-		rc = for_each_session(rec, rescan_portal);
+		rc = for_each_session(rec, rescan_portal, 1);
 		goto out;
 	}
 
 	if (do_stats) {
-		rc = for_each_session(rec, session_stats);
+		rc = for_each_session(rec, session_stats, 0);
 		goto out;
 	}
 

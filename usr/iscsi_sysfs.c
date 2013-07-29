@@ -24,6 +24,7 @@
 #include <dirent.h>
 #include <sys/types.h>
 #include <sys/stat.h>
+#include <sys/wait.h>
 
 #include "log.h"
 #include "initiator.h"
@@ -1167,11 +1168,13 @@ int iscsi_sysfs_get_sessioninfo_by_id(struct session_info *info, char *session)
 }
 
 int iscsi_sysfs_for_each_session(void *data, int *nr_found,
-				 iscsi_sysfs_session_op_fn *fn)
+				 iscsi_sysfs_session_op_fn *fn,
+				 int in_parallel)
 {
 	struct dirent **namelist;
-	int rc = 0, n, i;
+	int rc = 0, n, i, chldrc = 0;
 	struct session_info *info;
+	pid_t pid = 0;
 
 	info = calloc(1, sizeof(*info));
 	if (!info)
@@ -1193,14 +1196,52 @@ int iscsi_sysfs_for_each_session(void *data, int *nr_found,
 			continue;
 		}
 
-		rc = fn(data, info);
-		if (rc > 0)
-			break;
-		else if (rc == 0)
-			(*nr_found)++;
-		else
-			/* if less than zero it means it was not a match */
-			rc = 0;
+		if (in_parallel) {
+			pid = fork();
+		}
+		if (pid == 0) {
+			rc = fn(data, info);
+			if (in_parallel) {
+				exit(rc);
+			} else {
+				if (rc > 0) {
+					break;
+				} else if (rc == 0) {
+					(*nr_found)++;
+				} else {
+					/* if less than zero it means it was not a match */
+					rc = 0;
+				}
+			}
+		} else if (pid < 0) {
+			log_error("could not fork() for session %s, err %d",
+				   namelist[i]->d_name, errno);
+		}
+	}
+
+	if (in_parallel) {
+		while (1) {
+			if (wait(&chldrc) < 0) {
+				/*
+				 * ECHILD means no more children which is
+				 * expected to happen sooner or later.
+				 */
+				if (errno != ECHILD) {
+					rc = errno;
+				}
+				break;
+			}
+
+			if ((chldrc > 0) && (rc == 0)) {
+				/*
+				 * The non-parallel code path returns the first
+				 * error so this keeps the same semantics.
+				 */
+				rc = chldrc;
+			} else if (chldrc == 0) {
+				(*nr_found)++;
+			}
+		}
 	}
 
 	for (i = 0; i < n; i++)

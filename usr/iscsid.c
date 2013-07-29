@@ -511,7 +511,8 @@ int main(int argc, char *argv[])
 	if (pid == 0) {
 		int nr_found = 0;
 		/* child */
-		iscsi_sysfs_for_each_session(NULL, &nr_found, sync_session);
+		/* TODO - test with async support enabled */
+		iscsi_sysfs_for_each_session(NULL, &nr_found, sync_session, 0);
 		exit(0);
 	} else if (pid < 0) {
 		log_error("Fork failed error %d: existing sessions"

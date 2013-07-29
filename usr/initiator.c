@@ -1855,7 +1855,8 @@ static int session_is_running(node_rec_t *rec)
 	if (session_find_by_rec(rec))
 		return 1;
 
-	if (iscsi_sysfs_for_each_session(rec, &nr_found, iscsi_match_session))
+	if (iscsi_sysfs_for_each_session(rec, &nr_found, iscsi_match_session,
+					 0))
 		return 1;
 
 	return 0;

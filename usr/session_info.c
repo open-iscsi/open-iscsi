@@ -368,7 +368,7 @@ int session_info_print(int info_level, struct session_info *info, int do_show)
 			num_found = 1;
 		} else
 			err = iscsi_sysfs_for_each_session(info, &num_found,
-						   session_info_print_flat);
+						   session_info_print_flat, 0);
 		break;
 	case 3:
 		version = iscsi_sysfs_get_iscsi_kernel_version();
@@ -403,7 +403,7 @@ int session_info_print(int info_level, struct session_info *info, int do_show)
 		link_info.match_fn = NULL;
 
 		err = iscsi_sysfs_for_each_session(&link_info, &num_found,
-						   session_info_create_list);
+						   session_info_create_list, 0);
 		if (err || !num_found)
 			break;
 

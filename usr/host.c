@@ -242,7 +242,7 @@ static int host_info_print_tree(void *data, struct host_info *hinfo)
 	link_info.data = &hinfo->host_no;
 
 	err = iscsi_sysfs_for_each_session(&link_info, &num_found,
-					   session_info_create_list);
+					   session_info_create_list, 0);
 	if (err || !num_found)
 		return 0;
 

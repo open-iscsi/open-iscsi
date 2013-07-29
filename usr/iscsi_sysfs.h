@@ -51,7 +51,8 @@ extern int iscsi_sysfs_for_each_iface_on_host(void *data, uint32_t host_no,
 					      int *nr_found,
 					      iscsi_sysfs_iface_op_fn *fn);
 extern int iscsi_sysfs_for_each_session(void *data, int *nr_found,
-					iscsi_sysfs_session_op_fn *fn);
+					iscsi_sysfs_session_op_fn *fn,
+					int in_parallel);
 extern int iscsi_sysfs_for_each_host(void *data, int *nr_found,
 				     iscsi_sysfs_host_op_fn *fn);
 extern uint32_t iscsi_sysfs_get_host_no_from_sid(uint32_t sid, int *err);
