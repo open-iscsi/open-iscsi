@@ -2182,6 +2182,10 @@ static int idbm_rec_write(node_rec_t *rec, bool disable_lock)
 			goto free_portal;
 	}
 
+	if (rec->tpgt == PORTAL_GROUP_TAG_UNKNOWN)
+		/* drop down to old style portal as config */
+		goto open_conf;
+
 	rc = stat(portal, &statb);
 	if (rc) {
 		rc = 0;
@@ -2190,22 +2194,10 @@ static int idbm_rec_write(node_rec_t *rec, bool disable_lock)
 		 * set the tgpt. In new versions you must pass all the info in
 		 * from the start
 		 */
-		if (rec->tpgt == PORTAL_GROUP_TAG_UNKNOWN)
-			/* drop down to old style portal as config */
-			goto open_conf;
-		else
-			goto mkdir_portal;
+		goto mkdir_portal;
 	}
 
 	if (!S_ISDIR(statb.st_mode)) {
-		/*
-		 * older iscsiadm versions had you create the config then set
-		 * set the tgpt. In new versions you must pass all the info in
-		 * from the start
-		 */
-		if (rec->tpgt == PORTAL_GROUP_TAG_UNKNOWN)
-			/* drop down to old style portal as config */
-			goto open_conf;
 		/*
 		 * Old style portal as a file, but with tpgt. Let's update it.
 		 */
