@@ -28,6 +28,7 @@
 #include <dirent.h>
 #include <limits.h>
 #include <fcntl.h>
+#include <glob.h>
 #include <sys/stat.h>
 #include <sys/file.h>
 #include <inttypes.h>
@@ -204,6 +205,8 @@ static struct int_list_tbl {
 	{ "SHA3-256", AUTH_CHAP_ALG_SHA3_256 },
 #endif
 };
+
+static int idbm_remove_disc_to_node_link(node_rec_t *rec, char *portal);
 
 static void
 idbm_recinfo_discovery(discovery_rec_t *r, recinfo_t *ri)
@@ -2211,12 +2214,49 @@ static int idbm_rec_write_old(node_rec_t *rec)
 	FILE *f;
 	char *portal;
 	int rc = 0;
+	glob_t globbuf;
+	size_t i;
+	int tpgt = PORTAL_GROUP_TAG_UNKNOWN;
 
 	portal = malloc(PATH_MAX);
 	if (!portal) {
 		log_error("Could not alloc portal");
 		return ISCSI_ERR_NOMEM;
 	}
+
+	/* check for newer portal dir with tpgt */
+	snprintf(portal, PATH_MAX, "%s/%s/%s,%d,*", NODE_CONFIG_DIR,
+		 rec->name, rec->conn[0].address, rec->conn[0].port);
+	rc = glob(portal, GLOB_ONLYDIR, NULL, &globbuf);
+	if (!rc) {
+		if (globbuf.gl_pathc > 1)
+			log_warning("multiple tpg records for portal "
+				    "%s/%s:%d found", rec->name,
+				    rec->conn[0].address, rec->conn[0].port);
+		/* set pattern for sscanf matching of tpgt */
+		snprintf(portal, PATH_MAX, "%s/%s/%s,%d,%%u", NODE_CONFIG_DIR,
+			 rec->name, rec->conn[0].address, rec->conn[0].port);
+		for (i = 0; i < globbuf.gl_pathc; i++) {
+			rc = sscanf(globbuf.gl_pathv[i], portal, &tpgt);
+			if (rc == 1)
+				break;
+		}
+		if (tpgt == PORTAL_GROUP_TAG_UNKNOWN)
+			log_warning("glob match on existing records, "
+				    "but no valid tpgt found");
+	}
+	globfree(&globbuf);
+	rc = 0;
+
+	/* if a tpgt was selected from an old record, write entry in new format */
+	if (tpgt != PORTAL_GROUP_TAG_UNKNOWN) {
+		log_warning("using tpgt %u from existing record", tpgt);
+		rec->tpgt = tpgt;
+		rc = idbm_remove_disc_to_node_link(rec, portal);
+		free(portal);
+		return idbm_rec_write_new(rec);
+	}
+
 	snprintf(portal, PATH_MAX, "%s/%s/%s,%d", NODE_CONFIG_DIR,
 		 rec->name, rec->conn[0].address, rec->conn[0].port);
 
