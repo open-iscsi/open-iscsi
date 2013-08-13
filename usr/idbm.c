@@ -1504,7 +1504,7 @@ static FILE *idbm_open_rec_r(char *portal, char *config)
 
 /*
  * When the disable_lock param is true, the idbm_lock/idbm_unlock needs
- * to be holt by the caller, this will avoid overwriting each other in
+ * to be held by the caller, this will avoid overwriting each other in
  * case of updating(read-modify-write) the recs in parallel.
  */
 static int __idbm_rec_read(node_rec_t *out_rec, char *conf, bool disable_lock)
@@ -1547,7 +1547,7 @@ free_info:
 
 /*
  * When the disable_lock param is true, the idbm_lock/idbm_unlock needs
- * to be holt by the caller, this will avoid overwriting each other in
+ * to be held by the caller, this will avoid overwriting each other in
  * case of updating(read-modify-write) the recs in parallel.
  */
 int
@@ -2134,15 +2134,112 @@ mkdir_portal:
 	return f;
 }
 
+static int idbm_rec_write_new(node_rec_t *rec)
+{
+	struct stat statb;
+	FILE *f;
+	char *portal;
+	int rc = 0;
+
+	portal = malloc(PATH_MAX);
+	if (!portal) {
+		log_error("Could not alloc portal");
+		return ISCSI_ERR_NOMEM;
+	}
+
+	snprintf(portal, PATH_MAX, "%s/%s/%s,%d", NODE_CONFIG_DIR,
+		 rec->name, rec->conn[0].address, rec->conn[0].port);
+
+	rc = stat(portal, &statb);
+	if (rc) {
+		rc = 0;
+		/*
+		 * older iscsiadm versions had you create the config then set
+		 * set the tgpt. In new versions you must pass all the info in
+		 * from the start
+		 */
+		goto mkdir_portal;
+	}
+
+	if (!S_ISDIR(statb.st_mode)) {
+		/*
+		 * Old style portal as a file, but with tpgt. Let's update it.
+		 */
+		if (unlink(portal)) {
+			log_error("Could not convert %s: %s", portal,
+				  strerror(errno));
+			rc = ISCSI_ERR_IDBM;
+			goto free_portal;
+		}
+	} else {
+		rc = ISCSI_ERR_INVAL;
+		goto free_portal;
+	}
+
+mkdir_portal:
+	snprintf(portal, PATH_MAX, "%s/%s/%s,%d,%d", NODE_CONFIG_DIR,
+		 rec->name, rec->conn[0].address, rec->conn[0].port, rec->tpgt);
+	if (stat(portal, &statb)) {
+		if (mkdir(portal, 0770) != 0) {
+			log_error("Could not make dir %s: %s",
+				  portal, strerror(errno));
+			rc = ISCSI_ERR_IDBM;
+			goto free_portal;
+		}
+	}
+
+	snprintf(portal, PATH_MAX, "%s/%s/%s,%d,%d/%s", NODE_CONFIG_DIR,
+		 rec->name, rec->conn[0].address, rec->conn[0].port, rec->tpgt,
+		 rec->iface.name);
+
+	f = fopen(portal, "w");
+	if (!f) {
+		log_error("Could not open %s: %s", portal, strerror(errno));
+		rc = ISCSI_ERR_IDBM;
+		goto free_portal;
+	}
+
+	idbm_print(IDBM_PRINT_TYPE_NODE, rec, 1, f);
+	fclose(f);
+free_portal:
+	free(portal);
+	return rc;
+}
+
+static int idbm_rec_write_old(node_rec_t *rec)
+{
+	FILE *f;
+	char *portal;
+	int rc = 0;
+
+	portal = malloc(PATH_MAX);
+	if (!portal) {
+		log_error("Could not alloc portal");
+		return ISCSI_ERR_NOMEM;
+	}
+	snprintf(portal, PATH_MAX, "%s/%s/%s,%d", NODE_CONFIG_DIR,
+		 rec->name, rec->conn[0].address, rec->conn[0].port);
+
+	f = fopen(portal, "w");
+	if (!f) {
+		log_error("Could not open %s: %sd", portal, strerror(errno));
+		rc = ISCSI_ERR_IDBM;
+		goto free_portal;
+	}
+	idbm_print(IDBM_PRINT_TYPE_NODE, rec, 1, f);
+	fclose(f);
+free_portal:
+	free(portal);
+	return rc;
+}
+
 /*
  * When the disable_lock param is true, the idbm_lock/idbm_unlock needs
- * to be holt by the caller, this will avoid overwriting each other in
+ * to be held by the caller, this will avoid overwriting each other in
  * case of updating(read-modify-write) the recs in parallel.
  */
 static int idbm_rec_write(node_rec_t *rec, bool disable_lock)
 {
-	struct stat statb;
-	FILE *f;
 	char *portal;
 	int rc = 0;
 
@@ -2172,10 +2269,6 @@ static int idbm_rec_write(node_rec_t *rec, bool disable_lock)
 		}
 	}
 
-	snprintf(portal, PATH_MAX, "%s/%s/%s,%d", NODE_CONFIG_DIR,
-		 rec->name, rec->conn[0].address, rec->conn[0].port);
-	log_debug(5, "Looking for config file %s", portal);
-
 	if (!disable_lock) {
 		rc = idbm_lock();
 		if (rc)
@@ -2183,61 +2276,11 @@ static int idbm_rec_write(node_rec_t *rec, bool disable_lock)
 	}
 
 	if (rec->tpgt == PORTAL_GROUP_TAG_UNKNOWN)
-		/* drop down to old style portal as config */
-		goto open_conf;
+		/* old style portal as config */
+		rc = idbm_rec_write_old(rec);
+	else
+		rc = idbm_rec_write_new(rec);
 
-	rc = stat(portal, &statb);
-	if (rc) {
-		rc = 0;
-		/*
-		 * older iscsiadm versions had you create the config then set
-		 * set the tgpt. In new versions you must pass all the info in
-		 * from the start
-		 */
-		goto mkdir_portal;
-	}
-
-	if (!S_ISDIR(statb.st_mode)) {
-		/*
-		 * Old style portal as a file, but with tpgt. Let's update it.
-		 */
-		if (unlink(portal)) {
-			log_error("Could not convert %s: %s", portal,
-				  strerror(errno));
-			rc = ISCSI_ERR_IDBM;
-			goto unlock;
-		}
-	} else {
-		rc = ISCSI_ERR_INVAL;
-		goto unlock;
-	}
-
-mkdir_portal:
-	snprintf(portal, PATH_MAX, "%s/%s/%s,%d,%d", NODE_CONFIG_DIR,
-		 rec->name, rec->conn[0].address, rec->conn[0].port, rec->tpgt);
-	if (stat(portal, &statb)) {
-		if (mkdir(portal, 0770) != 0) {
-			log_error("Could not make dir %s: %s",
-				  portal, strerror(errno));
-			rc = ISCSI_ERR_IDBM;
-			goto unlock;
-		}
-	}
-
-	snprintf(portal, PATH_MAX, "%s/%s/%s,%d,%d/%s", NODE_CONFIG_DIR,
-		 rec->name, rec->conn[0].address, rec->conn[0].port, rec->tpgt,
-		 rec->iface.name);
-open_conf:
-	f = fopen(portal, "w");
-	if (!f) {
-		log_error("Could not open %s: %s", portal, strerror(errno));
-		rc = ISCSI_ERR_IDBM;
-		goto unlock;
-	}
-
-	idbm_print(IDBM_PRINT_TYPE_NODE, rec, 1, f);
-	fclose(f);
-unlock:
 	if (!disable_lock)
 		idbm_unlock();
 free_portal:
