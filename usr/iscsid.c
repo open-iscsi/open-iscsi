@@ -111,9 +111,7 @@ setup_rec_from_negotiated_values(node_rec_t *rec, struct session_info *info)
 	strlcpy(rec->name, info->targetname, TARGET_NAME_MAXLEN);
 	rec->conn[0].port = info->persistent_port;
 	strlcpy(rec->conn[0].address, info->persistent_address, NI_MAXHOST);
-	memcpy(&rec->iface, &info->iface, sizeof(struct iface_rec));
 	rec->tpgt = info->tpgt;
-	iface_copy(&rec->iface, &info->iface);
 
 	iscsi_sysfs_get_negotiated_session_conf(info->sid, &session_conf);
 	iscsi_sysfs_get_negotiated_conn_conf(info->sid, &conn_conf);
@@ -238,6 +236,7 @@ static int sync_session(void *data, struct session_info *info)
 		log_warning("Could not read data from db. Using default and "
 			    "currently negotiated values\n");
 		setup_rec_from_negotiated_values(&rec, info);
+		iface_copy(&rec.iface, &info->iface);
 	} else {
 		/*
 		 * we have a valid record and iface so lets merge
@@ -251,13 +250,12 @@ static int sync_session(void *data, struct session_info *info)
 		memset(&sysfsrec, 0, sizeof(node_rec_t));
 		setup_rec_from_negotiated_values(&sysfsrec, info);
 		/*
-		 * target, portal and iface name values have to be the same
+		 * target, portal and iface values have to be the same
 		 * or we would not have found the record, so just copy
-		 * CHAP and iface settings.
+		 * CHAP settings.
 		 */
 		memcpy(&rec.session.auth, &sysfsrec.session.auth,
 		      sizeof(struct iscsi_auth_config));
-		memcpy(&rec.iface, &info->iface, sizeof(rec.iface));
 	}
 
 	/* multiple drivers could be connected to the same portal */
