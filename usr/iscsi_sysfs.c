@@ -674,6 +674,43 @@ free_fnode:
 	return rc;
 }
 
+static int iscsi_sysfs_read_boot(struct iface_rec *iface, char *session)
+{
+	char boot_root[BOOT_NAME_MAXLEN], boot_nic[BOOT_NAME_MAXLEN];
+	char boot_name[BOOT_NAME_MAXLEN], boot_content[BOOT_NAME_MAXLEN];
+
+	/* Extract boot info */
+	strlcpy(boot_name, "boot_target", sizeof(boot_name));
+	if (sysfs_get_str(session, ISCSI_SESSION_SUBSYS, boot_name,
+			  boot_content, BOOT_NAME_MAXLEN))
+		return -1;
+	strlcpy(boot_name, "boot_nic", sizeof(boot_name));
+	if (sysfs_get_str(session, ISCSI_SESSION_SUBSYS, boot_name, boot_nic,
+			  BOOT_NAME_MAXLEN))
+		return -1;
+	strlcpy(boot_name, "boot_root", sizeof(boot_name));
+	if (sysfs_get_str(session, ISCSI_SESSION_SUBSYS, boot_name, boot_root,
+			  BOOT_NAME_MAXLEN))
+		return -1;
+
+	/* If all boot_root/boot_target/boot_nic exist, then extract the
+	   info from the boot nic */
+	if (sysfs_get_str(boot_nic, boot_root, "vlan", boot_content,
+			  BOOT_NAME_MAXLEN))
+		log_debug(5, "could not read %s/%s/vlan", boot_root, boot_nic);
+	else
+		iface->vlan_id = atoi(boot_content);
+
+	if (sysfs_get_str(boot_nic, boot_root, "subnet-mask",
+			  iface->subnet_mask, NI_MAXHOST))
+		log_debug(5, "could not read %s/%s/subnet", boot_root,
+			  boot_nic);
+
+	log_debug(5, "sysfs read boot returns %s/%s/ vlan = %d subnet = %s",
+		  boot_root, boot_nic, iface->vlan_id, iface->subnet_mask);
+	return 0;
+}
+
 /*
  * Read in iface settings based on host and session values. If
  * session is not passed in, then the ifacename will not be set. And
@@ -801,6 +838,9 @@ static int iscsi_sysfs_read_iface(struct iface_rec *iface, int host_no,
 					  iface_str(iface));
 		}
 	}
+
+	if (session && t->template->use_boot_info)
+		iscsi_sysfs_read_boot(iface, session);
 
 	if (!iface_kern_id)
 		goto done;

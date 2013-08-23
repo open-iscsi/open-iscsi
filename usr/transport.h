@@ -31,6 +31,7 @@ struct iscsi_transport_template {
 	 * the host's ip address.
 	 */
 	uint8_t set_host_ip;
+	uint8_t use_boot_info;
 	int (*ep_connect) (struct iscsi_conn *conn, int non_blocking);
 	int (*ep_poll) (struct iscsi_conn *conn, int timeout_ms);
 	void (*ep_disconnect) (struct iscsi_conn *conn);

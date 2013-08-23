@@ -77,6 +77,7 @@ struct iscsi_transport_template cxgb4i = {
 struct iscsi_transport_template bnx2i = {
 	.name		= "bnx2i",
 	.set_host_ip	= 1,
+	.use_boot_info	= 1,
 	.ep_connect	= ktransport_ep_connect,
 	.ep_poll	= ktransport_ep_poll,
 	.ep_disconnect	= ktransport_ep_disconnect,
