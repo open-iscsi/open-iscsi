@@ -324,12 +324,32 @@ int iscsi_host_set_params(struct iscsi_session *session)
 	return 0;
 }
 
+static inline void iscsi_session_clear_param(struct iscsi_session *session,
+					     int param)
+{
+	session->param_mask &= ~(1ULL << param);
+}
+
+void iscsi_session_init_params(struct iscsi_session *session)
+{
+	session->param_mask = ~0ULL;
+	if (!(session->t->caps & CAP_MULTI_R2T))
+		iscsi_session_clear_param(session, ISCSI_PARAM_MAX_R2T);
+	if (!(session->t->caps & CAP_HDRDGST))
+		iscsi_session_clear_param(session, ISCSI_PARAM_HDRDGST_EN); 
+	if (!(session->t->caps & CAP_DATADGST))
+		iscsi_session_clear_param(session, ISCSI_PARAM_DATADGST_EN); 
+	if (!(session->t->caps & CAP_MARKERS)) {
+		iscsi_session_clear_param(session, ISCSI_PARAM_IFMARKER_EN);
+		iscsi_session_clear_param(session, ISCSI_PARAM_OFMARKER_EN);
+	}
+}
+
 #define MAX_SESSION_PARAMS 32
 
 int iscsi_session_set_params(struct iscsi_conn *conn)
 {
 	struct iscsi_session *session = conn->session;
-	struct iscsi_transport *t = session->t;
 	int i, rc;
 	uint32_t one = 1, zero = 0;
 	struct connparam {
@@ -499,22 +519,12 @@ int iscsi_session_set_params(struct iscsi_conn *conn)
 		},
 	};
 
-	session->param_mask = ~0ULL;
-	if (!(t->caps & CAP_MULTI_R2T))
-		session->param_mask &= ~ISCSI_MAX_R2T;
-	if (!(t->caps & CAP_HDRDGST))
-		session->param_mask &= ~ISCSI_HDRDGST_EN;
-	if (!(t->caps & CAP_DATADGST))
-		session->param_mask &= ~ISCSI_DATADGST_EN;
-	if (!(t->caps & CAP_MARKERS)) {
-		session->param_mask &= ~ISCSI_IFMARKER_EN;
-		session->param_mask &= ~ISCSI_OFMARKER_EN;
-	}
+	iscsi_session_init_params(session);
 
 	/* some llds will send nops internally */
 	if (!iscsi_sysfs_session_supports_nop(session->id)) {
-		session->param_mask &= ~ISCSI_PING_TMO;
-		session->param_mask &= ~ISCSI_RECV_TMO;
+		iscsi_session_clear_param(session, ISCSI_PARAM_PING_TMO); 
+		iscsi_session_clear_param(session, ISCSI_PARAM_RECV_TMO);
 	}
 
 	/* Entered full-feature phase! */

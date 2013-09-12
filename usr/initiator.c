@@ -384,17 +384,7 @@ __session_create(node_rec_t *rec, struct iscsi_transport *t)
 	/* setup authentication variables for the session*/
 	iscsi_setup_authentication(session, &rec->session.auth);
 
-	session->param_mask = ~0ULL;
-	if (!(t->caps & CAP_MULTI_R2T))
-		session->param_mask &= ~ISCSI_MAX_R2T;
-	if (!(t->caps & CAP_HDRDGST))
-		session->param_mask &= ~ISCSI_HDRDGST_EN;
-	if (!(t->caps & CAP_DATADGST))
-		session->param_mask &= ~ISCSI_DATADGST_EN;
-	if (!(t->caps & CAP_MARKERS)) {
-		session->param_mask &= ~ISCSI_IFMARKER_EN;
-		session->param_mask &= ~ISCSI_OFMARKER_EN;
-	}
+	iscsi_session_init_params(session);
 
 	hostno = iscsi_sysfs_get_host_no_from_hwinfo(&rec->iface, &rc);
 	if (!rc) {
