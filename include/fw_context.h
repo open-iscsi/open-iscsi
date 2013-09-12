@@ -30,6 +30,9 @@
 
 struct boot_context {
 	struct list_head list;
+	char boot_root[BOOT_NAME_MAXLEN];
+	char boot_nic[BOOT_NAME_MAXLEN];
+	char boot_target[BOOT_NAME_MAXLEN];
 
 	/* target settings */
 	int target_port;

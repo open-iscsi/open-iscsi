@@ -200,6 +200,9 @@ static int fill_nic_context(char *subsys, char *id,
 		strlcpy(context->scsi_host_name, subsys,
 			sizeof(context->scsi_host_name));
 
+	memset(&context->boot_nic, 0, sizeof(context->boot_nic));
+	snprintf(context->boot_nic, sizeof(context->boot_nic), "%s", id);
+
 	sysfs_get_str(id, subsys, "ip-addr", context->ipaddr,
 		      sizeof(context->ipaddr));
 	sysfs_get_str(id, subsys, "vlan", context->vlan,
@@ -224,6 +227,8 @@ static void fill_initiator_context(char *subsys, struct boot_context *context)
 		      sizeof(context->initiatorname));
 	sysfs_get_str("initiator", subsys, "isid", context->isid,
 		      sizeof(context->isid));
+
+	strlcpy(context->boot_root, subsys, sizeof(context->boot_root));
 }
 static int fill_tgt_context(char *subsys, char *id,
 			    struct boot_context *context)
@@ -239,6 +244,9 @@ static int fill_tgt_context(char *subsys, char *id,
 			   sizeof(context->target_ipaddr));
 	if (rc)
 		return rc;
+
+	memset(&context->boot_target, 0, sizeof(context->boot_target));
+	snprintf(context->boot_target, sizeof(context->boot_target), "%s", id);
 
 	/*
 	 * We can live without the rest of they do not exist. If we

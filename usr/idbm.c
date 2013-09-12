@@ -2748,6 +2748,12 @@ struct node_rec *idbm_create_rec_from_boot_context(struct boot_context *context)
 				strlen((char *)context->chap_password);
 	rec->session.auth.password_in_length =
 				strlen((char *)context->chap_password_in);
+	strlcpy(rec->session.boot_root, context->boot_root,
+		sizeof(context->boot_root));
+	strlcpy(rec->session.boot_nic, context->boot_nic,
+		sizeof(context->boot_nic));
+	strlcpy(rec->session.boot_target, context->boot_target,
+		sizeof(context->boot_target));
 
 	iface_setup_from_boot_context(&rec->iface, context);
 
