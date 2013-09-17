@@ -16,7 +16,7 @@ iscsiadm \- open-iscsi administration utility
 
 \fBiscsiadm\fR \-m fw [ \-d debug_level ] [\-l]
 
-\fBiscsiadm\fR \-m host [ \-P printlevel ] [ \-H hostno|MAC ] [ [ \-C chap [ \-o operation ] [ \-v chap_tbl_idx ] ] | [ \-C flashnode [ \-o operation ] [ \-A portal_type ] [ \-x flashnode_idx ] [ \-n name ] [ \-v value ] ] ]
+\fBiscsiadm\fR \-m host [ \-P printlevel ] [ \-H hostno|MAC ] [ [ \-C chap [ \-x chap_tbl_idx ] ] | [ \-C flashnode [ \-A portal_type ] [ \-x flashnode_idx ] ] ] [ [ \-o operation ] [ \-n name ] [ \-v value ] ]
 
 \fBiscsiadm\fR \-k priority
 
@@ -74,7 +74,7 @@ iscsiadm -m iface -I ifacename -C ping -a ipaddr -b packetsize -c count -i inter
 
 For host, it supports chap and flashnode as submodes. For example,
 
-iscsiadm -m host -H hostno -C chap -v chap_tbl_idx -o operation
+iscsiadm -m host -H hostno -C chap -x chap_tbl_idx -o operation
 
 iscsiadm -m host -H hostno -C flashnode -x flashnode_idx -o operation
 
@@ -320,10 +320,10 @@ This option is only valid for node mode and flashnode submode of host mode.
 display version and exit
 
 .TP
-\fB\-x\fR, \fB\-\-flashnode_idx=\fIindex\fR
-Specify the \fIindex\fR of the flash node to operate on.
+\fB\-x\fR, \fB\-\-index=\fIindex\fR
+Specify the \fIindex\fR of the entity to operate on.
 .IP
-This option is only valid for flashnode submode of host mode.
+This option is only valid for chap and flashnode submodes of host mode.
 
 .SH DISCOVERY TYPES
 iSCSI defines 3 discovery types: SendTargets, SLP, and iSNS.
