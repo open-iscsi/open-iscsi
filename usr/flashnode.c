@@ -449,6 +449,12 @@ int flashnode_build_config(struct list_head *params,
 			    fnode->sess.portal_type,
 			    sizeof(fnode->sess.portal_type)))
 				count++;
+		} else if (!strcmp(param->name,
+			  to_key(FLASHNODE_SESS_CHAP_OUT_IDX))) {
+			if (!flashnode_fill_uint32(fnode, &iov[count],
+			    ISCSI_FLASHNODE_CHAP_OUT_IDX,
+			    fnode->sess.chap_out_idx))
+				count++;
 		} else if (!strcmp(param->name, to_key(FLASHNODE_CONN_PORT))) {
 			if (fnode->conn[0].port)
 				port = fnode->conn[0].port;
