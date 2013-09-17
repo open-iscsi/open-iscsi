@@ -115,7 +115,7 @@ static struct option const long_options[] =
 	{"packetsize", required_argument, NULL, 'b'},
 	{"count", required_argument, NULL, 'c'},
 	{"interval", required_argument, NULL, 'i'},
-	{"flashnode_idx", optional_argument, NULL, 'x'},
+	{"index", optional_argument, NULL, 'x'},
 	{"portal_type", optional_argument, NULL, 'A'},
 	{NULL, 0, NULL, 0},
 };
@@ -136,7 +136,7 @@ iscsiadm -m node [ -hV ] [ -d debug_level ] [ -P printlevel ] [ -L all,manual,au
 iscsiadm -m session [ -hV ] [ -d debug_level ] [ -P  printlevel] [ -r sessionid | sysfsdir [ -R | -u | -s ] [ -o operation ] [ -n name ] [ -v value ] ]\n\
 iscsiadm -m iface [ -hV ] [ -d debug_level ] [ -P printlevel ] [ -I ifacename | -H hostno|MAC ] [ [ -o  operation  ] [ -n name ] [ -v value ] ] [ -C ping [ -a ip ] [ -b packetsize ] [ -c count ] [ -i interval ] ]\n\
 iscsiadm -m fw [ -d debug_level ] [ -l ]\n\
-iscsiadm -m host [ -P printlevel ] [ -H hostno|MAC ] [ [ -C chap [ -o operation ] [ -v chap_tbl_idx ] ] | [ -C flashnode [ -o operation ] [ -A portal_type ] [ -x flashnode_idx ] [ -n name ] [ -v value ] ] ]\n\
+iscsiadm -m host [ -P printlevel ] [ -H hostno|MAC ] [ [ -C chap [ -x chap_tbl_idx ] ] | [ -C flashnode [ -A portal_type ] [ -x flashnode_idx ] ] ] [ [ -o operation ] [ -n name ] [ -v value ] ] \n\
 iscsiadm -k priority\n");
 	}
 	exit(status);
@@ -1426,18 +1426,10 @@ exit_chap_info:
 	return rc;
 }
 
-static int delete_host_chap_info(uint32_t host_no, char *value)
+static int delete_host_chap_info(uint32_t host_no, uint16_t chap_tbl_idx)
 {
 	struct iscsi_transport *t = NULL;
 	int fd, rc = 0;
-	uint16_t chap_tbl_idx;
-
-	if (!value) {
-		log_error("CHAP deletion requires --value=table_index.");
-		return ISCSI_ERR_INVAL;
-	}
-
-	chap_tbl_idx = (uint16_t)atoi(value);
 
 	t = iscsi_sysfs_get_transport_by_hba(host_no);
 	if (!t) {
@@ -1472,22 +1464,28 @@ exit_delete_chap:
 }
 
 static int exec_host_chap_op(int op, int info_level, uint32_t host_no,
-			     char *value)
+			     uint64_t chap_index)
 {
 	int rc = ISCSI_ERR_INVAL;
+
+	if (op != OP_SHOW && (chap_index > (uint64_t)MAX_CHAP_ENTRIES)) {
+		log_error("Invalid chap table index.");
+		goto exit_chap_op;
+	}
 
 	switch (op) {
 	case OP_SHOW:
 		rc = get_host_chap_info(host_no);
 		break;
 	case OP_DELETE:
-		rc = delete_host_chap_info(host_no, value);
+		rc = delete_host_chap_info(host_no, chap_index);
 		break;
 	default:
 		log_error("Invalid operation.");
 		break;
 	}
 
+exit_chap_op:
 	return rc;
 }
 
@@ -2818,7 +2816,7 @@ main(int argc, char **argv)
 	struct iface_rec *iface = NULL, *tmp;
 	struct node_rec *rec = NULL;
 	uint64_t host_no =  (uint64_t)MAX_HOST_NO + 1;
-	uint64_t flashnode_idx = (uint64_t)MAX_FLASHNODE_IDX + 1;
+	uint64_t index = (uint64_t)MAX_FLASHNODE_IDX + 1;
 	struct user_param *param;
 	struct list_head params;
 
@@ -2962,9 +2960,9 @@ main(int argc, char **argv)
 				ISCSI_VERSION_STR);
 			return 0;
 		case 'x':
-			flashnode_idx = strtoull(optarg, NULL, 10);
+			index = strtoull(optarg, NULL, 10);
 			if (errno) {
-				log_error("Invalid flashnode index %s. %s.",
+				log_error("Invalid index %s. %s.",
 					  optarg, strerror(errno));
 				rc = ISCSI_ERR_INVAL;
 				goto free_ifaces;
@@ -3041,7 +3039,7 @@ main(int argc, char **argv)
 					break;
 				}
 				rc = exec_host_chap_op(op, info_level, host_no,
-						       value);
+						       index);
 				break;
 			case MODE_FLASHNODE:
 				if (host_no > MAX_HOST_NO) {
@@ -3051,8 +3049,8 @@ main(int argc, char **argv)
 				}
 
 				rc = exec_flashnode_op(op, info_level, host_no,
-						       flashnode_idx,
-						       portal_type, &params);
+						       index, portal_type,
+						       &params);
 				break;
 			default:
 				log_error("Invalid Sub Mode");
