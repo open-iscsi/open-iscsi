@@ -601,12 +601,12 @@ int iscsi_sysfs_get_flashnode_info(struct flashnode_rec *fnode,
 	sysfs_get_str(sess_id, ISCSI_FLASHNODE_SUBSYS, "username",
 		      (fnode->sess).username, sizeof((fnode->sess).username));
 	sysfs_get_str(sess_id, ISCSI_FLASHNODE_SUBSYS, "username_in",
-		      (fnode->sess).username,
+		      (fnode->sess).username_in,
 		      sizeof((fnode->sess).username_in));
 	sysfs_get_str(sess_id, ISCSI_FLASHNODE_SUBSYS, "password",
 		      (fnode->sess).password, sizeof((fnode->sess).password));
 	sysfs_get_str(sess_id, ISCSI_FLASHNODE_SUBSYS, "password_in",
-		      (fnode->sess).password,
+		      (fnode->sess).password_in,
 		      sizeof((fnode->sess).password_in));
 	sysfs_get_uint(conn_id, ISCSI_FLASHNODE_SUBSYS, "statsn",
 		       &((fnode->conn[0]).stat_sn));
