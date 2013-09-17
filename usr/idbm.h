@@ -185,6 +185,7 @@ extern struct node_rec *
 idbm_create_rec_from_boot_context(struct boot_context *context);
 
 extern int idbm_print_host_chap_info(struct iscsi_chap_rec *chap);
+extern void idbm_recinfo_host_chap(struct iscsi_chap_rec *r, recinfo_t *ri);
 
 extern int idbm_print_flashnode_info(struct flashnode_rec *target);
 extern void idbm_recinfo_flashnode(struct flashnode_rec *r, recinfo_t *ri);

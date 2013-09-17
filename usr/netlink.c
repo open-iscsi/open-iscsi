@@ -1228,6 +1228,30 @@ static int kget_chap(uint64_t transport_handle, uint32_t host_no,
 	return rc;
 }
 
+static int kset_chap(uint64_t transport_handle, uint32_t host_no,
+			struct iovec *iovs, uint32_t param_count)
+{
+	int rc, ev_len;
+	struct iscsi_uevent ev;
+	struct iovec *iov = iovs + 1;
+
+	log_debug(8, "in %s", __func__);
+
+	ev_len = sizeof(ev);
+	ev.type = ISCSI_UEVENT_SET_CHAP;
+	ev.transport_handle = transport_handle;
+	ev.u.set_path.host_no = host_no;
+
+	iov->iov_base = &ev;
+	iov->iov_len = sizeof(ev);
+
+	rc = __kipc_call(iovs, param_count);
+	if (rc < 0)
+		return rc;
+
+	return 0;
+}
+
 static int kdelete_chap(uint64_t transport_handle, uint32_t host_no,
 			uint16_t chap_tbl_idx)
 {
@@ -1705,6 +1729,7 @@ struct iscsi_ipc nl_ipc = {
 	.recv_conn_state        = krecv_conn_state,
 	.exec_ping		= kexec_ping,
 	.get_chap		= kget_chap,
+	.set_chap		= kset_chap,
 	.delete_chap		= kdelete_chap,
 	.set_flash_node_params	= kset_flashnode_params,
 	.new_flash_node		= knew_flashnode,

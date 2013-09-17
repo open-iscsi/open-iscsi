@@ -456,7 +456,7 @@ void idbm_recinfo_iface(iface_rec_t *r, recinfo_t *ri)
 	__recinfo_uint16(IFACE_PORT, ri, r, port, IDBM_SHOW, num, 1);
 }
 
-static void idbm_recinfo_host_chap(struct iscsi_chap_rec *r, recinfo_t *ri)
+void idbm_recinfo_host_chap(struct iscsi_chap_rec *r, recinfo_t *ri)
 {
 	int num = 0;
 
@@ -465,14 +465,14 @@ static void idbm_recinfo_host_chap(struct iscsi_chap_rec *r, recinfo_t *ri)
 
 	if (r->chap_type == CHAP_TYPE_OUT) {
 		__recinfo_str(HOST_AUTH_USERNAME, ri, r, username, IDBM_SHOW,
-			      num, 0);
+			      num, 1);
 		__recinfo_str(HOST_AUTH_PASSWORD, ri, r, password, IDBM_MASKED,
 			      num, 1);
 		__recinfo_int(HOST_AUTH_PASSWORD_LEN, ri, r, password_length,
 			      IDBM_HIDE, num, 1);
 	} else {
 		__recinfo_str(HOST_AUTH_USERNAME_IN, ri, r, username, IDBM_SHOW,
-			      num, 0);
+			      num, 1);
 		__recinfo_str(HOST_AUTH_PASSWORD_IN, ri, r, password,
 			      IDBM_MASKED, num, 1);
 		__recinfo_int(HOST_AUTH_PASSWORD_IN_LEN, ri, r, password_length,
@@ -852,6 +852,8 @@ updated:
 	check_password_param(discovery.sendtargets.auth.password_in);
 	check_password_param(discovery.slp.auth.password);
 	check_password_param(discovery.slp.auth.password_in);
+	check_password_param(host.auth.password);
+	check_password_param(host.auth.password_in);
 
 	return 0;
 }

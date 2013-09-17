@@ -143,6 +143,9 @@ struct iscsi_ipc {
 			 uint16_t chap_tbl_idx, uint32_t num_entries,
 			 char *chap_buf, uint32_t *valid_chap_entries);
 
+	int (*set_chap) (uint64_t transport_handle, uint32_t host_no,
+			 struct iovec *iovs, uint32_t param_count);
+
 	int (*delete_chap) (uint64_t transport_handle, uint32_t host_no,
 			    uint16_t chap_tbl_idx);
 	int (*set_flash_node_params) (uint64_t transport_handle,

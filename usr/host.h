@@ -17,5 +17,6 @@ struct host_info {
 };
 
 extern int host_info_print(int info_level, uint32_t host_no);
+extern int chap_build_config(struct iscsi_chap_rec *crec, struct iovec *iovs);
 
 #endif

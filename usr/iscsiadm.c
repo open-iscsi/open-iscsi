@@ -115,7 +115,7 @@ static struct option const long_options[] =
 	{"packetsize", required_argument, NULL, 'b'},
 	{"count", required_argument, NULL, 'c'},
 	{"interval", required_argument, NULL, 'i'},
-	{"index", optional_argument, NULL, 'x'},
+	{"index", required_argument, NULL, 'x'},
 	{"portal_type", optional_argument, NULL, 'A'},
 	{NULL, 0, NULL, 0},
 };
@@ -1426,10 +1426,192 @@ exit_chap_info:
 	return rc;
 }
 
+static int fill_host_chap_rec(struct list_head *params,
+			      struct iscsi_chap_rec *crec, recinfo_t *cinfo,
+			      uint16_t chap_tbl_idx, int type, int *param_count)
+{
+	struct user_param *param;
+	int rc = 0;
+
+	crec->chap_tbl_idx = chap_tbl_idx;
+	crec->chap_type = type;
+
+	idbm_recinfo_host_chap(crec, cinfo);
+
+	list_for_each_entry(param, params, list) {
+		rc = idbm_rec_update_param(cinfo, param->name, param->value, 0);
+		if (rc)
+			break;
+	}
+
+	if (!rc)
+		*param_count += 3; /* index, type and password_length */
+
+	return rc;
+}
+
+static int verify_host_chap_params(struct list_head *params, int *type,
+				   int *param_count)
+{
+	struct user_param *param;
+	int username = -1;
+	int password = -1;
+	int rc = 0;
+
+	list_for_each_entry(param, params, list) {
+		*param_count += 1;
+
+		if (!strcmp(param->name, HOST_AUTH_USERNAME))
+			username = CHAP_TYPE_OUT;
+		else if (!strcmp(param->name, HOST_AUTH_PASSWORD))
+			password = CHAP_TYPE_OUT;
+		else if (!strcmp(param->name, HOST_AUTH_USERNAME_IN))
+			username = CHAP_TYPE_IN;
+		else if (!strcmp(param->name, HOST_AUTH_PASSWORD_IN))
+			password = CHAP_TYPE_IN;
+		else
+			continue;
+	}
+
+	if ((username == CHAP_TYPE_OUT) && (password == CHAP_TYPE_OUT)) {
+		if (type)
+			*type = CHAP_TYPE_OUT;
+
+		rc = ISCSI_SUCCESS;
+	} else if ((username == CHAP_TYPE_IN) && (password == CHAP_TYPE_IN)) {
+		if (type)
+			*type = CHAP_TYPE_IN;
+
+		rc = ISCSI_SUCCESS;
+	} else {
+		rc = ISCSI_ERR;
+	}
+
+	return rc;
+}
+
+static int set_host_chap_info(uint32_t host_no, uint64_t chap_index,
+			      struct list_head *params)
+{
+	struct iscsi_transport *t = NULL;
+	struct iscsi_chap_rec crec;
+	recinfo_t *chap_info = NULL;
+	struct iovec *iovs = NULL;
+	struct iovec *iov = NULL;
+	int type;
+	int param_count;
+	int param_used;
+	int rc = 0;
+	int fd, i = 0;
+
+	if (list_empty(params)) {
+		log_error("Chap username/password not provided.");
+		goto exit_set_chap;
+	}
+
+	chap_info = idbm_recinfo_alloc(MAX_KEYS);
+	if (!chap_info) {
+		log_error("Out of Memory.");
+		rc = ISCSI_ERR_NOMEM;
+		goto exit_set_chap;
+	}
+
+	t = iscsi_sysfs_get_transport_by_hba(host_no);
+	if (!t) {
+		log_error("Could not match hostno %d to transport.", host_no);
+		rc = ISCSI_ERR_TRANS_NOT_FOUND;
+		goto free_info_rec;
+	}
+
+	rc = verify_host_chap_params(params, &type, &param_count);
+	if (rc) {
+		log_error("Invalid username/password pair passed. Unable to determine the type of chap entry");
+		rc = ISCSI_ERR_INVAL;
+		goto free_info_rec;
+	}
+
+	if (param_count > 2) {
+		log_error("Only one pair of username/password can be passed.");
+		rc = ISCSI_ERR;
+		goto free_info_rec;
+	}
+
+	memset(&crec, 0, sizeof(crec));
+	rc = fill_host_chap_rec(params, &crec, chap_info, chap_index, type,
+				&param_count);
+	if (rc) {
+		log_error("Unable to fill CHAP record");
+		goto free_info_rec;
+	}
+
+	/* +2 for event and nlmsghdr */
+	param_count += 2;
+	iovs = calloc((param_count * sizeof(struct iovec)),
+		       sizeof(char));
+	if (!iovs) {
+		log_error("Out of Memory.");
+		rc = ISCSI_ERR_NOMEM;
+		goto free_info_rec;
+	}
+
+	/* param_used gives actual number of iovecs used for chap */
+	param_used = chap_build_config(&crec, iovs);
+	if (!param_used) {
+		log_error("Build chap config failed.");
+		rc = ISCSI_ERR;
+		goto free_iovec;
+	}
+
+	fd = ipc->ctldev_open();
+	if (fd < 0) {
+		rc = ISCSI_ERR_INTERNAL;
+		log_error("Netlink open failed.");
+		goto free_iovec;
+	}
+
+	rc = ipc->set_chap(t->handle, host_no, iovs, param_count);
+	if (rc < 0) {
+		log_error("CHAP setting failed");
+		if (rc == -EBUSY) {
+			rc = ISCSI_ERR_BUSY;
+			log_error("CHAP index %d is in use.",
+				  crec.chap_tbl_idx);
+		} else {
+			rc = ISCSI_ERR;
+		}
+
+		goto exit_set_chap;
+	}
+
+	ipc->ctldev_close();
+
+free_iovec:
+	/* start at 2, because 0 is for nlmsghdr and 1 for event */
+	iov = iovs + 2;
+	for (i = 0; i < param_used; i++, iov++) {
+		if (iov->iov_base)
+			free(iov->iov_base);
+	}
+
+	free(iovs);
+
+free_info_rec:
+	if (chap_info)
+		free(chap_info);
+
+exit_set_chap:
+	return rc;
+}
+
 static int delete_host_chap_info(uint32_t host_no, uint16_t chap_tbl_idx)
 {
 	struct iscsi_transport *t = NULL;
 	int fd, rc = 0;
+
+	if (chap_tbl_idx > MAX_CHAP_ENTRIES) {
+		log_error("Invalid chap table index.");
+		goto exit_delete_chap;
+	}
 
 	t = iscsi_sysfs_get_transport_by_hba(host_no);
 	if (!t) {
@@ -1464,18 +1646,17 @@ exit_delete_chap:
 }
 
 static int exec_host_chap_op(int op, int info_level, uint32_t host_no,
-			     uint64_t chap_index)
+			     uint64_t chap_index, struct list_head *params)
 {
 	int rc = ISCSI_ERR_INVAL;
-
-	if (op != OP_SHOW && (chap_index > (uint64_t)MAX_CHAP_ENTRIES)) {
-		log_error("Invalid chap table index.");
-		goto exit_chap_op;
-	}
 
 	switch (op) {
 	case OP_SHOW:
 		rc = get_host_chap_info(host_no);
+		break;
+	case OP_NEW:
+	case OP_UPDATE:
+		rc = set_host_chap_info(host_no, chap_index, params);
 		break;
 	case OP_DELETE:
 		rc = delete_host_chap_info(host_no, chap_index);
@@ -1485,7 +1666,6 @@ static int exec_host_chap_op(int op, int info_level, uint32_t host_no,
 		break;
 	}
 
-exit_chap_op:
 	return rc;
 }
 
@@ -2816,7 +2996,7 @@ main(int argc, char **argv)
 	struct iface_rec *iface = NULL, *tmp;
 	struct node_rec *rec = NULL;
 	uint64_t host_no =  (uint64_t)MAX_HOST_NO + 1;
-	uint64_t index = (uint64_t)MAX_FLASHNODE_IDX + 1;
+	uint64_t index = ULLONG_MAX;
 	struct user_param *param;
 	struct list_head params;
 
@@ -3038,8 +3218,12 @@ main(int argc, char **argv)
 					rc = ISCSI_ERR_INVAL;
 					break;
 				}
+
+				if (index == ULLONG_MAX)
+					index = (uint64_t)MAX_CHAP_ENTRIES + 1;
+
 				rc = exec_host_chap_op(op, info_level, host_no,
-						       index);
+						       index, &params);
 				break;
 			case MODE_FLASHNODE:
 				if (host_no > MAX_HOST_NO) {
@@ -3047,6 +3231,9 @@ main(int argc, char **argv)
 					rc = ISCSI_ERR_INVAL;
 					break;
 				}
+
+				if (index == ULLONG_MAX)
+					index = (uint64_t)MAX_FLASHNODE_IDX + 1;
 
 				rc = exec_flashnode_op(op, info_level, host_no,
 						       index, portal_type,

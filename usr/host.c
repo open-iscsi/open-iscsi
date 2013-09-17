@@ -34,6 +34,7 @@
 #include "initiator.h"
 #include "iface.h"
 #include "iscsi_err.h"
+#include "iscsi_netlink.h"
 
 static int match_host_to_session(void *data, struct session_info *info)
 {
@@ -313,4 +314,113 @@ int host_info_print(int info_level, uint32_t host_no)
 		return ISCSI_ERR_NO_OBJS_FOUND;
 	}
 	return 0;
+}
+
+static int chap_fill_param_uint(struct iovec *iov, int param,
+				uint32_t param_val, int param_len)
+{
+	struct iscsi_param_info *param_info;
+	struct nlattr *attr;
+	int len;
+	uint8_t val8 = 0;
+	uint16_t val16 = 0;
+	uint32_t val32 = 0;
+	char *val = NULL;
+
+	len = sizeof(struct iscsi_param_info) + param_len;
+	iov->iov_base = iscsi_nla_alloc(param, len);
+	if (!iov->iov_base)
+		return 1;
+
+	attr = iov->iov_base;
+	iov->iov_len = NLA_ALIGN(attr->nla_len);
+
+	param_info = (struct iscsi_param_info *)ISCSI_NLA_DATA(attr);
+	param_info->param = param;
+	param_info->len = param_len;
+
+	switch (param_len) {
+	case 1:
+		val8 = (uint8_t)param_val;
+		val = (char *)&val8;
+		break;
+
+	case 2:
+		val16 = (uint16_t)param_val;
+		val = (char *)&val16;
+		break;
+
+	case 4:
+		val32 = (uint32_t)param_val;
+		val = (char *)&val32;
+		break;
+
+	default:
+		goto free;
+	}
+	memcpy(param_info->value, val, param_len);
+
+	return 0;
+
+free:
+	free(iov->iov_base);
+	iov->iov_base = NULL;
+	iov->iov_len = 0;
+	return 1;
+}
+
+static int chap_fill_param_str(struct iovec *iov, int param, char *param_val,
+			       int param_len)
+{
+	struct iscsi_param_info *param_info;
+	struct nlattr *attr;
+	int len;
+
+	len = sizeof(struct iscsi_param_info) + param_len;
+	iov->iov_base = iscsi_nla_alloc(param, len);
+	if (!iov->iov_base)
+		return 1;
+
+	attr = iov->iov_base;
+	iov->iov_len = NLA_ALIGN(attr->nla_len);
+
+	param_info = (struct iscsi_param_info *)ISCSI_NLA_DATA(attr);
+	param_info->param = param;
+	param_info->len = param_len;
+	memcpy(param_info->value, param_val, param_len);
+	return 0;
+}
+
+int chap_build_config(struct iscsi_chap_rec *crec, struct iovec *iovs)
+{
+	struct iovec *iov = NULL;
+	int count = 0;
+
+	/* start at 2, because 0 is for nlmsghdr and 1 for event */
+	iov = iovs + 2;
+
+	if (!chap_fill_param_uint(&iov[count], ISCSI_CHAP_PARAM_INDEX,
+				  crec->chap_tbl_idx,
+				  sizeof(crec->chap_tbl_idx)))
+		count++;
+
+	if (!chap_fill_param_uint(&iov[count], ISCSI_CHAP_PARAM_CHAP_TYPE,
+				  crec->chap_type, sizeof(crec->chap_type)))
+		count++;
+
+	if (!chap_fill_param_str(&iov[count], ISCSI_CHAP_PARAM_USERNAME,
+				 crec->username, strlen(crec->username)))
+		count++;
+
+	if (!chap_fill_param_str(&iov[count], ISCSI_CHAP_PARAM_PASSWORD,
+				 (char *)crec->password,
+				 strlen((char *)crec->password)))
+		count++;
+
+	if (!chap_fill_param_uint(&iov[count], ISCSI_CHAP_PARAM_PASSWORD_LEN,
+				  crec->password_length,
+				  sizeof(crec->password_length)))
+		count++;
+
+	return count;
 }
