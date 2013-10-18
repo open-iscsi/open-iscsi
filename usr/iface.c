@@ -1346,11 +1346,18 @@ static int iface_fill_param_state(struct iovec *iov, uint32_t iface_num,
 	net_param->param = param;
 	net_param->iface_type = iface_type;
 	net_param->param_type = param_type;
-	if (strcmp(param_val, "disable"))
-		net_param->value[0] = ISCSI_NET_PARAM_ENABLE;
-	else /* Assume disabled */
+	if (!strcmp(param_val, "disable"))
 		net_param->value[0] = ISCSI_NET_PARAM_DISABLE;
+	else if (!strcmp(param_val, "enable"))
+		net_param->value[0] = ISCSI_NET_PARAM_ENABLE;
+	else
+		goto free;
 	return 0;
+free:
+	free(iov->iov_base);
+	iov->iov_base = NULL;
+	iov->iov_len = 0;
+	return 1;
 }
 
 #define IFACE_SET_PARAM_STATE(iov, inum, itype, param, ptype, ival,	\
