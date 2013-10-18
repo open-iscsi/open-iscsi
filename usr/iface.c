@@ -1223,58 +1223,68 @@ int iface_get_param_count(struct iface_rec *iface, int iface_all)
 	return iface_params.count;
 }
 
-/* IPv4/IPv6 Port: 3260 or User defined */
-static int iface_fill_port(struct iovec *iov, struct iface_rec *iface,
-			   uint32_t iface_type)
+/* write integer parameter value */
+static int iface_fill_int_param_val(struct iovec *iov, uint32_t iface_num,
+				    uint8_t iface_type, uint16_t param,
+				    uint8_t param_type, uint32_t param_len,
+				    uint32_t param_val)
 {
 	int len;
 	struct iscsi_iface_param_info *net_param;
-	uint16_t port = 3260;
 	struct nlattr *attr;
+	uint8_t val8 = 0;
+	uint16_t val16 = 0;
+	uint32_t val32 = 0;
+	char *val = NULL;
 
-	len = sizeof(struct iscsi_iface_param_info) + sizeof(port);
-	iov->iov_base = iscsi_nla_alloc(ISCSI_NET_PARAM_PORT, len);
-	if (!iov->iov_base)
-		return 1;
-	attr = iov->iov_base;
-	iov->iov_len = NLA_ALIGN(attr->nla_len);
-
-	net_param = (struct iscsi_iface_param_info *)ISCSI_NLA_DATA(attr);
-	net_param->param = ISCSI_NET_PARAM_PORT;
-	net_param->iface_type = iface_type;
-	net_param->iface_num = iface->iface_num;
-	net_param->param_type = ISCSI_NET_PARAM;
-	net_param->len = 2;
-	if (iface->port)
-		port = iface->port;
-	memcpy(net_param->value, &port, net_param->len);
-	return 0;
-}
-
-static int iface_fill_mtu(struct iovec *iov, struct iface_rec *iface,
-			  uint32_t iface_type)
-{
-	int len;
-	struct iscsi_iface_param_info *net_param;
-	uint16_t mtu = 0;
-	struct nlattr *attr;
-
-	len = sizeof(struct iscsi_iface_param_info) + 2;
-	iov->iov_base = iscsi_nla_alloc(ISCSI_NET_PARAM_MTU, len);
+	len = sizeof(struct iscsi_iface_param_info) + param_len;
+	iov->iov_base = iscsi_nla_alloc(param, len);
 	if (!(iov->iov_base))
 		return 1;
+
 	attr = iov->iov_base;
 	iov->iov_len = NLA_ALIGN(attr->nla_len);
-
 	net_param = (struct iscsi_iface_param_info *)ISCSI_NLA_DATA(attr);
-	net_param->param = ISCSI_NET_PARAM_MTU;
+	net_param->iface_num = iface_num;
+	net_param->len = param_len;
+	net_param->param = param;
 	net_param->iface_type = iface_type;
-	net_param->iface_num = iface->iface_num;
-	net_param->param_type = ISCSI_NET_PARAM;
-	net_param->len = 2;
-	mtu = iface->mtu;
-	memcpy(net_param->value, &mtu, net_param->len);
+	net_param->param_type = param_type;
+	switch (param_len) {
+	case 1:
+		val8 = (uint8_t)param_val;
+		val = (char *)&val8;
+		break;
+
+	case 2:
+		val16 = (uint16_t)param_val;
+		val = (char *)&val16;
+		break;
+
+	case 4:
+		val32 = (uint32_t)param_val;
+		val = (char *)&val32;
+		break;
+
+	default:
+		goto free;
+	}
+	memcpy(net_param->value, val, param_len);
 	return 0;
+free:
+	free(iov->iov_base);
+	iov->iov_base = NULL;
+	iov->iov_len = 0;
+	return 1;
+}
+
+#define IFACE_SET_PARAM_INTVAL(iov, inum, itype, param, ptype, plen,	\
+			       ival, gcnt, lcnt) {			\
+	if (ival && !iface_fill_int_param_val(iov, inum, itype, param,	\
+					      ptype, plen, ival)) {	\
+		(*gcnt)++;						\
+		(*lcnt)++;						\
+	}								\
 }
 
 /* IPv4/IPv6 VLAN_ID: decimal value <= 4095 */
@@ -1660,22 +1670,26 @@ static int __iface_build_net_config(void *data, struct iface_rec *iface)
 					count++;
 				}
 			}
-			if (iface->mtu) {
-				if (!iface_fill_mtu(&iov[net_config->count],
-						    iface,
-						    ISCSI_IFACE_TYPE_IPV4)) {
-					net_config->count++;
-					count++;
-				}
-			}
-			if (iface->port) {
-				if (!iface_fill_port(&iov[net_config->count],
-						iface,
-						ISCSI_IFACE_TYPE_IPV4)) {
-					net_config->count++;
-					count++;
-				}
-			}
+
+			IFACE_SET_PARAM_INTVAL(&iov[net_config->count],
+					       iface->iface_num,
+					       ISCSI_IFACE_TYPE_IPV4,
+					       ISCSI_NET_PARAM_MTU,
+					       ISCSI_NET_PARAM,
+					       2,
+					       iface->mtu,
+					       &net_config->count,
+					       &count);
+
+			IFACE_SET_PARAM_INTVAL(&iov[net_config->count],
+					       iface->iface_num,
+					       ISCSI_IFACE_TYPE_IPV4,
+					       ISCSI_NET_PARAM_PORT,
+					       ISCSI_NET_PARAM,
+					       2,
+					       iface->port,
+					       &net_config->count,
+					       &count);
 		}
 	} else if (iptype == ISCSI_IFACE_TYPE_IPV6) {
 		if (!strcmp(iface->state, "disable")) {
@@ -1791,22 +1805,26 @@ static int __iface_build_net_config(void *data, struct iface_rec *iface)
 					count++;
 				}
 			}
-			if (iface->mtu) {
-				if (!iface_fill_mtu(&iov[net_config->count],
-						    iface,
-						    ISCSI_IFACE_TYPE_IPV6)) {
-					net_config->count++;
-					count++;
-				}
-			}
-			if (iface->port) {
-				if (!iface_fill_port(&iov[net_config->count],
-						     iface,
-						     ISCSI_IFACE_TYPE_IPV6)) {
-					net_config->count++;
-					count++;
-				}
-			}
+
+			IFACE_SET_PARAM_INTVAL(&iov[net_config->count],
+					       iface->iface_num,
+					       ISCSI_IFACE_TYPE_IPV6,
+					       ISCSI_NET_PARAM_MTU,
+					       ISCSI_NET_PARAM,
+					       2,
+					       iface->mtu,
+					       &net_config->count,
+					       &count);
+
+			IFACE_SET_PARAM_INTVAL(&iov[net_config->count],
+					       iface->iface_num,
+					       ISCSI_IFACE_TYPE_IPV6,
+					       ISCSI_NET_PARAM_PORT,
+					       ISCSI_NET_PARAM,
+					       2,
+					       iface->port,
+					       &net_config->count,
+					       &count);
 		}
 	}
 	return 0;
