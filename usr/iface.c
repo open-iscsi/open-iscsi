@@ -450,8 +450,10 @@ int iface_get_iptype(struct iface_rec *iface)
 		/* try to figure out by name */
 		if (strstr(iface->name, "ipv4"))
 			return ISCSI_IFACE_TYPE_IPV4;
-		else
+		else if (strstr(iface->name, "ipv6"))
 			return ISCSI_IFACE_TYPE_IPV6;
+		else	/* assume ipv4 by default */
+			return ISCSI_IFACE_TYPE_IPV4;
 	} else {
 		if (strcmp(iface->bootproto, "dhcp") &&
 		    !strstr(iface->ipaddress, "."))
