@@ -237,6 +237,9 @@ void
 idbm_recinfo_node(node_rec_t *r, recinfo_t *ri)
 {
 	int num = 0, i;
+	int iface_type;
+
+	iface_type = iface_get_iptype(&r->iface);
 
 	__recinfo_str(NODE_NAME, ri, r, name, IDBM_SHOW, num, 0);
 	__recinfo_int(NODE_TPGT, ri, r, tpgt, IDBM_SHOW, num, 0);
@@ -266,21 +269,6 @@ idbm_recinfo_node(node_rec_t *r, recinfo_t *ri)
 	__recinfo_str(IFACE_TRANSPORTNAME, ri, r, iface.transport_name,
 		      IDBM_SHOW, num, 1);
 	__recinfo_str(IFACE_INAME, ri, r, iface.iname, IDBM_SHOW, num, 1);
-	__recinfo_str(IFACE_BOOT_PROTO, ri, r, iface.bootproto, IDBM_SHOW,
-		      num, 1);
-	__recinfo_str(IFACE_SUBNET_MASK, ri, r, iface.subnet_mask,
-		      IDBM_SHOW, num, 1);
-	__recinfo_str(IFACE_GATEWAY, ri, r, iface.gateway, IDBM_SHOW, num, 1);
-	__recinfo_str(IFACE_IPV6_AUTOCFG, ri, r, iface.ipv6_autocfg,
-		      IDBM_SHOW, num, 1);
-	__recinfo_str(IFACE_LINKLOCAL_AUTOCFG, ri, r, iface.linklocal_autocfg,
-		      IDBM_SHOW, num, 1);
-	__recinfo_str(IFACE_ROUTER_AUTOCFG, ri, r, iface.router_autocfg,
-		      IDBM_SHOW, num, 1);
-	__recinfo_str(IFACE_LINKLOCAL, ri, r, iface.ipv6_linklocal,
-		      IDBM_SHOW, num, 1);
-	__recinfo_str(IFACE_ROUTER, ri, r, iface.ipv6_router, IDBM_SHOW, num,
-		      1);
 	__recinfo_str(IFACE_STATE, ri, r, iface.state, IDBM_SHOW, num, 1);
 	__recinfo_uint16(IFACE_VLAN_ID, ri, r, iface.vlan_id, IDBM_SHOW, num,
 			 1);
@@ -292,50 +280,73 @@ idbm_recinfo_node(node_rec_t *r, recinfo_t *ri)
 	__recinfo_uint16(IFACE_MTU, ri, r, iface.mtu, IDBM_SHOW, num, 1);
 	__recinfo_uint16(IFACE_PORT, ri, r, iface.port, IDBM_SHOW, num, 1);
 
-	__recinfo_str(IFACE_DHCP_ALT_CID, ri, r, iface.dhcp_alt_client_id_state,
-		      IDBM_SHOW, num, 1);
-	__recinfo_str(IFACE_DHCP_ALT_CID_STR, ri, r, iface.dhcp_alt_client_id,
-		      IDBM_SHOW, num, 1);
-	__recinfo_str(IFACE_DHCP_DNS, ri, r, iface.dhcp_dns, IDBM_SHOW, num, 1);
-	__recinfo_str(IFACE_DHCP_LEARN_IQN, ri, r, iface.dhcp_learn_iqn,
-		      IDBM_SHOW, num, 1);
-	__recinfo_str(IFACE_DHCP_REQ_VID, ri, r, iface.dhcp_req_vendor_id_state,
-		      IDBM_SHOW, num, 1);
-	__recinfo_str(IFACE_DHCP_VID, ri, r, iface.dhcp_vendor_id_state,
-		      IDBM_SHOW, num, 1);
-	__recinfo_str(IFACE_DHCP_VID_STR, ri, r, iface.dhcp_vendor_id,
-		      IDBM_SHOW, num, 1);
-	__recinfo_str(IFACE_DHCP_SLP_DA, ri, r, iface.dhcp_slp_da, IDBM_SHOW,
-		      num, 1);
-	__recinfo_str(IFACE_FRAGMENTATION, ri, r, iface.fragmentation,
-		      IDBM_SHOW, num, 1);
-	__recinfo_str(IFACE_GRAT_ARP, ri, r, iface.gratuitous_arp, IDBM_SHOW,
-		      num, 1);
-	__recinfo_str(IFACE_IN_FORWARD, ri, r, iface.incoming_forwarding,
-		      IDBM_SHOW, num, 1);
-	__recinfo_str(IFACE_TOS_STATE, ri, r, iface.tos_state, IDBM_SHOW, num,
-		      1);
-	__recinfo_uint8(IFACE_TOS, ri, r, iface.tos, IDBM_SHOW, num, 1);
-	__recinfo_uint8(IFACE_TTL, ri, r, iface.ttl, IDBM_SHOW, num, 1);
-	__recinfo_uint8(IFACE_DUP_ADDR_DETECT_CNT, ri, r,
-			iface.dup_addr_detect_cnt, IDBM_SHOW, num, 1);
-	__recinfo_uint32(IFACE_FLOW_LABEL, ri, r, iface.flow_label, IDBM_SHOW,
-			 num, 1);
-	__recinfo_str(IFACE_GRAT_NEIGHBOR_ADV, ri, r,
-		      iface.gratuitous_neighbor_adv, IDBM_SHOW, num, 1);
-	__recinfo_uint8(IFACE_HOP_LIMIT, ri, r, iface.hop_limit, IDBM_SHOW,
-			num, 1);
-	__recinfo_str(IFACE_MLD, ri, r, iface.mld, IDBM_SHOW, num, 1);
-	__recinfo_uint32(IFACE_ND_REACHABLE_TMO, ri, r, iface.nd_reachable_tmo,
-			 IDBM_SHOW, num, 1);
-	__recinfo_uint32(IFACE_ND_REXMIT_TIME, ri, r, iface.nd_rexmit_time,
-			 IDBM_SHOW, num, 1);
-	__recinfo_uint32(IFACE_ND_STALE_TMO, ri, r, iface.nd_stale_tmo,
-			 IDBM_SHOW, num, 1);
-	__recinfo_uint32(IFACE_RTR_ADV_LINK_MTU, ri, r,
-			 iface.router_adv_link_mtu, IDBM_SHOW, num, 1);
-	__recinfo_uint8(IFACE_TRAFFIC_CLASS, ri, r, iface.traffic_class,
-			IDBM_SHOW, num, 1);
+	if (iface_type == ISCSI_IFACE_TYPE_IPV4) {
+		__recinfo_str(IFACE_BOOT_PROTO, ri, r, iface.bootproto,
+			      IDBM_SHOW, num, 1);
+		__recinfo_str(IFACE_SUBNET_MASK, ri, r, iface.subnet_mask,
+			      IDBM_SHOW, num, 1);
+		__recinfo_str(IFACE_GATEWAY, ri, r, iface.gateway, IDBM_SHOW,
+			      num, 1);
+		__recinfo_str(IFACE_DHCP_ALT_CID, ri, r,
+			      iface.dhcp_alt_client_id_state, IDBM_SHOW,
+			      num, 1);
+		__recinfo_str(IFACE_DHCP_ALT_CID_STR, ri, r,
+			      iface.dhcp_alt_client_id, IDBM_SHOW, num, 1);
+		__recinfo_str(IFACE_DHCP_DNS, ri, r, iface.dhcp_dns, IDBM_SHOW,
+			      num, 1);
+		__recinfo_str(IFACE_DHCP_LEARN_IQN, ri, r,
+			      iface.dhcp_learn_iqn, IDBM_SHOW, num, 1);
+		__recinfo_str(IFACE_DHCP_REQ_VID, ri, r,
+			      iface.dhcp_req_vendor_id_state, IDBM_SHOW,
+			      num, 1);
+		__recinfo_str(IFACE_DHCP_VID, ri, r, iface.dhcp_vendor_id_state,
+			      IDBM_SHOW, num, 1);
+		__recinfo_str(IFACE_DHCP_VID_STR, ri, r, iface.dhcp_vendor_id,
+			      IDBM_SHOW, num, 1);
+		__recinfo_str(IFACE_DHCP_SLP_DA, ri, r, iface.dhcp_slp_da,
+			      IDBM_SHOW, num, 1);
+		__recinfo_str(IFACE_FRAGMENTATION, ri, r, iface.fragmentation,
+			      IDBM_SHOW, num, 1);
+		__recinfo_str(IFACE_GRAT_ARP, ri, r, iface.gratuitous_arp,
+			      IDBM_SHOW, num, 1);
+		__recinfo_str(IFACE_IN_FORWARD, ri, r,
+			      iface.incoming_forwarding, IDBM_SHOW, num, 1);
+		__recinfo_str(IFACE_TOS_STATE, ri, r, iface.tos_state,
+			      IDBM_SHOW, num, 1);
+		__recinfo_uint8(IFACE_TOS, ri, r, iface.tos, IDBM_SHOW, num, 1);
+		__recinfo_uint8(IFACE_TTL, ri, r, iface.ttl, IDBM_SHOW, num, 1);
+	} else if (iface_type == ISCSI_IFACE_TYPE_IPV6) {
+		__recinfo_str(IFACE_IPV6_AUTOCFG, ri, r, iface.ipv6_autocfg,
+			      IDBM_SHOW, num, 1);
+		__recinfo_str(IFACE_LINKLOCAL_AUTOCFG, ri, r,
+			      iface.linklocal_autocfg, IDBM_SHOW, num, 1);
+		__recinfo_str(IFACE_ROUTER_AUTOCFG, ri, r, iface.router_autocfg,
+			      IDBM_SHOW, num, 1);
+		__recinfo_str(IFACE_LINKLOCAL, ri, r, iface.ipv6_linklocal,
+			      IDBM_SHOW, num, 1);
+		__recinfo_str(IFACE_ROUTER, ri, r, iface.ipv6_router,
+			      IDBM_SHOW, num, 1);
+		__recinfo_uint8(IFACE_DUP_ADDR_DETECT_CNT, ri, r,
+				iface.dup_addr_detect_cnt, IDBM_SHOW, num, 1);
+		__recinfo_uint32(IFACE_FLOW_LABEL, ri, r, iface.flow_label,
+				 IDBM_SHOW, num, 1);
+		__recinfo_str(IFACE_GRAT_NEIGHBOR_ADV, ri, r,
+			      iface.gratuitous_neighbor_adv, IDBM_SHOW, num, 1);
+		__recinfo_uint8(IFACE_HOP_LIMIT, ri, r, iface.hop_limit,
+				IDBM_SHOW, num, 1);
+		__recinfo_str(IFACE_MLD, ri, r, iface.mld, IDBM_SHOW, num, 1);
+		__recinfo_uint32(IFACE_ND_REACHABLE_TMO, ri, r,
+				 iface.nd_reachable_tmo, IDBM_SHOW, num, 1);
+		__recinfo_uint32(IFACE_ND_REXMIT_TIME, ri, r,
+				 iface.nd_rexmit_time, IDBM_SHOW, num, 1);
+		__recinfo_uint32(IFACE_ND_STALE_TMO, ri, r, iface.nd_stale_tmo,
+				 IDBM_SHOW, num, 1);
+		__recinfo_uint32(IFACE_RTR_ADV_LINK_MTU, ri, r,
+				 iface.router_adv_link_mtu, IDBM_SHOW, num, 1);
+		__recinfo_uint8(IFACE_TRAFFIC_CLASS, ri, r, iface.traffic_class,
+				IDBM_SHOW, num, 1);
+	}
+
 	__recinfo_str(IFACE_DELAYED_ACK, ri, r, iface.delayed_ack, IDBM_SHOW,
 		      num, 1);
 	__recinfo_str(IFACE_TCP_NAGLE, ri, r, iface.nagle, IDBM_SHOW, num, 1);
@@ -515,6 +526,9 @@ idbm_recinfo_node(node_rec_t *r, recinfo_t *ri)
 void idbm_recinfo_iface(iface_rec_t *r, recinfo_t *ri)
 {
 	int num = 0;
+	int iface_type;
+
+	iface_type = iface_get_iptype(r);
 
 	__recinfo_str(IFACE_ISCSINAME, ri, r, name, IDBM_SHOW, num, 0);
 	__recinfo_str(IFACE_NETNAME, ri, r, netdev, IDBM_SHOW, num, 1);
@@ -523,19 +537,6 @@ void idbm_recinfo_iface(iface_rec_t *r, recinfo_t *ri)
 	__recinfo_str(IFACE_TRANSPORTNAME, ri, r, transport_name,
 		      IDBM_SHOW, num, 1);
 	__recinfo_str(IFACE_INAME, ri, r, iname, IDBM_SHOW, num, 1);
-	__recinfo_str(IFACE_BOOT_PROTO, ri, r, bootproto, IDBM_SHOW, num, 1);
-	__recinfo_str(IFACE_SUBNET_MASK, ri, r, subnet_mask,
-		      IDBM_SHOW, num, 1);
-	__recinfo_str(IFACE_GATEWAY, ri, r, gateway, IDBM_SHOW, num, 1);
-	__recinfo_str(IFACE_IPV6_AUTOCFG, ri, r, ipv6_autocfg,
-		      IDBM_SHOW, num, 1);
-	__recinfo_str(IFACE_LINKLOCAL_AUTOCFG, ri, r, linklocal_autocfg,
-		      IDBM_SHOW, num, 1);
-	__recinfo_str(IFACE_ROUTER_AUTOCFG, ri, r, router_autocfg,
-		      IDBM_SHOW, num, 1);
-	__recinfo_str(IFACE_LINKLOCAL, ri, r, ipv6_linklocal,
-		      IDBM_SHOW, num, 1);
-	__recinfo_str(IFACE_ROUTER, ri, r, ipv6_router, IDBM_SHOW, num, 1);
 	__recinfo_str(IFACE_STATE, ri, r, state, IDBM_SHOW, num, 1);
 	__recinfo_uint16(IFACE_VLAN_ID, ri, r, vlan_id, IDBM_SHOW, num, 1);
 	__recinfo_uint8(IFACE_VLAN_PRIORITY, ri, r, vlan_priority,
@@ -544,46 +545,71 @@ void idbm_recinfo_iface(iface_rec_t *r, recinfo_t *ri)
 	__recinfo_int(IFACE_NUM, ri, r, iface_num, IDBM_SHOW, num, 1);
 	__recinfo_uint16(IFACE_MTU, ri, r, mtu, IDBM_SHOW, num, 1);
 	__recinfo_uint16(IFACE_PORT, ri, r, port, IDBM_SHOW, num, 1);
-	__recinfo_str(IFACE_DHCP_ALT_CID, ri, r, dhcp_alt_client_id_state,
-		      IDBM_SHOW, num, 1);
-	__recinfo_str(IFACE_DHCP_ALT_CID_STR, ri, r, dhcp_alt_client_id,
-		      IDBM_SHOW, num, 1);
-	__recinfo_str(IFACE_DHCP_DNS, ri, r, dhcp_dns, IDBM_SHOW, num, 1);
-	__recinfo_str(IFACE_DHCP_LEARN_IQN, ri, r, dhcp_learn_iqn, IDBM_SHOW,
-		      num, 1);
-	__recinfo_str(IFACE_DHCP_REQ_VID, ri, r, dhcp_req_vendor_id_state,
-		      IDBM_SHOW, num, 1);
-	__recinfo_str(IFACE_DHCP_VID, ri, r, dhcp_vendor_id_state, IDBM_SHOW,
-		      num, 1);
-	__recinfo_str(IFACE_DHCP_VID_STR, ri, r, dhcp_vendor_id, IDBM_SHOW,
-		      num, 1);
-	__recinfo_str(IFACE_DHCP_SLP_DA, ri, r, dhcp_slp_da, IDBM_SHOW, num, 1);
-	__recinfo_str(IFACE_FRAGMENTATION, ri, r, fragmentation, IDBM_SHOW,
-		      num, 1);
-	__recinfo_str(IFACE_GRAT_ARP, ri, r, gratuitous_arp, IDBM_SHOW, num, 1);
-	__recinfo_str(IFACE_IN_FORWARD, ri, r, incoming_forwarding, IDBM_SHOW,
-		      num, 1);
-	__recinfo_str(IFACE_TOS_STATE, ri, r, tos_state, IDBM_SHOW, num, 1);
-	__recinfo_uint8(IFACE_TOS, ri, r, tos, IDBM_SHOW, num, 1);
-	__recinfo_uint8(IFACE_TTL, ri, r, ttl, IDBM_SHOW, num, 1);
-	__recinfo_uint8(IFACE_DUP_ADDR_DETECT_CNT, ri, r, dup_addr_detect_cnt,
-			IDBM_SHOW, num, 1);
-	__recinfo_uint32(IFACE_FLOW_LABEL, ri, r, flow_label, IDBM_SHOW,
-			 num, 1);
-	__recinfo_str(IFACE_GRAT_NEIGHBOR_ADV, ri, r, gratuitous_neighbor_adv,
-		      IDBM_SHOW, num, 1);
-	__recinfo_uint8(IFACE_HOP_LIMIT, ri, r, hop_limit, IDBM_SHOW, num, 1);
-	__recinfo_str(IFACE_MLD, ri, r, mld, IDBM_SHOW, num, 1);
-	__recinfo_uint32(IFACE_ND_REACHABLE_TMO, ri, r, nd_reachable_tmo,
-			 IDBM_SHOW, num, 1);
-	__recinfo_uint32(IFACE_ND_REXMIT_TIME, ri, r, nd_rexmit_time, IDBM_SHOW,
-			 num, 1);
-	__recinfo_uint32(IFACE_ND_STALE_TMO, ri, r, nd_stale_tmo, IDBM_SHOW,
-			 num, 1);
-	__recinfo_uint32(IFACE_RTR_ADV_LINK_MTU, ri, r, router_adv_link_mtu,
-			 IDBM_SHOW, num, 1);
-	__recinfo_uint8(IFACE_TRAFFIC_CLASS, ri, r, traffic_class, IDBM_SHOW,
-			num, 1);
+
+	if (iface_type == ISCSI_IFACE_TYPE_IPV4) {
+		__recinfo_str(IFACE_BOOT_PROTO, ri, r, bootproto, IDBM_SHOW,
+			      num, 1);
+		__recinfo_str(IFACE_SUBNET_MASK, ri, r, subnet_mask, IDBM_SHOW,
+			      num, 1);
+		__recinfo_str(IFACE_GATEWAY, ri, r, gateway, IDBM_SHOW, num, 1);
+		__recinfo_str(IFACE_DHCP_ALT_CID, ri, r,
+			      dhcp_alt_client_id_state, IDBM_SHOW, num, 1);
+		__recinfo_str(IFACE_DHCP_ALT_CID_STR, ri, r, dhcp_alt_client_id,
+			      IDBM_SHOW, num, 1);
+		__recinfo_str(IFACE_DHCP_DNS, ri, r, dhcp_dns, IDBM_SHOW,
+			      num, 1);
+		__recinfo_str(IFACE_DHCP_LEARN_IQN, ri, r, dhcp_learn_iqn,
+			      IDBM_SHOW, num, 1);
+		__recinfo_str(IFACE_DHCP_REQ_VID, ri, r,
+			      dhcp_req_vendor_id_state, IDBM_SHOW, num, 1);
+		__recinfo_str(IFACE_DHCP_VID, ri, r, dhcp_vendor_id_state,
+			      IDBM_SHOW, num, 1);
+		__recinfo_str(IFACE_DHCP_VID_STR, ri, r, dhcp_vendor_id,
+			      IDBM_SHOW, num, 1);
+		__recinfo_str(IFACE_DHCP_SLP_DA, ri, r, dhcp_slp_da, IDBM_SHOW,
+			      num, 1);
+		__recinfo_str(IFACE_FRAGMENTATION, ri, r, fragmentation,
+			      IDBM_SHOW, num, 1);
+		__recinfo_str(IFACE_GRAT_ARP, ri, r, gratuitous_arp, IDBM_SHOW,
+			      num, 1);
+		__recinfo_str(IFACE_IN_FORWARD, ri, r, incoming_forwarding,
+			      IDBM_SHOW, num, 1);
+		__recinfo_str(IFACE_TOS_STATE, ri, r, tos_state, IDBM_SHOW,
+			      num, 1);
+		__recinfo_uint8(IFACE_TOS, ri, r, tos, IDBM_SHOW, num, 1);
+		__recinfo_uint8(IFACE_TTL, ri, r, ttl, IDBM_SHOW, num, 1);
+	} else if (iface_type == ISCSI_IFACE_TYPE_IPV6) {
+		__recinfo_str(IFACE_IPV6_AUTOCFG, ri, r, ipv6_autocfg,
+			      IDBM_SHOW, num, 1);
+		__recinfo_str(IFACE_LINKLOCAL_AUTOCFG, ri, r, linklocal_autocfg,
+			      IDBM_SHOW, num, 1);
+		__recinfo_str(IFACE_ROUTER_AUTOCFG, ri, r, router_autocfg,
+			      IDBM_SHOW, num, 1);
+		__recinfo_str(IFACE_LINKLOCAL, ri, r, ipv6_linklocal, IDBM_SHOW,
+			      num, 1);
+		__recinfo_str(IFACE_ROUTER, ri, r, ipv6_router, IDBM_SHOW,
+			      num, 1);
+		__recinfo_uint8(IFACE_DUP_ADDR_DETECT_CNT, ri, r,
+				dup_addr_detect_cnt, IDBM_SHOW, num, 1);
+		__recinfo_uint32(IFACE_FLOW_LABEL, ri, r, flow_label, IDBM_SHOW,
+				 num, 1);
+		__recinfo_str(IFACE_GRAT_NEIGHBOR_ADV, ri, r,
+			      gratuitous_neighbor_adv, IDBM_SHOW, num, 1);
+		__recinfo_uint8(IFACE_HOP_LIMIT, ri, r, hop_limit, IDBM_SHOW,
+				num, 1);
+		__recinfo_str(IFACE_MLD, ri, r, mld, IDBM_SHOW, num, 1);
+		__recinfo_uint32(IFACE_ND_REACHABLE_TMO, ri, r,
+				 nd_reachable_tmo, IDBM_SHOW, num, 1);
+		__recinfo_uint32(IFACE_ND_REXMIT_TIME, ri, r, nd_rexmit_time,
+				 IDBM_SHOW, num, 1);
+		__recinfo_uint32(IFACE_ND_STALE_TMO, ri, r, nd_stale_tmo,
+				 IDBM_SHOW, num, 1);
+		__recinfo_uint32(IFACE_RTR_ADV_LINK_MTU, ri, r,
+				 router_adv_link_mtu, IDBM_SHOW, num, 1);
+		__recinfo_uint8(IFACE_TRAFFIC_CLASS, ri, r, traffic_class,
+				IDBM_SHOW, num, 1);
+	}
+
 	__recinfo_str(IFACE_DELAYED_ACK, ri, r, delayed_ack, IDBM_SHOW, num, 1);
 	__recinfo_str(IFACE_TCP_NAGLE, ri, r, nagle, IDBM_SHOW, num, 1);
 	__recinfo_str(IFACE_TCP_WSF_STATE, ri, r, tcp_wsf_state, IDBM_SHOW,
