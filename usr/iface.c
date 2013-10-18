@@ -1484,8 +1484,8 @@ static int iface_fill_router_autocfg(struct iovec *iov, struct iface_rec *iface)
 }
 
 /* IPv4 IPAddress/Subnet Mask/Gateway: 4 bytes */
-static int iface_fill_net_ipv4_addr(struct iovec *iov, struct iface_rec *iface,
-				    uint32_t param)
+static int iface_fill_net_ipv4_addr(struct iovec *iov, uint32_t iface_num,
+				    uint16_t param, char *param_val)
 {
 	int rc = 1;
 	int len;
@@ -1502,29 +1502,12 @@ static int iface_fill_net_ipv4_addr(struct iovec *iov, struct iface_rec *iface,
 	net_param = (struct iscsi_iface_param_info *)ISCSI_NLA_DATA(attr);
 	net_param->param = param;
 	net_param->iface_type = ISCSI_IFACE_TYPE_IPV4;
-	net_param->iface_num = iface->iface_num;
+	net_param->iface_num = iface_num;
 	net_param->len = 4;
 	net_param->param_type = ISCSI_NET_PARAM;
-
-	switch (param) {
-	case ISCSI_NET_PARAM_IPV4_ADDR:
-		rc = inet_pton(AF_INET, iface->ipaddress, net_param->value);
-		if (rc <= 0)
-			goto free;
-		break;
-	case ISCSI_NET_PARAM_IPV4_SUBNET:
-		rc = inet_pton(AF_INET, iface->subnet_mask, net_param->value);
-		if (rc <= 0)
-			goto free;
-		break;
-	case ISCSI_NET_PARAM_IPV4_GW:
-		rc = inet_pton(AF_INET, iface->gateway, net_param->value);
-		if (rc <= 0)
-			goto free;
-		break;
-	default:
+	rc = inet_pton(AF_INET, param_val, net_param->value);
+	if (rc <= 0)
 		goto free;
-	}
 
 	/* validate */
 	if (!net_param->value[0] && !net_param->value[1] &&
@@ -1539,9 +1522,19 @@ free:
 	return 1;
 }
 
+#define IFACE_SET_NET_PARAM_IPV4_ADDR(iov, inum, param, ival, gcnt,	\
+				      lcnt) {				\
+	if (strstr(ival, ".")) {					\
+		if (!iface_fill_net_ipv4_addr(iov, inum, param, ival)) {\
+			(*gcnt)++;					\
+			(*lcnt)++;					\
+		}							\
+	}								\
+}
+
 /* IPv6 IPAddress/LinkLocal/Router: 16 bytes */
-static int iface_fill_net_ipv6_addr(struct iovec *iov, struct iface_rec *iface,
-				    uint32_t param)
+static int iface_fill_net_ipv6_addr(struct iovec *iov, uint32_t iface_num,
+				    uint16_t param, char *param_val)
 {
 	int rc;
 	int len;
@@ -1558,30 +1551,12 @@ static int iface_fill_net_ipv6_addr(struct iovec *iov, struct iface_rec *iface,
 	net_param = (struct iscsi_iface_param_info *)ISCSI_NLA_DATA(attr);
 	net_param->param = param;
 	net_param->iface_type = ISCSI_IFACE_TYPE_IPV6;
-	net_param->iface_num = iface->iface_num;
+	net_param->iface_num = iface_num;
 	net_param->param_type = ISCSI_NET_PARAM;
 	net_param->len = 16;
-
-	switch (param) {
-	case ISCSI_NET_PARAM_IPV6_ADDR:
-		rc = inet_pton(AF_INET6, iface->ipaddress, net_param->value);
-		if (rc <= 0)
-			goto free;
-		break;
-	case ISCSI_NET_PARAM_IPV6_LINKLOCAL:
-		rc = inet_pton(AF_INET6, iface->ipv6_linklocal,
-			       net_param->value);
-		if (rc <= 0)
-			goto free;
-		break;
-	case ISCSI_NET_PARAM_IPV6_ROUTER:
-		rc = inet_pton(AF_INET6, iface->ipv6_router, net_param->value);
-		if (rc <= 0)
-			goto free;
-		break;
-	default:
+	rc = inet_pton(AF_INET6, param_val, net_param->value);
+	if (rc <= 0)
 		goto free;
-	}
 
 	return 0;
 free:
@@ -1589,6 +1564,16 @@ free:
 	iov->iov_base = NULL;
 	iov->iov_len = 0;
 	return 1;
+}
+
+#define IFACE_SET_NET_PARAM_IPV6_ADDR(iov, inum, param, ival, gcnt,	\
+				      lcnt) {				\
+	if (strstr(ival, ":")) {					\
+		if (!iface_fill_net_ipv6_addr(iov, inum, param, ival)) {\
+			(*gcnt)++;					\
+			(*lcnt)++;					\
+		}							\
+	}								\
 }
 
 struct iface_net_config {
@@ -1635,28 +1620,27 @@ static int __iface_build_net_config(void *data, struct iface_rec *iface)
 				net_config->count++;
 				count++;
 			}
-			if (!iface_fill_net_ipv4_addr(&iov[net_config->count],
-						iface,
-						ISCSI_NET_PARAM_IPV4_ADDR)) {
-				net_config->count++;
-				count++;
-			}
-			if (strstr(iface->subnet_mask, ".")) {
-				if (!iface_fill_net_ipv4_addr(
-						&iov[net_config->count], iface,
-						ISCSI_NET_PARAM_IPV4_SUBNET)) {
-					net_config->count++;
-					count++;
-				}
-			}
-			if (strstr(iface->gateway, ".")) {
-				if (!iface_fill_net_ipv4_addr(
-						&iov[net_config->count], iface,
-						ISCSI_NET_PARAM_IPV4_GW)) {
-					net_config->count++;
-					count++;
-				}
-			}
+
+			IFACE_SET_NET_PARAM_IPV4_ADDR(&iov[net_config->count],
+						      iface->iface_num,
+						      ISCSI_NET_PARAM_IPV4_ADDR,
+						      iface->ipaddress,
+						      &net_config->count,
+						      &count);
+
+			IFACE_SET_NET_PARAM_IPV4_ADDR(&iov[net_config->count],
+						    iface->iface_num,
+						    ISCSI_NET_PARAM_IPV4_SUBNET,
+						    iface->subnet_mask,
+						    &net_config->count,
+						    &count);
+
+			IFACE_SET_NET_PARAM_IPV4_ADDR(&iov[net_config->count],
+						      iface->iface_num,
+						      ISCSI_NET_PARAM_IPV4_GW,
+						      iface->gateway,
+						      &net_config->count,
+						      &count);
 		}
 
 		/*
@@ -1727,12 +1711,12 @@ static int __iface_build_net_config(void *data, struct iface_rec *iface)
 				count++;
 			}
 			/* User provided IPv6 Address */
-			if (!iface_fill_net_ipv6_addr(&iov[net_config->count],
-						iface,
-						ISCSI_NET_PARAM_IPV6_ADDR)) {
-				net_config->count++;
-				count++;
-			}
+			IFACE_SET_NET_PARAM_IPV6_ADDR(&iov[net_config->count],
+						      iface->iface_num,
+						      ISCSI_NET_PARAM_IPV6_ADDR,
+						      iface->ipaddress,
+						      &net_config->count,
+						      &count);
 		}
 
 		/* For LinkLocal Address */
@@ -1751,12 +1735,12 @@ static int __iface_build_net_config(void *data, struct iface_rec *iface)
 				count++;
 			}
 			/* User provided Link Local Address */
-			if (!iface_fill_net_ipv6_addr(&iov[net_config->count],
-					iface,
-					ISCSI_NET_PARAM_IPV6_LINKLOCAL)) {
-				net_config->count++;
-				count++;
-			}
+			IFACE_SET_NET_PARAM_IPV6_ADDR(&iov[net_config->count],
+						 iface->iface_num,
+						 ISCSI_NET_PARAM_IPV6_LINKLOCAL,
+						 iface->ipv6_linklocal,
+						 &net_config->count,
+						 &count);
 		}
 
 		/* For Router Address */
@@ -1773,12 +1757,12 @@ static int __iface_build_net_config(void *data, struct iface_rec *iface)
 				count++;
 			}
 			/* User provided Router Address */
-			if (!iface_fill_net_ipv6_addr(&iov[net_config->count],
-						iface,
-						ISCSI_NET_PARAM_IPV6_ROUTER)) {
-				net_config->count++;
-				count++;
-			}
+			IFACE_SET_NET_PARAM_IPV6_ADDR(&iov[net_config->count],
+						    iface->iface_num,
+						    ISCSI_NET_PARAM_IPV6_ROUTER,
+						    iface->ipv6_router,
+						    &net_config->count,
+						    &count);
 		}
 
 		/*
