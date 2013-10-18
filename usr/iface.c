@@ -476,11 +476,8 @@ static int iface_setup_binding_from_kern_iface(void *data,
 	}
 
 	memset(&iface, 0, sizeof(struct iface_rec));
-	strcpy(iface.hwaddress, hinfo->iface.hwaddress);
-	strcpy(iface.transport_name, hinfo->iface.transport_name);
-
 	if (kern_iface) {
-		iface.iface_num = kern_iface->iface_num;
+		memcpy(&iface, kern_iface, sizeof(iface));
 
 		snprintf(iface.name, sizeof(iface.name), "%s.%s.%s.%u",
 			 kern_iface->transport_name,
@@ -491,6 +488,9 @@ static int iface_setup_binding_from_kern_iface(void *data,
 		snprintf(iface.name, sizeof(iface.name), "%s.%s",
 			 hinfo->iface.transport_name, hinfo->iface.hwaddress);
 	}
+
+	strcpy(iface.hwaddress, hinfo->iface.hwaddress);
+	strcpy(iface.transport_name, hinfo->iface.transport_name);
 
 	memset(iface_path, 0, sizeof(iface_path));
 	snprintf(iface_path, PATH_MAX, "%s/%s", IFACE_CONFIG_DIR,
