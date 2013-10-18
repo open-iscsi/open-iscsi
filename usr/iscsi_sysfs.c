@@ -856,6 +856,71 @@ static int iscsi_sysfs_read_iface(struct iface_rec *iface, int host_no,
 
 		sysfs_get_str(iface_kern_id, ISCSI_IFACE_SUBSYS, "subnet",
 			      iface->subnet_mask, sizeof(iface->subnet_mask));
+
+		sysfs_get_str(iface_kern_id, ISCSI_IFACE_SUBSYS,
+			      "dhcp_alt_client_id_en",
+			      iface->dhcp_alt_client_id_state,
+			      sizeof(iface->dhcp_alt_client_id_state));
+
+		sysfs_get_str(iface_kern_id, ISCSI_IFACE_SUBSYS,
+			      "dhcp_alt_client_id",
+			      iface->dhcp_alt_client_id,
+			      sizeof(iface->dhcp_alt_client_id));
+
+		sysfs_get_str(iface_kern_id, ISCSI_IFACE_SUBSYS,
+			      "dhcp_dns_address_en",
+			      iface->dhcp_dns, sizeof(iface->dhcp_dns));
+
+		sysfs_get_str(iface_kern_id, ISCSI_IFACE_SUBSYS,
+			      "dhcp_learn_iqn_en",
+			      iface->dhcp_learn_iqn,
+			      sizeof(iface->dhcp_learn_iqn));
+
+		sysfs_get_str(iface_kern_id, ISCSI_IFACE_SUBSYS,
+			      "dhcp_req_vendor_id_en",
+			      iface->dhcp_req_vendor_id_state,
+			      sizeof(iface->dhcp_req_vendor_id_state));
+
+		sysfs_get_str(iface_kern_id, ISCSI_IFACE_SUBSYS,
+			      "dhcp_use_vendor_id_en",
+			      iface->dhcp_vendor_id_state,
+			      sizeof(iface->dhcp_vendor_id_state));
+
+		sysfs_get_str(iface_kern_id, ISCSI_IFACE_SUBSYS,
+			      "dhcp_vendor_id",
+			      iface->dhcp_vendor_id,
+			      sizeof(iface->dhcp_vendor_id));
+
+		sysfs_get_str(iface_kern_id, ISCSI_IFACE_SUBSYS,
+			      "dhcp_slp_da_info_en",
+			      iface->dhcp_slp_da, sizeof(iface->dhcp_slp_da));
+
+		sysfs_get_str(iface_kern_id, ISCSI_IFACE_SUBSYS,
+			      "fragment_disable",
+			      iface->fragmentation,
+			      sizeof(iface->fragmentation));
+
+		sysfs_get_str(iface_kern_id, ISCSI_IFACE_SUBSYS,
+			      "grat_arp_en",
+			      iface->gratuitous_arp,
+			      sizeof(iface->gratuitous_arp));
+
+		sysfs_get_str(iface_kern_id, ISCSI_IFACE_SUBSYS,
+			      "incoming_forwarding_en",
+			      iface->incoming_forwarding,
+			      sizeof(iface->incoming_forwarding));
+
+		sysfs_get_str(iface_kern_id, ISCSI_IFACE_SUBSYS,
+			      "tos_en",
+			      iface->tos_state, sizeof(iface->tos_state));
+
+		if (sysfs_get_uint8(iface_kern_id, ISCSI_IFACE_SUBSYS,
+				    "tos", &iface->tos))
+			iface->tos = 0;
+
+		if (sysfs_get_uint8(iface_kern_id, ISCSI_IFACE_SUBSYS,
+				    "ttl", &iface->ttl))
+			iface->ttl = 0;
 	} else {
 		sysfs_get_str(iface_kern_id, ISCSI_IFACE_SUBSYS,
 			      "ipaddr_autocfg",
@@ -872,6 +937,53 @@ static int iscsi_sysfs_read_iface(struct iface_rec *iface, int host_no,
 		sysfs_get_str(iface_kern_id, ISCSI_IFACE_SUBSYS, "router_addr",
 			      iface->ipv6_router,
 			      sizeof(iface->ipv6_router));
+
+		sysfs_get_str(iface_kern_id, ISCSI_IFACE_SUBSYS, "router_state",
+			      iface->router_autocfg,
+			      sizeof(iface->router_autocfg));
+
+		if (sysfs_get_uint8(iface_kern_id, ISCSI_IFACE_SUBSYS,
+				    "dup_addr_detect_cnt",
+				    &iface->dup_addr_detect_cnt))
+			iface->dup_addr_detect_cnt = 0;
+
+		if (sysfs_get_uint(iface_kern_id, ISCSI_IFACE_SUBSYS,
+				   "flow_label", &iface->flow_label))
+			iface->flow_label = 0;
+
+		sysfs_get_str(iface_kern_id, ISCSI_IFACE_SUBSYS,
+			      "grat_neighbor_adv_en",
+			      iface->gratuitous_neighbor_adv,
+			      sizeof(iface->gratuitous_neighbor_adv));
+
+		if (sysfs_get_uint8(iface_kern_id, ISCSI_IFACE_SUBSYS,
+				    "hop_limit", &iface->hop_limit))
+			iface->hop_limit = 0;
+
+		sysfs_get_str(iface_kern_id, ISCSI_IFACE_SUBSYS, "mld_en",
+			      iface->mld, sizeof(iface->mld));
+
+		if (sysfs_get_uint(iface_kern_id, ISCSI_IFACE_SUBSYS,
+				   "nd_reachable_tmo",
+				   &iface->nd_reachable_tmo))
+			iface->nd_reachable_tmo = 0;
+
+		if (sysfs_get_uint(iface_kern_id, ISCSI_IFACE_SUBSYS,
+				   "nd_rexmit_time", &iface->nd_rexmit_time))
+			iface->nd_rexmit_time = 0;
+
+		if (sysfs_get_uint(iface_kern_id, ISCSI_IFACE_SUBSYS,
+				   "nd_stale_tmo", &iface->nd_stale_tmo))
+			iface->nd_stale_tmo = 0;
+
+		if (sysfs_get_uint(iface_kern_id, ISCSI_IFACE_SUBSYS,
+				   "router_adv_link_mtu",
+				   &iface->router_adv_link_mtu))
+			iface->router_adv_link_mtu = 0;
+
+		if (sysfs_get_uint(iface_kern_id, ISCSI_IFACE_SUBSYS,
+				   "traffic_class", &iface->traffic_class))
+			iface->traffic_class = 0;
 	}
 
 	if (sysfs_get_uint16(iface_kern_id, ISCSI_IFACE_SUBSYS, "port",
@@ -887,6 +999,94 @@ static int iscsi_sysfs_read_iface(struct iface_rec *iface, int host_no,
 	if (sysfs_get_uint8(iface_kern_id, ISCSI_IFACE_SUBSYS, "vlan_priority",
 			    &iface->vlan_priority))
 		iface->vlan_priority = UINT8_MAX;
+
+	sysfs_get_str(iface_kern_id, ISCSI_IFACE_SUBSYS, "vlan_enabled",
+		      iface->vlan_state, sizeof(iface->vlan_state));
+
+	sysfs_get_str(iface_kern_id, ISCSI_IFACE_SUBSYS, "enabled",
+		      iface->state, sizeof(iface->state));
+
+	sysfs_get_str(iface_kern_id, ISCSI_IFACE_SUBSYS, "delayed_ack_en",
+		      iface->delayed_ack, sizeof(iface->delayed_ack));
+
+	sysfs_get_str(iface_kern_id, ISCSI_IFACE_SUBSYS, "tcp_nagle_disable",
+		      iface->nagle, sizeof(iface->nagle));
+
+	sysfs_get_str(iface_kern_id, ISCSI_IFACE_SUBSYS, "tcp_wsf_disable",
+		      iface->tcp_wsf_state, sizeof(iface->tcp_wsf_state));
+
+	if (sysfs_get_uint8(iface_kern_id, ISCSI_IFACE_SUBSYS, "tcp_wsf",
+			    &iface->tcp_wsf))
+		iface->tcp_wsf = 0;
+
+	if (sysfs_get_uint8(iface_kern_id, ISCSI_IFACE_SUBSYS,
+			    "tcp_timer_scale", &iface->tcp_timer_scale))
+		iface->tcp_timer_scale = 0;
+
+	sysfs_get_str(iface_kern_id, ISCSI_IFACE_SUBSYS, "tcp_timestamp_en",
+		      iface->tcp_timestamp, sizeof(iface->tcp_timestamp));
+
+	sysfs_get_str(iface_kern_id, ISCSI_IFACE_SUBSYS, "redirect_en",
+		      iface->redirect, sizeof(iface->redirect));
+
+	if (sysfs_get_uint16(iface_kern_id, ISCSI_IFACE_SUBSYS,
+			     "def_taskmgmt_tmo", &iface->def_task_mgmt_tmo))
+		iface->def_task_mgmt_tmo = 0;
+
+	sysfs_get_str(iface_kern_id, ISCSI_IFACE_SUBSYS, "header_digest",
+		      iface->header_digest, sizeof(iface->header_digest));
+
+	sysfs_get_str(iface_kern_id, ISCSI_IFACE_SUBSYS, "data_digest",
+		      iface->data_digest, sizeof(iface->data_digest));
+
+	sysfs_get_str(iface_kern_id, ISCSI_IFACE_SUBSYS, "immediate_data",
+		      iface->immediate_data, sizeof(iface->immediate_data));
+
+	sysfs_get_str(iface_kern_id, ISCSI_IFACE_SUBSYS, "initial_r2t",
+		      iface->initial_r2t, sizeof(iface->initial_r2t));
+
+	sysfs_get_str(iface_kern_id, ISCSI_IFACE_SUBSYS, "data_seq_in_order",
+		      iface->data_seq_inorder, sizeof(iface->data_seq_inorder));
+
+	sysfs_get_str(iface_kern_id, ISCSI_IFACE_SUBSYS, "data_pdu_in_order",
+		      iface->data_pdu_inorder, sizeof(iface->data_pdu_inorder));
+
+	if (sysfs_get_uint8(iface_kern_id, ISCSI_IFACE_SUBSYS, "erl",
+			    &iface->erl))
+		iface->erl = 0;
+
+	if (sysfs_get_uint(iface_kern_id, ISCSI_IFACE_SUBSYS,
+			   "max_recv_dlength", &iface->max_recv_dlength))
+		iface->max_recv_dlength = 0;
+
+	if (sysfs_get_uint(iface_kern_id, ISCSI_IFACE_SUBSYS,
+			   "first_burst_len", &iface->first_burst_len))
+		iface->first_burst_len = 0;
+
+	if (sysfs_get_uint16(iface_kern_id, ISCSI_IFACE_SUBSYS,
+			     "max_outstanding_r2t", &iface->max_out_r2t))
+		iface->max_out_r2t = 0;
+
+	if (sysfs_get_uint(iface_kern_id, ISCSI_IFACE_SUBSYS,
+			   "max_burst_len", &iface->max_burst_len))
+		iface->max_burst_len = 0;
+
+	sysfs_get_str(iface_kern_id, ISCSI_IFACE_SUBSYS, "chap_auth",
+		      iface->chap_auth, sizeof(iface->chap_auth));
+
+	sysfs_get_str(iface_kern_id, ISCSI_IFACE_SUBSYS, "bidi_chap",
+		      iface->bidi_chap, sizeof(iface->bidi_chap));
+
+	sysfs_get_str(iface_kern_id, ISCSI_IFACE_SUBSYS, "strict_login_comp_en",
+		      iface->strict_login_comp,
+		      sizeof(iface->strict_login_comp));
+
+	sysfs_get_str(iface_kern_id, ISCSI_IFACE_SUBSYS,
+		      "discovery_auth_optional",
+		      iface->discovery_auth, sizeof(iface->discovery_auth));
+
+	sysfs_get_str(iface_kern_id, ISCSI_IFACE_SUBSYS, "discovery_logout",
+		      iface->discovery_logout, sizeof(iface->discovery_logout));
 
 	if (sscanf(iface_kern_id, "ipv%d-iface-%u-%u", &iface_type,
 		   &tmp_host_no, &iface_num) == 3)

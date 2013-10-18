@@ -454,6 +454,82 @@ void idbm_recinfo_iface(iface_rec_t *r, recinfo_t *ri)
 	__recinfo_int(IFACE_NUM, ri, r, iface_num, IDBM_SHOW, num, 1);
 	__recinfo_uint16(IFACE_MTU, ri, r, mtu, IDBM_SHOW, num, 1);
 	__recinfo_uint16(IFACE_PORT, ri, r, port, IDBM_SHOW, num, 1);
+	__recinfo_str(IFACE_DHCP_ALT_CID, ri, r, dhcp_alt_client_id_state,
+		      IDBM_SHOW, num, 1);
+	__recinfo_str(IFACE_DHCP_ALT_CID_STR, ri, r, dhcp_alt_client_id,
+		      IDBM_SHOW, num, 1);
+	__recinfo_str(IFACE_DHCP_DNS, ri, r, dhcp_dns, IDBM_SHOW, num, 1);
+	__recinfo_str(IFACE_DHCP_LEARN_IQN, ri, r, dhcp_learn_iqn, IDBM_SHOW,
+		      num, 1);
+	__recinfo_str(IFACE_DHCP_REQ_VID, ri, r, dhcp_req_vendor_id_state,
+		      IDBM_SHOW, num, 1);
+	__recinfo_str(IFACE_DHCP_VID, ri, r, dhcp_vendor_id_state, IDBM_SHOW,
+		      num, 1);
+	__recinfo_str(IFACE_DHCP_VID_STR, ri, r, dhcp_vendor_id, IDBM_SHOW,
+		      num, 1);
+	__recinfo_str(IFACE_DHCP_SLP_DA, ri, r, dhcp_slp_da, IDBM_SHOW, num, 1);
+	__recinfo_str(IFACE_FRAGMENTATION, ri, r, fragmentation, IDBM_SHOW,
+		      num, 1);
+	__recinfo_str(IFACE_GRAT_ARP, ri, r, gratuitous_arp, IDBM_SHOW, num, 1);
+	__recinfo_str(IFACE_IN_FORWARD, ri, r, incoming_forwarding, IDBM_SHOW,
+		      num, 1);
+	__recinfo_str(IFACE_TOS_STATE, ri, r, tos_state, IDBM_SHOW, num, 1);
+	__recinfo_uint8(IFACE_TOS, ri, r, tos, IDBM_SHOW, num, 1);
+	__recinfo_uint8(IFACE_TTL, ri, r, ttl, IDBM_SHOW, num, 1);
+	__recinfo_uint8(IFACE_DUP_ADDR_DETECT_CNT, ri, r, dup_addr_detect_cnt,
+			IDBM_SHOW, num, 1);
+	__recinfo_uint32(IFACE_FLOW_LABEL, ri, r, flow_label, IDBM_SHOW,
+			 num, 1);
+	__recinfo_str(IFACE_GRAT_NEIGHBOR_ADV, ri, r, gratuitous_neighbor_adv,
+		      IDBM_SHOW, num, 1);
+	__recinfo_uint8(IFACE_HOP_LIMIT, ri, r, hop_limit, IDBM_SHOW, num, 1);
+	__recinfo_str(IFACE_MLD, ri, r, mld, IDBM_SHOW, num, 1);
+	__recinfo_uint32(IFACE_ND_REACHABLE_TMO, ri, r, nd_reachable_tmo,
+			 IDBM_SHOW, num, 1);
+	__recinfo_uint32(IFACE_ND_REXMIT_TIME, ri, r, nd_rexmit_time, IDBM_SHOW,
+			 num, 1);
+	__recinfo_uint32(IFACE_ND_STALE_TMO, ri, r, nd_stale_tmo, IDBM_SHOW,
+			 num, 1);
+	__recinfo_uint32(IFACE_RTR_ADV_LINK_MTU, ri, r, router_adv_link_mtu,
+			 IDBM_SHOW, num, 1);
+	__recinfo_uint8(IFACE_TRAFFIC_CLASS, ri, r, traffic_class, IDBM_SHOW,
+			num, 1);
+	__recinfo_str(IFACE_DELAYED_ACK, ri, r, delayed_ack, IDBM_SHOW, num, 1);
+	__recinfo_str(IFACE_TCP_NAGLE, ri, r, nagle, IDBM_SHOW, num, 1);
+	__recinfo_str(IFACE_TCP_WSF_STATE, ri, r, tcp_wsf_state, IDBM_SHOW,
+		      num, 1);
+	__recinfo_uint8(IFACE_TCP_WSF, ri, r, tcp_wsf, IDBM_SHOW, num, 1);
+	__recinfo_uint8(IFACE_TCP_TIMER_SCALE, ri, r, tcp_timer_scale,
+			IDBM_SHOW, num, 1);
+	__recinfo_str(IFACE_TCP_TIMESTAMP, ri, r, tcp_timestamp, IDBM_SHOW,
+		      num, 1);
+	__recinfo_str(IFACE_REDIRECT, ri, r, redirect, IDBM_SHOW, num, 1);
+	__recinfo_uint16(IFACE_DEF_TMF_TMO, ri, r, def_task_mgmt_tmo, IDBM_SHOW,
+			 num, 1);
+	__recinfo_str(IFACE_HDRDGST, ri, r, header_digest, IDBM_SHOW, num, 1);
+	__recinfo_str(IFACE_DATADGST, ri, r, data_digest, IDBM_SHOW, num, 1);
+	__recinfo_str(IFACE_IMM_DATA, ri, r, immediate_data, IDBM_SHOW, num, 1);
+	__recinfo_str(IFACE_INITIAL_R2T, ri, r, initial_r2t, IDBM_SHOW, num, 1);
+	__recinfo_str(IFACE_DSEQ_INORDER, ri, r, data_seq_inorder, IDBM_SHOW,
+		      num, 1);
+	__recinfo_str(IFACE_DPDU_INORDER, ri, r, data_pdu_inorder, IDBM_SHOW,
+		      num, 1);
+	__recinfo_uint8(IFACE_ERL, ri, r, erl, IDBM_SHOW, num, 1);
+	__recinfo_uint32(IFACE_MAX_RECV_DLEN, ri, r, max_recv_dlength,
+			 IDBM_SHOW, num, 1);
+	__recinfo_uint32(IFACE_FIRST_BURST, ri, r, first_burst_len, IDBM_SHOW,
+			 num, 1);
+	__recinfo_uint16(IFACE_MAX_R2T, ri, r, max_out_r2t, IDBM_SHOW, num, 1);
+	__recinfo_uint32(IFACE_MAX_BURST, ri, r, max_burst_len, IDBM_SHOW,
+			 num, 1);
+	__recinfo_str(IFACE_CHAP_AUTH, ri, r, chap_auth, IDBM_SHOW, num, 1);
+	__recinfo_str(IFACE_BIDI_CHAP, ri, r, bidi_chap, IDBM_SHOW, num, 1);
+	__recinfo_str(IFACE_STRICT_LOGIN_COMP, ri, r, strict_login_comp,
+		      IDBM_SHOW, num, 1);
+	__recinfo_str(IFACE_DISCOVERY_AUTH, ri, r, discovery_auth, IDBM_SHOW,
+		      num, 1);
+	__recinfo_str(IFACE_DISCOVERY_LOGOUT, ri, r, discovery_logout,
+		      IDBM_SHOW, num, 1);
 }
 
 void idbm_recinfo_host_chap(struct iscsi_chap_rec *r, recinfo_t *ri)
