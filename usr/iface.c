@@ -1311,60 +1311,45 @@ static int iface_fill_vlan_id(struct iovec *iov, struct iface_rec *iface,
 	return 0;
 }
 
-/* IPv4/IPv6 VLAN state: disable/enable */
-static int iface_fill_vlan_state(struct iovec *iov, struct iface_rec *iface,
-				 uint32_t iface_type)
+/* disable/enable parameters */
+static int iface_fill_param_state(struct iovec *iov, uint32_t iface_num,
+				  uint8_t iface_type, uint16_t param,
+				  uint8_t param_type, char *param_val)
 {
 	int len;
 	struct iscsi_iface_param_info *net_param;
 	struct nlattr *attr;
 
+	if (!param_val[0])
+		return 1;
+
 	len = sizeof(struct iscsi_iface_param_info) + 1;
-	iov->iov_base = iscsi_nla_alloc(ISCSI_NET_PARAM_VLAN_ENABLED, len);
+	iov->iov_base = iscsi_nla_alloc(param, len);
 	if (!(iov->iov_base))
 		return 1;
 
 	attr = iov->iov_base;
 	iov->iov_len = NLA_ALIGN(attr->nla_len);
 	net_param = (struct iscsi_iface_param_info *)ISCSI_NLA_DATA(attr);
-	net_param->param = ISCSI_NET_PARAM_VLAN_ENABLED;
-	net_param->iface_type = iface_type;
-	net_param->iface_num = iface->iface_num;
-	net_param->param_type = ISCSI_NET_PARAM;
+	net_param->iface_num = iface_num;
 	net_param->len = 1;
-	if (strcmp(iface->vlan_state, "disable") && iface->vlan_id)
-		net_param->value[0] = ISCSI_VLAN_ENABLE;
+	net_param->param = param;
+	net_param->iface_type = iface_type;
+	net_param->param_type = param_type;
+	if (strcmp(param_val, "disable"))
+		net_param->value[0] = ISCSI_NET_PARAM_ENABLE;
 	else /* Assume disabled */
-		net_param->value[0] = ISCSI_VLAN_DISABLE;
+		net_param->value[0] = ISCSI_NET_PARAM_DISABLE;
 	return 0;
 }
 
-/* IPv4/IPv6 Network state: disable/enable */
-static int iface_fill_net_state(struct iovec *iov, struct iface_rec *iface,
-				uint32_t iface_type)
-{
-	int len;
-	struct iscsi_iface_param_info *net_param;
-	struct nlattr *attr;
-
-	len = sizeof(struct iscsi_iface_param_info) + 1;
-	iov->iov_base = iscsi_nla_alloc(ISCSI_NET_PARAM_IFACE_ENABLE, len);
-	if (!(iov->iov_base))
-		return 1;
-
-	attr = iov->iov_base;
-	iov->iov_len = NLA_ALIGN(attr->nla_len);
-	net_param = (struct iscsi_iface_param_info *)ISCSI_NLA_DATA(attr);
-	net_param->param = ISCSI_NET_PARAM_IFACE_ENABLE;
-	net_param->iface_type = iface_type;
-	net_param->iface_num = iface->iface_num;
-	net_param->param_type = ISCSI_NET_PARAM;
-	net_param->len = 1;
-	if (!strcmp(iface->state, "disable"))
-		net_param->value[0] = ISCSI_IFACE_DISABLE;
-	else /* Assume enabled */
-		net_param->value[0] = ISCSI_IFACE_ENABLE;
-	return 0;
+#define IFACE_SET_PARAM_STATE(iov, inum, itype, param, ptype, ival,	\
+			      gcnt, lcnt) {				\
+	if (!iface_fill_param_state(iov, inum, itype, param, ptype,	\
+				    ival)) {				\
+		(*gcnt)++;						\
+		(*lcnt)++;						\
+	}								\
 }
 
 /* IPv4 Bootproto: DHCP/static */
@@ -1598,13 +1583,14 @@ static int __iface_build_net_config(void *data, struct iface_rec *iface)
 	iptype = iface_get_iptype(iface);
 	if (iptype == ISCSI_IFACE_TYPE_IPV4) {
 		if (!strcmp(iface->state, "disable")) {
-			if (!iface_fill_net_state(&iov[net_config->count],
-						  iface,
-						  ISCSI_IFACE_TYPE_IPV4)) {
-				net_config->count++;
-				count++;
-			}
-
+			IFACE_SET_PARAM_STATE(&iov[net_config->count],
+					      iface->iface_num,
+					      ISCSI_IFACE_TYPE_IPV4,
+					      ISCSI_NET_PARAM_IFACE_ENABLE,
+					      ISCSI_NET_PARAM,
+					      iface->state,
+					      &net_config->count,
+					      &count);
 			return 0;
 		}
 
@@ -1648,18 +1634,24 @@ static int __iface_build_net_config(void *data, struct iface_rec *iface)
 		 * fill state and other parameters (if any)
 		 */
 		if (count) {
-			if (!iface_fill_net_state(&iov[net_config->count],
-						  iface,
-						  ISCSI_IFACE_TYPE_IPV4)) {
-				net_config->count++;
-				count++;
-			}
-			if (!iface_fill_vlan_state(&iov[net_config->count],
-						iface,
-						ISCSI_IFACE_TYPE_IPV4)) {
-				net_config->count++;
-				count++;
-			}
+			IFACE_SET_PARAM_STATE(&iov[net_config->count],
+					      iface->iface_num,
+					      ISCSI_IFACE_TYPE_IPV4,
+					      ISCSI_NET_PARAM_IFACE_ENABLE,
+					      ISCSI_NET_PARAM,
+					      iface->state,
+					      &net_config->count,
+					      &count);
+
+			IFACE_SET_PARAM_STATE(&iov[net_config->count],
+					      iface->iface_num,
+					      ISCSI_IFACE_TYPE_IPV4,
+					      ISCSI_NET_PARAM_VLAN_ENABLED,
+					      ISCSI_NET_PARAM,
+					      iface->vlan_state,
+					      &net_config->count,
+					      &count);
+
 			if (strcmp(iface->vlan_state, "disable") &&
 			    iface->vlan_id) {
 				if (!iface_fill_vlan_id(&iov[net_config->count],
@@ -1687,12 +1679,14 @@ static int __iface_build_net_config(void *data, struct iface_rec *iface)
 		}
 	} else if (iptype == ISCSI_IFACE_TYPE_IPV6) {
 		if (!strcmp(iface->state, "disable")) {
-			if (!iface_fill_net_state(&iov[net_config->count],
-						  iface,
-						  ISCSI_IFACE_TYPE_IPV6)) {
-				net_config->count++;
-				count++;
-			}
+			IFACE_SET_PARAM_STATE(&iov[net_config->count],
+					      iface->iface_num,
+					      ISCSI_IFACE_TYPE_IPV6,
+					      ISCSI_NET_PARAM_IFACE_ENABLE,
+					      ISCSI_NET_PARAM,
+					      iface->state,
+					      &net_config->count,
+					      &count);
 			return 0;
 		}
 
@@ -1770,18 +1764,24 @@ static int __iface_build_net_config(void *data, struct iface_rec *iface)
 		 * fill state and other parameters
 		 */
 		if (count) {
-			if (!iface_fill_net_state(&iov[net_config->count],
-						  iface,
-						  ISCSI_IFACE_TYPE_IPV6)) {
-				net_config->count++;
-				count++;
-			}
-			if (!iface_fill_vlan_state(&iov[net_config->count],
-						   iface,
-						   ISCSI_IFACE_TYPE_IPV6)) {
-				net_config->count++;
-				count++;
-			}
+			IFACE_SET_PARAM_STATE(&iov[net_config->count],
+					      iface->iface_num,
+					      ISCSI_IFACE_TYPE_IPV6,
+					      ISCSI_NET_PARAM_IFACE_ENABLE,
+					      ISCSI_NET_PARAM,
+					      iface->state,
+					      &net_config->count,
+					      &count);
+
+			IFACE_SET_PARAM_STATE(&iov[net_config->count],
+					      iface->iface_num,
+					      ISCSI_IFACE_TYPE_IPV6,
+					      ISCSI_NET_PARAM_VLAN_ENABLED,
+					      ISCSI_NET_PARAM,
+					      iface->vlan_state,
+					      &net_config->count,
+					      &count);
+
 			if (strcmp(iface->vlan_state, "disable") &&
 			    iface->vlan_id) {
 				if (!iface_fill_vlan_id(&iov[net_config->count],
