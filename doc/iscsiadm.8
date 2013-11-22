@@ -18,6 +18,8 @@ iscsiadm \- open-iscsi administration utility
 
 \fBiscsiadm\fR \-m host [ \-P printlevel ] [ \-H hostno|MAC ] [ [ \-C chap [ \-x chap_tbl_idx ] ] | [ \-C flashnode [ \-A portal_type ] [ \-x flashnode_idx ] ] ] [ [ \-o operation ] [ \-n name ] [ \-v value ] ]
 
+\fBiscsiadm\fR \-m host [ \-P printlevel ] [ \-H hostno|MAC ] [ [ \-C chap [ \-o operation ] [ \-v chap_tbl_idx ] ] | [ \-C flashnode [ \-o operation ] [ \-A portal_type ] [ \-x flashnode_idx ] [ \-n name ] [ \-v value ] ] | [ \-C stats ]]
+
 \fBiscsiadm\fR \-k priority
 
 .SH "DESCRIPTION"
@@ -72,11 +74,13 @@ Currently iscsiadm support ping as submode for iface. For example,
 
 iscsiadm -m iface -I ifacename -C ping -a ipaddr -b packetsize -c count -i interval
 
-For host, it supports chap and flashnode as submodes. For example,
+For host, it supports chap , flashnode and stats as submodes. For example,
 
 iscsiadm -m host -H hostno -C chap -x chap_tbl_idx -o operation
 
 iscsiadm -m host -H hostno -C flashnode -x flashnode_idx -o operation
+
+iscsiadm -m host -H hostno -C stats
 
 .TP
 \fB\-d\fR, \fB\-\-debug=\fIdebug_level\fP
@@ -279,6 +283,7 @@ tuple passed in.
 .TP
 \fB\-s\fR, \fB\-\-stats\fR
 Display session statistics.
+This option when used with host mode, displays host statistics.
 
 .TP
 \fB\-S\fR, \fB\-\-show\fR
