@@ -1073,6 +1073,14 @@ To now log into targets it is the same as with sofware iscsi. See section
 	is free then entry of type bidi chap will be created at that index
 	with given username_in and password_in values.
 
+    Host mode with stats submode:
+
+    - Display host statistics:
+	    ./iscsiadm -m host -H 6 -C stats
+
+	This will print the aggregate statistics on the host adapter port.
+	This includes MAC, TCP/IP, ECC & iSCSI statistics.
+
 6. Configuration
 ================
 
