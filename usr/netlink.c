@@ -339,6 +339,10 @@ __kipc_call(struct iovec *iovp, int count)
 		} else if (ev->type == ISCSI_UEVENT_GET_CHAP) {
 			/* kget_chap() will read */
 			return 0;
+		} else if (ev->type == ISCSI_UEVENT_GET_HOST_STATS) {
+			/* kget_host_stats() will read */
+			return 0;
+
 		} else {
 			if ((rc = nlpayload_read(ctrl_fd, (void*)ev,
 						 sizeof(*ev), 0)) < 0) {
@@ -1439,6 +1443,48 @@ klogout_flashnode_sid(uint64_t transport_handle, uint32_t host_no,
 	return 0;
 }
 
+static int kget_host_stats(uint64_t transport_handle, uint32_t host_no,
+		     char *host_stats)
+{
+	int rc = 0;
+	int ev_size;
+	struct iscsi_uevent ev;
+	struct iovec iov[2];
+	char nlm_ev[NLMSG_SPACE(sizeof(struct iscsi_uevent))];
+	struct nlmsghdr *nlh;
+
+	memset(&ev, 0, sizeof(struct iscsi_uevent));
+
+	ev.type = ISCSI_UEVENT_GET_HOST_STATS;
+	ev.transport_handle = transport_handle;
+	ev.u.get_host_stats.host_no = host_no;
+
+	iov[1].iov_base = &ev;
+	iov[1].iov_len = sizeof(ev);
+	rc = __kipc_call(iov, 2);
+	if (rc < 0)
+		return rc;
+
+	if ((rc = nl_read(ctrl_fd, nlm_ev,
+			  NLMSG_SPACE(sizeof(struct iscsi_uevent)),
+			  MSG_PEEK)) < 0) {
+		log_error("can not read nlm_ev, error %d", rc);
+		return rc;
+	}
+
+	nlh = (struct nlmsghdr *)nlm_ev;
+	ev_size = nlh->nlmsg_len - NLMSG_ALIGN(sizeof(struct nlmsghdr));
+
+	if ((rc = nlpayload_read(ctrl_fd, (void *)host_stats,
+				 ev_size, 0)) < 0) {
+		log_error("can not read from NL socket, error %d", rc);
+		return rc;
+	}
+
+	return rc;
+}
+
+
 static void drop_data(struct nlmsghdr *nlh)
 {
 	int ev_size;
@@ -1737,6 +1783,7 @@ struct iscsi_ipc nl_ipc = {
 	.login_flash_node	= klogin_flashnode,
 	.logout_flash_node	= klogout_flashnode,
 	.logout_flash_node_sid	= klogout_flashnode_sid,
+	.get_host_stats		= kget_host_stats,
 };
 struct iscsi_ipc *ipc = &nl_ipc;
 

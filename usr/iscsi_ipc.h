@@ -161,6 +161,8 @@ struct iscsi_ipc {
 				  uint32_t flashnode_idx);
 	int (*logout_flash_node_sid) (uint64_t transport_handle,
 				      uint32_t host_no, uint32_t sid);
+	int (*get_host_stats) (uint64_t transport_handle, uint32_t host_no,
+			 char *host_stats);
 };
 
 #endif /* ISCSI_IPC_H */
