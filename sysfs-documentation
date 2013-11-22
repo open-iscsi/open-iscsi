@@ -1,0 +1,514 @@
+Description of iface attributes and their valid values
+======================================================
+
+== IPv4 attributes ==
+
+ipaddress
+---------
+IP address in format XXX.XXX.XXX.XXX
+
+gateway
+-------
+IP address of the network router or gateway device in format XXX.XXX.XXX.XXX
+
+subnet
+------
+Broadcast address in format XXX.XXX.XXX.XXX
+
+bootproto
+---------
+The protocol type used to initialize interface
+
+Valid values: "dhcp" or "static"
+
+dhcp_dns_address_en
+-------------------
+Request DNS Server IP Addresses and Domain Name
+
+If bootproto is set to dhcp and dhcp_dns_address_en is enable,
+requests DNS addresses (option 6) and domain name (option 15) in its
+DHCP parameter request list.
+
+Valid values: "enable" or "disable"
+
+dhcp_slp_da_info_en
+-------------------
+Request SLP DA Information and SLP Scope
+If bootproto is set to dhcp and dhcp_slp_da_info_en is enable,
+requests SLP DA information (option 78) and SLP scope (option 79)
+in its DHCP parameter request list.
+
+Valid values: "enable" or "disable"
+
+tos_en
+------
+Enable IPv4 type of service (ToS)
+
+When tos_en is set to enable, use value set in tos when transmitting IPv4 TCP
+packets on iSCSI connections.
+
+Valid values: "enable" or "disable"
+
+tos
+---
+IPv4 Type of service (ToS)
+
+When tos_en is set to enable, use value set in tos when transmitting IPv4 TCP
+packets on iSCSI connections.
+
+Valid range: 8-bit value. [0-255]
+
+grat_arp_en
+-----------
+Enable Gratuitous ARP Requests
+
+Valid values: "enable" or "disable"
+
+dhcp_alt_client_id_en
+---------------------
+DHCP Use Alternate Client ID
+
+When dhcp_alt_client_id_en is set to enable, use the Client ID configured in
+dhcp_alt_client_id as its Client ID (DHCP option 61) in outgoing DHCP messages.
+
+Valid values: "enable" or "disable"
+
+dhcp_alt_client_id
+------------------
+DHCP Alternate Client ID
+
+When dhcp_alt_client_id_en is set to enable, use value set in dhcp_alt_client_id
+for Client ID in DHCP messages.
+
+Valid values: 11-byte Client ID 
+
+dhcp_req_vendor_id_en
+---------------------
+DHCP Require Vendor ID
+
+When dhcp_req_vendor_id_en is set to enable, use value set in dhcp_vendor_id as
+its vendor ID (DHCP option 60) in outgoing DHCP messages.
+
+Valid values: "enable" or "disable"
+
+dhcp_use_vendor_id_en
+---------------------
+DHCP Use Vendor ID
+
+When dhcp_use_vendor_id_en is set to enable, use value set in dhcp_vendor_id as
+its vendor ID (DHCP option 60) in outgoing DHCP messages.
+
+Valid values: "enable" or "disable"
+
+dhcp_vendor_id
+--------------
+DHCP Vendor ID
+
+When dhcp_req_vendor_id_en or dhcp_use_vendor_id_en is set to enable,
+use value set in dhcp_vendor_id for Vendor ID in DHCP messages.
+
+Valid values: 11-byte Client ID 
+
+dhcp_learn_iqn_en
+-----------------
+DHCP Learn IQN
+
+When dhcp_learn_iqn_en is set to enable, iSCSI initiator attempts to use DHCP
+to learn its (IQN) iSCSI name.
+
+Valid values: "enable" or "disable"
+
+fragment_disable
+----------------
+Fragmentation Disable.
+
+When fragment_disable is set to disable, iSCSI initiator cannot fragment IP
+datagrams.
+
+Valid values: "enable" or "disable"
+
+incoming_forwarding_en
+----------------------
+When incoming_forwarding_en is set to enable, iSCSI initiator forwards all
+incoming network traffic to the network driver, except for iSCSI TCP packets
+destined to the iSCSI initiator.
+
+Valid values: "enable" or "disable"
+
+ttl
+---
+IPv4 Time to Live (TTL)
+
+This attribute contain TTL value sent in IPv4 TCP packets transmitted on
+iSCSI connections.
+
+Valid range: 8-bit value. [0-255]
+
+== IPv6 attributes ==
+
+ipaddress
+---------
+IP address in IPv6 format.
+
+link_local_addr
+---------------
+Link local address in IPv6 format.
+
+router_addr
+-----------
+Router address in IPv6 format.
+
+ipaddr_autocfg
+--------------
+Autoconfigure IPv6 Address.
+
+Valid values: nd, dhcpv6 or disable
+qla4xxx don't support dhcpv6.
+
+link_local_autocfg
+------------------
+Autoconfigure IPv6 Link Local Address.
+
+IPv6 neighbor discovery protocol to discover Link Local Address.
+
+Valid values: auto or disable
+
+
+router_autocfg
+--------------
+Autoconfigure IPv6 Router address.
+
+IPv6 neighbor discovery protocol to discover a default router address.
+
+Valid values: auto or disable
+
+link_local_state
+----------------
+This Read-only attribute show Link Local IP address state in sysfs.
+
+Valid values: Unconfigured, Acquiring, Tentative, Valid, Disabling, Invalid,
+	      Deprecated.
+
+
+router_state
+------------
+This Read-only attribute shows router state.
+
+Valid values: Unknown, Advertised, Manual, Stale.
+
+
+grat_neighbor_adv_en
+--------------------
+Enable Gratuitious Neighbor Advertisement
+
+Valid values: "enable" or "disable"
+
+mld_en
+------
+Enable IPv6 Multicast Listener Discovery
+
+Valid values: "enable" or "disable"
+
+flow_label
+----------
+This attribute specifies the default value of the Flow Label field in the
+IPv6 header of TCP packets transmitted on iSCSI connections
+
+Valid range: 20-bit value. [0-1048575]
+Value zero indicates that the traffic is not assigned to a labelled flow.
+
+traffic_class
+-------------
+This attribute specifies the IPv6 traffic class value to be used in IPv6
+TCP packets transmitted from the firmware on iSCSI connections.
+
+Valid range: 8-bit value. [0-255]
+
+hop_limit
+---------
+This attribute specifies the IPv6 hop limit value to be used in IPv6 TCP
+packets transmitted from the firmware on iSCSI connections
+
+Valid range: 8-bit value. [0-255]
+
+nd_reachable_tmo
+----------------
+This attribute specifies the time (in milliseconds) that a node assumes 
+that the neighbor is reachable after confirmation.
+
+Valid range: 4-byte value. [0-4294967295]
+
+nd_rexmit_time
+--------------
+This attribute specifies the time (in milliseconds) between retransmitted
+neighbor solicitation messages.
+
+Valid range: 4-byte value. [0-4294967295]
+
+nd_stale_tmo
+------------
+This attribute specifies the time (in milliseconds) after which a stale
+neighbor or destination cache entry is discarded.
+
+Valid range: 4-byte value. [0-4294967295]
+
+dup_addr_detect_cnt
+-------------------
+This attribute specifies the IPv6 duplicate address detection count
+
+Valid range: 8-bit value. [0-255]
+	     0 - Disable
+	     1 - TryOnce
+	     2 - TryTwice, and so on
+
+router_adv_link_mtu
+-------------------
+IPv6 Router Advertised Link MTU Size.
+
+Valid range: 1280 bytes to 1500 bytes
+
+== Common ==
+enabled
+-------
+This attribute is used to enable or disable IPv4 or IPv6 protocol.
+
+Valid values: "enable" or "disable"
+
+vlan_id
+-------
+This attribute specifies 12-bit VLAN identifier (VID)
+
+Valid range: 12-bit value. [1-4094]
+
+vlan_priority
+-------------
+This attribute specifies Priority to outbound packets containing the
+specified VLAN-ID (VID)
+
+Valid range: 3-bit value. [0-7]
+
+vlan_enabled
+------------
+VLAN Tagging Enable.
+
+When this attribute is set to enable, use value set in vlan_id and
+vlan_priority to transmit IP packets, and discards IP packets that were
+received without a matching VLAN ID
+
+Valid values: "enable" or "disable"
+
+mtu
+---
+Ethernet MTU Size.
+
+This field specifies the maximum payload length in byte of an
+Ethernet frame supported by iSCSI initiator.
+
+Valid values: 576 bytes to 9000 bytes
+
+port
+----
+This attribute shows the initiator iSCSI port number.
+
+ipaddress_state
+---------------
+This Read-only attribute show IP address state.
+
+Valid values: Unconfigured, Acquiring, Tentative, Valid, Disabling, Invalid,
+	      Deprecated.
+
+delayed_ack_en
+--------------
+When this attribute is set to enable, TCP delayed ACK is enabled.
+  
+Valid values: "enable" or "disable"
+
+tcp_nagle_disable
+-----------------
+When this attribute is set to disable, TCP Nagle algorithm is disabled.
+
+Valid values: "enable" or "disable"
+
+tcp_wsf_disable
+---------------
+When this attribute is set to disable, TCP window scale is disabled.
+
+Valid values: "enable" or "disable"
+
+tcp_wsf
+-------
+This attribute specifies the TCP window scale factor to be negotiated
+on TCP connections.
+
+Valid range: 8-bit value. [0-255]
+
+tcp_timer_scale
+---------------
+The TCP Timer Scale is scale factor that adjusts the time interval between
+timer ticks on a TCP connection. The scale factor allows for faster time-outs
+for connections running on a very small network, versus connections running
+on a very large network.
+
+Valid range: 3-bit value. [0-7]
+
+tcp_timestamp_en
+----------------
+When this attribute is set to enable, iSCSI initiator negotiates to use time
+stamps in TCP headers
+
+Valid values: "enable" or "disable"
+
+cache_id
+--------
+This Read-only attribute is used to find the valid cache entries for the
+interface.
+
+For IPv4, ARP cache entry
+For IPv6, Neighbor cache entry
+
+redirect_en
+-----------
+For IPv4:
+When this attribute is set to enable, an ARP redirect can modify the address
+resolution protocol (ARP) table and any active connections.
+
+For IPv6:
+When this attribute is set to enable and neighbor advertisements are received,
+the connection table is examined and updated if any active connections match
+the IP address on the neighbor advertisement. This action is required for
+failover and redirect.
+
+Valid values: "enable" or "disable"
+
+def_taskmgmt_tmo
+----------------
+This attribute specifies timeout interval in seconds that iSCSI uses for
+timing out task-management commands.
+
+Valid range: 16-bit value [0-65535].
+
+header_digest
+-------------
+When this attribute is set to enable iSCSI initiator negotiates for
+HeaderDigest=CRC32 and when set to disable negotiates HeaderDigest=none.
+
+Valid values: "enable" or "disable"
+
+data_digest
+-----------
+When this attribute is set to enable iSCSI initiator negotiates for
+DataDigest=CRC32 and when set to disable negotiates DataDigest=none.
+
+Valid values: "enable" or "disable"
+
+immediate_data
+--------------
+When this attribute is set to enable iSCSI initiator negotiates for
+ImmediateData=yes and When set to disable negotiates ImmediateData=none
+
+Valid values: "enable" or "disable"
+
+initial_r2t
+-----------
+When this attribute is set to enable iSCSI initiator negotiates for
+InitialR2T=yes. When set to disable negotiates InitialR2T=no.
+
+Valid values: "enable" or "disable"
+
+data_seq_in_order
+-----------------
+When this attribute is set to enable iSCSI initiator set data sequences
+in order
+
+Valid values: "enable" or "disable"
+qla4xxx does not support out-of-order data sequences
+
+data_pdu_in_order
+-----------------
+When this attribute is set to enable iSCSI initiator set Data PDU
+in order
+
+Valid values: "enable" or "disable"
+qla4xxx does not support out-of-order Data PDUs.
+
+erl
+---
+Error Recovery Level
+
+This attribute specifies error recovery level (ERL) supported by the
+connection.
+
+Valid values: 2-bit value [0-2]
+
+max_recv_dlength
+----------------
+iSCSI Maximum Receive Data Segment Length.
+
+This attribute specifies Maximum data segment length in bytes, that receive
+in an iSCSI PDU.
+
+first_burst_len
+---------------
+iSCSI First Burst Length
+
+This attribute Specifies the maximum amount of unsolicited data an iSCSI
+initiator can send to the target during the execution of a single SCSI command,
+in bytes.
+
+max_outstanding_r2t
+-------------------
+iSCSI Maximum Outstanding R2T
+
+This attribute Specifies how many R2T PDUs per command can be outstanding
+during an iSCSI session.
+
+max_burst_len
+-------------
+This attribute Specifies the maximum length for unsolicited or immediate data
+iSCSI session can send or receive.
+
+chap_auth
+---------
+When this attribute is set to enable iSCSI session performs authentication
+during the security state of login phase.
+
+Valid values: "enable" or "disable"
+
+bidi_chap
+---------
+When this attribute is set to enable iSCSI session generates a CHAP challenge
+to any target that has issued a CHAP challenge to the iSCSI session.
+iSCSI session issues the challenge to the target after responding to the
+targets challenge. This attribute is ignored if chap_auth is set to disable.
+
+Valid values: "enable" or "disable"
+
+discovery_auth_optional
+-----------------------
+When this attribute is set to enable and the chap_auth is set to enable,
+iSCSI session does not require authentication on discovery sessions unless
+requested by the peer. When this attribute is set to disable iSCSI session
+requires CHAP authentication for a discovery session.
+
+Valid values: "enable" or "disable"
+
+discovery_logout
+----------------
+When this attribute is set to enable, iSCSI initiator initiates an iSCSI logout
+on a discovery session when discovery is complete (before closing the connection).
+When this attribute is set to disable, iSCSI initiator closes the connection when
+discovery is complete.
+
+Valid values: "enable" or "disable"
+
+strict_login_comp_en
+--------------------
+When this attribute is set to enable, iSCSI initiator enforces the iSCSI login
+negotiation rules. When this attribute is set to disable, iSCSI initiator does
+not enforce iSCSI login negotiation.
+
+Valid values: "enable" or "disable"
+
+initiator_name
+--------------
+This Read-only attribute contains the iSCSI Name string used by the firmware.
