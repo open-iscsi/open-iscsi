@@ -67,12 +67,7 @@ static int ipc_connect(int *fd, char *unix_sock_name, int start_iscsid)
 		return ISCSI_ERR_ISCSID_NOTCONN;
 	}
 
-	addr_len = offsetof(struct sockaddr_un, sun_path) + strlen(unix_sock_name) + 1;
-
-	memset(&addr, 0, sizeof(addr));
-	addr.sun_family = AF_LOCAL;
-	memcpy((char *) &addr.sun_path + 1, unix_sock_name,
-	       strlen(unix_sock_name));
+	addr_len = setup_abstract_addr(&addr, unix_sock_name);
 
 	/*
 	 * Trying to connect with exponential backoff

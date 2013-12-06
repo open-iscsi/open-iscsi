@@ -59,11 +59,7 @@ mgmt_ipc_listen(void)
 		return fd;
 	}
 
-	addr_len = offsetof(struct sockaddr_un, sun_path) + strlen(ISCSIADM_NAMESPACE) + 1;
-
-	memset(&addr, 0, sizeof(addr));
-	addr.sun_family = AF_LOCAL;
-	memcpy((char *) &addr.sun_path + 1, ISCSIADM_NAMESPACE, addr_len);
+	addr_len = setup_abstract_addr(&addr, ISCSIADM_NAMESPACE);
 
 	if ((err = bind(fd, (struct sockaddr *) &addr, addr_len)) < 0 ) {
 		log_error("Can not bind IPC socket");

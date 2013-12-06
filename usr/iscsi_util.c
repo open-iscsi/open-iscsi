@@ -25,15 +25,27 @@
 #include <string.h>
 #include <errno.h>
 #include <ctype.h>
+#include <sys/socket.h>
+#include <sys/un.h>
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <sys/resource.h>
 
+#include "sysdeps.h"
 #include "log.h"
 #include "iscsi_settings.h"
 #include "iface.h"
 #include "session_info.h"
 #include "iscsi_util.h"
+
+int setup_abstract_addr(struct sockaddr_un *addr, char *unix_sock_name)
+{
+	memset(addr, 0, sizeof(*addr));
+	addr->sun_family = AF_LOCAL;
+	strlcpy(addr->sun_path + 1, unix_sock_name, sizeof(addr->sun_path) - 1);
+	return offsetof(struct sockaddr_un, sun_path) +
+		strlen(addr->sun_path + 1) + 1;
+}
 
 void daemon_init(void)
 {
