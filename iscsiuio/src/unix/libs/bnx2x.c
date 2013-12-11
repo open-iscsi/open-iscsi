@@ -900,8 +900,14 @@ static int bnx2x_open(nic_t *nic)
 		struct client_init_general_data *data = bp->bufs;
 
 		bp->client_id = data->client_id;
-		if (data->reserved0)
-			bp->cid = data->reserved0;
+		if (data->uid.cid)
+			bp->cid = data->uid.cid;
+		if (bp->version.minor >= 78 && bp->version.sub_minor >= 55 &&
+		    data->uid.cid_override_key == UIO_USE_TX_DOORBELL) {
+			bp->tx_doorbell = data->uid.tx_db_off;
+			LOG_INFO(PFX "%s: tx doorbell override offset = 0x%x",
+				 nic->log_name, bp->tx_doorbell);
+		}
 	}
 
 	LOG_INFO(PFX "%s: func 0x%x, pfid 0x%x, client_id 0x%x, cid 0x%x",
@@ -928,7 +934,8 @@ static int bnx2x_open(nic_t *nic)
 		     USTORM_RX_PRODS_E2_OFFSET(cl_qzone_id) :
 		     USTORM_RX_PRODS_E1X_OFFSET(bp->port, bp->client_id));
 
-		bp->tx_doorbell = bp->cid * 0x80 + 0x40;
+		if (!bp->tx_doorbell)
+			bp->tx_doorbell = bp->cid * 0x80 + 0x40;
 
 		bp->get_rx_cons = bnx2x_get_rx_60;
 		bp->get_tx_cons = bnx2x_get_tx_60;

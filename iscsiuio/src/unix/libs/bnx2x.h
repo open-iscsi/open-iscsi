@@ -382,6 +382,13 @@ union eth_rx_cqe_70 {
 	struct eth_rx_cqe_next_page_70 next_page_cqe_70;
 };
 
+struct uio_init_data {
+	__u32 cid;
+	__u32 tx_db_off;
+	__u32 cid_override_key;
+#define UIO_USE_TX_DOORBELL	0x017855DB
+};
+
 struct client_init_general_data {
 	__u8 client_id;
 	__u8 statistics_counter_id;
@@ -394,7 +401,7 @@ struct client_init_general_data {
 	__u8 func_id;
 	__u8 cos;
 	__u8 traffic_type;
-	__u32 reserved0;
+	struct uio_init_data uid;
 };
 
 /******************************************************************************
