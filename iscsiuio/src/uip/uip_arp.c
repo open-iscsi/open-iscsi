@@ -112,7 +112,7 @@ void uip_arp_timer(void)
 	for (i = 0; i < UIP_ARPTAB_SIZE; ++i) {
 		tabptr = &arp_table[i];
 		if ((tabptr->ipaddr[0] | tabptr->ipaddr[1]) != 0 &&
-		    arptime - tabptr->time >= UIP_ARP_MAXAGE)
+		    (u8_t)(arptime - tabptr->time) >= UIP_ARP_MAXAGE)
 			memset(tabptr->ipaddr, 0, 4);
 	}
 
@@ -165,8 +165,8 @@ static void uip_arp_update(u16_t *ipaddr, struct uip_eth_addr *ethaddr)
 		c = 0;
 		for (i = 0; i < UIP_ARPTAB_SIZE; ++i) {
 			tabptr = &arp_table[i];
-			if (arptime - tabptr->time > tmpage) {
-				tmpage = arptime - tabptr->time;
+			if ((u8_t)(arptime - tabptr->time) > tmpage) {
+				tmpage = (u8_t)(arptime - tabptr->time);
 				c = i;
 			}
 		}
