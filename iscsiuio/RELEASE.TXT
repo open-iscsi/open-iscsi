@@ -1,7 +1,7 @@
                               Release Notes
                         Broadcom uIP Linux Driver
-                            Version 0.7.8.1b
-                               05/01/2013
+                            Version 0.7.8.2
+                               12/10/2013
 
                           Broadcom Corporation
                          5300 California Avenue,
@@ -9,6 +9,26 @@
 
                Copyright (c) 2004 - 2013 Broadcom Corporation
                            All rights reserved
+
+uIP v0.7.8.2 (Dec 10, 2013)
+=======================================================
+   Fixes
+   -----
+   1. Problem: Cont00072053 - Some hardware iSCSI paths fail during test
+      Cause:   The test exercised a corner case where the ARP cache flush
+               mechanism didn't work properly
+      Change:  Fixed the ARP cache flush mechanism
+      Impact:  All
+
+   Enhancements
+   ------------
+   1. Change:  Added a new tx doorbell field in the uio path to work with
+               the new bnx2x/cnic drivers that supports VF_RSS
+      Impact:  10G only
+
+   2. Change:  Fixed the iface.subnet_mask decoding for IPv6
+      Impact:  IPv6
+
 
 uIP v0.7.8.1b (May 01, 2013)
 =======================================================
