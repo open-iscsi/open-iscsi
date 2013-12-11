@@ -274,7 +274,7 @@ static int decode_iface(struct iface_rec_decode *ird, struct iface_rec *rec)
 				       sizeof(struct in6_addr));
 			/* Subnet mask priority: CIDR, then rec */
 			if (!ird->ipv6_subnet_mask.s6_addr)
-				inet_pton(AF_INET, rec->subnet_mask,
+				inet_pton(AF_INET6, rec->subnet_mask,
 					  &ird->ipv6_subnet_mask);
 
 			/* For LL on, ignore the IPv6 addr in the iface */
