@@ -124,7 +124,7 @@ install_iface: $(IFACEFILES)
 	$(INSTALL) -m 644 $^ $(DESTDIR)$(etcdir)/iscsi/ifaces
 
 install_etc: $(ETCFILES)
-	if [ ! -f /etc/iscsi/iscsid.conf ]; then \
+	if [ ! -f $(DESTDIR)/etc/iscsi/iscsid.conf ]; then \
 		$(INSTALL) -d $(DESTDIR)$(etcdir)/iscsi ; \
 		$(INSTALL) -m 644 $^ $(DESTDIR)$(etcdir)/iscsi ; \
 	fi
@@ -137,11 +137,11 @@ install_kernel:
 	$(MAKE) -C kernel install_kernel
 
 install_iname:
-	if [ ! -f /etc/iscsi/initiatorname.iscsi ]; then \
+	if [ ! -f $(DESTDIR)/etc/iscsi/initiatorname.iscsi ]; then \
 		echo "InitiatorName=`$(DESTDIR)/sbin/iscsi-iname`" > $(DESTDIR)/etc/iscsi/initiatorname.iscsi ; \
 		echo "***************************************************" ; \
 		echo "Setting InitiatorName to `cat $(DESTDIR)/etc/iscsi/initiatorname.iscsi`" ; \
-		echo "To override edit /etc/iscsi/initiatorname.iscsi" ; \
+		echo "To override edit $(DESTDIR)/etc/iscsi/initiatorname.iscsi" ; \
 		echo "***************************************************" ; \
 	fi
 
