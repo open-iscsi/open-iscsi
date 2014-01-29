@@ -1,6 +1,6 @@
 SUBDIRS= libs
 
-INCLUDES = -I${top_srcdir}/src/uip		\
+AM_CFLAGS = -I${top_srcdir}/src/uip		\
 	   -I${top_srcdir}/src/apps/brcm-iscsi	\
 	   -I${top_srcdir}/src/apps/dhcpc	\
 	   -I${top_srcdir}/src/unix/libs	\

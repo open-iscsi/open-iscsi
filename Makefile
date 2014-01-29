@@ -49,6 +49,9 @@ utils/open-isns/Makefile: utils/open-isns/configure utils/open-isns/Makefile.in
 iscsiuio/Makefile: iscsiuio/configure iscsiuio/Makefile.in
 	cd iscsiuio; ./configure
 
+iscsiuio/configure iscsiuio/Makefile.in: iscsiuio/configure.ac iscsiuio/Makefile.am
+	cd iscsiuio; autoreconf --install
+
 kernel: force
 	$(MAKE) -C kernel
 	@echo "Kernel Compilation complete          Output file"
