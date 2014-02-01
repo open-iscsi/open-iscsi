@@ -15,4 +15,4 @@ lib_iscsi_uip_a_SOURCES = 	uip.c		\
 				ipv6_ndpc.c	\
 				ipv6.c
 
-lib_iscsi_uip_a_CFLAGS = 	-DBYTE_ORDER=@ENDIAN@
+lib_iscsi_uip_a_CFLAGS = 	-DBYTE_ORDER=@ENDIAN@ $(AM_CFLAGS)
