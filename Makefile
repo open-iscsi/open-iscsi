@@ -14,8 +14,8 @@ mandir = $(prefix)/share/man
 etcdir = /etc
 initddir = $(etcdir)/init.d
 
-MANPAGES = doc/iscsid.8 doc/iscsiadm.8 doc/iscsi_discovery.8 iscsiuio/docs/iscsiuio.8
-PROGRAMS = usr/iscsid usr/iscsiadm utils/iscsi_discovery utils/iscsi-iname iscsiuio/src/unix/iscsiuio
+MANPAGES = doc/iscsid.8 doc/iscsiadm.8 doc/iscsi_discovery.8 doc/iscsistart.8 doc/iscsi-iname.8 iscsiuio/docs/iscsiuio.8
+PROGRAMS = usr/iscsid usr/iscsiadm utils/iscsi_discovery utils/iscsi-iname usr/iscsistart iscsiuio/src/unix/iscsiuio
 INSTALL = install
 ETCFILES = etc/iscsid.conf
 IFACEFILES = etc/iface.example
@@ -90,11 +90,11 @@ install_programs:  $(PROGRAMS)
 # ugh, auto-detection is evil
 # Gentoo maintains their own init.d stuff
 install_initd:
-	if [ -f /etc/debian_version ]; then \
+	if [ -f $(DESTDIR)$(etcdir)/debian_version ]; then \
 		$(MAKE) install_initd_debian ; \
-	elif [ -f /etc/redhat-release ]; then \
+	elif [ -f $(DESTDIR)$(etcdir)/redhat-release ]; then \
 		$(MAKE) install_initd_redhat ; \
-	elif [ -f /etc/SuSE-release ]; then \
+	elif [ -f $(DESTDIR)$(etcdir)/SuSE-release ]; then \
 		$(MAKE) install_initd_suse ; \
 	fi
 
@@ -121,7 +121,7 @@ install_iface: $(IFACEFILES)
 	$(INSTALL) -m 644 $^ $(DESTDIR)$(etcdir)/iscsi/ifaces
 
 install_etc: $(ETCFILES)
-	if [ ! -f /etc/iscsi/iscsid.conf ]; then \
+	if [ ! -f $(DESTDIR)$(etcdir)/iscsi/iscsid.conf ]; then \
 		$(INSTALL) -d $(DESTDIR)$(etcdir)/iscsi ; \
 		$(INSTALL) -m 644 $^ $(DESTDIR)$(etcdir)/iscsi ; \
 	fi
@@ -134,11 +134,11 @@ install_kernel:
 	$(MAKE) -C kernel install_kernel
 
 install_iname:
-	if [ ! -f /etc/iscsi/initiatorname.iscsi ]; then \
-		echo "InitiatorName=`$(DESTDIR)/sbin/iscsi-iname`" > $(DESTDIR)/etc/iscsi/initiatorname.iscsi ; \
+	if [ ! -f $(DESTDIR)$(etcdir)/iscsi/initiatorname.iscsi ]; then \
+		echo "InitiatorName=`$(DESTDIR)$(sbindir)/iscsi-iname`" > $(DESTDIR)$(etcdir)/iscsi/initiatorname.iscsi ; \
 		echo "***************************************************" ; \
-		echo "Setting InitiatorName to `cat $(DESTDIR)/etc/iscsi/initiatorname.iscsi`" ; \
-		echo "To override edit /etc/iscsi/initiatorname.iscsi" ; \
+		echo "Setting InitiatorName to `cat $(DESTDIR)$(etcdir)/iscsi/initiatorname.iscsi`" ; \
+		echo "To override edit $(etcdir)/iscsi/initiatorname.iscsi" ; \
 		echo "***************************************************" ; \
 	fi
 

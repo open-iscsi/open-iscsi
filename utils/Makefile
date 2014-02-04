@@ -1,17 +1,18 @@
 # This Makefile will work only with GNU make.
 
-CFLAGS += $(OPTFLAGS) -O2 -fno-inline -Wall -Wstrict-prototypes -g
+OPTFLAGS ?= -O2 -g
+CFLAGS += $(OPTFLAGS) -fno-inline -Wall -Wstrict-prototypes
 PROGRAMS = iscsi-iname
 
 all: $(PROGRAMS)
 
 iscsi-iname: md5.o iscsi-iname.o
-	$(CC) $(CFLAGS) $^ $(DBM_LIB) -o $@
+	$(CC) $(CFLAGS) $(LDFLAGS) $^ $(DBM_LIB) -o $@
 
 clean:
-	rm -f *.o $(PROGRAMS) .depend
+	$(RM) *.o $(PROGRAMS) .depend
 
 depend:
-	gcc $(CFLAGS) -M `ls *.c` > .depend
+	$(GCC) $(CFLAGS) -M `ls *.c` > .depend
 
 -include .depend
