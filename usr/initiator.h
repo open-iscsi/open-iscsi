@@ -344,6 +344,7 @@ extern void free_initiator(void);
 extern void iscsi_initiator_init(void);
 
 /* initiator code common to discovery and normal sessions */
+extern int iscsi_session_set_neg_params(struct iscsi_conn *conn);
 extern int iscsi_session_set_params(struct iscsi_conn *conn);
 extern int iscsi_host_set_params(struct iscsi_session *session);
 extern int iscsi_host_set_net_params(struct iface_rec *iface,

@@ -1403,6 +1403,17 @@ redirect_reconnect:
 	iscsi_copy_operational_params(&session->conn[0], &config->session_conf,
 				      &config->conn_conf);
 
+	if (t->caps & CAP_TEXT_NEGO) {
+		log_debug(2, "%s discovery set params\n", __FUNCTION__);
+		rc = iscsi_session_set_params(conn);
+		if (rc) {
+			log_error("Could not set iscsi params for conn %d:%d "
+				  "(err %d)\n", session->id, conn->id, rc);
+			rc = ISCSI_ERR_INTERNAL;
+			goto login_failed;
+		}
+	}
+
 	if ((session->t->caps & CAP_LOGIN_OFFLOAD))
 		goto start_conn;
 
@@ -1509,8 +1520,8 @@ redirect_reconnect:
 		return 0;
 
 start_conn:
-	log_debug(2, "%s discovery set params\n", __FUNCTION__);
-	rc = iscsi_session_set_params(conn);
+	log_debug(2, "%s discovery set neg params\n", __FUNCTION__);
+	rc = iscsi_session_set_neg_params(conn);
 	if (rc) {
 		log_error("Could not set iscsi params for conn %d:%d (err "
 			  "%d)\n", session->id, conn->id, rc);

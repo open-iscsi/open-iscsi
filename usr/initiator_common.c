@@ -345,9 +345,9 @@ void iscsi_session_init_params(struct iscsi_session *session)
 	}
 }
 
-#define MAX_SESSION_PARAMS 35
+#define MAX_SESSION_NEG_PARAMS 16
 
-int iscsi_session_set_params(struct iscsi_conn *conn)
+int iscsi_session_set_neg_params(struct iscsi_conn *conn)
 {
 	struct iscsi_session *session = conn->session;
 	int i, rc;
@@ -357,7 +357,7 @@ int iscsi_session_set_params(struct iscsi_conn *conn)
 		int type;
 		void *value;
 		int conn_only;
-	} conntbl[MAX_SESSION_PARAMS] = {
+	} conntbl[MAX_SESSION_NEG_PARAMS] = {
 		{
 			.param = ISCSI_PARAM_MAX_RECV_DLENGTH,
 			.value = &conn->max_recv_dlength,
@@ -434,15 +434,58 @@ int iscsi_session_set_params(struct iscsi_conn *conn)
 			.type = ISCSI_INT,
 			.conn_only = 1,
 		}, {
-			.param = ISCSI_PARAM_TARGET_NAME,
-			.conn_only = 0,
-			.type = ISCSI_STRING,
-			.value = session->target_name,
-		}, {
 			.param = ISCSI_PARAM_TPGT,
 			.value = &session->portal_group_tag,
 			.type = ISCSI_INT,
 			.conn_only = 0,
+		},
+	};
+
+	iscsi_session_init_params(session);
+
+	/* Entered full-feature phase! */
+	for (i = 0; i < MAX_SESSION_NEG_PARAMS; i++) {
+		if (conn->id != 0 && !conntbl[i].conn_only)
+			continue;
+
+		if (!(session->param_mask & (1ULL << conntbl[i].param)))
+			continue;
+
+		rc = ipc->set_param(session->t->handle, session->id,
+				   conn->id, conntbl[i].param, conntbl[i].value,
+				   conntbl[i].type);
+		if (rc && rc != -ENOSYS) {
+			log_error("can't set operational parameter %d for "
+				  "connection %d:%d, retcode %d (%d)",
+				  conntbl[i].param, session->id, conn->id,
+				  rc, errno);
+			return EPERM;
+		}
+
+		print_param_value(conntbl[i].param, conntbl[i].value,
+				  conntbl[i].type);
+	}
+
+	return 0;
+}
+
+#define MAX_SESSION_PARAMS 20
+
+int iscsi_session_set_params(struct iscsi_conn *conn)
+{
+	struct iscsi_session *session = conn->session;
+	int i, rc;
+	struct connparam {
+		int param;
+		int type;
+		void *value;
+		int conn_only;
+	} conntbl[MAX_SESSION_PARAMS] = {
+		{
+			.param = ISCSI_PARAM_TARGET_NAME,
+			.conn_only = 0,
+			.type = ISCSI_STRING,
+			.value = session->target_name,
 		}, {
 			.param = ISCSI_PARAM_PERSISTENT_ADDRESS,
 			.value = session->nrec.conn[conn->id].address,
@@ -512,22 +555,32 @@ int iscsi_session_set_params(struct iscsi_conn *conn)
 			.param = ISCSI_PARAM_IFACE_NAME,
 			.value = session->nrec.iface.name,
 			.type = ISCSI_STRING,
+			.conn_only = 0,
 		}, {
 			.param = ISCSI_PARAM_INITIATOR_NAME,
 			.value = session->initiator_name,
 			.type = ISCSI_STRING,
+			.conn_only = 0,
 		}, {
 			.param = ISCSI_PARAM_BOOT_ROOT,
 			.value = session->nrec.session.boot_root,
 			.type = ISCSI_STRING,
+			.conn_only = 0,
 		}, {
 			.param = ISCSI_PARAM_BOOT_NIC,
 			.value = session->nrec.session.boot_nic,
 			.type = ISCSI_STRING,
+			.conn_only = 0,
 		}, {
 			.param = ISCSI_PARAM_BOOT_TARGET,
 			.value = session->nrec.session.boot_target,
 			.type = ISCSI_STRING,
+			.conn_only = 0,
+		}, {
+			.param = ISCSI_PARAM_DISCOVERY_SESS,
+			.value = &session->type,
+			.type = ISCSI_INT,
+			.conn_only = 0,
 		},
 	};
 
