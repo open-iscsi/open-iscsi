@@ -3470,7 +3470,7 @@ main(int argc, char **argv)
 						       &params);
 				break;
 			case MODE_HOST_STATS:
-				if (!host_no) {
+				if (host_no > MAX_HOST_NO) {
 					log_error("STATS mode requires host no");
 					rc = ISCSI_ERR_INVAL;
 					break;
