@@ -2245,7 +2245,8 @@ static int exec_host_stats_op(int op, int info_level, uint32_t host_no)
 		goto exit_host_stats;
 	}
 
-	print_host_stats(req_buf + sizeof(struct iscsi_uevent));
+	print_host_stats((struct iscsi_offload_host_stats *)(req_buf +
+			 sizeof(struct iscsi_uevent)));
 
 	ipc->ctldev_close();
 
