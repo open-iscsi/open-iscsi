@@ -450,7 +450,6 @@ int nic_remove(nic_t *nic)
 	int rc;
 	nic_t *prev, *current;
 	struct stat file_stat;
-	void *res;
 	nic_interface_t *nic_iface, *next_nic_iface, *vlan_iface;
 
 	pthread_mutex_lock(&nic->nic_mutex);
@@ -471,12 +470,6 @@ int nic_remove(nic_t *nic)
 			LOG_DEBUG(PFX "%s: Couldn't send cancel to nic enable "
 				  "thread", nic->log_name);
 
-		LOG_DEBUG(PFX "%s: Waiting to join nic enable thread",
-			  nic->log_name);
-		rc = pthread_join(nic->enable_thread, &res);
-		if (rc != 0)
-			LOG_DEBUG(PFX "%s: Couldn't join to canceled enable "
-				  "nic thread", nic->log_name);
 		nic->enable_thread = INVALID_THREAD;
 		LOG_DEBUG(PFX "%s: nic enable thread cleaned", nic->log_name);
 	} else {
@@ -492,11 +485,6 @@ int nic_remove(nic_t *nic)
 			LOG_DEBUG(PFX "%s: Couldn't send cancel to nic",
 				  nic->log_name);
 
-		LOG_DEBUG(PFX "%s: Waiting to join nic thread", nic->log_name);
-		rc = pthread_join(nic->thread, &res);
-		if (rc != 0)
-			LOG_DEBUG(PFX "%s: Couldn't join to canceled nic "
-				  "thread", nic->log_name);
 		nic->thread = INVALID_THREAD;
 		LOG_DEBUG(PFX "%s: nic thread cleaned", nic->log_name);
 	} else {
@@ -511,12 +499,6 @@ int nic_remove(nic_t *nic)
 			LOG_DEBUG(PFX "%s: Couldn't send cancel to nic nl "
 				  "thread", nic->log_name);
 
-		LOG_DEBUG(PFX "%s: Waiting to join nic nl thread",
-			  nic->log_name);
-		rc = pthread_join(nic->nl_process_thread, &res);
-		if (rc != 0)
-			LOG_DEBUG(PFX "%s: Couldn't join to canceled nic nl "
-				  "thread", nic->log_name);
 		nic->nl_process_thread = INVALID_THREAD;
 		LOG_DEBUG(PFX "%s: nic nl thread cleaned", nic->log_name);
 	} else {
@@ -1238,7 +1220,6 @@ static int do_acquisition(nic_t *nic, nic_interface_t *nic_iface,
 {
 	struct in_addr addr;
 	struct in6_addr addr6;
-	void *res;
 	char buf[INET6_ADDRSTRLEN];
 	int rc = -1;
 
@@ -1316,9 +1297,9 @@ static int do_acquisition(nic_t *nic, nic_interface_t *nic_iface,
 			if (nic->enable_thread == INVALID_THREAD)
 				goto dhcp_err;
 
-			rc = pthread_join(nic->enable_thread, &res);
+			rc = pthread_cancel(nic->enable_thread);
 			if (rc != 0)
-				LOG_ERR(PFX "%s: Couldn't join to canceled "
+				LOG_ERR(PFX "%s: Couldn't cancel "
 					"enable nic thread", nic->log_name);
 dhcp_err:
 			pthread_mutex_lock(&nic->nic_mutex);

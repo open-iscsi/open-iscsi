@@ -10,6 +10,18 @@
                Copyright (c) 2004 - 2013 Broadcom Corporation
                            All rights reserved
 
+uIP v0.7.10.2 (Feb 12, 2014)
+=======================================================
+   Fixes
+   -----
+   1. Problem: Cont00072504 - ifconfig shows allocation failure after
+               up/down few hours with iSCSI + L2 traffic
+      Cause:   A memory leak was discovered in the ongoing pthread creation
+               destruction code during the connection recovery process
+      Change:  Fixed the pthread creation code
+      Impact:  All
+
+
 uIP v0.7.8.2 (Dec 10, 2013)
 =======================================================
    Fixes

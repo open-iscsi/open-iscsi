@@ -237,6 +237,7 @@ int main(int argc, char *argv[])
 	int fd;
 	int foreground = 0;
 	pid_t pid;
+	pthread_attr_t attr;
 
 	/*  Record the start time for the user space daemon */
 	opt.start_time = time(NULL);
@@ -366,7 +367,9 @@ int main(int argc, char *argv[])
 	rc = pthread_sigmask(SIG_SETMASK, &set, NULL);
 
 	/*  Spin off the signal handling thread */
-	rc = pthread_create(&signal_thread, NULL, signal_handle_thread, NULL);
+	pthread_attr_init(&attr);
+	pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED);
+	rc = pthread_create(&signal_thread, &attr, signal_handle_thread, NULL);
 	if (rc != 0)
 		LOG_ERR("Could not create signal handling thread");
 

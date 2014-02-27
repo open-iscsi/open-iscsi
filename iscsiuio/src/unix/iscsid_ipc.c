@@ -334,9 +334,9 @@ static int parse_iface(void *arg)
 	char ipv6_buf_str[INET6_ADDRSTRLEN];
 	int request_type = 0;
 	struct iface_rec *rec;
-	void *res;
 	struct iface_rec_decode ird;
 	struct in_addr src_match, dst_match;
+	pthread_attr_t attr;
 
 	data = (iscsid_uip_broadcast_t *) arg;
 	rec = &data->u.iface_rec.rec;
@@ -594,7 +594,9 @@ static int parse_iface(void *arg)
 
 	nic_iface->flags |= NIC_IFACE_PATHREQ_WAIT1;
 	if (nic->nl_process_thread == INVALID_THREAD) {
-		rc = pthread_create(&nic->nl_process_thread, NULL,
+		pthread_attr_init(&attr);
+		pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED);
+		rc = pthread_create(&nic->nl_process_thread, &attr,
 				    nl_process_handle_thread, nic);
 		if (rc != 0) {
 			LOG_ERR(PFX "%s: Could not create NIC NL "
@@ -745,14 +747,16 @@ enable_nic:
 	case NIC_STOPPED:
 		/* This thread will be thrown away when completed */
 		if (nic->enable_thread != INVALID_THREAD) {
-			rc = pthread_join(nic->enable_thread, &res);
+			rc = pthread_cancel(nic->enable_thread);
 			if (rc != 0) {
-				LOG_INFO(PFX "%s: failed joining enable NIC "
+				LOG_INFO(PFX "%s: failed to cancel enable NIC "
 					 "thread\n", nic->log_name);
 				goto eagain;
 			}
 		}
-		rc = pthread_create(&nic->enable_thread, NULL,
+		pthread_attr_init(&attr);
+		pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED);
+		rc = pthread_create(&nic->enable_thread, &attr,
 				    enable_nic_thread, (void *)nic);
 		if (rc != 0)
 			LOG_WARN(PFX "%s: failed starting enable NIC thread\n",
@@ -1001,9 +1005,12 @@ error:
  */
 int iscsid_start()
 {
+	pthread_attr_t attr;
 	int rc;
 
-	rc = pthread_create(&iscsid_opts.thread, NULL, iscsid_loop, NULL);
+	pthread_attr_init(&attr);
+	pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED);
+	rc = pthread_create(&iscsid_opts.thread, &attr, iscsid_loop, NULL);
 	if (rc != 0) {
 		LOG_ERR(PFX "Could not start iscsid listening thread rc=%d",
 			rc);
@@ -1026,19 +1033,12 @@ error:
 void iscsid_cleanup()
 {
 	int rc;
-	void *res;
 
 	if (iscsid_opts.fd != INVALID_FD) {
 		rc = pthread_cancel(iscsid_opts.thread);
 		if (rc != 0) {
 			LOG_ERR("Could not cancel iscsid listening thread: %s",
 				strerror(rc));
-		}
-
-		rc = pthread_join(iscsid_opts.thread, &res);
-		if (rc != 0) {
-			LOG_ERR("Could not wait for the iscsid listening "
-				"thread: %s", strerror(rc));
 		}
 	}
 

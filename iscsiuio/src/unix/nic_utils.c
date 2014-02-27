@@ -871,6 +871,7 @@ error:
 
 void prepare_nic_thread(nic_t *nic)
 {
+	pthread_attr_t attr;
 	int rc;
 
 	pthread_mutex_lock(&nic->nic_mutex);
@@ -881,7 +882,9 @@ void prepare_nic_thread(nic_t *nic)
 		LOG_INFO(PFX "%s: spinning up thread for nic", nic->log_name);
 
 		/*  Try to spin up the nic thread */
-		rc = pthread_create(&nic->thread, NULL, nic_loop, nic);
+		pthread_attr_init(&attr);
+		pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED);
+		rc = pthread_create(&nic->thread, &attr, nic_loop, nic);
 		if (rc != 0) {
 			LOG_ERR(PFX "%s: Couldn't create thread for nic",
 				nic->log_name);
