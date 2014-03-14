@@ -165,8 +165,11 @@ void event_loop(struct iscsi_ipc *ipc, int control_fd, int mgmt_ipc_fd)
 					  "exiting", res, errno);
 				break;
 			}
-		} else
+		}
+
+		if (res >= 0)
 			actor_poll();
+
 		reap_proc();
 		/*
 		 * flush sysfs cache since kernel objs may

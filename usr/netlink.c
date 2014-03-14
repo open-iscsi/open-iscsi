@@ -1615,8 +1615,8 @@ static int ctldev_handle(void)
 
 	ev_context = ipc_ev_clbk->get_ev_context(conn, ev_size);
 	if (!ev_context) {
-		/* retry later */
 		log_error("Can not allocate memory for receive context.");
+		drop_data(nlh);
 		return -ENOMEM;
 	}
 
