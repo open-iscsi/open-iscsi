@@ -431,7 +431,7 @@ int iscsi_session_set_neg_params(struct iscsi_conn *conn)
 		}, {
 			.param = ISCSI_PARAM_EXP_STATSN,
 			.value = &conn->exp_statsn,
-			.type = ISCSI_INT,
+			.type = ISCSI_UINT,
 			.conn_only = 1,
 		}, {
 			.param = ISCSI_PARAM_TPGT,

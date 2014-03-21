@@ -716,6 +716,9 @@ kset_param(uint64_t transport_handle, uint32_t sid, uint32_t cid,
 	case ISCSI_INT:
 		sprintf(param_str, "%d", *((int *)value));
 		break;
+	case ISCSI_UINT:
+		sprintf(param_str, "%u", *((unsigned int *)value));
+		break;
 	case ISCSI_STRING:
 		if (!strlen(value))
 			return 0;

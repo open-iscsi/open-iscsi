@@ -30,6 +30,7 @@
 
 enum {
 	ISCSI_INT,
+	ISCSI_UINT,
 	ISCSI_STRING,
 };
 
