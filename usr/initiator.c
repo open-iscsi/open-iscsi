@@ -55,10 +55,19 @@
 
 #define PROC_DIR "/proc"
 
+struct login_task_retry_info {
+	actor_t retry_actor;
+	queue_task_t *qtask;
+	node_rec_t *rec;
+	int retry_count;
+};
+
 static void iscsi_login_timedout(void *data);
 static int iscsi_sched_ev_context(struct iscsi_ev_context *ev_context,
 				  struct iscsi_conn *conn, unsigned long tmo,
 				  int event);
+static int queue_session_login_task_retry(struct login_task_retry_info *info,
+					  node_rec_t *rec, queue_task_t *qtask);
 
 static int iscsi_ev_context_alloc(iscsi_conn_t *conn)
 {
@@ -324,14 +333,17 @@ session_release(iscsi_session_t *session)
 }
 
 static iscsi_session_t*
-__session_create(node_rec_t *rec, struct iscsi_transport *t)
+__session_create(node_rec_t *rec, struct iscsi_transport *t, int *rc)
 {
 	iscsi_session_t *session;
-	int hostno, rc = 0;
+	int hostno;
+
+	*rc = 0;
 
 	session = calloc(1, sizeof (*session));
 	if (session == NULL) {
 		log_debug(1, "can not allocate memory for session");
+		*rc = ISCSI_ERR_NOMEM;
 		return NULL;
 	}
 	log_debug(2, "Allocted session %p", session);
@@ -356,8 +368,8 @@ __session_create(node_rec_t *rec, struct iscsi_transport *t)
 		session->initiator_name = dconfig->initiator_name;
 	else {
 		log_error("No initiator name set. Cannot create session.");
-		free(session);
-		return NULL;
+		*rc = ISCSI_ERR_INVAL;
+		goto free_session;
 	}
 
 	if (strlen(session->nrec.iface.alias))
@@ -386,8 +398,8 @@ __session_create(node_rec_t *rec, struct iscsi_transport *t)
 
 	iscsi_session_init_params(session);
 
-	hostno = iscsi_sysfs_get_host_no_from_hwinfo(&rec->iface, &rc);
-	if (!rc) {
+	hostno = iscsi_sysfs_get_host_no_from_hwinfo(&rec->iface, rc);
+	if (!*rc) {
 		/*
 		 * if the netdev or mac was set, then we are going to want
 		 * to want to bind the all the conns/eps to a specific host
@@ -395,10 +407,18 @@ __session_create(node_rec_t *rec, struct iscsi_transport *t)
 		 */
 		session->conn[0].bind_ep = 1;
 		session->hostno = hostno;
+	} else if (*rc == ISCSI_ERR_HOST_NOT_FOUND) {
+		goto free_session;	
+	} else {
+		 *rc = 0;
 	}
 
 	list_add_tail(&session->list, &t->sessions);
 	return session;
+
+free_session:
+	free(session);
+	return NULL;
 }
 
 static void iscsi_flush_context_pool(struct iscsi_session *session)
@@ -1862,8 +1882,7 @@ static int session_is_running(node_rec_t *rec)
 	return 0;
 }
 
-int
-session_login_task(node_rec_t *rec, queue_task_t *qtask)
+static int __session_login_task(node_rec_t *rec, queue_task_t *qtask)
 {
 	iscsi_session_t *session;
 	iscsi_conn_t *conn;
@@ -1930,8 +1949,10 @@ session_login_task(node_rec_t *rec, queue_task_t *qtask)
 		rec->conn[0].iscsi.OFMarker = 0;
 	}
 
-	session = __session_create(rec, t);
-	if (!session)
+	session = __session_create(rec, t, &rc);
+	if (rc == ISCSI_ERR_HOST_NOT_FOUND)
+		return rc;
+	else if (!session)
 		return ISCSI_ERR_LOGIN;
 
 	/* FIXME: login all connections! marked as "automatic" */
@@ -1979,6 +2000,74 @@ session_login_task(node_rec_t *rec, queue_task_t *qtask)
 	return ISCSI_SUCCESS;
 }
 
+int
+session_login_task(node_rec_t *rec, queue_task_t *qtask)
+{
+	int rc;
+
+	rc = __session_login_task(rec, qtask);
+	if (rc == ISCSI_ERR_HOST_NOT_FOUND) {
+		rc = queue_session_login_task_retry(NULL, rec, qtask);
+		if (rc)
+			return rc;
+		/*
+		 * we are going to internally retry. Will return final rc
+		 * when completed
+		 */
+		return ISCSI_SUCCESS;
+	}
+	return rc;
+}
+
+static void session_login_task_retry(void *data)
+{
+	struct login_task_retry_info *info = data;
+	int rc;
+
+	rc = __session_login_task(info->rec, info->qtask);
+	if (rc == ISCSI_ERR_HOST_NOT_FOUND) {
+		if (info->retry_count == 5) {
+			/* give up */
+			goto write_rsp;
+		}
+
+		rc = queue_session_login_task_retry(info, info->rec,
+						    info->qtask);
+		if (rc)
+			goto write_rsp;
+		/* we are going to internally retry */
+		return;
+	} else if (rc) {
+		/* hard error - no retry */
+		goto write_rsp;
+	} else
+		/* successfully started login operation */
+		goto free;
+write_rsp:
+	mgmt_ipc_write_rsp(info->qtask, rc);
+free:
+	free(info);
+}
+
+static int queue_session_login_task_retry(struct login_task_retry_info *info,
+					  node_rec_t *rec, queue_task_t *qtask)
+{
+	if (!info) {
+		info = malloc(sizeof(*info));
+		if (!info)
+			return ISCSI_ERR_NOMEM;
+		memset(info, 0, sizeof(*info));
+		info->qtask = qtask;
+		info->rec = rec;
+	}
+
+	info->retry_count++;
+	log_debug(4, "queue session setup attempt in %d secs, retries %d\n",
+		  3, info->retry_count);
+	actor_timer(&info->retry_actor, 3000, session_login_task_retry, info);
+	return 0;
+}
+
 static int
 sync_conn(iscsi_session_t *session, uint32_t cid)
 {
@@ -2006,7 +2095,7 @@ iscsi_sync_session(node_rec_t *rec, queue_task_t *qtask, uint32_t sid)
 	if (!t)
 		return ISCSI_ERR_TRANS_NOT_FOUND;
 
-	session = __session_create(rec, t);
+	session = __session_create(rec, t, &err);
 	if (!session)
 		return ISCSI_ERR_LOGIN;
 
