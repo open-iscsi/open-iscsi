@@ -463,7 +463,6 @@ mgmt_ipc_write_rsp(queue_task_t *qtask, int err)
 	qtask->rsp.err = err;
 	if (write(qtask->mgmt_ipc_fd, &qtask->rsp, sizeof(qtask->rsp)) < 0)
 		log_error("IPC qtask write failed: %s", strerror(errno));
-	close(qtask->mgmt_ipc_fd);
 	mgmt_ipc_destroy_queue_task(qtask);
 }
 
