@@ -48,6 +48,7 @@ struct boot_context {
 	char initiatorname[TARGET_NAME_MAXLEN + 1];
 
 	/* network settings */
+	char origin[2];
 	char dhcp[NI_MAXHOST];
 	char iface[IF_NAMESIZE];
 	char mac[18];

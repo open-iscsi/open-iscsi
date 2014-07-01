@@ -201,6 +201,8 @@ static int fill_nic_context(char *id, struct boot_context *context)
 		      sizeof(context->secondary_dns));
 	sysfs_get_str(id, IBFT_SUBSYS, "dhcp", context->dhcp,
 		      sizeof(context->dhcp));
+	sysfs_get_str(id, IBFT_SUBSYS, "origin", context->origin,
+		      sizeof(context->origin));
 	return 0;
 }
 
