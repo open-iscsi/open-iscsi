@@ -671,7 +671,6 @@ int sysfs_set_param(char *id, char *subsys, char *attr_name,
 	char devpath[PATH_SIZE];
 	size_t sysfs_len;
 	char path_full[PATH_SIZE];
-	const char *path;
 	int rc = 0, fd;
 
 	if (!sysfs_lookup_devpath_by_subsys_id(devpath, sizeof(devpath),
@@ -684,7 +683,6 @@ int sysfs_set_param(char *id, char *subsys, char *attr_name,
 	sysfs_len = strlcpy(path_full, sysfs_path, sizeof(path_full));
 	if(sysfs_len >= sizeof(path_full))
 		sysfs_len = sizeof(path_full) - 1;
-	path = &path_full[sysfs_len];
 	strlcat(path_full, devpath, sizeof(path_full));
 	strlcat(path_full, "/", sizeof(path_full));
 	strlcat(path_full, attr_name, sizeof(path_full));
