@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2009-2011, Broadcom Corporation
+ * Copyright (c) 2014, QLogic Corporation
  *
  * Written by: Benjamin Li  (benli@broadcom.com)
  *

@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2009-2011, Broadcom Corporation
+ * Copyright (c) 2014, QLogic Corporation
  *
  * Written by:  Benjamin Li  (benli@broadcom.com)
  *
@@ -80,39 +81,39 @@ static const char bnx2x_uio_sysfs_name[] = "bnx2x_cnic";
 /*******************************************************************************
  * String constants used to display human readable adapter name
  ******************************************************************************/
-static const char brcm_57710[] = "Broadcom NetXtreme II BCM57710 10-Gigabit";
-static const char brcm_57711[] = "Broadcom NetXtreme II BCM57711 10-Gigabit";
-static const char brcm_57711e[] = "Broadcom NetXtreme II BCM57711E 10-Gigabit";
-static const char brcm_57712[] = "Broadcom NetXtreme II BCM57712 10-Gigabit";
-static const char brcm_57712_MF[] = "Broadcom NetXtreme II BCM57712 MF "
+static const char brcm_57710[] = "QLogic NetXtreme II BCM57710 10-Gigabit";
+static const char brcm_57711[] = "QLogic NetXtreme II BCM57711 10-Gigabit";
+static const char brcm_57711e[] = "QLogic NetXtreme II BCM57711E 10-Gigabit";
+static const char brcm_57712[] = "QLogic NetXtreme II BCM57712 10-Gigabit";
+static const char brcm_57712_MF[] = "QLogic NetXtreme II BCM57712 MF "
 				    "10-Gigabit";
-static const char brcm_57712_VF[] = "Broadcom NetXtreme II BCM57712 VF "
+static const char brcm_57712_VF[] = "QLogic NetXtreme II BCM57712 VF "
 				    "10-Gigabit";
-static const char brcm_57713[] = "Broadcom NetXtreme II BCM57713 10-Gigabit";
-static const char brcm_57713e[] = "Broadcom NetXtreme II BCM57713E 10-Gigabit";
-static const char brcm_57800[] = "Broadcom NetXtreme II BCM57800 10-Gigabit";
-static const char brcm_57800_MF[] = "Broadcom NetXtreme II BCM57800 MF "
+static const char brcm_57713[] = "QLogic NetXtreme II BCM57713 10-Gigabit";
+static const char brcm_57713e[] = "QLogic NetXtreme II BCM57713E 10-Gigabit";
+static const char brcm_57800[] = "QLogic NetXtreme II BCM57800 10-Gigabit";
+static const char brcm_57800_MF[] = "QLogic NetXtreme II BCM57800 MF "
 				    "10-Gigabit";
-static const char brcm_57800_VF[] = "Broadcom NetXtreme II BCM57800 VF "
+static const char brcm_57800_VF[] = "QLogic NetXtreme II BCM57800 VF "
 				    "10-Gigabit";
-static const char brcm_57810[] = "Broadcom NetXtreme II BCM57810 10-Gigabit";
-static const char brcm_57810_MF[] = "Broadcom NetXtreme II BCM57810 MF "
+static const char brcm_57810[] = "QLogic NetXtreme II BCM57810 10-Gigabit";
+static const char brcm_57810_MF[] = "QLogic NetXtreme II BCM57810 MF "
 				    "10-Gigabit";
-static const char brcm_57810_VF[] = "Broadcom NetXtreme II BCM57810 VF "
+static const char brcm_57810_VF[] = "QLogic NetXtreme II BCM57810 VF "
 				    "10-Gigabit";
-static const char brcm_57811[] = "Broadcom NetXtreme II BCM57811 10-Gigabit";
-static const char brcm_57811_MF[] = "Broadcom NetXtreme II BCM57811 MF "
+static const char brcm_57811[] = "QLogic NetXtreme II BCM57811 10-Gigabit";
+static const char brcm_57811_MF[] = "QLogic NetXtreme II BCM57811 MF "
 				    "10-Gigabit";
-static const char brcm_57811_VF[] = "Broadcom NetXtreme II BCM57811 VF "
+static const char brcm_57811_VF[] = "QLogic NetXtreme II BCM57811 VF "
 				    "10-Gigabit";
-static const char brcm_57840[] = "Broadcom NetXtreme II BCM57840 10-Gigabit";
-static const char brcm_57840_MF[] = "Broadcom NetXtreme II BCM57840 MF "
+static const char brcm_57840[] = "QLogic NetXtreme II BCM57840 10-Gigabit";
+static const char brcm_57840_MF[] = "QLogic NetXtreme II BCM57840 MF "
 				    "10-Gigabit";
-static const char brcm_57840_VF[] = "Broadcom NetXtreme II BCM57840 VF "
+static const char brcm_57840_VF[] = "QLogic NetXtreme II BCM57840 VF "
 				    "10-Gigabit";
-static const char brcm_57840_4_10[] = "Broadcom NetXtreme II BCM57840 4x"
+static const char brcm_57840_4_10[] = "QLogic NetXtreme II BCM57840 4x"
 				      "10-Gigabit";
-static const char brcm_57840_2_20[] = "Broadcom NetXtreme II BCM57840 2x"
+static const char brcm_57840_2_20[] = "QLogic NetXtreme II BCM57840 2x"
 				      "20-Gigabit";
 
 /*******************************************************************************

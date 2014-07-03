@@ -1,13 +1,14 @@
                               Release Notes
-                        Broadcom uIP Linux Driver
+                        QLogic uIP Linux Driver
                             Version 0.7.8.2
                                12/10/2013
 
-                          Broadcom Corporation
-                         5300 California Avenue,
-                            Irvine, CA 92617
+                          QLogic Corporation
+                        26650 Aliso Viejo Pkwy,
+                         Aliso Viejo, CA 92656
 
                Copyright (c) 2004 - 2013 Broadcom Corporation
+                   Copyright (c) 2014, QLogic Corporation
                            All rights reserved
 
 uIP v0.7.10.2 (Feb 12, 2014)

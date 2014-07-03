@@ -1,6 +1,7 @@
 dnl iscsiuio uIP user space stack configure.ac file
 dnl
 dnl Copyright (c) 2004-2013 Broadcom Corporation
+dnl Copyright (c) 2014, QLogic Corporation
 dnl
 dnl This program is free software; you can redistribute it and/or modify
 dnl it under the terms of the GNU General Public License as published by
@@ -13,7 +14,7 @@ dnl
 PACKAGE=iscsiuio
 VERSION=0.7.8.2
 
-AC_INIT([iscsiuio], [0.7.8.2], [eddie.wai@broadcom.com])
+AC_INIT([iscsiuio], [0.7.8.2], [QLogic-Storage-Upstream@qlogic.com])
 
 AM_INIT_AUTOMAKE
 AC_CONFIG_HEADER(config.h)

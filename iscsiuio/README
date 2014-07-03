@@ -3,11 +3,11 @@ Version 0.7.8.2
 Dec 10, 2013
 ------------------------------------------------------
 
-This tool is to be used in conjunction with the Broadcom NetXtreme II Linux
-driver (Kernel module name: 'bnx2' and 'bnx2x'), Broadcom CNIC driver,
-and the Broadcom iSCSI driver (Kernel module name: 'bnx2i').
+This tool is to be used in conjunction with the QLogic NetXtreme II Linux
+driver (Kernel module name: 'bnx2' and 'bnx2x'), QLogic CNIC driver,
+and the QLogic iSCSI driver (Kernel module name: 'bnx2i').
 This user space tool is used in conjunction with the following
-Broadcom Network Controllers:
+QLogic Network Controllers:
   bnx2:  BCM5706, BCM5708, BCM5709 devices
   bnx2x: BCM57710, BCM57711, BCM57711E, BCM57712, BCM57712E,
          BCM57800, BCM57810, BCM57840 devices
@@ -25,8 +25,8 @@ Dependencies:
 =======================================
 
 Linux Kernel Dependencies:
-1.  Broadcom CNIC driver (cnic)
-1.  Broadcom iSCSI offload driver (bnx2i)
+1.  QLogic CNIC driver (cnic)
+1.  QLogic iSCSI offload driver (bnx2i)
 2.  Userspace I/O driver (uio)
 
 Directory Structure of this Package:

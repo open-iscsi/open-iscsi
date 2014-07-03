@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2009-2011, Broadcom Corporation
+ * Copyright (c) 2014, QLogic Corporation
  *
  * Written by:  Benjamin Li  (benli@broadcom.com)
  *
@@ -75,20 +76,20 @@ static const char cnic_uio_sysfs_name[] = "bnx2_cnic";
 /*******************************************************************************
  * String constants used to display human readable adapter name
  ******************************************************************************/
-static const char brcm_5706C[] = "Broadcom NetXtreme II BCM5706 1000Base-T";
+static const char brcm_5706C[] = "QLogic NetXtreme II BCM5706 1000Base-T";
 static const char hp_NC370T[] =
 	"HP NC370T Multifunction Gigabit Server Adapter";
 static const char hp_NC370I[] =
 	"HP NC370i Multifunction Gigabit Server Adapter";
-static const char brcm_5706S[] = "Broadcom NetXtreme II BCM5706 1000Base-SX";
+static const char brcm_5706S[] = "QLogic NetXtreme II BCM5706 1000Base-SX";
 static const char hp_NC370F[] =
 	"HP NC370F Multifunction Gigabit Server Adapter";
-static const char brcm_5708C[] = "Broadcom NetXtreme II BCM5708 1000Base-T";
-static const char brcm_5708S[] = "Broadcom NetXtreme II BCM5708 1000Base-SX";
-static const char brcm_5709C[] = "Broadcom NetXtreme II BCM5709 1000Base-T";
-static const char brcm_5709S[] = "Broadcom NetXtreme II BCM5709 1000Base-SX";
-static const char brcm_5716C[] = "Broadcom NetXtreme II BCM5716 1000Base-T";
-static const char brcm_5716S[] = "Broadcom NetXtreme II BCM5716 1000Base-SX";
+static const char brcm_5708C[] = "QLogic NetXtreme II BCM5708 1000Base-T";
+static const char brcm_5708S[] = "QLogic NetXtreme II BCM5708 1000Base-SX";
+static const char brcm_5709C[] = "QLogic NetXtreme II BCM5709 1000Base-T";
+static const char brcm_5709S[] = "QLogic NetXtreme II BCM5709 1000Base-SX";
+static const char brcm_5716C[] = "QLogic NetXtreme II BCM5716 1000Base-T";
+static const char brcm_5716S[] = "QLogic NetXtreme II BCM5716 1000Base-SX";
 
 /*******************************************************************************
  * PCI ID constants

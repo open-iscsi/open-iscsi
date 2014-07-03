@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2011, Broadcom Corporation
+ * Copyright (c) 2014, QLogic Corporation
  *
  * Written by:  Eddie Wai <eddie.wai@broadcom.com>
  *              Based on code from Kevin Tran's iSCSI boot code
@@ -227,7 +228,7 @@ struct dhcpv6_option {
 
 #define IANA_ENTERPRISE_NUM_BROADCOM   0x113d
 
-/* Broadcom Extended DHCP options used in iSCSI boot */
+/* QLogic Extended DHCP options used in iSCSI boot */
 #define DHCPV6_TAG_FIRST_ISCSI_TARGET_NAME              201
 #define DHCPV6_TAG_SECOND_ISCSI_TARGET_NAME             202
 #define DHCPV6_TAG_ISCSI_INITIATOR_NAME                 203

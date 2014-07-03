@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2011, Broadcom Corporation
+ * Copyright (c) 2014, QLogic Corporation
  *
  * Written by: Eddie Wai  (eddie.wai@broadcom.com)
  *             Based on Kevin Tran's iSCSI boot code
