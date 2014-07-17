@@ -1503,7 +1503,7 @@ static int set_host_chap_info(uint32_t host_no, uint64_t chap_index,
 	struct iovec *iovs = NULL;
 	struct iovec *iov = NULL;
 	int type;
-	int param_count;
+	int param_count = 0;
 	int param_used;
 	int rc = 0;
 	int fd, i = 0;
