@@ -20,6 +20,12 @@
 #include "types.h"
 #include "config.h"
 
+enum set_host_ip_opts {
+	SET_HOST_IP_NOT_REQ,	/* iface.ipaddress is not supported	*/
+	SET_HOST_IP_REQ,	/* iface.ipaddress must be specified	*/
+	SET_HOST_IP_OPT,	/* iface.ipaddress is not required	*/
+};
+
 struct iscsi_transport;
 struct iscsi_conn;
 

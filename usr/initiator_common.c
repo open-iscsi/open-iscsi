@@ -685,9 +685,18 @@ int iscsi_host_set_net_params(struct iface_rec *iface,
 
 	/* if we need to set the ip addr then set all the iface net settings */
 	if (!iface_is_bound_by_ipaddr(iface)) {
-		log_warning("Please set the iface.ipaddress for iface %s, "
-			    "then retry the login command.\n", iface->name);
-		return EINVAL;
+		if (t->template->set_host_ip == SET_HOST_IP_REQ) {
+			log_warning("Please set the iface.ipaddress for iface "
+				    "%s, then retry the login command.\n",
+				    iface->name);
+			return EINVAL;
+		} else if (t->template->set_host_ip == SET_HOST_IP_OPT) {
+			log_info("Optional iface.ipaddress for iface %s "
+				 "not set.\n", iface->name);
+			return 0;
+		} else {
+			return EINVAL;
+		}
 	}
 
 	/* these type of drivers need the netdev upd */

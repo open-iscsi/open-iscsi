@@ -58,7 +58,7 @@ struct iscsi_transport_template iscsi_iser = {
 
 struct iscsi_transport_template cxgb3i = {
 	.name		= "cxgb3i",
-	.set_host_ip	= 1,
+	.set_host_ip	= SET_HOST_IP_OPT,
 	.ep_connect	= ktransport_ep_connect,
 	.ep_poll	= ktransport_ep_poll,
 	.ep_disconnect	= ktransport_ep_disconnect,
@@ -67,7 +67,7 @@ struct iscsi_transport_template cxgb3i = {
 
 struct iscsi_transport_template cxgb4i = {
 	.name		= "cxgb4i",
-	.set_host_ip	= 1,
+	.set_host_ip	= SET_HOST_IP_NOT_REQ,
 	.ep_connect	= ktransport_ep_connect,
 	.ep_poll	= ktransport_ep_poll,
 	.ep_disconnect	= ktransport_ep_disconnect,
@@ -76,7 +76,7 @@ struct iscsi_transport_template cxgb4i = {
 
 struct iscsi_transport_template bnx2i = {
 	.name		= "bnx2i",
-	.set_host_ip	= 1,
+	.set_host_ip	= SET_HOST_IP_REQ,
 	.use_boot_info	= 1,
 	.ep_connect	= ktransport_ep_connect,
 	.ep_poll	= ktransport_ep_poll,
@@ -94,7 +94,7 @@ struct iscsi_transport_template be2iscsi = {
 
 struct iscsi_transport_template qla4xxx = {
 	.name		= "qla4xxx",
-	.set_host_ip	= 0,
+	.set_host_ip	= SET_HOST_IP_NOT_REQ,
 	.ep_connect	= ktransport_ep_connect,
 	.ep_poll	= ktransport_ep_poll,
 	.ep_disconnect	= ktransport_ep_disconnect,
