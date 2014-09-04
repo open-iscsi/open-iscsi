@@ -272,6 +272,8 @@ usage(int exval, const char *msg)
 	"\nThe following actions are supported:\n"
 	"  --register      Register one or more objects\n"
 	"  --deregister    Deregister an object (and children)\n"
+	"  --dd-register   Register a Discovery Domain (and members)\n"
+	"  --dd-deregister Deregister a Discovery Domain (and members)\n"
 	"  --query         Query iSNS server for objects\n"
 	"  --list          List all objects of a given type\n"
 	"  --enroll        Create a new policy object for a client\n"

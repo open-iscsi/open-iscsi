@@ -25,6 +25,10 @@ isnsadm \- iSNS client utility
 .PP
 .B isnsadm
 .RB [ ... ]
+.RI --dd-deregister " dd-id attr=value
+.PP
+.B isnsadm
+.RB [ ... ]
 .RI --enroll " client-name attr=value
 .PP
 .B isnsadm
@@ -451,6 +455,18 @@ pairs. Only discovery domain attributes are recognized.
 Note, in order to add members to an existing domain, you must
 specify the domain's numeric ID. The domain's symbolic name
 is not a valid handle when referring to a discovery domain.
+.\"---------------------------
+.SS Discovery Domain Deregistration mode
+In this mode, you can deregister a discoery domain previously registered.
+Only the node which registered a discovery domain in the first place is
+permitted to remove it, or any of its members. (Control
+nodes are not bound by this restriction).
+.PP
+In Discovery Domain deregistration mode, the argument list consists of
+the Discovery Domain ID, followed by a list of
+.IB attr = value
+pairs. Discovery Domain Deregistration supports the same set of attributes as
+query mode.
 .\"---------------------------
 .SS Client Enrollment
 This mode only works when the server recognizes the client
