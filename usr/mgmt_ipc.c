@@ -36,6 +36,7 @@
 #include "sysdeps.h"
 #include "iscsi_ipc.h"
 #include "iscsi_err.h"
+#include "iscsi_util.h"
 
 #define PEERUSER_MAX	64
 #define EXTMSG_MAX	(64 * 1024)
