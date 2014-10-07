@@ -104,7 +104,7 @@ void reset_packet(packet_t *pkt)
 
 int alloc_free_queue(nic_t *nic, size_t num_of_packets)
 {
-	int rc, i;
+	int i;
 
 	pthread_mutex_lock(&nic->free_packet_queue_mutex);
 	for (i = 0; i < num_of_packets; i++) {
@@ -112,7 +112,6 @@ int alloc_free_queue(nic_t *nic, size_t num_of_packets)
 
 		pkt = alloc_packet(1500, 1500);
 		if (pkt == NULL) {
-			rc = i;
 			goto done;
 		}
 
@@ -121,8 +120,6 @@ int alloc_free_queue(nic_t *nic, size_t num_of_packets)
 		pkt->next = nic->free_packet_queue;
 		nic->free_packet_queue = pkt;
 	}
-
-	rc = num_of_packets;
 
 done:
 	pthread_mutex_unlock(&nic->free_packet_queue_mutex);

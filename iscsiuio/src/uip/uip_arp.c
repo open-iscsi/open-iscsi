@@ -310,11 +310,9 @@ uip_arp_arpin(nic_interface_t *nic_iface,
 dest_ipv4_addr_t
 uip_determine_dest_ipv4_addr(struct uip_stack *ustack, u16_t *ipaddr)
 {
-	struct arp_hdr *arp;
 	struct uip_eth_hdr *eth;
 	struct ip_hdr *ip_buf;
 
-	arp = (struct arp_hdr *)ustack->network_layer;
 	eth = (struct uip_eth_hdr *)ustack->data_link_layer;
 	ip_buf = (struct ip_hdr *)ustack->network_layer;
 

@@ -989,9 +989,6 @@ int process_packets(nic_t *nic,
 		uint16_t type = 0;
 		int af_type = 0;
 		struct uip_stack *ustack;
-		struct ip_hdr *ip;
-		struct ipv6_hdr *ip6;
-		void *dst_ip;
 		uint16_t vlan_id;
 
 		pkt->data_link_layer = pkt->buf;
@@ -1013,14 +1010,10 @@ int process_packets(nic_t *nic,
 		switch (type) {
 		case UIP_ETHTYPE_IPv6:
 			af_type = AF_INET6;
-			ip6 = (struct ipv6_hdr *) pkt->network_layer;
-			dst_ip = (void *)&ip6->ipv6_dst;
 			break;
 		case UIP_ETHTYPE_IPv4:
 		case UIP_ETHTYPE_ARP:
 			af_type = AF_INET;
-			ip = (struct ip_hdr *) pkt->network_layer;
-			dst_ip = (void *)&ip->destipaddr;
 			break;
 		default:
 			LOG_PACKET(PFX "%s: Ignoring vlan:0x%x ethertype:0x%x",
