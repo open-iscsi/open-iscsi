@@ -91,7 +91,7 @@ void prepare_nic_thread(nic_t *nic);
 void prepare_library(nic_t *nic);
 
 int nic_enable(nic_t *nic);
-int nic_disable(nic_t *nic, int going_down);
+void nic_disable(nic_t *nic, int going_down);
 
 void dump_packet_to_log(struct nic_interface *iface,
 			uint8_t *buf, uint16_t buf_len);
