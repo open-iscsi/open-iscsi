@@ -823,7 +823,11 @@ static void prepare_ipv4_packet(nic_t *nic,
 		break;
 	case NOT_IN_ARP_TABLE:
 		queue_rc = nic_queue_tx_packet(nic, nic_iface, pkt);
-		uip_build_arp_request(ustack, ipaddr);
+		if (queue_rc) {
+			LOG_ERR("could not queue TX packet: %d", queue_rc);
+		} else {
+			uip_build_arp_request(ustack, ipaddr);
+		}
 		break;
 	default:
 		LOG_ERR("Unknown arp state");
