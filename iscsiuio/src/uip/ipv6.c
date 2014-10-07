@@ -92,7 +92,7 @@ int iscsiL2AddMcAddr(struct ipv6_context *context,
 {
 	int i;
 	struct mac_address *mc_addr;
-	const struct mac_address all_zeroes_mc = { { 0, 0, 0, 0, 0, 0 } };
+	const struct mac_address all_zeroes_mc = { { { 0, 0, 0, 0, 0, 0 } } };
 
 	mc_addr = context->mc_addr;
 	for (i = 0; i < MAX_MCADDR_TABLE; i++, mc_addr++)

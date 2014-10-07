@@ -71,7 +71,13 @@ struct udp_hdr {
 };
 
 struct mac_address {
-	u8_t addr[6];
+	union {
+		u8_t addr[6];
+		struct {
+			u16_t first_2_bytes;
+			u32_t last_4_bytes;
+		} __attribute__ ((packed));
+	};
 };
 
 #define HOST_TO_NET16(a) htons(a)
