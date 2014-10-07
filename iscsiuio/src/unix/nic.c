@@ -999,11 +999,13 @@ int process_packets(nic_t *nic,
 		vlan_id = pkt->vlan_tag & 0xFFF;
 		if ((vlan_id == 0) ||
 		    (NIC_VLAN_STRIP_ENABLED & nic->flags)) {
-			type = ntohs(ETH_BUF(pkt->buf)->type);
+			struct uip_eth_hdr *hdr = ETH_BUF(pkt->buf);
+			type = ntohs(hdr->type);
 			pkt->network_layer = pkt->data_link_layer +
 					     sizeof(struct uip_eth_hdr);
 		} else {
-			type = ntohs(VLAN_ETH_BUF(pkt->buf)->type);
+			struct uip_vlan_eth_hdr *hdr = VLAN_ETH_BUF(pkt->buf);
+			type = ntohs(hdr->type);
 			pkt->network_layer = pkt->data_link_layer +
 					     sizeof(struct uip_vlan_eth_hdr);
 		}
