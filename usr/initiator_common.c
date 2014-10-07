@@ -51,21 +51,9 @@ struct iscsi_session *session_find_by_sid(uint32_t sid)
 	return NULL;
 }
 
-/*
- * calculate parameter's padding
- */
-static unsigned int
-__padding(unsigned int param)
+const static unsigned int align_32_down(unsigned int param)
 {
-	int pad;
-
-	pad = param & 3;
-	if (pad) {
-		pad = 4 - pad;
-		log_debug(1, "parameter's value %d padded to %d bytes\n",
-			   param, param + pad);
-	}
-	return param + pad;
+	return param & ~0x3;
 }
 
 int iscsi_setup_authentication(struct iscsi_session *session,
@@ -151,7 +139,7 @@ iscsi_copy_operational_params(struct iscsi_conn *conn,
 	conn->datadgst_en = conn_conf->DataDigest;
 
 	conn->max_recv_dlength =
-			__padding(conn_conf->MaxRecvDataSegmentLength);
+			align_32_down(conn_conf->MaxRecvDataSegmentLength);
 	if (conn->max_recv_dlength < ISCSI_MIN_MAX_RECV_SEG_LEN ||
 	    conn->max_recv_dlength > ISCSI_MAX_MAX_RECV_SEG_LEN) {
 		log_error("Invalid iscsi.MaxRecvDataSegmentLength. Must be "
@@ -166,7 +154,7 @@ iscsi_copy_operational_params(struct iscsi_conn *conn,
 
 	/* zero indicates to use the target's value */
 	conn->max_xmit_dlength =
-			__padding(conn_conf->MaxXmitDataSegmentLength);
+			align_32_down(conn_conf->MaxXmitDataSegmentLength);
 	if (conn->max_xmit_dlength == 0)
 		conn->max_xmit_dlength = ISCSI_DEF_MAX_RECV_SEG_LEN;
 	if (conn->max_xmit_dlength < ISCSI_MIN_MAX_RECV_SEG_LEN ||
@@ -184,7 +172,7 @@ iscsi_copy_operational_params(struct iscsi_conn *conn,
 	/* session's operational parameters */
 	session->initial_r2t_en = session_conf->InitialR2T;
 	session->imm_data_en = session_conf->ImmediateData;
-	session->first_burst = __padding(session_conf->FirstBurstLength);
+	session->first_burst = align_32_down(session_conf->FirstBurstLength);
 	/*
 	 * some targets like netapp fail the login if sent bad first_burst
 	 * and max_burst lens, even when immediate data=no and
@@ -202,7 +190,7 @@ iscsi_copy_operational_params(struct iscsi_conn *conn,
 		session->first_burst = DEF_INI_FIRST_BURST_LEN;
 	}
 
-	session->max_burst = __padding(session_conf->MaxBurstLength);
+	session->max_burst = align_32_down(session_conf->MaxBurstLength);
 	if (session->max_burst < ISCSI_MIN_MAX_BURST_LEN ||
 	    session->max_burst > ISCSI_MAX_MAX_BURST_LEN) {
 		log_error("Invalid iscsi.MaxBurstLength of %u. Must be "
