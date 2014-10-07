@@ -1023,7 +1023,7 @@ void uip_process(struct uip_stack *ustack, u8_t flag)
 	struct uip_tcp_ipv4_hdr *tcp_ipv4_hdr = NULL;
 	struct uip_tcp_hdr *tcp_hdr = NULL;
 	struct uip_icmpv4_hdr *icmpv4_hdr = NULL;
-	struct uip_icmpv6_hdr *icmpv6_hdr = NULL;
+	struct uip_icmpv6_hdr *icmpv6_hdr __attribute__((__unused__)) = NULL;
 	struct uip_udp_hdr *udp_hdr = NULL;
 
 	/*  Drop invalid packets */
