@@ -233,7 +233,7 @@ int main(int argc, char *argv[])
 {
 	int rc;
 	sigset_t set;
-	char *pid_file = default_pid_filepath;
+	const char *pid_file = default_pid_filepath;
 	int fd;
 	int foreground = 0;
 	pid_t pid;
