@@ -1238,13 +1238,12 @@ static int kget_chap(uint64_t transport_handle, uint32_t host_no,
 static int kset_chap(uint64_t transport_handle, uint32_t host_no,
 			struct iovec *iovs, uint32_t param_count)
 {
-	int rc, ev_len;
+	int rc;
 	struct iscsi_uevent ev;
 	struct iovec *iov = iovs + 1;
 
 	log_debug(8, "in %s", __func__);
 
-	ev_len = sizeof(ev);
 	ev.type = ISCSI_UEVENT_SET_CHAP;
 	ev.transport_handle = transport_handle;
 	ev.u.set_path.host_no = host_no;

@@ -599,10 +599,9 @@ isns_dd_insert(isns_dd_t *dd)
 void
 isns_dd_list_resize(isns_dd_list_t *list, unsigned int last_index)
 {
-	unsigned int	new_size, cur_size;
+	unsigned int	new_size;
 	isns_dd_t	**new_data;
 
-	cur_size = LIST_SIZE(list->ddl_count);
 	new_size = LIST_SIZE(last_index + 1);
 	if (new_size < list->ddl_count)
 		return;

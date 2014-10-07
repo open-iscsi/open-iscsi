@@ -50,11 +50,9 @@ iscsi_add_text(struct iscsi_hdr *pdu, char *data, int max_data_length,
 	int pdu_length = ntoh24(pdu->dlength);
 	char *text = data;
 	char *end = data + max_data_length;
-	char *pdu_text;
 
 	/* find the end of the current text */
 	text += pdu_length;
-	pdu_text = text;
 	pdu_length += length;
 
 	if (text + length >= end) {

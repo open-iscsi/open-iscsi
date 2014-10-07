@@ -19,7 +19,6 @@
 void be2iscsi_create_conn(struct iscsi_conn *conn)
 {
 	struct iscsi_session *session = conn->session;
-	conn_rec_t *conn_rec = &session->nrec.conn[conn->id];
 
 	if (conn->max_recv_dlength > 65536)
 		conn->max_recv_dlength = 65536;

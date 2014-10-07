@@ -327,10 +327,10 @@ isns_bitvector_is_empty(const isns_bitvector_t *bv)
 	wp = bv->ib_words;
 	end = wp + bv->ib_count;
 	while (wp < end) {
-		unsigned int	base, rlen;
+		unsigned int	rlen;
 
-		base = *wp++;
-		rlen = *wp++;
+		rlen = wp[1];
+		wp += 2;
 
 		while (rlen--) {
 			if (*wp++)
@@ -462,11 +462,10 @@ isns_bitvector_foreach(const isns_bitvector_t *bv,
 	wp = bv->ib_words;
 	end = wp + bv->ib_count;
 	while (wp < end) {
-		unsigned int	base, rlen, bits;
+		unsigned int	base, rlen;
 
 		base = wp[0];
 		rlen = wp[1];
-		bits = rlen * 32;
 		wp += 2;
 
 		while (rlen--) {
@@ -492,11 +491,10 @@ isns_bitvector_dump(const isns_bitvector_t *bv, isns_print_fn_t *fn)
 	wp = bv->ib_words;
 	end = wp + bv->ib_count;
 	while (wp < end) {
-		unsigned int	base, rlen, bits;
+		unsigned int	base, rlen;
 
 		base = wp[0];
 		rlen = wp[1];
-		bits = rlen * 32;
 		wp += 2;
 
 		fn(" <%u:", base);
@@ -538,11 +536,10 @@ isns_bitvector_print(const isns_bitvector_t *bv,
 	wp = bv->ib_words;
 	end = wp + bv->ib_count;
 	while (wp < end) {
-		unsigned int	base, rlen, bits;
+		unsigned int	base, rlen;
 
 		base = wp[0];
 		rlen = wp[1];
-		bits = rlen * 32;
 		wp += 2;
 
 		while (rlen--) {
