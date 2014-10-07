@@ -2211,7 +2211,7 @@ static void print_host_stats(struct iscsi_offload_host_stats *host_stats)
 static int exec_host_stats_op(int op, int info_level, uint32_t host_no)
 {
 	struct iscsi_transport *t = NULL;
-	char *req_buf;
+	char *req_buf = NULL;
 	int rc = ISCSI_SUCCESS;
 	int fd = 0, buf_size = 0;
 
@@ -2251,8 +2251,7 @@ static int exec_host_stats_op(int op, int info_level, uint32_t host_no)
 	ipc->ctldev_close();
 
 exit_host_stats:
-	if (req_buf)
-		free(req_buf);
+	free(req_buf);
 	return rc;
 }
 
