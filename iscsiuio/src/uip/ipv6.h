@@ -142,32 +142,11 @@ struct mac_address {
 	(memcmp((char *)a, (char *)b, sizeof(struct ipv6_addr)) == 0)
 
 /* Unspecified IPv6 address */
-#define IPV6_IS_ADDR_UNSPECIFIED(a)		\
-	((*(u32_t *)(&(a)->addr8[0]) == 0) &&	\
-	 (*(u32_t *)(&(a)->addr8[4]) == 0) &&	\
-	 (*(u32_t *)(&(a)->addr8[8]) == 0) &&	\
-	 (*(u32_t *)(&(a)->addr8[12]) == 0))
-
-/* Loopback IPv6 address */
-#define IPV6_IS_ADDR_LOOPBACK(a)		\
-	((*(u32_t *)(&(a)->addr8[0]) == 0) &&	\
-	 (*(u32_t *)(&(a)->addr8[4]) == 0) &&	\
-	 (*(u32_t *)(&(a)->addr8[8]) == 0) &&	\
-	 (*(u32_t *)(&(a)->addr8[12]) == 0x1))
-
-/* IPv4 compatible */
-#define IPV6_IS_ADDR_IPV4_COMPAT(a)		\
-	((*(u32_t *)(&(a)->addr8[0]) == 0) &&	\
-	 (*(u32_t *)(&(a)->addr8[4]) == 0) &&	\
-	 (*(u32_t *)(&(a)->addr8[8]) == 0) &&	\
-	 (*(u32_t *)(&(a)->addr8[12]) != 0) &&	\
-	 (*(u32_t *)(&(a)->addr8[12]) != 0x1))
-
-/* Mapped IPv4-IPv6 address */
-#define IPV6_IS_ADDR_IPV4_MAPPED(a)		\
-	((*(u32_t *)(&(a)->addr8[0]) == 0) &&	\
-	 (*(u32_t *)(&(a)->addr8[4]) == 0) &&	\
-	 (*(u32_t *)(&(a)->addr8[8]) == ntohl(0x0000ffff)))
+#define IPV6_IS_ADDR_UNSPECIFIED(a)	\
+	((((a)->addr[0]) == 0) &&	\
+	(((a)->addr[1]) == 0) &&	\
+	(((a)->addr[2]) == 0) &&	\
+	(((a)->addr[3]) == 0))
 
 /* IPv6 Scope Values */
 #define IPV6_ADDR_SCOPE_INTFACELOCAL    0x01	/* Node-local scope */
