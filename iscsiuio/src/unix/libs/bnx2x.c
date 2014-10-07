@@ -443,7 +443,7 @@ static void bnx2x_doorbell(bnx2x_t *bp, __u32 off, __u32 val)
 
 static void bnx2x_flush_doorbell(bnx2x_t *bp, __u32 off)
 {
-	volatile __u32 tmp;
+	volatile __u32 tmp __attribute__((__unused__));
 
 	barrier();
 	tmp = *((volatile __u32 *)(bp->reg2 + off));
