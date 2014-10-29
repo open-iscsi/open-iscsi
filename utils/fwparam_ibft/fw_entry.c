@@ -67,15 +67,15 @@ int fw_setup_nics(void)
 	 * to force iSCSI traffic through correct NIC
 	 */
 	list_for_each_entry(context, &targets, list) {			
-	        /* if it is a offload nic ignore it */
-	        if (!net_get_transport_name_from_netdev(context->iface,
+		/* if it is a offload nic ignore it */
+		if (!net_get_transport_name_from_netdev(context->iface,
 							transport))
 			continue;
 
 		if (iface_prev == NULL || strcmp(context->iface, iface_prev)) {
 			/* Note: test above works because there is a
- 			 * maximum of two targets in the iBFT
- 			 */
+			 * maximum of two targets in the iBFT
+			 */
 			iface_prev = context->iface;
 			needs_bringup = 1;
 		}
