@@ -170,6 +170,18 @@ static int fill_nic_context(char *subsys, char *id,
 {
 	int rc;
 
+	rc = sysfs_get_int(id, subsys, "flags", &context->nic_flags);
+	/*
+	 * Per spec we would need to check against Bit 0
+	 * (Block Valid Flag), but some firmware only
+	 * sets Bit 1 (Firmware Booting Selected).
+	 * So any setting is deemed okay.
+	 */
+	if (!rc && (context->nic_flags == 0))
+		rc = ENODEV;
+	if (rc)
+		return rc;
+
 	rc = sysfs_get_str(id, subsys, "mac", context->mac,
 			   sizeof(context->mac));
 	if (rc)
@@ -235,6 +247,18 @@ static int fill_tgt_context(char *subsys, char *id,
 			    struct boot_context *context)
 {
 	int rc;
+
+	rc = sysfs_get_int(id, subsys, "flags", &context->target_flags);
+	/*
+	 * Per spec we would need to check against Bit 0
+	 * (Block Valid Flag), but some firmware only
+	 * sets Bit 1 (Firmware Booting Selected).
+	 * So any setting is deemed okay.
+	 */
+	if (!rc && (context->nic_flags == 0))
+		rc = ENODEV;
+	if (rc)
+		return rc;
 
 	rc = sysfs_get_str(id, subsys, "target-name", context->targetname,
 			   sizeof(context->targetname));
