@@ -199,7 +199,7 @@ actor_timer_mod(actor_t *thread, uint32_t timeout, void *data)
 	return 0;
 }
 
-void
+static void
 actor_check(uint64_t current_time)
 {
 	struct actor *thread, *tmp;
