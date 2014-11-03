@@ -527,7 +527,7 @@ queue_delayed_reopen(queue_task_t *qtask, int delay)
  	 * if it were login time out
  	 */
 	actor_delete(&conn->login_timer);
-	actor_timer(&conn->login_timer, delay * 1000,
+	actor_timer(&conn->login_timer, delay,
 		    iscsi_login_timedout, qtask);
 }
 
@@ -563,7 +563,7 @@ static int iscsi_conn_connect(struct iscsi_conn *conn, queue_task_t *qtask)
 	iscsi_sched_ev_context(ev_context, conn, 0, EV_CONN_POLL);
 	log_debug(3, "Setting login timer %p timeout %d", &conn->login_timer,
 		  conn->login_timeout);
-	actor_timer(&conn->login_timer, conn->login_timeout * 1000,
+	actor_timer(&conn->login_timer, conn->login_timeout,
 		    iscsi_login_timedout, qtask);
 	return 0;
 }
@@ -605,7 +605,7 @@ static int iscsi_sched_uio_poll(queue_task_t *qtask)
 
 	log_debug(3, "Setting login UIO poll timer %p timeout %d",
 		  &conn->login_timer, conn->login_timeout);
-	actor_timer(&conn->login_timer, conn->login_timeout * 1000,
+	actor_timer(&conn->login_timer, conn->login_timeout,
 		    iscsi_uio_poll_login_timedout, qtask);
 	return -EAGAIN;
 }
@@ -1012,7 +1012,7 @@ static void conn_send_nop_out(void *data)
 
 	__send_nopout(conn);
 
-	actor_timer(&conn->nop_out_timer, conn->noop_out_timeout*1000,
+	actor_timer(&conn->nop_out_timer, conn->noop_out_timeout,
 		    conn_nop_out_timeout, conn);
 	log_debug(3, "noop out timeout timer %p start, timeout %d\n",
 		 &conn->nop_out_timer, conn->noop_out_timeout);
@@ -1115,7 +1115,7 @@ setup_full_feature_phase(iscsi_conn_t *conn)
 
 	/* noop_out */
 	if (conn->userspace_nop && conn->noop_out_interval) {
-		actor_timer(&conn->nop_out_timer, conn->noop_out_interval*1000,
+		actor_timer(&conn->nop_out_timer, conn->noop_out_interval,
 			   conn_send_nop_out, conn);
 		log_debug(3, "noop out timer %p start\n",
 			  &conn->nop_out_timer);
@@ -1199,7 +1199,7 @@ static void iscsi_recv_nop_in(iscsi_conn_t *conn, struct iscsi_hdr *hdr)
 		/* noop out rsp */
 		actor_delete(&conn->nop_out_timer);
 		/* schedule a new ping */
-		actor_timer(&conn->nop_out_timer, conn->noop_out_interval*1000,
+		actor_timer(&conn->nop_out_timer, conn->noop_out_interval,
 			    conn_send_nop_out, conn);
 	} else /*  noop in req */
 		if (!__send_nopin_rsp(conn, (struct iscsi_nopin*)hdr,
@@ -2064,7 +2064,7 @@ static int queue_session_login_task_retry(struct login_task_retry_info *info,
 	info->retry_count++;
 	log_debug(4, "queue session setup attempt in %d secs, retries %d\n",
 		  3, info->retry_count);
-	actor_timer(&info->retry_actor, 3000, session_login_task_retry, info);
+	actor_timer(&info->retry_actor, 3, session_login_task_retry, info);
 	return 0;
 }
 

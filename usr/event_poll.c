@@ -26,6 +26,8 @@
 #include <sys/poll.h>
 #include <sys/types.h>
 #include <sys/wait.h>
+#include <sys/signalfd.h>
+#include <unistd.h>
 
 #include "mgmt_ipc.h"
 #include "iscsi_ipc.h"
@@ -116,11 +118,11 @@ static int shutdown_wait_pids(void)
 
 #define POLL_CTRL	0
 #define POLL_IPC	1
-#define POLL_MAX	2
+#define POLL_ALARM	2
+#define POLL_MAX	3
 
 static int event_loop_stop;
 static queue_task_t *shutdown_qtask; 
-
 
 void event_loop_exit(queue_task_t *qtask)
 {
@@ -132,11 +134,26 @@ void event_loop(struct iscsi_ipc *ipc, int control_fd, int mgmt_ipc_fd)
 {
 	struct pollfd poll_array[POLL_MAX];
 	int res, has_shutdown_children = 0;
+	sigset_t sigset;
+	int sig_fd;
+
+	/* Mask off SIGALRM so we can recv it via signalfd */
+	sigemptyset(&sigset);
+	sigaddset(&sigset, SIGALRM);
+	sigprocmask(SIG_SETMASK, &sigset, NULL);
+
+	sig_fd = signalfd(-1, &sigset, SFD_NONBLOCK);
+	if (sig_fd == -1) {
+		log_error("signalfd failed: %m\n");
+		return;
+	}
 
 	poll_array[POLL_CTRL].fd = control_fd;
 	poll_array[POLL_CTRL].events = POLLIN;
 	poll_array[POLL_IPC].fd = mgmt_ipc_fd;
 	poll_array[POLL_IPC].events = POLLIN;
+	poll_array[POLL_ALARM].fd = sig_fd;
+	poll_array[POLL_ALARM].events = POLLIN;
 
 	event_loop_stop = 0;
 	while (1) {
@@ -149,7 +166,11 @@ void event_loop(struct iscsi_ipc *ipc, int control_fd, int mgmt_ipc_fd)
 				break;
 		}
 
-		res = poll(poll_array, POLL_MAX, ACTOR_RESOLUTION);
+		/* Runs actors and may set alarm for future actors */
+		actor_poll();
+
+		res = poll(poll_array, POLL_MAX, -1);
+
 		if (res > 0) {
 			log_debug(6, "poll result %d", res);
 			if (poll_array[POLL_CTRL].revents)
@@ -157,6 +178,18 @@ void event_loop(struct iscsi_ipc *ipc, int control_fd, int mgmt_ipc_fd)
 
 			if (poll_array[POLL_IPC].revents)
 				mgmt_ipc_handle(mgmt_ipc_fd);
+
+			if (poll_array[POLL_ALARM].revents) {
+				struct signalfd_siginfo si;
+
+				if (read(sig_fd, &si, sizeof(si)) == -1) {
+					log_error("got sigfd read() error, errno (%d), "
+						  "exiting", errno);
+					break;
+				} else {
+					log_debug(1, "Poll was woken by an alarm");
+				}
+			}
 		} else if (res < 0) {
 			if (errno == EINTR) {
 				log_debug(1, "event_loop interrupted");
@@ -167,16 +200,18 @@ void event_loop(struct iscsi_ipc *ipc, int control_fd, int mgmt_ipc_fd)
 			}
 		}
 
-		if (res >= 0)
-			actor_poll();
-
 		reap_proc();
+
 		/*
 		 * flush sysfs cache since kernel objs may
 		 * have changed as a result of handling op
 		 */
 		sysfs_cleanup();
 	}
+
 	if (shutdown_qtask)
 		mgmt_ipc_write_rsp(shutdown_qtask, ISCSI_SUCCESS);
+
+	close(sig_fd);
+	sigprocmask(SIG_UNBLOCK, &sigset, NULL);
 }
