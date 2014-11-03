@@ -39,7 +39,9 @@
 #include "initiator.h"
 #include "iscsi_err.h"
 
-static int reap_count;
+static unsigned int reap_count;
+
+#define REAP_WAKEUP 1000 /* in millisecs */
 
 void reap_inc(void)
 {
@@ -52,7 +54,7 @@ void reap_proc(void)
 
 	/*
 	 * We don't really need reap_count, but calling wait() all the
-	 * time seems execessive.
+	 * time seems excessive.
 	 */
 	max_reaps = reap_count;
 	for (i = 0; i < max_reaps; i++) {
@@ -169,7 +171,7 @@ void event_loop(struct iscsi_ipc *ipc, int control_fd, int mgmt_ipc_fd)
 		/* Runs actors and may set alarm for future actors */
 		actor_poll();
 
-		res = poll(poll_array, POLL_MAX, -1);
+		res = poll(poll_array, POLL_MAX, reap_count ? REAP_WAKEUP : -1);
 
 		if (res > 0) {
 			log_debug(6, "poll result %d", res);
