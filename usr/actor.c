@@ -240,7 +240,7 @@ actor_poll(void)
 	/* don't check wait list every single poll.
 	 * get new time. Shift it to make 10s of msecs approx
 	 * if new time is not same as old time */
-	if (scheduler_loops++ > ACTOR_MAX_LOOPS) {
+	if (scheduler_loops++ > 1) {
 		/* try coming in about every 100 msecs */
 		current_time = actor_jiffies;
 		scheduler_loops = 0;

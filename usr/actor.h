@@ -23,7 +23,6 @@
 #include "list.h"
 
 #define ACTOR_RESOLUTION	250	/* in millis */
-#define ACTOR_MAX_LOOPS		1
 
 typedef enum actor_state_e {
     ACTOR_INVALID,
