@@ -24,8 +24,6 @@
 static LIST_HEAD(pend_list);
 static LIST_HEAD(poll_list);
 static LIST_HEAD(actor_list);
-static volatile uint64_t previous_time;
-static volatile uint32_t scheduler_loops;
 static volatile int poll_in_progress;
 static volatile uint64_t actor_jiffies = 0;
 
@@ -56,8 +54,6 @@ void
 actor_init(void)
 {
 	poll_in_progress = 0;
-	previous_time = 0;
-	scheduler_loops = 0;
 }
 
 void
@@ -229,7 +225,6 @@ actor_check(uint64_t current_time)
 void
 actor_poll(void)
 {
-	uint64_t current_time;
 	struct actor *thread;
 
 	/* check that there are no any concurrency */
@@ -237,19 +232,8 @@ actor_poll(void)
 		log_error("concurrent actor_poll() is not allowed");
 	}
 
-	/* don't check wait list every single poll.
-	 * get new time. Shift it to make 10s of msecs approx
-	 * if new time is not same as old time */
-	if (scheduler_loops++ > 1) {
-		/* try coming in about every 100 msecs */
-		current_time = actor_jiffies;
-		scheduler_loops = 0;
-		/* checking whether we are in the same tick... */
-		if (current_time != previous_time) {
-			previous_time = current_time;
-			actor_check(current_time);
-		}
-	}
+	/* check the wait list */
+	actor_check(actor_jiffies);
 
 	/* the following code to check in the main data path */
 	poll_in_progress = 1;
