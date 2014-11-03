@@ -38,7 +38,6 @@ static volatile uint64_t actor_jiffies = 0;
         __ret; \
 })
 
-#define ACTOR_TICKS		actor_jiffies
 #define ACTOR_TICKS_10MS(_a)	(_a)
 #define ACTOR_MS_TO_TICKS(_a)	((_a)/ACTOR_RESOLUTION)
 
@@ -96,7 +95,7 @@ actor_schedule_private(actor_t *thread, uint32_t ttschedule, int head)
 	actor_t *next_thread;
 
 	delay_time = ACTOR_MS_TO_TICKS(ttschedule);
-	current_time = ACTOR_TICKS;
+	current_time = actor_jiffies;
 
 	log_debug(7, "thread %p schedule: delay %" PRIu64 " state %d",
 		thread, delay_time, thread->state);
@@ -244,7 +243,7 @@ actor_poll(void)
 	 * if new time is not same as old time */
 	if (scheduler_loops++ > ACTOR_MAX_LOOPS) {
 		/* try coming in about every 100 msecs */
-		current_time = ACTOR_TICKS;
+		current_time = actor_jiffies;
 		scheduler_loops = 0;
 		/* checking whether we are in the same tick... */
 		if ( ACTOR_TICKS_10MS(current_time) !=
@@ -285,5 +284,5 @@ actor_poll(void)
 			(long)thread);
 	}
 
-	ACTOR_TICKS++;
+	actor_jiffies++;
 }
