@@ -38,7 +38,6 @@ static volatile uint64_t actor_jiffies = 0;
         __ret; \
 })
 
-#define ACTOR_TICKS_10MS(_a)	(_a)
 #define ACTOR_MS_TO_TICKS(_a)	((_a)/ACTOR_RESOLUTION)
 
 static uint64_t
@@ -246,8 +245,7 @@ actor_poll(void)
 		current_time = actor_jiffies;
 		scheduler_loops = 0;
 		/* checking whether we are in the same tick... */
-		if ( ACTOR_TICKS_10MS(current_time) !=
-		     ACTOR_TICKS_10MS(previous_time)) {
+		if (current_time != previous_time) {
 			previous_time = current_time;
 			actor_check(current_time);
 		}
