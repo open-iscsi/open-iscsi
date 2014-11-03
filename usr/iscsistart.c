@@ -509,7 +509,6 @@ int main(int argc, char *argv[])
 	 * Start Main Event Loop
 	 */
 	iscsi_initiator_init();
-	actor_init();
 	event_loop(ipc, control_fd, mgmt_ipc_fd);
 	ipc->ctldev_close();
 	mgmt_ipc_close(mgmt_ipc_fd);

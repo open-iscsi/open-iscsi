@@ -51,13 +51,7 @@ actor_diff_time(actor_t *thread, uint64_t current_time)
 	((int64_t)(b) - (int64_t)(a) < 0)
 
 void
-actor_init(void)
-{
-	poll_in_progress = 0;
-}
-
-void
-actor_new(actor_t *thread, void (*callback)(void *), void *data)
+actor_init(actor_t *thread, void (*callback)(void *), void *data)
 {
 	INIT_LIST_HEAD(&thread->list);
 	thread->state = ACTOR_NOTSCHEDULED;

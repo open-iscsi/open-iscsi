@@ -533,7 +533,6 @@ int main(int argc, char *argv[])
 		exit(ISCSI_ERR);
 	}
 
-	actor_init();
 	event_loop(ipc, control_fd, mgmt_ipc_fd);
 
 	idbm_terminate();

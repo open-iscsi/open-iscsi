@@ -1797,14 +1797,14 @@ static int iscsi_sched_ev_context(struct iscsi_ev_context *ev_context,
 	ev_context->conn = conn;
 	switch (event) {
 	case EV_CONN_RECV_PDU:
-		actor_new(&ev_context->actor, session_conn_recv_pdu,
+		actor_init(&ev_context->actor, session_conn_recv_pdu,
 			  ev_context);
 		actor_schedule(&ev_context->actor);
 		break;
 	case EV_CONN_ERROR:
 		error = *(enum iscsi_err *)ev_context->data;
 
-		actor_new(&ev_context->actor, session_conn_error,
+		actor_init(&ev_context->actor, session_conn_error,
 			  ev_context);
 		/*
 		 * We handle invalid host, by killing the session.
@@ -1817,26 +1817,26 @@ static int iscsi_sched_ev_context(struct iscsi_ev_context *ev_context,
 			actor_schedule(&ev_context->actor);
 		break;
 	case EV_CONN_LOGIN:
-		actor_new(&ev_context->actor, session_conn_process_login,
+		actor_init(&ev_context->actor, session_conn_process_login,
 			  ev_context);
 		actor_schedule(&ev_context->actor);
 		break;
 	case EV_CONN_POLL:
-		actor_new(&ev_context->actor, session_conn_poll,
+		actor_init(&ev_context->actor, session_conn_poll,
 			  ev_context);
 		actor_schedule(&ev_context->actor);
 		break;
 	case EV_UIO_POLL:
-		actor_new(&ev_context->actor, session_conn_uio_poll,
+		actor_init(&ev_context->actor, session_conn_uio_poll,
 			  ev_context);
 		actor_schedule(&ev_context->actor);
 		break;
 	case EV_CONN_LOGOUT_TIMER:
-		actor_timer(&ev_context->actor, tmo * 1000,
+		actor_timer(&ev_context->actor, tmo,
 			    iscsi_logout_timedout, ev_context);
 		break;
 	case EV_CONN_STOP:
-		actor_new(&ev_context->actor, iscsi_stop,
+		actor_init(&ev_context->actor, iscsi_stop,
 			  ev_context);
 		actor_schedule(&ev_context->actor);
 		break;
