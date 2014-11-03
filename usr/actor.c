@@ -221,17 +221,10 @@ actor_check(uint64_t current_time)
 			(long)thread, thread->scheduled_at, thread->ttschedule,
 			current_time, pend_list.next, &pend_list);
 
-		if (poll_in_progress) {
-			thread->state = ACTOR_POLL_WAITING;
-			list_add_tail(&thread->list, &poll_list);
-			log_debug(7, "thread %08lx now in poll_list",
-				(long)thread);
-		} else {
-			thread->state = ACTOR_SCHEDULED;
-			list_add_tail(&thread->list, &actor_list);
-			log_debug(7, "thread %08lx now in actor_list",
-				(long)thread);
-		}
+		thread->state = ACTOR_SCHEDULED;
+		list_add_tail(&thread->list, &actor_list);
+		log_debug(7, "thread %08lx now in actor_list",
+			(long)thread);
 	}
 }
 
