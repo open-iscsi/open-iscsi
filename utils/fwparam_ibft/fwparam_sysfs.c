@@ -217,8 +217,7 @@ static int fill_nic_context(char *subsys, char *id,
 		      sizeof(context->secondary_dns));
 	sysfs_get_str(id, subsys, "dhcp", context->dhcp,
 		      sizeof(context->dhcp));
-	sysfs_get_str(id, subsys, "origin", context->origin,
-		      sizeof(context->origin));
+	sysfs_get_int(id, subsys, "origin", (int *)&context->origin);
 	return 0;
 }
 
