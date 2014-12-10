@@ -51,6 +51,8 @@ static char *iscsi_err_msgs[] = {
 	/* 26 */ "iSNS registration failed",
 	/* 27 */ "operation not supported",
 	/* 28 */ "device or resource in use",
+	/* 29 */ "operation failed but retry may succeed",
+	/* 30 */ "unknown discovery type",
 };
 
 char *iscsi_err_to_str(int err)
