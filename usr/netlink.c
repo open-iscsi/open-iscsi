@@ -1038,6 +1038,10 @@ static int krecv_conn_state(struct iscsi_conn *conn, uint32_t *state)
 		/* fatal handling error or conn error */
 		goto exit;
 
+        /* unexpected event without a receive context */
+        if (!conn->recv_context)
+                return -EAGAIN;
+
 	*state = *(enum iscsi_conn_state *)conn->recv_context->data;
 
 	ipc_ev_clbk->put_ev_context(conn->recv_context);
