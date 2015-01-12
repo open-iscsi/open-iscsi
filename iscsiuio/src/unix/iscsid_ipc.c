@@ -953,6 +953,30 @@ static void *iscsid_loop(void *arg)
 	pthread_exit(NULL);
 }
 
+#define SD_SOCKET_FDS_START 3
+
+static int ipc_systemd(void)
+{
+	char *env;
+
+	env = getenv("LISTEN_PID");
+
+	if (!env || (strtoul(env, NULL, 10) != getpid()))
+		return -EINVAL;
+
+	env = getenv("LISTEN_FDS");
+
+	if (!env)
+		return -EINVAL;
+
+	if (strtoul(env, NULL, 10) != 1) {
+		LOG_ERR("Did not receive exactly one IPC socket from systemd");
+		return -EINVAL;
+	}
+
+	return SD_SOCKET_FDS_START;
+}
+
 /******************************************************************************
  *  Initialize/Cleanup routines
  ******************************************************************************/
@@ -965,6 +989,10 @@ int iscsid_init()
 {
 	int rc, addr_len;
 	struct sockaddr_un addr;
+
+	iscsid_opts.fd = ipc_systemd();
+	if (iscsid_opts.fd >= 0)
+		return 0;
 
 	iscsid_opts.fd = socket(AF_LOCAL, SOCK_STREAM, 0);
 	if (iscsid_opts.fd < 0) {
