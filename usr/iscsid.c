@@ -27,6 +27,7 @@
 #include <unistd.h>
 #include <string.h>
 #include <signal.h>
+#include <grp.h>
 #include <sys/mman.h>
 #include <sys/utsname.h>
 #include <sys/types.h>
@@ -475,11 +476,25 @@ int main(int argc, char *argv[])
 		}
 	}
 
-	if (uid && setuid(uid) < 0)
-		perror("setuid\n");
+	if (gid && setgid(gid) < 0) {
+		log_error("Unable to setgid to %d\n", gid);
+		log_close(log_pid);
+		exit(ISCSI_ERR);
+	}
 
-	if (gid && setgid(gid) < 0)
-		perror("setgid\n");
+	if ((geteuid() == 0) && (getgroups(0, NULL))) {
+		if (setgroups(0, NULL) != 0) {
+			log_error("Unable to drop supplementary group ids\n");
+			log_close(log_pid);
+			exit(ISCSI_ERR);
+		}
+	}
+
+	if (uid && setuid(uid) < 0) {
+		log_error("Unable to setuid to %d\n", uid);
+		log_close(log_pid);
+		exit(ISCSI_ERR);
+	}
 
 	memset(&daemon_config, 0, sizeof (daemon_config));
 	daemon_config.pid_file = pid_file;
