@@ -53,7 +53,7 @@ AC_LIBTOOL_DLOPEN
 # libtool stuff
 AC_PROG_LIBTOOL
 
-CFLAGS="-O2 -Wall"
+CFLAGS="${CFLAGS} -O2 -Wall"
 ## check for --enable-debug first before checking CFLAGS before
 ## so that we don't mix -O and -g
 AC_ARG_ENABLE(debug,
