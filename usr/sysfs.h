@@ -66,4 +66,8 @@ extern int sysfs_get_uint16(char *id, char *subsys, char *param,
 extern int sysfs_set_param(char *id, char *subsys, char *attr_name,
 			   char *write_buf, ssize_t buf_size);
 
+extern char *sysfs_get_uevent_field(const char *path, const char *field);
+extern char *sysfs_get_uevent_devtype(const char *path);
+extern char *sysfs_get_uevent_devname(const char *path);
+
 #endif

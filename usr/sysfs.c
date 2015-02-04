@@ -709,3 +709,43 @@ int sysfs_set_param(char *id, char *subsys, char *attr_name,
 	close(fd);
 	return rc;
 }
+
+char *sysfs_get_uevent_field(const char *path, const char *field)
+{
+	char *uevent_path = NULL;
+	FILE *f = NULL;
+	char *line, buffer[1024];
+	char *ff, *d;
+	char *out = NULL;
+
+	uevent_path = calloc(1, PATH_MAX);
+	if (!uevent_path)
+		return NULL;
+	snprintf(uevent_path, PATH_MAX, "%s/uevent", path);
+
+	f = fopen(uevent_path, "r");
+	if (!f)
+		goto out;
+	while ((line = fgets(buffer, sizeof (buffer), f))) {
+		ff = strtok(line, "=");
+		d = strtok(NULL, "\n");
+		if (strcmp(ff, field))
+			continue;
+		out = strdup(d);
+		break;
+	}
+	fclose(f);
+out:
+	free(uevent_path);
+	return out;
+}
+
+char *sysfs_get_uevent_devtype(const char *path)
+{
+	return sysfs_get_uevent_field(path, "DEVTYPE");
+}
+
+char *sysfs_get_uevent_devname(const char *path)
+{
+	return sysfs_get_uevent_field(path, "DEVNAME");
+}
