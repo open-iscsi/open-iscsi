@@ -92,15 +92,27 @@ actor_insert_on_pend_list(actor_t *thread, uint32_t delay_secs)
 
 	/* insert new entry in sort order */
 	list_for_each_entry(next_thread, &pend_list, list) {
-		log_debug(7, "thread %p %lld", next_thread,
-			  (long long)next_thread->ttschedule);
-
 		if (time_after(next_thread->ttschedule, thread->ttschedule)) {
+			log_debug(7, "next thread %p due %lld", next_thread,
+			  (long long)next_thread->ttschedule);
+			log_debug(7, "new thread %p is before (%lld), inserting", thread,
+			  (long long)thread->ttschedule);
+
 			/* insert new thread before the next thread */
 			__list_add(&thread->list, next_thread->list.prev, &next_thread->list);
 			goto inserted;
 		}
 	}
+
+	if (orig_head) {
+		log_debug(7, "last thread %p due %lld", next_thread,
+			  (long long)next_thread->ttschedule);
+		log_debug(7, "new thread %p is after (%lld), inserting at tail", thread,
+			  (long long)thread->ttschedule);
+	}
+	else
+		log_debug(7, "new thread %p due %lld is first item on pend_list", thread,
+			  (long long)thread->ttschedule);
 
 	/* Not before any existing entries */
 	list_add_tail(&thread->list, &pend_list);
@@ -213,11 +225,13 @@ actor_poll(void)
 	 * Actors are in sorted order of ascending run time, so
 	 * stop at the first unripe entry.
 	 */
+	log_debug(7, "current time %" PRIu64, current_time);
+
 	list_for_each_entry_safe(thread, tmp, &pend_list, list) {
 		uint64_t time_left = actor_time_left(thread, current_time);
 		if (time_left) {
-			log_debug(7, "thread %08lx wait some more",
-				  (long)thread);
+			log_debug(7, "thread %08lx due %" PRIu64 ", wait %" PRIu64 " more",
+				  (long)thread, thread->ttschedule, time_left);
 
 			alarm(time_left);
 			break;
@@ -257,7 +271,7 @@ actor_poll(void)
 		thread->state = ACTOR_NOTSCHEDULED;
 		log_debug(7, "exec thread %08lx callback", (long)thread);
 		thread->callback(thread->data);
-		log_debug(7, "thread removed\n");
+		log_debug(7, "thread %08lx done", (long)thread);
 	}
 	poll_in_progress = 0;
 }
