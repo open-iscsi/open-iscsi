@@ -1571,7 +1571,6 @@ static void session_conn_poll(void *data)
 	rc = session->t->template->ep_poll(conn, 1);
 	if (rc == 0) {
 		log_debug(4, "poll not connected %d", rc);
-		/* timedout: Poll again. */
 		ev_context = iscsi_ev_context_get(conn, 0);
 		if (!ev_context) {
 			/* while polling the recv pool should be full */
@@ -1581,7 +1580,8 @@ static void session_conn_poll(void *data)
 			return;
 		}
 		ev_context->data = qtask;
-		iscsi_sched_ev_context(ev_context, conn, 0, EV_CONN_POLL);
+		/* not connected yet, check later */
+		iscsi_sched_ev_context(ev_context, conn, 1, EV_CONN_POLL);
 	} else if (rc > 0) {
 		/* connected! */
 		memset(c, 0, sizeof(iscsi_login_context_t));
@@ -1824,9 +1824,8 @@ static int iscsi_sched_ev_context(struct iscsi_ev_context *ev_context,
 		actor_schedule(&ev_context->actor);
 		break;
 	case EV_CONN_POLL:
-		actor_init(&ev_context->actor, session_conn_poll,
-			  ev_context);
-		actor_schedule(&ev_context->actor);
+		actor_timer(&ev_context->actor, tmo,
+			    session_conn_poll, ev_context);
 		break;
 	case EV_UIO_POLL:
 		actor_init(&ev_context->actor, session_conn_uio_poll,
