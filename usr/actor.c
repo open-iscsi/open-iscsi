@@ -96,7 +96,8 @@ actor_insert_on_pend_list(actor_t *thread, uint32_t delay_secs)
 			  (long long)next_thread->ttschedule);
 
 		if (time_after(next_thread->ttschedule, thread->ttschedule)) {
-			list_add(&thread->list, &next_thread->list);
+			/* insert new thread before the next thread */
+			__list_add(&thread->list, next_thread->list.prev, &next_thread->list);
 			goto inserted;
 		}
 	}
