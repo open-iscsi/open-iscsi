@@ -2333,7 +2333,6 @@ int session_logout_task(int sid, queue_task_t *qtask)
 	iscsi_session_t *session;
 	iscsi_conn_t *conn;
 	int rc = ISCSI_SUCCESS;
-	char *safe;
 
 	session = session_find_by_sid(sid);
 	if (!session) {
@@ -2356,14 +2355,11 @@ invalid_state:
 		return ISCSI_ERR_INTERNAL;
 	}
 
-	safe = cfg_get_string_param(dconfig->config_file, "iscsid.safe_logout");
-	if (safe && !strcmp(safe, "Yes") && session_in_use(sid)) {
+	if (dconfig->safe_logout && session_in_use(sid)) {
 		log_error("Session is actively in use for mounted storage, "
 			  "and iscsid.safe_logout is configured.\n");
-		free(safe);
 		return ISCSI_ERR_BUSY;
 	}
-	free(safe);
 
 	/* FIXME: logout all active connections */
 	conn = &session->conn[0];

@@ -341,6 +341,7 @@ int main(int argc, char *argv[])
 	char *config_file = CONFIG_FILE;
 	char *initiatorname_file = INITIATOR_NAME_FILE;
 	char *pid_file = PID_FILE;
+	char *safe_logout;
 	int ch, longindex;
 	uid_t uid = 0;
 	struct sigaction sa_old;
@@ -519,6 +520,11 @@ int main(int argc, char *argv[])
 	log_debug(1, "InitiatorName=%s", daemon_config.initiator_name ?
 		 daemon_config.initiator_name : "NOT SET");
 	log_debug(1, "InitiatorAlias=%s", daemon_config.initiator_alias);
+
+	safe_logout = cfg_get_string_param(config_file, "iscsid.safe_logout");
+	if (safe_logout && !strcmp(safe_logout, "Yes"))
+		daemon_config.safe_logout = 1;
+	free(safe_logout);
 
 	pid = fork();
 	if (pid == 0) {
