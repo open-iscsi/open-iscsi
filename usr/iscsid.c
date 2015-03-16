@@ -193,7 +193,7 @@ static int sync_session(void *data, struct session_info *info)
 	struct iscsi_transport *t;
 	int rc, retries = 0;
 
-	log_debug(7, "sync session [%d][%s,%s.%d][%s]\n", info->sid,
+	log_debug(7, "sync session [%d][%s,%s.%d][%s]", info->sid,
 		  info->targetname, info->persistent_address,
 		  info->port, info->iface.hwaddress);
 
@@ -235,7 +235,7 @@ static int sync_session(void *data, struct session_info *info)
 			  info->persistent_address, info->persistent_port,
 			  &info->iface)) {
 		log_warning("Could not read data from db. Using default and "
-			    "currently negotiated values\n");
+			    "currently negotiated values");
 		setup_rec_from_negotiated_values(&rec, info);
 		iface_copy(&rec.iface, &info->iface);
 	} else {
@@ -332,7 +332,7 @@ static void missing_iname_warn(char *initiatorname_file)
 		  "iqn.yyyy-mm.<reversed domain name>[:identifier].\n\n"
 		  "Example: InitiatorName=iqn.2001-04.com.redhat:fc6.\n"
 		  "If using hardware iscsi like qla4xxx this message can be "
-		  "ignored.\n", initiatorname_file, initiatorname_file);
+		  "ignored.", initiatorname_file, initiatorname_file);
 }
 
 int main(int argc, char *argv[])
@@ -478,21 +478,21 @@ int main(int argc, char *argv[])
 	}
 
 	if (gid && setgid(gid) < 0) {
-		log_error("Unable to setgid to %d\n", gid);
+		log_error("Unable to setgid to %d", gid);
 		log_close(log_pid);
 		exit(ISCSI_ERR);
 	}
 
 	if ((geteuid() == 0) && (getgroups(0, NULL))) {
 		if (setgroups(0, NULL) != 0) {
-			log_error("Unable to drop supplementary group ids\n");
+			log_error("Unable to drop supplementary group ids");
 			log_close(log_pid);
 			exit(ISCSI_ERR);
 		}
 	}
 
 	if (uid && setuid(uid) < 0) {
-		log_error("Unable to setuid to %d\n", uid);
+		log_error("Unable to setuid to %d", uid);
 		log_close(log_pid);
 		exit(ISCSI_ERR);
 	}

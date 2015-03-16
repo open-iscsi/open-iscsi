@@ -84,7 +84,7 @@ int shutdown_callback(pid_t pid)
 
 	INIT_LIST_HEAD(&cb->list);
 	cb->pid = pid;
-	log_debug(1, "adding %d for shutdown cb\n", pid);
+	log_debug(1, "adding %d for shutdown cb", pid);
 	list_add_tail(&cb->list, &shutdown_callbacks);
 	return 0;
 }
@@ -94,7 +94,7 @@ static void shutdown_notify_pids(void)
 	struct shutdown_callback *cb;
 
 	list_for_each_entry(cb, &shutdown_callbacks, list) {
-		log_debug(1, "Killing %d\n", cb->pid);
+		log_debug(1, "Killing %d", cb->pid);
 		kill(cb->pid, SIGTERM);
 	}
 }
@@ -109,7 +109,7 @@ static int shutdown_wait_pids(void)
 		 * sign that it is gone.
 		 */
 		if (waitpid(cb->pid, NULL, WNOHANG)) {
-			log_debug(1, "%d done\n", cb->pid);
+			log_debug(1, "%d done", cb->pid);
 			list_del(&cb->list);
 			free(cb);
 		}
@@ -146,7 +146,7 @@ void event_loop(struct iscsi_ipc *ipc, int control_fd, int mgmt_ipc_fd)
 
 	sig_fd = signalfd(-1, &sigset, SFD_NONBLOCK);
 	if (sig_fd == -1) {
-		log_error("signalfd failed: %m\n");
+		log_error("signalfd failed: %m");
 		return;
 	}
 

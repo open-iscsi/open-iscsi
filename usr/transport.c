@@ -149,7 +149,7 @@ int transport_probe_for_offload(void)
 	for (i = 0; ifni[i].if_index && ifni[i].if_name; i++) {
 		struct if_nameindex *n = &ifni[i];
 
-		log_debug(6, "kmod probe found %s\n", n->if_name);
+		log_debug(6, "kmod probe found %s", n->if_name);
 
 		strlcpy(if_hwaddr.ifr_name, n->if_name, IFNAMSIZ);
 		if (ioctl(sockfd, SIOCGIFHWADDR, &if_hwaddr) < 0)
@@ -281,12 +281,12 @@ int set_transport_template(struct iscsi_transport *t)
 
 		if (!strcmp(tmpl->name, t->name)) {
 			t->template = tmpl;
-			log_debug(3, "Matched transport %s\n", t->name);
+			log_debug(3, "Matched transport %s", t->name);
 			return 0;
 		}
 	}
 
 	log_error("Could not find template for %s. An updated iscsiadm "
-		  "is probably needed.\n", t->name);
+		  "is probably needed.", t->name);
 	return ENOSYS;
 }

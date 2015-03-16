@@ -249,7 +249,7 @@ int uip_broadcast(void *buf, size_t buf_len)
 		err = read(fd, &rsp, sizeof(rsp));
 		if (err == sizeof(rsp)) {
 			log_debug(3, "Broadcasted to uIP with length: %ld "
-				     "cmd: 0x%x rsp: 0x%x\n", buf_len,
+				     "cmd: 0x%x rsp: 0x%x", buf_len,
 				     rsp.command, rsp.err);
 			err = 0;
 			break;
@@ -269,7 +269,7 @@ int uip_broadcast(void *buf, size_t buf_len)
 			  count);
 		err = ISCSI_ERR_AGAIN;
 	} else if (rsp.err != ISCSID_UIP_MGMT_IPC_DEVICE_UP) {
-		log_debug(3, "Device is not ready\n");
+		log_debug(3, "Device is not ready");
 		err = ISCSI_ERR_AGAIN;
 	}
 

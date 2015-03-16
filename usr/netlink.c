@@ -376,7 +376,7 @@ ksendtargets(uint64_t transport_handle, uint32_t host_no, struct sockaddr *addr)
 	else if (addr->sa_family == PF_INET6)
 		addrlen = sizeof(struct sockaddr_in6);
 	else {
-		log_error("%s unknown addr family %d\n",
+		log_error("%s unknown addr family %d",
 			  __FUNCTION__, addr->sa_family);
 		return -EINVAL;
 	}
@@ -386,7 +386,7 @@ ksendtargets(uint64_t transport_handle, uint32_t host_no, struct sockaddr *addr)
 	iov[1].iov_len = sizeof(*ev) + addrlen;
 	rc = __kipc_call(iov, 2);
 	if (rc < 0) {
-		log_error("sendtargets failed rc%d\n", rc);
+		log_error("sendtargets failed rc%d", rc);
 		return rc;
 	}
 	return 0;
@@ -678,7 +678,7 @@ kset_host_param(uint64_t transport_handle, uint32_t host_no,
 		sprintf(param_str, "%s", (char *)value);
 		break;
 	default:
-		log_error("invalid type %d\n", type);
+		log_error("invalid type %d", type);
 		return -EINVAL;
 	}
 	ev->u.set_host_param.len = len = strlen(param_str) + 1;
@@ -725,7 +725,7 @@ kset_param(uint64_t transport_handle, uint32_t sid, uint32_t cid,
 		sprintf(param_str, "%s", (char *)value);
 		break;
 	default:
-		log_error("invalid type %d\n", type);
+		log_error("invalid type %d", type);
 		return -EINVAL;
 	}
 	ev->u.set_param.len = len = strlen(param_str) + 1;
@@ -873,7 +873,7 @@ ktransport_ep_connect(iscsi_conn_t *conn, int non_blocking)
 	else if (dst_addr->sa_family == PF_INET6)
 		addrlen = sizeof(struct sockaddr_in6);
 	else {
-		log_error("%s unknown addr family %d\n",
+		log_error("%s unknown addr family %d",
 			 __FUNCTION__, dst_addr->sa_family);
 		return -EINVAL;
 	}
@@ -1079,7 +1079,7 @@ ksend_ping(uint64_t transport_handle, uint32_t host_no, struct sockaddr *addr,
 	else if (addr->sa_family == PF_INET6)
 		addrlen = sizeof(struct sockaddr_in6);
 	else {
-		log_error("%s unknown addr family %d\n",
+		log_error("%s unknown addr family %d",
 			  __FUNCTION__, addr->sa_family);
 		return -EINVAL;
 	}
@@ -1520,7 +1520,7 @@ static int ctldev_handle(void)
 	nlh = (struct nlmsghdr *)nlm_ev;
 	ev = (struct iscsi_uevent *)NLMSG_DATA(nlm_ev);
 
-	log_debug(7, "%s got event type %u\n", __FUNCTION__, ev->type);
+	log_debug(7, "%s got event type %u", __FUNCTION__, ev->type);
 	/* drivers like qla4xxx can be inserted after iscsid is started */
 	switch (ev->type) {
 	case ISCSI_KEVENT_CREATE_SESSION:
@@ -1563,15 +1563,15 @@ static int ctldev_handle(void)
 	case ISCSI_KEVENT_HOST_EVENT:
 		switch (ev->r.host_event.code) {
 		case ISCSI_EVENT_LINKUP:
-			log_warning("Host%u: Link Up.\n",
+			log_warning("Host%u: Link Up.",
 				    ev->r.host_event.host_no);
 			break;
 		case ISCSI_EVENT_LINKDOWN:
-			log_warning("Host%u: Link Down.\n",
+			log_warning("Host%u: Link Down.",
 				    ev->r.host_event.host_no);
 			break;
 		default:
-			log_debug(7, "Host%u: Unknwon host event: %u.\n",
+			log_debug(7, "Host%u: Unknwon host event: %u.",
 				  ev->r.host_event.host_no,
 				  ev->r.host_event.code);
 		}
@@ -1611,7 +1611,7 @@ static int ctldev_handle(void)
 		 * nl interface.
 		 */
 		log_debug(1, "Could not verify connection %d:%d. Dropping "
-			   "event.\n", sid, cid);
+			   "event.", sid, cid);
 		drop_data(nlh);
 		return -ENXIO;
 	}

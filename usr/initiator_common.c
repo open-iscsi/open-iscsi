@@ -143,7 +143,7 @@ iscsi_copy_operational_params(struct iscsi_conn *conn,
 	if (conn->max_recv_dlength < ISCSI_MIN_MAX_RECV_SEG_LEN ||
 	    conn->max_recv_dlength > ISCSI_MAX_MAX_RECV_SEG_LEN) {
 		log_error("Invalid iscsi.MaxRecvDataSegmentLength. Must be "
-			 "within %u and %u. Setting to %u\n",
+			 "within %u and %u. Setting to %u",
 			  ISCSI_MIN_MAX_RECV_SEG_LEN,
 			  ISCSI_MAX_MAX_RECV_SEG_LEN,
 			  DEF_INI_MAX_RECV_SEG_LEN);
@@ -160,7 +160,7 @@ iscsi_copy_operational_params(struct iscsi_conn *conn,
 	if (conn->max_xmit_dlength < ISCSI_MIN_MAX_RECV_SEG_LEN ||
 	    conn->max_xmit_dlength > ISCSI_MAX_MAX_RECV_SEG_LEN) {
 		log_error("Invalid iscsi.MaxXmitDataSegmentLength. Must be "
-			 "within %u and %u. Setting to %u\n",
+			 "within %u and %u. Setting to %u",
 			  ISCSI_MIN_MAX_RECV_SEG_LEN,
 			  ISCSI_MAX_MAX_RECV_SEG_LEN,
 			  DEF_INI_MAX_RECV_SEG_LEN);
@@ -181,7 +181,7 @@ iscsi_copy_operational_params(struct iscsi_conn *conn,
 	if (session->first_burst < ISCSI_MIN_FIRST_BURST_LEN ||
 	    session->first_burst > ISCSI_MAX_FIRST_BURST_LEN) {
 		log_error("Invalid iscsi.FirstBurstLength of %u. Must be "
-			 "within %u and %u. Setting to %u\n",
+			 "within %u and %u. Setting to %u",
 			  session->first_burst,
 			  ISCSI_MIN_FIRST_BURST_LEN,
 			  ISCSI_MAX_FIRST_BURST_LEN,
@@ -194,7 +194,7 @@ iscsi_copy_operational_params(struct iscsi_conn *conn,
 	if (session->max_burst < ISCSI_MIN_MAX_BURST_LEN ||
 	    session->max_burst > ISCSI_MAX_MAX_BURST_LEN) {
 		log_error("Invalid iscsi.MaxBurstLength of %u. Must be "
-			  "within %u and %u. Setting to %u\n",
+			  "within %u and %u. Setting to %u",
 			   session->max_burst, ISCSI_MIN_MAX_BURST_LEN,
 			   ISCSI_MAX_MAX_BURST_LEN, DEF_INI_MAX_BURST_LEN);
 		session_conf->MaxBurstLength = DEF_INI_MAX_BURST_LEN;
@@ -203,7 +203,7 @@ iscsi_copy_operational_params(struct iscsi_conn *conn,
 
 	if (session->first_burst > session->max_burst) {
 		log_error("Invalid iscsi.FirstBurstLength of %u. Must be "
-			  "less than iscsi.MaxBurstLength. Setting to %u\n",
+			  "less than iscsi.MaxBurstLength. Setting to %u",
 			   session->first_burst, session->max_burst);
 		session_conf->FirstBurstLength = session->max_burst;
 		session->first_burst = session->max_burst;
@@ -637,7 +637,7 @@ int iscsi_set_net_config(struct iscsi_transport *t, iscsi_session_t *session,
 		   set */
 		hostno = iscsi_sysfs_get_host_no_from_hwinfo(iface, &rc);
 		if (rc) {
-			log_debug(4, "Couldn't get host no.\n");
+			log_debug(4, "Couldn't get host no.");
 			return rc;
 		}
 
@@ -664,7 +664,7 @@ int iscsi_host_set_net_params(struct iface_rec *iface,
 	struct host_info hinfo;
 
 	log_debug(3, "setting iface %s, dev %s, set ip %s, hw %s, "
-		  "transport %s.\n",
+		  "transport %s.",
 		  iface->name, iface->netdev, iface->ipaddress,
 		  iface->hwaddress, iface->transport_name);
 
@@ -675,12 +675,12 @@ int iscsi_host_set_net_params(struct iface_rec *iface,
 	if (!iface_is_bound_by_ipaddr(iface)) {
 		if (t->template->set_host_ip == SET_HOST_IP_REQ) {
 			log_warning("Please set the iface.ipaddress for iface "
-				    "%s, then retry the login command.\n",
+				    "%s, then retry the login command.",
 				    iface->name);
 			return EINVAL;
 		} else if (t->template->set_host_ip == SET_HOST_IP_OPT) {
 			log_info("Optional iface.ipaddress for iface %s "
-				 "not set.\n", iface->name);
+				 "not set.", iface->name);
 			return 0;
 		} else {
 			return EINVAL;

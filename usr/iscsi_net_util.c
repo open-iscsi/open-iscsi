@@ -188,7 +188,7 @@ int net_setup_netdev(char *netdev, char *local_ip, char *mask, char *gateway,
 	int ret;
 
 	if (!strlen(netdev)) {
-		log_error("No netdev name in fw entry.\n");
+		log_error("No netdev name in fw entry.");
 		return EINVAL;
 	}		
 
@@ -203,13 +203,13 @@ int net_setup_netdev(char *netdev, char *local_ip, char *mask, char *gateway,
 	 * has already been handled (2 targets in IBFT may share one NIC)
 	 */
 	if (!inet_aton(local_ip, &sk_ipaddr.sin_addr)) {
-		log_error("Invalid or missing ipaddr in fw entry\n");
+		log_error("Invalid or missing ipaddr in fw entry");
 		ret = EINVAL;
 		goto done;
 	}
 
 	if (!inet_aton(mask, &sk_netmask.sin_addr)) {
-		log_error("Invalid or missing netmask in fw entry\n");
+		log_error("Invalid or missing netmask in fw entry");
 		ret = EINVAL;
 		goto done;
 	}
@@ -217,7 +217,7 @@ int net_setup_netdev(char *netdev, char *local_ip, char *mask, char *gateway,
 	inet_aton("255.255.255.255", &sk_hostmask.sin_addr);
 
 	if (!inet_aton(remote_ip, &sk_tgt_ipaddr.sin_addr)) {
-		log_error("Invalid or missing target ipaddr in fw entry\n");
+		log_error("Invalid or missing target ipaddr in fw entry");
 		ret = EINVAL;
 		goto done;
 	}
@@ -317,7 +317,7 @@ int net_ifup_netdev(char *netdev)
 	int ret = 0;
 
 	if (!strlen(netdev)) {
-		log_error("No netdev name in fw entry.\n");
+		log_error("No netdev name in fw entry.");
 		return EINVAL;
 	}		
 
@@ -338,11 +338,11 @@ int net_ifup_netdev(char *netdev)
 	}
 
 	if (ifr.ifr_flags & IFF_UP) {
-		log_debug(3, "%s up\n", netdev);
+		log_debug(3, "%s up", netdev);
 		goto done;
 	}
 
-	log_debug(3, "bringing %s up\n", netdev);
+	log_debug(3, "bringing %s up", netdev);
 
 	/* Bring up interface */
 	memset(&ifr, 0, sizeof(ifr));

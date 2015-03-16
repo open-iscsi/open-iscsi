@@ -137,7 +137,7 @@ static int read_transports(void)
 			if (list_empty(&t->list))
 				free(t);
 			else
-				log_error("Could not update %s.\n",
+				log_error("Could not update %s.",
 					  t->name);
 			continue;
 		}
@@ -147,7 +147,7 @@ static int read_transports(void)
 			if (list_empty(&t->list))
 				free(t);
 			else
-				log_error("Could not update %s.\n",
+				log_error("Could not update %s.",
 					  t->name);
 			continue;
 		}
@@ -272,7 +272,7 @@ uint32_t iscsi_sysfs_get_host_no_from_sid(uint32_t sid, int *err)
 	if (!sysfs_lookup_devpath_by_subsys_id(devpath, sizeof(devpath),
 					       ISCSI_SESSION_SUBSYS, id)) {
 		log_error("Could not lookup devpath for %s. Possible sysfs "
-			  "incompatibility.\n", id);
+			  "incompatibility.", id);
 		*err = ISCSI_ERR_SYSFS_LOOKUP;
 		return 0;
 	}
@@ -280,7 +280,7 @@ uint32_t iscsi_sysfs_get_host_no_from_sid(uint32_t sid, int *err)
 	session_dev = sysfs_device_get(devpath);
 	if (!session_dev) {
 		log_error("Could not get dev for %s. Possible sysfs "
-			  "incompatibility.\n", id);
+			  "incompatibility.", id);
 		*err = ISCSI_ERR_SYSFS_LOOKUP;
 		return 0;
 	}
@@ -305,7 +305,7 @@ uint32_t iscsi_sysfs_get_host_no_from_sid(uint32_t sid, int *err)
 
 		if (!host_dev) {
 			log_error("Could not get host dev for %s. Possible "
-				  "sysfs incompatibility.\n", id);
+				  "sysfs incompatibility.", id);
 			*err = ISCSI_ERR_SYSFS_LOOKUP;
 			return 0;
 		}
@@ -741,7 +741,7 @@ static int iscsi_sysfs_read_iface(struct iface_rec *iface, int host_no,
 	ret = sysfs_get_str(host_id, ISCSI_HOST_SUBSYS, "hwaddress",
 			    iface->hwaddress, sizeof(iface->hwaddress));
 	if (ret)
-		log_debug(7, "could not read hwaddress for host%d\n", host_no);
+		log_debug(7, "could not read hwaddress for host%d", host_no);
 
 	if (iface_kern_id)
 		ret = sysfs_get_str(iface_kern_id, ISCSI_IFACE_SUBSYS,
@@ -752,14 +752,14 @@ static int iscsi_sysfs_read_iface(struct iface_rec *iface, int host_no,
 		ret = sysfs_get_str(host_id, ISCSI_HOST_SUBSYS, "ipaddress",
 				    iface->ipaddress, sizeof(iface->ipaddress));
 	if (ret)
-		log_debug(7, "could not read local address for host%d\n",
+		log_debug(7, "could not read local address for host%d",
 			  host_no);
 
 	/* if not found just print out default */
 	ret = sysfs_get_str(host_id, ISCSI_HOST_SUBSYS, "netdev",
 			    iface->netdev, sizeof(iface->netdev));
 	if (ret)
-		log_debug(7, "could not read netdev for host%d\n", host_no);
+		log_debug(7, "could not read netdev for host%d", host_no);
 
 	/*
 	 * For drivers like qla4xxx we can only set the iname at the
@@ -799,7 +799,7 @@ static int iscsi_sysfs_read_iface(struct iface_rec *iface, int host_no,
 			 * global iname so we can just fill it in here.
 			 */
 			log_debug(7, "Could not read initiatorname for "
-				  "host%d\n", host_no);
+				  "host%d", host_no);
 		/* optional so do not return error */
 		ret = 0;
 	}
@@ -825,7 +825,7 @@ static int iscsi_sysfs_read_iface(struct iface_rec *iface, int host_no,
 				    iface->name, sizeof(iface->name));
 		if (ret) {
 			log_debug(7, "could not read iface name for "
-				  "session %s\n", session);
+				  "session %s", session);
 			/*
 			 * if the ifacename file is not there then we are
 			 * using a older kernel and can try to find the
@@ -834,7 +834,7 @@ static int iscsi_sysfs_read_iface(struct iface_rec *iface, int host_no,
 			 */
 			if (iface_get_by_net_binding(iface, iface))
 				log_debug(7, "Could not find iface for session "
-					  "bound to:" iface_fmt "\n",
+					  "bound to:" iface_fmt "",
 					  iface_str(iface));
 		}
 	}
@@ -1231,7 +1231,7 @@ int iscsi_sysfs_get_sid_from_path(char *session)
 		return sid;
 
 	if (lstat(session, &statb)) {
-		log_error("%s is an invalid session ID or path\n", session);
+		log_error("%s is an invalid session ID or path", session);
 		exit(1);
 	}
 
@@ -1248,7 +1248,7 @@ int iscsi_sysfs_get_sid_from_path(char *session)
 	dev = sysfs_device_get(devpath);
 	if (!dev) {
 		log_error("Could not get dev for %s. Possible sysfs "
-			  "incompatibility.\n", devpath);
+			  "incompatibility.", devpath);
 		return -1;
 	}
 
@@ -1522,7 +1522,7 @@ int iscsi_sysfs_get_device_state(char *state, int host_no, int target, int lun)
 	snprintf(id, sizeof(id), "%d:0:%d:%d", host_no, target, lun);
 	if (sysfs_get_str(id, SCSI_SUBSYS, "state", state,
 			  SCSI_MAX_STATE_VALUE)) {
-		log_debug(3, "Could not read attr state for %s\n", id);
+		log_debug(3, "Could not read attr state for %s", id);
 		return ISCSI_ERR_SYSFS_LOOKUP;
 	}
 
@@ -1543,7 +1543,7 @@ char *iscsi_sysfs_get_blockdev_from_lun(int host_no, int target, int lun)
 	snprintf(id, sizeof(id), "%d:0:%d:%d", host_no, target, lun);
 	if (!sysfs_lookup_devpath_by_subsys_id(devpath, sizeof(devpath),
 					       SCSI_SUBSYS, id)) {
-		log_debug(3, "Could not lookup devpath for %s %s\n",
+		log_debug(3, "Could not lookup devpath for %s %s",
 			  SCSI_SUBSYS, id);
 		return NULL;
 	}
@@ -1571,7 +1571,7 @@ char *iscsi_sysfs_get_blockdev_from_lun(int host_no, int target, int lun)
 		 * 2.6.25 dropped the symlink and now block is a dir.
 		 */
 		if (lstat(path_full, &statbuf)) {
-			log_error("Could not stat block path %s err %d\n",
+			log_error("Could not stat block path %s err %d",
 				  path_full, errno);
 			break;
 		}
@@ -1590,7 +1590,7 @@ char *iscsi_sysfs_get_blockdev_from_lun(int host_no, int target, int lun)
 			/* it should not be this hard should it? :) */
 			blk_dirfd = opendir(path_full);
 			if (!blk_dirfd) {
-				log_debug(3, "Could not open blk path %s\n",
+				log_debug(3, "Could not open blk path %s",
 					  path_full);
 				break;
 			}
@@ -1626,7 +1626,7 @@ static uint32_t get_target_no_from_sid(uint32_t sid, int *err)
 	snprintf(id, sizeof(id), "session%u", sid);
 	if (!sysfs_lookup_devpath_by_subsys_id(devpath, sizeof(devpath),
 					       ISCSI_SESSION_SUBSYS, id)) {
-		log_debug(3, "Could not lookup devpath for %s %s\n",
+		log_debug(3, "Could not lookup devpath for %s %s",
 			  ISCSI_SESSION_SUBSYS, id);
 		return 0;
 	}
@@ -1799,7 +1799,7 @@ int iscsi_sysfs_for_each_device(void *data, int host_no, uint32_t sid,
 	snprintf(id, sizeof(id), "session%u", sid);
 	if (!sysfs_lookup_devpath_by_subsys_id(devpath, sizeof(devpath),
 					       ISCSI_SESSION_SUBSYS, id)) {
-		log_debug(3, "Could not lookup devpath for %s %s\n",
+		log_debug(3, "Could not lookup devpath for %s %s",
 			  ISCSI_SESSION_SUBSYS, id);
 		return ISCSI_ERR_SYSFS_LOOKUP;
 	}
@@ -1883,7 +1883,7 @@ pid_t iscsi_sysfs_scan_host(int hostno, int async)
 		snprintf(id, sizeof(id), ISCSI_HOST_ID, hostno);
 		sysfs_set_param(id, SCSI_HOST_SUBSYS, "scan", write_buf,
 				strlen(write_buf));
-		log_debug(4, "scanning host%d completed\n", hostno);
+		log_debug(4, "scanning host%d completed", hostno);
 	} else if (pid > 0) {
 		log_debug(4, "scanning host%d from pid %d", hostno, pid);
 	} else

@@ -126,7 +126,7 @@ static int stop_event_loop(void)
 	rc = iscsid_exec_req(&req, &rsp, 0);
 	if (rc) {
 		iscsi_err_print_msg(rc);
-		log_error("Could not stop event_loop\n");
+		log_error("Could not stop event_loop");
 	}
 	return rc;
 }
@@ -287,22 +287,22 @@ static void catch_signal(int signo)
 static int check_params(char *initiatorname)
 {
 	if (!initiatorname) {
-		log_error("InitiatorName not set. Exiting %s\n", program_name);
+		log_error("InitiatorName not set. Exiting %s", program_name);
 		return EINVAL;
 	}
 
 	if (config_rec.tpgt == PORTAL_GROUP_TAG_UNKNOWN) {
-		log_error("Portal Group not set. Exiting %s\n", program_name);
+		log_error("Portal Group not set. Exiting %s", program_name);
 		return EINVAL;
 	}
 
 	if (!strlen(config_rec.name)) {
-		log_error("TargetName not set. Exiting %s\n", program_name);
+		log_error("TargetName not set. Exiting %s", program_name);
 		return EINVAL;
 	}
 
 	if (!strlen(config_rec.conn[0].address)) {
-		log_error("IP Address not set. Exiting %s\n", program_name);
+		log_error("IP Address not set. Exiting %s", program_name);
 		return EINVAL;
 	}
 
@@ -472,7 +472,7 @@ int main(int argc, char *argv[])
 
 	mgmt_ipc_fd = mgmt_ipc_listen();
 	if (mgmt_ipc_fd  < 0) {
-		log_error("Could not setup mgmt ipc\n");
+		log_error("Could not setup mgmt ipc");
 		exit(ISCSI_ERR_NOMEM);
 	}
 

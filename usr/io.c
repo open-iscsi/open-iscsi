@@ -113,14 +113,14 @@ static int get_hwaddress_from_netdev(char *netdev, char *hwaddress)
 				      (void *)&(s4->sin_addr), buf,
 				      INET_ADDRSTRLEN))
 				continue;
-			log_debug(4, "name %s addr %s\n", ifa->ifa_name, buf);
+			log_debug(4, "name %s addr %s", ifa->ifa_name, buf);
 			break;
 		case AF_INET6:
 			s6 = (struct sockaddr_in6 *)(ifa->ifa_addr);
 			if (!inet_ntop(ifa->ifa_addr->sa_family,
 			    (void *)&(s6->sin6_addr), buf, INET6_ADDRSTRLEN))
 				continue;
-			log_debug(4, "name %s addr %s\n", ifa->ifa_name, buf);
+			log_debug(4, "name %s addr %s", ifa->ifa_name, buf);
 			break;
 		default:
 			continue;
@@ -239,7 +239,7 @@ static int bind_conn_to_iface(iscsi_conn_t *conn, struct iface_rec *iface)
 		if (setsockopt(conn->socket_fd, SOL_SOCKET, SO_BINDTODEVICE,
 			       session->netdev,
 			       strlen(session->netdev) + 1) < 0) {
-			log_error("Could not bind connection %d to %s\n",
+			log_error("Could not bind connection %d to %s",
 				  conn->id, session->netdev);
 			return -1;
 		}
@@ -357,7 +357,7 @@ iscsi_io_tcp_poll(iscsi_conn_t *conn, int timeout_ms)
 	len = sizeof(int);
 	if (getsockopt(conn->socket_fd, SOL_SOCKET, SO_ERROR,
 			(char *) &rc, &len) < 0) {
-		log_error("getsockopt for connect poll failed\n");
+		log_error("getsockopt for connect poll failed");
 		return -1;
 	}
 	if (rc) {
@@ -366,7 +366,7 @@ iscsi_io_tcp_poll(iscsi_conn_t *conn, int timeout_ms)
 			    conn->host, sizeof(conn->host), serv, sizeof(serv),
 			    NI_NUMERICHOST|NI_NUMERICSERV);
 
-		log_error("connect to %s:%s failed (%s)\n",
+		log_error("connect to %s:%s failed (%s)",
 			  conn->host, serv, strerror(rc));
 		return -rc;
 	}

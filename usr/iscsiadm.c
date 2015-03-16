@@ -278,7 +278,7 @@ static void kill_iscsid(int priority)
 	if (rc) {
 		iscsi_err_print_msg(rc);
 		log_error("Could not stop iscsid. Trying sending iscsid "
-			  "SIGTERM or SIGKILL signals manually\n");
+			  "SIGTERM or SIGKILL signals manually");
 	}
 }
 
@@ -303,7 +303,7 @@ static int print_ifaces(struct iface_rec *iface, int info_level)
 		if (iface) {
 			err = iface_conf_read(iface);
 			if (err) {
-				log_error("Could not read iface %s.\n",
+				log_error("Could not read iface %s.",
 					  iface->name);
 				return err;
 			}
@@ -403,7 +403,7 @@ __logout_by_startup(void *data, struct list_head *list,
 		 * this is due to a HW driver or some other driver
 		 * not hooked in
 		 */
-		log_debug(7, "could not read data for [%s,%s.%d]\n",
+		log_debug(7, "could not read data for [%s,%s.%d]",
 			  info->targetname, info->persistent_address,
 			  info->persistent_port);
 		return -1;
@@ -1240,7 +1240,7 @@ sw_discovery:
 	case DISCOVERY_TYPE_ISNS:
 		return do_isns(drec, ifaces, info_level, do_login, op);
 	default:
-		log_debug(1, "Unknown Discovery Type : %d\n", drec->type);
+		log_debug(1, "Unknown Discovery Type : %d", drec->type);
 		return ISCSI_ERR_UNKNOWN_DISCOVERY_TYPE;
 	}
 }
@@ -1286,7 +1286,7 @@ static int iface_apply_net_config(struct iface_rec *iface, int op)
 	int fd;
 
 	log_debug(8, "Calling iscsid, to apply net config for"
-		  "iface.name = %s\n", iface->name);
+		  "iface.name = %s", iface->name);
 
 	if (op == OP_APPLY_ALL)
 		iface_all = 1;
@@ -1632,7 +1632,7 @@ static int delete_host_chap_info(uint32_t host_no, uint16_t chap_tbl_idx)
 		goto exit_delete_chap;
 	}
 
-	log_info("Deleteing CHAP index: %d\n", chap_tbl_idx);
+	log_info("Deleteing CHAP index: %d", chap_tbl_idx);
 	rc = ipc->delete_chap(t->handle, host_no, chap_tbl_idx);
 	if (rc < 0) {
 		log_error("CHAP Delete failed.");
@@ -2649,7 +2649,7 @@ static int exec_fw_disc_op(discovery_rec_t *drec, struct list_head *ifaces,
 	rc = fw_get_targets(&targets);
 	if (rc) {
 		log_error("Could not get list of targets from firmware. "
-			  "(err %d)\n", rc);
+			  "(err %d)", rc);
 		return rc;
 	}
 	rc = iface_create_ifaces_from_boot_contexts(&new_ifaces, &targets);
@@ -2662,7 +2662,7 @@ discover_fw_tgts:
 	rc = idbm_bind_ifaces_to_nodes(discovery_fw, drec,
 				       ifaces, &rec_list);
 	if (rc)
-		log_error("Could not perform fw discovery.\n");
+		log_error("Could not perform fw discovery.");
 	else
 		rc = exec_disc_op_on_recs(drec, &rec_list, info_level,
 					   do_login, op);
@@ -2700,7 +2700,7 @@ static int exec_fw_op(discovery_rec_t *drec, struct list_head *ifaces,
 	rc = fw_get_targets(&targets);
 	if (rc) {
 		log_error("Could not get list of targets from firmware. "
-			  "(err %d)\n", rc);
+			  "(err %d)", rc);
 		return rc;
 	}
 
@@ -2709,7 +2709,7 @@ static int exec_fw_op(discovery_rec_t *drec, struct list_head *ifaces,
 			rec = idbm_create_rec_from_boot_context(context);
 			if (!rec) {
 				log_error("Could not convert firmware info to "
-					  "node record.\n");
+					  "node record.");
 				rc = ISCSI_ERR_NOMEM;
 				break;
 			}
@@ -3102,7 +3102,7 @@ static char *iscsi_ping_stat_strs[] = {
 static char *iscsi_ping_stat_to_str(uint32_t status)
 {
 	if (status < 0 || status > ISCSI_PING_NO_ARP_RECEIVED) {
-		log_error("Invalid ping status %u\n", status);
+		log_error("Invalid ping status %u", status);
 		return NULL;
 	}
 

@@ -111,7 +111,7 @@ int discovery_isns_set_servername(char *address, int port)
 	int len;
 
 	if (port > USHRT_MAX) {
-		log_error("Invalid port %d\n", port);
+		log_error("Invalid port %d", port);
 		return ISCSI_ERR_INVAL;
 	}
 
@@ -193,7 +193,7 @@ int discovery_isns_query(struct discovery_rec *drec, const char *iname,
 	status = isns_query_response_get_objects(qry, &objects);
 	if (status) {
 		log_error("Unable to extract object list from query "
-			  "response: %s\n", isns_strerror(status));
+			  "response: %s", isns_strerror(status));
 		rc = ISCSI_ERR;
 		goto free_query;
 	}
@@ -391,7 +391,7 @@ int discovery_fw(void *data, struct iface_rec *iface,
 	rc = fw_get_targets(&targets);
 	if (rc) {
 		log_error("Could not get list of targets from firmware. "
-			  "(err %d)\n", rc);
+			  "(err %d)", rc);
 		return rc;
 	}
 	if (list_empty(&targets))
@@ -406,7 +406,7 @@ int discovery_fw(void *data, struct iface_rec *iface,
 		rec = idbm_create_rec_from_boot_context(bcontext);
 		if (!rec) {
 			log_error("Could not convert firmware info to "
-				  "node record.\n");
+				  "node record.");
 			rc = ISCSI_ERR_NOMEM;
 			goto free_targets;
 		}
@@ -456,7 +456,7 @@ int discovery_offload_sendtargets(int host_no, int do_login,
 	 */
 	rc = iscsid_exec_req(&req, &rsp, 1);
 	if (rc) {
-		log_error("Could not offload sendtargets to %s.\n",
+		log_error("Could not offload sendtargets to %s.",
 			  drec->address);
 		iscsi_err_print_msg(rc);
 		return rc;
@@ -817,7 +817,7 @@ iscsi_alloc_session(struct iscsi_sendtargets_config *config,
 	session->t = iscsi_sysfs_get_transport_by_name(iface->transport_name);
 	if (!session->t) {
 		log_error("iSCSI driver %s is not loaded. Load the module "
-			  "then retry the command.\n", iface->transport_name);
+			  "then retry the command.", iface->transport_name);
 		*rc = ISCSI_ERR_TRANS_NOT_FOUND;
 		goto fail;
 	}
@@ -1036,7 +1036,7 @@ static void iscsi_destroy_session(struct iscsi_session *session)
 	rc = ipc->stop_conn(session->t->handle, session->id,
 			   conn->id, STOP_CONN_TERM);
 	if (rc) {
-		log_error("Could not stop conn %d:%d cleanly (err %d)\n",
+		log_error("Could not stop conn %d:%d cleanly (err %d)",
 			  session->id, conn->id, rc);
 		goto done;
         }
@@ -1091,7 +1091,7 @@ static int iscsi_create_leading_conn(struct iscsi_session *session)
 	 */
 	conn->socket_fd = ipc->ctldev_open();
 	if (conn->socket_fd < 0) {
-		log_error("Could not open netlink interface (err %d)\n",
+		log_error("Could not open netlink interface (err %d)",
 			  errno);
 		return ISCSI_ERR_INTERNAL;
 	}
@@ -1117,7 +1117,7 @@ static int iscsi_create_leading_conn(struct iscsi_session *session)
 	}
 
 	/* create interconnect endpoint */
-	log_debug(2, "%s discovery ep connect\n", __FUNCTION__);
+	log_debug(2, "%s discovery ep connect", __FUNCTION__);
 	rc = t->template->ep_connect(conn, 1);
 	if (rc < 0) {
 		rc = ISCSI_ERR_TRANS;
@@ -1140,21 +1140,21 @@ static int iscsi_create_leading_conn(struct iscsi_session *session)
 			break;
 	} while (1);
 
-	log_debug(2, "%s discovery create session\n", __FUNCTION__);
+	log_debug(2, "%s discovery create session", __FUNCTION__);
 	/* create kernel structs */
         rc = ipc->create_session(session->t->handle,
 				 conn->transport_ep_handle, 1, 32, 1,
 				 &session->id, &host_no);
 	if (rc) {
-		log_error("Could not create kernel session (err %d).\n", rc);
+		log_error("Could not create kernel session (err %d).", rc);
 		rc = ISCSI_ERR_INTERNAL;
 		goto disconnect;
 	}
-	log_debug(2, "%s discovery created session %u\n", __FUNCTION__,
+	log_debug(2, "%s discovery created session %u", __FUNCTION__,
 		  session->id);
 	session->isid[3] = session->id;
 
-	log_debug(2, "%s discovery create conn\n", __FUNCTION__);
+	log_debug(2, "%s discovery create conn", __FUNCTION__);
 	rc = ipc->create_conn(t->handle, session->id, conn->id, &conn->id);
 	if (rc) {
 		log_error("Could not create connection (err %d)", rc);
@@ -1162,7 +1162,7 @@ static int iscsi_create_leading_conn(struct iscsi_session *session)
 		goto disconnect;
 	}
 
-	log_debug(2, "%s discovery bind conn\n", __FUNCTION__);
+	log_debug(2, "%s discovery bind conn", __FUNCTION__);
 	if (ipc->bind_conn(t->handle, session->id, conn->id,
 			   conn->transport_ep_handle, (conn->id == 0), &rc) ||
 	    rc) {
@@ -1208,7 +1208,7 @@ close_ipc:
 static struct iscsi_ev_context *
 iscsi_ev_context_get(struct iscsi_conn *conn, int ev_size)
 {
-	log_debug(2, "%s: ev_size %d\n", __FUNCTION__, ev_size);
+	log_debug(2, "%s: ev_size %d", __FUNCTION__, ev_size);
 
 	ipc_ev_context.data = calloc(1, ev_size);
 	if (!ipc_ev_context.data)
@@ -1405,11 +1405,11 @@ redirect_reconnect:
 				      &config->conn_conf);
 
 	if (t->caps & CAP_TEXT_NEGO) {
-		log_debug(2, "%s discovery set params\n", __FUNCTION__);
+		log_debug(2, "%s discovery set params", __FUNCTION__);
 		rc = iscsi_session_set_params(conn);
 		if (rc) {
 			log_error("Could not set iscsi params for conn %d:%d "
-				  "(err %d)\n", session->id, conn->id, rc);
+				  "(err %d)", session->id, conn->id, rc);
 			rc = ISCSI_ERR_INTERNAL;
 			goto login_failed;
 		}
@@ -1489,7 +1489,7 @@ redirect_reconnect:
 		case ISCSI_LOGIN_STATUS_AUTH_FAILED:
 		case ISCSI_LOGIN_STATUS_TGT_FORBIDDEN:
 			log_error("discovery login to %s rejected: "
-				  "initiator failed authorization\n",
+				  "initiator failed authorization",
 				 conn->host);
 			rc = ISCSI_ERR_LOGIN_AUTH_FAILED;
 			goto login_failed;
@@ -1521,16 +1521,16 @@ redirect_reconnect:
 		return 0;
 
 start_conn:
-	log_debug(2, "%s discovery set neg params\n", __FUNCTION__);
+	log_debug(2, "%s discovery set neg params", __FUNCTION__);
 	rc = iscsi_session_set_neg_params(conn);
 	if (rc) {
 		log_error("Could not set iscsi params for conn %d:%d (err "
-			  "%d)\n", session->id, conn->id, rc);
+			  "%d)", session->id, conn->id, rc);
 		rc = ISCSI_ERR_INTERNAL;
 		goto login_failed;
 	}
 
-	log_debug(2, "%s discovery start conn\n", __FUNCTION__);
+	log_debug(2, "%s discovery start conn", __FUNCTION__);
 	if (ipc->start_conn(t->handle, session->id, conn->id, &rc) || rc) {
 		log_error("Cannot start conn %d:%d (err %d)",
 			  session->id, conn->id, rc);

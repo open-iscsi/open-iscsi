@@ -211,7 +211,7 @@ static void fork_disc(const char *def_iname, struct discovery_rec *drec,
 		exit(0);
 	} else if (pid < 0)
 		log_error("Fork failed (err %d - %s). Will not be able "
-			   "to perform discovery to %s.\n",
+			   "to perform discovery to %s.",
 			   errno, strerror(errno), drec->address);
 	else {
 		shutdown_callback(pid);
@@ -254,7 +254,7 @@ static int isns_build_objs(isns_portal_info_t *portal_info,
 		nportals = isns_enumerate_portals(iflist, nportals);
 		if (nportals == 0) {
 			log_error("Unable to enumerate portals - "
-				  "no usable interfaces found\n");
+				  "no usable interfaces found");
 			free(iflist);
 			return ISCSI_ERR_NO_OBJS_FOUND;
 		}
@@ -557,7 +557,7 @@ static int isns_setup_registration_refresh(isns_simple_t *rsp, int poll_inval)
 	status = isns_query_response_get_objects(rsp, &objs);
 	if (status) {
 		log_error("Unable to extract object list from "
-                           "registration response: %s\n",
+                           "registration response: %s",
                            isns_strerror(status));
 		return ISCSI_ERR;
 	}
@@ -693,7 +693,7 @@ static int isns_register_objs(isns_client_t *clnt, isns_object_list_t *objs,
 
 		status = isns_simple_call(clnt->ic_socket, &reg);
 		if (status != ISNS_SUCCESS) {
-			log_error("SCN registration for node %s failed: %s\n",
+			log_error("SCN registration for node %s failed: %s",
 				  isns_source_name(node->source),
 				  isns_strerror(status));
 			/*
@@ -907,7 +907,7 @@ static int isns_scn_recv(isns_server_t *svr, isns_socket_t *svr_sock,
 
 		function = isns_message_function(msg);
 		if (function != ISNS_STATE_CHANGE_NOTIFICATION) {
-			log_warning("Discarding unexpected %s message\n",
+			log_warning("Discarding unexpected %s message",
 				    isns_function_name(function));
 			isns_message_release(msg);
 			continue;

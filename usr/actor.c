@@ -65,7 +65,7 @@ actor_delete(actor_t *thread)
 		log_debug(1, "deleting a scheduled/waiting thread!");
 		list_del_init(&thread->list);
 		if (list_empty(&pend_list)) {
-			log_debug(7, "nothing left on pend_list, deactivating alarm\n");
+			log_debug(7, "nothing left on pend_list, deactivating alarm");
 			alarm(0);
 		}
 
@@ -134,7 +134,7 @@ actor_schedule_private(actor_t *thread, uint32_t delay_secs, int head)
 	struct timespec tv;
 
 	if (clock_gettime(CLOCK_MONOTONIC_COARSE, &tv)) {
-		log_error("clock_getime failed, can't schedule!\n");
+		log_error("clock_getime failed, can't schedule!");
 		return;
 	}
 
@@ -214,7 +214,7 @@ actor_poll(void)
 	}
 
 	if (clock_gettime(CLOCK_MONOTONIC_COARSE, &tv)) {
-		log_error("clock_gettime failed, can't schedule!\n");
+		log_error("clock_gettime failed, can't schedule!");
 		return;
 	}
 
@@ -255,7 +255,7 @@ actor_poll(void)
 
 	/* Disable alarm if nothing else pending */
 	if (list_empty(&pend_list)) {
-		log_debug(7, "nothing on pend_list, deactivating alarm\n");
+		log_debug(7, "nothing on pend_list, deactivating alarm");
 		alarm(0);
 	}
 

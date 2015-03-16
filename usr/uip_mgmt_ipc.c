@@ -26,7 +26,7 @@ int uip_broadcast_params(struct iscsi_transport *t,
 {
 	struct iscsid_uip_broadcast broadcast;
 
-	log_debug(3, "broadcasting to uip\n");
+	log_debug(3, "broadcasting to uip");
 
 	memset(&broadcast, 0, sizeof(broadcast));
 

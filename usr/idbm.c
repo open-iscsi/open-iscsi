@@ -1059,7 +1059,7 @@ int idbm_verify_param(recinfo_t *info, char *name)
 		if (strcmp(name, info[i].name))
 			continue;
 
-		log_debug(7, "verify %s %d\n", name, info[i].can_modify);
+		log_debug(7, "verify %s %d", name, info[i].can_modify);
 		if (info[i].can_modify)
 			return 0;
 		else {
@@ -1162,20 +1162,20 @@ static void idbm_sync_config(void)
 	idbm_recinfo_node(&db->nrec, db->ninfo);
 
 	if (!db->get_config_file) {
-		log_debug(1, "Could not get config file. No config file fn\n");
+		log_debug(1, "Could not get config file. No config file fn");
 		return;
 	}
 
 	config_file = db->get_config_file();
 	if (!config_file) {
-		log_debug(1, "Could not get config file for sync config\n");
+		log_debug(1, "Could not get config file for sync config");
 		return;
 	}
 
 	f = fopen(config_file, "r");
 	if (!f) {
 		log_debug(1, "cannot open configuration file %s. "
-			  "Default location is %s.\n",
+			  "Default location is %s.",
 			  config_file, CONFIG_FILE);
 		return;
 	}
@@ -1331,7 +1331,7 @@ int idbm_lock(void)
 
 	if (access(LOCK_DIR, F_OK) != 0) {
 		if (mkdir(LOCK_DIR, 0660) != 0) {
-			log_error("Could not open %s: %s\n", LOCK_DIR,
+			log_error("Could not open %s: %s", LOCK_DIR,
 				  strerror(errno));
 			return ISCSI_ERR_IDBM;
 		}
@@ -1411,7 +1411,7 @@ static int __idbm_rec_read(node_rec_t *out_rec, char *conf)
 
 	f = fopen(conf, "r");
 	if (!f) {
-		log_debug(5, "Could not open %s err %s\n", conf,
+		log_debug(5, "Could not open %s err %s", conf,
 			  strerror(errno));
 		rc = ISCSI_ERR_IDBM;
 		goto unlock;
@@ -1553,7 +1553,7 @@ static int idbm_for_each_drec(int type, char *config_root, void *data,
 		    !strcmp(entity_dent->d_name, ".."))
 			continue;
 
-		log_debug(5, "found %s\n", entity_dent->d_name);
+		log_debug(5, "found %s", entity_dent->d_name);
 
 		tmp_port = strchr(entity_dent->d_name, ',');
 		if (!tmp_port)
@@ -1810,7 +1810,7 @@ int idbm_for_each_portal(int *found, void *data, idbm_portal_op_fn *fn,
 		    !strcmp(portal_dent->d_name, ".."))
 			continue;
 
-		log_debug(5, "found %s\n", portal_dent->d_name);
+		log_debug(5, "found %s", portal_dent->d_name);
 		tmp_port = strchr(portal_dent->d_name, ',');
 		if (!tmp_port)
 			continue;
@@ -1852,7 +1852,7 @@ int idbm_for_each_node(int *found, void *data, idbm_node_op_fn *fn)
 		    !strcmp(node_dent->d_name, ".."))
 			continue;
 
-		log_debug(5, "searching %s\n", node_dent->d_name);
+		log_debug(5, "searching %s", node_dent->d_name);
 		curr_rc = fn(found, data, node_dent->d_name);
 		/* less than zero means it was not a match */
 		if (curr_rc > 0 && !rc)
@@ -1928,7 +1928,7 @@ idbm_discovery_read(discovery_rec_t *out_rec, int drec_type,
 	snprintf(portal, PATH_MAX, "%s/%s,%d",
 		 disc_type_to_config_vals[drec_type].config_root,
 		 addr, port);
-	log_debug(5, "Looking for config file %s\n", portal);
+	log_debug(5, "Looking for config file %s", portal);
 
 	rc = idbm_lock();
 	if (rc)
@@ -1937,7 +1937,7 @@ idbm_discovery_read(discovery_rec_t *out_rec, int drec_type,
 	f = idbm_open_rec_r(portal,
 			    disc_type_to_config_vals[drec_type].config_name);
 	if (!f) {
-		log_debug(1, "Could not open %s: %s\n", portal,
+		log_debug(1, "Could not open %s: %s", portal,
 			  strerror(errno));
 		rc = ISCSI_ERR_IDBM;
 		goto unlock;
@@ -1967,7 +1967,7 @@ static FILE *idbm_open_rec_w(char *portal, char *config)
 	FILE *f;
 	int err;
 
-	log_debug(5, "Looking for config file %s\n", portal);
+	log_debug(5, "Looking for config file %s", portal);
 
 	err = stat(portal, &statb);
 	if (err)
@@ -1979,14 +1979,14 @@ static FILE *idbm_open_rec_w(char *portal, char *config)
 		 */
 		if (unlink(portal)) {
 			log_error("Could not convert %s to %s/%s. "
-				 "err %d\n", portal, portal,
+				 "err %d", portal, portal,
 				  config, errno);
 			return NULL;
 		}
 
 mkdir_portal:
 		if (mkdir(portal, 0660) != 0) {
-			log_error("Could not make dir %s err %d\n",
+			log_error("Could not make dir %s err %d",
 				  portal, errno);
 			return NULL;
 		}
@@ -1996,7 +1996,7 @@ mkdir_portal:
 	strlcat(portal, config, PATH_MAX);
 	f = fopen(portal, "w");
 	if (!f)
-		log_error("Could not open %s err %d\n", portal, errno);
+		log_error("Could not open %s err %d", portal, errno);
 	return f;
 }
 
@@ -2009,14 +2009,14 @@ static int idbm_rec_write(node_rec_t *rec)
 
 	portal = malloc(PATH_MAX);
 	if (!portal) {
-		log_error("Could not alloc portal\n");
+		log_error("Could not alloc portal");
 		return ISCSI_ERR_NOMEM;
 	}
 
 	snprintf(portal, PATH_MAX, "%s", NODE_CONFIG_DIR);
 	if (access(portal, F_OK) != 0) {
 		if (mkdir(portal, 0660) != 0) {
-			log_error("Could not make %s: %s\n", portal,
+			log_error("Could not make %s: %s", portal,
 				  strerror(errno));
 			rc = ISCSI_ERR_IDBM;
 			goto free_portal;
@@ -2026,7 +2026,7 @@ static int idbm_rec_write(node_rec_t *rec)
 	snprintf(portal, PATH_MAX, "%s/%s", NODE_CONFIG_DIR, rec->name);
 	if (access(portal, F_OK) != 0) {
 		if (mkdir(portal, 0660) != 0) {
-			log_error("Could not make %s: %s\n", portal,
+			log_error("Could not make %s: %s", portal,
 				  strerror(errno));
 			rc = ISCSI_ERR_IDBM;
 			goto free_portal;
@@ -2069,7 +2069,7 @@ static int idbm_rec_write(node_rec_t *rec)
 		 * Old style portal as a file, but with tpgt. Let's update it.
 		 */
 		if (unlink(portal)) {
-			log_error("Could not convert %s: %s\n", portal,
+			log_error("Could not convert %s: %s", portal,
 				  strerror(errno));
 			rc = ISCSI_ERR_IDBM;
 			goto unlock;
@@ -2084,7 +2084,7 @@ mkdir_portal:
 		 rec->name, rec->conn[0].address, rec->conn[0].port, rec->tpgt);
 	if (stat(portal, &statb)) {
 		if (mkdir(portal, 0660) != 0) {
-			log_error("Could not make dir %s: %s\n",
+			log_error("Could not make dir %s: %s",
 				  portal, strerror(errno));
 			rc = ISCSI_ERR_IDBM;
 			goto unlock;
@@ -2097,7 +2097,7 @@ mkdir_portal:
 open_conf:
 	f = fopen(portal, "w");
 	if (!f) {
-		log_error("Could not open %s: %sd\n", portal, strerror(errno));
+		log_error("Could not open %s: %s", portal, strerror(errno));
 		rc = ISCSI_ERR_IDBM;
 		goto unlock;
 	}
@@ -2123,7 +2123,7 @@ idbm_discovery_write(discovery_rec_t *rec)
 
 	portal = malloc(PATH_MAX);
 	if (!portal) {
-		log_error("Could not alloc portal\n");
+		log_error("Could not alloc portal");
 		return ISCSI_ERR_NOMEM;
 	}
 
@@ -2135,7 +2135,7 @@ idbm_discovery_write(discovery_rec_t *rec)
 		 disc_type_to_config_vals[rec->type].config_root);
 	if (access(portal, F_OK) != 0) {
 		if (mkdir(portal, 0660) != 0) {
-			log_error("Could not make %s: %s\n", portal,
+			log_error("Could not make %s: %s", portal,
 				  strerror(errno));
 			rc = ISCSI_ERR_IDBM;
 			goto unlock;
@@ -2149,7 +2149,7 @@ idbm_discovery_write(discovery_rec_t *rec)
 	f = idbm_open_rec_w(portal,
 			    disc_type_to_config_vals[rec->type].config_name);
 	if (!f) {
-		log_error("Could not open %s: %s\n", portal, strerror(errno));
+		log_error("Could not open %s: %s", portal, strerror(errno));
 		rc = ISCSI_ERR_IDBM;
 		goto unlock;
 	}
@@ -2521,10 +2521,10 @@ int idbm_delete_discovery(discovery_rec_t *drec)
 	snprintf(portal, PATH_MAX, "%s/%s,%d",
 		 disc_type_to_config_vals[drec->type].config_root,
 		 drec->address, drec->port);
-	log_debug(5, "Removing config file %s\n", portal);
+	log_debug(5, "Removing config file %s", portal);
 
 	if (stat(portal, &statb)) {
-		log_debug(5, "Could not stat %s to delete disc err %d\n",
+		log_debug(5, "Could not stat %s to delete disc err %d",
 			  portal, errno);
 		goto free_portal;
 	}
@@ -2537,7 +2537,7 @@ int idbm_delete_discovery(discovery_rec_t *drec)
 	}
 
 	if (unlink(portal))
-		log_debug(5, "Could not remove %s err %d\n", portal, errno);
+		log_debug(5, "Could not remove %s err %d", portal, errno);
 
 	memset(portal, 0, PATH_MAX);
 	snprintf(portal, PATH_MAX, "%s/%s,%d",
@@ -2587,7 +2587,7 @@ static int idbm_remove_disc_to_node_link(node_rec_t *rec,
 		goto done;
 	}
 
-	log_debug(7, "found drec %s %d\n",
+	log_debug(7, "found drec %s %d",
 		  tmprec->disc_address, tmprec->disc_port);
 	/* rm link from discovery source to node */
 	memset(portal, 0, PATH_MAX);
@@ -2601,7 +2601,7 @@ static int idbm_remove_disc_to_node_link(node_rec_t *rec,
 
 	if (!stat(portal, &statb)) {
 		if (unlink(portal)) {
-			log_error("Could not remove link %s: %s\n",
+			log_error("Could not remove link %s: %s",
 				  portal, strerror(errno));
 			rc = ISCSI_ERR_IDBM;
 		} else
@@ -2638,7 +2638,7 @@ int idbm_delete_node(node_rec_t *rec)
 	memset(portal, 0, PATH_MAX);
 	snprintf(portal, PATH_MAX, "%s/%s/%s,%d", NODE_CONFIG_DIR,
 		 rec->name, rec->conn[0].address, rec->conn[0].port);
-	log_debug(5, "Removing config file %s iface id %s\n",
+	log_debug(5, "Removing config file %s iface id %s",
 		  portal, rec->iface.name);
 
 	rc = idbm_lock();
@@ -2656,14 +2656,14 @@ int idbm_delete_node(node_rec_t *rec)
 	if (!stat(portal, &statb))
 		goto rm_conf;
 
-	log_error("Could not stat %s to delete node: %s\n",
+	log_error("Could not stat %s to delete node: %s",
 		  portal, strerror(errno));
 	rc = ISCSI_ERR_IDBM;
 	goto unlock;
 
 rm_conf:
 	if (unlink(portal)) {
-		log_error("Could not remove %s: %s\n", portal, strerror(errno));
+		log_error("Could not remove %s: %s", portal, strerror(errno));
 		rc = ISCSI_ERR_IDBM;
 		goto unlock;
 	}
@@ -2841,7 +2841,7 @@ int idbm_init(idbm_get_config_file_fn *fn)
 	/* make sure root db dir is there */
 	if (access(ISCSI_CONFIG_ROOT, F_OK) != 0) {
 		if (mkdir(ISCSI_CONFIG_ROOT, 0660) != 0) {
-			log_error("Could not make %s %d\n", ISCSI_CONFIG_ROOT,
+			log_error("Could not make %s %d", ISCSI_CONFIG_ROOT,
 				   errno);
 			return errno;
 		}

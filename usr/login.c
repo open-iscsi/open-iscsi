@@ -57,7 +57,7 @@ iscsi_add_text(struct iscsi_hdr *pdu, char *data, int max_data_length,
 
 	if (text + length >= end) {
 		log_warning("Failed to add login text "
-			    "'%s=%s'\n", param, value);
+			    "'%s=%s'", param, value);
 		return 0;
 	}
 
@@ -168,7 +168,7 @@ resolve_address(char *host, char *port, struct sockaddr_storage *ss)
 
 	if ((rc = getaddrinfo(host, port, &hints, &res))) {
 		log_error("Cannot resolve host %s. getaddrinfo error: "
-			  "[%s]\n", host, gai_strerror(rc));
+			  "[%s]", host, gai_strerror(rc));
 		return rc;
 	}
 
@@ -1556,10 +1556,10 @@ iscsi_login(iscsi_session_t *session, int cid, char *buffer, size_t bufsize,
 repoll:
 		pfd.revents = 0;
 		ret = poll(&pfd, 1, timeout);
-		log_debug(7, "%s: Poll return %d\n", __FUNCTION__, ret);
+		log_debug(7, "%s: Poll return %d", __FUNCTION__, ret);
 		if (iscsi_timer_expired(&connection_timer)) {
 			log_warning("Login response timeout. Waited %d "
-				    "seconds and did not get reponse PDU.\n",
+				    "seconds and did not get reponse PDU.",
 				    session->conn[0].active_timeout);
 			c->ret = LOGIN_FAILED;
 			return c->ret;
@@ -1593,7 +1593,7 @@ repoll:
 			}
 
 		} else if (ret < 0) {
-			log_error("Login poll error.\n");
+			log_error("Login poll error.");
 			c->ret = LOGIN_FAILED;
 			return c->ret;
 		}

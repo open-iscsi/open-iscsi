@@ -74,7 +74,7 @@ int str_enlarge_data(struct str_buffer *s, int length)
 	if (s) {
 		s->data_length += length;
 		if (s->data_length > s->allocated_length) {
-			log_debug(7, "enlarge buffer from %lu to %lu\n",
+			log_debug(7, "enlarge buffer from %lu to %lu",
 				  s->allocated_length, s->data_length);
 			new_buf = realloc(s->buffer, s->data_length);
 			if (!new_buf) {
