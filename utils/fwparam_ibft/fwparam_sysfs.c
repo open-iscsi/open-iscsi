@@ -255,7 +255,7 @@ static int fill_tgt_context(char *subsys, char *id,
 	 * sets Bit 1 (Firmware Booting Selected).
 	 * So any setting is deemed okay.
 	 */
-	if (!rc && (context->nic_flags == 0))
+	if (!rc && (context->target_flags == 0))
 		rc = ENODEV;
 	if (rc)
 		return rc;
