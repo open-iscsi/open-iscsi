@@ -341,7 +341,7 @@
 #ifdef UIP_CONF_ARPTAB_SIZE
 #define UIP_ARPTAB_SIZE UIP_CONF_ARPTAB_SIZE
 #else
-#define UIP_ARPTAB_SIZE 8
+#define UIP_ARPTAB_SIZE 16
 #endif
 
 /**
