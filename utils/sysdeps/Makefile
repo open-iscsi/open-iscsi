@@ -1,6 +1,7 @@
 # This Makefile will work only with GNU make.
 
-CFLAGS += $(OPTFLAGS) $(WARNFLAGS) -O2 -fno-inline -Wall -Wstrict-prototypes -g
+CFLAGS ?= -O2 -fno-inline -g
+CFLAGS += $(WARNFLAGS) -Wall -Wstrict-prototypes
 
 SYSDEPS_OBJS=sysdeps.o
 
