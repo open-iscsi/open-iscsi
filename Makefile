@@ -69,9 +69,10 @@ clean:
 	$(MAKE) -C utils clean
 	$(MAKE) -C usr clean
 	$(MAKE) -C kernel clean
-	$(MAKE) -C iscsiuio clean
-	$(MAKE) -C utils/open-isns clean
-	$(MAKE) -C utils/open-isns distclean
+	[ ! -f iscsiuio/Makefile ] || $(MAKE) -C iscsiuio clean
+	[ ! -f iscsiuio/Makefile ] || $(MAKE) -C iscsiuio distclean
+	[ ! -f utils/open-isns/Makefile ] || $(MAKE) -C utils/open-isns clean
+	[ ! -f utils/open-isns/Makefile ] || $(MAKE) -C utils/open-isns distclean
 
 # this is for safety
 # now -jXXX will still be safe
