@@ -942,7 +942,7 @@ ktransport_ep_disconnect(iscsi_conn_t *conn)
 	iov[1].iov_len = sizeof(ev);
 	rc = __kipc_call(iov, 2);
 	if (rc < 0) {
-		log_error("connnection %d:%d transport disconnect failed for "
+		log_error("connection %d:%d transport disconnect failed for "
 			  "ep %" PRIu64 " with error %d.", conn->session->id,
 			  conn->id, conn->transport_ep_handle, rc);
 	} else

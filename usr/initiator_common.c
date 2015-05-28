@@ -65,7 +65,7 @@ int iscsi_setup_authentication(struct iscsi_session *session,
 	if (auth_cfg->username_in[0] || auth_cfg->password_in_length) {
 		/* sanity check the config */
 		if (auth_cfg->password_length == 0) {
-			log_warning("CHAP configuratoin has incoming "
+			log_warning("CHAP configuration has incoming "
 				    "authentication credentials but has no "
 				    "outgoing credentials configured.");
 			return EINVAL;

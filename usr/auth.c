@@ -2002,7 +2002,7 @@ acl_dbg_status_to_text(int dbg_status)
 		"AuthMethod negotiation failed",
 		"AuthMethod negotiated to none",
 		"CHAP algorithm negotiation failed",
-		"CHAP challange reflected",
+		"CHAP challenge reflected",
 		"Local password same as remote",
 		"Local password not set",
 		"CHAP identifier bad",

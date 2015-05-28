@@ -2,10 +2,10 @@
 .SH NAME
 iscsiadm \- open-iscsi administration utility
 .SH SYNOPSIS
-\fBiscsiadm\fR \-m discoverydb [ \-hV ] [ \-d debug_level ] [ \-P printlevel ] [ \-I iface \-t type \-p ip:port [ \-lD ] ] | [ [ -p ip:port -t type ] \
+\fBiscsiadm\fR \-m discoverydb [ \-hV ] [ \-d debug_level ] [ \-P printlevel ] [ \-I iface \-t type \-p ip:port [ \-lD ] ] | [ [ \-p ip:port -t type ] \
 [ \-o operation ] [ \-n name ] [ \-v value ] [ \-lD ] ]
 
-\fBiscsiadm\fR \-m discovery [ \-hV ] [ \-d debug_level ] [ \-P printlevel ] [ \-I iface \-t type \-p ip:port [ \-l ] ] | [ [ -p ip:port ] [ \-l | \-D ] ]
+\fBiscsiadm\fR \-m discovery [ \-hV ] [ \-d debug_level ] [ \-P printlevel ] [ \-I iface \-t type \-p ip:port [ \-l ] ] | [ [ \-p ip:port ] [ \-l | \-D ] ]
 
 \fBiscsiadm\fR \-m node [ \-hV ] [ \-d debug_level ] [ \-P printlevel ] [ \-L all,manual,automatic ] [ \-U all,manual,automatic ] [ \-S ] [ [ \-T targetname \-p ip:port \-I iface ] [ \-l | \-u | \-R | \-s] ]
 [ [ \-o operation ]  [ \-n name ] [ \-v value ] [ \-p ip:port ] ]
@@ -70,15 +70,15 @@ Specify the submode for mode. op must be name of submode.
 
 Currently iscsiadm support ping as submode for iface. For example,
 
-iscsiadm -m iface -I ifacename -C ping -a ipaddr -b packetsize -c count -i interval
+iscsiadm \-m iface \-I ifacename \-C ping \-a ipaddr \-b packetsize \-c count \-i interval
 
 For host, it supports chap , flashnode and stats as submodes. For example,
 
-iscsiadm -m host -H hostno -C chap -x chap_tbl_idx -o operation
+iscsiadm \-m host \-H hostno \-C chap \-x chap_tbl_idx \-o operation
 
-iscsiadm -m host -H hostno -C flashnode -x flashnode_idx -o operation
+iscsiadm \-m host \-H hostno \-C flashnode \-x flashnode_idx \-o operation
 
-iscsiadm -m host -H hostno -C stats
+iscsiadm \-m host \-H hostno \-C stats
 
 .TP
 \fB\-d\fR, \fB\-\-debug=\fIdebug_level\fP
@@ -127,7 +127,7 @@ are experimental and the use is not supported as a stable interface yet.
 In discovery mode multiple interfaces can be specified by passing in multiple
 \-I/\-\-interface instances. For example,
 
-"iscsiadm \-m discoverydb \-t st \-p ip:port \-I iface0 \-I iface2 --discover"
+"iscsiadm \-m discoverydb \-t st \-p ip:port \-I iface0 \-I iface2 \-\-discover"
 
 Will direct iscsiadm to setup the node db to create records which will create
 sessions though the two intefaces passed in.
