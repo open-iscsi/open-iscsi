@@ -8,7 +8,17 @@
 .SH NAME
 iscsi_discovery \- discover iSCSI targets
 .SH SYNOPSIS
-.B iscsi_discovery <IP> [-p <port>] [-d] [-t <tcp|iser> [-f]] [-m] [-l]
+.B iscsi_discovery
+.I <IP>
+.RB [ -p
+.IR <port> ]
+.RB [ -d ]
+.RB [\  -t
+.IR <tcp|iser>
+.RB [ -f ]
+.R ]
+.RB [ -m ]
+.RB [ -l ]
 
 .SH DESCRIPTION
 Perform send-targets discovery to the specified IP. If a discovery record

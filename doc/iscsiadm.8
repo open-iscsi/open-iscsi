@@ -2,23 +2,161 @@
 .SH NAME
 iscsiadm \- open-iscsi administration utility
 .SH SYNOPSIS
-\fBiscsiadm\fR \-m discoverydb [ \-hV ] [ \-d debug_level ] [ \-P printlevel ] [ \-I iface \-t type \-p ip:port [ \-lD ] ] | [ [ \-p ip:port -t type ] \
-[ \-o operation ] [ \-n name ] [ \-v value ] [ \-lD ] ]
+.B iscsiadm
+.B \-m discoverydb
+.RB [ \-hV ]
+.RB [ \-d
+.IR debug_level ]
+.RB [ \-P
+.IR printlevel ]
+.R [\ 
+.BI \-I\  iface\  \-t\  type\  \-p\  ip:port
+.RB [ \-lD ]
+.R ] | [
+.RB [ \-p
+.I ip:port
+.B \-t
+.IR type ]
+.RB [ \-o
+.IR operation ]
+.RB [ \-n
+.IR name ]
+.RB [ \-v
+.IR value ]
+.RB [ \-lD ]
+.R ]
 
-\fBiscsiadm\fR \-m discovery [ \-hV ] [ \-d debug_level ] [ \-P printlevel ] [ \-I iface \-t type \-p ip:port [ \-l ] ] | [ [ \-p ip:port ] [ \-l | \-D ] ]
+.B iscsiadm
+.B \-m discovery
+.RB [ \-hV ]
+.RB [ \-d
+.IR debug_level ]
+.RB [ \-P
+.IR printlevel ]
+.R [\ 
+.BI \-I\  iface\  \-t\  type\  \-p\  ip:port
+.RB [ \-l ]
+.R ] | [
+.RB [ \-p
+.IR ip:port ]
+.RB [ \-l | \-D ]
+.R ]
 
-\fBiscsiadm\fR \-m node [ \-hV ] [ \-d debug_level ] [ \-P printlevel ] [ \-L all,manual,automatic ] [ \-U all,manual,automatic ] [ \-S ] [ [ \-T targetname \-p ip:port \-I iface ] [ \-l | \-u | \-R | \-s] ]
-[ [ \-o operation ]  [ \-n name ] [ \-v value ] [ \-p ip:port ] ]
+.B iscsiadm
+.B \-m node
+.RB [ \-hV ]
+.RB [ \-d
+.IR debug_level ]
+.RB [ \-P
+.IR printlevel ]
+.RB [ \-L
+.IR all,manual,automatic ]
+.RB [ \-U
+.IR all,manual,automatic ]
+.RB [ \-S ]
+.R [
+.RB [ \-T
+.IB targetname\  \-p\  ip:port\  \-I\  iface
+.R ]
+.RB [ \-l | \-u | \-R | \-s ]
+.R ]
+.R [
+.RB [ \-o
+.IR operation ]
+.RB [ \-n
+.IR name ]
+.RB [ \-v
+.IR value ]
+.RB [ \-p
+.IR ip:port ]
+.R ]
 
-\fBiscsiadm\fR \-m session [ \-hV ] [ \-d debug_level ] [ \-P printlevel ] [ \-r sessionid | sysfsdir [ \-R ] [ \-u | \-s | \-o new ] ]
+.B iscsiadm
+.B \-m session
+.RB[ \-hV ]
+.RB [ \-d
+.IR debug_level ]
+.RB [ \-P
+.IR printlevel ]
+.R [
+.B \-r
+.IR sessionid | sysfsdir
+.RB [ \-R ]
+.RB [ \-u | \-s | \-o
+.IR new ]
+.R ]
 
-\fBiscsiadm\fR \-m iface [ \-hV ] [ \-d debug_level ] [ \-P printlevel ] [ \-I ifacename | \-H hostno|MAC ]   [ [ \-o  operation  ] [ \-n name ] [ \-v value ] ] [ \-C ping [ \-a ip ] [ \-b packetsize ] [ \-c count ] [ \-i interval ] ]
+.B iscsiadm
+.B \-m iface
+.RB [ \-hV ]
+.RB [ \-d
+.IR debug_level ]
+.RB [ \-P
+.IR printlevel ]
+.R [
+.BI \-I\  ifacename
+.R |
+.BI \-H\  hostno|MAC
+.R ]
+.R [
+.RB [ \-o
+.IR operation ]
+.RB [ \-n
+.IR name ]
+.RB [ \-v
+.IR value ]
+.R ]
+.R [
+.BI \-C\  ping
+.RB [ \-a
+.IR ip ]
+.RB [ \-b
+.IR packetsize ]
+.RB [ \-c
+.IR count ]
+.RB [ \-i
+.IR interval ]
+.R ]
 
-\fBiscsiadm\fR \-m fw [ \-d debug_level ] [\-l]
+.B iscsiadm
+.B \-m fw
+.RB [ \-d
+.IR debug_level ]
+.RB [ \-l ]
 
-\fBiscsiadm\fR \-m host [ \-P printlevel ] [ \-H hostno|MAC ] [ [ \-C chap [ \-x chap_tbl_idx ] ] | [ \-C flashnode [ \-A portal_type ] [ \-x flashnode_idx ] ] | [ \-C stats ] ] [ [ \-o operation ] [ \-n name ] [ \-v value ] ]
+.B iscsiadm
+.B \-m host
+.RB [ \-P
+.IR printlevel ]
+.RB [ \-H
+.IR hostno|MAC ]
+.R [
+.RB [\  \-C
+.IR chap
+.RB [ \-x
+.IR chap_tbl_idx ]
+.R ] |
+.RB [\  \-C
+.IR flashnode
+.RB [ \-A
+.IR portal_type ]
+.RB [ \-x
+.IR flashnode_idx ]
+.R ] |
+.RB [\  \-C
+.IR stats \ ]
+.R ]
+.R [
+.RB [ \-o
+.IR operation ]
+.RB [ \-n
+.IR name ]
+.RB [ \-v
+.IR value ]
+.R ]
 
-\fBiscsiadm\fR \-k priority
+.B iscsiadm
+.B \-k  priority
 
 .SH "DESCRIPTION"
 The iscsiadm utility is a command-line tool allowing discovery and login
