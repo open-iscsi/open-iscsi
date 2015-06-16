@@ -672,6 +672,9 @@ static int bnx2x_open(nic_t *nic)
 	uint32_t bus;
 	uint32_t slot;
 	uint32_t func;
+	uint32_t mode;
+	__u32 proto_offset;
+	__u32 ovtag_offset;
 
 	/*  Sanity Check: validate the parameters */
 	if (nic == NULL) {
@@ -1002,9 +1005,11 @@ static int bnx2x_open(nic_t *nic)
 			mf_cfg_addr = bp->shmem_base + 0x7e4;
 
 		/* shared_feat_cfg.config */
-		val = bnx2x_rd32(bp, bp->shmem_base + 0x354);
-		/* SI mode */
-		if ((val & 0x700) == 0x300) {
+		mode = bnx2x_rd32(bp, bp->shmem_base + 0x354);
+		mode &= 0x700;
+		LOG_DEBUG(PFX "%s: mode = 0x%x", nic->log_name, mode);
+		switch (mode) {
+		case 0x300: /* SI mode */
 			mac_offset = 0xe4 + (bp->func * 0x28) + 4;
 			val = bnx2x_rd32(bp, mf_cfg_addr + mac_offset);
 			mac[0] = (__u8) (val >> 8);
@@ -1027,9 +1032,13 @@ static int bnx2x_open(nic_t *nic)
 				rc = -ENOTSUP;
 				goto open_error;
 			}
-		} else if ((val & 0x700) == 0) {
-			__u32 proto_offset = 0x24 + (bp->func * 0x18);
-			__u32 ovtag_offset = proto_offset + 0xc;
+			break;
+
+		case 0x0: /* MF SD mode */
+		case 0x500:
+		case 0x600:
+			proto_offset = 0x24 + (bp->func * 0x18);
+			ovtag_offset = proto_offset + 0xc;
 
 			rc = -ENOTSUP;
 			val = bnx2x_rd32(bp, mf_cfg_addr + ovtag_offset);
@@ -1057,7 +1066,7 @@ static int bnx2x_open(nic_t *nic)
 			mac[4] = (__u8) (val >> 8);
 			mac[5] = (__u8) val;
 			memcpy(nic->mac_addr, mac, 6);
-
+			break;
 		}
 	}
 SF:
