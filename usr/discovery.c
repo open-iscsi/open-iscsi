@@ -50,9 +50,9 @@
 #include "iscsi_timer.h"
 #include "iscsi_err.h"
 /* libisns includes */
-#include "isns.h"
-#include "paths.h"
-#include "message.h"
+#include <libisns/isns.h>
+#include <libisns/paths.h>
+#include <libisns/message.h>
 
 #ifdef SLP_ENABLE
 #include "iscsi-slp-discovery.h"

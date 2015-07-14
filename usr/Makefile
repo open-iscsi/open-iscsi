@@ -30,8 +30,7 @@ endif
 
 CFLAGS ?= -O2 -g
 WARNFLAGS ?= -Wall -Wstrict-prototypes
-CFLAGS += $(WARNFLAGS) -I../include -I. -I../utils/open-isns \
-				-D$(OSNAME) $(IPC_CFLAGS)
+CFLAGS += $(WARNFLAGS) -I../include -I. -D$(OSNAME) $(IPC_CFLAGS)
 PROGRAMS = iscsid iscsiadm iscsistart
 
 # libc compat files
@@ -55,10 +54,10 @@ all: $(PROGRAMS)
 
 iscsid: $(ISCSI_LIB_SRCS) $(INITIATOR_SRCS) $(DISCOVERY_SRCS) \
 	iscsid.o session_mgmt.o discoveryd.o
-	$(CC) $(CFLAGS) $(LDFLAGS) $^ -o $@  -L../utils/open-isns -lisns -lrt -lmount
+	$(CC) $(CFLAGS) $(LDFLAGS) $^ -o $@  -lisns -lcrypto -lrt -lmount
 
 iscsiadm: $(ISCSI_LIB_SRCS) $(DISCOVERY_SRCS) iscsiadm.o session_mgmt.o
-	$(CC) $(CFLAGS) $(LDFLAGS) $^ -o $@ -L../utils/open-isns -lisns
+	$(CC) $(CFLAGS) $(LDFLAGS) $^ -o $@ -lisns -lcrypto
 
 iscsistart: $(ISCSI_LIB_SRCS) $(INITIATOR_SRCS) $(FW_BOOT_SRCS) \
 		iscsistart.o statics.o

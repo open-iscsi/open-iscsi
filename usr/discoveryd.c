@@ -40,11 +40,11 @@
 #include "iface.h"
 #include "session_mgmt.h"
 #include "session_info.h"
-#include "isns-proto.h"
-#include "isns.h"
-#include "paths.h"
-#include "message.h"
 #include "iscsi_err.h"
+#include <libisns/isns-proto.h>
+#include <libisns/isns.h>
+#include <libisns/paths.h>
+#include <libisns/message.h>
 
 #define DISC_DEF_POLL_INVL	30
 

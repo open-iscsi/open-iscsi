@@ -25,7 +25,7 @@ ifdef OPTFLAGS
 CFLAGS = $(OPTFLAGS)
 endif
 
-# Export it so configure of iscsiuio & open-isns will
+# Export it so configure of iscsiuio will
 # pick it up.
 ifneq (,$(CFLAGS))
 export CFLAGS
@@ -37,8 +37,7 @@ endif
 
 all: user
 
-user: utils/open-isns/Makefile iscsiuio/Makefile
-	$(MAKE) -C utils/open-isns
+user: iscsiuio/Makefile
 	$(MAKE) -C utils/sysdeps
 	$(MAKE) -C utils/fwparam_ibft
 	$(MAKE) -C usr
@@ -53,9 +52,6 @@ user: utils/open-isns/Makefile iscsiuio/Makefile
 	@echo "Built iscsiuio daemon:               iscsiuio/src/unix/iscsiuio"
 	@echo
 	@echo "Read README file for detailed information."
-
-utils/open-isns/Makefile: utils/open-isns/configure utils/open-isns/Makefile.in
-	cd utils/open-isns; ./configure --with-security=no
 
 iscsiuio/Makefile: iscsiuio/configure iscsiuio/Makefile.in
 	cd iscsiuio; ./configure
@@ -82,8 +78,6 @@ clean:
 	$(MAKE) -C kernel clean
 	[ ! -f iscsiuio/Makefile ] || $(MAKE) -C iscsiuio clean
 	[ ! -f iscsiuio/Makefile ] || $(MAKE) -C iscsiuio distclean
-	[ ! -f utils/open-isns/Makefile ] || $(MAKE) -C utils/open-isns clean
-	[ ! -f utils/open-isns/Makefile ] || $(MAKE) -C utils/open-isns distclean
 
 # this is for safety
 # now -jXXX will still be safe

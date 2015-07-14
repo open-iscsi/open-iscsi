@@ -49,7 +49,7 @@
 #include "idbm_fields.h"
 #include "session_mgmt.h"
 #include "iscsid_req.h"
-#include "isns-proto.h"
+#include <libisns/isns-proto.h>
 #include "iscsi_err.h"
 #include "iscsi_ipc.h"
 #include "iscsi_timer.h"
