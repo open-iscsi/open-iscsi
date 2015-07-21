@@ -2045,12 +2045,14 @@ static int session_unbind(struct iscsi_session *session)
 }
 
 static struct libmnt_table *mtab, *swaps;
+static struct libmnt_cache *mntcache;
 
 static void libmount_cleanup(void)
 {
 	mnt_free_table(mtab);
 	mnt_free_table(swaps);
-	mtab = swaps = NULL;
+	mnt_free_cache(mntcache);
+	mtab = swaps = mntcache = NULL;
 }
 
 static int libmount_init(void)
@@ -2058,10 +2060,13 @@ static int libmount_init(void)
 	mnt_init_debug(0);
 	mtab = mnt_new_table();
 	swaps = mnt_new_table();
-	if (!mtab || !swaps) {
+	mntcache = mnt_new_cache();
+	if (!mtab || !swaps || !mntcache) {
 		libmount_cleanup();
 		return -ENOMEM;
 	}
+	mnt_table_set_cache(mtab, mntcache);
+	mnt_table_set_cache(swaps, mntcache);
 	mnt_table_parse_mtab(mtab, NULL);
 	mnt_table_parse_swaps(swaps, NULL);
 	return 0;
