@@ -1898,10 +1898,33 @@ exit_logout:
 	return rc;
 }
 
+static int iscsi_check_session_use_count(uint32_t sid) {
+	char *config_file;
+	char *safe_logout;
+
+	config_file = get_config_file();
+	if (!config_file) {
+		log_error("Could not get config file from iscsid");
+		return 0;
+	}
+
+	safe_logout = cfg_get_string_param(config_file, "iscsid.safe_logout");
+	if (!safe_logout || strcmp(safe_logout, "Yes"))
+		return 0;
+
+	return session_in_use(sid);
+}
+
 int iscsi_logout_flashnode_sid(struct iscsi_transport *t, uint32_t host_no,
 			       uint32_t sid)
 {
 	int fd, rc = 0;
+
+	if (iscsi_check_session_use_count(sid)) {
+		log_error("Session is actively in use for mounted storage, "
+			  "and iscsid.safe_logout is configured.");
+		return ISCSI_ERR_BUSY;
+	}
 
 	fd = ipc->ctldev_open();
 	if (fd < 0) {

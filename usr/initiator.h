@@ -359,4 +359,5 @@ extern int iscsi_set_net_config(struct iscsi_transport *t,
 				struct iface_rec *iface);
 extern void iscsi_session_init_params(struct iscsi_session *session);
 
+extern int session_in_use(int sid);
 #endif /* INITIATOR_H */
