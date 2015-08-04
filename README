@@ -92,7 +92,7 @@ by running:
 	make kernel
 
 When building those modules the kernel source found at
-/lib/modules/`uname -a`/build
+/lib/modules/`uname -r`/build
 will be used to compile the open-iscsi modules. To specify a different
 kernel to build against use:
 
