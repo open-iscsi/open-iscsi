@@ -343,7 +343,7 @@ static int iscsid_logout_reqs_wait(struct list_head *list)
 }
 
 /**
- * iscsi_logout_portal - logou tof portal
+ * iscsi_logout_portal - logout of portal
  * @info: session to log out of
  * @list: if async, this is the list to add the logout req to
  */
