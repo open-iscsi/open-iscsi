@@ -79,6 +79,20 @@ kernel config. And you must enable "CRC32c CRC algorithm" even if
 you do not use header or data digests. They are the kernel options,
 CONFIG_CRYPTO and CONFIG_CRYPTO_CRC32C, respectively.
 
+The userspace components: iscsid, iscsiadm and iscsistart require the
+open-isns library which can be found here:
+
+https://github.com/gonzoleeman/open-isns/releases
+
+To install the open-isns headers and library required for open-iscsi download
+the current release and run:
+
+	./configure
+	make
+	make install
+	make install_hdrs
+	make install_lib
+
 By default the kernel's iSCSI modules will be used. Running:
 
 	make
