@@ -569,48 +569,6 @@ static int iscsi_conn_connect(struct iscsi_conn *conn, queue_task_t *qtask)
 	return 0;
 }
 
-static void iscsi_uio_poll_login_timedout(void *data)
-{
-	struct queue_task *qtask = data;
-	struct iscsi_conn *conn = qtask->conn;
-	iscsi_session_t *session = conn->session;
-
-	log_debug(3, "timeout waiting for UIO ...");
-	mgmt_ipc_write_rsp(qtask, ISCSI_ERR_TRANS_TIMEOUT);
-	conn_delete_timers(conn);
-	__session_destroy(session);
-}
-
-static int iscsi_sched_uio_poll(queue_task_t *qtask)
-{
-	struct iscsi_conn *conn = qtask->conn;
-	struct iscsi_session *session = conn->session;
-	struct iscsi_transport *t = session->t;
-	struct iscsi_ev_context *ev_context;
-
-	if (!t->template->set_net_config)
-		return 0;
-
-	ev_context = iscsi_ev_context_get(conn, 0);
-	if (!ev_context) {
-		/* while reopening the recv pool should be full */
-		log_error("BUG: __session_conn_reopen could "
-			  "not get conn context for recv.");
-		return -ENOMEM;
-	}
-
-	ev_context->data = qtask;
-	conn->state = ISCSI_CONN_STATE_XPT_WAIT;
-
-	iscsi_sched_ev_context(ev_context, conn, 0, EV_UIO_POLL);
-
-	log_debug(3, "Setting login UIO poll timer %p timeout %d",
-		  &conn->login_timer, conn->login_timeout);
-	actor_timer(&conn->login_timer, conn->login_timeout,
-		    iscsi_uio_poll_login_timedout, qtask);
-	return -EAGAIN;
-}
-
 static void
 __session_conn_reopen(iscsi_conn_t *conn, queue_task_t *qtask, int do_stop,
 		      int redirected)
@@ -1739,53 +1697,6 @@ failed_login:
 
 }
 
-static void session_conn_uio_poll(void *data)
-{
-	struct iscsi_ev_context *ev_context = data;
-	iscsi_conn_t *conn = ev_context->conn;
-	struct iscsi_session *session = conn->session;
-	queue_task_t *qtask = ev_context->data;
-	int rc;
-
-	log_debug(4, "retrying uio poll");
-	rc = iscsi_set_net_config(session->t, session,
-				  &conn->session->nrec.iface);
-	if (rc != 0) {
-		if (rc == ISCSI_ERR_AGAIN) {
-			ev_context->data = qtask;
-			iscsi_sched_ev_context(ev_context, conn, 2,
-					       EV_UIO_POLL);
-			return;
-		} else {
-			log_error("session_conn_uio_poll() "
-				  "connection failure [0x%x]", rc);
-			actor_delete(&conn->login_timer);
-			iscsi_login_eh(conn, qtask, ISCSI_ERR_INTERNAL);
-			iscsi_ev_context_put(ev_context);
-			return;
-		}
-	}
-
-	iscsi_ev_context_put(ev_context);
-	actor_delete(&conn->login_timer);
-	log_debug(4, "UIO ready trying connect");
-
-	/*  uIP is ready try to connect */
-	if (gettimeofday(&conn->initial_connect_time, NULL))
-		log_error("Could not get initial connect time. If "
-			  "login errors iscsid may give up the initial "
-			  "login early. You should manually login.");
-
-	conn->state = ISCSI_CONN_STATE_XPT_WAIT;
-	if (iscsi_conn_connect(conn, qtask)) {
-		int delay = ISCSI_CONN_ERR_REOPEN_DELAY;
-
-		log_debug(4, "Waiting %u seconds before trying to reconnect.",
-			  delay);
-		queue_delayed_reopen(qtask, delay);
-	}
-}
-
 static int iscsi_sched_ev_context(struct iscsi_ev_context *ev_context,
 				  struct iscsi_conn *conn, unsigned long tmo,
 				  int event)
@@ -1825,11 +1736,6 @@ static int iscsi_sched_ev_context(struct iscsi_ev_context *ev_context,
 	case EV_CONN_POLL:
 		actor_timer(&ev_context->actor, tmo,
 			    session_conn_poll, ev_context);
-		break;
-	case EV_UIO_POLL:
-		actor_init(&ev_context->actor, session_conn_uio_poll,
-			  ev_context);
-		actor_schedule(&ev_context->actor);
 		break;
 	case EV_CONN_LOGOUT_TIMER:
 		actor_timer(&ev_context->actor, tmo,
@@ -1968,14 +1874,12 @@ static int __session_login_task(node_rec_t *rec, queue_task_t *qtask)
 
 	rc = iscsi_host_set_net_params(&rec->iface, session);
 	if (rc == ISCSI_ERR_AGAIN) {
-		iscsi_sched_uio_poll(qtask);
 		/*
-		 * Cannot block iscsid, so caller is going to internally
-		 * retry the operation.
+		 * host/iscsiuio not ready. Cannot block iscsid, so caller is
+		 * going to internally retry the operation.
 		 */
-		qtask->rsp.command = MGMT_IPC_SESSION_LOGIN;
-		qtask->rsp.err = ISCSI_SUCCESS;
-		return ISCSI_SUCCESS;
+		__session_destroy(session);
+		return ISCSI_ERR_HOST_NOT_FOUND;
 	} else if (rc) {
 		__session_destroy(session);
 		return ISCSI_ERR_LOGIN;
@@ -2022,17 +1926,17 @@ session_login_task(node_rec_t *rec, queue_task_t *qtask)
 static void session_login_task_retry(void *data)
 {
 	struct login_task_retry_info *info = data;
+	struct node_rec *rec = info->rec;
 	int rc;
 
-	rc = __session_login_task(info->rec, info->qtask);
+	rc = __session_login_task(rec, info->qtask);
 	if (rc == ISCSI_ERR_HOST_NOT_FOUND) {
-		if (info->retry_count == 5) {
+		if (info->retry_count == rec->conn[0].timeo.login_timeout) {
 			/* give up */
 			goto write_rsp;
 		}
 
-		rc = queue_session_login_task_retry(info, info->rec,
-						    info->qtask);
+		rc = queue_session_login_task_retry(info, rec, info->qtask);
 		if (rc)
 			goto write_rsp;
 		/* we are going to internally retry */
@@ -2063,8 +1967,8 @@ static int queue_session_login_task_retry(struct login_task_retry_info *info,
 
 	info->retry_count++;
 	log_debug(4, "queue session setup attempt in %d secs, retries %d",
-		  3, info->retry_count);
-	actor_timer(&info->retry_actor, 3, session_login_task_retry, info);
+		  1, info->retry_count);
+	actor_timer(&info->retry_actor, 1, session_login_task_retry, info);
 	return 0;
 }
 
