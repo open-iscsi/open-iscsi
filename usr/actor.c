@@ -195,6 +195,14 @@ actor_timer(actor_t *thread, uint32_t timeout_secs, void (*callback)(void *),
 	actor_schedule_private(thread, timeout_secs, 0);
 }
 
+void
+actor_timer_mod(actor_t *thread, uint32_t new_timeout_secs, void *data)
+{
+	actor_delete(thread);
+	thread->data = data;
+	actor_schedule_private(thread, new_timeout_secs, 0);
+}
+
 /*
  * Execute all items that have expired.
  *

@@ -263,6 +263,7 @@ __session_conn_create(iscsi_session_t *session, int cid)
 
 	conn->state = ISCSI_CONN_STATE_FREE;
 	conn->session = session;
+	actor_init(&conn->login_timer, iscsi_login_timedout, NULL);
 	/*
 	 * TODO: we must export the socket_fd/transport_eph from sysfs
 	 * so if iscsid is resyncing up we can pick that up and cleanup up
@@ -529,9 +530,7 @@ queue_delayed_reopen(queue_task_t *qtask, int delay)
  	 * iscsi_login_eh can handle the login resched as
  	 * if it were login time out
  	 */
-	actor_delete(&conn->login_timer);
-	actor_timer(&conn->login_timer, delay,
-		    iscsi_login_timedout, qtask);
+	actor_timer_mod(&conn->login_timer, delay, qtask);
 }
 
 static int iscsi_conn_connect(struct iscsi_conn *conn, queue_task_t *qtask)
@@ -566,8 +565,7 @@ static int iscsi_conn_connect(struct iscsi_conn *conn, queue_task_t *qtask)
 	iscsi_sched_ev_context(ev_context, conn, 0, EV_CONN_POLL);
 	log_debug(3, "Setting login timer %p timeout %d", &conn->login_timer,
 		  conn->login_timeout);
-	actor_timer(&conn->login_timer, conn->login_timeout,
-		    iscsi_login_timedout, qtask);
+	actor_timer_mod(&conn->login_timer, conn->login_timeout, qtask);
 	return 0;
 }
 

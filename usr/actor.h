@@ -43,7 +43,8 @@ extern void actor_schedule_head(actor_t *thread);
 extern void actor_schedule(actor_t *thread);
 extern void actor_timer(actor_t *thread, uint32_t delay_secs,
 			void (*callback)(void *), void *data);
-extern int actor_timer_mod(actor_t *thread, uint32_t new_delay_secs, void *data);
+extern void actor_timer_mod(actor_t *thread, uint32_t new_delay_secs,
+			    void *data);
 extern void actor_poll(void);
 
 #endif /* ACTOR_H */
