@@ -15,10 +15,12 @@
  */
 
 #include <string.h>
+#include <fcntl.h>
 
 #include "log.h"
 #include "uip_mgmt_ipc.h"
 #include "iscsid_req.h"
+#include "iscsi_err.h"
 
 int uip_broadcast_params(struct iscsi_transport *t,
 			 struct iface_rec *iface,
@@ -37,5 +39,40 @@ int uip_broadcast_params(struct iscsi_transport *t,
 
 	return uip_broadcast(&broadcast,
 			     sizeof(iscsid_uip_broadcast_header_t) +
-			     sizeof(*iface));
+			     sizeof(*iface), O_NONBLOCK, NULL);
+}
+
+int uip_broadcast_ping_req(struct iscsi_transport *t,
+			   struct iface_rec *iface, int datalen,
+			   struct sockaddr_storage *dst_addr, uint32_t *status)
+{
+	struct iscsid_uip_broadcast broadcast;
+	int len = 0;
+
+	log_debug(3, "broadcasting ping request to uip\n");
+
+	memset(&broadcast, 0, sizeof(broadcast));
+
+	broadcast.header.command = ISCSID_UIP_IPC_PING;
+	len = sizeof(*iface) + sizeof(*dst_addr) + sizeof(datalen);
+	broadcast.header.payload_len = len;
+
+	memcpy(&broadcast.u.ping_rec.ifrec, iface, sizeof(*iface));
+
+	if (dst_addr->ss_family == PF_INET) {
+		len = sizeof(struct sockaddr_in);
+	} else if (dst_addr->ss_family == PF_INET6) {
+		len = sizeof(struct sockaddr_in6);
+	} else {
+		log_error("%s unknown addr family %d\n",
+			  __FUNCTION__, dst_addr->ss_family);
+		return ISCSI_ERR_INVAL;
+	}
+
+	memcpy(&broadcast.u.ping_rec.ipaddr, dst_addr, len);
+	broadcast.u.ping_rec.datalen = datalen;
+
+	return uip_broadcast(&broadcast,
+			     sizeof(iscsid_uip_broadcast_header_t) +
+			     broadcast.header.payload_len, 0, status);
 }

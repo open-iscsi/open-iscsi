@@ -46,6 +46,9 @@ struct iscsi_transport_template {
 	int (*set_net_config) (struct iscsi_transport *t,
 			       struct iface_rec *iface,
 			       struct iscsi_session *session);
+	int (*exec_ping) (struct iscsi_transport *t,
+			  struct iface_rec *iface, int datalen,
+			  struct sockaddr_storage *dst_addr, uint32_t *status);
 };
 
 /* represents data path provider */

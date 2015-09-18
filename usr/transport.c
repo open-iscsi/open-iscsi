@@ -85,6 +85,7 @@ struct iscsi_transport_template bnx2i = {
 	.ep_poll	= ktransport_ep_poll,
 	.ep_disconnect	= ktransport_ep_disconnect,
 	.set_net_config = uip_broadcast_params,
+	.exec_ping	= uip_broadcast_ping_req,
 };
 
 struct iscsi_transport_template be2iscsi = {

@@ -3117,6 +3117,7 @@ static int exec_ping_op(struct iface_rec *iface, char *ip, int size, int count,
 	struct iscsi_transport *t = NULL;
 	uint32_t host_no, status = 0;
 	struct sockaddr_storage addr;
+	struct host_info hinfo;
 	int i;
 
 	if (!iface) {
@@ -3185,13 +3186,32 @@ static int exec_ping_op(struct iface_rec *iface, char *ip, int size, int count,
 	for (i = 1; i <= count; i++) {
 		/*
 		 * To support drivers like bnx2i that do not use
-		 * the iscsi if to send a ping, we can add a transport
+		 * the iscsi iface to send a ping, we invoke transport
 		 * callout here.
 		 */
 		status = 0;
-		rc = ipc->exec_ping(t->handle, host_no,
-				    (struct sockaddr *)&addr, iface->iface_num,
-				    iface_type, size, &status);
+		if (t->template->exec_ping) {
+			if (!strlen(iface->netdev)) {
+				memset(&hinfo, 0, sizeof(hinfo));
+				hinfo.host_no = host_no;
+				iscsi_sysfs_get_hostinfo_by_host_no(&hinfo);
+				strcpy(iface->netdev, hinfo.iface.netdev);
+			}
+
+			rc = iscsi_set_net_config(t, NULL, iface);
+			if (rc)
+				goto ping_err;
+
+			rc = t->template->exec_ping(t, iface, size, &addr,
+						    &status);
+		} else {
+			rc = ipc->exec_ping(t->handle, host_no,
+					    (struct sockaddr *)&addr,
+					    iface->iface_num, iface_type,
+					    (uint32_t)size, &status);
+		}
+
+ping_err:
 		if (!rc && !status)
 			printf("Ping %d completed\n", i);
 		else if (status)

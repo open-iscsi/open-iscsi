@@ -203,7 +203,7 @@ static int uip_connect(int *fd)
 	return ipc_connect(fd, ISCSID_UIP_NAMESPACE, 0);
 }
 
-int uip_broadcast(void *buf, size_t buf_len)
+int uip_broadcast(void *buf, size_t buf_len, int fd_flags, uint32_t *status)
 {
 	int err;
 	int fd;
@@ -235,7 +235,11 @@ int uip_broadcast(void *buf, size_t buf_len)
 	flags = fcntl(fd, F_GETFL, 0);
 	if (flags == -1)
 		flags = 0;
-	err = fcntl(fd, F_SETFL, flags | O_NONBLOCK);
+
+	if (fd_flags)
+		flags |= fd_flags;
+
+	err = fcntl(fd, F_SETFL, flags);
 	if (err) {
 		log_error("could not set uip broadcast to non-blocking: %d",
 			  errno);
@@ -268,11 +272,34 @@ int uip_broadcast(void *buf, size_t buf_len)
 		log_error("Could not broadcast to uIP after %d tries",
 			  count);
 		err = ISCSI_ERR_AGAIN;
-	} else if (rsp.err != ISCSID_UIP_MGMT_IPC_DEVICE_UP) {
-		log_debug(3, "Device is not ready");
-		err = ISCSI_ERR_AGAIN;
 	}
 
+	if (err)
+		goto done;
+
+	switch (rsp.command) {
+	case ISCSID_UIP_IPC_GET_IFACE:
+		if (rsp.err != ISCSID_UIP_MGMT_IPC_DEVICE_UP) {
+			log_debug(3, "Device is not ready\n");
+			err = ISCSI_ERR_AGAIN;
+		}
+
+		break;
+	case ISCSID_UIP_IPC_PING:
+		*status = rsp.ping_sc;
+		if (rsp.err == ISCSID_UIP_MGMT_IPC_DEVICE_INITIALIZING) {
+			log_debug(3, "Device is not ready\n");
+			err = ISCSI_ERR_AGAIN;
+		} else if (*status) {
+			err = ISCSI_ERR;
+		}
+
+		break;
+	default:
+		err = ISCSI_ERR;
+	}
+
+done:
 	close(fd);
 	return err;
 }

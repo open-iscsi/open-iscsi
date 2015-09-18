@@ -29,6 +29,7 @@
 typedef enum iscsid_uip_cmd {
 	ISCSID_UIP_IPC_UNKNOWN			= 0,
 	ISCSID_UIP_IPC_GET_IFACE		= 1,
+	ISCSID_UIP_IPC_PING			= 2,
 
 	__ISCSID_UIP_IPC_MAX_COMMAND
 } iscsid_uip_cmd_e;
@@ -47,6 +48,13 @@ typedef struct iscsid_uip_broadcast {
 		struct ipc_broadcast_iface_rec {
 			struct iface_rec rec;
 		} iface_rec;
+
+		struct ipc_broadcast_ping_rec {
+			struct iface_rec ifrec;
+			struct sockaddr_storage ipaddr;
+			int datalen;
+			int *status;
+		} ping_rec;
 	} u;
 } iscsid_uip_broadcast_t;
 
@@ -63,11 +71,16 @@ typedef enum iscsid_uip_mgmt_ipc_err {
 typedef struct iscsid_uip_mgmt_rsp {
 	iscsid_uip_cmd_e command;
 	iscsid_uip_mgmt_ipc_err_e err;
+	enum iscsi_ping_status_code ping_sc;
 } iscsid_uip_rsp_t;
 
 extern int uip_broadcast_params(struct iscsi_transport *t,
 				struct iface_rec *iface,
 				struct iscsi_session *session);
 
+extern int uip_broadcast_ping_req(struct iscsi_transport *t,
+				  struct iface_rec *iface, int datalen,
+				  struct sockaddr_storage *dst_addr,
+				  uint32_t *status);
 
 #endif /* UIP_MGMT_IPC_H */
