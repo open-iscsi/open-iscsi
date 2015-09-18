@@ -1283,6 +1283,8 @@ struct __attribute__ ((__packed__)) uip_icmpv4_hdr {
 	u16_t id, seqno;
 };
 
+typedef struct uip_icmpv4_hdr uip_icmp_echo_hdr_t;
+
 /* The ICMPv6 */
 struct __attribute__ ((__packed__)) uip_icmpv6_hdr {
 	/* ICMP (echo) header. */
@@ -1554,6 +1556,8 @@ struct uip_stack {
 
 	/* NDP client */
 	void *ndpc;
+
+	void *ping_conf;
 };
 
 /*******************************************************************************
@@ -1563,6 +1567,7 @@ int set_ipv6_link_local_address(struct uip_stack *ustack);
 int is_ipv6_link_local_address(uip_ip6addr_t *addr);
 
 void dump_uip_packet(struct uip_stack *ustack);
+u16_t uip_icmp6chksum(struct uip_stack *ustack);
 
 #endif /* __UIP_H__ */
 

@@ -7,6 +7,7 @@
 #include "dhcpc.h"
 #include "ipv6_ndpc.h"
 #include "brcm_iscsi.h"
+#include "ping.h"
 
 /**
  * \defgroup uip The uIP TCP/IP stack
@@ -441,6 +442,7 @@ void uip_init(struct uip_stack *ustack, uint8_t ipv6_enabled)
 
 	ustack->dhcpc = NULL;
 	ustack->ndpc = NULL;
+	ustack->ping_conf = NULL;
 }
 void uip_reset(struct uip_stack *ustack)
 {
@@ -1424,6 +1426,11 @@ ndp_send:
 icmp_input:
 #endif /* UIP_PINGADDRCONF */
 		++ustack->stats.icmp.recv;
+
+		if (icmpv4_hdr->type == ICMP_ECHO_REPLY) {
+			if (process_icmp_packet(icmpv4_hdr, ustack) == 0)
+				goto drop;
+		}
 
 		/* ICMP echo (i.e., ping) processing. This is simple, we only
 		   change the ICMP type from ECHO to ECHO_REPLY and adjust the

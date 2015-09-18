@@ -64,6 +64,7 @@
 
 #include "logger.h"
 #include "uip.h"
+#include "ping.h"
 
 /*  private iscsid options stucture */
 struct iscsid_options {
@@ -323,7 +324,45 @@ static int decode_iface(struct iface_rec_decode *ird, struct iface_rec *rec)
 	return rc;
 }
 
-static int parse_iface(void *arg)
+static void *perform_ping(void *arg)
+{
+	struct ping_conf *png_c = (struct ping_conf *)arg;
+	nic_interface_t *nic_iface = png_c->nic_iface;
+	nic_t *nic = nic_iface->parent;
+	iscsid_uip_broadcast_t *data;
+	struct sockaddr_in *addr;
+	struct sockaddr_in6 *addr6;
+	uip_ip6addr_t dst_addr;
+	int rc = 0;
+	int datalen;
+
+	data = (iscsid_uip_broadcast_t *)png_c->data;
+	datalen = data->u.ping_rec.datalen;
+
+	memset(dst_addr, 0, sizeof(uip_ip6addr_t));
+	if (nic_iface->protocol == AF_INET) {
+		/* IPv4 */
+		addr = (struct sockaddr_in *)&data->u.ping_rec.ipaddr;
+		memcpy(dst_addr, &addr->sin_addr.s_addr, sizeof(uip_ip4addr_t));
+	} else {
+		/* IPv6 */
+		addr6 = (struct sockaddr_in6 *)&data->u.ping_rec.ipaddr;
+		memcpy(dst_addr, &addr6->sin6_addr.s6_addr,
+		       sizeof(uip_ip6addr_t));
+	}
+
+	ping_init(png_c, dst_addr, nic_iface->protocol, datalen);
+
+	rc = do_ping_from_nic_iface(png_c);
+	if (png_c->state == -1)
+		png_c->state = rc;
+
+	LOG_INFO(PFX "ping thread end");
+	nic->ping_thread = INVALID_THREAD;
+	pthread_exit(NULL);
+}
+
+static int parse_iface(void *arg, int do_ping)
 {
 	int rc, i;
 	nic_t *nic = NULL;
@@ -338,9 +377,14 @@ static int parse_iface(void *arg)
 	struct iface_rec_decode ird;
 	struct in_addr src_match, dst_match;
 	pthread_attr_t attr;
+	struct ping_conf *png_c;
 
 	data = (iscsid_uip_broadcast_t *) arg;
-	rec = &data->u.iface_rec.rec;
+	if (do_ping)
+		rec = &data->u.ping_rec.ifrec;
+	else
+		rec = &data->u.iface_rec.rec;
+
 	LOG_INFO(PFX "Received request for '%s' to set IP address: '%s' "
 		 "VLAN: '%d'",
 		 rec->netdev,
@@ -786,6 +830,54 @@ eagain:
 					     ipv6_buf_str,
 		 ird.vlan_id, rec->transport_name);
 
+	if (do_ping) {
+		if ((nic->flags & NIC_GOING_DOWN) ||
+		      (nic->state != NIC_RUNNING) ||
+		      !(nic->flags & NIC_ENABLED)) {
+			LOG_INFO(PFX "%s: Device is not ready for ping",
+				 nic->log_name);
+			rc = -EAGAIN;
+			goto done;
+		}
+
+		if (nic->ping_thread != INVALID_THREAD) {
+			rc = pthread_cancel(nic->ping_thread);
+			if (rc != 0) {
+				LOG_INFO(PFX "%s: failed to cancel ping thread",
+					 nic->log_name);
+				rc = -EAGAIN;
+				goto done;
+			}
+		}
+
+		png_c = malloc(sizeof(struct ping_conf));
+		if (!png_c) {
+			LOG_ERR(PFX "Memory alloc failed for ping conf");
+			rc = -ENOMEM;
+			goto done;
+		}
+
+		memset(png_c, 0, sizeof(struct ping_conf));
+		png_c->nic_iface = nic_iface;
+		png_c->data = arg;
+		nic_iface->ustack.ping_conf = png_c;
+
+		/* Spawn a thread to perform ping operation.
+		 * This thread will exit when done.
+		 */
+		rc = pthread_create(&nic->ping_thread, NULL,
+				    perform_ping, (void *)png_c);
+		if (rc != 0) {
+			LOG_WARN(PFX "%s: failed starting ping thread\n",
+				 nic->log_name);
+		} else {
+			pthread_join(nic->ping_thread, NULL);
+			rc = png_c->state;
+		}
+		free(png_c);
+		nic_iface->ustack.ping_conf = NULL;
+	}
+
 done:
 	pthread_mutex_unlock(&nic_list_mutex);
 
@@ -837,16 +929,16 @@ int process_iscsid_broadcast(int s2)
 	LOG_DEBUG(PFX "recv iscsid request: cmd: %d, payload_len: %d",
 		  cmd, payload_len);
 
-	size = fread(&data->u.iface_rec, payload_len, 1, fd);
-	if (!size) {
-		LOG_ERR(PFX "Could not read data: %d(%s)",
-			errno, strerror(errno));
-		goto error;
-	}
-
 	switch (cmd) {
 	case ISCSID_UIP_IPC_GET_IFACE:
-		rc = parse_iface(data);
+		size = fread(&data->u.iface_rec, payload_len, 1, fd);
+		if (!size) {
+			LOG_ERR(PFX "Could not read data: %d(%s)",
+				errno, strerror(errno));
+			goto error;
+		}
+
+		rc = parse_iface(data, 0);
 		switch (rc) {
 		case 0:
 			rsp.command = cmd;
@@ -858,6 +950,30 @@ int process_iscsid_broadcast(int s2)
 			break;
 		default:
 			rsp.command = cmd;
+			rsp.err = ISCSID_UIP_MGMT_IPC_ERR;
+		}
+
+		break;
+	case ISCSID_UIP_IPC_PING:
+		size = fread(&data->u.ping_rec, payload_len, 1, fd);
+		if (!size) {
+			LOG_ERR(PFX "Could not read data: %d(%s)",
+				errno, strerror(errno));
+			goto error;
+		}
+
+		rc = parse_iface(data, 1);
+		rsp.command = cmd;
+		rsp.ping_sc = rc;
+
+		switch (rc) {
+		case 0:
+			rsp.err = ISCSID_UIP_MGMT_IPC_DEVICE_UP;
+			break;
+		case -EAGAIN:
+			rsp.err = ISCSID_UIP_MGMT_IPC_DEVICE_INITIALIZING;
+			break;
+		default:
 			rsp.err = ISCSID_UIP_MGMT_IPC_ERR;
 		}
 

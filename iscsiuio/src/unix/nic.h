@@ -52,6 +52,7 @@
 #include "nic_nl.h"
 #include "packet.h"
 #include "uip.h"
+#include "timer.h"
 
 #include "iscsi_if.h"
 
@@ -330,6 +331,9 @@ typedef struct nic {
 #define NIC_NL_PROCESS_LAST_ENTRY           (NIC_NL_PROCESS_MAX_RING_SIZE - 1)
 #define NIC_NL_PROCESS_NEXT_ENTRY(x) ((x + 1) & NIC_NL_PROCESS_MAX_RING_SIZE)
 	void *nl_process_ring[NIC_NL_PROCESS_MAX_RING_SIZE];
+
+	/* The thread used to perform ping */
+	pthread_t ping_thread;
 } nic_t;
 
 /******************************************************************************
@@ -380,5 +384,21 @@ int find_nic_lib_using_pci_id(uint32_t vendor, uint32_t device,
 void *nic_loop(void *arg);
 
 int nic_packet_capture(struct nic *, struct packet *pkt);
+
+int process_packets(nic_t *nic,
+		    struct timer *periodic_timer,
+		    struct timer *arp_timer, nic_interface_t *nic_iface);
+
+void prepare_ustack(nic_t *nic,
+		    nic_interface_t *nic_iface,
+		    struct uip_stack *ustack, struct packet *pkt);
+
+void prepare_ipv4_packet(nic_t *nic,
+			 nic_interface_t *nic_iface,
+			 struct uip_stack *ustack, struct packet *pkt);
+
+void prepare_ipv6_packet(nic_t *nic,
+			 nic_interface_t *nic_iface,
+			 struct uip_stack *ustack, struct packet *pkt);
 
 #endif /* __NIC_H__ */

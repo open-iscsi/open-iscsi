@@ -47,6 +47,7 @@
 #include "icmpv6.h"
 #include "uipopt.h"
 #include "dhcpv6.h"
+#include "ping.h"
 
 inline int best_match_bufcmp(u8_t *a, u8_t *b, int len)
 {
@@ -811,6 +812,9 @@ static void ipv6_icmp_rx(struct ipv6_context *context)
 			(struct ipv6_hdr *)context->ustack->network_layer;
 	struct icmpv6_hdr *icmp = (struct icmpv6_hdr *)((u8_t *)ipv6 +
 						sizeof(struct ipv6_hdr));
+	uip_icmp_echo_hdr_t *icmp_echo_hdr =
+				(uip_icmp_echo_hdr_t *)((u8_t *)ipv6 +
+						sizeof(struct ipv6_hdr));
 
 	switch (icmp->icmpv6_type) {
 	case ICMPV6_RTR_ADV:
@@ -828,6 +832,11 @@ static void ipv6_icmp_rx(struct ipv6_context *context)
 	case ICMPV6_ECHO_REQUEST:
 		/* Response with ICMP reply */
 		ipv6_icmp_handle_echo_request(context);
+		break;
+
+	case ICMPV6_ECHO_REPLY:
+		/* Handle ICMP reply */
+		process_icmp_packet(icmp_echo_hdr, context->ustack);
 		break;
 
 	default:
