@@ -3199,7 +3199,7 @@ static int exec_ping_op(struct iface_rec *iface, char *ip, int size, int count,
 			}
 
 			rc = iscsi_set_net_config(t, NULL, iface);
-			if (rc)
+			if (rc && (rc != ISCSI_ERR_AGAIN))
 				goto ping_err;
 
 			rc = t->template->exec_ping(t, iface, size, &addr,

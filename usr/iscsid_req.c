@@ -247,7 +247,7 @@ int uip_broadcast(void *buf, size_t buf_len, int fd_flags, uint32_t *status)
 		return ISCSI_ERR;
 	}
 
-#define MAX_UIP_BROADCAST_READ_TRIES 3
+#define MAX_UIP_BROADCAST_READ_TRIES 5
 	for (count = 0; count < MAX_UIP_BROADCAST_READ_TRIES; count++) {
 		/*  Wait for the response */
 		err = read(fd, &rsp, sizeof(rsp));
@@ -258,7 +258,7 @@ int uip_broadcast(void *buf, size_t buf_len, int fd_flags, uint32_t *status)
 			err = 0;
 			break;
 		} else if ((err == -1) && (errno == EAGAIN)) {
-			usleep(250000);
+			usleep(1000000);
 			continue;
 		} else {
 			log_error("Could not read response (%d/%d), daemon "
