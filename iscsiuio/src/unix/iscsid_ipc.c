@@ -335,6 +335,8 @@ static void *perform_ping(void *arg)
 	uip_ip6addr_t dst_addr;
 	int rc = 0;
 	int datalen;
+	struct timespec ts = {.tv_sec = 5,
+			      .tv_nsec = 0};
 
 	data = (iscsid_uip_broadcast_t *)png_c->data;
 	datalen = data->u.ping_rec.datalen;
@@ -351,12 +353,32 @@ static void *perform_ping(void *arg)
 		       sizeof(uip_ip6addr_t));
 	}
 
+	/*  Ensure that the NIC is RUNNING */
+	if ((nic->state != NIC_RUNNING) || !(nic->flags & NIC_ENABLED)) {
+		pthread_mutex_lock(&nic->nic_mutex);
+		rc = pthread_cond_timedwait(&nic->enable_done_cond,
+					    &nic->nic_mutex, &ts);
+		if ((rc == 0) && (nic->state == NIC_RUNNING)) {
+			LOG_DEBUG(PFX "%s: nic running", nic->log_name);
+		} else if (rc) {
+			LOG_DEBUG(PFX "%s: err %d", nic->log_name, rc);
+			rc = -EAGAIN;
+		}
+		pthread_mutex_unlock(&nic->nic_mutex);
+	}
+
+	if (rc || nic->state != NIC_RUNNING) {
+		png_c->state = rc;
+		goto ping_done;
+	}
+
 	ping_init(png_c, dst_addr, nic_iface->protocol, datalen);
 
 	rc = do_ping_from_nic_iface(png_c);
 	if (png_c->state == -1)
 		png_c->state = rc;
 
+ping_done:
 	LOG_INFO(PFX "ping thread end");
 	nic->ping_thread = INVALID_THREAD;
 	pthread_exit(NULL);
@@ -482,14 +504,18 @@ static int parse_iface(void *arg, int do_ping)
 		nic->pending_count++;
 		pthread_mutex_unlock(&nic->nic_mutex);
 
-		sleep_req.tv_sec = 0;
-		sleep_req.tv_nsec = 100000;
+		sleep_req.tv_sec = 2;
+		sleep_req.tv_nsec = 0;
 		nanosleep(&sleep_req, &sleep_rem);
 
-		LOG_INFO(PFX "%s: enabled pending", nic->log_name);
-
-		rc = -EAGAIN;
-		goto done;
+		pthread_mutex_lock(&nic->nic_mutex);
+		if (!(nic->flags & NIC_ENABLED) ||
+		    nic->state != NIC_RUNNING) {
+			pthread_mutex_unlock(&nic->nic_mutex);
+			LOG_INFO(PFX "%s: enabled pending", nic->log_name);
+			rc = -EAGAIN;
+			goto done;
+		}
 	}
 	pthread_mutex_unlock(&nic->nic_mutex);
 
@@ -831,15 +857,6 @@ eagain:
 		 ird.vlan_id, rec->transport_name);
 
 	if (do_ping) {
-		if ((nic->flags & NIC_GOING_DOWN) ||
-		      (nic->state != NIC_RUNNING) ||
-		      !(nic->flags & NIC_ENABLED)) {
-			LOG_INFO(PFX "%s: Device is not ready for ping",
-				 nic->log_name);
-			rc = -EAGAIN;
-			goto done;
-		}
-
 		if (nic->ping_thread != INVALID_THREAD) {
 			rc = pthread_cancel(nic->ping_thread);
 			if (rc != 0) {
@@ -873,6 +890,8 @@ eagain:
 		} else {
 			pthread_join(nic->ping_thread, NULL);
 			rc = png_c->state;
+			if (rc == -EAGAIN)
+				png_c->state = 0;
 		}
 		free(png_c);
 		nic_iface->ustack.ping_conf = NULL;
