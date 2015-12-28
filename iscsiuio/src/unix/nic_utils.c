@@ -700,6 +700,9 @@ int nic_verify_uio_sysfs_name(nic_t *nic)
 	uint32_t raw_size = 0;
 	char temp_path[sizeof(nic_uio_sysfs_name_tempate) + 8];
 	int rc = 0;
+	nic_lib_handle_t *handle = NULL;
+	size_t name_size;
+
 
 	/*  Build the path to determine uio name */
 	snprintf(temp_path, sizeof(temp_path),
@@ -716,37 +719,43 @@ int nic_verify_uio_sysfs_name(nic_t *nic)
 	*raw_tmp = '\0';
 
 	/*  If the nic library is not set then check if there is a library
-	 *  which matches the library name */
+	 *  which matches the uio sysfs name */
 	if (nic->nic_library == NULL) {
 		NIC_LIBRARY_EXIST_T exist;
 
-		exist = does_nic_uio_name_exist(raw);
+		exist = does_nic_uio_name_exist(raw, &handle);
 		if (exist == NIC_LIBRARY_DOESNT_EXIST) {
-			LOG_ERR(PFX "%s: could not find library: %s ",
+			LOG_ERR(PFX "%s: could not find library for uio name: %s",
 				nic->log_name, raw);
-			rc = -EIO;
+			rc = -EINVAL;
+			goto error;
 		}
+
+		/* fill the lib info */
+		nic->nic_library = handle;
+		nic->ops = handle->ops;
+		(*nic->ops->lib_ops.get_library_name) (&nic->library_name,
+						       &name_size);
 	} else {
-		char *library_name;
-		size_t library_name_size;
+		/*  Get the uio sysfs name from the NIC library */
+		(*nic->ops->lib_ops.get_uio_name) (&raw_tmp, &name_size);
 
-		/*  Get the string name from the NIC library */
-		(*nic->ops->lib_ops.get_library_name) (&library_name,
-						       &library_name_size);
-
-		if (strcmp(raw, library_name) != 0) {
+		if (strncmp(raw, raw_tmp, name_size) != 0) {
 			LOG_ERR(PFX "%s: uio names not equal: "
 				"expecting %s got %s from %s",
-				nic->log_name, library_name, raw, temp_path);
-			rc = -EIO;
+				nic->log_name, raw, raw_tmp, temp_path);
+			rc = -EINVAL;
+			goto error;
 		}
 	}
 
-	free(raw);
-
-	LOG_INFO(PFX "%s: Verified is a cnic_uio device", nic->log_name);
+	LOG_INFO(PFX "%s: Verified uio name %s with library %s",
+		 nic->log_name, raw, nic->library_name);
 
 error:
+	if (raw)
+		free(raw);
+
 	return rc;
 }
 
@@ -844,28 +853,40 @@ void prepare_library(nic_t *nic)
 {
 	int rc;
 	NIC_LIBRARY_EXIST_T exist;
+	nic_lib_handle_t *handle = NULL;
 
 	nic_fill_name(nic);
 
 	/* No assoicated library, we can skip it */
 	if (nic->library_name != NULL) {
 		/*  Check that we have the proper NIC library loaded */
-		exist = does_nic_library_exist(nic->library_name);
+		exist = does_nic_library_exist(nic->library_name, &handle);
 		if (exist == NIC_LIBRARY_DOESNT_EXIST) {
 			LOG_ERR(PFX "NIC library doesn't exists: %s",
 				nic->library_name);
 			goto error;
+		} else if (handle && (nic->nic_library == handle) &&
+			  (nic->ops == handle->ops)) {
+			LOG_INFO("%s: Have NIC library '%s'",
+				 nic->log_name, nic->library_name);
 		}
 	}
 
-	/*  Determine the NIC library to use based on the PCI Id */
-	rc = find_set_nic_lib(nic);
+	/*  Verify the NIC library to use */
+	rc = nic_verify_uio_sysfs_name(nic);
 	if (rc != 0) {
-		LOG_ERR(PFX "%s: Couldn't find NIC library", nic->log_name);
-		goto error;
+		/*  Determine the NIC library to use based on the PCI Id */
+		rc = find_set_nic_lib(nic);
+		if (rc != 0) {
+			LOG_ERR(PFX "%s: Couldn't find NIC library",
+				nic->log_name);
+			goto error;
+		}
+
 	}
 
-	LOG_INFO("%s: found NIC '%s'", nic->log_name, nic->pci_id->device_name);
+	LOG_INFO("%s: found NIC with library '%s'",
+		 nic->log_name, nic->library_name);
 error:
 	return;
 }

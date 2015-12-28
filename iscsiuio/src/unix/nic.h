@@ -355,8 +355,10 @@ typedef enum {
 	NIC_LIBRARY_DOESNT_EXIST = 2,
 } NIC_LIBRARY_EXIST_T;
 
-NIC_LIBRARY_EXIST_T does_nic_uio_name_exist(char *name);
-NIC_LIBRARY_EXIST_T does_nic_library_exist(char *name);
+NIC_LIBRARY_EXIST_T does_nic_uio_name_exist(char *name,
+					    nic_lib_handle_t **handle);
+NIC_LIBRARY_EXIST_T does_nic_library_exist(char *name,
+					   nic_lib_handle_t **handle);
 
 /*******************************************************************************
  *  Packet management utility functions

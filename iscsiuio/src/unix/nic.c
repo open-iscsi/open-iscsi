@@ -152,7 +152,6 @@ static int load_nic_library(nic_lib_handle_t *handle)
 	/*  Validate the NIC library ops table to ensure that all the proper
 	 *  fields are filled */
 	if ((handle->ops->lib_ops.get_library_name == NULL) ||
-	    (handle->ops->lib_ops.get_pci_table == NULL) ||
 	    (handle->ops->lib_ops.get_library_version == NULL) ||
 	    (handle->ops->lib_ops.get_build_date == NULL) ||
 	    (handle->ops->lib_ops.get_transport_name == NULL)) {
@@ -247,7 +246,8 @@ int unload_all_nic_libraries()
 	return 0;
 }
 
-NIC_LIBRARY_EXIST_T does_nic_uio_name_exist(char *name)
+NIC_LIBRARY_EXIST_T does_nic_uio_name_exist(char *name,
+					    nic_lib_handle_t **handle)
 {
 	NIC_LIBRARY_EXIST_T rc;
 	nic_lib_handle_t *current;
@@ -263,6 +263,9 @@ NIC_LIBRARY_EXIST_T does_nic_uio_name_exist(char *name)
 						       &uio_name_size);
 
 		if (strncmp(name, uio_name, uio_name_size) == 0) {
+			if (handle)
+				*handle = current;
+
 			rc = NIC_LIBRARY_EXSITS;
 			goto done;
 		}
@@ -277,7 +280,8 @@ done:
 	return rc;
 }
 
-NIC_LIBRARY_EXIST_T does_nic_library_exist(char *name)
+NIC_LIBRARY_EXIST_T does_nic_library_exist(char *name,
+					   nic_lib_handle_t **handle)
 {
 	NIC_LIBRARY_EXIST_T rc;
 	nic_lib_handle_t *current;
@@ -293,6 +297,9 @@ NIC_LIBRARY_EXIST_T does_nic_library_exist(char *name)
 							   &library_name_size);
 
 		if (strncmp(name, library_name, library_name_size) == 0) {
+			if (handle)
+				*handle = current;
+
 			rc = NIC_LIBRARY_EXSITS;
 			goto done;
 		}
@@ -333,8 +340,13 @@ int find_nic_lib_using_pci_id(uint32_t vendor, uint32_t device,
 		uint32_t entries;
 		int i;
 
-		current->ops->lib_ops.get_pci_table(&pci_table, &entries);
-
+		if (current->ops->lib_ops.get_pci_table != NULL) {
+			current->ops->lib_ops.get_pci_table(&pci_table,
+							    &entries);
+		} else {
+			current = current->next;
+			continue;
+		}
 		/*  Sanity check the the pci table coming from the
 		 *  hardware library */
 		if (entries > MAX_PCI_DEVICE_ENTRIES) {

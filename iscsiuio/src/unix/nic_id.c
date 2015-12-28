@@ -308,6 +308,7 @@ int find_set_nic_lib(nic_t *nic)
 
 	nic_lib_handle_t *handle;
 	struct pci_device_id *pci_entry;
+	size_t name_size;
 
 	rc = get_vendor(nic, &vendor);
 	if (rc != 0) {
@@ -357,6 +358,7 @@ int find_set_nic_lib(nic_t *nic)
 
 	/*  Prepare the NIC library op table */
 	nic->ops = handle->ops;
+	(*nic->ops->lib_ops.get_library_name) (&nic->library_name, &name_size);
 
 	return 0;
 }
