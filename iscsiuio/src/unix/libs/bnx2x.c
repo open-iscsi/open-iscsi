@@ -369,6 +369,7 @@ static int bnx2x_get_drv_version(bnx2x_t *bp)
 		return -EIO;
 	}
 
+	memset(&drvinfo, 0, sizeof(drvinfo));
 	drvinfo.cmd = ETHTOOL_GDRVINFO;
 	ifr.ifr_data = (caddr_t) &drvinfo;
 	rc = ioctl(fd, SIOCETHTOOL, &ifr);

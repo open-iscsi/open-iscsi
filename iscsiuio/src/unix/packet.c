@@ -38,6 +38,7 @@
  */
 #include <errno.h>
 #include <stdio.h>
+#include <string.h>
 
 #include "logger.h"
 #include "packet.h"
@@ -59,13 +60,14 @@ struct packet *alloc_packet(size_t max_buf_size, size_t priv_size)
 		LOG_ERR("Could not allocate any memory for packet");
 		return NULL;
 	}
+	memset(pkt, 0, max_buf_size + sizeof(struct packet));
 
 	priv = malloc(priv_size);
 	if (priv == NULL) {
 		LOG_ERR("Could not allocate any memory for private structure");
 		goto free_pkt;
 	}
-
+	memset(priv, 0, priv_size);
 	pkt->max_buf_size = max_buf_size;
 	pkt->priv = priv;
 
