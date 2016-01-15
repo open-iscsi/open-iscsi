@@ -470,9 +470,11 @@ int nic_remove(nic_t *nic)
 	pthread_mutex_lock(&nic->nic_mutex);
 
 	/*  Check if the file node exists before closing */
-	rc = stat(nic->uio_device_name, &file_stat);
-	if ((rc == 0) && (nic->ops))
-		nic->ops->close(nic, 0);
+	if (nic->uio_device_name) {
+		rc = stat(nic->uio_device_name, &file_stat);
+		if ((rc == 0) && (nic->ops))
+			nic->ops->close(nic, 0);
+	}
 	pthread_mutex_unlock(&nic->nic_mutex);
 
 	nic->state = NIC_EXIT;
@@ -1268,17 +1270,13 @@ static int do_acquisition(nic_t *nic, nic_interface_t *nic_iface,
 			 nic->log_name, inet_ntoa(addr));
 
 		set_uip_stack(&nic_iface->ustack,
-			      &nic_iface->ustack.hostaddr,
-			      &nic_iface->ustack.netmask,
-			      &nic_iface->ustack.default_route_addr,
+			      NULL, NULL, NULL,
 			      nic_iface->mac_addr);
 		break;
 
 	case IPV4_CONFIG_DHCP:
 		set_uip_stack(&nic_iface->ustack,
-			      &nic_iface->ustack.hostaddr,
-			      &nic_iface->ustack.netmask,
-			      &nic_iface->ustack.default_route_addr,
+			      NULL, NULL, NULL,
 			      nic_iface->mac_addr);
 		if (dhcpc_init(nic, &nic_iface->ustack,
 			       nic_iface->mac_addr, ETH_ALEN)) {

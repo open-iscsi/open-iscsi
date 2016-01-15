@@ -220,10 +220,14 @@ void set_uip_stack(struct uip_stack *ustack,
 		   uip_ip4addr_t *netmask,
 		   uip_ip4addr_t *default_route, uint8_t *mac_addr)
 {
-	uip_sethostaddr4(ustack, ip);
-	uip_setnetmask4(ustack, netmask);
-	uip_setdraddr4(ustack, default_route);
-	uip_setethernetmac(ustack, mac_addr);
+	if (ip)
+		uip_sethostaddr4(ustack, ip);
+	if (netmask)
+		uip_setnetmask4(ustack, netmask);
+	if (default_route)
+		uip_setdraddr4(ustack, default_route);
+	if (mac_addr)
+		uip_setethernetmac(ustack, mac_addr);
 }
 
 #if !UIP_ARCH_ADD32
