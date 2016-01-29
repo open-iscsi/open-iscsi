@@ -1152,7 +1152,9 @@ static int iscsi_create_leading_conn(struct iscsi_session *session)
 	}
 	log_debug(2, "%s discovery created session %u", __FUNCTION__,
 		  session->id);
-	session->isid[3] = session->id;
+	session->isid[3] = (session->id >> 16) & 0xff;
+	session->isid[4] = (session->id >>  8) & 0xff;
+	session->isid[5] = session->id & 0xff;
 
 	log_debug(2, "%s discovery create conn", __FUNCTION__);
 	rc = ipc->create_conn(t->handle, session->id, conn->id, &conn->id);

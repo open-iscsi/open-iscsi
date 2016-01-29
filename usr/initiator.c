@@ -1571,7 +1571,9 @@ static void session_conn_poll(void *data)
 		 * TODO: use the iface number or some other value
 		 * so this will be persistent
 		 */
-		session->isid[3] = session->id;
+		session->isid[3] = (session->id >> 16) & 0xff;
+		session->isid[4] = (session->id >>  8) & 0xff;
+		session->isid[5] = session->id & 0xff;
 
 		if (ipc->bind_conn(session->t->handle, session->id,
 				   conn->id, conn->transport_ep_handle,
