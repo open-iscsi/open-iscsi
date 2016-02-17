@@ -63,15 +63,6 @@ char sysfs_path[PATH_SIZE];
 /* device cache */
 static LIST_HEAD(dev_list);
 
-/* attribute value cache */
-static LIST_HEAD(attr_list);
-
-struct sysfs_attr {
-	struct list_head node;
-	char path[PATH_SIZE];
-	char *value;			/* points to value_local if value is cached */
-	char value_local[NAME_SIZE];
-};
 int sysfs_init(void)
 {
 	const char *env;
@@ -85,21 +76,13 @@ int sysfs_init(void)
 	dbg("sysfs_path='%s'", sysfs_path);
 
 	INIT_LIST_HEAD(&dev_list);
-	INIT_LIST_HEAD(&attr_list);
 	return 0;
 }
 
 void sysfs_cleanup(void)
 {
-	struct sysfs_attr *attr_loop;
-	struct sysfs_attr *attr_temp;
 	struct sysfs_device *dev_loop;
 	struct sysfs_device *dev_temp;
-
-	list_for_each_entry_safe(attr_loop, attr_temp, &attr_list, node) {
-		list_del_init(&attr_loop->node);
-		free(attr_loop);
-	}
 
 	list_for_each_entry_safe(dev_loop, dev_temp, &dev_list, node) {
 		list_del_init(&dev_loop->node);
@@ -355,10 +338,7 @@ struct sysfs_device *sysfs_device_get_parent_with_subsystem(struct sysfs_device 
 char *sysfs_attr_get_value(const char *devpath, const char *attr_name)
 {
 	char path_full[PATH_SIZE];
-	const char *path;
-	char value[NAME_SIZE];
-	struct sysfs_attr *attr_loop;
-	struct sysfs_attr *attr;
+	char value[NAME_SIZE] = { '\0', };
 	struct stat statbuf;
 	int fd;
 	ssize_t size;
@@ -368,28 +348,9 @@ char *sysfs_attr_get_value(const char *devpath, const char *attr_name)
 	sysfs_len = strlcpy(path_full, sysfs_path, sizeof(path_full));
 	if(sysfs_len >= sizeof(path_full))
 		sysfs_len = sizeof(path_full) - 1;
-	path = &path_full[sysfs_len];
 	strlcat(path_full, devpath, sizeof(path_full));
 	strlcat(path_full, "/", sizeof(path_full));
 	strlcat(path_full, attr_name, sizeof(path_full));
-
-	/* look for attribute in cache */
-	list_for_each_entry(attr_loop, &attr_list, node) {
-		if (strcmp(attr_loop->path, path) == 0) {
-			dbg("found in cache '%s'", attr_loop->path);
-			return attr_loop->value;
-		}
-	}
-
-	/* store attribute in cache (also negatives are kept in cache) */
-	dbg("new uncached attribute '%s'", path_full);
-	attr = malloc(sizeof(struct sysfs_attr));
-	if (attr == NULL)
-		return NULL;
-	memset(attr, 0x00, sizeof(struct sysfs_attr));
-	strlcpy(attr->path, path, sizeof(attr->path));
-	dbg("add to cache '%s'", path_full);
-	list_add(&attr->node, &attr_list);
 
 	if (lstat(path_full, &statbuf) != 0) {
 		dbg("stat '%s' failed: %s", path_full, strerror(errno));
@@ -408,8 +369,7 @@ char *sysfs_attr_get_value(const char *devpath, const char *attr_name)
 			pos = strrchr(link_target, '/');
 			if (pos != NULL) {
 				dbg("cache '%s' with link value '%s'", path_full, value);
-				strlcpy(attr->value_local, &pos[1], sizeof(attr->value_local));
-				attr->value = attr->value_local;
+				strlcpy(value, &pos[1], NAME_SIZE);
 			}
 		}
 		goto out;
@@ -439,12 +399,11 @@ char *sysfs_attr_get_value(const char *devpath, const char *attr_name)
 	/* got a valid value, store and return it */
 	value[size] = '\0';
 	remove_trailing_chars(value, '\n');
-	dbg("cache '%s' with attribute value '%s'", path_full, value);
-	strlcpy(attr->value_local, value, sizeof(attr->value_local));
-	attr->value = attr->value_local;
 
 out:
-	return attr->value;
+	if (value[0] == '\0')
+		return NULL;
+	return strdup(value);
 }
 
 int sysfs_lookup_devpath_by_subsys_id(char *devpath_full, size_t len, const char *subsystem, const char *id)
@@ -567,8 +526,10 @@ char *sysfs_get_value(const char *id, char *subsys, char *param)
 	}
 
 	if (!strncmp(sysfs_value, "<NULL>", 6) ||
-	    !strncmp(sysfs_value, "(null)", 6))
+	    !strncmp(sysfs_value, "(null)", 6)) {
+		free(sysfs_value);
 		return NULL;
+	}
 
 	return sysfs_value;
 }
@@ -585,6 +546,7 @@ int sysfs_get_uint(char *id, char *subsys, char *param,
 
 	errno = 0;
 	*value = strtoul(sysfs_value, NULL, 0);
+	free(sysfs_value);
 	if (errno)
 		return errno;
 	return 0;
@@ -600,6 +562,7 @@ int sysfs_get_int(const char *id, char *subsys, char *param, int *value)
 		return EIO;
 
 	*value = atoi(sysfs_value);
+	free(sysfs_value);
 	return 0;
 }
 
@@ -619,6 +582,7 @@ int sysfs_get_str(char *id, char *subsys, char *param, char *value,
 		sysfs_value[len - 1] = '\0';
 	strncpy(value, sysfs_value, value_size);
 	value[value_size - 1] = '\0';
+	free(sysfs_value);
 	return 0;
 }
 
@@ -631,8 +595,11 @@ int sysfs_get_uint64(char *id, char *subsys, char *param, uint64_t *value)
 	if (!sysfs_value)
 		return EIO;
 
-	if (sscanf(sysfs_value, "%" PRIu64 "\n", value) != 1)
+	if (sscanf(sysfs_value, "%" PRIu64 "\n", value) != 1) {
+		free(sysfs_value);
 		return EINVAL;
+	}
+	free(sysfs_value);
 	return 0;
 }
 
@@ -647,6 +614,7 @@ int sysfs_get_uint8(char *id, char *subsys, char *param,
 		return EIO;
 
 	*value = (uint8_t)atoi(sysfs_value);
+	free(sysfs_value);
 	return 0;
 }
 
@@ -661,6 +629,7 @@ int sysfs_get_uint16(char *id, char *subsys, char *param,
 		return EIO;
 
 	*value = (uint16_t)atoi(sysfs_value);
+	free(sysfs_value);
 	return 0;
 }
 

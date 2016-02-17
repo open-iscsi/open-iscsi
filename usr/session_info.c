@@ -390,6 +390,7 @@ int session_info_print(int info_level, struct session_info *info, int do_show)
 			printf("iSCSI Transport Class version %s\n",
 				version);
 			printf("version %s\n", ISCSI_VERSION_STR);
+			free(version);
 		}
 
 		flags |= (SESSION_INFO_SCSI_DEVS | SESSION_INFO_HOST_DEVS);
