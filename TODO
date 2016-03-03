@@ -89,7 +89,7 @@ libiscsi_tcp will call iscsi_tcp_get_curr_r2t and grab the session lock in
 the xmit path from the xmit thread and then in the recv path
 libiscsi_tcp/iscsi_tcp will call iscsi_tcp_r2t_rsp (this function is called
 with the session lock held). We could add a new per iscsi_task lock and
-use that to gaurd the R2T.
+use that to guard the R2T.
 
 2. For iscsi_tcp and cxgb*i, libiscsi uses the session->cmdqueue linked list
 and the session lock to queue IO from the queuecommand function (run from
@@ -175,7 +175,7 @@ there. We can only use something that is upstream though.
 ---------------------------------------------------------------------------
 
 8. Improve the iscsi driver logging. Each driver has a different
-way to control logging. We should unify them and make it managable
+way to control logging. We should unify them and make it manageable
 by iscsiadm. So each driver would use a common format, there would
 be a common kernel interface to set the logging level, etc.
 
@@ -210,7 +210,7 @@ time, we might not be abe to allocate a page for the login commands buffer.
 To work around the problem the initiator prealloctes a 8K (sometimes
 more depending on the page size) buffer for each session (see iscsi_conn_setup'
 s __get_free_pages call). This is obviously very wasteful since it will be
-a rate occurance. Can we think of a way to allow multiple sessions to
+a rare occurrence. Can we think of a way to allow multiple sessions to
 be relogged in at the same time, but not have to preallocate so many
 buffers?
 

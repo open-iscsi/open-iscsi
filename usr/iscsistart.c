@@ -97,7 +97,7 @@ Open-iSCSI initiator.\n\
   -i, --initiatorname=name set InitiatorName to name (Required)\n\
   -t, --targetname=name    set TargetName to name (Required)\n\
   -g, --tgpt=N             set target portal group tag to N (Required)\n\
-  -a, --address=A.B.C.D    set IP addres to A.B.C.D (Required)\n\
+  -a, --address=A.B.C.D    set IP address to A.B.C.D (Required)\n\
   -p, --port=N             set port to N (Default 3260)\n\
   -u, --username=N         set username to N (optional)\n\
   -w, --password=N         set password to N (optional\n\

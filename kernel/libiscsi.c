@@ -2264,7 +2264,7 @@ int iscsi_eh_device_reset(struct scsi_cmnd *sc)
 	spin_lock_bh(&session->lock);
 	/*
 	 * Just check if we are not logged in. We cannot check for
-	 * the phase because the reset could come from a ioctl.
+	 * the phase because the reset could come from an ioctl.
 	 */
 	if (!session->leadconn || session->state != ISCSI_STATE_LOGGED_IN)
 		goto unlock;
@@ -2427,7 +2427,7 @@ int iscsi_eh_target_reset(struct scsi_cmnd *sc)
 	spin_lock_bh(&session->lock);
 	/*
 	 * Just check if we are not logged in. We cannot check for
-	 * the phase because the reset could come from a ioctl.
+	 * the phase because the reset could come from an ioctl.
 	 */
 	if (!session->leadconn || session->state != ISCSI_STATE_LOGGED_IN)
 		goto unlock;

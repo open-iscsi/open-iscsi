@@ -199,7 +199,7 @@ Valid values: Unknown, Advertised, Manual, Stale.
 
 grat_neighbor_adv_en
 --------------------
-Enable Gratuitious Neighbor Advertisement
+Enable Gratuitous Neighbor Advertisement
 
 Valid values: "enable" or "disable"
 

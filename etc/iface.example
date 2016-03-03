@@ -1,7 +1,7 @@
 #
 # Example iSCSI interface config
 #
-# There must be a seperate iscsi interface config file for each NIC, network
+# There must be a separate iscsi interface config file for each NIC, network
 # interface or port or iscsi HBA you want to bind sessions to.
 #
 # For hardware iscsi, this is created for you when you run iscsiadm.
@@ -23,7 +23,7 @@
 # - cxgb3i (Chelsio cxgb S3 iSCSI HBAs);
 #
 #OPTIONAL: iface.initiatorname
-# To use a initiator name other than the one set in
+# To use an initiator name other than the one set in
 # /etc/iscsi/initiatorname.iscsi for normal sessions set the
 # iface.initiatorname. This is only used for normal sessions.
 # For discovery sessions the /etc/iscsi/initiatorname.iscsi value

@@ -818,7 +818,7 @@ static int iscsi_sysfs_read_iface(struct iface_rec *iface, int host_no,
 	if (session) {
 		/*
 		 * this was added after 2.0.869 so we could be doing iscsi_tcp
-		 * session binding, but there may not be a ifacename set
+		 * session binding, but there may not be an ifacename set
 		 * if binding is not used.
 		 */
 		ret = sysfs_get_str(session, ISCSI_SESSION_SUBSYS, "ifacename",
@@ -1216,7 +1216,7 @@ int iscsi_sysfs_session_has_leadconn(uint32_t sid)
  * /sys/devices/platform/hostH/sessionS
  *
  * return the sid S. If just the sid is passed in it will be converted
- * to a int.
+ * to an int.
  */
 int iscsi_sysfs_get_sid_from_path(char *session)
 {
