@@ -9,10 +9,10 @@ iscsiadm \- open-iscsi administration utility
 .IR debug_level ]
 .RB [ \-P
 .IR printlevel ]
-.R [\ 
+[\ 
 .BI \-I\  iface\  \-t\  type\  \-p\  ip:port
 .RB [ \-lD ]
-.R ] | [
+] | [
 .RB [ \-p
 .I ip:port
 .B \-t
@@ -24,7 +24,7 @@ iscsiadm \- open-iscsi administration utility
 .RB [ \-v
 .IR value ]
 .RB [ \-lD ]
-.R ]
+]
 
 .B iscsiadm
 .B \-m discovery
@@ -33,14 +33,14 @@ iscsiadm \- open-iscsi administration utility
 .IR debug_level ]
 .RB [ \-P
 .IR printlevel ]
-.R [\ 
+[\ 
 .BI \-I\  iface\  \-t\  type\  \-p\  ip:port
 .RB [ \-l ]
-.R ] | [
+] | [
 .RB [ \-p
 .IR ip:port ]
 .RB [ \-l | \-D ]
-.R ]
+]
 
 .B iscsiadm
 .B \-m node
@@ -54,13 +54,13 @@ iscsiadm \- open-iscsi administration utility
 .RB [ \-U
 .IR all,manual,automatic ]
 .RB [ \-S ]
-.R [
+[
 .RB [ \-T
 .IB targetname\  \-p\  ip:port\  \-I\  iface
-.R ]
+]
 .RB [ \-l | \-u | \-R | \-s ]
-.R ]
-.R [
+]
+[
 .RB [ \-o
 .IR operation ]
 .RB [ \-n
@@ -69,22 +69,22 @@ iscsiadm \- open-iscsi administration utility
 .IR value ]
 .RB [ \-p
 .IR ip:port ]
-.R ]
+]
 
 .B iscsiadm
 .B \-m session
-.RB[ \-hV ]
+.RB [ \-hV ]
 .RB [ \-d
 .IR debug_level ]
 .RB [ \-P
 .IR printlevel ]
-.R [
+[
 .B \-r
 .IR sessionid | sysfsdir
 .RB [ \-R ]
 .RB [ \-u | \-s | \-o
 .IR new ]
-.R ]
+]
 
 .B iscsiadm
 .B \-m iface
@@ -93,20 +93,20 @@ iscsiadm \- open-iscsi administration utility
 .IR debug_level ]
 .RB [ \-P
 .IR printlevel ]
-.R [
+[
 .BI \-I\  ifacename
-.R |
+|
 .BI \-H\  hostno|MAC
-.R ]
-.R [
+]
+[
 .RB [ \-o
 .IR operation ]
 .RB [ \-n
 .IR name ]
 .RB [ \-v
 .IR value ]
-.R ]
-.R [
+]
+[
 .BI \-C\  ping
 .RB [ \-a
 .IR ip ]
@@ -116,7 +116,7 @@ iscsiadm \- open-iscsi administration utility
 .IR count ]
 .RB [ \-i
 .IR interval ]
-.R ]
+]
 
 .B iscsiadm
 .B \-m fw
@@ -130,30 +130,30 @@ iscsiadm \- open-iscsi administration utility
 .IR printlevel ]
 .RB [ \-H
 .IR hostno|MAC ]
-.R [
+[
 .RB [\  \-C
 .IR chap
 .RB [ \-x
 .IR chap_tbl_idx ]
-.R ] |
+] |
 .RB [\  \-C
 .IR flashnode
 .RB [ \-A
 .IR portal_type ]
 .RB [ \-x
 .IR flashnode_idx ]
-.R ] |
+] |
 .RB [\  \-C
 .IR stats \ ]
-.R ]
-.R [
+]
+[
 .RB [ \-o
 .IR operation ]
 .RB [ \-n
 .IR name ]
 .RB [ \-v
 .IR value ]
-.R ]
+]
 
 .B iscsiadm
 .B \-k  priority
