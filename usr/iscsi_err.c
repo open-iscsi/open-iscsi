@@ -53,6 +53,7 @@ static char *iscsi_err_msgs[] = {
 	/* 28 */ "device or resource in use",
 	/* 29 */ "operation failed but retry may succeed",
 	/* 30 */ "unknown discovery type",
+	/* 31 */ "child process terminated",
 };
 
 char *iscsi_err_to_str(int err)

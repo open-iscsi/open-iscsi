@@ -1472,13 +1472,27 @@ int iscsi_sysfs_for_each_session(void *data, int *nr_found,
 				break;
 			}
 
-			if ((chldrc > 0) && (rc == 0)) {
+			if (!WIFEXITED(chldrc)) {
 				/*
+				 * abnormal termination (signal, exception, etc.)
+				 *
 				 * The non-parallel code path returns the first
 				 * error so this keeps the same semantics.
 				 */
-				rc = chldrc;
-			} else if (chldrc == 0) {
+				if (rc == 0)
+					rc = ISCSI_ERR_CHILD_TERMINATED;
+			} else if ((WEXITSTATUS(chldrc) != 0) &&
+			           (WEXITSTATUS(chldrc) != 255)) {
+				/*
+				 * 0 is success
+				 * 255 is a truncated return code from exit(-1)
+				 *     and means no match
+				 * anything else (this case) is an error
+				 */
+				if (rc == 0)
+					rc = WEXITSTATUS(chldrc);
+			} else if (WEXITSTATUS(chldrc) == 0) {
+				/* success */
 				(*nr_found)++;
 			}
 		}
