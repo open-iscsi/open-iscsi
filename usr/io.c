@@ -394,6 +394,16 @@ iscsi_io_tcp_disconnect(iscsi_conn_t *conn)
 	if (conn->socket_fd >= 0) {
 		log_debug(1, "disconnecting conn %p, fd %d", conn,
 			 conn->socket_fd);
+		int ret = 0;
+		struct linger so_linger;
+		so_linger.l_onoff = 1;
+		so_linger.l_linger = 0;
+		ret = setsockopt(conn->socket_fd, SOL_SOCKET, SO_LINGER,
+			&so_linger, sizeof(so_linger));
+		if (ret) {
+		     log_debug(1, "setsockopt failed conn %p, fd %d",
+			conn, conn->socket_fd);
+		}
 		close(conn->socket_fd);
 		conn->socket_fd = -1;
 	}
