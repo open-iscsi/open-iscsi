@@ -487,6 +487,7 @@ void *nl_process_handle_thread(void *arg)
 		rc = pthread_cond_wait(&nic->nl_process_cond,
 				       &nic->nl_process_mutex);
 		if (rc != 0) {
+			pthread_mutex_unlock(&nic->nl_process_mutex);
 			LOG_ERR("Fatal error in NL processing thread "
 				"during wait[%s]", strerror(rc));
 			break;
