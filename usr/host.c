@@ -274,6 +274,7 @@ int host_info_print(int info_level, uint32_t host_no)
 			printf("iSCSI Transport Class version %s\n",
 			       version);
 			printf("version %s\n", ISCSI_VERSION_STR);
+			free(version);
 		}
 
 		flags |= SESSION_INFO_SCSI_DEVS;

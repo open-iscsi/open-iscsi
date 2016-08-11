@@ -41,8 +41,6 @@
 /**
  * fw_setup_nics - setup nics (ethXs) based on ibft net info
  *
- * Currently does not support vlans.
- *
  * If this is a offload card, this function does nothing. The
  * net info is used by the iscsi iface settings for the iscsi
  * function.
@@ -82,6 +80,7 @@ int fw_setup_nics(void)
 
 		err = net_setup_netdev(context->iface, context->ipaddr,
 				       context->mask, context->gateway,
+				       context->vlan,
 				       context->target_ipaddr, needs_bringup);
 		if (err)
 			ret = err;

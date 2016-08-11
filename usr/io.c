@@ -391,9 +391,24 @@ iscsi_io_tcp_poll(iscsi_conn_t *conn, int timeout_ms)
 void
 iscsi_io_tcp_disconnect(iscsi_conn_t *conn)
 {
+	struct linger so_linger = { .l_onoff = 1, .l_linger = 0 };
+
 	if (conn->socket_fd >= 0) {
 		log_debug(1, "disconnecting conn %p, fd %d", conn,
 			 conn->socket_fd);
+
+		/* If the state is not IN_LOGOUT, this isn't a clean shutdown
+		 * and there's some sort of error handling going on. In that
+		 * case, set a 0 SO_LINGER to force an abortive close (RST) and
+		 * free whatever is sitting in the TCP transmit queue. This is
+		 * done to prevent stale data from being sent should the
+		 * network connection be restored before TCP times out.
+		 */
+		if (conn->state != ISCSI_CONN_STATE_IN_LOGOUT) {
+			setsockopt(conn->socket_fd, SOL_SOCKET, SO_LINGER,
+				   &so_linger, sizeof(so_linger));
+		}
+
 		close(conn->socket_fd);
 		conn->socket_fd = -1;
 	}

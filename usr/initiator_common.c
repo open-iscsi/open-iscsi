@@ -23,6 +23,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <errno.h>
+#include <dirent.h>
+#include <libmount/libmount.h>
 
 #include "initiator.h"
 #include "transport.h"

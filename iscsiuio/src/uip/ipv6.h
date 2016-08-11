@@ -270,7 +270,7 @@ struct ipv6_context {
 	struct ipv6_addr default_router;
 	struct ipv6_prefix_entry *addr_list;
 	u8_t hop_limit;
-#define UIP_ARPTAB_SIZE 8
+#define UIP_ARPTAB_SIZE 16
 
 	struct uip_stack *ustack;
 #define MAX_MCADDR_TABLE 5

@@ -19,6 +19,7 @@
 #include <errno.h>
 #include <net/if.h>
 #include <unistd.h>
+#include <stdlib.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <net/route.h>
@@ -27,6 +28,9 @@
 #include <sys/ioctl.h>
 #include <sys/socket.h>
 #include <linux/sockios.h>
+#include <linux/if_vlan.h>
+#include <net/if_arp.h>
+#include <linux/if_ether.h>
 
 #include "sysdeps.h"
 #include "ethtool-copy.h"
@@ -162,6 +166,45 @@ free_ifni:
 	return 0;
 }
 
+static char *find_vlan_dev(char *netdev, int vlan_id) {
+	struct ifreq if_hwaddr;
+	struct ifreq vlan_hwaddr;
+	struct vlan_ioctl_args vlanrq = { .cmd = GET_VLAN_VID_CMD, };
+	struct if_nameindex *ifni;
+	char *vlan = NULL;
+	int sockfd, i, rc;
+
+	sockfd = socket(AF_INET, SOCK_DGRAM, 0);
+
+	strncpy(if_hwaddr.ifr_name, netdev, IFNAMSIZ);
+	ioctl(sockfd, SIOCGIFHWADDR, &if_hwaddr);
+
+	if (if_hwaddr.ifr_hwaddr.sa_family != ARPHRD_ETHER)
+		return NULL;
+
+	ifni = if_nameindex();
+	for (i = 0; ifni[i].if_index && ifni[i].if_name; i++) {
+		strncpy(vlan_hwaddr.ifr_name, ifni[i].if_name, IFNAMSIZ);
+		ioctl(sockfd, SIOCGIFHWADDR, &vlan_hwaddr);
+
+		if (vlan_hwaddr.ifr_hwaddr.sa_family != ARPHRD_ETHER)
+			continue;
+
+		if (!memcmp(if_hwaddr.ifr_hwaddr.sa_data, vlan_hwaddr.ifr_hwaddr.sa_data, ETH_ALEN)) {
+			strncpy(vlanrq.device1, ifni[i].if_name, IFNAMSIZ);
+			rc = ioctl(sockfd, SIOCGIFVLAN, &vlanrq);
+			if ((rc == 0) && (vlanrq.u.VID == vlan_id)) {
+				vlan = strdup(vlanrq.device1);
+				break;
+			}
+		}
+	}
+	if_freenameindex(ifni);
+
+	close(sockfd);
+	return vlan;
+}
+
 /**
  * net_setup_netdev - bring up NIC
  * @netdev: network device name
@@ -175,7 +218,7 @@ free_ifni:
  * to force iSCSI traffic through correct NIC.
  */
 int net_setup_netdev(char *netdev, char *local_ip, char *mask, char *gateway,
-		     char *remote_ip, int needs_bringup)
+		     char *vlan, char *remote_ip, int needs_bringup)
 {
 	struct sockaddr_in sk_ipaddr = { .sin_family = AF_INET };
 	struct sockaddr_in sk_netmask = { .sin_family = AF_INET };
@@ -184,13 +227,28 @@ int net_setup_netdev(char *netdev, char *local_ip, char *mask, char *gateway,
 	struct sockaddr_in sk_tgt_ipaddr = { .sin_family = AF_INET };
 	struct rtentry rt;
 	struct ifreq ifr;
+	char *physdev = NULL;
 	int sock;
 	int ret;
+	int vlan_id;
 
 	if (!strlen(netdev)) {
 		log_error("No netdev name in fw entry.");
 		return EINVAL;
 	}		
+
+	vlan_id = atoi(vlan);
+
+	if (vlan_id != 0) {
+		physdev = netdev;
+		netdev = find_vlan_dev(physdev, vlan_id);
+	}
+
+	if (vlan_id && !netdev) {
+		/* TODO: create vlan if not found */
+		log_error("No matching vlan found for fw entry.");
+		return EINVAL;
+	}
 
 	/* Create socket for making networking changes */
 	if ((sock = socket(AF_INET, SOCK_DGRAM, 0)) == -1) {
@@ -224,7 +282,19 @@ int net_setup_netdev(char *netdev, char *local_ip, char *mask, char *gateway,
 
 	/* Only set IP/NM if this is a new interface */
 	if (needs_bringup) {
-		/* TODO: create vlan if strlen(vlan) */
+
+		if (physdev) {
+			/* Bring up interface */
+			memset(&ifr, 0, sizeof(ifr));
+			strlcpy(ifr.ifr_name, physdev, IFNAMSIZ);
+			ifr.ifr_flags = IFF_UP | IFF_RUNNING;
+			if (ioctl(sock, SIOCSIFFLAGS, &ifr) < 0) {
+				log_error("Could not bring up netdev %s (err %d - %s)",
+					  physdev, errno, strerror(errno));
+				ret = errno;
+				goto done;
+			}
+		}
 
 		/* Bring up interface */
 		memset(&ifr, 0, sizeof(ifr));
@@ -246,7 +316,7 @@ int net_setup_netdev(char *netdev, char *local_ip, char *mask, char *gateway,
 			ret = errno;
 			goto done;
 		}
-	
+
 		/* Set netmask */
 		memset(&ifr, 0, sizeof(ifr));
 		strlcpy(ifr.ifr_name, netdev, IFNAMSIZ);
@@ -303,6 +373,8 @@ int net_setup_netdev(char *netdev, char *local_ip, char *mask, char *gateway,
 
 done:
 	close(sock);
+	if (vlan_id)
+		free(netdev);
 	return ret;
 }
 
