@@ -9,7 +9,7 @@ iscsiadm \- open-iscsi administration utility
 .IR debug_level ]
 .RB [ \-P
 .IR printlevel ]
-.R [\ 
+.R [\
 .BI \-I\  iface\  \-t\  type\  \-p\  ip:port
 .RB [ \-lD ]
 .R ] | [
@@ -33,7 +33,7 @@ iscsiadm \- open-iscsi administration utility
 .IR debug_level ]
 .RB [ \-P
 .IR printlevel ]
-.R [\ 
+.R [\
 .BI \-I\  iface\  \-t\  type\  \-p\  ip:port
 .RB [ \-l ]
 .R ] | [
@@ -251,10 +251,10 @@ layer's interface name (iface.net_ifacename), and it must have the
 driver/transport_name
 
 The available drivers/iscsi_transports are tcp (software iSCSI over TCP/IP),
-iser (software iSCSI over infinniband), or qla4xxx (Qlogic 4XXXX HBAs). The
+iser (software iSCSI over InfiniBand), or qla4xxx (Qlogic 4XXXX HBAs). The
 hwaddress is the MAC address or for software iSCSI it may be the special
 value "default" which directs the initiator to not bind the session to a
-specific hardware resource and instead allow the network or infinniband layer
+specific hardware resource and instead allow the network or InfiniBand layer
 to decide what to do. There is no need to create a iface config with the default
 behavior. If you do not specify a iface, then the default behavior is used.
 
@@ -268,7 +268,7 @@ In discovery mode multiple interfaces can be specified by passing in multiple
 "iscsiadm \-m discoverydb \-t st \-p ip:port \-I iface0 \-I iface2 \-\-discover"
 
 Will direct iscsiadm to setup the node db to create records which will create
-sessions though the two intefaces passed in.
+sessions through the two intefaces passed in.
 
 In node mode, only a single interface is supported in each call to iscsiadm.
 .IP
@@ -279,7 +279,7 @@ This option is valid for discovery, node and iface mode.
 Currently priority must be zero. This will immediately stop all iscsid
 operations and shutdown iscsid. It does not logout any sessions. Running
 this command is the same as doing "killall iscsid". Neither should
-normally not be used, because if iscsid is doing error recovery or if there
+normally be used, because if iscsid is doing error recovery or if there
 is an error while iscsid is not running, the system may not be able to recover.
 This command and iscsid's SIGTERM handling are experimental.
 
@@ -348,9 +348,9 @@ In session mode, the \fInew\fR operation logs in a new session using the same no
 .IP
 In discovery mode, if the \fIrecid\fR and new operation is passed in, but the \fI--discover\fR argument is not, then iscsiadm will only create a discovery record (it will not perform discovery). If the \fI--discover\fR argument is passed in with the portal and discovery type, then iscsiadm will create the discovery record if needed, and it will create records for portals returned by the target that do not yet have a node DB record.
 .IP
-\fIdelete\fR deletes a specified \fIrecid\fR. In discovery node, if iscsiadm is performing discovery it will delete records for portals that are no longer returned.
+\fIdelete\fR deletes a specified \fIrecid\fR. In discovery mode, if iscsiadm is performing discovery it will delete records for portals that are no longer returned.
 .IP
-\fIupdate\fR will update the \fIrecid\fR with \fIname\fR to the specified \fIvalue\fR. In discovery node, if iscsiadm is performing discovery the \fIrecid\fR, \fIname\fR  and \fIvalue\fR arguments are not needed. The update operation will operate on the portals returned by the target, and will update the node records with info from the config file and command line.
+\fIupdate\fR will update the \fIrecid\fR with \fIname\fR to the specified \fIvalue\fR. In discovery mode, if iscsiadm is performing discovery the \fIrecid\fR, \fIname\fR  and \fIvalue\fR arguments are not needed. The update operation will operate on the portals returned by the target, and will update the node records with info from the config file and command line.
 .IP
 \fIshow\fR is the default behaviour for node, discovery and iface mode. It is
 also used when there are no commands passed into session mode and a running
@@ -376,7 +376,7 @@ sid is passed in.
 Use target portal with ip-address \fIip\fR and \fIport\fR. If port is not passed
 in the default \fIport\fR value is 3260.
 .IP
-IPv6 addresses can bs specified as [ddd.ddd.ddd.ddd]:port or
+IPv6 addresses can be specified as [ddd.ddd.ddd.ddd]:port or
 ddd.ddd.ddd.ddd.
 .IP
 Hostnames can also be used for the ip argument.
@@ -471,7 +471,7 @@ iSCSI defines 3 discovery types: SendTargets, SLP, and iSNS.
 
 .TP
 .B
-SendTargets 
+SendTargets
 A native iSCSI protocol which allows each iSCSI
 target to send a list of available targets to the initiator.
 
@@ -516,11 +516,11 @@ SendTargets (st)
 discovery type. An SLP implementation is under development.
 
 .SH EXIT STATUS
- 
+
 On success 0 is returned. On error one of the return codes below will
 be returned.
 
-Commands that operation on multiple objects (sessions, records, etc),
+Commands that operate on multiple objects (sessions, records, etc),
 iscsiadm/iscsistart will return the first error that is encountered.
 iscsiadm/iscsistart will attempt to execute the operation on the objects it
 can. If no objects are found ISCSI_ERR_NO_OBJS_FOUND is returned.
@@ -536,7 +536,7 @@ ISCSI_SUCCESS - command executed successfully.
 1
 ISCSI_ERR - generic error code.
 
-.TP     
+.TP
 .B
 2
 ISCSI_ERR_SESS_NOT_FOUND - session could not be found.
