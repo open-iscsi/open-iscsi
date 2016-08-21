@@ -144,7 +144,7 @@ static int __iface_conf_read(struct iface_rec *iface)
 	if (!f) {
 		/*
 		 * if someone passes in default but has not defined
-		 * a iface with default then we do it for them
+		 * an iface with default then we do it for them
 		 */
 		if (!strcmp(iface->name, DEFAULT_IFACENAME)) {
 			iface_setup_defaults(iface);
@@ -1028,7 +1028,7 @@ int iface_setup_from_boot_context(struct iface_rec *iface,
 								&rc);
 		if (rc) {
 			/*
-			 * If the MAC in the boot info does not match a iscsi
+			 * If the MAC in the boot info does not match an iscsi
 			 * host then the MAC must be for network card, so boot
 			 * is not going to be offloaded.
 			 */
@@ -1078,8 +1078,8 @@ int iface_setup_from_boot_context(struct iface_rec *iface,
  * @ifaces: list to store ifaces in
  * @targets: list of targets to create ifaces from
  *
- * This function will create a iface struct based on the boot info
- * and it will create (or update if existing already) a iface rec in
+ * This function will create an iface struct based on the boot info
+ * and it will create (or update if existing already) an iface rec in
  * the ifaces dir based on the info.
  */
 int iface_create_ifaces_from_boot_contexts(struct list_head *ifaces,

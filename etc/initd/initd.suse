@@ -12,7 +12,7 @@
 # Default-Stop:      
 # Short-Description: iSCSI initiator daemon
 # Description:       The iSCSI initator is used to create and
-#                    manage iSCSI connections to a iSCSI Target.
+#                    manage iSCSI connections to an iSCSI Target.
 #
 ### END INIT INFO
 

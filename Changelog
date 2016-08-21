@@ -54,7 +54,7 @@ Mike Christie (86):
       isns: Fix endless loop when pollhup is returned
       iscsi tools: fix multi pdu sendtargets discovery sequences
       iscsi boot: fix iscsi_boot sysfs parsing
-      Use pass through interface for sendtargets (take4) Currenly offload cards like bnx2i, be2iscsi, cxgb3i must use a normal eth for discovery. This patch allows us to do discovery using the iscsi class passthrough interface.
+      Use pass through interface for sendtargets (take4) Currently offload cards like bnx2i, be2iscsi, cxgb3i must use a normal eth for discovery. This patch allows us to do discovery using the iscsi class passthrough interface.
       Add userspace/tools iscsi error code defs
       iscsi tools: fix iscsiadm exit codes
       iscsid: modify data drop

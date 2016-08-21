@@ -1559,7 +1559,7 @@ repoll:
 		log_debug(7, "%s: Poll return %d", __FUNCTION__, ret);
 		if (iscsi_timer_expired(&connection_timer)) {
 			log_warning("Login response timeout. Waited %d "
-				    "seconds and did not get reponse PDU.",
+				    "seconds and did not get response PDU.",
 				    session->conn[0].active_timeout);
 			c->ret = LOGIN_FAILED;
 			return c->ret;
