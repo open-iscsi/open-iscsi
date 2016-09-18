@@ -58,7 +58,7 @@ struct sockaddr;
  * @stop_conn:		suspend/recover/terminate connection
  * @send_pdu:		send iSCSI PDU, Login, Logout, NOP-Out, Reject, Text.
  * @session_recovery_timedout: notify LLD a block during recovery timed out
- * @init_task:		Initialize a iscsi_task and any internal structs.
+ * @init_task:		Initialize an iscsi_task and any internal structs.
  *			When offloading the data path, this is called from
  *			queuecommand with the session lock, or from the
  *			iscsi_conn_send_pdu context with the session lock.

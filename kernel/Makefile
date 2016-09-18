@@ -183,9 +183,9 @@ clean: $(unpatch_code)
 	$(KBUILD_BASE) clean
 	rm -f Module.symvers
 
-## The folowing compat_patch target is what we need to do to prepare a clean
+## The following compat_patch target is what we need to do to prepare a clean
 # compat_patch set after new code is check-in to svn. To keep patches fuzzless.
-# the new patches are writen into .new files so svn diff of next file will
+# the new patches are written into .new files so svn diff of next file will
 # not trip on them.
 compat_patch: $(unpatch_code)
 	test -z "$(svn diff|head)" || { \
@@ -213,7 +213,7 @@ INSTALL_MOD_PATH=
 endif
 
 # this evil rule ensures that the modules get build if you specify $(ko)
-# as a dependancy.
+# as a dependency.
 ko = $(patsubst %.o,%.ko,$(obj-m))
 $(ko): all
 

@@ -534,11 +534,11 @@ The format is:
 iface_name transport_name,hwaddress,ipaddress,net_ifacename,initiatorname
 
 For software iscsi, you can create the iface configs by hand, but it is
-reccomended that you use iscsiadm's iface mode. There is a iface.example in
+recommended that you use iscsiadm's iface mode. There is an iface.example in
 /etc/iscsi/ifaces which can be used as a template for the daring.
 
 For each network object you wish to bind a session to you must create
-a seperate iface config in /etc/iscsi/ifaces and each iface config file
+a separate iface config in /etc/iscsi/ifaces and each iface config file
 must have a unique name which is less than or equal to 64 characters.
 
 Example:
@@ -555,14 +555,14 @@ and in /etc/iscsi/ifaces/iface1 you would enter:
 iface.transport_name = tcp
 iface.hwaddress = 00:C0:DD:08:63:E7
 
-Warning: Do not name a iface config file  "default" or "iser".
+Warning: Do not name an iface config file  "default" or "iser".
 They are special value/file that is used by the iscsi tools for
-backward compatibility. If you name a iface default or iser, then
+backward compatibility. If you name an iface default or iser, then
 the behavior is not defined.
 
 To use iscsiadm to create iface0 above for you run:
 
-(This will create a new empty iface config. If there was already a iface
+(This will create a new empty iface config. If there was already an iface
 with the name "iface0" this command will overwrite it.)
 # iscsiadm -m iface -I iface0 --op=new
 
@@ -570,7 +570,7 @@ with the name "iface0" this command will overwrite it.)
 # iscsiadm -m iface -I iface0 --op=update -n iface.hwaddress -v 00:0F:1F:92:6B:BF
 
 If you had sessions logged in iscsiadm will not update, overwrite
-a iface. You must log out first. If you have a iface bound to a node/portal
+a iface. You must log out first. If you have an iface bound to a node/portal
 but you have not logged in then, iscsiadm will update the config and
 all existing bindings.
 
@@ -580,13 +580,13 @@ some helpful management commands.
 
 
 
-5.1.2 Setting up a iface for a iSCSI offload card
-=================================================
+5.1.2 Setting up an iface for an iSCSI offload card
+===================================================
 
 This section describes how to setup ifaces for use with Chelsio, Broadcom and
 QLogic cards.
 
-By default, iscsiadm will create a iface for each Broadcom, QLogic and Chelsio
+By default, iscsiadm will create an iface for each Broadcom, QLogic and Chelsio
 port. The iface name will be of the form:
 
 $transport/driver_name.$MAC_ADDRESS
@@ -682,7 +682,7 @@ next section.
 
 Be aware that iscsiadm will use the default route to do discovery. It will
 not use the iface specified. So if you are using a offload card, you will
-need a seperate network connection to the target for discovery purposes.
+need a separate network connection to the target for discovery purposes.
 *This will be fixed in the next version of open-iscsi*
 
 For compatibility reasons, when you run iscsiadm to do discovery, it
@@ -699,7 +699,7 @@ you can use the --interface/-I argument:
 iscsiadm -m discoverydb -t st -p ip:port -I iface1 --discover -P 1
 
 If you had defined interfaces but wanted the old behavior, where 
-we do not bind a session to a iface, then you can use the special iface
+we do not bind a session to an iface, then you can use the special iface
 "default":
 
 iscsiadm -m discoverydb -t st -p ip:port -I default --discover -P 1
@@ -727,7 +727,7 @@ And for equalogic targets it is sometimes useful to remove by just portal
 iscsiadm -m node -p ip:port -I iface0 --op=delete
 
 
-To now log into targets it is the same as with sofware iscsi. See section
+To now log into targets it is the same as with software iscsi. See section
 7 for how to get started.
 
 
@@ -868,7 +868,7 @@ To now log into targets it is the same as with sofware iscsi. See section
 
 	    ./iscsiadm -m node -T iqn.2005-03.com.max -p 192.168.0.4:3260 -l
 
-	To specify a IPv6 address the following can be used:
+	To specify an iPv6 address the following can be used:
 
 	    ./iscsiadm -m node -T iqn.2005-03.com.max \
 					-p 2001:c90::211:9ff:feb8:a9e9 -l
@@ -939,7 +939,7 @@ To now log into targets it is the same as with sofware iscsi. See section
 
 	    ./iscsiadm -m node -o new -I iface4
 
-	This command will add a interface config using the iSCSI and SCSI
+	This command will add an interface config using the iSCSI and SCSI
 	settings from iscsid.conf to every target that is in the node db.
 
     - Removing iSCSI portal:
@@ -1121,7 +1121,7 @@ portals that are set up for automatic login (discussed in 7.2)
 or discovered through the discover daemon iscsid.conf params
 (discussed in 7.1.2).
 
-If your distro does not have a init script, then you will have to start the
+If your distro does not have an init script, then you will have to start the
 daemon and log into the targets manually.
 
 
@@ -1141,13 +1141,13 @@ Where <levels> are the run levels.
 
 And, to automatically mount a file system during startup
 you must have the partition entry in /etc/fstab marked with the "_netdev"
-option. For example this would mount a iscsi disk sdb:
+option. For example this would mount an iscsi disk sdb:
 
 	/dev/sdb /mnt/iscsi ext3 _netdev 0 0
 
 SUSE or Debian:
 ---------------
-Otherwise, if there is a initd script for your distro in etc/initd that
+Otherwise, if there is an initd script for your distro in etc/initd that
 gets installed with "make install"
 
 	/etc/init.d/open-iscsi start
@@ -1371,7 +1371,7 @@ commands.
 
 iSNS:
 ----
-- Create a iSNS record by passing iscsiadm the "-o new" argument in
+- Create an iSNS record by passing iscsiadm the "-o new" argument in
   discoverydb mode.
 # iscsiadm -m discoverydb -t isns -p 20.15.0.7:3205 -o new
 New discovery record for [20.15.0.7,3205] added.
@@ -1520,7 +1520,7 @@ multipath.conf settings, instead of the iSCSI layer.
 8.2 iSCSI settings for iSCSI root
 ---------------------------------
 
-When accessing the root partition directly through a iSCSI disk, the
+When accessing the root partition directly through an iSCSI disk, the
 iSCSI timers should be set so that iSCSI layer has several chances to try to
 re-establish a session and so that commands are not quickly requeued to
 the SCSI layer. Basically you want the opposite of when using dm-multipath.

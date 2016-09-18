@@ -255,7 +255,7 @@ idbm_recinfo_node(node_rec_t *r, recinfo_t *ri)
 	 *
 	 * Users should nornmally not want to change the iface ones
 	 * in the node record directly and instead do it through
-	 * the iface mode which will do the right thing (althought that
+	 * the iface mode which will do the right thing (although that
 	 * needs some locking).
 	 */
 	__recinfo_str(IFACE_HWADDR, ri, r, iface.hwaddress, IDBM_SHOW, num, 1);
@@ -1699,7 +1699,7 @@ int idbm_print_all_discovery(int info_level)
  * This will run fn over all recs with the {targetname,tpgt,ip,port}
  * id. It does not iterate over the ifaces setup in /etc/iscsi/ifaces.
  *
- * fn should return -1 if it skipped the rec, a ISCSI_ERR error code if
+ * fn should return -1 if it skipped the rec, an ISCSI_ERR error code if
  * the operation failed or 0 if fn was run successfully.
  */
 static int idbm_for_each_iface(int *found, void *data,

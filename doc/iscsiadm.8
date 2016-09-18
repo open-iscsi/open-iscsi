@@ -255,8 +255,8 @@ iser (software iSCSI over InfiniBand), or qla4xxx (Qlogic 4XXXX HBAs). The
 hwaddress is the MAC address or for software iSCSI it may be the special
 value "default" which directs the initiator to not bind the session to a
 specific hardware resource and instead allow the network or InfiniBand layer
-to decide what to do. There is no need to create a iface config with the default
-behavior. If you do not specify a iface, then the default behavior is used.
+to decide what to do. There is no need to create an iface config with the default
+behavior. If you do not specify an iface, then the default behavior is used.
 
 As mentioned above there is a special iface name default. There are three
 others -- cxgb3i, bnx2i and iser, which does not bind the session to a specific card, but will bind the session to the cxgb3i, bnx2i or iser transport. These

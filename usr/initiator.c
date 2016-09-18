@@ -1773,7 +1773,7 @@ static iscsi_session_t* session_find_by_rec(node_rec_t *rec)
 
 /*
  * a session could be running in the kernel but not in iscsid
- * due to a resync or becuase some other app started the session
+ * due to a resync or because some other app started the session
  */
 static int session_is_running(node_rec_t *rec)
 {
@@ -2128,7 +2128,7 @@ iscsi_host_send_targets(queue_task_t *qtask, int host_no, int do_login,
 }
 
 /*
- * HW drivers like qla4xxx present a interface that hides most of the iscsi
+ * HW drivers like qla4xxx present an interface that hides most of the iscsi
  * details. Userspace sends down a discovery event then it gets notified
  * if the sessions that were logged in as a result asynchronously, or
  * the card will have sessions preset in the FLASH and will log into them
