@@ -1632,7 +1632,7 @@ static int delete_host_chap_info(uint32_t host_no, uint16_t chap_tbl_idx)
 		goto exit_delete_chap;
 	}
 
-	log_info("Deleteing CHAP index: %d", chap_tbl_idx);
+	log_info("Deleting CHAP index: %d", chap_tbl_idx);
 	rc = ipc->delete_chap(t->handle, host_no, chap_tbl_idx);
 	if (rc < 0) {
 		log_error("CHAP Delete failed.");

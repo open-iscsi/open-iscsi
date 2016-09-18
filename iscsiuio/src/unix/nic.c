@@ -735,7 +735,7 @@ int nic_process_intr(nic_t *nic, int discard_check)
 
 	/*  Simple sanity checks */
 	if (discard_check != 1 && nic->state != NIC_RUNNING) {
-		LOG_ERR(PFX "%s: Couldn't process interupt NIC not running",
+		LOG_ERR(PFX "%s: Couldn't process interrupt NIC not running",
 			nic->log_name);
 		return -EBUSY;
 	}
