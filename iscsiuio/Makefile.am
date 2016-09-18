@@ -5,7 +5,7 @@ EXTRA_DIST = build_date
 build_date:
 	if [ -n "$$SOURCE_DATE_EPOCH" ] ; then \
 		echo 'char *build_date = "'`LC_ALL=C.UTF-8 date --date=@$$SOURCE_DATE_EPOCH -u`'";' > build_date.c ; \
-	else
+	else \
 		echo 'char *build_date = "'`date`'";' > build_date.c ; \
 	fi
 	echo 'char *build_date;'> build_date.h
