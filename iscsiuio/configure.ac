@@ -64,7 +64,14 @@ AC_ARG_ENABLE(debug,
     fi])
 AM_CONDITIONAL([DEBUG], [test x$debug = xtrue])
 
-AC_CONFIG_COMMANDS([default],[[ echo 'char *build_date = "'`date`'";' > src/unix/build_date.c  && echo 'char *build_date;'> src/unix/build_date.h]],[[]])
+AC_CONFIG_COMMANDS([default],[[
+    if [ -n "$SOURCE_DATE_EPOCH" ] ; then
+        echo 'char *build_date = "'`LC_ALL=C.UTF-8 date --date=@$SOURCE_DATE_EPOCH -u`'";' > src/unix/build_date.c
+    else
+        echo 'char *build_date = "'`date`'";' > src/unix/build_date.c
+    fi
+    echo 'char *build_date;'> src/unix/build_date.h
+]],[[]])
 
 AC_PREFIX_DEFAULT()
 
