@@ -1054,7 +1054,7 @@ static int bnx2_read(nic_t *nic, packet_t *pkt)
 				/*  If the NIC passes up a packet bigger
 				 *  then the RX buffer, flag it */
 				LOG_ERR(PFX "%s: invalid packet length %d "
-					"recieve ", nic->log_name, len);
+					"receive ", nic->log_name, len);
 			}
 		}
 

@@ -20,7 +20,7 @@
  * RFC 3720.  The code in this file is meant to be common for both kernel and
  * user level and makes use of only limited  library  functions, presently only
  * string.h. Routines specific to kernel, user level are implemented in
- * seperate files under the appropriate directories.
+ * separate files under the appropriate directories.
  * This code in this files assumes a single thread of execution
  * for each iscsi_acl structure, and does no locking.
  */
@@ -1071,7 +1071,7 @@ acl_hand_shake(struct iscsi_acl *client)
 
 		/*
 		 * Should only happen if authentication
-		 * protocol error occured.
+		 * protocol error occurred.
 		 */
 		return;
 

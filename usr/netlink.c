@@ -1571,7 +1571,7 @@ static int ctldev_handle(void)
 				    ev->r.host_event.host_no);
 			break;
 		default:
-			log_debug(7, "Host%u: Unknwon host event: %u.",
+			log_debug(7, "Host%u: Unknown host event: %u.",
 				  ev->r.host_event.host_no,
 				  ev->r.host_event.code);
 		}
@@ -1597,7 +1597,7 @@ static int ctldev_handle(void)
 			 * see their
 			 * stuff. Just drop it.
 			 */
-			log_debug(7, "Got unknwon event %d. Dropping.",
+			log_debug(7, "Got unknown event %d. Dropping.",
 				  ev->type);
 		drop_data(nlh);
 		return 0;

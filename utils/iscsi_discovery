@@ -39,7 +39,7 @@ usage()
 	echo "Options:"
 	echo  "-p		set the port number (defualt is 3260)."
 	echo  "-d		print debugging information"
-	echo  "-t		set trasnpot (default is tcp)."
+	echo  "-t		set transport (default is tcp)."
 	echo  "-f		force specific transport -disable the fallback to tcp (default is fallback enabled)."
 	echo  "			force the transport specified by the argument of the -t flag."
 	echo  "-m		manual startup - will set manual startup (default is automatic startup)."

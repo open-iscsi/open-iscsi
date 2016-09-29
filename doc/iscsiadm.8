@@ -9,10 +9,10 @@ iscsiadm \- open-iscsi administration utility
 .IR debug_level ]
 .RB [ \-P
 .IR printlevel ]
-.R [\
+[\
 .BI \-I\  iface\  \-t\  type\  \-p\  ip:port
 .RB [ \-lD ]
-.R ] | [
+] | [
 .RB [ \-p
 .I ip:port
 .B \-t
@@ -24,7 +24,7 @@ iscsiadm \- open-iscsi administration utility
 .RB [ \-v
 .IR value ]
 .RB [ \-lD ]
-.R ]
+]
 
 .B iscsiadm
 .B \-m discovery
@@ -33,14 +33,14 @@ iscsiadm \- open-iscsi administration utility
 .IR debug_level ]
 .RB [ \-P
 .IR printlevel ]
-.R [\
+[\
 .BI \-I\  iface\  \-t\  type\  \-p\  ip:port
 .RB [ \-l ]
-.R ] | [
+] | [
 .RB [ \-p
 .IR ip:port ]
 .RB [ \-l | \-D ]
-.R ]
+]
 
 .B iscsiadm
 .B \-m node
@@ -54,13 +54,13 @@ iscsiadm \- open-iscsi administration utility
 .RB [ \-U
 .IR all,manual,automatic ]
 .RB [ \-S ]
-.R [
+[
 .RB [ \-T
 .IB targetname\  \-p\  ip:port\  \-I\  iface
-.R ]
+]
 .RB [ \-l | \-u | \-R | \-s ]
-.R ]
-.R [
+]
+[
 .RB [ \-o
 .IR operation ]
 .RB [ \-n
@@ -69,22 +69,22 @@ iscsiadm \- open-iscsi administration utility
 .IR value ]
 .RB [ \-p
 .IR ip:port ]
-.R ]
+]
 
 .B iscsiadm
 .B \-m session
-.RB[ \-hV ]
+.RB [ \-hV ]
 .RB [ \-d
 .IR debug_level ]
 .RB [ \-P
 .IR printlevel ]
-.R [
+[
 .B \-r
 .IR sessionid | sysfsdir
 .RB [ \-R ]
 .RB [ \-u | \-s | \-o
 .IR new ]
-.R ]
+]
 
 .B iscsiadm
 .B \-m iface
@@ -93,20 +93,20 @@ iscsiadm \- open-iscsi administration utility
 .IR debug_level ]
 .RB [ \-P
 .IR printlevel ]
-.R [
+[
 .BI \-I\  ifacename
-.R |
+|
 .BI \-H\  hostno|MAC
-.R ]
-.R [
+]
+[
 .RB [ \-o
 .IR operation ]
 .RB [ \-n
 .IR name ]
 .RB [ \-v
 .IR value ]
-.R ]
-.R [
+]
+[
 .BI \-C\  ping
 .RB [ \-a
 .IR ip ]
@@ -116,7 +116,7 @@ iscsiadm \- open-iscsi administration utility
 .IR count ]
 .RB [ \-i
 .IR interval ]
-.R ]
+]
 
 .B iscsiadm
 .B \-m fw
@@ -130,30 +130,30 @@ iscsiadm \- open-iscsi administration utility
 .IR printlevel ]
 .RB [ \-H
 .IR hostno|MAC ]
-.R [
+[
 .RB [\  \-C
 .IR chap
 .RB [ \-x
 .IR chap_tbl_idx ]
-.R ] |
+] |
 .RB [\  \-C
 .IR flashnode
 .RB [ \-A
 .IR portal_type ]
 .RB [ \-x
 .IR flashnode_idx ]
-.R ] |
+] |
 .RB [\  \-C
 .IR stats \ ]
-.R ]
-.R [
+]
+[
 .RB [ \-o
 .IR operation ]
 .RB [ \-n
 .IR name ]
 .RB [ \-v
 .IR value ]
-.R ]
+]
 
 .B iscsiadm
 .B \-k  priority
@@ -228,7 +228,7 @@ display help text and exit
 
 .TP
 \fB\-H\fR, \fB\-\-host=\fI[hostno|MAC]\fR
-The host agrument specifies the SCSI host to use for the operation. It can be
+The host argument specifies the SCSI host to use for the operation. It can be
 the scsi host number assigned to the host by the kernel's scsi layer, or the
 MAC address of a scsi host.
 
@@ -255,8 +255,8 @@ iser (software iSCSI over InfiniBand), or qla4xxx (Qlogic 4XXXX HBAs). The
 hwaddress is the MAC address or for software iSCSI it may be the special
 value "default" which directs the initiator to not bind the session to a
 specific hardware resource and instead allow the network or InfiniBand layer
-to decide what to do. There is no need to create a iface config with the default
-behavior. If you do not specify a iface, then the default behavior is used.
+to decide what to do. There is no need to create an iface config with the default
+behavior. If you do not specify an iface, then the default behavior is used.
 
 As mentioned above there is a special iface name default. There are three
 others -- cxgb3i, bnx2i and iser, which does not bind the session to a specific card, but will bind the session to the cxgb3i, bnx2i or iser transport. These
@@ -301,9 +301,9 @@ all discovered targets.
 This option is only valid for discovery and node modes.
 
 .TP
-\fB\-L\fR, \fB\-\-loginall==\fI[all|manual|automatic]\fR
+\fB\-L\fR, \fB\-\-loginall=\fI[all|manual|automatic]\fR
 For node mode, login all sessions with the node or conn startup values passed
-in or all running sesssion, except ones marked onboot, if all is passed in.
+in or all running session, except ones marked onboot, if all is passed in.
 .IP
 This option is only valid for node mode (it is valid but not functional
 for session mode).
@@ -443,9 +443,9 @@ logout for a specified record.
 This option is only valid for node and session mode.
 
 .TP
-\fB\-U\fR, \fB\-\-logoutall==\fI[all,manual,automatic]\fR
+\fB\-U\fR, \fB\-\-logoutall=\fI[all,manual,automatic]\fR
 logout all sessions with the node or conn startup values passed in or all
-running sesssion, except ones marked onboot, if all is passed in.
+running session, except ones marked onboot, if all is passed in.
 .IP
 This option is only valid for node mode (it is valid but not functional
 for session mode).

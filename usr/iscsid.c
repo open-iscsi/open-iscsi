@@ -324,7 +324,7 @@ static void catch_signal(int signo)
 static void missing_iname_warn(char *initiatorname_file)
 {
 	log_error("Warning: InitiatorName file %s does not exist or does not "
-		  "contain a properly formated InitiatorName. If using "
+		  "contain a properly formatted InitiatorName. If using "
 		  "software iscsi (iscsi_tcp or ib_iser) or partial offload "
 		  "(bnx2i or cxgbi iscsi), you may not be able to log "
 		  "into or discover targets. Please create a file %s that "

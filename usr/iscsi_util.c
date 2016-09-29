@@ -284,7 +284,7 @@ static int iscsi_addr_match(char *address1, char *address2)
 
 	/*
 	 * didn't match so we have to resolve to see if one is a dnsname
-	 * that matches a ip address.
+	 * that matches an ip address.
 	 */
 	rc = getaddrinfo(address1, NULL, &hints1, &res1);
 	if (rc) {
