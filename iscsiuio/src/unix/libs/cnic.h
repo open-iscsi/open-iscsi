@@ -44,6 +44,8 @@
  ******************************************************************************/
 extern const char bnx2i_library_transport_name[];
 extern const size_t bnx2i_library_transport_name_size;
+extern const char qedi_library_transport_name[];
+extern const size_t qedi_library_transport_name_size;
 
 int cnic_nl_open();
 void cnic_nl_close();

@@ -65,6 +65,7 @@
 
 #include "bnx2.h"
 #include "bnx2x.h"
+#include "qedi.h"
 #include "ipv6.h"
 
 /******************************************************************************
@@ -180,7 +181,7 @@ error:
 }
 
 static struct nic_ops *(*nic_get_ops[]) () = {
-bnx2_get_ops, bnx2x_get_ops,};
+bnx2_get_ops, bnx2x_get_ops, qedi_get_ops};
 
 int load_all_nic_libraries()
 {
@@ -404,6 +405,7 @@ nic_t *nic_init()
 	memset(nic, 0, sizeof(*nic));
 	nic->uio_minor = -1;
 	nic->fd = INVALID_FD;
+	nic->host_no = INVALID_HOST_NO;
 	nic->next = NULL;
 	nic->thread = INVALID_THREAD;
 	nic->enable_thread = INVALID_THREAD;
@@ -1070,6 +1072,8 @@ int process_packets(nic_t *nic,
 		}
 nic_iface_present:
 		pkt->nic_iface = nic_iface;
+		LOG_DEBUG(PFX "%s: found nic iface, type=0x%x, bufsize=%d",
+			  nic->log_name, type, pkt->buf_size);
 
 		ustack = &nic_iface->ustack;
 

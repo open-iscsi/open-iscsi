@@ -81,6 +81,10 @@ static const char iscsi_host_path_netdev_template[] =
 	"/sys/class/iscsi_host/host%d/netdev";
 static const char cnic_uio_sysfs_resc_template[] =
 	"/sys/class/uio/uio%i/device/resource%i";
+static const char iscsi_transport_handle_template[] =
+	"/sys/class/iscsi_transport/%s/handle";
+static const char eth_pfx[] = "eth";
+static const char host_pfx[] = "host";
 
 /**
  *  manually_trigger_uio_event() - If the uio file node doesn't exist then
@@ -250,6 +254,7 @@ int nic_discover_iscsi_hosts()
 				strncpy(nic->eth_device_name, raw, raw_size);
 				nic->config_device_name = nic->eth_device_name;
 				nic->log_name = nic->eth_device_name;
+				nic->host_no = host_no;
 
 				if (nic_fill_name(nic) != 0) {
 					free(nic);
@@ -557,6 +562,102 @@ error:
 }
 
 /**
+ *  from_uio_find_associated_host() - Given the uio minor number
+ *      this function will try to find the assoicated iscsi host
+ *  @param uio_minor - minor number of the UIO device
+ *  @param name - char buffer which will be filled if successful
+ *  @param name_size - size of the name buffer
+ *  @return >0 minor number <0 an error
+ */
+static int from_uio_find_associated_host(nic_t *nic, int uio_minor,
+					 char *name, size_t name_size)
+{
+	char *path;
+	int rc;
+	int count;
+	struct dirent **files;
+	char *parsed_name;
+	int i;
+	int path_iterator;
+	char *search_paths[] = { "/sys/class/uio/uio%i/device/" };
+	int path_to[] = { 5, 1 };
+	int (*search_filters[]) (const struct dirent *) = { filter_host_name, };
+	char *(*extract_name[]) (struct dirent **files) = {  extract_none, };
+	int extract_name_offset[] = { 0 };
+
+	path = malloc(PATH_MAX);
+	if (!path) {
+		LOG_ERR(PFX "Could not allocate memory for path");
+		rc = -ENOMEM;
+		goto error;
+	}
+
+	for (path_iterator = 0;
+	     path_iterator < sizeof(search_paths) / sizeof(search_paths[0]);
+	     path_iterator++) {
+		/*  Build the path to determine uio name */
+		rc = sprintf(path, search_paths[path_iterator], uio_minor);
+
+		wait_for_file_node_timed(nic, path, path_to[path_iterator]);
+
+		count = scandir(path, &files,
+				search_filters[path_iterator], alphasort);
+
+		switch (count) {
+		case 1:
+			parsed_name = (*extract_name[path_iterator]) (files);
+			if (!parsed_name) {
+				LOG_WARN(PFX "Couldn't find delimiter in: %s",
+					 files[0]->d_name);
+
+				break;
+			}
+
+			strncpy(name,
+				parsed_name +
+				extract_name_offset[path_iterator], name_size);
+
+			free(files[0]);
+			free(files);
+
+			rc = 0;
+			break;
+
+		case 0:
+			rc = -EINVAL;
+			break;
+
+		case -1:
+			LOG_WARN(PFX "Error when scanning path: %s[%s]",
+				 path, strerror(errno));
+			rc = -EINVAL;
+			break;
+
+		default:
+			LOG_WARN(PFX
+				 "Too many entries when looking for device: %s",
+				 path);
+
+			/*  Cleanup the scandir() call */
+			for (i = 0; i < count; i++)
+				free(files[i]);
+			free(files);
+
+			rc = -EINVAL;
+			break;
+		}
+
+		if (rc == 0)
+			break;
+	}
+
+error:
+	free(path);
+
+	return rc;
+}
+
+/**
  *  filter_uio_name() - This is the callback used by scandir when looking for
  *                      the number of uio entries
  */
@@ -652,10 +753,16 @@ int from_phys_name_find_assoicated_uio_device(nic_t *nic)
 			continue;
 		}
 
-		rc = from_uio_find_associated_eth_device(nic,
-							 uio_minor,
-							 eth_name,
-							 sizeof(eth_name));
+		if (!memcmp(host_pfx, nic->config_device_name,
+			    strlen(host_pfx))) {
+			rc = from_uio_find_associated_host(nic, uio_minor,
+							   eth_name,
+							   sizeof(eth_name));
+		} else {
+			rc = from_uio_find_associated_eth_device(nic, uio_minor,
+								 eth_name,
+								 sizeof(eth_name));
+		}
 		if (rc != 0) {
 			LOG_WARN("uio minor: %d not valid [%D]", uio_minor, rc);
 			continue;
@@ -1117,6 +1224,38 @@ int detemine_initial_uio_events(nic_t *nic, uint32_t *num_of_events)
 	elements_read = sscanf(raw, "%d", num_of_events);
 	if (elements_read != 1) {
 		LOG_ERR(PFX "%s: Couldn't parse UIO events size from %s",
+			nic->log_name, temp_path);
+		rc = -EIO;
+		goto error;
+	}
+
+	rc = 0;
+error:
+	if (raw)
+		free(raw);
+
+	return rc;
+}
+
+int get_iscsi_transport_handle(nic_t *nic, uint64_t *handle)
+{
+	char *raw = NULL;
+	uint32_t raw_size = 0;
+	ssize_t elements_read;
+	char temp_path[sizeof(iscsi_transport_handle_template) + 8];
+	int rc;
+
+	/*  Capture RX buffer size */
+	snprintf(temp_path, sizeof(temp_path),
+		 iscsi_transport_handle_template, nic->library_name);
+
+	rc = capture_file(&raw, &raw_size, temp_path);
+	if (rc != 0)
+		goto error;
+
+	elements_read = sscanf(raw, "%lu", handle);
+	if (elements_read != 1) {
+		LOG_ERR(PFX "%s: Couldn't parse transport handle from %s",
 			nic->log_name, temp_path);
 		rc = -EIO;
 		goto error;
