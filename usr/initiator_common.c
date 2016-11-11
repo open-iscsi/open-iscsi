@@ -700,7 +700,7 @@ int iscsi_host_set_net_params(struct iface_rec *iface,
 		netdev = hinfo.iface.netdev;
 	}
 
-	if (net_ifup_netdev(netdev))
+	if (!t->template->no_netdev && net_ifup_netdev(netdev))
 		log_warning("Could not brining up netdev %s. Try running "
 			    "'ifup %s' first if login fails.", netdev, netdev);
 
