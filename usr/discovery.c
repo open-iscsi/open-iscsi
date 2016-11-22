@@ -64,7 +64,7 @@ static char initiator_name[TARGET_NAME_MAXLEN + 1];
 static char initiator_alias[TARGET_NAME_MAXLEN + 1];
 static struct iscsi_ev_context ipc_ev_context;
 
-static int request_initiator_name(void)
+static int request_initiator_name(int tmo)
 {
 	int rc;
 	iscsiadm_req_t req;
@@ -78,7 +78,7 @@ static int request_initiator_name(void)
 	memset(&req, 0, sizeof(req));
 	req.command = MGMT_IPC_CONFIG_INAME;
 
-	rc = iscsid_exec_req(&req, &rsp, 1);
+	rc = iscsid_exec_req(&req, &rsp, 1, tmo);
 	if (rc)
 		return rc;
 
@@ -88,7 +88,7 @@ static int request_initiator_name(void)
 	memset(&req, 0, sizeof(req));
 	req.command = MGMT_IPC_CONFIG_IALIAS;
 
-	rc = iscsid_exec_req(&req, &rsp, 0);
+	rc = iscsid_exec_req(&req, &rsp, 0, tmo);
 	if (rc)
 		/* alias is optional so return ok */
 		return 0;
@@ -344,7 +344,7 @@ int discovery_isns(void *data, struct iface_rec *iface,
 	if (iface && strlen(iface->iname))
 		iname = iface->iname;
 	else {
-		rc = request_initiator_name();
+		rc = request_initiator_name(drec->iscsid_req_tmo);
 		if (rc) {
 			log_error("Cannot perform discovery. Initiatorname "
 				  "required.");
@@ -454,7 +454,7 @@ int discovery_offload_sendtargets(int host_no, int do_login,
 	 * and get back the results. We should do this since it would
 	 * allows us to then process the results like software iscsi.
 	 */
-	rc = iscsid_exec_req(&req, &rsp, 1);
+	rc = iscsid_exec_req(&req, &rsp, 1, drec->iscsid_req_tmo);
 	if (rc) {
 		log_error("Could not offload sendtargets to %s.",
 			  drec->address);
@@ -802,7 +802,7 @@ static void iscsi_free_session(struct iscsi_session *session)
 
 static iscsi_session_t *
 iscsi_alloc_session(struct iscsi_sendtargets_config *config,
-		    struct iface_rec *iface, int *rc)
+		    struct iface_rec *iface, int *rc, int tmo)
 {
 	iscsi_session_t *session;
 
@@ -848,7 +848,7 @@ iscsi_alloc_session(struct iscsi_sendtargets_config *config,
 		strcpy(initiator_name, iface->iname);
 		/* MNC TODO add iface alias */
 	} else {
-		*rc = request_initiator_name();
+		*rc = request_initiator_name(tmo);
 		if (*rc) {
 			log_error("Cannot perform discovery. Initiatorname "
 				  "required.");
@@ -1573,7 +1573,7 @@ int discovery_sendtargets(void *fndata, struct iface_rec *iface,
 	iscsi_timer_clear(&connection_timer);
 
 	/* allocate a new session, and initialize default values */
-	session = iscsi_alloc_session(config, iface, &rc);
+	session = iscsi_alloc_session(config, iface, &rc, drec->iscsid_req_tmo);
 	if (rc)
 		return rc;
 

@@ -315,6 +315,7 @@ typedef struct discovery_rec {
 	discovery_type_e	type;
 	char			address[NI_MAXHOST];
 	int			port;
+	int			iscsid_req_tmo;
 	union {
 		struct iscsi_sendtargets_config	sendtargets;
 		struct iscsi_slp_config		slp;

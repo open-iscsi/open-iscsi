@@ -21,17 +21,20 @@
 #ifndef ISCSID_REQ_H_
 #define ISCSID_REQ_H
 
+#define ISCSID_REQ_TIMEOUT 1000
+
 struct iscsiadm_req;
 struct iscsiadm_rsp;
 struct node_rec;
 
 extern int iscsid_exec_req(struct iscsiadm_req *req, struct iscsiadm_rsp *rsp,
-			   int iscsid_start);
-extern int iscsid_req_wait(int cmd, int fd);
-extern int iscsid_req_by_rec_async(int cmd, struct node_rec *rec, int *fd);
-extern int iscsid_req_by_rec(int cmd, struct node_rec *rec);
-extern int iscsid_req_by_sid_async(int cmd, int sid, int *fd);
-extern int iscsid_req_by_sid(int cmd, int sid);
+			   int iscsid_start, int tmo);
+extern int iscsid_req_wait(iscsiadm_cmd_e cmd, int fd);
+extern int iscsid_req_by_rec_async(iscsiadm_cmd_e cmd, struct node_rec *rec,
+				   int *fd);
+extern int iscsid_req_by_rec(iscsiadm_cmd_e cmd, struct node_rec *rec);
+extern int iscsid_req_by_sid_async(iscsiadm_cmd_e cmd, int sid, int *fd);
+extern int iscsid_req_by_sid(iscsiadm_cmd_e cmd, int sid);
 
 extern int uip_broadcast(void *buf, size_t buf_len, int fd_flags,
 			 uint32_t *status);

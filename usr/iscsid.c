@@ -274,7 +274,7 @@ static int sync_session(void *data, struct session_info *info)
 	memcpy(&req.u.session.rec, &rec, sizeof(node_rec_t));
 
 retry:
-	rc = iscsid_exec_req(&req, &rsp, 0);
+	rc = iscsid_exec_req(&req, &rsp, 0, info->iscsid_req_tmo);
 	if (rc == ISCSI_ERR_ISCSID_NOTCONN && retries < 30) {
 		retries++;
 		sleep(1);

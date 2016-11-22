@@ -1420,6 +1420,7 @@ int iscsi_sysfs_for_each_session(void *data, int *nr_found,
 	if (!info)
 		return ISCSI_ERR_NOMEM;
 
+	info->iscsid_req_tmo = -1;
 	n = scandir(ISCSI_SESSION_DIR, &namelist, trans_filter,
 		    alphasort);
 	if (n <= 0)
