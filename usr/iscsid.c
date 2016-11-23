@@ -313,8 +313,7 @@ static void catch_signal(int signo)
 
 	switch (signo) {
 	case SIGTERM:
-		iscsid_shutdown();
-		exit(0);
+		event_loop_exit(NULL);
 		break;
 	default:
 		break;
