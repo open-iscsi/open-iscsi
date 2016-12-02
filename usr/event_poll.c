@@ -123,7 +123,7 @@ static int shutdown_wait_pids(void)
 #define POLL_ALARM	2
 #define POLL_MAX	3
 
-static int event_loop_stop;
+static volatile int event_loop_stop;
 static queue_task_t *shutdown_qtask; 
 
 void event_loop_exit(queue_task_t *qtask)
