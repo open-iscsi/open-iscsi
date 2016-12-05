@@ -28,6 +28,7 @@ struct session_info {
 	/* local info */
 	struct iface_rec iface;
 	int sid;
+	int iscsid_req_tmo;
 
 	struct session_timeout tmo;
 	struct session_CHAP chap;
@@ -60,8 +61,8 @@ struct session_link_info {
 extern int session_info_create_list(void *data, struct session_info *info);
 extern void session_info_free_list(struct list_head *list);
 extern int session_info_print(int info_level, struct session_info *match_info,
-				int do_show);
+			      int do_show);
 extern void session_info_print_tree(struct list_head *list, char *prefix,
-				    unsigned int flags, int do_show);
+				    unsigned int flags, int do_show, int tmo);
 
 #endif

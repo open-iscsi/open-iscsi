@@ -123,7 +123,7 @@ static int stop_event_loop(void)
 
 	memset(&req, 0, sizeof(req));
 	req.command = MGMT_IPC_IMMEDIATE_STOP;
-	rc = iscsid_exec_req(&req, &rsp, 0);
+	rc = iscsid_exec_req(&req, &rsp, 0, -1);
 	if (rc) {
 		iscsi_err_print_msg(rc);
 		log_error("Could not stop event_loop");
@@ -235,7 +235,7 @@ static int login_session(struct node_rec *rec)
 	memcpy(&req.u.session.rec, rec, sizeof(*rec));
 
 retry:
-	rc = iscsid_exec_req(&req, &rsp, 0);
+	rc = iscsid_exec_req(&req, &rsp, 0, ISCSID_REQ_TIMEOUT);
 	/*
 	 * handle race where iscsid proc is starting up while we are
 	 * trying to connect.

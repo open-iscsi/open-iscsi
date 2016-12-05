@@ -251,7 +251,7 @@ static int host_info_print_tree(void *data, struct host_info *hinfo)
 	printf("\tSessions:\n");
 	printf("\t*********\n");
 
-	session_info_print_tree(&sessions, "\t", session_info_flags, 0);
+	session_info_print_tree(&sessions, "\t", session_info_flags, 0, -1);
 	session_info_free_list(&sessions);
 	return 0;
 }

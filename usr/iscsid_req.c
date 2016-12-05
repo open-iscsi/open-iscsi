@@ -24,6 +24,7 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <sys/un.h>
+#include <poll.h>
 #include <sys/types.h>
 #include <sys/socket.h>
 
@@ -33,6 +34,7 @@
 #include "iscsi_util.h"
 #include "config.h"
 #include "iscsi_err.h"
+#include "iscsid_req.h"
 #include "uip_mgmt_ipc.h"
 
 static void iscsid_startup(void)
@@ -118,16 +120,45 @@ int iscsid_request(int *fd, iscsiadm_req_t *req, int start_iscsid)
 	return ISCSI_SUCCESS;
 }
 
-int iscsid_response(int fd, iscsiadm_cmd_e cmd, iscsiadm_rsp_t *rsp)
+int iscsid_response(int fd, iscsiadm_cmd_e cmd, iscsiadm_rsp_t *rsp,
+		    int timeout)
 {
-	int iscsi_err;
+	size_t len = sizeof(*rsp);
+	int iscsi_err = ISCSI_ERR_ISCSID_COMM_ERR;
 	int err;
+	int poll_wait = 0;
 
-	if ((err = recv(fd, rsp, sizeof(*rsp), MSG_WAITALL)) != sizeof(*rsp)) {
-		log_error("got read error (%d/%d), daemon died?", err, errno);
-		iscsi_err = ISCSI_ERR_ISCSID_COMM_ERR;
-	} else
-		iscsi_err = rsp->err;
+	if (timeout == -1) {
+		timeout = ISCSID_REQ_TIMEOUT;
+		poll_wait = 1;
+	}
+	while (len) {
+		struct pollfd pfd;
+
+		pfd.fd = fd;
+		pfd.events = POLLIN;
+		err = poll(&pfd, 1, timeout);
+		if (!err) {
+			if (poll_wait)
+				continue;
+			return ISCSI_ERR_ISCSID_NOTCONN;
+		} else if (err < 0) {
+			if (errno == EINTR)
+				continue;
+			log_error("got poll error (%d/%d), daemon died?",
+				  err, errno);
+			return ISCSI_ERR_ISCSID_COMM_ERR;
+		} else if (pfd.revents & POLLIN) {
+			err = recv(fd, rsp, sizeof(*rsp), MSG_WAITALL);
+			if (err < 0) {
+				log_error("read error (%d/%d), daemon died?",
+					  err, errno);
+				break;
+			}
+			len -= err;
+			iscsi_err = rsp->err;
+		}
+	}
 	close(fd);
 
 	if (!iscsi_err && cmd != rsp->command)
@@ -136,7 +167,7 @@ int iscsid_response(int fd, iscsiadm_cmd_e cmd, iscsiadm_rsp_t *rsp)
 }
 
 int iscsid_exec_req(iscsiadm_req_t *req, iscsiadm_rsp_t *rsp,
-				int start_iscsid)
+		    int start_iscsid, int tmo)
 {
 	int fd;
 	int err;
@@ -145,7 +176,7 @@ int iscsid_exec_req(iscsiadm_req_t *req, iscsiadm_rsp_t *rsp,
 	if (err)
 		return err;
 
-	return iscsid_response(fd, req->command, rsp);
+	return iscsid_response(fd, req->command, rsp, tmo);
 }
 
 int iscsid_req_wait(iscsiadm_cmd_e cmd, int fd)
@@ -153,7 +184,7 @@ int iscsid_req_wait(iscsiadm_cmd_e cmd, int fd)
 	iscsiadm_rsp_t rsp;
 
 	memset(&rsp, 0, sizeof(iscsiadm_rsp_t));
-	return iscsid_response(fd, cmd, &rsp);
+	return iscsid_response(fd, cmd, &rsp, -1);
 }
 
 int iscsid_req_by_rec_async(iscsiadm_cmd_e cmd, node_rec_t *rec, int *fd)

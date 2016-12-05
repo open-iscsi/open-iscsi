@@ -93,7 +93,7 @@ static int session_info_print_flat(void *data, struct session_info *info)
 	return 0;
 }
 
-static int print_iscsi_state(int sid, char *prefix)
+static int print_iscsi_state(int sid, char *prefix, int tmo)
 {
 	iscsiadm_req_t req;
 	iscsiadm_rsp_t rsp;
@@ -120,7 +120,7 @@ static int print_iscsi_state(int sid, char *prefix)
 	req.command = MGMT_IPC_SESSION_INFO;
 	req.u.session.sid = sid;
 
-	err = iscsid_exec_req(&req, &rsp, 1);
+	err = iscsid_exec_req(&req, &rsp, 1, tmo);
 	/*
 	 * for drivers like qla4xxx, iscsid does not display
 	 * anything here since it does not know about it.
@@ -236,7 +236,7 @@ static int print_scsi_state(int sid, char *prefix, unsigned int flags)
 }
 
 void session_info_print_tree(struct list_head *list, char *prefix,
-			     unsigned int flags, int do_show)
+			     unsigned int flags, int do_show, int tmo)
 {
 	struct session_info *curr, *prev = NULL;
 
@@ -289,7 +289,7 @@ void session_info_print_tree(struct list_head *list, char *prefix,
 
 		if (flags & SESSION_INFO_ISCSI_STATE) {
 			printf("%s\t\tSID: %d\n", prefix, curr->sid);
-			print_iscsi_state(curr->sid, prefix);
+			print_iscsi_state(curr->sid, prefix, tmo);
 		}
 
 		if (flags & SESSION_INFO_ISCSI_TIM) {
@@ -407,7 +407,8 @@ int session_info_print(int info_level, struct session_info *info, int do_show)
 		if (info) {
 			INIT_LIST_HEAD(&info->list);
 			list_add_tail(&list, &info->list);
-			session_info_print_tree(&list, "", flags, do_show);
+			session_info_print_tree(&list, "", flags, do_show,
+						info->iscsid_req_tmo);
 			num_found = 1;
 			break;
 		}
@@ -422,7 +423,8 @@ int session_info_print(int info_level, struct session_info *info, int do_show)
 		if (err || !num_found)
 			break;
 
-		session_info_print_tree(&list, "", flags, do_show);
+		session_info_print_tree(&list, "", flags, do_show,
+					info->iscsid_req_tmo);
 		session_info_free_list(&list);
 		break;
 	default:
