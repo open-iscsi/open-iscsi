@@ -2860,6 +2860,7 @@ static int exec_disc2_op(int disc_type, char *ip, int port,
 	int rc = 0;
 
 	memset(&drec, 0, sizeof(struct discovery_rec));
+	drec.iscsid_req_tmo = -1;
 	if (disc_type != -1)
 		drec.type = disc_type;
 

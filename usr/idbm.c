@@ -914,6 +914,7 @@ idbm_discovery_setup_defaults(discovery_rec_t *rec, discovery_type_e type)
 
 	rec->startup = ISCSI_STARTUP_MANUAL;
 	rec->type = type;
+	rec->iscsid_req_tmo = -1;
 	switch (type) {
 	case DISCOVERY_TYPE_SENDTARGETS:
 		rec->u.sendtargets.discoveryd_poll_inval = 30;
@@ -1914,6 +1915,7 @@ idbm_discovery_read(discovery_rec_t *out_rec, int drec_type,
 		return ISCSI_ERR_INVAL;
 
 	memset(out_rec, 0, sizeof(discovery_rec_t));
+	out_rec->iscsid_req_tmo = -1;
 
 	info = idbm_recinfo_alloc(MAX_KEYS);
 	if (!info)
