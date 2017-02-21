@@ -216,7 +216,7 @@ static int sync_session(void *data, struct session_info *info)
 				  iscsi_err_to_str(err));
 			return 0;
 		}
-		iscsi_sysfs_scan_host(host_no, 0);
+		iscsi_sysfs_scan_host(host_no, 0, idbm_session_autoscan(NULL));
 		return 0;
 	}
 

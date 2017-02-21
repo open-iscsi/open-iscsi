@@ -997,7 +997,7 @@ static void session_scan_host(struct iscsi_session *session, int hostno,
 {
 	pid_t pid;
 
-	pid = iscsi_sysfs_scan_host(hostno, 1);
+	pid = iscsi_sysfs_scan_host(hostno, 1, idbm_session_autoscan(session));
 	if (pid == 0) {
 		mgmt_ipc_write_rsp(qtask, ISCSI_SUCCESS);
 
@@ -1201,7 +1201,8 @@ static void iscsi_recv_async_msg(iscsi_conn_t *conn, struct iscsi_hdr *hdr)
 			break;
 		}
 
-		if (sshdr.asc == 0x3f && sshdr.ascq == 0x0e)
+		if (sshdr.asc == 0x3f && sshdr.ascq == 0x0e
+		    && idbm_session_autoscan(session))
 			session_scan_host(session, session->hostno, NULL);
 		break;
 	case ISCSI_ASYNC_MSG_REQUEST_LOGOUT:
