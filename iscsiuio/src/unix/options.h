@@ -87,6 +87,7 @@
 
 #define INVALID_FD	-1
 #define INVALID_THREAD	-1
+#define INVALID_HOST_NO	-1
 
 struct options {
 	char debug;

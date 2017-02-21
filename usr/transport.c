@@ -114,6 +114,18 @@ struct iscsi_transport_template ocs = {
 	.ep_disconnect	= ktransport_ep_disconnect,
 };
 
+struct iscsi_transport_template qedi = {
+	.name		= "qedi",
+	.set_host_ip	= SET_HOST_IP_REQ,
+	.use_boot_info	= 1,
+	.bind_ep_required = 1,
+	.no_netdev = 1,
+	.ep_connect	= ktransport_ep_connect,
+	.ep_poll	= ktransport_ep_poll,
+	.ep_disconnect	= ktransport_ep_disconnect,
+	.set_net_config = uip_broadcast_params,
+};
+
 static struct iscsi_transport_template *iscsi_transport_templates[] = {
 	&iscsi_tcp,
 	&iscsi_iser,
@@ -123,6 +135,7 @@ static struct iscsi_transport_template *iscsi_transport_templates[] = {
 	&qla4xxx,
 	&be2iscsi,
 	&ocs,
+	&qedi,
 	NULL
 };
 

@@ -99,4 +99,6 @@ void dump_packet_to_log(struct nic_interface *iface,
 int determine_file_size_read(const char *filepath);
 int capture_file(char **raw, uint32_t *raw_size, const char *path);
 
+int get_iscsi_transport_handle(nic_t *nic, uint64_t *handle);
+
 #endif /* __NIC_UTILS_H__ */

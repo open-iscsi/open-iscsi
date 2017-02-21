@@ -55,6 +55,7 @@
 #include <sys/types.h>
 #include <sys/user.h>
 #include <sys/socket.h>
+#include <sys/mman.h>
 
 #include "uip_arp.h"
 #include "nic.h"
@@ -65,6 +66,7 @@
 #include "cnic.h"
 #include "iscsi_if.h"
 #include "ipv6_ndpc.h"
+#include "qedi.h"
 
 /*******************************************************************************
  * Constants
@@ -80,6 +82,13 @@ static const uip_ip6addr_t all_ones_addr6 = {
 const char bnx2i_library_transport_name[] = "bnx2i";
 const size_t bnx2i_library_transport_name_size =
 			sizeof(bnx2i_library_transport_name);
+
+/*******************************************************************************
+ * Constants for qedi module
+ ******************************************************************************/
+const char qedi_library_transport_name[] = "qedi";
+const size_t qedi_library_transport_name_size =
+			sizeof(qedi_library_transport_name);
 
 /******************************************************************************
  * Netlink Functions
