@@ -23,13 +23,13 @@ Contents
 ==================
 
 This file describes the Linux* Open-iSCSI Initiator. The software was
-tested on AMD Opteron (TM) and Intel Xeon (TM). 
+tested on AMD Opteron (TM) and Intel Xeon (TM).
 
 The latest development release is available at:
 http://www.open-iscsi.com
 
 For questions, comments, contributions send e-mail to:
-open-iscsi@googlegroups.com 
+open-iscsi@googlegroups.com
 
     1.1. Features
     
@@ -150,8 +150,8 @@ open-iscsi simultaneously.
 ====================
 
 The daemon implements control path of iSCSI protocol, plus some management
-facilities. For example, the daemon could be configured to automatically 
-re-start discovery at startup, based on the contents of persistent 
+facilities. For example, the daemon could be configured to automatically
+re-start discovery at startup, based on the contents of persistent
 iSCSI database (see next section).
 
 For help, run:
@@ -191,7 +191,7 @@ Configuration is contained in directories for:
 The iscsiadm utility is a command-line tool to manage (update, delete,
 insert, query) the persistent database.
 
-The utility presents set of operations that a user can perform 
+The utility presents set of operations that a user can perform
 on iSCSI nodes, sessions, connections, and discovery records.
 
 Open-iscsi does not use the term node as defined by the iSCSI RFC,
@@ -203,7 +203,7 @@ For session mode, a session id (sid) is used. The sid of a session can be
 found by running iscsiadm -m session -P 1. The session id is not currently
 persistent and is partially determined by when the session is setup.
 
-Note that some of the iSCSI Node and iSCSI Discovery operations 
+Note that some of the iSCSI Node and iSCSI Discovery operations
 do not require iSCSI daemon (iscsid) loaded.
 
 For help, run:
@@ -217,7 +217,8 @@ Usage: iscsiadm [OPTION]
 
   -m discoverydb --type=[type] --interface=[iface...] --portal=[ip:port] \
 			--print=[N] \
-			--op=[op]=[NEW | UPDATE | DELETE | NONPERSISTENT] \				--discover
+			--op=[op]=[NEW | UPDATE | DELETE | NONPERSISTENT] \
+			--discover
 
 			  This command will use the discovery record settings
 			  matching the record with type=type and
@@ -275,14 +276,15 @@ Usage: iscsiadm [OPTION]
 			  This works like the previous discoverydb command
 			  with the --login argument passed in will also
 			  log into the portals that are found.
+
   -m discoverydb --portal=[ip:port] --type=[type] \
 			--op=[op] [--name=[name] --value=[value]]
 
-			  Perform specific DB operation [op] for 
-                          discovery portal. It could be one of:
-                          [new], [delete], [update] or [show]. In case of
-                          [update], you have to provide [name] and [value]
-                          you wish to update
+			  Perform specific DB operation [op] for
+			  discovery portal. It could be one of:
+			  [new], [delete], [update] or [show]. In case of
+			  [update], you have to provide [name] and [value]
+			  you wish to update
 
 			  op=NEW will create a new discovery record
 			  using the iscsid.conf discovery settings. If it
@@ -299,8 +301,9 @@ Usage: iscsiadm [OPTION]
   -m discovery --type=[type] --interface=iscsi_ifacename \
 			--portal=[ip:port] --login --print=[N] \
 			--op=[op]=[NEW | UPDATE | DELETE | NONPERSISTENT]
-                          perform [type] discovery for target portal with
-                          ip-address [ip] and port [port].
+
+			  perform [type] discovery for target portal with
+			  ip-address [ip] and port [port].
 
 			  This command will not use the discovery record
 			  settings. It will use the iscsid.conf discovery
@@ -361,9 +364,9 @@ Usage: iscsiadm [OPTION]
 			  software iscsi or override the system defaults.
 
 			  op could be one of:
-                          [new], [delete], [update] or [show]. In case of
-                          [update], you have to provide [name] and [value]
-                          you wish to update.
+			  [new], [delete], [update] or [show]. In case of
+			  [update], you have to provide [name] and [value]
+			  you wish to update.
 			  [delete] - Note that if a session is using the
 			  node record, the session will be logged out then
 			  the record will be deleted.
@@ -378,15 +381,19 @@ Usage: iscsiadm [OPTION]
 			  Logout "all" the running sessions or just the ones
 			  with a node startup value manual or automatic.
 			  Nodes marked as ONBOOT are skipped.
+
   -m node --loginall=[all|manual|automatic]
 			  Login "all" the running sessions or just the ones
 			  with a node startup value manual or automatic.
 			  Nodes marked as ONBOOT are skipped.
-  -m session              display all active sessions and connections
+
+  -m session		  display all active sessions and connections
+
   -m session --sid=[sid] [ --print=level | --rescan | --logout ]
 				--op=[op] [--name=[name] --value=[value]]
-                          perform operation for specific session with
-                          session id sid. If no sid is given the operation
+
+			  perform operation for specific session with
+			  session id sid. If no sid is given, the operation
 			  will be performed on all running sessions if possible.
 			  --logout and --op work like they do in node mode,
 			  but in session mode targetname and portal info is
@@ -397,6 +404,7 @@ Usage: iscsiadm [OPTION]
 			  connected to and whether we are connected.
 			  2 = Print iscsi params used.
 			  3 = Print SCSI info like LUNs, device state.
+
 			  If no sid and no operation is given print out the
 			  running sessions.
   -m iface --interface=iscsi_ifacename --op=[op] [--name=[name] --value=[value]]
@@ -405,9 +413,12 @@ Usage: iscsiadm [OPTION]
 			  iscsi_ifacename.
 
 			  See below for examples.
+
   -m iface --interface=iscsi_ifacename -C ping --ip=[ipaddr] --packetsize=[size]
 				--count=[count] --interval=[interval]
+
   -m host --host=hostno|MAC --print=level -C chap --op=[SHOW]
+
 			  Display information for a specific host. The host
 			  can be passed in by host number or by MAC address.
 			  If a host is not passed in then info
@@ -420,30 +431,41 @@ Usage: iscsiadm [OPTION]
 			  is connected to.
 			  3 = Print iscsi params used.
 			  4 = Print SCSI info like LUNs, device state.
+
   -m host --host=hostno|MAC -C chap --op=[DELETE] --index=[chap_tbl_idx]
-			   Delete chap entry at the given index from chap table.
+
+			  Delete chap entry at the given index from chap table.
+
   -m host --host=hostno|MAC -C chap --op=[NEW | UPDATE] --index=[chap_tbl_idx] \
 				--name=[name] --value=[value]
 			  Add new or update existing chap entry at the given
 			  index with given username and password pair. If index
 			  is not passed then entry is added at the first free
 			  index in chap table.
+
   -m host --host=hostno|MAC -C flashnode
+
 			  Display list of all the targets in adapter's
 			  flash (flash node), for the specified host,
 			  with ip, port, tpgt and iqn.
+
   -m host --host=hostno|MAC -C flashnode --op=[NEW] --portal_type=[ipv4|ipv6]
+
 			  Create new flash node entry for the given host of the
 			  specified portal_type. This returns the index of the
 			  newly created entry on success.
+
   -m host --host=hostno|MAC -C flashnode --index=[flashnode index] \
 				--op=[UPDATE] --name=[name] --value=[value]
+
 			  Update the params of the speficied flash node.
 			  The [name] and [value] pairs must be provided for the
 			  params that need to be updated. Multiple params can
 			  be updated using a single command.
+
   -m host --host=hostno|MAC -C flashnode --index=[flashnode index] \
 				--op=[SHOW | DELETE | LOGIN | LOGOUT]
+
 			  op=DELETE|LOGIN|LOGOUT will perform deletion/login/
 			  logout operation on the specified flash node.
 
@@ -451,9 +473,12 @@ Usage: iscsiadm [OPTION]
 			  specified flash node. This is the default operation.
 
 			  See the iscsiadm example section for more info.
+
   -d, --debug debuglevel  print debugging information
-  -V, --version           display version and exit
-  -h, --help              display this help and exit
+
+  -V, --version		  display version and exit
+
+  -h, --help		  display this help and exit
 
 
 5.1 iSCSI iface setup
@@ -698,9 +723,8 @@ you can use the --interface/-I argument:
 
 iscsiadm -m discoverydb -t st -p ip:port -I iface1 --discover -P 1
 
-If you had defined interfaces but wanted the old behavior, where 
-we do not bind a session to an iface, then you can use the special iface
-"default":
+If you had defined interfaces but wanted the old behavior, where we do not
+bind a session to an iface, then you can use the special iface "default":
 
 iscsiadm -m discoverydb -t st -p ip:port -I default --discover -P 1
 
@@ -1184,7 +1208,7 @@ iscsiadm man files and see section 7.2 below for how to discover targets).
 
 will print out the nodes that have been discovered as:
 
-	10.15.85.19:3260,3 iqn.1992-08.com.netapp:sn.33615311 
+	10.15.85.19:3260,3 iqn.1992-08.com.netapp:sn.33615311
 	10.15.84.19:3260,2 iqn.1992-08.com.netapp:sn.33615311
 
 The format is:
