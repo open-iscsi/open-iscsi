@@ -270,7 +270,8 @@ Usage: iscsiadm [OPTION]
 			  0 = The old flat style of output is used.
 			  1 = The tree style with the inteface info is used.
 
-			  If print is not used the old flay style is used.
+			  If print is not used, the old flat style is used.
+
   -m discoverydb --interface=[iface...] --type=[type] --portal=[ip:port] \
 			--print=[N] \
 			--op=[op]=[NEW | UPDATE | DELETE | NONPERSISTENT] \
@@ -299,7 +300,7 @@ Usage: iscsiadm [OPTION]
 			  that discovery source.
 
 			  op=SHOW will display the discovery record
-			  values. The --show arguemnt can be used to
+			  values. The --show argument can be used to
 			  force the CHAP passwords to be displayed.
   -m discovery --type=[type] --interface=iscsi_ifacename \
 			--portal=[ip:port] --login --print=[N] \
@@ -399,7 +400,7 @@ Usage: iscsiadm [OPTION]
 			  session id sid. If no sid is given, the operation
 			  will be performed on all running sessions if possible.
 			  --logout and --op work like they do in node mode,
-			  but in session mode targetname and portal info is
+			  but in session mode targetname and portal info
 			  is not passed in.
 
 			  Print level can be 0 to 2.
@@ -412,7 +413,7 @@ Usage: iscsiadm [OPTION]
 			  running sessions.
   -m iface --interface=iscsi_ifacename --op=[op] [--name=[name] --value=[value]]
 				--print=level
-			  perform operation on fiven interface with name
+			  perform operation on given interface with name
 			  iscsi_ifacename.
 
 			  See below for examples.
@@ -490,7 +491,7 @@ Usage: iscsiadm [OPTION]
 The next sections describe how to setup iSCSI ifaces so you can bind
 a session to a NIC port when using software iscsi (section 5.1.1), and
 it describes how to setup ifaces for use with offload cards from Chelsio
-and Broadcm (section 5.1.2).
+and Broadcom (section 5.1.2).
 
 
 5.1.1 How to setup iSCSI interfaces (iface) for binding
@@ -511,7 +512,7 @@ then you will not be able to bind a session to a NIC.
 What is a scsi_host and iface for software, hardware and partial
 offload iscsi?
 
-Software iscsi, like iscsi_tcp and iser, allocate a scsi_host per session
+Software iscsi, like iscsi_tcp and iser, allocates a scsi_host per session
 and does a single connection per session. As a result
 /sys/class_scsi_host and /proc/scsi will report a scsi_host for
 each connection/session you have logged into. Offload iscsi, like
@@ -584,7 +585,7 @@ iface.transport_name = tcp
 iface.hwaddress = 00:C0:DD:08:63:E7
 
 Warning: Do not name an iface config file  "default" or "iser".
-They are special value/file that is used by the iscsi tools for
+They are special values/files that are used by the iscsi tools for
 backward compatibility. If you name an iface default or iser, then
 the behavior is not defined.
 
@@ -598,8 +599,8 @@ with the name "iface0" this command will overwrite it.)
 # iscsiadm -m iface -I iface0 --op=update -n iface.hwaddress -v 00:0F:1F:92:6B:BF
 
 If you had sessions logged in iscsiadm will not update, overwrite
-a iface. You must log out first. If you have an iface bound to a node/portal
-but you have not logged in then, iscsiadm will update the config and
+an iface. You must log out first. If you have an iface bound to a node/portal
+but you have not logged in, then iscsiadm will update the config and
 all existing bindings.
 
 
@@ -681,8 +682,8 @@ will take take effect. The host can be specified using the -H/--host argument
 by either the MAC address of the host or the host number.
 
 
-Here is an example of setting multiple IPv6 address on single iSCSI interface
-port.
+Here is an example of setting multiple IPv6 addresses on a single iSCSI
+interface port.
 First interface (no need to set iface_num, it is 0 by default)
 
 iscsiadm -m iface -I qla4xxx.00:0e:1e:04:8b:2a -o update \
@@ -708,7 +709,7 @@ next section.
 ========================================
 
 Be aware that iscsiadm will use the default route to do discovery. It will
-not use the iface specified. So if you are using a offload card, you will
+not use the iface specified. So if you are using an offload card, you will
 need a separate network connection to the target for discovery purposes.
 *This will be fixed in the next version of open-iscsi*
 
@@ -716,11 +717,11 @@ For compatibility reasons, when you run iscsiadm to do discovery, it
 will check for interfaces in /etc/iscsi/iscsi/ifaces that are using
 tcp for the iface.transport and it will bind the portals that are discovered
 so that they will be logged in through those ifaces. This behavior can also
-be overriden by passing in the interfaces you want to use. For the case
+be overridden by passing in the interfaces you want to use. For the case
 of offload like with cxgb3i and bnx2i this is required because the transport
 will not be tcp.
 
-For example if you had defined two interface but only wanted to use one
+For example if you had defined two interfaces but only wanted to use one,
 you can use the --interface/-I argument:
 
 iscsiadm -m discoverydb -t st -p ip:port -I iface1 --discover -P 1
@@ -778,7 +779,7 @@ To now log into targets it is the same as with software iscsi. See section
 	discovery settings.
 
 	The argument to -p may also be a hostname instead of an address.
-	    ./iscsiadm -m discoverydb -t st -p smoehost --discover
+	    ./iscsiadm -m discoverydb -t st -p somehost --discover
 
 	For the ifaces, iscsiadm will first search /etc/iscsi/ifaces for
 	interfaces using software iscsi. If any are found then nodes found
@@ -801,7 +802,7 @@ To now log into targets it is the same as with software iscsi. See section
 	    ./iscsiadm -m discoverydb -t sendtargets -p 192.168.1.1:3260 \
 		-o delete --discover
 
-	If there a record for targetX and portalY exists in the DB, but
+	If there is a record for targetX, and portalY exists in the DB, but
 	is not returned during discovery it will be removed from the DB.
 	No new portals will be added and existing portal records will not
 	be changed.
@@ -815,9 +816,8 @@ To now log into targets it is the same as with software iscsi. See section
 	    ./iscsiadm -m discoverydb -t sendtargets -p 192.168.1.1:3260 \
 		-o new --discover
 
-	If there targetX and portalY is returned during discovery and does
-	not have a record, it will be added. Existing records are not
-	modified.
+	If there is targetX, and portalY is returned during discovery, and does
+	not have a record, it will be added. Existing records are not modified.
 
      - SendTargets iSCSI Discovery using multiple ops:
 
@@ -940,8 +940,8 @@ To now log into targets it is the same as with software iscsi. See section
 	    ./iscsiadm -m node -T iqn.2005-03.com.max -p 192.168.0.4:3260 \
 	       -o update -n node.cnx[0].iscsi.MaxRecvDataSegmentLength -v 65536
 
-	You can also change paramaters for multiple records at once, by
-	specifying different combinations of the target, portal and interface
+	You can also change parameters for multiple records at once, by
+	specifying different combinations of target, portal and interface
 	like above.
 
     - Adding custom iSCSI portal:
@@ -982,7 +982,7 @@ To now log into targets it is the same as with software iscsi. See section
 
 	    ./iscsiadm -m node -o show -T iqn.2005-03.com.max -p 192.168.0.4:3260
 	You can also display multiple records at once, by specifying different
-	combinations of the target, portal and interface like above.
+	combinations of target, portal and interface like above.
 
 	Note: running "iscsiadm -m node" will only display the records. It
 	will not display the configuration info. You must run,
@@ -1245,7 +1245,7 @@ the portal, and is not used in iscsiadm commands except for static
 record creation. And iface name is the name of the iscsi interface
 defined in /etc/iscsi/ifaces. If no interface was defined in
 /etc/iscsi/ifaces or passed in, the default behavior is used.
-Default here is iscsi_tcp/tcp to be used over which ever NIC the
+Default here is iscsi_tcp/tcp to be used over whichever NIC the
 network layer decides is best.
 
 To login, take the ip, port and targetname from above and run:
@@ -1349,7 +1349,7 @@ be logged into autmotically.
 
 Instead of running the iscsiadm discovery command and editing the
 startup setting, iscsid can be configured so that every X seconds
-it performs discovery and logs in and out of the portals return or
+it performs discovery and logs in and out of the portals returned or
 no longer returned. In this mode, when iscsid starts it will check the
 discovery db for iSNS records with:
 
@@ -1369,7 +1369,7 @@ Note that for iSNS the poll_interval does not have to be set. If not set,
 iscsid will only perform rediscovery when it gets a SCN from the server.
 
 #   iSNS Note:
-#   For servers like Microsofts where they allow SCN registrations, but do not
+#   For servers like Microsoft's where they allow SCN registrations, but do not
 #   send SCN events, discovery.isns.poll_interval should be set to a non zero
 #   value to auto discover new targets. This is also useful for servers like
 #   linux-isns (SLES's iSNS server) where it sometimes does not send SCN
@@ -1423,7 +1423,7 @@ iscsi service.
 Note:
 When iscsiadm is run with the -o new argument, it will use the
 discovery.isns.use_discoveryd and discovery.isns.discoveryd_poll_inval
-settings in iscsid.conf for the records initial settings. So if those
+settings in iscsid.conf for the record's initial settings. So if those
 are set in iscsid.conf, then you can skip the iscsiadm -o update
 commands.
 
