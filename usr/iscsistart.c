@@ -140,6 +140,7 @@ static int apply_params(struct node_rec *rec)
 	rec->session.initial_login_retry_max = -1;
 	rec->conn[0].timeo.noop_out_interval = -1;
 	rec->conn[0].timeo.noop_out_timeout = -1;
+	rec->session.scan = -1;
 
 	list_for_each_entry(param, &user_params, list) {
 		/*
@@ -183,6 +184,8 @@ static int apply_params(struct node_rec *rec)
 		rec->conn[0].timeo.noop_out_interval = 0;
 	if (rec->conn[0].timeo.noop_out_timeout == -1)
 		rec->conn[0].timeo.noop_out_timeout = 0;
+	if (rec->session.scan == -1)
+		rec->session.scan = DEF_INITIAL_SCAN;
 
 	return 0;
 }

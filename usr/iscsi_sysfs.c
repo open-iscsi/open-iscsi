@@ -1883,11 +1883,14 @@ void iscsi_sysfs_rescan_device(void *data, int hostno, int target, int lun)
 			strlen(write_buf));
 }
 
-pid_t iscsi_sysfs_scan_host(int hostno, int async)
+pid_t iscsi_sysfs_scan_host(int hostno, int async, int full_scan)
 {
 	char id[NAME_SIZE];
-	char *write_buf = "- - -";
+	char write_buf[6] = "- - 0";
 	pid_t pid = 0;
+
+	if (full_scan)
+		write_buf[4] = '-';
 
 	if (async)
 		pid = fork();
