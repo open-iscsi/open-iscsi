@@ -69,7 +69,7 @@ iscsid, and a management utility iscsiadm.
 ===============
 
 As of today, the Open-iSCSI Initiator requires a host running the
-Linux operating system with kernel version 2.6.16, or later. 2.6.14 and
+Linux operating system with kernel version 2.6.16 or later. 2.6.14 and
 2.6.15 are partially supported. Known issues with 2.6.14 - .15 support:
 
 - If the device is using a write back cache, during session logout
@@ -79,15 +79,14 @@ the cache sync command will fail.
 
 You need to enable "Cryptographic API" under "Cryptographic options" in the
 kernel config. And you must enable "CRC32c CRC algorithm" even if
-you do not use header or data digests. They are the kernel options,
+you do not use header or data digests. They are the kernel options
 CONFIG_CRYPTO and CONFIG_CRYPTO_CRC32C, respectively.
 
-The userspace components: iscsid, iscsiadm and iscsistart require the
-open-isns library which can be found here:
+The userspace components iscsid, iscsiadm and iscsistart require the
+open-isns library, which can be found here:
+	https://github.com/gonzoleeman/open-isns/releases
 
-https://github.com/gonzoleeman/open-isns/releases
-
-To install the open-isns headers and library required for open-iscsi download
+To install the open-isns headers and library required for open-iscsi, download
 the current release and run:
 
 	./configure
@@ -125,13 +124,13 @@ To compile on SUSE Linux you'll have to use
 
 where <config> is the kernel configuration to use (eg. 'smp').
 
-To install the kernel modules that were built run:
+To install the kernel modules that were built, run:
 
 	make install_kernel
 
-This will copy: iscsi_tcp.ko, libiscsi_tcp.ko, libiscsi.ko and
-scsi_transport_iscsi to
-/lib/modules/`uname -r`/kernel/drivers/scsi/
+This will copy iscsi_tcp.ko, libiscsi_tcp.ko, libiscsi.ko and
+scsi_transport_iscsi.ko to
+	/lib/modules/`uname -r`/kernel/drivers/scsi/
 overwriting existing iscsi modules.
 
 For Debian, be sure to install the linux-headers package that
@@ -270,8 +269,8 @@ Mode "discoverydb"
 			  were not returned during discovery.
 
 			  If [op] is passed in and the value is
-			  "nonpersistent" iscsiadm will not store
-			  the portals found in the node DB. This
+			  "nonpersistent", iscsiadm will not store
+			  the portals found in the node DB. This is
 			  only useful with the --login command.
 
 			  See the example section for more info.
@@ -281,7 +280,7 @@ Mode "discoverydb"
 
 			  Multiple ifaces can be passed in during discovery.
 
-			  For the above commands "print" is optional. If
+			  For the above commands, "print" is optional. If
 			  used, N can be 0 or 1.
 			  0 = The old flat style of output is used.
 			  1 = The tree style with the inteface info is used.
@@ -358,7 +357,7 @@ Mode "discovery"
 			  were not returned during discovery.
 
 			  If [op] is passed in and the value is
-			  "nonpersistent" iscsiadm will not store
+			  "nonpersistent", iscsiadm will not store
 			  the portals found in the node DB.
 
 			  See the example section for more info.
@@ -465,7 +464,7 @@ Mode "host"
 
 			  Display information for a specific host. The host
 			  can be passed in by host number or by MAC address.
-			  If a host is not passed in then info
+			  If a host is not passed in, then info
 			  for all hosts is printed.
 
 			  Print level can be 0 to 4.
@@ -542,9 +541,9 @@ and Broadcom (section 5.1.2).
 =======================================================
 
 If you wish to allow the network susbsystem to figure out
-the best path/NIC to use then you can skip this section. For example
-if you have setup your portals and NICs on different subnets then
-this the following is not needed for software iscsi.
+the best path/NIC to use, then you can skip this section. For example
+if you have setup your portals and NICs on different subnets, then
+the following is not needed for software iscsi.
 
 Warning!!!!!!
 This feature is experimental. The interface may change. When reporting
@@ -612,7 +611,7 @@ For software iscsi, you can create the iface configs by hand, but it is
 recommended that you use iscsiadm's iface mode. There is an iface.example in
 /etc/iscsi/ifaces which can be used as a template for the daring.
 
-For each network object you wish to bind a session to you must create
+For each network object you wish to bind a session to, you must create
 a separate iface config in /etc/iscsi/ifaces and each iface config file
 must have a unique name which is less than or equal to 64 characters.
 
@@ -620,8 +619,8 @@ Example
 -------
 
 If you have NIC1 with MAC address 00:0F:1F:92:6B:BF and NIC2 with
-MAC address 00:C0:DD:08:63:E7 and you wanted to do software iscsi over
-TCP/IP. Then in /etc/iscsi/ifaces/iface0 you would enter:
+MAC address 00:C0:DD:08:63:E7, and you wanted to do software iscsi over
+TCP/IP, then in /etc/iscsi/ifaces/iface0 you would enter:
 
 	iface.transport_name = tcp
 	iface.hwaddress = 00:0F:1F:92:6B:BF
@@ -646,13 +645,12 @@ Next, set the hwaddress:
 	iscsiadm -m iface -I iface0 --op=update \
 		-n iface.hwaddress -v 00:0F:1F:92:6B:BF
 
-If you had sessions logged in iscsiadm will not update, overwrite
+If you had sessions logged in, iscsiadm will not update or overwrite
 an iface. You must log out first. If you have an iface bound to a node/portal
 but you have not logged in, then iscsiadm will update the config and
 all existing bindings.
 
-
-You should now skip to 5.1.3 to see how to log in using the iface and for
+You should now skip to 5.1.3 to see how to log in using the iface, and for
 some helpful management commands.
 
 
@@ -714,11 +712,10 @@ applyall the settings for the changes to take effect:
 	iscsiadm -m iface -I qla4xxx.00:0e:1e:04:8b:2e -o apply
 	iscsiadm -m iface -H 00:0e:1e:04:8b:2e -o applyall
 
-With operation "apply" network setting for the specified iface will take effect.
-With operation "applyall" network settings for all ifaces on a specific host
-will take take effect. The host can be specified using the -H/--host argument
-by either the MAC address of the host or the host number.
-
+With "apply", the network settings for the specified iface will take effect.
+With "applyall", the network settings for all ifaces on a specific host will
+take effect. The host can be specified using the -H/--host argument by either
+the MAC address of the host or the host number.
 
 Here is an example of setting multiple IPv6 addresses on a single iSCSI
 interface port.
@@ -751,10 +748,10 @@ need a separate network connection to the target for discovery purposes.
 
 For compatibility reasons, when you run iscsiadm to do discovery, it
 will check for interfaces in /etc/iscsi/iscsi/ifaces that are using
-tcp for the iface.transport and it will bind the portals that are discovered
+tcp for the iface.transport, and it will bind the portals that are discovered
 so that they will be logged in through those ifaces. This behavior can also
 be overridden by passing in the interfaces you want to use. For the case
-of offload like with cxgb3i and bnx2i this is required because the transport
+of offload, like with cxgb3i and bnx2i, this is required because the transport
 will not be tcp.
 
 For example if you had defined two interfaces but only wanted to use one,
@@ -776,7 +773,7 @@ iface, then you can run:
 To do this for a specific portal on a target, run:
 	iscsiadm -m node -T my_target -p ip:port -I iface0 --op=delete
 
-If you wanted to delete all bindinds for iface0 then you can run
+If you wanted to delete all bindinds for iface0, then you can run:
 	iscsiadm -m node -I iface0 --op=delete
 
 And for equalogic targets it is sometimes useful to remove just by portal:
@@ -820,17 +817,17 @@ Discovery mode
 	iscsiadm -m discoverydb -t sendtargets -p 192.168.1.1:3260 \
 		-o update --discover
 
-	If there is a record for targetX and portalY exists in the DB, and
-	is returned during discovery, it will be updated with the info
-	from the iscsi.conf. No new portals will be added and stale
-	portals will not be removed.
+	If there is a record for targetX, and portalY exists in the DB, and
+	is returned during discovery, it will be updated with the info from
+	the iscsi.conf. No new portals will be added and stale portals
+	will not be removed.
 
 - SendTargets iSCSI Discovery deleting existing target records:
 	iscsiadm -m discoverydb -t sendtargets -p 192.168.1.1:3260 \
 		-o delete --discover
 
 	If there is a record for targetX, and portalY exists in the DB, but
-	is not returned during discovery it will be removed from the DB.
+	is not returned during discovery, it will be removed from the DB.
 	No new portals will be added and existing portal records will not
 	be changed.
 
@@ -974,9 +971,9 @@ Passing in none of them will result in all node records being operated on.
 	For tcp or iser, this would allow the network layer to decide what is
 	best.
 
-	Note that for this command the target portal group tag (TPGT) should
-	be passed in. If it is not passed in on the initial creation command
-	then the user must run iscsiadm again to set the value. Also
+	Note that for this command, the Target Portal Group Tag (TPGT) should
+	be passed in. If it is not passed in on the initial creation command,
+	then the user must run iscsiadm again to set the value. Also,
 	if the TPGT is not initially passed in, the old behavior of not
 	tracking whether the record was statically or dynamically created
 	is used.
@@ -1121,7 +1118,7 @@ Host mode with stats submode
 The default configuration file is /etc/iscsi/iscsid.conf. This file contains
 only configuration that could be overwritten by iSCSI Discovery,
 or manualy updated via iscsiadm utility. Its OK if this file does not
-exist in which case compiled-in default configuration will take place
+exist, in which case compiled-in default configuration will take place
 for newer discovered Target nodes.
 
 See the man page and the example file for the current syntax.
@@ -1184,17 +1181,14 @@ will usually get you started.
 =================================================================
 
 If there is no initd script, you must start the tools by hand. First load the
-iscsi modules with:
-
+iscsi modules:
 	modprobe -q iscsi_tcp
 
-after that start iSCSI daemon process:
-
+After that, start iSCSI daemon process:
 	./iscsid
 
 or alternatively, start it with debug enabled and with output
 redirected to the current console:
-
 	./iscsid -d 8 -f &
 
 
@@ -1203,8 +1197,7 @@ redirected to the current console:
 
 Use the configuration utility, iscsiadm, to add/remove/update Discovery
 records, iSCSI Node records or monitor active iSCSI sessions (see above or the
-iscsiadm man files and see section 7.2 below for how to discover targets).
-
+iscsiadm man files and see section 7.2 below for how to discover targets):
 	./iscsiadm  -m node
 
 will print out the nodes that have been discovered as:
@@ -1216,8 +1209,7 @@ The format is:
 	ip:port,target_portal_group_tag targetname
 
 If you are using the iface argument or want to see the driver
-info use the following:
-
+info, use the following:
 	./iscsiadm -m node -P 1
 
 Example output:
@@ -1233,7 +1225,7 @@ The format is:
 			Iface: ifacename
 
 where targetname is the name of the target and ip_address:port is the address
-and port of the portal. tpgt, is the portal group tag of
+and port of the portal. tpgt is the Target Portal Group Tag of
 the portal, and is not used in iscsiadm commands except for static
 record creation. ifacename is the name of the iscsi interface
 defined in /etc/iscsi/ifaces. If no interface was defined in
@@ -1323,7 +1315,7 @@ Or to set the "node.startup" attribute to "automatic" as default for
 all sessions add the following to the /etc/iscsi/iscsid.conf:
 	node.startup = automatic
 
-Setting this in iscsid.conf, will not affect existing nodes. It will only
+Setting this in iscsid.conf will not affect existing nodes. It will only
 affect nodes that are discovered after setting the value.
 
 To login to all automated nodes, simply restart the iscsi service, e.g. with:
@@ -1382,7 +1374,7 @@ SendTargets
 	iscsiadm -m discoverydb -t st -p 20.15.0.7:3260  -o update \
 		-n discovery.sendtargets.discoveryd_poll_inval -v 30
 
-To have the new settings take effect restart iscsid by restarting the
+To have the new settings take effect, restart iscsid by restarting the
 iscsi service.
 
 Note:
@@ -1411,7 +1403,7 @@ iSNS
 	iscsiadm -m discoverydb -t st -p 20.15.0.7:3205  -o update \
 		-n discovery.isns.discoveryd_poll_inval -v 30
 
-To have the new settings take effect restart iscsid by restarting the
+To have the new settings take effect, restart iscsid by restarting the
 iscsi service.
 
 Note:
@@ -1437,7 +1429,7 @@ queued if all paths are failed in the multipath layer.
 8.1.1 iSCSI ping/Nop-Out settings
 =================================
 To quickly detect problems in the network, the iSCSI layer will send iSCSI
-pings (iSCSI NOP-Out requests) to the target. If a NOP-Out times out the
+pings (iSCSI NOP-Out requests) to the target. If a NOP-Out times out, the
 iSCSI layer will respond by failing running commands and asking the SCSI
 layer to requeue them if possible (SCSI disk commands get 5 retries if not
 using multipath). If dm-multipath is being used the SCSI layer will fail
@@ -1481,8 +1473,8 @@ an application if multipath is not being used.
 8.1.2.1 Running Commands, the SCSI Error Handler, and replacement_timeout
 =========================================================================
 
-Remember, from the Nop-out discussion that if a network problem is detected,
-the running commands are failed immediately. There is one exception to this
+Remember from the Nop-out discussion that if a network problem is detected,
+the running commands are failed immediately. There is one exception to this,
 and that is when the SCSI layer's error handler is running. To check if
 the SCSI error handler is running, iscsiadm can be run as:
 	iscsiadm -m session -P 3
@@ -1506,7 +1498,7 @@ following lines:
 	ACTION=="add", SUBSYSTEM=="scsi" , SYSFS{type}=="0|7|14", \
 		RUN+="/bin/sh -c 'echo 60 > /sys$$DEVPATH/timeout'"
 
-And change the echo 60 part of the line to the value that you want.
+And change the "echo 60" part of the line to the value that you want.
 
 The default timeout for normal File System commands is 30 seconds when udev
 is not being used. If udev is used the default is the above value which
@@ -1519,9 +1511,9 @@ is normally 60 seconds.
 Commonly, the SCSI/BLOCK layer will queue 256 commands, but the path can
 only take 32. When a network problem is detected, the 32 commands
 in flight will be sent back to the SCSI layer immediately and because
-multipath is being used this will cause the commands to be sent to the multipath
-layer for execution on another path. However the other 96 commands that were
-still in the SCSI/BLOCK queue, will remain here until the session is
+multipath is being used, this will cause the commands to be sent to the multipath
+layer for execution on another path. However, the other 96 commands that were
+still in the SCSI/BLOCK queue will remain there until the session is
 re-established or until node.session.timeo.replacement_timeout seconds has
 gone by. After replacement_timeout seconds, the pending commands will be
 failed to the multipath layer, and all new incoming commands will be
@@ -1538,7 +1530,7 @@ dm-multipath.
 The default value for replacement_timeout is 120 seconds, but because
 multipath's queue_if_no_path and no_path_retry setting can prevent IO errors
 from being propagated to the application, replacement_timeout can be set to a
-shorter value like 5 to 15 seconds. By setting it lower pending IO is quickly
+shorter value like 5 to 15 seconds. By setting it lower, pending IO is quickly
 sent to a new path and executed while the iSCSI layer attempts
 re-establishment of the session. If all paths end up being failed, then the
 multipath and device mapper layer will internally queue IO based on the
@@ -1570,7 +1562,7 @@ device state, session ids (sid) for session mode, and some of the
 negotiated parameters, run:
 	iscsiadm -m session -P 2
 
-If you are looking for something shorter like just the sid to node mapping
+If you are looking for something shorter, like just the sid to node mapping,
 run:
 	iscsiadm -m session [-P 0]
 
@@ -1597,8 +1589,8 @@ Target: targetname
 		SID: iscsi sysfs session id
 		iSCSI Connection State: iscsi state
 
-Note: if a older kernel is being used or if the session is not bound
-then the keyword "default" is print to indicate that the default
+Note: if an older kernel is being used or if the session is not bound,
+then the keyword "default" is printed to indicate that the default
 network behavior is being used.
 
 Example output of "iscsiadm -m session -P 1":
@@ -1638,10 +1630,10 @@ Example output:
 
 Here, you can also see the state of the host.
 
-You can also pass in any value from 1 - 4 to print more info like the
+You can also pass in any value from 1 - 4 to print more info, like the
 sessions running through the host, what ifaces are being used and what
 devices are accessed through it.
 
-To print the info for a specific host then you can pass in the -H argument
+To print the info for a specific host, you can pass in the -H argument
 with the host number:
 	iscsiadm -m host -P 1 -H 7
