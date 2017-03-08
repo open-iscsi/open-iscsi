@@ -140,6 +140,7 @@ extern int idbm_add_discovery(discovery_rec_t *newrec);
 extern void idbm_sendtargets_defaults(struct iscsi_sendtargets_config *cfg);
 extern void idbm_isns_defaults(struct iscsi_isns_config *cfg);
 extern void idbm_slp_defaults(struct iscsi_slp_config *cfg);
+extern int idbm_session_autoscan(struct iscsi_session *session);
 extern int idbm_discovery_read(discovery_rec_t *rec, int type, char *addr,
 				int port);
 extern int idbm_rec_read(node_rec_t *out_rec, char *target_name,

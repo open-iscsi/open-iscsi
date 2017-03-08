@@ -45,6 +45,7 @@
 #define SESSION_MAX_CONNS	"node.session.iscsi.MaxConnections"
 #define SESSION_MAX_R2T		"node.session.iscsi.MaxOutstandingR2T"
 #define SESSION_ERL		"node.session.iscsi.ERL"
+#define SESSION_SCAN		"node.session.scan"
 
 /* connections fields */
 #define CONN_ADDR		"node.conn[%d].address"
