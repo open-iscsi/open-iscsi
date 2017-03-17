@@ -1883,18 +1883,19 @@ void iscsi_sysfs_rescan_device(void *data, int hostno, int target, int lun)
 			strlen(write_buf));
 }
 
-pid_t iscsi_sysfs_scan_host(int hostno, int async, int full_scan)
+pid_t iscsi_sysfs_scan_host(int hostno, int async, int autoscan)
 {
 	char id[NAME_SIZE];
-	char write_buf[6] = "- - 0";
+	char *write_buf = "- - -";
 	pid_t pid = 0;
-
-	if (full_scan)
-		write_buf[4] = '-';
 
 	if (async)
 		pid = fork();
-	if (pid == 0) {
+
+	if (pid >= 0 && !autoscan) {
+		if (pid)
+			log_debug(4, "host%d in manual scan mode, skipping scan", hostno);
+	} else if (pid == 0) {
 		/* child */
 		log_debug(4, "scanning host%d", hostno);
 
