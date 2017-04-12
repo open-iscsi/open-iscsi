@@ -1703,9 +1703,9 @@ int idbm_print_all_discovery(int info_level)
  * fn should return -1 if it skipped the rec, an ISCSI_ERR error code if
  * the operation failed or 0 if fn was run successfully.
  */
-static int idbm_for_each_iface(int *found, void *data,
-				idbm_iface_op_fn *fn,
-				char *targetname, int tpgt, char *ip, int port)
+int idbm_for_each_iface(int *found, void *data,
+			idbm_iface_op_fn *fn, char *targetname, int tpgt,
+			char *ip, int port)
 {
 	DIR *iface_dirfd;
 	struct dirent *iface_dent;
