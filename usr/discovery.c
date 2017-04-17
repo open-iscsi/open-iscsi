@@ -797,6 +797,7 @@ process_sendtargets_response(struct str_buffer *sendtargets,
 static void iscsi_free_session(struct iscsi_session *session)
 {
 	list_del_init(&session->list);
+	free(session->target_alias);
 	free(session);
 }
 
