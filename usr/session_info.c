@@ -423,8 +423,7 @@ int session_info_print(int info_level, struct session_info *info, int do_show)
 		if (err || !num_found)
 			break;
 
-		session_info_print_tree(&list, "", flags, do_show,
-					info->iscsid_req_tmo);
+		session_info_print_tree(&list, "", flags, do_show, -1);
 		session_info_free_list(&list);
 		break;
 	default:
