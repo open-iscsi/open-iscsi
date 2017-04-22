@@ -773,7 +773,7 @@ static int rescan_portal(void *data, struct session_info *info)
 	iscsi_sysfs_for_each_device(NULL, host_no, info->sid,
 				    iscsi_sysfs_rescan_device);
 	/* now scan for new devices */
-	iscsi_sysfs_scan_host(host_no, 0);
+	iscsi_sysfs_scan_host(host_no, 0, 1);
 	return 0;
 }
 
@@ -2860,6 +2860,7 @@ static int exec_disc2_op(int disc_type, char *ip, int port,
 	int rc = 0;
 
 	memset(&drec, 0, sizeof(struct discovery_rec));
+	drec.iscsid_req_tmo = -1;
 	if (disc_type != -1)
 		drec.type = disc_type;
 

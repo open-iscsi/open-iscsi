@@ -10,4 +10,5 @@ noinst_LIBRARIES = lib_iscsiuio_hw_cnic.a
 lib_iscsiuio_hw_cnic_a_SOURCES =	../build_date.c \
 					cnic.c 		\
 					bnx2.c		\
-					bnx2x.c
+					bnx2x.c		\
+					qedi.c

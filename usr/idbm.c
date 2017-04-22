@@ -462,6 +462,9 @@ idbm_recinfo_node(node_rec_t *r, recinfo_t *ri)
 		      session.iscsi.MaxOutstandingR2T, IDBM_SHOW, num, 1);
 	__recinfo_int(SESSION_ERL, ri, r,
 		      session.iscsi.ERL, IDBM_SHOW, num, 1);
+	__recinfo_int_o2(SESSION_SCAN, ri, r,
+			 session.scan, IDBM_SHOW, "manual", "auto",
+			 num, 1);
 
 	for (i = 0; i < ISCSI_CONN_MAX; i++) {
 		char key[NAME_MAXVAL];
@@ -914,6 +917,7 @@ idbm_discovery_setup_defaults(discovery_rec_t *rec, discovery_type_e type)
 
 	rec->startup = ISCSI_STARTUP_MANUAL;
 	rec->type = type;
+	rec->iscsid_req_tmo = -1;
 	switch (type) {
 	case DISCOVERY_TYPE_SENDTARGETS:
 		rec->u.sendtargets.discoveryd_poll_inval = 30;
@@ -1914,6 +1918,7 @@ idbm_discovery_read(discovery_rec_t *out_rec, int drec_type,
 		return ISCSI_ERR_INVAL;
 
 	memset(out_rec, 0, sizeof(discovery_rec_t));
+	out_rec->iscsid_req_tmo = -1;
 
 	info = idbm_recinfo_alloc(MAX_KEYS);
 	if (!info)
@@ -2490,7 +2495,7 @@ static void idbm_rm_disc_node_links(char *disc_dir)
 		log_debug(5, "disc removal removing link %s %s %s %s",
 			  target, address, port, iface_id);
 
-		memset(rec, 0, sizeof(*rec));	
+		memset(rec, 0, sizeof(*rec));
 		strlcpy(rec->name, target, TARGET_NAME_MAXLEN);
 		rec->tpgt = atoi(tpgt);
 		rec->conn[0].port = atoi(port);
@@ -2724,6 +2729,14 @@ idbm_slp_defaults(struct iscsi_slp_config *cfg)
 {
 	memcpy(cfg, &db->drec_slp.u.slp,
 	       sizeof(struct iscsi_slp_config));
+}
+
+int
+idbm_session_autoscan(struct iscsi_session *session)
+{
+	if (session)
+		return session->nrec.session.scan;
+	return db->nrec.session.scan;
 }
 
 struct user_param *idbm_alloc_user_param(char *name, char *value)
@@ -2981,6 +2994,7 @@ void idbm_node_setup_defaults(node_rec_t *rec)
 	rec->session.info = NULL;
 	rec->session.sid = 0;
 	rec->session.multiple = 0;
+	rec->session.scan = DEF_INITIAL_SCAN;
 	idbm_setup_session_defaults(&rec->session.iscsi);
 
 	for (i=0; i<ISCSI_CONN_MAX; i++) {

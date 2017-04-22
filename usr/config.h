@@ -190,6 +190,7 @@ typedef struct session_rec {
 	int					queue_depth;
 	int					initial_login_retry_max;
 	int					nr_sessions;
+	int					scan;
 	struct iscsi_auth_config		auth;
 	struct iscsi_session_timeout_config	timeo;
 	struct iscsi_error_timeout_config	err_timeo;

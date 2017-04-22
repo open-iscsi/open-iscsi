@@ -45,3 +45,6 @@
 
 /* login retries */
 #define DEF_INITIAL_LOGIN_RETRIES_MAX	4
+
+/* autoscan enabled */
+#define DEF_INITIAL_SCAN	1

@@ -334,6 +334,7 @@ typedef struct nic {
 
 	/* The thread used to perform ping */
 	pthread_t ping_thread;
+	uint64_t transport_handle;
 } nic_t;
 
 /******************************************************************************
