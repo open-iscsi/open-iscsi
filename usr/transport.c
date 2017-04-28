@@ -124,6 +124,7 @@ struct iscsi_transport_template qedi = {
 	.ep_poll	= ktransport_ep_poll,
 	.ep_disconnect	= ktransport_ep_disconnect,
 	.set_net_config = uip_broadcast_params,
+	.exec_ping	= uip_broadcast_ping_req,
 };
 
 static struct iscsi_transport_template *iscsi_transport_templates[] = {
