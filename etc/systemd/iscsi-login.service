@@ -1,0 +1,12 @@
+[Unit]
+Description=Open-iSCSI login to automatic targets
+Documentation=man:iscsid(8) man:iscsiadm(8)
+After=iscsid.service iscsid.socket
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/iscsiadm -m node --loginall=automatic
+ExecStop=/usr/bin/iscsiadm -m node --logoutall=automatic
+
+[Install]
+WantedBy=multi-user.target
