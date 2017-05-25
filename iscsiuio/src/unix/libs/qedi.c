@@ -887,7 +887,6 @@ void qedi_start_xmit(nic_t *nic, size_t len, u16_t vlan_id)
 			   nic->log_name, len, bp->tx_prod);
 	} else {
 		LOG_ERR(PFX "Pkt transmission failed: %d", rc);
-		pthread_mutex_unlock(&nic->xmit_mutex);
 	}
 
 	free(ubuf);
@@ -949,6 +948,10 @@ int qedi_write(nic_t *nic, nic_interface_t *nic_iface, packet_t *pkt)
 	LOG_PACKET(PFX "%s: transmitted %d bytes dev->tx_cons: %d, dev->tx_prod: %d, dev->tx_bd_prod:%d",
 		   nic->log_name, pkt->buf_size,
 		   bp->tx_cons, bp->tx_prod, bp->tx_bd_prod);
+
+	LOG_DEBUG(PFX "%s: host:%d - releasing xmit mutex",
+		  nic->log_name, nic->host_no);
+	pthread_mutex_unlock(&nic->xmit_mutex);
 
 	return 0;
 }
@@ -1059,15 +1062,14 @@ static int qedi_clear_tx_intr(nic_t *nic)
 	hw_cons = uctrl->hw_tx_cons;
 
 	if (bp->tx_cons == hw_cons) {
-		if (bp->tx_cons == bp->tx_prod) {
-			/* Make sure the xmit_mutex lock is unlock */
-			if (pthread_mutex_trylock(&nic->xmit_mutex))
-				LOG_ERR(PFX "qedi tx lock with prod == cons");
-
-			pthread_mutex_unlock(&nic->xmit_mutex);
+		if (bp->tx_cons == bp->tx_prod)
 			return 0;
-		}
 		return -EAGAIN;
+	}
+
+	if (pthread_mutex_trylock(&nic->xmit_mutex)) {
+		LOG_ERR(PFX "%s: unable to get xmit_mutex.", nic->log_name);
+		return -EINVAL;
 	}
 
 	LOG_PACKET(PFX "%s: clearing tx interrupt [%d %d]",
@@ -1099,6 +1101,7 @@ static int qedi_clear_tx_intr(nic_t *nic)
 				   nic->log_name, pkt->buf_size,
 				   bp->tx_cons, bp->tx_prod, bp->tx_bd_prod);
 
+			pthread_mutex_unlock(&nic->xmit_mutex);
 			return 0;
 		}
 

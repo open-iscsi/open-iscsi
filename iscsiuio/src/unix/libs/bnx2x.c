@@ -1316,7 +1316,6 @@ void bnx2x_start_xmit(nic_t *nic, size_t len, u16_t vlan_id)
 	if ((rx_bd->addr_hi == 0) && (rx_bd->addr_lo == 0)) {
 		LOG_PACKET(PFX "%s: trying to transmit when device is closed",
 			   nic->log_name);
-		pthread_mutex_unlock(&nic->xmit_mutex);
 		return;
 	}
 
@@ -1343,12 +1342,9 @@ void bnx2x_start_xmit(nic_t *nic, size_t len, u16_t vlan_id)
 			       (bp->tx_bd_prod << 16));
 		bnx2x_flush_doorbell(bp, bp->tx_doorbell);
 	} else {
-		/* If the doorbell is not rung, the packet will not
-		   get sent.  Hence, the xmit_mutex lock will not
-		   get freed.
-		 */
-		pthread_mutex_unlock(&nic->xmit_mutex);
+		LOG_ERR(PFX "Pkt transmission failed.");
 	}
+
 	LOG_PACKET(PFX "%s: sent %d bytes using bp->tx_prod: %d",
 		   nic->log_name, len, bp->tx_prod);
 }
@@ -1411,6 +1407,8 @@ int bnx2x_write(nic_t *nic, nic_interface_t *nic_iface, packet_t *pkt)
 		   "dev->tx_cons: %d, dev->tx_prod: %d, dev->tx_bd_prod:%d",
 		   nic->log_name, pkt->buf_size,
 		   bp->tx_cons, bp->tx_prod, bp->tx_bd_prod);
+
+	pthread_mutex_unlock(&nic->xmit_mutex);
 
 	return 0;
 }
@@ -1560,15 +1558,14 @@ static int bnx2x_clear_tx_intr(nic_t *nic)
 	hw_cons = bp->get_tx_cons(bp);
 
 	if (bp->tx_cons == hw_cons) {
-		if (bp->tx_cons == bp->tx_prod) {
-			/* Make sure the xmit_mutex lock is unlock */
-			if (pthread_mutex_trylock(&nic->xmit_mutex))
-				LOG_ERR(PFX "bnx2x tx lock with prod == cons");
-
-			pthread_mutex_unlock(&nic->xmit_mutex);
+		if (bp->tx_cons == bp->tx_prod)
 			return 0;
-		}
 		return -EAGAIN;
+	}
+
+	if (pthread_mutex_trylock(&nic->xmit_mutex)) {
+		LOG_ERR(PFX "%s: unable to get xmit_mutex.", nic->log_name);
+		return -EINVAL;
 	}
 
 	LOG_PACKET(PFX "%s: clearing tx interrupt [%d %d]",
@@ -1600,6 +1597,7 @@ static int bnx2x_clear_tx_intr(nic_t *nic)
 				   nic->log_name, pkt->buf_size,
 				   bp->tx_cons, bp->tx_prod, bp->tx_bd_prod);
 
+			pthread_mutex_unlock(&nic->xmit_mutex);
 			return 0;
 		}
 

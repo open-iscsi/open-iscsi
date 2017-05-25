@@ -141,6 +141,7 @@ static int cnic_arp_send(nic_t *nic, nic_interface_t *nic_iface, int fd,
 	memcpy(&addr.s_addr, &dst_ip, sizeof(addr.s_addr));
 	LOG_DEBUG(PFX "%s: Sent cnic arp request for IP: %s",
 		  nic->log_name, addr_str);
+	pthread_mutex_unlock(&nic->xmit_mutex);
 
 	return 0;
 }
@@ -203,6 +204,8 @@ static int cnic_neigh_soliciation_send(nic_t *nic,
 
 	LOG_DEBUG(PFX "%s: Sent cnic ICMPv6 neighbor request %s",
 		  nic->log_name, addr_str);
+
+	pthread_mutex_unlock(&nic->xmit_mutex);
 
 	return 0;
 }
@@ -433,9 +436,6 @@ done:
 		rc = -EIO;
 	}
 
-	if (status != 0 || rc != 0)
-		pthread_mutex_unlock(&nic->xmit_mutex);
-
 	if (ev) {
 		cnic_nl_neigh_rsp(nic, fd, ev, path, mac_addr,
 				  nic_iface, status, AF_INET);
@@ -631,9 +631,6 @@ done:
 		status = -EIO;
 		rc = -EIO;
 	}
-
-	if (status != 0 || rc != 0)
-		pthread_mutex_unlock(&nic->xmit_mutex);
 
 	if (ev) {
 		cnic_nl_neigh_rsp(nic, fd, ev, path, mac_addr,
