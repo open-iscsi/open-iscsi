@@ -82,10 +82,12 @@ static const char default_pid_filepath[] = "/var/run/iscsiuio.pid";
  *  Global Variables
  ******************************************************************************/
 static const struct option long_options[] = {
-	{"debug", 0, 0, 0},
-	{"version", 0, 0, 0},
-	{"help", 0, 0, 0},
-	{0, 0, 0, 0}
+	{"foreground", no_argument, NULL, 'f'},
+	{"debug", required_argument, NULL, 'd'},
+	{"pid", required_argument, NULL, 'p'},
+	{"version", no_argument, NULL, 'v'},
+	{"help", no_argument, NULL, 'h'},
+	{NULL, no_argument, NULL, 0}
 };
 
 struct options opt = {
@@ -172,7 +174,7 @@ static void main_usage()
 	printf("iscsiuio daemon.\n"
 	       "-f, --foreground        make the program run in the foreground\n"
 	       "-d, --debug debuglevel  print debugging information\n"
-	       "-p, --pid=pidfile       use pid file (default  %s).\n"
+	       "-p, --pid pidfile       use pid file (default  %s).\n"
 	       "-h, --help              display this help and exit\n"
 	       "-v, --version           display version and exit\n",
 	       default_pid_filepath);
