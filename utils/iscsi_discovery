@@ -37,13 +37,13 @@ usage()
 {
 	echo "Usage: $0 <IP> [-p <port>] [-d] [-t <tcp|iser> [-f]] [-m] [-l]"
 	echo "Options:"
-	echo  "-p		set the port number (defualt is 3260)."
+	echo  "-p		set the port number (default is 3260)."
 	echo  "-d		print debugging information"
 	echo  "-t		set transport (default is tcp)."
 	echo  "-f		force specific transport -disable the fallback to tcp (default is fallback enabled)."
 	echo  "			force the transport specified by the argument of the -t flag."
 	echo  "-m		manual startup - will set manual startup (default is automatic startup)."
-	echo  "-l		login to the new discovered nodes (defualt is false)."
+	echo  "-l		login to the new discovered nodes (default is false)."
 }
 
 dbg()
@@ -58,9 +58,9 @@ initialize()
 	force="0"
 	log_out="1"
 	startup_manual="0"
-	#set defualt transport to tcp
+	#set default transport to tcp
 	transport=tcp
-	#set defualt port to 3260
+	#set default port to 3260
 	port=3260;
 }
 
