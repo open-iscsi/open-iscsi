@@ -1,0 +1,7 @@
+ * Thread safety - there are many static global variables.
+ * Should restore setrlimit() in libiscsi_cleanup().
+ * Check whether run by root.
+ * Check whether iscsid is running.
+ * Add pkg-config file.
+ * Include docstring in python module.
+ * Create CI script for autotest.

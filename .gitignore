@@ -1,1 +1,13 @@
 *.o
+*.so
+*.so.*
+libiscsi/tests/test_discovery_firmware
+libiscsi/tests/test_discovery_sendtargets
+libiscsi/tests/test_fw_get_initiator_name
+libiscsi/tests/test_fw_get_network_config
+libiscsi/tests/test_get_auth
+libiscsi/tests/test_login
+libiscsi/tests/test_logout
+libiscsi/tests/test_params
+libiscsi/tests/test_set_auth
+libiscsi/html/

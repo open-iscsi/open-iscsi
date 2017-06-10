@@ -43,6 +43,7 @@ user: iscsiuio/Makefile
 	$(MAKE) -C usr
 	$(MAKE) -C utils
 	$(MAKE) -C iscsiuio
+	$(MAKE) -C libiscsi
 	@echo
 	@echo "Compilation complete                 Output file"
 	@echo "-----------------------------------  ----------------"
@@ -71,6 +72,7 @@ kernel: force
 force: ;
 
 clean:
+	$(MAKE) -C libiscsi clean
 	$(MAKE) -C utils/sysdeps clean
 	$(MAKE) -C utils/fwparam_ibft clean
 	$(MAKE) -C utils clean

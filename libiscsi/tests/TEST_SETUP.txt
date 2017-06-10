@@ -1,0 +1,21 @@
+## Setup iSCSI target
+sudo targetcli
+/backstores/fileio create disk1 /tmp/libiscsi_test_disk1.img 100M
+/iscsi/ create iqn.2009-01.com.example:tgt-libiscsi
+/iscsi/ set discovery_auth enable=1
+/iscsi/ set discovery_auth userid=joe_discovery password=secret_discovery
+cd /iscsi/iqn.2009-01.com.example:tgt-libiscsi/tpg1/
+./luns create /backstores/fileio/disk1
+cd /iscsi/iqn.2009-01.com.example:tgt-libiscsi/tpg1/
+./acls create iqn.2005-03.org.open-iscsi:libiscsi
+cd /iscsi/iqn.2009-01.com.example:tgt-libiscsi/tpg1/acls
+./iqn.2005-03.org.open-iscsi:libiscsi set auth userid=joe
+./iqn.2005-03.org.open-iscsi:libiscsi set auth password=secret
+./iqn.2005-03.org.open-iscsi:libiscsi set auth mutual_userid=joe_mutual
+./iqn.2005-03.org.open-iscsi:libiscsi set auth mutual_password=secret_mutual
+
+## Setup iscsi initiator/client
+
+echo 'InitiatorName=iqn.2005-03.org.open-iscsi:libiscsi' | \
+    sudo tee /etc/iscsi/initiatorname.iscsi
+sudo systemctl restart open-iscsi

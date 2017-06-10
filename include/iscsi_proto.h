@@ -49,6 +49,7 @@
  * If running svn modules we may need to define these.
  * This should not go upstream since this is already properly defined there
  */
+#ifndef __bitwise__
 #ifdef __CHECKER__
 #define __bitwise__ __attribute__((bitwise))
 #else
@@ -58,6 +59,7 @@
 #define __bitwise __bitwise__
 #else
 #define __bitwise
+#endif
 #endif
 
 /* initiator tags; opaque for target */

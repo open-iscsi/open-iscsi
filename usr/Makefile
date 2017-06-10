@@ -30,10 +30,10 @@ endif
 
 CFLAGS ?= -O2 -g
 WARNFLAGS ?= -Wall -Wstrict-prototypes
-CFLAGS += $(WARNFLAGS) -I../include -I. -D$(OSNAME) $(IPC_CFLAGS)
+CFLAGS += $(WARNFLAGS) -I../include -I. -D$(OSNAME) $(IPC_CFLAGS) -fPIC
 PROGRAMS = iscsid iscsiadm iscsistart
 
-# libc compat files
+# libc compat file
 SYSDEPS_SRCS = $(sort $(wildcard ../utils/sysdeps/*.o))
 # sources shared between iscsid, iscsiadm and iscsistart
 ISCSI_LIB_SRCS = iscsi_util.o io.o auth.o iscsi_timer.o login.o log.o md5.o \
@@ -50,7 +50,18 @@ FW_BOOT_SRCS = $(sort $(wildcard ../utils/fwparam_ibft/*.o))
 # core discovery files
 DISCOVERY_SRCS = $(FW_BOOT_SRCS) strings.o discovery.o
 
-all: $(PROGRAMS)
+
+SONAME = 0
+DEVLIB = libiscsi_usr.so
+LIBS = $(DEVLIB).$(SONAME)
+LIBADD = -lisns
+LIBISCSI_OBJS = $(ISCSI_LIB_SRCS) $(DISCOVERY_SRCS)
+
+all: $(PROGRAMS) $(LIBS)
+
+$(LIBS): $(LIBISCSI_OBJS)
+	$(CC) $(LDFLAGS) -shared -Wl,-soname=$@ -o $@ $(LIBISCSI_OBJS) $(LIBADD)
+	ln -sf $@ $(DEVLIB)
 
 iscsid: $(ISCSI_LIB_SRCS) $(INITIATOR_SRCS) $(DISCOVERY_SRCS) \
 	iscsid.o session_mgmt.o discoveryd.o mntcheck.o
@@ -63,7 +74,7 @@ iscsistart: $(ISCSI_LIB_SRCS) $(INITIATOR_SRCS) $(FW_BOOT_SRCS) \
 		iscsistart.o statics.o
 	$(CC) $(CFLAGS) $(LDFLAGS) $^ -o $@ -lrt
 clean:
-	rm -f *.o $(PROGRAMS) .depend $(LIBSYS)
+	rm -f *.o $(PROGRAMS) .depend $(LIBSYS) *.so*
 
 depend:
 	gcc $(CFLAGS) -M `ls *.c` > .depend
