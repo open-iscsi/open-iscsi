@@ -1,4 +1,8 @@
 # This Makefile will work only with GNU make.
+#
+ifeq ($(TOPDIR),)
+	TOPDIR = ..
+endif
 
 OSNAME=$(shell uname -s)
 
@@ -30,7 +34,9 @@ endif
 
 CFLAGS ?= -O2 -g
 WARNFLAGS ?= -Wall -Wstrict-prototypes
-CFLAGS += $(WARNFLAGS) -I../include -I. -D$(OSNAME) $(IPC_CFLAGS)
+CFLAGS += $(WARNFLAGS) -I../include -I. -D$(OSNAME) $(IPC_CFLAGS) \
+	  -I$(TOPDIR)/libiscsiusr
+LDFLAGS += -L$(TOPDIR)/libiscsiusr -liscsiusr
 PROGRAMS = iscsid iscsiadm iscsistart
 
 # libc compat files

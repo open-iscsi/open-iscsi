@@ -2,6 +2,8 @@
 #define SESSION_INFO_H
 #include <sys/types.h>
 
+#include <libiscsiusr/libiscsiusr.h>
+
 #include "sysfs.h"
 #include "types.h"
 #include "iscsi_proto.h"
@@ -60,9 +62,11 @@ struct session_link_info {
 
 extern int session_info_create_list(void *data, struct session_info *info);
 extern void session_info_free_list(struct list_head *list);
-extern int session_info_print(int info_level, struct session_info *match_info,
-			      int do_show);
-extern void session_info_print_tree(struct list_head *list, char *prefix,
-				    unsigned int flags, int do_show, int tmo);
+extern int session_info_print(int info_level, struct iscsi_session **ses,
+			      uint32_t se_count, int do_show);
+
+extern void session_info_print_tree(struct iscsi_session **ses,
+				    uint32_t se_count, char *prefix,
+				    unsigned int flags, int do_show);
 
 #endif

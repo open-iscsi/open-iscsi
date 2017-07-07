@@ -4,7 +4,7 @@
 
 # if you are packaging open-iscsi, set this variable to the location
 # that you want everything installed into.
-DESTDIR ?= 
+DESTDIR ?=
 
 prefix = /usr
 exec_prefix = /
@@ -38,6 +38,7 @@ endif
 all: user
 
 user: iscsiuio/Makefile
+	$(MAKE) -C libiscsiusr
 	$(MAKE) -C utils/sysdeps
 	$(MAKE) -C utils/fwparam_ibft
 	$(MAKE) -C usr
@@ -71,6 +72,7 @@ kernel: force
 force: ;
 
 clean:
+	$(MAKE) -C libiscsiusr clean
 	$(MAKE) -C utils/sysdeps clean
 	$(MAKE) -C utils/fwparam_ibft clean
 	$(MAKE) -C utils clean

@@ -1,6 +1,10 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <errno.h>
+#include <stdint.h>
+#include <inttypes.h>
+
+#include <libiscsiusr/libiscsiusr.h>
 
 #include "list.h"
 #include "log.h"
@@ -14,6 +18,8 @@
 #include "iface.h"
 #include "iscsid_req.h"
 #include "iscsi_err.h"
+
+static int session_info_print_flat(struct iscsi_session *se);
 
 int session_info_create_list(void *data, struct session_info *info)
 {
@@ -64,9 +70,9 @@ void session_info_free_list(struct list_head *list)
 	}
 }
 
-static char *get_iscsi_node_type(struct session_info *info)
+static char *get_iscsi_node_type(uint32_t sid)
 {
-	int pid = iscsi_sysfs_session_user_created(info->sid);
+	int pid = iscsi_sysfs_session_user_created((int) sid);
 
 	if (!pid)
 		return "flash";
@@ -74,22 +80,31 @@ static char *get_iscsi_node_type(struct session_info *info)
 		return "non-flash";
 }
 
-static int session_info_print_flat(void *data, struct session_info *info)
+static int session_info_print_flat(struct iscsi_session *se)
 {
-	struct iscsi_transport *t = iscsi_sysfs_get_transport_by_sid(info->sid);
+	uint32_t sid = 0;
+	struct iscsi_transport *t = NULL;
 
-	if (strchr(info->persistent_address, '.'))
-		printf("%s: [%d] %s:%d,%d %s (%s)\n",
+	sid = iscsi_session_sid_get(se);
+	t = iscsi_sysfs_get_transport_by_sid((int) sid);
+
+	if (strchr(iscsi_session_persistent_address_get(se), '.'))
+		printf("%s: [%" PRIu32 "] %s:%" PRIi32 ",%"PRIi32 " %s (%s)\n",
 			t ? t->name : UNKNOWN_VALUE,
-			info->sid, info->persistent_address,
-			info->persistent_port, info->tpgt, info->targetname,
-			get_iscsi_node_type(info));
+			sid, iscsi_session_persistent_address_get(se),
+			iscsi_session_persistent_port_get(se),
+			iscsi_session_tpgt_get(se),
+			iscsi_session_targetname_get(se),
+			get_iscsi_node_type(sid));
 	else
-		printf("%s: [%d] [%s]:%d,%d %s (%s)\n",
+		printf("%s: [%" PRIu32 "] [%s]:%" PRIi32 ",%" PRIi32
+		       " %s (%s)\n",
 			t ? t->name : UNKNOWN_VALUE,
-			info->sid, info->persistent_address,
-			info->persistent_port, info->tpgt, info->targetname,
-			get_iscsi_node_type(info));
+			sid, iscsi_session_persistent_address_get(se),
+			iscsi_session_persistent_port_get(se),
+			iscsi_session_tpgt_get(se),
+			iscsi_session_targetname_get(se),
+			get_iscsi_node_type(sid));
 	return 0;
 }
 
@@ -235,61 +250,111 @@ static int print_scsi_state(int sid, char *prefix, unsigned int flags)
 	return 0;
 }
 
-void session_info_print_tree(struct list_head *list, char *prefix,
-			     unsigned int flags, int do_show, int tmo)
+void session_info_print_tree(struct iscsi_session **ses, uint32_t se_count,
+			     char *prefix, unsigned int flags, int do_show)
 {
-	struct session_info *curr, *prev = NULL;
+	struct iscsi_session *curr = NULL;
+	struct iscsi_session *prev = NULL;
+	const char *curr_targetname = NULL;
+	const char *curr_address = NULL;
+	const char *persistent_address = NULL;
+	const char *prev_targetname = NULL;
+	const char *prev_address = NULL;
+	int32_t curr_port = 0;
+	int32_t prev_port = 0;
+	uint32_t i = 0;
+	uint32_t sid = 0;
+	char *new_prefix = NULL;
+	struct iscsi_iface *iface = NULL;
+	int32_t tgt_reset_tmo = -1;
+	int32_t lu_reset_tmo = -1;
+	int32_t abort_tmo = -1;
+	const char *pass = NULL;
 
-	list_for_each_entry(curr, list, list) {
-		if (!prev || strcmp(prev->targetname, curr->targetname)) {
-			printf("%sTarget: %s (%s)\n", prefix, curr->targetname,
-				get_iscsi_node_type(curr));
+	for (i = 0; i < se_count; ++i) {
+		curr = ses[i];
+		curr_targetname = iscsi_session_targetname_get(curr);
+		sid = iscsi_session_sid_get(curr);
+		if (prev != NULL)
+			prev_targetname = iscsi_session_targetname_get(prev);
+		else
+			prev_targetname = NULL;
+
+		if (! ((prev_targetname != NULL) &&
+		       (curr_targetname != NULL) &&
+		       (strcmp(prev_targetname, curr_targetname) == 0))) {
+			printf("%sTarget: %s (%s)\n", prefix, curr_targetname,
+				get_iscsi_node_type(sid));
 			prev = NULL;
 		}
+		curr_address = iscsi_session_address_get(curr);
+		curr_port = iscsi_session_port_get(curr);
 
-		if (!prev || (strcmp(prev->address, curr->address) ||
-		     prev->port != curr->port)) {
-			if (strchr(curr->address, '.'))
-				printf("%s\tCurrent Portal: %s:%d,%d\n",
-				       prefix, curr->address, curr->port,
-				       curr->tpgt);
+		if (prev != NULL) {
+			prev_address = iscsi_session_address_get(prev);
+			prev_port = iscsi_session_port_get(prev);
+		} else {
+			prev_address = NULL;
+			prev_port = 0;
+		}
+		if (! ((prev_address != NULL) &&
+		       (curr_address != NULL) &&
+		       (prev_port != 0) &&
+		       (curr_port != 0) &&
+		       (strcmp(prev_address, curr_address) == 0) &&
+		       (curr_port == prev_port))) {
+			if (strchr(curr_address, '.'))
+				printf("%s\tCurrent Portal: %s:%" PRIi32
+				       ",%" PRIi32 "\n",
+				       prefix, curr_address, curr_port,
+				       iscsi_session_tpgt_get(curr));
 			else
-				printf("%s\tCurrent Portal: [%s]:%d,%d\n",
-				       prefix, curr->address, curr->port,
-				       curr->tpgt);
+				printf("%s\tCurrent Portal: [%s]:%" PRIi32
+				       ",%" PRIi32 "\n",
+				       prefix, curr_address, curr_port,
+				       iscsi_session_tpgt_get(curr));
+			persistent_address =
+				iscsi_session_persistent_address_get(curr);
 
-			if (strchr(curr->persistent_address, '.'))
-				printf("%s\tPersistent Portal: %s:%d,%d\n",
-				       prefix, curr->persistent_address,
-				       curr->persistent_port, curr->tpgt);
+			if (strchr(persistent_address, '.'))
+				printf("%s\tPersistent Portal: %s:%" PRIi32
+				       ",%" PRIi32 "\n",
+				       prefix, persistent_address,
+				       iscsi_session_persistent_port_get(curr),
+				       iscsi_session_tpgt_get(curr));
 			else
-				printf("%s\tPersistent Portal: [%s]:%d,%d\n",
-				       prefix, curr->persistent_address,
-				       curr->persistent_port, curr->tpgt);
+				printf("%s\tPersistent Portal: [%s]:%" PRIi32
+				       ",%" PRIi32 "\n",
+				       prefix, persistent_address,
+				       iscsi_session_persistent_port_get(curr),
+				       iscsi_session_tpgt_get(curr));
 		} else
 			printf("\n");
 
 		if (flags & SESSION_INFO_IFACE) {
-			char *new_prefix;
-
 			printf("%s\t\t**********\n", prefix);
 			printf("%s\t\tInterface:\n", prefix);
 			printf("%s\t\t**********\n", prefix);
 
 			new_prefix = calloc(1, 1 + strlen(prefix) +
 					    strlen("\t\t"));
-			if (!new_prefix)
+			if (new_prefix == NULL) {
 				printf("Could not print interface info. "
 					"Out of Memory.\n");
-			else {
+				return;
+			} else {
 				sprintf(new_prefix, "%s%s", prefix, "\t\t");
-				iface_print(&curr->iface, new_prefix);
+				iface_print(iscsi_session_iface_get(curr),
+					    new_prefix);
 			}
 		}
 
 		if (flags & SESSION_INFO_ISCSI_STATE) {
-			printf("%s\t\tSID: %d\n", prefix, curr->sid);
-			print_iscsi_state(curr->sid, prefix, tmo);
+			printf("%s\t\tSID: %" PRIu32 "\n", prefix, sid);
+			print_iscsi_state((int) sid, prefix, -1 /* tmo */);
+			/* TODO(Gris Ge): It seems in the whole project,
+			 *		  tmo is always -1, correct?
+			 */
 		}
 
 		if (flags & SESSION_INFO_ISCSI_TIM) {
@@ -297,27 +362,30 @@ void session_info_print_tree(struct list_head *list, char *prefix,
 			printf("%s\t\tTimeouts:\n", prefix);
 			printf("%s\t\t*********\n", prefix);
 
-			printf("%s\t\tRecovery Timeout: %d\n", prefix,
-			      ((curr->tmo).recovery_tmo));
+			printf("%s\t\tRecovery Timeout: %" PRIi32 "\n", prefix,
+			       iscsi_session_recovery_tmo_get(curr));
 
-			if ((curr->tmo).tgt_reset_tmo >= 0)
-				printf("%s\t\tTarget Reset Timeout: %d\n",
-					prefix,
-					((curr->tmo).tgt_reset_tmo));
+			tgt_reset_tmo = iscsi_session_tgt_reset_tmo_get(curr);
+			lu_reset_tmo = iscsi_session_lu_reset_tmo_get(curr);
+			abort_tmo = iscsi_session_abort_tmo_get(curr);
+
+			if (tgt_reset_tmo >= 0)
+				printf("%s\t\tTarget Reset Timeout: %" PRIi32
+				       "\n", prefix, tgt_reset_tmo);
 			else
 				printf("%s\t\tTarget Reset Timeout: %s\n",
 					prefix, UNKNOWN_VALUE);
 
-			if ((curr->tmo).lu_reset_tmo >= 0)
-				printf("%s\t\tLUN Reset Timeout: %d\n", prefix,
-					((curr->tmo).lu_reset_tmo));
+			if (lu_reset_tmo >= 0)
+				printf("%s\t\tLUN Reset Timeout: %" PRIi32 "\n",
+				       prefix, lu_reset_tmo);
 			else
 				printf("%s\t\tLUN Reset Timeout: %s\n", prefix,
 					UNKNOWN_VALUE);
 
-			if ((curr->tmo).lu_reset_tmo >= 0)
-				printf("%s\t\tAbort Timeout: %d\n", prefix,
-					((curr->tmo).abort_tmo));
+			if (abort_tmo >= 0)
+				printf("%s\t\tAbort Timeout: %" PRIi32 "\n",
+				       prefix, abort_tmo);
 			else
 				printf("%s\t\tAbort Timeout: %s\n", prefix,
 					UNKNOWN_VALUE);
@@ -327,62 +395,61 @@ void session_info_print_tree(struct list_head *list, char *prefix,
 			printf("%s\t\t*****\n", prefix);
 			printf("%s\t\tCHAP:\n", prefix);
 			printf("%s\t\t*****\n", prefix);
-			if (!do_show) {
-				strcpy(curr->chap.password, "********");
-				strcpy(curr->chap.password_in, "********");
+			printf("%s\t\tusername: %s\n", prefix,
+			       strlen(iscsi_session_username_get(curr)) ?
+			       iscsi_session_username_get(curr) :
+			       UNKNOWN_VALUE);
+
+			if (!do_show)
+				printf("%s\t\tpassword: %s\n", prefix,
+					"********");
+			else {
+				pass = iscsi_session_password_get(curr);
+				printf("%s\t\tpassword: %s\n", prefix,
+				       strlen(pass) ?  pass : UNKNOWN_VALUE);
 			}
-			if (strlen((curr->chap).username))
-				printf("%s\t\tusername: %s\n", prefix,
-					(curr->chap).username);
-			else
-				printf("%s\t\tusername: %s\n", prefix,
-					UNKNOWN_VALUE);
-			if (strlen((curr->chap).password))
-				printf("%s\t\tpassword: %s\n", prefix,
-					(curr->chap).password);
-			else
-				printf("%s\t\tpassword: %s\n", prefix,
-					UNKNOWN_VALUE);
-			if (strlen((curr->chap).username_in))
-				printf("%s\t\tusername_in: %s\n", prefix,
-					(curr->chap).username_in);
-			else
-				printf("%s\t\tusername_in: %s\n", prefix,
-					UNKNOWN_VALUE);
-			if (strlen((curr->chap).password_in))
+
+			printf("%s\t\tusername_in: %s\n", prefix,
+			       strlen(iscsi_session_username_in_get(curr)) ?
+			       iscsi_session_username_in_get(curr) :
+			       UNKNOWN_VALUE);
+			if (!do_show)
 				printf("%s\t\tpassword_in: %s\n", prefix,
-					(curr->chap).password_in);
-			else
-				printf("%s\t\tpassword_in: %s\n", prefix,
-					UNKNOWN_VALUE);
+					"********");
+			else {
+				pass = iscsi_session_password_in_get(curr);
+				printf("%s\t\tpassword: %s\n", prefix,
+				       strlen(pass) ?  pass : UNKNOWN_VALUE);
+			}
 		}
 
 		if (flags & SESSION_INFO_ISCSI_PARAMS)
-			print_iscsi_params(curr->sid, prefix);
+			print_iscsi_params((int) sid, prefix);
 
 		if (flags & (SESSION_INFO_SCSI_DEVS | SESSION_INFO_HOST_DEVS))
-			print_scsi_state(curr->sid, prefix, flags);
+			print_scsi_state((int) sid, prefix, flags);
 
 		prev = curr;
 	}
 }
 
-int session_info_print(int info_level, struct session_info *info, int do_show)
+int session_info_print(int info_level, struct iscsi_session **ses,
+		       uint32_t se_count, int do_show)
 {
 	struct list_head list;
 	int num_found = 0, err = 0;
 	char *version;
 	unsigned int flags = 0;
+	uint32_t i = 0;
 
 	switch (info_level) {
 	case 0:
 	case -1:
-		if (info) {
-			session_info_print_flat(NULL, info);
-			num_found = 1;
-		} else
-			err = iscsi_sysfs_for_each_session(info, &num_found,
-						   session_info_print_flat, 0);
+		for (i = 0; i < se_count; ++i) {
+			err = session_info_print_flat(ses[i]);
+			if (err != 0)
+				break;
+		}
 		break;
 	case 3:
 		version = iscsi_sysfs_get_iscsi_kernel_version();
@@ -400,31 +467,8 @@ int session_info_print(int info_level, struct session_info *info, int do_show)
 				| SESSION_INFO_ISCSI_AUTH);
 		/* fall through */
 	case 1:
-		INIT_LIST_HEAD(&list);
-		struct session_link_info link_info;
-
 		flags |= (SESSION_INFO_ISCSI_STATE | SESSION_INFO_IFACE);
-		if (info) {
-			INIT_LIST_HEAD(&info->list);
-			list_add_tail(&list, &info->list);
-			session_info_print_tree(&list, "", flags, do_show,
-						info->iscsid_req_tmo);
-			num_found = 1;
-			break;
-		}
-
-		memset(&link_info, 0, sizeof(link_info));
-		link_info.list = &list;
-		link_info.data = NULL;
-		link_info.match_fn = NULL;
-
-		err = iscsi_sysfs_for_each_session(&link_info, &num_found,
-						   session_info_create_list, 0);
-		if (err || !num_found)
-			break;
-
-		session_info_print_tree(&list, "", flags, do_show, -1);
-		session_info_free_list(&list);
+		session_info_print_tree(ses, se_count, "", flags, do_show);
 		break;
 	default:
 		log_error("Invalid info level %d. Try 0 - 3.", info_level);
@@ -434,9 +478,6 @@ int session_info_print(int info_level, struct session_info *info, int do_show)
 	if (err) {
 		log_error("Can not get list of active sessions (%d)", err);
 		return err;
-	} else if (!num_found) {
-		log_error("No active sessions.");
-		return ISCSI_ERR_NO_OBJS_FOUND;
 	}
 	return 0;
 }
