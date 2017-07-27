@@ -3088,6 +3088,7 @@ static uint64_t parse_host_info(char *optarg, int *rc)
 			*rc = ISCSI_ERR_INVAL;
 		}
 	} else {
+		errno = 0;	// ensure errors from strtoull are real
 		host_no = strtoull(optarg, NULL, 10);
 		if (errno || (host_no > MAX_HOST_NO)) {
 			if (host_no > MAX_HOST_NO)
@@ -3416,6 +3417,7 @@ main(int argc, char **argv)
 				ISCSI_VERSION_STR);
 			return 0;
 		case 'x':
+			errno = 0;	// ensure errors from strtoull are real
 			index = strtoull(optarg, NULL, 10);
 			if (errno) {
 				log_error("Invalid index %s. %s.",
