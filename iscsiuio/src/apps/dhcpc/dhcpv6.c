@@ -153,7 +153,7 @@ static u16_t dhcpv6_init_packet(struct dhcpv6_context *context, u8_t type)
 	if (dhcpv6->dhcpv6_type != type)
 		context->dhcpv6_transaction_id++;
 
-	dhcpv6->dhcpv6_trans_id = context->dhcpv6_transaction_id;
+	dhcpv6->dhcpv6_trans_id = HOST_TO_NET16(context->dhcpv6_transaction_id);
 	dhcpv6->dhcpv6_type = type;
 
 	/* Keep track of length of all DHCP options. */
@@ -265,8 +265,13 @@ void ipv6_udp_handle_dhcp(struct dhcpv6_context *context)
 	dhcpv6 = (union dhcpv6_hdr *)((u8_t *)context->udp +
 					sizeof(struct udp_hdr));
 
-	if (dhcpv6->dhcpv6_trans_id != context->dhcpv6_transaction_id)
+	if (dhcpv6->dhcpv6_trans_id !=
+	    HOST_TO_NET16(context->dhcpv6_transaction_id)) {
+		LOG_ERR("DHCPv6 transaction-id error, sent %x, received %x",
+			HOST_TO_NET16(context->dhcpv6_transaction_id),
+			dhcpv6->dhcpv6_trans_id);
 		return;
+	}
 
 	dhcpv6_len =
 	    NET_TO_HOST16(context->udp->length) - sizeof(struct udp_hdr);
