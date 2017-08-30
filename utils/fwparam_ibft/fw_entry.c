@@ -64,26 +64,40 @@ int fw_setup_nics(void)
 	 * For each target in iBFT bring up required NIC and use routing
 	 * to force iSCSI traffic through correct NIC
 	 */
-	list_for_each_entry(context, &targets, list) {			
-		/* if it is a offload nic ignore it */
-		if (!net_get_transport_name_from_netdev(context->iface,
-							transport))
-			continue;
-
+	list_for_each_entry(context, &targets, list) {
 		if (iface_prev == NULL || strcmp(context->iface, iface_prev)) {
-			/* Note: test above works because there is a
-			 * maximum of two targets in the iBFT
-			 */
-			iface_prev = context->iface;
-			needs_bringup = 1;
+				/* Note: test above works because there is a
+				 * maximum of two targets in the iBFT
+				 */
+				iface_prev = context->iface;
+				needs_bringup = 1;
 		}
+		if (net_get_transport_name_from_netdev(context->iface, transport)) {
+			/* Setup software NIC, */
+			printf("Setting up software interface %s\n", context->iface);
+			err = net_setup_netdev(context->iface, context->ipaddr,
+								   context->mask, context->gateway,
+								   context->vlan,
+								   context->target_ipaddr, needs_bringup);
+			if (err) {
+				printf("Setting up software interface %s failed\n",
+						context->iface);
+				ret = err;
+			}
+		} else {
+			/* Setup offload NIC. */
+			struct iface_rec iface;
 
-		err = net_setup_netdev(context->iface, context->ipaddr,
-				       context->mask, context->gateway,
-				       context->vlan,
-				       context->target_ipaddr, needs_bringup);
-		if (err)
-			ret = err;
+			memset(&iface, 0, sizeof(iface));
+			iface_setup_defaults(&iface);
+			printf("Setting up offload interface %s\n", context->iface);
+			if (!iface_setup_from_boot_context(&iface, context)) {
+					printf("Setting up offload interface %s failed\n",
+						   context->iface);
+
+					ret = ISCSI_ERR;
+			}
+		}
 	}
 
 	fw_free_targets(&targets);
@@ -147,11 +161,7 @@ void fw_free_targets(struct list_head *list)
 
 static void dump_initiator(struct boot_context *context)
 {
-	struct iface_rec iface;
-
-	memset(&iface, 0, sizeof(iface));
-	iface_setup_defaults(&iface);
-	iface_setup_from_boot_context(&iface, context);
+	char transport_name[ISCSI_TRANSPORT_NAME_MAXLEN];
 
 	if (strlen(context->initiatorname))
 		printf("%s = %s\n", IFACE_INAME, context->initiatorname);
@@ -159,7 +169,9 @@ static void dump_initiator(struct boot_context *context)
 	if (strlen(context->isid))
 		printf("%s = %s\n", IFACE_ISID, context->isid);
 
-	printf("%s = %s\n", IFACE_TRANSPORTNAME, iface.transport_name);
+	memset(transport_name, 0, ISCSI_TRANSPORT_NAME_MAXLEN);
+	if (!net_get_transport_name_from_netdev(context->iface, transport_name))
+		printf("%s = %s\n", IFACE_TRANSPORTNAME, transport_name);
 }
 
 static void dump_target(struct boot_context *context)

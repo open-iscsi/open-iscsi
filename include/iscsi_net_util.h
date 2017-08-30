@@ -2,6 +2,7 @@
 #define __ISCSI_NET_UTIL_h__
 
 #define ISCSI_HWADDRESS_BUF_SIZE 18
+#define ISCSIUIO_PATH "/sbin/iscsiuio"
 
 extern int net_get_transport_name_from_netdev(char *netdev, char *transport);
 extern int net_get_netdev_from_hwaddress(char *hwaddress, char *netdev);

@@ -25,6 +25,7 @@
 #include <net/route.h>
 #include <sys/types.h>
 #include <sys/socket.h>
+#include <sys/stat.h>
 #include <sys/ioctl.h>
 #include <sys/socket.h>
 #include <linux/sockios.h>
@@ -79,6 +80,22 @@ int net_get_transport_name_from_netdev(char *netdev, char *transport)
 		log_error("Could not get driver %s.", netdev);
 		err = errno;
 		goto close_sock;
+	}
+
+	/*
+	* iSCSI hardware offload for bnx2{,x} is only supported if the
+	* iscsiuio executable is available.
+	*/
+	if (!strcmp(drvinfo.driver, "bnx2x") ||
+	    !strcmp(drvinfo.driver, "bnx2")) {
+		struct stat buf;
+
+		if (stat(ISCSIUIO_PATH, &buf)) {
+			log_debug(1, "ISCSI offload not supported "
+			             "(%s not found).", ISCSIUIO_PATH);
+			err = ENODEV;
+			goto close_sock;
+			}
 	}
 
 	for (i = 0; net_drivers[i].net_drv_name != NULL; i++) {
