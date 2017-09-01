@@ -1,3 +1,76 @@
+open-iscsi-2.0-874 - open-iscsi-2.0.875
+
+Andrew Patterson (3):
+      iscsiuio must be present to use hardware offload for bnx2{,x}
+      iscsistart: move offload discovery/setup to fw_get_targets()
+      iscsiuio: fix long options
+
+Chris Leech (8):
+      fix timeout setting on discoverydb commands
+      Merge pull request #41 from cleech/master
+      Merge pull request #40 from Akrog/feature/autoscan_en
+      Merge pull request #42 from m4z/uniform-headings
+      Merge pull request #43 from m4z/whitespace
+      Merge pull request #44 from m4z/typos
+      Merge pull request #45 from m4z/punctuation
+      Merge pull request #49 from Akrog/fix/autoscan_en
+
+Christopher 'm4z' Holm (7):
+      Unify README headings.
+      Cleanup README whitespace.
+      Fix a bunch of typos and a bit of wording.
+      Improve README punctuation.
+      Merge branch 'master' into punctuation
+      Unify invocation examples, option documentation, and more.
+      Add actual "iscsiadm --help" output (on openSUSE).
+
+Christopher Holm (1):
+      Merge branch 'master' into uniform-invocation-examples
+
+Edward Kigwana (2):
+      Update bnx2.c
+      Update bnx2x.c
+
+Gorka Eguileor (2):
+      Allow disabling auto LUN scans
+      Fix manual LUN scans feature
+
+Hannes Reinecke (1):
+      Use timeout when waiting for responses from iscsid
+
+Lee Duncan (17):
+      iBFT 'origin' is an enum, not a string
+      Merge pull request #32 from gonzoleeman/master
+      iscsid: treat SIGTERM like "iscsiadm -k 0"
+      Make event_loop_stop volatile for safer access
+      Merge pull request #34 from gonzoleeman/master
+      Merge pull request #1 from open-iscsi/master
+      Fix coredump when printing session info.
+      Merge pull request #52 from gonzoleeman/master
+      Merge pull request #53 from gonzoleeman/master
+      Merge pull request #54 from njavali/iscsiuio-bug-fixes
+      Merge pull request #57 from y011/patch-1
+      Merge pull request #2 from open-iscsi/master
+      Clear errno before calling strtoull.
+      Merge pull request #60 from gonzoleeman/strtoull-fix
+      Merge pull request #61 from ekigwana/master
+      Merge pull request #46 from m4z/uniform-invocation-examples
+      Merge pull request #55 from apatters/bnx2-software-ibft-support
+
+Neal Wise (1):
+      Fixed typo for spelling of 'default'
+
+Nilesh Javali (5):
+      iscsid: Changes to support the new qedi transport
+      iscsiuio: Add support for the new qedi transport
+      iscsiuio: v0.7.8.3
+      iscsiuio: fix dhcpv6 transaction-id mismatch error
+      iscsiuio: serialize xmit_mutex lock to prevent iscsiuio seg fault
+
+Nilesh Javili (1):
+      iscsid: Add qedi ping transport hook
+
+
 open-iscsi-2.0-873 - open-iscsi-2.0.874
 
 Adam Jackson (6):
