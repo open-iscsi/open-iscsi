@@ -341,7 +341,7 @@ struct iscsi_iface_param_info {
 	uint8_t iface_type;	/* IPv4 or IPv6 */
 	uint8_t param_type;	/* iscsi_param_type */
 	uint8_t value[0];	/* length sized value follows */
-} __packed;
+} __attribute__((__packed__));
 
 /*
  * To keep the struct iscsi_uevent size the same for userspace code
