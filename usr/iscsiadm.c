@@ -30,6 +30,8 @@
 #include <time.h>
 #include <sys/stat.h>
 
+#include <libiscsiusr/libiscsiusr.h>
+
 #include "initiator.h"
 #include "discovery.h"
 #include "log.h"
@@ -3276,6 +3278,17 @@ main(int argc, char **argv)
 	uint64_t index = ULLONG_MAX;
 	struct user_param *param;
 	struct list_head params;
+	struct iscsi_context *ctx = NULL;
+	int librc = LIBISCSI_OK;
+	struct iscsi_session **ses = NULL;
+	uint32_t se_count = 0;
+	struct iscsi_session *se = NULL;
+
+	ctx = iscsi_context_new();
+	if (ctx == NULL) {
+		log_error("No memory");
+		goto out;
+	}
 
 	INIT_LIST_HEAD(&params);
 	INIT_LIST_HEAD(&ifaces);
@@ -3371,6 +3384,18 @@ main(int argc, char **argv)
 			break;
 		case 'd':
 			log_level = atoi(optarg);
+			if (log_level >= 8)
+				iscsi_context_log_priority_set
+					(ctx, LIBISCSI_LOG_PRIORITY_DEBUG);
+			else if (log_level >= 4)
+				iscsi_context_log_priority_set
+					(ctx, LIBISCSI_LOG_PRIORITY_INFO);
+			else if (log_level >= 2)
+				iscsi_context_log_priority_set
+					(ctx, LIBISCSI_LOG_PRIORITY_WARNING);
+			else
+				iscsi_context_log_priority_set
+					(ctx, LIBISCSI_LOG_PRIORITY_ERROR);
 			break;
 		case 'm':
 			mode = str_to_mode(optarg);
@@ -3667,8 +3692,23 @@ main(int argc, char **argv)
 
 			if (!do_logout && !do_rescan && !do_stats &&
 			    op == OP_NOOP && info_level > 0) {
-				rc = session_info_print(info_level, info,
-							do_show);
+				librc = iscsi_session_get
+					(ctx, sid & UINT32_MAX, &se);
+				if (librc != LIBISCSI_OK) {
+					log_error("Failed to query iSCSI "
+						  "session %d, error %d: %s",
+						  sid, librc,
+						  iscsi_strerror(librc));
+					rc = ISCSI_ERR_INVAL;
+					goto out;
+				}
+				ses = (struct iscsi_session **)
+					calloc(1,
+					       sizeof(struct iscsi_session *));
+				ses[0] = se;
+				se_count = 1;
+				rc = session_info_print(info_level, ses,
+							se_count, do_show);
 				goto free_info;
 			}
 
@@ -3715,7 +3755,24 @@ free_info:
 				goto out;
 			}
 
-			rc = session_info_print(info_level, NULL, do_show);
+			librc = iscsi_sessions_get(ctx, &ses, &se_count);
+
+			if (librc != LIBISCSI_OK) {
+				log_error("Failed to query iSCSI sessions, "
+					  "error %d: %s", librc,
+					  iscsi_strerror(librc));
+				/* TODO(Gris Ge): Mapping librc to rc */
+				rc = ISCSI_ERR;
+				goto out;
+			}
+			if (se_count == 0) {
+				log_error("No active sessions.");
+				rc =ISCSI_ERR_NO_OBJS_FOUND;
+				goto out;
+			}
+
+			rc = session_info_print(info_level, ses, se_count,
+						do_show);
 		}
 		break;
 	default:
@@ -3724,8 +3781,10 @@ free_info:
 	}
 
 out:
+	iscsi_context_free(ctx);
 	if (rec)
 		free(rec);
+	iscsi_sessions_free(ses, se_count);
 	idbm_terminate();
 free_ifaces:
 	list_for_each_entry_safe(iface, tmp, &ifaces, list) {
