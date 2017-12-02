@@ -73,9 +73,6 @@
  ******************************************************************************/
 #define PFX "CNIC "
 
-static const uip_ip6addr_t all_ones_addr6 = {
-	0xffff, 0xffff, 0xffff, 0xffff, 0xffff, 0xffff, 0xffff, 0xffff };
-
 /*******************************************************************************
  * Constants shared between the bnx2 and bnx2x modules
  ******************************************************************************/
