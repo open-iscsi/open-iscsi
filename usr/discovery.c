@@ -32,7 +32,7 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 
-#include "strings.h"
+#include "local_strings.h"
 #include "types.h"
 #include "iscsi_proto.h"
 #include "initiator.h"
