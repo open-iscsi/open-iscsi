@@ -28,6 +28,7 @@
 #include <sys/ioctl.h>
 #include <netinet/tcp.h>
 #include <arpa/inet.h>
+#include <sys/uio.h>
 
 #include "types.h"
 #include "iscsi_proto.h"
