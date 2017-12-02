@@ -45,6 +45,7 @@
 }
 #define zero_data(p) {p[0]=0;p[1]=0;p[2]=0;}
 
+#if !defined(__bitwise)
 /*
  * If running svn modules we may need to define these.
  * This should not go upstream since this is already properly defined there
@@ -58,6 +59,7 @@
 #define __bitwise __bitwise__
 #else
 #define __bitwise
+#endif
 #endif
 
 /* initiator tags; opaque for target */
