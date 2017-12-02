@@ -19,7 +19,7 @@
  */
 
 #define  _XOPEN_SOURCE 500
-#define _SVID_SOURCE
+#define _DEFAULT_SOURCE
 #include <ftw.h>
 #include <stdio.h>
 #include <stdlib.h>
