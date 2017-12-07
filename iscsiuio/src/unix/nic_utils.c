@@ -76,14 +76,12 @@ static const char uio_uevent_path_template[] = "/sys/class/uio/uio%d/uevent";
 
 static const char base_iscsi_host_name[] = "/sys/class/iscsi_host/";
 static const char host_template[] = "host%d";
-static const char iscsi_host_path_template[] = "/sys/class/iscsi_host/host%d";
 static const char iscsi_host_path_netdev_template[] =
 	"/sys/class/iscsi_host/host%d/netdev";
 static const char cnic_uio_sysfs_resc_template[] =
 	"/sys/class/uio/uio%i/device/resource%i";
 static const char iscsi_transport_handle_template[] =
 	"/sys/class/iscsi_transport/%s/handle";
-static const char eth_pfx[] = "eth";
 static const char host_pfx[] = "host";
 
 /**

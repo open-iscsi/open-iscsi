@@ -27,7 +27,7 @@ OBJS += prom_lex.o prom_parse.tab.o fwparam_ppc.o
 CLEANFILES = $(OBJS) *.output *~
 
 CFLAGS ?= -O2 -g
-WARNFLAGS ?= -Wall -Wstrict-prototypes
+WARNFLAGS ?= -Wall -Wstrict-prototypes -Wno-format-truncation
 CFLAGS += -fPIC $(WARNFLAGS) -I../../include -I../../usr -D_GNU_SOURCE
 
 all: $(OBJS)

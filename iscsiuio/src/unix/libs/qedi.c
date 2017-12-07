@@ -58,6 +58,7 @@
 #include <sys/user.h>
 #include <fcntl.h>
 #include <unistd.h>
+#include <sys/sysmacros.h>
 
 #include "config.h"
 

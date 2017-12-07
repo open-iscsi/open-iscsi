@@ -102,9 +102,6 @@
  ******************************************************************************/
 #define PFX "uip "
 
-static const uip_ip6addr_t all_ones_addr6 = {
-	0xffff, 0xffff, 0xffff, 0xffff, 0xffff, 0xffff, 0xffff, 0xffff
-};
 static const uip_ip4addr_t all_ones_addr4 = { 0xffff, 0xffff };
 
 const uip_ip6addr_t all_zeroes_addr6 = {

@@ -139,7 +139,7 @@ struct ibft_tgt {
 } __attribute__((__packed__));
 
 /* Common variables */
-#define FILENAMESZ (256)
+#define FILENAMESZ (1024)
 extern char filename[FILENAMESZ];
 #define X86_DEFAULT_FILENAME "/dev/mem"
 extern int debug;

@@ -49,7 +49,7 @@
 #include "dhcpv6.h"
 #include "ping.h"
 
-inline int best_match_bufcmp(u8_t *a, u8_t *b, int len)
+static inline int best_match_bufcmp(u8_t *a, u8_t *b, int len)
 {
 	int i;
 

@@ -29,9 +29,11 @@
 #include "prom_parse.h"
 #include "iscsi_obp.h"
 
+
 %}
 %union {
-		char str[256];
+#define	STR_LEN		16384
+		char str[STR_LEN];
 }
 
 /* definitions. */
@@ -95,7 +97,7 @@ busses:	   bus	{
 			strcpy($$, $1);
 		}
 	| busses '/' bus {
-			sprintf($$, "%s/%s", $<str>1, $<str>3);
+			snprintf($$, STR_LEN, "%s/%s", $<str>1, $<str>3);
 		}
 	;
 
@@ -103,164 +105,164 @@ bus:	BUSNAME {
 			strcpy($$, $1);
 		}
 	| BUSNAME '@' HEX4 {
-			sprintf($$, "%s@%s", $<str>1, $<str>3);
+			snprintf($$, STR_LEN, "%s@%s", $<str>1, $<str>3);
 		}
 	| BUSNAME '@' HEX4 ',' HEX4 {
-			sprintf($$, "%s@%s,%s", $<str>1, $<str>3, $<str>5);
+			snprintf($$, STR_LEN, "%s@%s,%s", $<str>1, $<str>3, $<str>5);
 		}
 	| BUSNAME '@' HEX16 {
-			sprintf($$, "%s@%s", $<str>1, $<str>3);
+			snprintf($$, STR_LEN, "%s@%s", $<str>1, $<str>3);
 		}
 	| BUSNAME ',' HEX4 '@' HEX16  {
-			sprintf($$, "%s,%s@%s", $<str>1, $<str>3, $<str>5);
+			snprintf($$, STR_LEN, "%s,%s@%s", $<str>1, $<str>3, $<str>5);
 		}
 	;
 
 
 bootdev:  '/' BOOTDEV ':' {
-			sprintf($$, "/%s", $<str>2);
+			snprintf($$, STR_LEN, "/%s", $<str>2);
 		}
 	| '/' BOOTDEV '@' HEX4 ':' {
-			sprintf($$, "/%s@%s", $<str>2, $<str>4);
+			snprintf($$, STR_LEN, "/%s@%s", $<str>2, $<str>4);
 		}
 	| '/' BOOTDEV '@' HEX4 ',' HEX4 ':' {
-			sprintf($$, "/%s@%s,%s", $<str>2, $<str>4, $<str>6);
+			snprintf($$, STR_LEN, "/%s@%s,%s", $<str>2, $<str>4, $<str>6);
 		}
 	;
 
 vdevice: VDEVICE '/' VDEVINST {
-			sprintf($$, "%s/%s", $<str>1, $<str>3);
+			snprintf($$, STR_LEN, "%s/%s", $<str>1, $<str>3);
 		}
 	;
 
 vdev_parms: ':' vdev_parm {
-			sprintf($$, ":%s", $<str>2);
+			snprintf($$, STR_LEN, ":%s", $<str>2);
 		}
 	| vdev_parms ',' vdev_parm {
-			sprintf($$, "%s,%s", $<str>1, $<str>3);
+			snprintf($$, STR_LEN, "%s,%s", $<str>1, $<str>3);
 		}
 	| vdev_parms ',' VDEVRAW {
-			sprintf($$, "%s,%s", $<str>1, $<str>3);
+			snprintf($$, STR_LEN, "%s,%s", $<str>1, $<str>3);
 		}
 	;
 
 vdev_parm: VDEVDEV '=' CHOSEN {
-			sprintf($$, "%s=%s", $<str>1, $<str>3);
+			snprintf($$, STR_LEN, "%s=%s", $<str>1, $<str>3);
 		}
 	;
 
 obp_params: ',' obp_param	{
-			sprintf($$, ",%s", $2);
+			snprintf($$, STR_LEN, ",%s", $2);
 		}
 	| obp_params ',' obp_param {
-			sprintf($$, "%s,%s", $<str>1, $<str>3);
+			snprintf($$, STR_LEN, "%s,%s", $<str>1, $<str>3);
 		}
 	| obp_params ',' disklabel {
-			sprintf($$, "%s,%s", $<str>1, $<str>3);
+			snprintf($$, STR_LEN, "%s,%s", $<str>1, $<str>3);
 		}
 	;
 
 obp_param: HEX4 {
-			sprintf($$, "%s", $1);
+			snprintf($$, STR_LEN, "%s", $1);
 		}
 	| OBPPARM '=' HEX16 {
 			/* luns > 0 are the SAM-3+ hex representation. */
 			obp_parm_hexnum(ofwdev, $<str>1, $<str>3);
-			sprintf($$, "%s=%s", $<str>1, $<str>3);
+			snprintf($$, STR_LEN, "%s=%s", $<str>1, $<str>3);
 		}
 	| OBPPARM '=' ipaddr {
 			obp_parm_addr(ofwdev, $<str>1, $<str>3);
-			sprintf($$, "%s=%s", $<str>1, $<str>3);
+			snprintf($$, STR_LEN, "%s=%s", $<str>1, $<str>3);
 		}
 	| OBPPARM '=' IQN {
 			obp_parm_iqn(ofwdev, $<str>1, $<str>3);
-			sprintf($$, "%s=%s", $<str>1, $<str>3);
+			snprintf($$, STR_LEN, "%s=%s", $<str>1, $<str>3);
 		}
 	| OBPPARM '=' HEX4 {
 			obp_parm_hexnum(ofwdev, $<str>1, $<str>3);
-			sprintf($$, "%s=%s", $<str>1, $<str>3);
+			snprintf($$, STR_LEN, "%s=%s", $<str>1, $<str>3);
 		}
 	| OBPPARM '=' FILENAME {
 			obp_parm_str(ofwdev, $<str>1, $<str>3);
-			sprintf($$, "%s=%s", $<str>1, $<str>3);
+			snprintf($$, STR_LEN, "%s=%s", $<str>1, $<str>3);
 		}
 	;
 
 obp_quals: obp_qual {
-			sprintf($$, "%s", $1);
+			snprintf($$, STR_LEN, "%s", $1);
 		}
 	|  obp_quals ',' obp_qual {
-			sprintf($$, "%s,%s", $<str>1, $<str>3);
+			snprintf($$, STR_LEN, "%s,%s", $<str>1, $<str>3);
 		}
 	;
 
 obp_qual: OBPQUAL {
-			sprintf($$, "%s", obp_qual_set(ofwdev, $<str>1));
+			snprintf($$, STR_LEN, "%s", obp_qual_set(ofwdev, $<str>1));
 		}
 	| vdev_parm {
-			sprintf($$, "%s", $<str>1);
+			snprintf($$, STR_LEN, "%s", $<str>1);
 		}
 	;
 
 ipaddr: ipv4 {
-			sprintf($$, "%s", $<str>1);
+			snprintf($$, STR_LEN, "%s", $<str>1);
 		}
 	| ipv6 {
-			sprintf($$, "%s", $<str>1);
+			snprintf($$, STR_LEN, "%s", $<str>1);
 		}
 	;
 
 ipv4: IPV4 {
-			sprintf($$, "%s", $1);
+			snprintf($$, STR_LEN, "%s", $1);
 		}
 	;
 
 ipv6: hexpart {
-			sprintf($$, "%s", $1);
+			snprintf($$, STR_LEN, "%s", $1);
 		}
 	| hexpart ':' ipv4 {
-			sprintf($$, "%s:%s", $1, $3);
+			snprintf($$, STR_LEN, "%s:%s", $1, $3);
 		}
 	;
 
 hexpart: hexseq {
-			sprintf($$, "%s", $1);
+			snprintf($$, STR_LEN, "%s", $1);
 		}
 	| hexpart "::"	{
-			sprintf($$, "%s::", $<str>1);
+			snprintf($$, STR_LEN, "%s::", $<str>1);
 		}
 	| hexpart "::" hexseq {
-			sprintf($$, "%s::%s", $<str>1, $<str>3);
+			snprintf($$, STR_LEN, "%s::%s", $<str>1, $<str>3);
 		}
 	| "::" hexseq {
-			sprintf($$, "::%s", $<str>2);
+			snprintf($$, STR_LEN, "::%s", $<str>2);
 		}
 	;
 
 hexseq:	HEX4 {
-            sprintf($$, "%s", $1);
+            snprintf($$, STR_LEN, "%s", $1);
         }
     | hexseq ":" HEX4 {
-            sprintf($$, "%s:%s", $<str>1, $<str>3);
+            snprintf($$, STR_LEN, "%s:%s", $<str>1, $<str>3);
         }
     ;
 
 disklabel:   diskpart {
-            sprintf($$, "%s", $<str>1);
+            snprintf($$, STR_LEN, "%s", $<str>1);
         }
     | HEX4 diskpart {
-            sprintf($$, "%s%s", $<str>1, $<str>2);
+            snprintf($$, STR_LEN, "%s%s", $<str>1, $<str>2);
         }
     | '@' HEX4 ',' HEX4 diskpart {
-            sprintf($$, "@%s,%s%s", $<str>2, $<str>4, $<str>5);
+            snprintf($$, STR_LEN, "@%s,%s%s", $<str>2, $<str>4, $<str>5);
         }
     ;
 
 diskpart: ':' HEX4 {
-            sprintf($$, ":%s", $<str>2);
+            snprintf($$, STR_LEN, ":%s", $<str>2);
         }
     | ':' HEX4 ',' FILENAME {
-            sprintf($$, ":%s,%s", $<str>2, $<str>4);
+            snprintf($$, STR_LEN, ":%s,%s", $<str>2, $<str>4);
         }
     ;
 
