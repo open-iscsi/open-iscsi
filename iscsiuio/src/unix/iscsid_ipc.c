@@ -147,10 +147,7 @@ static int decode_cidr(char *in_ipaddr_str, struct iface_rec_decode *ird)
 	struct in_addr ia;
 	struct in6_addr ia6;
 
-	if (strlen(in_ipaddr_str) > NI_MAXHOST)
-		strncpy(ipaddr_str, in_ipaddr_str, NI_MAXHOST);
-	else
-		strcpy(ipaddr_str, in_ipaddr_str);
+	strlcpy(ipaddr_str, in_ipaddr_str, NI_MAXHOST);
 
 	/* Find the CIDR if any */
 	tmp = strchr(ipaddr_str, '/');
@@ -282,22 +279,16 @@ static int decode_iface(struct iface_rec_decode *ird, struct iface_rec *rec)
 
 			/* For LL on, ignore the IPv6 addr in the iface */
 			if (ird->linklocal_autocfg == IPV6_LL_AUTOCFG_OFF) {
-				if (strlen(rec->ipv6_linklocal) > NI_MAXHOST)
-					strncpy(ipaddr_str, rec->ipv6_linklocal,
-						NI_MAXHOST);
-				else
-					strcpy(ipaddr_str, rec->ipv6_linklocal);
+				strlcpy(ipaddr_str, rec->ipv6_linklocal,
+					NI_MAXHOST);
 				inet_pton(AF_INET6, ipaddr_str,
 					  &ird->ipv6_linklocal);
 			}
 
 			/* For RTR on, ignore the IPv6 addr in the iface */
 			if (ird->router_autocfg == IPV6_RTR_AUTOCFG_OFF) {
-				if (strlen(rec->ipv6_router) > NI_MAXHOST)
-					strncpy(ipaddr_str, rec->ipv6_router,
-						NI_MAXHOST);
-				else
-					strcpy(ipaddr_str, rec->ipv6_router);
+				strlcpy(ipaddr_str, rec->ipv6_router,
+					NI_MAXHOST);
 				inet_pton(AF_INET6, ipaddr_str,
 					  &ird->ipv6_router);
 			}
@@ -311,10 +302,7 @@ static int decode_iface(struct iface_rec_decode *ird, struct iface_rec *rec)
 					calculate_default_netmask(
 							ird->ipv4_addr.s_addr);
 
-			if (strlen(rec->gateway) > NI_MAXHOST)
-				strncpy(ipaddr_str, rec->gateway, NI_MAXHOST);
-			else
-				strcpy(ipaddr_str, rec->gateway);
+			strlcpy(ipaddr_str, rec->gateway, NI_MAXHOST);
 			inet_pton(AF_INET, ipaddr_str, &ird->ipv4_gateway);
 		}
 	} else {
