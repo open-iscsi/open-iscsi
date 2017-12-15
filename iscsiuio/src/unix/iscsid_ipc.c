@@ -955,6 +955,8 @@ int process_iscsid_broadcast(int s2)
 	LOG_DEBUG(PFX "recv iscsid request: cmd: %d, payload_len: %d",
 		  cmd, payload_len);
 
+	memset(&rsp, 0, sizeof(rsp));
+
 	switch (cmd) {
 	case ISCSID_UIP_IPC_GET_IFACE:
 		size = fread(&data->u.iface_rec, payload_len, 1, fd);
