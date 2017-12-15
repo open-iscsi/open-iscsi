@@ -908,6 +908,9 @@ early_exit:
 /**
  *  process_iscsid_broadcast() - This function is used to process the
  *                               broadcast messages from iscsid
+ *
+ *                               s2 is an open file descriptor, which
+ *                               must not be left open upon return
  */
 int process_iscsid_broadcast(int s2)
 {
@@ -923,6 +926,7 @@ int process_iscsid_broadcast(int s2)
 	if (fd == NULL) {
 		LOG_ERR(PFX "Couldn't open file descriptor: %d(%s)",
 			errno, strerror(errno));
+		close(s2);
 		return -EIO;
 	}
 
@@ -1025,7 +1029,8 @@ int process_iscsid_broadcast(int s2)
 	}
 
 error:
-	free(data);
+	if (data)
+		free(data);
 	fclose(fd);
 
 	return rc;
@@ -1127,8 +1132,8 @@ static void *iscsid_loop(void *arg)
 			break;
 		}
 
+		/* this closes the file descriptor s2 */
 		process_iscsid_broadcast(s2);
-		close(s2);
 	}
 
 	pthread_cleanup_pop(0);
