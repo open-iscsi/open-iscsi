@@ -112,7 +112,7 @@ int alloc_free_queue(nic_t *nic, size_t num_of_packets)
 	for (i = 0; i < num_of_packets; i++) {
 		packet_t *pkt;
 
-		pkt = alloc_packet(1500, 1500);
+		pkt = alloc_packet(STD_MTU_SIZE, STD_MTU_SIZE);
 		if (pkt == NULL) {
 			goto done;
 		}

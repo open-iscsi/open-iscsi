@@ -328,6 +328,11 @@ static void *perform_ping(void *arg)
 
 	data = (iscsid_uip_broadcast_t *)png_c->data;
 	datalen = data->u.ping_rec.datalen;
+	if ((datalen > STD_MTU_SIZE) || (datalen < 0)) {
+		LOG_ERR(PFX "Ping datalen invalid: %d", datalen);
+		rc = -EINVAL;
+		goto ping_done;
+	}
 
 	memset(dst_addr, 0, sizeof(uip_ip6addr_t));
 	if (nic_iface->protocol == AF_INET) {

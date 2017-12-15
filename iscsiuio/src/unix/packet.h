@@ -43,6 +43,8 @@
 
 #include "nic.h"
 
+#define	STD_MTU_SIZE	1500
+
 struct nic;
 struct nic_interface;
 
