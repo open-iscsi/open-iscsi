@@ -143,7 +143,7 @@ static int decode_cidr(char *in_ipaddr_str, struct iface_rec_decode *ird)
 	char *tmp, *tok;
 	char ipaddr_str[NI_MAXHOST];
 	char str[INET6_ADDRSTRLEN];
-	int keepbits = 0;
+	unsigned long keepbits = 0;
 	struct in_addr ia;
 	struct in6_addr ia6;
 
@@ -156,8 +156,7 @@ static int decode_cidr(char *in_ipaddr_str, struct iface_rec_decode *ird)
 		tmp = ipaddr_str;
 		tok = strsep(&tmp, "/");
 		LOG_INFO(PFX "in cidr: bitmask '%s' ip '%s'", tmp, tok);
-		keepbits = atoi(tmp);
-		strcpy(ipaddr_str, tok);
+		keepbits = strtoull(tmp, NULL, 10);
 	}
 
 	/*  Determine if the IP address passed from the iface file is
