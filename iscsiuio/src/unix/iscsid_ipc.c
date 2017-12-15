@@ -945,6 +945,12 @@ int process_iscsid_broadcast(int s2)
 
 	cmd = data->header.command;
 	payload_len = data->header.payload_len;
+	if (payload_len > sizeof(data->u)) {
+		LOG_ERR(PFX "Data payload length too large (%d). Corrupt payload?",
+				payload_len);
+		rc = -EINVAL;
+		goto error;
+	}
 
 	LOG_DEBUG(PFX "recv iscsid request: cmd: %d, payload_len: %d",
 		  cmd, payload_len);
