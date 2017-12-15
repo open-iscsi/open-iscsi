@@ -23,7 +23,7 @@
 #include <errno.h>
 #include <sys/param.h>
 
-#include "strings.h"
+#include "local_strings.h"
 #include "log.h"
 
 int str_init_buffer(struct str_buffer *s, size_t initial_allocation)

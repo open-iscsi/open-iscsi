@@ -48,7 +48,7 @@ INITIATOR_SRCS = initiator.o scsi.o actor.o event_poll.o mgmt_ipc.o kern_err_tab
 FW_BOOT_SRCS = $(sort $(wildcard ../utils/fwparam_ibft/*.o))
 
 # core discovery files
-DISCOVERY_SRCS = $(FW_BOOT_SRCS) strings.o discovery.o
+DISCOVERY_SRCS = $(FW_BOOT_SRCS) local_strings.o discovery.o
 
 all: $(PROGRAMS)
 

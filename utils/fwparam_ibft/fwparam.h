@@ -20,7 +20,7 @@
 #include <stdint.h>
 #include "fw_context.h"
 
-#define FILENAMESZ (256)
+#define FILENAMESZ (1024)
 
 struct boot_context;
 

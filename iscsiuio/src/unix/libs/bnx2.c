@@ -77,7 +77,6 @@ static const char cnic_uio_sysfs_name[] = "bnx2_cnic";
 /*******************************************************************************
  * String constants used to display human readable adapter name
  ******************************************************************************/
-static const char brcm_5706C[] = "QLogic NetXtreme II BCM5706 1000Base-T";
 static const char hp_NC370T[] =
 	"HP NC370T Multifunction Gigabit Server Adapter";
 static const char hp_NC370I[] =
