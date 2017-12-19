@@ -356,7 +356,7 @@ static int loop_devs(const char *devtree)
 	 * Sort the nics into "natural" order.	The proc fs
 	 * device-tree has them in somewhat random, or reversed order.
 	 */
-	qsort(niclist, nic_count, sizeof(char *), (__compar_fn_t)nic_cmp);
+	qsort(niclist, nic_count, sizeof(char *), (int (*)(const void *, const void *))nic_cmp);
 
 	snprintf(prefix, sizeof(prefix), "%s/%s", devtree, "aliases");
 	dev_count = 0;
