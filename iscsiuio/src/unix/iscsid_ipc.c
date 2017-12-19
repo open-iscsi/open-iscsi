@@ -37,6 +37,8 @@
  *
  */
 
+#define _GNU_SOURCE
+
 #include <errno.h>
 #include <pthread.h>
 #include <signal.h>
@@ -47,6 +49,8 @@
 #include <sys/socket.h>
 #include <sys/time.h>
 #include <sys/un.h>
+#include <sys/types.h>
+#include <pwd.h>
 
 #define PFX "iscsi_ipc "
 
@@ -61,6 +65,7 @@
 #include "iscsid_ipc.h"
 #include "uip.h"
 #include "uip_mgmt_ipc.h"
+#include "sysdeps.h"
 
 #include "logger.h"
 #include "uip.h"
@@ -102,6 +107,7 @@ struct iface_rec_decode {
 	uint16_t		mtu;
 };
 
+#define PEERUSER_MAX	64
 
 /******************************************************************************
  *  Globals
@@ -137,14 +143,11 @@ static int decode_cidr(char *in_ipaddr_str, struct iface_rec_decode *ird)
 	char *tmp, *tok;
 	char ipaddr_str[NI_MAXHOST];
 	char str[INET6_ADDRSTRLEN];
-	int keepbits = 0;
+	unsigned long keepbits = 0;
 	struct in_addr ia;
 	struct in6_addr ia6;
 
-	if (strlen(in_ipaddr_str) > NI_MAXHOST)
-		strncpy(ipaddr_str, in_ipaddr_str, NI_MAXHOST);
-	else
-		strcpy(ipaddr_str, in_ipaddr_str);
+	strlcpy(ipaddr_str, in_ipaddr_str, NI_MAXHOST);
 
 	/* Find the CIDR if any */
 	tmp = strchr(ipaddr_str, '/');
@@ -153,8 +156,7 @@ static int decode_cidr(char *in_ipaddr_str, struct iface_rec_decode *ird)
 		tmp = ipaddr_str;
 		tok = strsep(&tmp, "/");
 		LOG_INFO(PFX "in cidr: bitmask '%s' ip '%s'", tmp, tok);
-		keepbits = atoi(tmp);
-		strcpy(ipaddr_str, tok);
+		keepbits = strtoull(tmp, NULL, 10);
 	}
 
 	/*  Determine if the IP address passed from the iface file is
@@ -276,22 +278,16 @@ static int decode_iface(struct iface_rec_decode *ird, struct iface_rec *rec)
 
 			/* For LL on, ignore the IPv6 addr in the iface */
 			if (ird->linklocal_autocfg == IPV6_LL_AUTOCFG_OFF) {
-				if (strlen(rec->ipv6_linklocal) > NI_MAXHOST)
-					strncpy(ipaddr_str, rec->ipv6_linklocal,
-						NI_MAXHOST);
-				else
-					strcpy(ipaddr_str, rec->ipv6_linklocal);
+				strlcpy(ipaddr_str, rec->ipv6_linklocal,
+					NI_MAXHOST);
 				inet_pton(AF_INET6, ipaddr_str,
 					  &ird->ipv6_linklocal);
 			}
 
 			/* For RTR on, ignore the IPv6 addr in the iface */
 			if (ird->router_autocfg == IPV6_RTR_AUTOCFG_OFF) {
-				if (strlen(rec->ipv6_router) > NI_MAXHOST)
-					strncpy(ipaddr_str, rec->ipv6_router,
-						NI_MAXHOST);
-				else
-					strcpy(ipaddr_str, rec->ipv6_router);
+				strlcpy(ipaddr_str, rec->ipv6_router,
+					NI_MAXHOST);
 				inet_pton(AF_INET6, ipaddr_str,
 					  &ird->ipv6_router);
 			}
@@ -305,10 +301,7 @@ static int decode_iface(struct iface_rec_decode *ird, struct iface_rec *rec)
 					calculate_default_netmask(
 							ird->ipv4_addr.s_addr);
 
-			if (strlen(rec->gateway) > NI_MAXHOST)
-				strncpy(ipaddr_str, rec->gateway, NI_MAXHOST);
-			else
-				strcpy(ipaddr_str, rec->gateway);
+			strlcpy(ipaddr_str, rec->gateway, NI_MAXHOST);
 			inet_pton(AF_INET, ipaddr_str, &ird->ipv4_gateway);
 		}
 	} else {
@@ -335,6 +328,11 @@ static void *perform_ping(void *arg)
 
 	data = (iscsid_uip_broadcast_t *)png_c->data;
 	datalen = data->u.ping_rec.datalen;
+	if ((datalen > STD_MTU_SIZE) || (datalen < 0)) {
+		LOG_ERR(PFX "Ping datalen invalid: %d", datalen);
+		rc = -EINVAL;
+		goto ping_done;
+	}
 
 	memset(dst_addr, 0, sizeof(uip_ip6addr_t));
 	if (nic_iface->protocol == AF_INET) {
@@ -902,6 +900,9 @@ early_exit:
 /**
  *  process_iscsid_broadcast() - This function is used to process the
  *                               broadcast messages from iscsid
+ *
+ *                               s2 is an open file descriptor, which
+ *                               must not be left open upon return
  */
 int process_iscsid_broadcast(int s2)
 {
@@ -917,6 +918,7 @@ int process_iscsid_broadcast(int s2)
 	if (fd == NULL) {
 		LOG_ERR(PFX "Couldn't open file descriptor: %d(%s)",
 			errno, strerror(errno));
+		close(s2);
 		return -EIO;
 	}
 
@@ -939,9 +941,17 @@ int process_iscsid_broadcast(int s2)
 
 	cmd = data->header.command;
 	payload_len = data->header.payload_len;
+	if (payload_len > sizeof(data->u)) {
+		LOG_ERR(PFX "Data payload length too large (%d). Corrupt payload?",
+				payload_len);
+		rc = -EINVAL;
+		goto error;
+	}
 
 	LOG_DEBUG(PFX "recv iscsid request: cmd: %d, payload_len: %d",
 		  cmd, payload_len);
+
+	memset(&rsp, 0, sizeof(rsp));
 
 	switch (cmd) {
 	case ISCSID_UIP_IPC_GET_IFACE:
@@ -1011,7 +1021,8 @@ int process_iscsid_broadcast(int s2)
 	}
 
 error:
-	free(data);
+	if (data)
+		free(data);
 	fclose(fd);
 
 	return rc;
@@ -1024,6 +1035,40 @@ static void iscsid_loop_close(void *arg)
 	LOG_INFO(PFX "iSCSI daemon socket closed");
 }
 
+/*
+ * check that the peer user is privilidged
+ *
+ * return 1 if peer is ok else 0
+ *
+ * XXX: this function is copied from iscsid_ipc.c and should be
+ * moved into a common library
+ */
+static int
+mgmt_peeruser(int sock, char *user)
+{
+	struct ucred peercred;
+	socklen_t so_len = sizeof(peercred);
+	struct passwd *pass;
+
+	errno = 0;
+	if (getsockopt(sock, SOL_SOCKET, SO_PEERCRED, &peercred,
+		&so_len) != 0 || so_len != sizeof(peercred)) {
+		/* We didn't get a valid credentials struct. */
+		LOG_ERR(PFX "peeruser_unux: error receiving credentials: %m");
+		return 0;
+	}
+
+	pass = getpwuid(peercred.uid);
+	if (pass == NULL) {
+		LOG_ERR(PFX "peeruser_unix: unknown local user with uid %d",
+				(int) peercred.uid);
+		return 0;
+	}
+
+	strlcpy(user, pass->pw_name, PEERUSER_MAX);
+	return 1;
+}
+
 /**
  *  iscsid_loop() - This is the function which will process the broadcast
  *                  messages from iscsid
@@ -1033,6 +1078,7 @@ static void *iscsid_loop(void *arg)
 {
 	int rc;
 	sigset_t set;
+	char user[PEERUSER_MAX];
 
 	pthread_cleanup_push(iscsid_loop_close, arg);
 
@@ -1072,8 +1118,14 @@ static void *iscsid_loop(void *arg)
 			continue;
 		}
 
+		if (!mgmt_peeruser(iscsid_opts.fd, user) || strncmp(user, "root", PEERUSER_MAX)) {
+			close(s2);
+			LOG_ERR(PFX "Access error: non-administrative connection rejected");
+			break;
+		}
+
+		/* this closes the file descriptor s2 */
 		process_iscsid_broadcast(s2);
-		close(s2);
 	}
 
 	pthread_cleanup_pop(0);
