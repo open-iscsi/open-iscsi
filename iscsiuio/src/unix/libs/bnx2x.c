@@ -36,6 +36,7 @@
  * bnx2x.c - bnx2x user space driver
  *
  */
+#include <netinet/if_ether.h>
 #include <errno.h>
 #include <stdio.h>
 #include <string.h>

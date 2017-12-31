@@ -3265,6 +3265,7 @@ main(int argc, char **argv)
 	int tpgt = PORTAL_GROUP_TAG_UNKNOWN, killiscsid=-1, do_show=0;
 	int packet_size=32, ping_count=1, ping_interval=0;
 	int do_discover = 0, sub_mode = -1;
+	int argerror = 0;
 	int portal_type = -1;
 	int timeout = ISCSID_REQ_TIMEOUT;
 	struct sigaction sa_old;
@@ -3431,6 +3432,10 @@ main(int argc, char **argv)
 			break;
 		case 'h':
 			usage(0);
+			break;
+		case '?':
+			log_error("unrecognized character '%c'", optopt);
+			argerror = 1;
 		}
 
 		if (name && value) {
@@ -3446,8 +3451,7 @@ main(int argc, char **argv)
 		}
 	}
 
-	if (optopt) {
-		log_error("unrecognized character '%c'", optopt);
+	if (argerror) {
 		rc = ISCSI_ERR_INVAL;
 		goto free_ifaces;
 	}
