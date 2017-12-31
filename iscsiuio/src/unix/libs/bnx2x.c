@@ -42,7 +42,7 @@
 #include <arpa/inet.h>
 #include <linux/types.h>	/* Needed for linux/ethtool.h on RHEL 5.x */
 #include <linux/sockios.h>
-#include <linux/ethtool.h>
+#include "ethtool-compat.h"
 #include <sys/mman.h>
 #include <sys/ioctl.h>
 #include <sys/sysmacros.h>
