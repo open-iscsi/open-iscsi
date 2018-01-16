@@ -13,12 +13,16 @@ bindir = $(exec_prefix)/bin
 mandir = $(prefix)/share/man
 etcdir = /etc
 initddir = $(etcdir)/init.d
+rulesdir = $(etcdir)/udev/rules.d
 
-MANPAGES = doc/iscsid.8 doc/iscsiadm.8 doc/iscsi_discovery.8 iscsiuio/docs/iscsiuio.8
-PROGRAMS = usr/iscsid usr/iscsiadm utils/iscsi_discovery utils/iscsi-iname iscsiuio/src/unix/iscsiuio
+MANPAGES = doc/iscsid.8 doc/iscsiadm.8 doc/iscsi_discovery.8 \
+		iscsiuio/docs/iscsiuio.8 doc/iscsi_fw_login.8
+PROGRAMS = usr/iscsid usr/iscsiadm utils/iscsi-iname iscsiuio/src/unix/iscsiuio
+SCRIPTS = utils/iscsi_discovery utils/iscsi_fw_login
 INSTALL = install
 ETCFILES = etc/iscsid.conf
 IFACEFILES = etc/iface.example
+RULESFILES = utils/50-iscsi-firmware-login.rules
 
 # Compatibility: parse old OPTFLAGS argument
 ifdef OPTFLAGS
@@ -92,7 +96,11 @@ install: install_programs install_doc install_etc \
 install_user: install_programs install_doc install_etc \
 	install_initd install_iname install_iface
 
-install_programs:  $(PROGRAMS)
+install_udev_rules:
+	$(INSTALL) -d $(DESTDIR)$(rulesdir)
+	$(INSTALL) -m 644 $(RULESFILES) $(DESTDIR)/$(rulesdir)
+
+install_programs:  $(PROGRAMS) $(SCRIPTS)
 	$(INSTALL) -d $(DESTDIR)$(sbindir)
 	$(INSTALL) -m 755 $^ $(DESTDIR)$(sbindir)
 
