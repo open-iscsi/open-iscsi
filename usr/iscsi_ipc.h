@@ -22,10 +22,6 @@
 #ifndef ISCSI_IPC_H
 #define ISCSI_IPC_H
 
-#if defined(FreeBSD)
-#include <sys/_iovec.h>
-#endif
-
 #include "iscsi_if.h"
 
 enum {
