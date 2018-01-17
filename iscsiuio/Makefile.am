@@ -19,11 +19,15 @@ install-am: all-am
 
 install-man:
 	cat docs/iscsiuio.8 | GZIP=$(GZIP_ENV) gzip -c > iscsiuio.8.gz
-	$(INSTALL_PROGRAM) iscsiuio.8.gz $(mandir)/man8
+	$(INSTALL) -d $(DESTDIR)$(mandir)/man8/
+	$(INSTALL_DATA) iscsiuio.8.gz $(DESTDIR)$(mandir)/man8/
 
 install-log:
-	$(INSTALL_PROGRAM) iscsiuiolog $(logdir)
+	$(INSTALL) -d $(DESTDIR)$(logdir)/
+	$(INSTALL_DATA) iscsiuiolog $(DESTDIR)$(logdir)/
 
 install-brcm:
-	-rm -f $(sbindir)/brcm_iscsiuio
-	-ln -s $(sbindir)/iscsiuio $(sbindir)/brcm_iscsiuio
+	$(RM) $(DESTDIR)$(sbindir)/brcm_iscsiuio
+	(cd $(DESTDIR)/$(sbindir); \
+	 $(RM) brcm_iscsiuio; \
+	 $(LN_S) iscsiuio brcm_iscsiuio)
