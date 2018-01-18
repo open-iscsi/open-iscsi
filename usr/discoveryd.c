@@ -1034,11 +1034,6 @@ static void __do_st_disc_and_login(struct discovery_rec *drec)
 	drec->u.sendtargets.reopen_max = 0;
 
 	iface_link_ifaces(&setup_ifaces);
-	/*
-	 * disc code assumes this is not set and wants to use
-	 * the userspace IO code.
-	 */
-	ipc = NULL;
 
 	rc = idbm_bind_ifaces_to_nodes(discovery_sendtargets, drec,
 					&setup_ifaces, &rec_list);
