@@ -285,6 +285,7 @@ void session_info_print_tree(struct list_head *list, char *prefix,
 				sprintf(new_prefix, "%s%s", prefix, "\t\t");
 				iface_print(&curr->iface, new_prefix);
 			}
+			free(new_prefix);
 		}
 
 		if (flags & SESSION_INFO_ISCSI_STATE) {
