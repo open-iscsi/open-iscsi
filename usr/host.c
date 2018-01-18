@@ -36,16 +36,24 @@
 #include "iscsi_err.h"
 #include "iscsi_netlink.h"
 
-static int match_host_to_session(void *data, struct session_info *info)
+struct _host_info_print_tree_arg {
+	unsigned int flags;
+	struct iscsi_session **ses;
+	uint32_t se_count;
+};
+
+static int match_host_to_session(uint32_t host_no, struct iscsi_session *se)
 {
-	uint32_t host_no = *(uint32_t *) data;
+	uint32_t sid = 0;
 	uint32_t info_host_no;
 	int rc;
 
-	info_host_no = iscsi_sysfs_get_host_no_from_sid(info->sid, &rc);
+	sid = iscsi_session_sid_get(se);
+
+	info_host_no = iscsi_sysfs_get_host_no_from_sid(sid, &rc);
 	if (rc) {
 		log_error("could not get host_no for session%d err %d.",
-			  info->sid, rc);
+			  sid, rc);
 		return 0;
 	}
 
@@ -217,14 +225,21 @@ static void print_host_ifaces(struct host_info *hinfo, char *prefix)
 
 static int host_info_print_tree(void *data, struct host_info *hinfo)
 {
-	struct list_head sessions;
-	struct session_link_info link_info;
-	int err, num_found = 0;
-	unsigned int session_info_flags = *(unsigned int *)data;
+	unsigned int session_info_flags = 0;
+	struct _host_info_print_tree_arg *arg = data;
+	struct iscsi_session **ses = NULL;
+	struct iscsi_session **matched_ses = NULL;
+	uint32_t se_count = 0;
+	uint32_t matched_se_count = 0;
+	uint32_t i = 0;
 	char state[SCSI_MAX_STATE_VALUE];
 
-	INIT_LIST_HEAD(&sessions);
+	if (arg == NULL)
+		return -EINVAL;
 
+	session_info_flags = arg->flags;
+	ses = arg->ses;
+	se_count = arg->se_count;
 
 	printf("Host Number: %u\n", hinfo->host_no);
 	if (!iscsi_sysfs_get_host_state(state, hinfo->host_no))
@@ -235,32 +250,38 @@ static int host_info_print_tree(void *data, struct host_info *hinfo)
 
 	print_host_ifaces(hinfo, "\t");
 
-	if (!session_info_flags)
+	if ((!session_info_flags) || (!se_count))
 		return 0;
 
-	link_info.list = &sessions;
-	link_info.match_fn = match_host_to_session;
-	link_info.data = &hinfo->host_no;
+	matched_ses = calloc(se_count, sizeof(struct iscsi_session *));
+	if (matched_ses == NULL)
+		return -ENOMEM;
 
-	err = iscsi_sysfs_for_each_session(&link_info, &num_found,
-					   session_info_create_list, 0);
-	if (err || !num_found)
+	for (i = 0; i < se_count; ++i)
+		if (match_host_to_session(hinfo->host_no, ses[i]))
+			matched_ses[matched_se_count++] = ses[i];
+
+	if (!matched_se_count)
 		return 0;
 
 	printf("\t*********\n");
 	printf("\tSessions:\n");
 	printf("\t*********\n");
+	session_info_print_tree(matched_ses, matched_se_count, "\t",
+				session_info_flags, 0/* don't show password */);
 
-	session_info_print_tree(&sessions, "\t", session_info_flags, 0, -1);
-	session_info_free_list(&sessions);
+	free(matched_ses);
 	return 0;
 }
 
-int host_info_print(int info_level, uint32_t host_no)
+int host_info_print(int info_level, uint32_t host_no,
+		    struct iscsi_session **ses, uint32_t se_count)
+
 {
 	int num_found = 0, err = 0;
 	char *version;
 	unsigned int flags = 0;
+	struct _host_info_print_tree_arg arg;
 
 	switch (info_level) {
 	case 0:
@@ -286,19 +307,22 @@ int host_info_print(int info_level, uint32_t host_no)
 		flags |= SESSION_INFO_ISCSI_STATE | SESSION_INFO_IFACE;
 		/* fall through */
 	case 1:
+		arg.flags = flags;
+		arg.ses = ses;
+		arg.se_count = se_count;
 		if (host_no != -1) {
 			struct host_info hinfo;
 
 			memset(&hinfo, 0, sizeof(struct host_info));
 			hinfo.host_no = host_no;
 			iscsi_sysfs_get_hostinfo_by_host_no(&hinfo);
-			host_info_print_tree(&flags, &hinfo);
+			host_info_print_tree(&arg, &hinfo);
 			num_found = 1;
 			break;
 		}
 
 		transport_probe_for_offload();
-		err = iscsi_sysfs_for_each_host(&flags, &num_found,
+		err = iscsi_sysfs_for_each_host(&arg, &num_found,
 						host_info_print_tree);
 		break;
 	default:

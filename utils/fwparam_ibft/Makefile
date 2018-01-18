@@ -20,15 +20,23 @@
 #	    Doug Maxey <dwm@austin.ibm.com>
 #	    "Prasanna Mumbai" <mumbai.prasanna@gmail.com>
 #
+ifeq ($(TOPDIR),)
+	TOPDIR = ../..
+endif
+
 
 SYSDEPS_OBJS = $(sort $(wildcard ../sysdeps/*.o))
-OBJS := fw_entry.o fwparam_sysfs.o $(SYSDEPS_OBJS) ../../usr/iscsi_net_util.o
+OBJS := fw_entry.o fwparam_sysfs.o $(SYSDEPS_OBJS) \
+	$(TOPDIR)/usr/iscsi_net_util.o
 OBJS += prom_lex.o prom_parse.tab.o fwparam_ppc.o
 CLEANFILES = $(OBJS) *.output *~
 
 CFLAGS ?= -O2 -g
 WARNFLAGS ?= -Wall -Wstrict-prototypes -Wno-format-truncation
-CFLAGS += -fPIC $(WARNFLAGS) -I../../include -I../../usr -D_GNU_SOURCE
+CFLAGS += -fPIC $(WARNFLAGS) -I$(TOPDIR)/include -I$(TOPDIR)/usr -D_GNU_SOURCE \
+	  -I$(TOPDIR)/libopeniscsiusr
+
+LDFLAGS += -L$(TOPDIR)/libopeniscsiusr -liscsiusr
 
 all: $(OBJS)
 

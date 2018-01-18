@@ -1,8 +1,42 @@
 # This Makefile will work only with GNU make.
 
+ifeq ($(TOPDIR),)
+	TOPDIR = ..
+endif
+
+OSNAME=$(shell uname -s)
+
+# allow users to override these
+# eg to compile for a kernel that you aren't currently running
+KERNELRELEASE ?= $(shell uname -r)
+KSRC ?= /lib/modules/$(KERNELRELEASE)/build
+
+KSUBLEVEL=$(shell cat $(KSRC)/Makefile | awk -F= '/^SUBLEVEL =/ {print $$2}' | \
+			sed 's/^[ \t]*//;s/[ \t]*$$//')
+
+ifeq ($(OSNAME),Linux)
+	ifeq ($(KSUBLEVEL),11)
+		IPC_CFLAGS=-DNETLINK_ISCSI=12 -D_GNU_SOURCE
+	else
+	ifeq ($(KSUBLEVEL),12)
+		IPC_CFLAGS=-DNETLINK_ISCSI=12 -D_GNU_SOURCE
+	else
+		IPC_CFLAGS=-DNETLINK_ISCSI=8 -D_GNU_SOURCE
+	endif
+	endif
+IPC_OBJ=netlink.o
+else
+ifeq ($(OSNAME),FreeBSD)
+IPC_CFLAGS=
+IPC_OBJ=ioctl.o
+endif
+endif
+
 CFLAGS ?= -O2 -g
 WARNFLAGS ?= -Wall -Wstrict-prototypes
-CFLAGS += $(WARNFLAGS) -I../include -I. -D_GNU_SOURCE
+CFLAGS += $(WARNFLAGS) -I../include -I. -D_GNU_SOURCE \
+	  -I$(TOPDIR)/libopeniscsiusr
+LDFLAGS += -L$(TOPDIR)/libopeniscsiusr -lopeniscsiusr
 PROGRAMS = iscsid iscsiadm iscsistart
 
 # libc compat files
