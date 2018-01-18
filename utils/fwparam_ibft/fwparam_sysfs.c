@@ -221,6 +221,7 @@ static int fill_nic_context(char *subsys, char *id,
 		      sizeof(context->vlan));
 	sysfs_get_str(id, subsys, "subnet-mask", context->mask,
 		      sizeof(context->mask));
+	sysfs_get_int(id, subsys, "prefix-len", &context->prefix);
 	sysfs_get_str(id, subsys, "gateway", context->gateway,
 		      sizeof(context->gateway));
 	sysfs_get_str(id, subsys, "primary-dns", context->primary_dns,

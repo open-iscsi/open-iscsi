@@ -226,6 +226,7 @@ typedef struct iface_rec {
 	char			ipv6_autocfg[NI_MAXHOST];
 	char			linklocal_autocfg[NI_MAXHOST];
 	char			router_autocfg[NI_MAXHOST];
+	uint8_t			prefix_len;
 	uint16_t		vlan_id;
 	uint8_t			vlan_priority;
 	char			vlan_state[ISCSI_MAX_STR_LEN];
