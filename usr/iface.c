@@ -531,7 +531,7 @@ static int __iface_setup_host_bindings(void *data, struct host_info *hinfo)
 					   &nr_found,
 					   iface_setup_binding_from_kern_iface);
 	if (!nr_found)
-		iface_setup_binding_from_kern_iface(hinfo, NULL);	
+		iface_setup_binding_from_kern_iface(hinfo, NULL);
 	return 0;
 }
 

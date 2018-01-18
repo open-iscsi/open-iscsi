@@ -4,7 +4,7 @@
 
 # if you are packaging open-iscsi, set this variable to the location
 # that you want everything installed into.
-DESTDIR ?= 
+DESTDIR ?=
 
 prefix = /usr
 exec_prefix = /
