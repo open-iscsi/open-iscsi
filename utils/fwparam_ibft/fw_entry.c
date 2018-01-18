@@ -215,6 +215,8 @@ static void dump_network(struct boot_context *context)
 		printf("%s = STATIC\n", IFACE_BOOT_PROTO);
 	if (strlen(context->ipaddr))
 		printf("%s = %s\n", IFACE_IPADDR, context->ipaddr);
+	if (context->prefix)
+		printf("%s = %d\n", IFACE_PREFIX_LEN, context->prefix);
 	if (strlen(context->mask))
 		printf("%s = %s\n", IFACE_SUBNET_MASK, context->mask);
 	if (strlen(context->gateway))

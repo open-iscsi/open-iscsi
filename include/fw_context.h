@@ -60,6 +60,7 @@ struct boot_context {
 	/* network settings */
 	int nic_flags;
 	enum ibft_ip_prefix_origin origin;
+	int prefix;
 	char dhcp[NI_MAXHOST];
 	char iface[IF_NAMESIZE];
 	char mac[18];

@@ -74,6 +74,7 @@
 #define IFACE_ISID		"iface.isid"
 #define IFACE_BOOT_PROTO	"iface.bootproto"
 #define IFACE_IPADDR		"iface.ipaddress"
+#define IFACE_PREFIX_LEN	"iface.prefix_len"
 #define IFACE_SUBNET_MASK	"iface.subnet_mask"
 #define IFACE_GATEWAY		"iface.gateway"
 #define IFACE_PRIMARY_DNS	"iface.primary_dns"
