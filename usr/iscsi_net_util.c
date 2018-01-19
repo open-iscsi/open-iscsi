@@ -31,7 +31,7 @@
 #include <linux/sockios.h>
 #include <linux/if_vlan.h>
 #include <net/if_arp.h>
-#include <linux/if_ether.h>
+#include <netinet/if_ether.h>
 
 #include "sysdeps.h"
 #include "ethtool-copy.h"
