@@ -58,6 +58,22 @@
 	} while(0)
 
 static void test_session(struct iscsi_session *se);
+static void test_iface(struct iscsi_iface *iface);
+
+static void test_iface(struct iscsi_iface *iface)
+{
+	assert(iface != NULL);
+	printf("\t#### Interface info ####\n");
+	_assert_print_prop_str_not_empty(iscsi_iface, iface, name);
+	_assert_print_prop_str_not_empty(iscsi_iface, iface, ipaddress);
+	_assert_print_prop_str_not_empty(iscsi_iface, iface, transport_name);
+	_assert_print_prop_str_not_empty(iscsi_iface, iface, iname);
+	_assert_print_prop_str_can_empty(iscsi_iface, iface, hwaddress);
+	_assert_print_prop_str_can_empty(iscsi_iface, iface, netdev);
+	_assert_print_prop_str_can_empty(iscsi_iface, iface, port_state);
+	_assert_print_prop_str_can_empty(iscsi_iface, iface, port_speed);
+	printf("\t########################\n");
+}
 
 static void test_session(struct iscsi_session *se)
 {
@@ -99,6 +115,7 @@ int main()
 		printf("\nGot %" PRIu32 " iSCSI sessions\n", se_count);
 		for (i = 0; i < se_count; ++i) {
 			test_session(ses[i]);
+			test_iface(iscsi_session_iface_get(ses[i]));
 		}
 		iscsi_sessions_free(ses, se_count);
 	}

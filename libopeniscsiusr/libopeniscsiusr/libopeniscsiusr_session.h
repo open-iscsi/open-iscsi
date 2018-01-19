@@ -328,4 +328,24 @@ __DLL_EXPORT const char *iscsi_session_address_get
  */
 __DLL_EXPORT int32_t iscsi_session_port_get(struct iscsi_session *se);
 
+/**
+ * iscsi_session_address_get() - Retrieve iSCSI interface information of
+ * specified session
+ *
+ * Retrieve the iSCSI interface information of specified iSCSI session.
+ * For the properties of 'struct iscsi_iface', please refer to the functions
+ * defined in 'libopeniscsiusr_iface.h' file.
+ *
+ * @se:
+ *	Pointer of 'struct iscsi_session'.
+ *	If this pointer is NULL, your program will be terminated by assert.
+ *
+ * Return:
+ *	Pointer of 'struct iscsi_iface'. NULL if not supported.
+ *	No need to free this memory, the resources will get freed by
+ *	iscsi_session_free() or iscsi_sessions_free().
+ */
+__DLL_EXPORT struct iscsi_iface *iscsi_session_iface_get
+	(struct iscsi_session *se);
+
 #endif /* End of _LIB_OPEN_ISCSI_USR_SESSION_H_ */

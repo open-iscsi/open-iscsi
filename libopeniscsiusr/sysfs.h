@@ -25,6 +25,9 @@
 
 #define _ISCSI_SYS_SESSION_DIR		"/sys/class/iscsi_session"
 #define _ISCSI_SYS_CONNECTION_DIR	"/sys/class/iscsi_connection"
+#define _ISCSI_SYS_HOST_DIR		"/sys/class/iscsi_host"
+#define _ISCSI_SYS_IFACE_DIR		"/sys/class/iscsi_iface"
+#define _SCSI_SYS_HOST_DIR		"/sys/class/scsi_host"
 
 /*
  * When default_value == NULL, treat no such file as LIB_BUG.
@@ -47,5 +50,8 @@ __DLL_LOCAL int _sysfs_prop_get_u32(struct iscsi_context *ctx,
 __DLL_LOCAL int _sysfs_prop_get_i32(struct iscsi_context *ctx,
 				    const char *dir_path, const char *prop_name,
 				    int32_t *val, int32_t default_value);
+
+__DLL_LOCAL int _iscsi_host_id_of_session(struct iscsi_context *ctx,
+					  uint32_t sid, uint32_t *host_id);
 
 #endif /* End of __ISCSI_USR_SYSFS_H__ */

@@ -35,6 +35,7 @@
 #include "libopeniscsiusr/libopeniscsiusr.h"
 #include "misc.h"
 #include "sysfs.h"
+#include "iface.h"
 
 #define _ISCSI_NAME_MAX_LEN		223
 /* ^ RFC 3720:
@@ -80,6 +81,7 @@ struct iscsi_session {
 	char address[NI_MAXHOST + 1];
 
 	int32_t port;
+	struct iscsi_iface *iface;
 };
 
 static uint32_t session_str_to_sid(const char *session_str);
@@ -99,6 +101,7 @@ _iscsi_getter_func_gen(iscsi_session, abort_tmo, int32_t);
 _iscsi_getter_func_gen(iscsi_session, tpgt, int32_t);
 _iscsi_getter_func_gen(iscsi_session, address, const char *);
 _iscsi_getter_func_gen(iscsi_session, port, int32_t);
+_iscsi_getter_func_gen(iscsi_session, iface, struct iscsi_iface *);
 
 /*
  * The session string is "session%u" used by /sys/class/iscsi_session/session%u.
@@ -119,6 +122,7 @@ int iscsi_session_get(struct iscsi_context *ctx, uint32_t sid,
 	int rc = LIBISCSI_OK;
 	char sysfs_se_dir_path[PATH_MAX];
 	char sysfs_con_dir_path[PATH_MAX];
+	uint32_t host_id = 0;
 
 	assert(ctx != NULL);
 	assert(se != NULL);
@@ -243,6 +247,12 @@ int iscsi_session_get(struct iscsi_context *ctx, uint32_t sid,
 	    ((*se)->port == -1))
 		(*se)->port = (*se)->persistent_port;
 
+	_good(_iscsi_host_id_of_session(ctx, sid, &host_id), rc, out);
+
+	_good(_iscsi_iface_get(ctx, host_id, sid, NULL /*iface kernel id */,
+			       &((*se)->iface)),
+	      rc, out);
+
 out:
 	if (rc != LIBISCSI_OK) {
 		iscsi_session_free(*se);
@@ -323,6 +333,8 @@ out:
 
 void iscsi_session_free(struct iscsi_session *se)
 {
+	if (se != NULL)
+		_iscsi_iface_free(se->iface);
 	free(se);
 }
 

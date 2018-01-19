@@ -34,11 +34,12 @@ LIBS_MAJOR = $(DEVLIB).$(LIBISCSI_USR_VERSION_MAJOR)
 PKGFILE = libopeniscsiusr.pc
 HEADERS = libopeniscsiusr/libopeniscsiusr.h \
 	  libopeniscsiusr/libopeniscsiusr_common.h \
-	  libopeniscsiusr/libopeniscsiusr_session.h
+	  libopeniscsiusr/libopeniscsiusr_session.h \
+	  libopeniscsiusr/libopeniscsiusr_iface.h
 TESTS = tests/test_context tests/test_session
 EXTRA_MAN_FILES = libopeniscsiusr.h.3
 
-OBJS = context.o misc.o session.o sysfs.o
+OBJS = context.o misc.o session.o sysfs.o iface.o
 
 CFLAGS ?= -O2 -g
 CFLAGS += -Wall -Werror -Wextra -fvisibility=hidden -fPIC

@@ -28,6 +28,7 @@ extern "C" {
 
 #include "libopeniscsiusr_common.h"
 #include "libopeniscsiusr_session.h"
+#include "libopeniscsiusr_iface.h"
 
 /**
  * iscsi_log_priority_str() - Convert log priority to string.

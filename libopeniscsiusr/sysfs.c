@@ -48,6 +48,9 @@ static int iscsi_sysfs_prop_get_ll(struct iscsi_context *ctx,
 				   const char *dir_path, const char *prop_name,
 				   long long int *val,
 				   long long int default_value);
+static int sysfs_get_dev_path(struct iscsi_context *ctx, const char *path,
+			      char *dev_path);
+
 /*
  * dev_path should be char[PATH_MAX].
  */
@@ -238,5 +241,111 @@ int _sysfs_prop_get_i32(struct iscsi_context *ctx, const char *dir_path,
 
 	if (rc == LIBISCSI_OK)
 		*val = tmp_val & INT32_MAX;
+	return rc;
+}
+
+static int sysfs_get_dev_path(struct iscsi_context *ctx, const char *path,
+			      char *dev_path)
+{
+	int rc = LIBISCSI_OK;
+	int errno_save = 0;
+	regex_t regex;
+	regmatch_t reg_match[2];
+	int reg_rc = 0;
+	int need_free_reg = 0;
+
+	assert(ctx != NULL);
+	assert(path != NULL);
+	assert(dev_path != NULL);
+
+	memset(dev_path, 0, PATH_MAX);
+
+	if (realpath(path, dev_path) == NULL) {
+		errno_save = errno;
+		rc = LIBISCSI_ERR_SYSFS_LOOKUP;
+		_error(ctx, "realpath() failed on %s with error %d", path,
+		       errno_save);
+		goto out;
+	}
+
+	reg_rc = regcomp(&regex,
+			 "\\(.\\{1,\\}/devices/.\\{1,\\}/host[0-9]\\{1,\\}\\)/"
+			 "session[0-9]\\{1,\\}/iscsi_session/",
+			 0 /* no flag */);
+	/* ^ BUG(Gris Ge): This is based on GUESS, should check linux kernel
+	 *		   code on this
+	 */
+	if (reg_rc != 0) {
+		rc = LIBISCSI_ERR_SYSFS_LOOKUP;
+		_error(ctx, "regcomp() failed %d", reg_rc);
+		goto out;
+	}
+	need_free_reg = 1;
+	if (regexec(&regex, dev_path, 2 /* count of max matches */,
+		    reg_match, 0 /* no flags */) != 0) {
+		rc = LIBISCSI_ERR_SYSFS_LOOKUP;
+		_error(ctx, "regexec() not match for %s", dev_path);
+		goto out;
+	}
+
+	*(dev_path + reg_match[1].rm_eo ) = '\0';
+
+	_debug(ctx, "Got dev path of '%s': '%s'", path, dev_path);
+
+out:
+	if (need_free_reg)
+		regfree(&regex);
+	if (rc != LIBISCSI_OK)
+		memset(dev_path, 0, PATH_MAX);
+	return rc;
+}
+
+int _iscsi_host_id_of_session(struct iscsi_context *ctx, uint32_t sid,
+			      uint32_t *host_id)
+{
+	int rc = LIBISCSI_OK;
+	char sys_se_dir_path[PATH_MAX];
+	char sys_dev_path[PATH_MAX];
+	char sys_scsi_host_dir_path[PATH_MAX];
+	struct dirent **namelist = NULL;
+	int n = 0;
+	const char *host_id_str = NULL;
+	int i = 0;
+
+	assert(ctx != NULL);
+	assert(sid != 0);
+	assert(host_id != NULL);
+
+	snprintf(sys_se_dir_path, PATH_MAX, "%s/session%" PRIu32,
+		 _ISCSI_SYS_SESSION_DIR, sid);
+
+	*host_id = 0;
+
+	_good(sysfs_get_dev_path(ctx, sys_se_dir_path, sys_dev_path), rc, out);
+
+	snprintf(sys_scsi_host_dir_path, PATH_MAX, "%s/iscsi_host/",
+		 sys_dev_path);
+
+	n = scandir(sys_scsi_host_dir_path, &namelist, _scan_filter_skip_dot,
+		    alphasort);
+	if (n != 1) {
+		rc = LIBISCSI_ERR_SYSFS_LOOKUP;
+		_error(ctx, "Got unexpected(should be 1) file in folder %s",
+		       sys_scsi_host_dir_path);
+		goto out;
+	}
+	host_id_str = namelist[0]->d_name;
+
+	if (sscanf(host_id_str, "host%" SCNu32, host_id) != 1) {
+		rc = LIBISCSI_ERR_SYSFS_LOOKUP;
+		_error(ctx, "sscanf() failed on string %s", host_id_str);
+		goto out;
+	}
+
+out:
+	for (i = n - 1; i >= 0; --i)
+		free(namelist[i]);
+	free(namelist);
+
 	return rc;
 }
