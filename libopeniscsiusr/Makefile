@@ -33,11 +33,12 @@ LIBS = $(DEVLIB).$(SONAME)
 LIBS_MAJOR = $(DEVLIB).$(LIBISCSI_USR_VERSION_MAJOR)
 PKGFILE = libopeniscsiusr.pc
 HEADERS = libopeniscsiusr/libopeniscsiusr.h \
-	  libopeniscsiusr/libopeniscsiusr_common.h
-TESTS = tests/test_context
+	  libopeniscsiusr/libopeniscsiusr_common.h \
+	  libopeniscsiusr/libopeniscsiusr_session.h
+TESTS = tests/test_context tests/test_session
 EXTRA_MAN_FILES = libopeniscsiusr.h.3
 
-OBJS = context.o misc.o
+OBJS = context.o misc.o session.o sysfs.o
 
 CFLAGS ?= -O2 -g
 CFLAGS += -Wall -Werror -Wextra -fvisibility=hidden -fPIC
@@ -50,16 +51,16 @@ $(LIBS): $(OBJS)
 	$(CC) $(LDFLAGS) -shared -Wl,-soname=$@ -o $@ $(OBJS) $(LIBADD)
 	ln -sf $@ $(DEVLIB)
 
-$(LIBS_MAJOR):
+$(LIBS_MAJOR): $(LIBS)
 	ln -sf $(LIBS) $@
 
 clean:
 	$(RM) vgcore* core *.a *.o *.gz *.so *.so.* $(TESTS)
 	$(RM) -r docs/man
 
-$(TESTS): CFLAGS = -Wall -Werror -Wextra -I$(TOPDIR)/libopeniscsiusr -g
-$(TESTS): LDFLAGS += $(LIBADD) -L$(TOPDIR)/libopeniscsiusr -lopeniscsiusr
 $(TESTS): $(LIBS)
+$(TESTS): CFLAGS += -I$(TOPDIR)/libopeniscsiusr -g
+$(TESTS): LDFLAGS += $(LIBADD) -L$(TOPDIR)/libopeniscsiusr -lopeniscsiusr
 
 check: $(LIBS) $(TESTS)
 	sudo env LD_LIBRARY_PATH=$(LIBISCSI_USR_DIR) TESTS="$(TESTS)" \

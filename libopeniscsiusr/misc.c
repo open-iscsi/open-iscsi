@@ -23,6 +23,7 @@
 #include <errno.h>
 #include <dirent.h>
 #include <string.h>
+#include <unistd.h>
 
 #include "libopeniscsiusr/libopeniscsiusr.h"
 #include "misc.h"
@@ -46,7 +47,7 @@ const char *func_name(var_type var) { \
 	size_t i = 0; \
 	uint32_t tmp_var = var & UINT32_MAX; \
 	errno = 0; \
-	/* In the whole libiscsi, we don't have negative value */ \
+	/* In the whole libopeniscsiusr, we don't have negative value */ \
 	for (; i < sizeof(conv_array)/sizeof(conv_array[0]); ++i) { \
 		if ((conv_array[i].value) == tmp_var) \
 			return conv_array[i].str; \
@@ -57,6 +58,11 @@ const char *func_name(var_type var) { \
 
 static const struct _num_str_conv _ISCSI_RC_MSG_CONV[] = {
 	{LIBISCSI_OK, "OK"},
+	{LIBISCSI_ERR_BUG, "BUG of libopeniscsiusr library"},
+	{LIBISCSI_ERR_SESS_NOT_FOUND, "Specified iSCSI session not found"},
+	{LIBISCSI_ERR_ACCESS, "Permission deny"},
+	{LIBISCSI_ERR_NOMEM, "Out of memory"},
+	{LIBISCSI_ERR_SYSFS_LOOKUP, "Could not lookup object in sysfs"},
 };
 
 _iscsi_str_func_gen(iscsi_strerror, int, rc, _ISCSI_RC_MSG_CONV);
@@ -102,4 +108,17 @@ void _iscsi_log(struct iscsi_context *ctx, int priority, const char *file,
 	va_start(args, format);
 	ctx->log_func(ctx, priority, file, line, func_name, format, args);
 	va_end(args);
+}
+
+int _scan_filter_skip_dot(const struct dirent *dir)
+{
+	return strcmp(dir->d_name, ".") && strcmp(dir->d_name, "..");
+}
+
+bool _file_exists(const char *path)
+{
+	if (access(path, F_OK) == 0)
+		return true;
+	else
+		return false;
 }

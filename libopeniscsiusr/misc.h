@@ -20,12 +20,12 @@
 #define __ISCSI_USR_MISC_H__
 
 #include <stdint.h>
-#include <string.h>
+#include <stdbool.h>
+#include <assert.h>
 #include <stdarg.h>
-#include <stdlib.h>
 #include <dirent.h>
 
-#include "libopeniscsiusr/libopeniscsiusr_common.h"
+#include "libopeniscsiusr/libopeniscsiusr.h"
 
 #define _good(rc, rc_val, out) \
 	do { \
@@ -65,5 +65,22 @@ __DLL_LOCAL void _iscsi_log_stderr(struct iscsi_context *ctx, int priority,
 		assert(d != NULL); \
 		return d->prop_name; \
 	}
+
+/*
+ * Check pointer returned by malloc() or strdup() or calloc(), if NULL, set
+ * rc as LIBISCSI_ERR_NO_MEMORY, report error and goto goto_out.
+ */
+#define _alloc_null_check(ctx, ptr, rc, goto_out) \
+	do { \
+		if (ptr == NULL) { \
+			rc = LIBISCSI_ERR_NOMEM; \
+			_error(ctx, iscsi_strerror(rc)); \
+			goto goto_out; \
+		} \
+	} while(0)
+
+__DLL_LOCAL int _scan_filter_skip_dot(const struct dirent *dir);
+
+__DLL_LOCAL bool _file_exists(const char *path);
 
 #endif /* End of __ISCSI_USR_MISC_H__ */

@@ -60,7 +60,27 @@ below in case you want to take it as an example to create your own log handler.
 
 .SH "SAMPLE CODE"
 
-TODO, will add the sample code once we have real iscsi functions.
+        struct iscsi_context *ctx = NULL;
+        struct iscsi_session **ses = NULL;
+        uint32_t se_count = 0;
+        uint32_t i = 0;
+        int rc = EXIT_SUCCESS;
+
+        ctx = iscsi_context_new();
+        iscsi_context_log_priority_set(ctx, LIBISCSI_LOG_PRIORITY_DEBUG);
+
+        if (iscsi_sessions_get(ctx, &ses, &se_count) != LIBISCSI_OK) {
+                printf("FAILED\n");
+                rc = EXIT_FAILURE;
+        } else {
+                printf("\nGot %" PRIu32 " iSCSI sessions\n", se_count);
+                for (i = 0; i < se_count; ++i)
+                        printf("SID is %" PRIu32 "\n",
+                               iscsi_session_sid_get(ses[i]));
+                iscsi_sessions_free(ses, se_count);
+        }
+        iscsi_context_free(ctx);
+        exit(rc);
 
 .SH "LICENSE"
 GPLv3+

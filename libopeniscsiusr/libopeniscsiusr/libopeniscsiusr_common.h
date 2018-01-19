@@ -21,7 +21,26 @@
 #ifndef _LIB_OPEN_ISCSI_USR_COMMON_H_
 #define _LIB_OPEN_ISCSI_USR_COMMON_H_
 
+#include <errno.h>
+
+/* Below error numbers should align with 'open-iscsi/include/iscsi_err.h' */
 #define LIBISCSI_OK			0
+/* ^ No error */
+
+#define LIBISCSI_ERR_BUG		1
+/* ^ Bug of library */
+
+#define LIBISCSI_ERR_SESS_NOT_FOUND	2
+/* ^ session could not be found */
+
+#define LIBISCSI_ERR_NOMEM		3
+/* ^ Could not allocate resource for operation */
+
+#define LIBISCSI_ERR_ACCESS		13
+/* ^ Permission denied */
+
+#define LIBISCSI_ERR_SYSFS_LOOKUP	22
+/* ^ Could not lookup object in sysfs */
 
 /*
  * Use the syslog severity level as log priority
@@ -33,8 +52,6 @@
 
 #define LIBISCSI_LOG_PRIORITY_DEFAULT	LIBISCSI_LOG_PRIORITY_WARNING
 
-/* TODO(Gris Ge): Documentation */
-
 #define __DLL_EXPORT	__attribute__ ((visibility ("default")))
 /* ^ Mark function or struct as external use.
  *   Check https://gcc.gnu.org/wiki/Visibility for detail
@@ -45,5 +62,7 @@
  */
 
 struct __DLL_EXPORT iscsi_context;
+
+struct __DLL_EXPORT iscsi_session;
 
 #endif /* End of _LIB_OPEN_ISCSI_USR_COMMON_H_ */
