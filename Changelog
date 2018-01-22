@@ -1,3 +1,61 @@
+open-iscsi-2.0-875 - open-iscsi-2.0.876
+
+Chris Leech (2):
+      delete old kernel code
+      delete unused BSD stub code
+
+Gris Ge (6):
+      Remove white spaces.
+      Fix memory leak of session_info_print_tree() in usr/session_info.c.
+      Introducing iSCSI userspace library.
+      libopeniscsiusr: Add iSCSI session support.
+      libopeniscsiusr: Add basic iface support into iscsi session.
+      libopeniscsiusr: Use libopeniscsiusr in iscsiadm
+
+Khazhismel Kumykov (1):
+      iscsi_if.h: use attribute instead of '__packed'
+
+Lee Duncan (37):
+      Fix duplicate define of __bitwise
+      Fix compiler warning: possible string truncation
+      Replace deprecated _SVID_SOURCE with _DEFAULT_SOURCE
+      Rename local strings.[ch] to local_strings.[ch]
+      Fix compiler warnings about string overflows in prom_parse
+      Ignore library file for iscsiuio/src
+      Fix undefined call to writev(): include <sys/uio.h>
+      Remove unused variables. No functional change.
+      Include <sys/sysmacros.h> to properly define minor()
+      Declare inline best_match_bufcmp() as static.
+      Merge pull request #69 from gonzoleeman/new-compiler-fixes
+      Merge pull request #3 from open-iscsi/master
+      Check for root peer user for iscsiuio IPC
+      iscsiuio should ignore bogus iscsid broadcast packets
+      Ensure all fields in iscsiuio IPC response are set
+      Do not double-close IPC file stream to iscsid
+      Ensure strings from peer are copied correctly.
+      Skip useless strcopy, and validate CIDR length
+      Check iscsiuio ping data length for validity
+      tell git to ignore the iscsiuio binary
+      Merge pull request #72 from gonzoleeman/iscsiuio-fixes
+      Automate logging into iSCSI FW targets.
+      Ignore common build output files
+      Merge pull request #78 from gonzoleeman/updates/ignore-standard-build-files
+      Merge pull request #79 from gonzoleeman/updates/add-iscsi_fw_login
+      Merge pull request #80 from cleech/master
+      Cleanup iscsiuio master Makefile template.
+      Update iscsid.conf attribute iscsid.startup.
+      Merge pull request #81 from gonzoleeman/updates/iscsid.conf-changes-v2
+      Merge pull request #82 from gonzoleeman/updates/iscsiuio-Makefile.am-updates
+      Add in tracking IP prefix length, in addition to mask.
+      Add some scripts and manpages to the top Makefile.
+      Merge pull request #83 from gonzoleeman/fixes/update-top-level-makefile
+      Merge pull request #84 from gonzoleeman/fixes/add_ip_prefix
+      Discovery via non-tcp transport needs "ipc" value
+      Merge pull request #85 from gonzoleeman/fixes/ipc-should-not-be-null
+      Do not set LDFLAGS directly in usr/Makefile
+      remove kernel subdir from clean Makefile target
+
+
 open-iscsi-2.0-874 - open-iscsi-2.0.875
 
 Andrew Patterson (3):
