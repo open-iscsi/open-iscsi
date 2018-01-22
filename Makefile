@@ -76,7 +76,6 @@ clean:
 	$(MAKE) -C utils/fwparam_ibft clean
 	$(MAKE) -C utils clean
 	$(MAKE) -C usr clean
-	$(MAKE) -C kernel clean
 	$(MAKE) -C libopeniscsiusr clean
 	[ ! -f iscsiuio/Makefile ] || $(MAKE) -C iscsiuio clean
 	[ ! -f iscsiuio/Makefile ] || $(MAKE) -C iscsiuio distclean
