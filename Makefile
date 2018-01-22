@@ -26,6 +26,8 @@ ETCFILES = etc/iscsid.conf
 IFACEFILES = etc/iface.example
 RULESFILES = utils/50-iscsi-firmware-login.rules
 
+export DESTDIR prefix INSTALL
+
 # Compatibility: parse old OPTFLAGS argument
 ifdef OPTFLAGS
 CFLAGS = $(OPTFLAGS)
@@ -44,6 +46,7 @@ endif
 all: user
 
 user: iscsiuio/Makefile
+	$(MAKE) -C libopeniscsiusr
 	$(MAKE) -C utils/sysdeps
 	$(MAKE) -C utils/fwparam_ibft
 	$(MAKE) -C usr
@@ -56,6 +59,7 @@ user: iscsiuio/Makefile
 	@echo "Built management application:        usr/iscsiadm"
 	@echo "Built boot tool:                     usr/iscsistart"
 	@echo "Built iscsiuio daemon:               iscsiuio/src/unix/iscsiuio"
+	@echo "Built libopeniscsiusr library:           libopeniscsiusr/libopeniscsiusr.so"
 	@echo
 	@echo "Read README file for detailed information."
 
@@ -72,6 +76,8 @@ clean:
 	$(MAKE) -C utils/fwparam_ibft clean
 	$(MAKE) -C utils clean
 	$(MAKE) -C usr clean
+	$(MAKE) -C kernel clean
+	$(MAKE) -C libopeniscsiusr clean
 	[ ! -f iscsiuio/Makefile ] || $(MAKE) -C iscsiuio clean
 	[ ! -f iscsiuio/Makefile ] || $(MAKE) -C iscsiuio distclean
 
@@ -83,7 +89,7 @@ clean:
 	install_etc install_iface install_doc install_iname
 
 install: install_programs install_doc install_etc \
-	install_initd install_iname install_iface
+	install_initd install_iname install_iface install_libopeniscsiusr
 
 install_user: install_programs install_doc install_etc \
 	install_initd install_iname install_iface
@@ -147,6 +153,9 @@ install_iname:
 		echo "To override edit $(DESTDIR)/etc/iscsi/initiatorname.iscsi" ; \
 		echo "***************************************************" ; \
 	fi
+
+install_libopeniscsiusr:
+	$(MAKE) -C libopeniscsiusr install
 
 depend:
 	for dir in usr utils utils/fwparam_ibft; do \

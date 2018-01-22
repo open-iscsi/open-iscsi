@@ -1,0 +1,69 @@
+.TH "libopeniscsiusr.h" 3 "November 2017" "iSCSI userspace API - libopeniscsiusr Manual"
+
+.SH NAME
+libopeniscsiusr.h \- iSCSI userspace API.
+
+.SH SYNOPSIS
+#include <libopeniscsiusr/libopeniscsiusr.h>
+
+.SH "DESCRIPTION"
+
+All the libopeniscsiusr public functions ship their own man pages.
+You may use 'man -k iscsi' to find out and use 'man 3 <function_name>' to check
+the detail usage.
+
+.SH "USAGE"
+
+To use libopeniscsiusr in your project, we suggest to use the 'pkg-config' way:
+
+ * Add this line into your configure.ac:
+
+    PKG_CHECK_MODULES([LIBISCSIUSR], [libopeniscsiusr])
+
+ * Add these lines into your Makefile.am:
+
+    foo_LDFLAGS += $(LIBISCSIUSR_LIBS)
+    foo_CFLAGS += $(LIBISCSIUSR_CFLAGS)
+
+.SH LOG HANDLING
+
+The log handler function could be set via 'iscsi_context_log_func_set()'.
+The log priority could be set via 'iscsi_context_log_priority_set()'.
+
+By default, the log priorities is 'LIBISCSI_LOG_PRIORITY_WARNING'.
+By default, the log handler is print log to STDERR, and its code is listed
+below in case you want to take it as an example to create your own log handler.
+
+        #define _ISCSI_LOG_STRERR_ALIGN_WIDTH   80
+
+        void _iscsi_log_stderr(struct iscsi_context *ctx, int priority,
+                               const char *file, int line,
+                               const char *func_name,
+                               const char *format, va_list args)
+        {
+                int printed_bytes = 0;
+
+                printed_bytes += fprintf(stderr, "iSCSI %s: ",
+                                         iscsi_log_priority_str(priority));
+                printed_bytes += vfprintf(stderr, format, args);
+
+                if (printed_bytes < _ISCSI_LOG_STRERR_ALIGN_WIDTH) {
+                        fprintf(stderr, "%*s # %s:%s():%d\n",
+                                _ISCSI_LOG_STRERR_ALIGN_WIDTH - printed_bytes,
+                                "", file, func_name, line);
+                } else {
+                        fprintf(stderr, " # %s:%s():%d\n", file, func_name,
+                                line);
+                }
+        }
+
+
+.SH "SAMPLE CODE"
+
+TODO, will add the sample code once we have real iscsi functions.
+
+.SH "LICENSE"
+GPLv3+
+
+.SH "BUG"
+Please report bug to https://github.com/open-iscsi/open-iscsi/issues

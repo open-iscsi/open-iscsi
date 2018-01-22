@@ -1,0 +1,9 @@
+includedir=__INCLUDE_DIR__
+libdir=__LIB_DIR__
+
+Name: libopeniscsiusr
+Version: __VERSION__
+Description: iSCSI userspace library
+Requires:
+Libs: -L${libdir} -liscsiusr
+Cflags: -I${includedir}
