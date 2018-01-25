@@ -342,7 +342,7 @@ void iscsi_sessions_free(struct iscsi_session **ses, uint32_t se_count)
 {
 	uint32_t i = 0;
 
-	if (ses == NULL)
+	if ((ses == NULL) || (se_count == 0))
 		return;
 
 	for (i = 0; i < se_count; ++i)
