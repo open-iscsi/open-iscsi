@@ -30,6 +30,7 @@
 #include <netdb.h>
 #include <assert.h>
 #include <inttypes.h>
+#include <limits.h>
 
 #include "libopeniscsiusr/libopeniscsiusr.h"
 #include "misc.h"
