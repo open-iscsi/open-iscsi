@@ -1,7 +1,7 @@
                               Release Notes
                         QLogic uIP Linux Driver
-                            Version 0.7.8.3
-                               9/28/2016
+                            Version 0.7.8.4
+                               2/22/2018
 
                           QLogic Corporation
                         26650 Aliso Viejo Pkwy,
@@ -11,6 +11,41 @@
                    Copyright (c) 2014, QLogic Corporation
                            All rights reserved
 
+
+
+uIP v0.7.8.4 (Feb 22, 2018)
+=======================================================
+    Fixes:
+    -------
+      1. Problem: CQ95605: iSCSI BFS in DHCP config intermittently fails to boot
+                  into the OS when source and destination addresses are in
+                  different networks.
+         Change: Allow ARP for non-matching source and destination addresses.
+                 For source and destination IP addresses in different networks,
+                 continue with the ARP retries and further login process
+                 instead of assuming abrupt failure. iSCSI offload adapters
+                 may not rely on netmask information for successful iSCSI
+                 target login.
+         Impact: All
+
+uIP v0.7.8.3 (May 18, 2017)
+=======================================================
+    Fixes:
+    -------
+      1. Problem: CQ93985: iscsiuio seg faults if discovery done to not
+                  reachable target
+         Change: Serialize xmit_mutex lock to prevent iscsiuio seg fault.
+         Impact: All
+
+      2. Problem: CQ91497 - Initiator fails to acquire IPv6 DHCP address
+                  from the DHCP server
+         Change: Initialize the transaction-id within the dhcpv6 packet with
+                 correct byte order, to fix the trans-id mismatch error.
+         Impact: All
+
+      3. Problem: Missing qedi ping transport hook
+         Change: Add qedi ping transport hook
+         Impact: 10/25/40/50GGbE Controller (iSCSI)
 
 uIP v0.7.8.3 (Sept 28, 2016)
 =======================================================
