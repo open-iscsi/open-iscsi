@@ -362,9 +362,8 @@ int cnic_handle_ipv4_iscsi_path_req(nic_t *nic, int fd,
 			       &nic_iface->ustack.default_route_addr,
 			       sizeof(dst_addr));
 		} else {
-			arp_retry = MAX_ARP_RETRY;
-			LOG_DEBUG(PFX "%s: no default", nic->log_name);
-			goto done;
+			LOG_DEBUG(PFX "%s: no default route address",
+				  nic->log_name);
 		}
 	}
 	arp_retry = 0;
