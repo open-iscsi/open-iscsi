@@ -438,7 +438,7 @@ int main(int argc, char *argv[])
 			log_close(log_pid);
 			exit(ISCSI_ERR);
 		} else if (pid) {
-			log_error("iSCSI daemon with pid=%d started!", pid);
+			log_info("iSCSI daemon with pid=%d started!", pid);
 			exit(0);
 		}
 
