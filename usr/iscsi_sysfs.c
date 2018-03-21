@@ -1153,7 +1153,7 @@ int iscsi_sysfs_for_each_iface_on_host(void *data, uint32_t host_no,
 	int rc = 0, i, n;
 	struct iface_rec iface;
         char devpath[PATH_SIZE];
-        char sysfs_path[PATH_SIZE];
+        char sysfs_dev_iscsi_iface_path[PATH_SIZE];
         char id[NAME_SIZE];
 
         snprintf(id, sizeof(id), "host%u", host_no);
@@ -1163,11 +1163,11 @@ int iscsi_sysfs_for_each_iface_on_host(void *data, uint32_t host_no,
                 return ISCSI_ERR_SYSFS_LOOKUP;
         }
 
-	sprintf(sysfs_path, "/sys");
-	strlcat(sysfs_path, devpath, sizeof(sysfs_path));
-	strlcat(sysfs_path, "/iscsi_iface", sizeof(sysfs_path));
+	sprintf(sysfs_dev_iscsi_iface_path, "/sys");
+	strlcat(sysfs_dev_iscsi_iface_path, devpath, sizeof(sysfs_dev_iscsi_iface_path));
+	strlcat(sysfs_dev_iscsi_iface_path, "/iscsi_iface", sizeof(sysfs_dev_iscsi_iface_path));
 
-	n = scandir(sysfs_path, &namelist, trans_filter, alphasort);
+	n = scandir(sysfs_dev_iscsi_iface_path, &namelist, trans_filter, alphasort);
 	if (n <= 0)
 		/* older kernels or some drivers will not have ifaces */
 		return 0;
