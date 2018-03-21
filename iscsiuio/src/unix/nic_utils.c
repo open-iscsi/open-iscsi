@@ -305,7 +305,7 @@ static int nic_util_enable_disable_multicast(nic_t *nic, uint32_t cmd)
 	/* Prepare the request */
 	memset(&ifr, 0, sizeof(ifr));
 	strncpy(ifr.ifr_name, nic->eth_device_name,
-		sizeof(nic->eth_device_name));
+		sizeof(ifr.ifr_name));
 	memcpy(ifr.ifr_hwaddr.sa_data, multicast_addr.addr, ETH_ALEN);
 
 	fd = socket(AF_INET, SOCK_DGRAM, 0);
