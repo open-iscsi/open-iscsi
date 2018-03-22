@@ -10,3 +10,4 @@ libopeniscsiusr/docs/man/
 # ^ This folder is used for kernel-doc generated manpages.
 libopeniscsiusr/tests/test_context
 libopeniscsiusr/tests/test_session
+libopeniscsiusr/tests/test_iface

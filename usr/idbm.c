@@ -1237,14 +1237,6 @@ int idbm_print_node_info(void *data, node_rec_t *rec)
 	return 0;
 }
 
-int idbm_print_iface_info(void *data, struct iface_rec *iface)
-{
-	int show = *((int *)data);
-
-	idbm_print(IDBM_PRINT_TYPE_IFACE, iface, show, stdout);
-	return 0;
-}
-
 int idbm_print_host_chap_info(struct iscsi_chap_rec *chap)
 {
 	/* User only calls this to print chap so always print */
@@ -1956,7 +1948,7 @@ idbm_discovery_read(discovery_rec_t *out_rec, int drec_type,
 	idbm_recinfo_config(info, f);
 	fclose(f);
 
-unlock:	
+unlock:
 	idbm_unlock();
 free_info:
 	free(portal);
@@ -2085,7 +2077,7 @@ static int idbm_rec_write(node_rec_t *rec)
 	} else {
 		rc = ISCSI_ERR_INVAL;
 		goto unlock;
-	}	
+	}
 
 mkdir_portal:
 	snprintf(portal, PATH_MAX, "%s/%s/%s,%d,%d", NODE_CONFIG_DIR,
@@ -2453,7 +2445,7 @@ int idbm_bind_ifaces_to_nodes(idbm_disc_nodes_fn *disc_node_fn,
 	}
 	return 0;
 
-fail:	
+fail:
 	list_for_each_entry_safe(iface, tmp_iface, &def_ifaces, list) {
 		list_del(&iface->list);
 		free(iface);

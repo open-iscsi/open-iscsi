@@ -1091,6 +1091,7 @@ static int iscsi_sysfs_read_iface(struct iface_rec *iface, int host_no,
 	if (sscanf(iface_kern_id, "ipv%d-iface-%u-%u", &iface_type,
 		   &tmp_host_no, &iface_num) == 3)
 		iface->iface_num = iface_num;
+
 done:
 	if (ret)
 		return ISCSI_ERR_SYSFS_LOOKUP;
