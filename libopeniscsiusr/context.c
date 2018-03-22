@@ -44,12 +44,19 @@ struct iscsi_context *iscsi_context_new(void)
 	ctx->log_func = _iscsi_log_stderr;
 	ctx->log_priority = LIBISCSI_LOG_PRIORITY_DEFAULT;
 	ctx->userdata = NULL;
+	ctx->db = _idbm_new();
+	if (ctx->db == NULL) {
+		free(ctx);
+		return NULL;
+	}
 
 	return ctx;
 }
 
 void iscsi_context_free(struct iscsi_context *ctx)
 {
+	if (ctx != NULL)
+		_idbm_free(ctx->db);
 	free(ctx);
 }
 

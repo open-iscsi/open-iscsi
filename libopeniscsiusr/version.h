@@ -16,19 +16,15 @@
  *
  * Author: Gris Ge <fge@redhat.com>
  */
-#ifndef __ISCSI_USR_CONTEXT_H__
-#define __ISCSI_USR_CONTEXT_H__
 
-#include "idbm.h"
+#ifndef __ISCSI_OPEN_USR_VERSION_H__
+#define __ISCSI_OPEN_USR_VERSION_H__
 
-struct iscsi_context {
-	void (*log_func)(struct iscsi_context *ctx, int priority,
-			 const char *file, int line, const char *func_name,
-			 const char *format, va_list args);
-	int log_priority;
-	void *userdata;
-	struct idbm *db;
-};
+/*
+ * iSCSI tools version.
+ * This may not be the same value as the kernel versions because
+ * some other maintainer could merge a patch without going through us
+ */
+#define ISCSI_VERSION_STR	"2.0-876"
 
-
-#endif /* End of __ISCSI_USR_CONTEXT_H__ */
+#endif  /* End of __ISCSI_OPEN_USR_VERSION_H__ */

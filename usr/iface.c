@@ -44,6 +44,8 @@
 #include "iscsi_err.h"
 #include "iscsi_netlink.h"
 
+#define _unwrap(x) (x && strlen(x)) ? x : UNKNOWN_VALUE
+
 /*
  * Default ifaces for use with transports that do not bind to hardware
  * by defaults (transports that let the interconnect layer to the routing
@@ -856,17 +858,15 @@ int iface_print_tree(void *data, struct iface_rec *iface)
 	return 0;
 }
 
-int iface_print_flat(void *data, struct iface_rec *iface)
+void iface_print_flat(struct iscsi_iface *iface)
 {
 	printf("%s %s,%s,%s,%s,%s\n",
-		strlen(iface->name) ? iface->name : UNKNOWN_VALUE,
-		strlen(iface->transport_name) ? iface->transport_name :
-							UNKNOWN_VALUE,
-		strlen(iface->hwaddress) ? iface->hwaddress : UNKNOWN_VALUE,
-		strlen(iface->ipaddress) ? iface->ipaddress : UNKNOWN_VALUE,
-		strlen(iface->netdev) ? iface->netdev : UNKNOWN_VALUE,
-		strlen(iface->iname) ? iface->iname : UNKNOWN_VALUE);
-	return 0;
+	       _unwrap(iscsi_iface_name_get(iface)),
+	       _unwrap(iscsi_iface_transport_name_get(iface)),
+	       _unwrap(iscsi_iface_hwaddress_get(iface)),
+	       _unwrap(iscsi_iface_ipaddress_get(iface)),
+	       _unwrap(iscsi_iface_netdev_get(iface)),
+	       _unwrap(iscsi_iface_iname_get(iface)));
 }
 
 int iface_for_each_iface(void *data, int skip_def, int *nr_found,

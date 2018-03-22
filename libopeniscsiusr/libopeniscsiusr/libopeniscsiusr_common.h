@@ -36,6 +36,15 @@
 #define LIBISCSI_ERR_NOMEM		3
 /* ^ Could not allocate resource for operation */
 
+#define LIBISCSI_ERR_IDBM		6
+/* ^ Error accessing/managing iSCSI DB */
+
+#define LIBISCSI_ERR_INVAL		7
+/* ^ Invalid argument */
+
+#define LIBISCSI_ERR_TRANS_NOT_FOUND	12
+/* ^ iSCSI transport module not loaded in kernel or iscsid */
+
 #define LIBISCSI_ERR_ACCESS		13
 /* ^ Permission denied */
 

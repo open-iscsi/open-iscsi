@@ -57,6 +57,13 @@
 #include "iscsi_timer.h"
 #include "flashnode.h"
 
+#define _good(rc, rc_val, out) \
+	do { \
+		rc_val = rc; \
+		if (rc_val != LIBISCSI_OK) \
+			goto out; \
+	} while(0)
+
 static char program_name[] = "iscsiadm";
 static char config_file[TARGET_NAME_MAXLEN];
 extern struct iscsi_ipc *ipc;
@@ -282,49 +289,6 @@ static void kill_iscsid(int priority, int tmo)
 		log_error("Could not stop iscsid. Trying sending iscsid "
 			  "SIGTERM or SIGKILL signals manually");
 	}
-}
-
-/*
- * TODO: we can display how the ifaces are related to node records.
- * And we can add a scsi_host mode which would display how
- * sessions are related to hosts
- * (scsi_host and iscsi_sessions are the currently running instance of
- * an iface or node record).
- */
-static int print_ifaces(struct iface_rec *iface, int info_level)
-{
-	int err, num_found = 0;
-
-	switch (info_level) {
-	case 0:
-	case -1:
-		err = iface_for_each_iface(NULL, 0, &num_found,
-					   iface_print_flat);
-		break;
-	case 1:
-		if (iface) {
-			err = iface_conf_read(iface);
-			if (err) {
-				log_error("Could not read iface %s.",
-					  iface->name);
-				return err;
-			}
-			iface_print_tree(NULL, iface);
-			num_found = 1;
-		} else
-			err = iface_for_each_iface(NULL, 0, &num_found,
-						   iface_print_tree);
-		break;
-	default:
-		log_error("Invalid info level %d. Try 0 - 1.", info_level);
-		return ISCSI_ERR_INVAL;
-	}
-
-	if (!num_found) {
-		log_error("No interfaces found.");
-		err = ISCSI_ERR_NO_OBJS_FOUND;
-	}
-	return err;
 }
 
 static int
@@ -2314,13 +2278,18 @@ static int verify_iface_params(struct list_head *params, struct node_rec *rec)
 }
 
 /* TODO: merge iter helpers and clean them up, so we can use them here */
-static int exec_iface_op(int op, int do_show, int info_level,
-			 struct iface_rec *iface, uint64_t host_no,
-			 struct list_head *params)
+static int exec_iface_op(struct iscsi_context *ctx, int op, int do_show,
+			 int info_level, struct iface_rec *iface,
+			 uint64_t host_no, struct list_head *params)
 {
 	struct host_info hinfo;
 	struct node_rec *rec = NULL;
 	int rc = 0;
+	struct iscsi_iface **ifaces = NULL;
+	struct iscsi_iface *iface_info = NULL;
+	uint32_t iface_count = 0;
+	uint32_t i = 0;
+	int num_found = 0;
 
 	switch (op) {
 	case OP_NEW:
@@ -2464,20 +2433,77 @@ update_fail:
 		       host_no);
 		break;
 	default:
-		if (!iface || (iface && info_level > 0)) {
-			if (op == OP_NOOP || op == OP_SHOW)
-				rc = print_ifaces(iface, info_level);
-			else
-				rc = ISCSI_ERR_INVAL;
-		} else {
-			rc = iface_conf_read(iface);
-			if (!rc)
-				idbm_print_iface_info(&do_show, iface);
-			else
-				log_error("Could not read iface %s (%d).",
-					  iface->name, rc);
+		if ((op != OP_NOOP) && (op != OP_SHOW)) {
+			rc = ISCSI_ERR_INVAL;
+			goto out;
+		}
+		switch (info_level) {
+		case 0:
+		case -1:
+			if (iface == NULL) {
+				_good(iscsi_ifaces_get(ctx, &ifaces,
+						       &iface_count),
+				      rc, out);
+				if (iface_count == 0) {
+					log_error("No interfaces found.");
+					rc = ISCSI_ERR_NO_OBJS_FOUND;
+					goto out;
+				}
+
+				for (i = 0; i < iface_count; ++i)
+					iface_print_flat(ifaces[i]);
+			} else {
+				_good(iscsi_iface_get(ctx, iface->name,
+						      &iface_info),
+				      rc, out);
+				iscsi_iface_print_config(iface_info);
+			}
+			break;
+		case 1:
+			/*
+			 * TODO: we can display how the ifaces are related to
+			 * node records.
+			 * And we can add a scsi_host mode which would display
+			 * how sessions are related to hosts (scsi_host and
+			 * iscsi_sessions are the currently running instance of
+			 * an iface or node record).
+			 */
+			/*
+			 * TODO(Gris Ge): Once we have node support from
+			 * libopeniscsiusr, change below codes.
+			 */
+			if (iface) {
+				rc = iface_conf_read(iface);
+				if (rc) {
+					log_error("Could not read iface %s.",
+						 iface->name);
+					goto out;
+				}
+				iface_print_tree(NULL, iface);
+			} else {
+				rc = iface_for_each_iface(NULL, 0, &num_found,
+							   iface_print_tree);
+				if (rc)
+					goto out;
+				if (num_found <= 0) {
+					log_error("No interfaces found.");
+					rc = ISCSI_ERR_NO_OBJS_FOUND;
+					goto out;
+				}
+			}
+
+			break;
+		default:
+			log_error("Invalid info level %d. Try 0 - 1.",
+				  info_level);
+			rc = LIBISCSI_ERR_INVAL;
+			goto out;
 		}
 	}
+
+out:
+	iscsi_ifaces_free(ifaces, iface_count);
+	iscsi_iface_free(iface_info);
 
 	if (rec)
 		free(rec);
@@ -3575,7 +3601,7 @@ main(int argc, char **argv)
 		}
 		break;
 	case MODE_IFACE:
-		iface_setup_host_bindings();
+		iscsi_default_iface_setup(ctx);
 
 		if ((rc = verify_mode_params(argc, argv, "HIdnvmPoCabci", 0))) {
 			log_error("iface mode: option '-%c' is not "
@@ -3597,7 +3623,7 @@ main(int argc, char **argv)
 			rc = exec_ping_op(iface, ip, packet_size, ping_count,
 					  ping_interval);
 		else
-			rc = exec_iface_op(op, do_show, info_level, iface,
+			rc = exec_iface_op(ctx, op, do_show, info_level, iface,
 					   host_no, &params);
 
 		break;

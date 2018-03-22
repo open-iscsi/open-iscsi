@@ -117,7 +117,6 @@ extern int idbm_init(idbm_get_config_file_fn *fn);
 
 extern void idbm_node_setup_from_conf(node_rec_t *rec);
 extern void idbm_terminate(void);
-extern int idbm_print_iface_info(void *data, struct iface_rec *iface);
 extern int idbm_print_node_info(void *data, node_rec_t *rec);
 extern int idbm_print_node_flat(void *data, node_rec_t *rec);
 extern int idbm_print_node_tree(struct node_rec *last_rec, struct node_rec *rec,

@@ -43,13 +43,45 @@
 
 #define _SYS_NULL_STR			"(null)"
 
+#define _sysfs_prop_get_int_func_gen(func_name, out_type, type_max_value) \
+	int func_name(struct iscsi_context *ctx, const char *dir_path, \
+		      const char *prop_name, out_type *val, \
+		      out_type default_value, bool ignore_error) \
+	{ \
+		long long int tmp_val = 0; \
+		int rc = LIBISCSI_OK; \
+		long long int dv = default_value; \
+		rc = iscsi_sysfs_prop_get_ll(ctx, dir_path, prop_name, \
+					     &tmp_val, (long long int) dv, \
+					     ignore_error); \
+		if (rc == LIBISCSI_OK) \
+			*val = tmp_val & type_max_value; \
+		return rc; \
+	}
+
+
+enum _sysfs_dev_class {
+	_SYSFS_DEV_CLASS_ISCSI_SESSION,
+	_SYSFS_DEV_CLASS_ISCSI_HOST,
+};
+
 static int sysfs_read_file(const char *path, uint8_t *buff, size_t buff_size);
 static int iscsi_sysfs_prop_get_ll(struct iscsi_context *ctx,
 				   const char *dir_path, const char *prop_name,
 				   long long int *val,
-				   long long int default_value);
+				   long long int default_value,
+				   bool ignore_error);
+
+/*
+ * dev_path should be char[PATH_MAX]
+ */
 static int sysfs_get_dev_path(struct iscsi_context *ctx, const char *path,
-			      char *dev_path);
+			      enum _sysfs_dev_class class, char *dev_path);
+
+_sysfs_prop_get_int_func_gen(_sysfs_prop_get_u8, uint8_t, UINT8_MAX);
+_sysfs_prop_get_int_func_gen(_sysfs_prop_get_u16, uint16_t, UINT16_MAX);
+_sysfs_prop_get_int_func_gen(_sysfs_prop_get_i32, int32_t, INT32_MAX);
+_sysfs_prop_get_int_func_gen(_sysfs_prop_get_u32, uint32_t, UINT32_MAX);
 
 /*
  * dev_path should be char[PATH_MAX].
@@ -136,7 +168,13 @@ int _sysfs_prop_get_str(struct iscsi_context *ctx, const char *dir_path,
 			       file_path, errno_save);
 		}
 	} else {
-		_debug(ctx, "Open '%s', got '%s'", file_path, buff);
+		if ((buff[0] == '\0') && (default_value != NULL)) {
+			memcpy(buff, (void *) default_value,
+			       strlen(default_value) + 1);
+			_debug(ctx, "Open '%s', got NULL, using default value",
+			       file_path, default_value);
+		} else
+			_debug(ctx, "Open '%s', got '%s'", file_path, buff);
 	}
 	return rc;
 }
@@ -144,7 +182,7 @@ int _sysfs_prop_get_str(struct iscsi_context *ctx, const char *dir_path,
 static int iscsi_sysfs_prop_get_ll(struct iscsi_context *ctx,
 				 const char *dir_path, const char *prop_name,
 				 long long int *val,
-				 long long int default_value)
+				 long long int default_value, bool ignore_error)
 {
 	char file_path[PATH_MAX];
 	int rc = LIBISCSI_OK;
@@ -163,7 +201,7 @@ static int iscsi_sysfs_prop_get_ll(struct iscsi_context *ctx,
 	errno_save = sysfs_read_file(file_path, buff, _INT32_STR_MAX_LEN);
 	if (errno_save != 0) {
 		if (errno_save == ENOENT) {
-			if (default_value == LLONG_MAX) {
+			if (! ignore_error) {
 				rc = LIBISCSI_ERR_SYSFS_LOOKUP;
 				_error(ctx, "Failed to read '%s': "
 				       "file '%s' does not exists",
@@ -193,7 +231,7 @@ static int iscsi_sysfs_prop_get_ll(struct iscsi_context *ctx,
 
 	tmp_val = strtoll((const char *) buff, NULL, 10 /* base */);
 	errno_save = errno;
-	if ((errno_save != 0) && (tmp_val == LONG_MAX)) {
+	if ((errno_save != 0) && (! ignore_error)) {
 		rc = LIBISCSI_ERR_BUG;
 		_error(ctx, "Sysfs: %s: Error when converting '%s' "
 		       "to number", file_path,  (char *) buff, errno_save);
@@ -207,45 +245,8 @@ static int iscsi_sysfs_prop_get_ll(struct iscsi_context *ctx,
 	return rc;
 }
 
-int _sysfs_prop_get_u32(struct iscsi_context *ctx, const char *dir_path,
-			const char *prop_name, uint32_t *val,
-			uint32_t default_value)
-{
-	long long int tmp_val = 0;
-	int rc = LIBISCSI_OK;
-	long long int dv = default_value;
-
-	if (default_value == UINT32_MAX)
-		dv = LLONG_MAX;
-
-	rc = iscsi_sysfs_prop_get_ll(ctx, dir_path, prop_name, &tmp_val,
-				     (long long int) dv);
-	if (rc == LIBISCSI_OK)
-		*val = tmp_val & UINT32_MAX;
-	return rc;
-}
-
-int _sysfs_prop_get_i32(struct iscsi_context *ctx, const char *dir_path,
-			const char *prop_name, int32_t *val,
-			int32_t default_value)
-{
-	long long int tmp_val = 0;
-	int rc = LIBISCSI_OK;
-	long long int dv = default_value;
-
-	if (default_value == INT32_MAX)
-		dv = LLONG_MAX;
-
-	rc = iscsi_sysfs_prop_get_ll(ctx, dir_path, prop_name, &tmp_val,
-				     (long long int) dv);
-
-	if (rc == LIBISCSI_OK)
-		*val = tmp_val & INT32_MAX;
-	return rc;
-}
-
 static int sysfs_get_dev_path(struct iscsi_context *ctx, const char *path,
-			      char *dev_path)
+			      enum _sysfs_dev_class class, char *dev_path)
 {
 	int rc = LIBISCSI_OK;
 	int errno_save = 0;
@@ -268,13 +269,27 @@ static int sysfs_get_dev_path(struct iscsi_context *ctx, const char *path,
 		goto out;
 	}
 
-	reg_rc = regcomp(&regex,
-			 "\\(.\\{1,\\}/devices/.\\{1,\\}/host[0-9]\\{1,\\}\\)/"
-			 "session[0-9]\\{1,\\}/iscsi_session/",
-			 0 /* no flag */);
-	/* ^ BUG(Gris Ge): This is based on GUESS, should check linux kernel
-	 *		   code on this
-	 */
+	switch (class) {
+	case _SYSFS_DEV_CLASS_ISCSI_SESSION:
+		reg_rc = regcomp(&regex,
+				 "\\(.\\{1,\\}/devices/.\\{1,\\}/"
+				 "host[0-9]\\{1,\\}\\)/"
+				 "session[0-9]\\{1,\\}/iscsi_session/",
+				 0 /* no flag */);
+		break;
+	case _SYSFS_DEV_CLASS_ISCSI_HOST:
+		reg_rc = regcomp(&regex,
+				 "\\(.\\{1,\\}/devices/.\\{1,\\}/"
+				 "host[0-9]\\{1,\\}\\)/"
+				 "iscsi_host/",
+				 0 /* no flag */);
+		break;
+	default:
+		rc = LIBISCSI_ERR_BUG;
+		_error(ctx, "BUG: sysfs_get_dev_path(): got unknown class %d",
+		       class);
+		goto out;
+	}
 	if (reg_rc != 0) {
 		rc = LIBISCSI_ERR_SYSFS_LOOKUP;
 		_error(ctx, "regcomp() failed %d", reg_rc);
@@ -310,10 +325,8 @@ int _iscsi_host_id_of_session(struct iscsi_context *ctx, uint32_t sid,
 	struct dirent **namelist = NULL;
 	int n = 0;
 	const char *host_id_str = NULL;
-	int i = 0;
 	const char iscsi_host_dir_str[] = "/iscsi_host/";
 	const unsigned int iscsi_host_dir_strlen = strlen(iscsi_host_dir_str);
-
 
 	assert(ctx != NULL);
 	assert(sid != 0);
@@ -324,7 +337,9 @@ int _iscsi_host_id_of_session(struct iscsi_context *ctx, uint32_t sid,
 
 	*host_id = 0;
 
-	_good(sysfs_get_dev_path(ctx, sys_se_dir_path, sys_dev_path), rc, out);
+	_good(sysfs_get_dev_path(ctx, sys_se_dir_path,
+				 _SYSFS_DEV_CLASS_ISCSI_SESSION, sys_dev_path),
+	      rc, out);
 
 	if ((strlen(sys_dev_path) + iscsi_host_dir_strlen) >= PATH_MAX) {
 		rc = LIBISCSI_ERR_SYSFS_LOOKUP;
@@ -337,8 +352,8 @@ int _iscsi_host_id_of_session(struct iscsi_context *ctx, uint32_t sid,
 	strncat(sys_scsi_host_dir_path, iscsi_host_dir_str,
 		PATH_MAX - iscsi_host_dir_strlen);
 
-	n = scandir(sys_scsi_host_dir_path, &namelist, _scan_filter_skip_dot,
-		    alphasort);
+	_good(_scandir(ctx, sys_scsi_host_dir_path, &namelist, &n), rc, out);
+
 	if (n != 1) {
 		rc = LIBISCSI_ERR_SYSFS_LOOKUP;
 		_error(ctx, "Got unexpected(should be 1) file in folder %s",
@@ -354,9 +369,143 @@ int _iscsi_host_id_of_session(struct iscsi_context *ctx, uint32_t sid,
 	}
 
 out:
-	for (i = n - 1; i >= 0; --i)
-		free(namelist[i]);
-	free(namelist);
+	_scandir_free(namelist, n);
 
+	return rc;
+}
+
+static int _iscsi_ids_get(struct iscsi_context *ctx,
+			  uint32_t **ids, uint32_t *id_count,
+			  const char *dir_path, const char *file_prefix)
+{
+	int rc = LIBISCSI_OK;
+	struct dirent **namelist = NULL;
+	int n = 0;
+	uint32_t i = 0;
+	const char *id_str = NULL;
+	char fmt_buff[128];
+
+	assert(ctx != NULL);
+	assert(ids != 0);
+	assert(id_count != NULL);
+
+	*ids = NULL;
+	*id_count = 0;
+
+	_good(_scandir(ctx, dir_path, &namelist, &n), rc, out);
+	_debug(ctx, "Got %d iSCSI %s", n, file_prefix);
+
+	*id_count = n & UINT32_MAX;
+
+	*ids = calloc(*id_count, sizeof(uint32_t));
+	_alloc_null_check(ctx, *ids, rc, out);
+
+	snprintf(fmt_buff, sizeof(fmt_buff)/sizeof(char), "%s%%" SCNu32,
+		 file_prefix);
+
+	for (i = 0; i < *id_count; ++i) {
+		id_str = namelist[i]->d_name;
+		if (sscanf(id_str, fmt_buff, &((*ids)[i])) != 1) {
+			rc = LIBISCSI_ERR_SYSFS_LOOKUP;
+			_error(ctx, "sscanf() failed on string %s",
+			       id_str);
+			goto out;
+		}
+		_debug(ctx, "Got iSCSI %s id %" PRIu32, file_prefix, (*ids)[i]);
+	}
+
+out:
+	_scandir_free(namelist, n);
+	if (rc != LIBISCSI_OK) {
+		free(*ids);
+		*ids = NULL;
+		*id_count = 0;
+	}
+	return rc;
+}
+
+int _iscsi_sids_get(struct iscsi_context *ctx, uint32_t **sids,
+		    uint32_t *sid_count)
+{
+	return _iscsi_ids_get(ctx, sids, sid_count, _ISCSI_SYS_SESSION_DIR,
+			      "session");
+}
+
+int _iscsi_hids_get(struct iscsi_context *ctx, uint32_t **hids,
+		    uint32_t *hid_count)
+{
+	return _iscsi_ids_get(ctx, hids, hid_count, _ISCSI_SYS_HOST_DIR,
+			      "host");
+}
+
+bool _iscsi_transport_is_loaded(const char *transport_name)
+{
+	char path[PATH_MAX];
+
+	if (transport_name == NULL)
+		return false;
+
+	snprintf(path, PATH_MAX, "%s/%s", _ISCSI_SYS_TRANSPORT_DIR,
+		 transport_name);
+
+	if (access(path, F_OK) == 0)
+		return true;
+
+	return false;
+}
+
+int _iscsi_iface_kern_id_of_host_id(struct iscsi_context *ctx,
+				    uint32_t host_id, char *iface_kern_id)
+{
+	char *sysfs_sh_path = NULL;
+	char *dev_path = NULL;
+	char *sysfs_iface_path = NULL;
+	int rc = LIBISCSI_OK;
+	struct dirent **namelist = NULL;
+	int n = 0;
+
+	sysfs_sh_path = malloc(PATH_MAX);
+	_alloc_null_check(ctx, sysfs_sh_path, rc, out);
+
+	dev_path = malloc(PATH_MAX);
+	_alloc_null_check(ctx, dev_path, rc, out);
+
+	sysfs_iface_path = malloc(PATH_MAX);
+	_alloc_null_check(ctx, sysfs_iface_path, rc, out);
+
+	snprintf(sysfs_sh_path, PATH_MAX, "%s/host%" PRIu32,
+		 _ISCSI_SYS_HOST_DIR, host_id);
+
+	_good(sysfs_get_dev_path(ctx, sysfs_sh_path,
+				 _SYSFS_DEV_CLASS_ISCSI_HOST, dev_path),
+	      rc, out);
+
+	snprintf(sysfs_iface_path, PATH_MAX, "%s/iscsi_iface", dev_path);
+
+	_good(_scandir(ctx, sysfs_iface_path, &namelist, &n), rc, out);
+
+	if (n == 0) {
+		rc = LIBISCSI_ERR_SYSFS_LOOKUP;
+		_debug(ctx, "No iSCSI interface for iSCSI host %" PRIu32,
+		       host_id);
+		goto out;
+	}
+
+	if (n != 1) {
+		rc = LIBISCSI_ERR_SYSFS_LOOKUP;
+		_debug(ctx, "Got unexpected(got %d, should be 1) file in "
+		       "folder %s", n, sysfs_iface_path);
+		goto out;
+	}
+
+	snprintf(iface_kern_id, PATH_MAX, "%s", namelist[0]->d_name);
+	_debug(ctx, "Found iSCSI iface '%s' for iSCSI host %" PRIu32,
+	       iface_kern_id, host_id);
+
+out:
+	_scandir_free(namelist, n);
+	free(sysfs_sh_path);
+	free(dev_path);
+	free(sysfs_iface_path);
 	return rc;
 }

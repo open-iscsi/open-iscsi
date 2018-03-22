@@ -173,4 +173,57 @@ __DLL_EXPORT const char *iscsi_iface_port_speed_get(struct iscsi_iface *iface);
  */
 __DLL_EXPORT const char *iscsi_iface_name_get(struct iscsi_iface *iface);
 
+/**
+ * iscsi_iface_dump_config() - Dump all configurations of specified iSCSI
+ * interface.
+ *
+ * Dump all configurations of specified iSCSI interface. Will skip empty
+ * configuration so that output string could be saved directly to
+ * /etc/iscsi/ifaces/<iface_name> file.
+ *
+ * @iface:
+ *	Pointer of 'struct iscsi_iface'.
+ *	If this pointer is NULL, your program will be terminated by assert.
+ *
+ * Return:
+ *	const char *.
+ *	Need to free this memory by free().
+ */
+__DLL_EXPORT const char *iscsi_iface_dump_config(struct iscsi_iface *iface);
+
+/**
+ * iscsi_iface_dump_config() - Print all configurations of specified iSCSI
+ * interface to STDOUT.
+ *
+ * Print all configurations of specified iSCSI interface.
+ * For empty configuration, it will be shown as "name = <empty>".
+ *
+ * @iface:
+ *	Pointer of 'struct iscsi_iface'.
+ *	If this pointer is NULL, your program will be terminated by assert.
+ *
+ * Return:
+ *	void
+ */
+__DLL_EXPORT void iscsi_iface_print_config(struct iscsi_iface *iface);
+
+/**
+ * iscsi_is_default_iface() - Whether specified iSCSI interface is default
+ * interface.
+ *
+ * Check whether specified iSCSI interface is one of the default interfaces.
+ * Currently, default interfaces are :
+ *
+ *   * Interface 'default' using 'iscsi_tcp' kernel module.
+ *
+ *   * Interface 'iser' is using 'ib_iser' kernel module.
+ *
+ * @iface:
+ *	Pointer of 'struct iscsi_iface'.
+ *
+ * Return:
+ *	bool.
+ */
+__DLL_EXPORT bool iscsi_is_default_iface(struct iscsi_iface *iface);
+
 #endif /* End of _LIB_OPEN_ISCSI_USR_IFACE_H_ */
