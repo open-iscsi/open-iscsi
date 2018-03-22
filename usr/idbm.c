@@ -27,6 +27,7 @@
 #include <errno.h>
 #include <dirent.h>
 #include <limits.h>
+#include <fcntl.h>
 #include <sys/stat.h>
 #include <sys/file.h>
 

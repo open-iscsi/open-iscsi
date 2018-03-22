@@ -36,6 +36,11 @@
  * bnx2x.c - bnx2x user space driver
  *
  */
+
+/* include nic.h before linux/ethtool.h to avoid redefinitions of
+ * eth structs
+*/
+#include "nic.h"
 #include <errno.h>
 #include <stdio.h>
 #include <string.h>
@@ -58,7 +63,6 @@
 #include "bnx2x.h"
 #include "cnic.h"
 #include "logger.h"
-#include "nic.h"
 #include "nic_id.h"
 #include "nic_utils.h"
 #include "options.h"

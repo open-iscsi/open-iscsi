@@ -49,7 +49,7 @@ LIBADD =
 all: $(LIBS) $(LIBS_MAJOR) $(TESTS) doc
 
 $(LIBS): $(OBJS)
-	$(CC) $(LDFLAGS) -shared -Wl,-soname=$@ -o $@ $(OBJS) $(LIBADD)
+	$(CC) $(CFLAGS) $(LDFLAGS) -shared -Wl,-soname=$@ -o $@ $(OBJS) $(LIBADD)
 	ln -sf $@ $(DEVLIB)
 
 $(LIBS_MAJOR): $(LIBS)
