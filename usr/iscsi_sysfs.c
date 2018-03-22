@@ -1806,7 +1806,7 @@ int iscsi_sysfs_for_each_device(void *data, int host_no, uint32_t sid,
 	int h, b, t, l, i, n, err = 0, target;
 	char devpath[PATH_SIZE];
 	char id[NAME_SIZE];
-	char path_full[PATH_SIZE];
+	char path_full[3*PATH_SIZE];
 
 	target = get_target_no_from_sid(sid, &err);
 	if (err)
@@ -1821,6 +1821,13 @@ int iscsi_sysfs_for_each_device(void *data, int host_no, uint32_t sid,
 
 	snprintf(path_full, sizeof(path_full), "%s%s/device/target%d:0:%d",
 		 sysfs_path, devpath, host_no, target);
+
+	if (strlen(path_full) > PATH_SIZE) {
+		log_debug(3, "Could not lookup devpath for %s %s (too long)",
+			  ISCSI_SESSION_SUBSYS, id);
+		return ISCSI_ERR_SYSFS_LOOKUP;
+	}
+
 	n = scandir(path_full, &namelist, trans_filter,
 		    alphasort);
 	if (n <= 0)
