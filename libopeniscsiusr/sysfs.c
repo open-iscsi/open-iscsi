@@ -325,6 +325,8 @@ int _iscsi_host_id_of_session(struct iscsi_context *ctx, uint32_t sid,
 	struct dirent **namelist = NULL;
 	int n = 0;
 	const char *host_id_str = NULL;
+	const char iscsi_host_dir_str[] = "/iscsi_host/";
+	const unsigned int iscsi_host_dir_strlen = strlen(iscsi_host_dir_str);
 
 	assert(ctx != NULL);
 	assert(sid != 0);
@@ -339,8 +341,16 @@ int _iscsi_host_id_of_session(struct iscsi_context *ctx, uint32_t sid,
 				 _SYSFS_DEV_CLASS_ISCSI_SESSION, sys_dev_path),
 	      rc, out);
 
-	snprintf(sys_scsi_host_dir_path, PATH_MAX, "%s/iscsi_host/",
-		 sys_dev_path);
+	if ((strlen(sys_dev_path) + iscsi_host_dir_strlen) >= PATH_MAX) {
+		rc = LIBISCSI_ERR_SYSFS_LOOKUP;
+		_error(ctx, "Pathname too long: %s%s",
+		       sys_dev_path, iscsi_host_dir_str);
+		goto out;
+	}
+
+	strncpy(sys_scsi_host_dir_path, sys_dev_path, PATH_MAX);
+	strncat(sys_scsi_host_dir_path, iscsi_host_dir_str,
+		PATH_MAX - iscsi_host_dir_strlen);
 
 	_good(_scandir(ctx, sys_scsi_host_dir_path, &namelist, &n), rc, out);
 

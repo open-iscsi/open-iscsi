@@ -49,7 +49,6 @@
 #include <arpa/inet.h>
 #include <linux/types.h>
 #include <linux/sockios.h>
-#include <linux/ethtool.h>
 #include <linux/netlink.h>
 #include <sys/mman.h>
 #include <sys/ioctl.h>

@@ -36,6 +36,7 @@
 #ifdef USE_KMOD
 #include <libkmod.h>
 #endif
+#include <limits.h>
 
 #include "libopeniscsiusr/libopeniscsiusr.h"
 #include "misc.h"
