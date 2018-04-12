@@ -30,6 +30,12 @@
 
 #include "iscsi_proto.h"
 
+/*
+ * NOTE: This file should be kept in sync with the kernel include file
+ * of the same name. In particular, iscsi_param and iscsi_err need
+ * to be in sync.
+ */
+
 #define ISCSI_NL_GRP_ISCSID	1
 #define ISCSI_NL_GRP_UIP	2
 
@@ -536,6 +542,7 @@ enum iscsi_err {
 	ISCSI_ERR_XMIT_FAILED		= ISCSI_ERR_BASE + 19,
 	ISCSI_ERR_TCP_CONN_CLOSE	= ISCSI_ERR_BASE + 20,
 	ISCSI_ERR_SCSI_EH_SESSION_RST	= ISCSI_ERR_BASE + 21,
+	ISCSI_ERR_NOP_TIMEDOUT		= ISCSI_ERR_BASE + 22,
 };
 
 /*
@@ -627,6 +634,7 @@ enum iscsi_param {
 
 	ISCSI_PARAM_DISCOVERY_PARENT_IDX,
 	ISCSI_PARAM_DISCOVERY_PARENT_TYPE,
+	ISCSI_PARAM_LOCAL_IPADDR,
 	/* must always be last */
 	ISCSI_PARAM_MAX,
 };
@@ -731,6 +739,8 @@ enum iscsi_port_speed {
 	ISCSI_PORT_SPEED_100MBPS	= 0x4,
 	ISCSI_PORT_SPEED_1GBPS		= 0x8,
 	ISCSI_PORT_SPEED_10GBPS		= 0x10,
+	ISCSI_PORT_SPEED_25GBPS         = 0x20,
+	ISCSI_PORT_SPEED_40GBPS         = 0x40,
 };
 
 /* iSCSI port state */
