@@ -77,6 +77,8 @@ const char *kern_err_code_to_string(int err)
 	case ISCSI_ERR_SCSI_EH_SESSION_RST:
 		return "ISCSI_ERR_SCSI_EH_SESSION_RST: Session was dropped as "
 			"a result of SCSI error recovery";
+	case ISCSI_ERR_NOP_TIMEDOUT:
+		return "ISCSI_ERR_NOP_TIMEDOUT: A NOP has timed out";
 	default:
 		return "Invalid or unknown error code";
 	}
