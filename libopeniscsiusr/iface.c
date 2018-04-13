@@ -744,8 +744,7 @@ int iscsi_ifaces_get(struct iscsi_context *ctx, struct iscsi_iface ***ifaces,
 	_good(_idbm_lock(ctx), rc, out);
 
 	_good(_scandir(ctx, IFACE_CONFIG_DIR, &namelist, &n), rc, out);
-	_debug(ctx, "Got %d iface from %s folder", *iface_count,
-	       IFACE_CONFIG_DIR);
+	_debug(ctx, "Got %d iface from %s folder", n, IFACE_CONFIG_DIR);
 	*iface_count = (n + sizeof(_DEFAULT_IFACES)/sizeof(struct iscsi_iface))
 		& UINT32_MAX;
 	*ifaces = (struct iscsi_iface **) calloc(*iface_count,
