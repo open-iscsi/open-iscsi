@@ -876,6 +876,17 @@ int iscsi_iface_get(struct iscsi_context *ctx, const char *iface_name,
 
 	*iface = NULL;
 
+	size_t i = 0;
+	for (; i < sizeof(_DEFAULT_IFACES)/sizeof(struct iscsi_iface); ++i) {
+		if (strcmp(iface_name, _DEFAULT_IFACES[i].name) == 0) {
+			*iface = calloc(1, sizeof(struct iscsi_iface));
+			_alloc_null_check(ctx, *iface, rc, out);
+			memcpy(*iface, &_DEFAULT_IFACES[i],
+			       sizeof(struct iscsi_iface));
+			goto out;
+		}
+	}
+
 	rc = _idbm_lock(ctx);
 	if (rc != LIBISCSI_OK)
 		return rc;
@@ -886,6 +897,7 @@ int iscsi_iface_get(struct iscsi_context *ctx, const char *iface_name,
 
 	_idbm_unlock(ctx);
 
+out:
 	return rc;
 }
 
