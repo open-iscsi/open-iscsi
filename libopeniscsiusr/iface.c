@@ -44,13 +44,9 @@
 #include "iface.h"
 #include "context.h"
 #include "idbm.h"
+#include "default.h"
 
-#define DEFAULT_IFACENAME	"default"
-#define DEFAULT_NETDEV		"default"
-#define DEFAULT_IPADDRESS	"default"
-#define DEFAULT_HWADDRESS	"default"
 #define ISCSIUIO_PATH		"/sbin/iscsiuio"
-#define _IFACE_DUMP_SIZE	8192
 
 struct _iscsi_net_drv {
 	const char *net_driver_name;		// Ethernet driver.
@@ -846,11 +842,11 @@ const char *iscsi_iface_dump_config(struct iscsi_iface *iface)
 
 	assert(iface != NULL);
 
-	buff = calloc(1, _IFACE_DUMP_SIZE);
+	buff = calloc(1, IDBM_DUMP_SIZE);
 	if (buff == NULL)
 		return NULL;
 
-	f = fmemopen(buff, _IFACE_DUMP_SIZE - 1, "w");
+	f = fmemopen(buff, IDBM_DUMP_SIZE - 1, "w");
 	if (f == NULL) {
 		free(buff);
 		return NULL;

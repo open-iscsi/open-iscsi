@@ -52,6 +52,7 @@
 #include <limits.h>
 #include <stdlib.h>
 #include <ctype.h>
+#include <stdbool.h>
 
 #include "libopeniscsiusr/libopeniscsiusr_common.h"
 
@@ -61,11 +62,17 @@
 #include "idbm_fields.h"
 #include "iface.h"
 #include "version.h"
+#include "node.h"
+#include "default.h"
 
+#define TYPE_INT_O	1
 #define TYPE_STR	2
 #define TYPE_UINT8	3
 #define TYPE_UINT16	4
 #define TYPE_UINT32	5
+#define TYPE_INT32	6
+#define TYPE_INT64	7
+#define TYPE_BOOL	8
 #define MAX_KEYS	256   /* number of keys total(including CNX_MAX) */
 #define NAME_MAXVAL	128   /* the maximum length of key name */
 #define VALUE_MAXVAL	256   /* the maximum length of 223 bytes in the RFC. */
@@ -141,6 +148,106 @@ do { \
 	_n++; \
 } while (0)
 
+#define _rec_int32(_key, _recs, _org, _name, _show, _n, _mod) \
+do { \
+	_recs[_n].type = TYPE_INT32; \
+	_strncpy(_recs[_n].name, _key, NAME_MAXVAL); \
+	snprintf(_recs[_n].value, VALUE_MAXVAL, "%" PRIi32, _org->_name); \
+	_recs[_n].data = &_org->_name; \
+	_recs[_n].data_len = sizeof(_org->_name); \
+	_recs[_n].visible = _show; \
+	_recs[_n].can_modify = _mod; \
+	_n++; \
+} while (0)
+
+#define _rec_int64(_key, _recs, _org, _name, _show, _n, _mod) \
+do { \
+	_recs[_n].type = TYPE_INT64; \
+	_strncpy(_recs[_n].name, _key, NAME_MAXVAL); \
+	snprintf(_recs[_n].value, VALUE_MAXVAL, "%" PRIi64, _org->_name); \
+	_recs[_n].data = &_org->_name; \
+	_recs[_n].data_len = sizeof(_org->_name); \
+	_recs[_n].visible = _show; \
+	_recs[_n].can_modify = _mod; \
+	_n++; \
+} while (0)
+
+#define _rec_bool(_key, _recs, _org, _name, _show, _n, _mod) \
+do { \
+	_recs[_n].type = TYPE_BOOL; \
+	_strncpy(_recs[_n].name, _key, NAME_MAXVAL); \
+	snprintf(_recs[_n].value, VALUE_MAXVAL, "%s", \
+		 _org->_name ? "Yes" : "No"); \
+	_recs[_n].data = &_org->_name; \
+	_recs[_n].data_len = sizeof(_org->_name); \
+	_recs[_n].visible = _show; \
+	_recs[_n].can_modify = _mod; \
+	_n++; \
+} while(0)
+
+#define _rec_int_o2(_key, _recs, _org, _name, _show, _op0, _op1, _n, _mod) \
+do { \
+	_recs[_n].type = TYPE_INT_O; \
+	_strncpy(_recs[_n].name, _key, NAME_MAXVAL); \
+	if (_org->_name == 0) _strncpy(_recs[_n].value, _op0, VALUE_MAXVAL); \
+	if (_org->_name == 1) _strncpy(_recs[_n].value, _op1, VALUE_MAXVAL); \
+	_recs[_n].data = &_org->_name; \
+	_recs[_n].data_len = sizeof(_org->_name); \
+	_recs[_n].visible = _show; \
+	_recs[_n].opts[0] = _op0; \
+	_recs[_n].opts[1] = _op1; \
+	_recs[_n].numopts = 2; \
+	_recs[_n].can_modify = _mod; \
+	_n++; \
+} while(0)
+
+#define _rec_int_o3(_key, _recs, _org, _name, _show, _op0, _op1, _op2, _n, \
+		    _mod) \
+do { \
+	_rec_int_o2(_key, _recs, _org, _name, _show, _op0, _op1, _n, _mod); \
+	_n--; \
+	if (_org->_name == 2) _strncpy(_recs[_n].value, _op2, VALUE_MAXVAL);\
+	_recs[_n].opts[2] = _op2; \
+	_recs[_n].numopts = 3; \
+	_n++; \
+} while(0)
+
+#define _rec_int_o4(_key, _recs, _org, _name, _show, _op0, _op1, _op2, _op3, \
+		    _n, _mod) \
+do { \
+	_rec_int_o3(_key, _recs, _org, _name, _show, _op0, _op1, _op2, _n, \
+		    _mod); \
+	_n--; \
+	if (_org->_name == 3) _strncpy(_recs[_n].value, _op3, VALUE_MAXVAL);\
+	_recs[_n].opts[3] = _op3; \
+	_recs[_n].numopts = 4; \
+	_n++; \
+} while(0)
+
+#define _rec_int_o5(_key, _recs, _org, _name, _show, _op0, _op1, _op2, _op3, \
+		    _op4, _n, _mod) \
+do { \
+	_rec_int_o4(_key, _recs, _org, _name, _show, _op0, _op1, _op2, _op3, \
+		    _n, _mod); \
+	_n--; \
+	if (_org->_name == 4) _strncpy(_recs[_n].value, _op4, VALUE_MAXVAL);\
+	_recs[_n].opts[4] = _op4; \
+	_recs[_n].numopts = 5; \
+	_n++; \
+} while(0)
+
+#define _rec_int_o6(_key, _recs, _org, _name, _show, _op0, _op1, _op2, _op3, \
+		    _op4, _op5, _n, _mod) \
+do { \
+	_rec_int_o5(_key, _recs, _org, _name, _show, _op0, _op1, _op2, _op3, \
+		    _op4, _n, _mod); \
+	_n--; \
+	if (_org->_name == 5) _strncpy(_recs[_n].value, _op5, VALUE_MAXVAL);\
+	_recs[_n].opts[5] = _op5; \
+	_recs[_n].numopts = 6; \
+	_n++; \
+} while(0)
+
 enum modify_mode {
 	_CANNOT_MODIFY,
 	_CAN_MODIFY,
@@ -153,12 +260,16 @@ struct idbm_rec {
 	void			*data;
 	int			data_len;
 	int			visible;
+	char*			opts[OPTS_MAXVAL];
+	int			numopts;
 	/*
 	 * TODO: make it a enum that can indicate whether it also requires
 	 * a relogin to pick up if a session is running.
 	 */
 	enum modify_mode	can_modify;
 };
+
+static void _idbm_node_rec_link(struct iscsi_node *node, struct idbm_rec *recs);
 
 int _idbm_lock(struct iscsi_context *ctx)
 {
@@ -245,13 +356,16 @@ static void _idbm_recs_free(struct idbm_rec* recs)
 	free(recs);
 }
 
-static void _idbm_iface_rec_link(struct iscsi_iface *iface,
-				 struct idbm_rec *recs)
+static int _idbm_iface_rec_link(struct iscsi_iface *iface,
+				 struct idbm_rec *recs, int num)
 {
-	int num = 0;
-
-	_rec_str(IFACE_ISCSINAME, recs, iface, name, IDBM_SHOW, num,
-		 _CANNOT_MODIFY);
+	int init_num = num;
+	if (init_num == 0)
+		_rec_str(IFACE_ISCSINAME, recs, iface, name, IDBM_SHOW, num,
+			 _CANNOT_MODIFY);
+	else
+		_rec_str(IFACE_ISCSINAME, recs, iface, name, IDBM_SHOW, num,
+			 _CAN_MODIFY);
 	_rec_str(IFACE_NETNAME, recs, iface, netdev, IDBM_SHOW, num,
 		 _CAN_MODIFY);
 	_rec_str(IFACE_IPADDR, recs, iface, ipaddress, IDBM_SHOW, num,
@@ -388,6 +502,7 @@ static void _idbm_iface_rec_link(struct iscsi_iface *iface,
 		 num, _CAN_MODIFY);
 	_rec_str(IFACE_DISCOVERY_LOGOUT, recs, iface, discovery_logout,
 		 IDBM_SHOW, num, _CAN_MODIFY);
+	return num;
 }
 
 static void _idbm_recs_print(struct idbm_rec *recs, FILE *f, int show)
@@ -397,7 +512,7 @@ static void _idbm_recs_print(struct idbm_rec *recs, FILE *f, int show)
 	for (i = 0; i < MAX_KEYS; i++) {
 		if (recs[i].visible == IDBM_HIDE)
 			continue;
-		if (!show && recs[i].visible == IDBM_MASKED) {
+		if (show == IDBM_MASKED && recs[i].visible == IDBM_MASKED) {
 			if (*(char*)recs[i].data) {
 				fprintf(f, "%s = ********\n", recs[i].name);
 				continue;
@@ -421,10 +536,23 @@ void _idbm_iface_print(struct iscsi_iface *iface, FILE *f)
 	if (recs == NULL)
 		return;
 
-	_idbm_iface_rec_link(iface, recs);
+	_idbm_iface_rec_link(iface, recs, 0);
 
 	_idbm_recs_print(recs, f, IDBM_SHOW);
 
+	_idbm_recs_free(recs);
+}
+
+void _idbm_node_print(struct iscsi_node *node, FILE *f, bool show_secret)
+{
+	struct idbm_rec *recs = NULL;
+
+	recs = _idbm_recs_alloc();
+	if (recs == NULL)
+		return;
+
+	_idbm_node_rec_link(node, recs);
+	_idbm_recs_print(recs, f, show_secret ? IDBM_SHOW : IDBM_MASKED);
 	_idbm_recs_free(recs);
 }
 
@@ -434,6 +562,7 @@ static int _idbm_rec_update_param(struct iscsi_context *ctx,
 {
 	int rc = LIBISCSI_OK;
 	int i = 0;
+	int j = 0;
 	int passwd_done = 0;
 	char passwd_len[8];
 
@@ -477,7 +606,43 @@ setup_passwd_len:
 				_strncpy((char*)recs[i].data,
 					 value, recs[i].data_len);
 				goto updated;
+			case TYPE_INT32:
+				if (!recs[i].data)
+					continue;
+
+				*(int32_t *)recs[i].data =
+					strtoul(value, NULL, 10);
+				goto updated;
+			case TYPE_INT64:
+				if (!recs[i].data)
+					continue;
+
+				*(int64_t *)recs[i].data =
+					strtoull(value, NULL, 10);
+				goto updated;
+			case TYPE_INT_O:
+				for (j = 0; j < recs[i].numopts; ++j) {
+					if (!strcmp(value, recs[i].opts[j])) {
+						if (!recs[i].data)
+							continue;
+
+						*(int*)recs[i].data = j;
+						goto updated;
+					}
+				}
+				goto unknown_value;
+			case TYPE_BOOL:
+				if (!recs[i].data)
+					continue;
+				if (strcmp(value, "Yes") == 0)
+					*(bool *)recs[i].data = true;
+				else if (strcmp(value, "No") == 0)
+					*(bool *)recs[i].data = false;
+				else
+					goto unknown_value;
+				goto updated;
 			default:
+unknown_value:
 				_error(ctx, "Got unknown data type %d "
 				       "for name '%s', value '%s'",
 				       recs[i].data, recs[i].name,
@@ -677,7 +842,7 @@ int _idbm_iface_get(struct iscsi_context *ctx, const char *iface_name, struct
 	recs = _idbm_recs_alloc();
 	_alloc_null_check(ctx, recs, rc, out);
 
-	_idbm_iface_rec_link(*iface, recs);
+	_idbm_iface_rec_link(*iface, recs, 0);
 
 	_good(_idbm_recs_read(ctx, recs, conf_path), rc, out);
 
@@ -705,4 +870,214 @@ struct idbm *_idbm_new(void)
 void _idbm_free(struct idbm *db)
 {
 	free(db);
+}
+
+static void _idbm_node_rec_link(struct iscsi_node *node, struct idbm_rec *recs)
+{
+	int num = 0;
+
+	_rec_str(NODE_NAME, recs, node, target_name, IDBM_SHOW, num,
+		 _CANNOT_MODIFY);
+	_rec_int32(NODE_TPGT, recs, node, tpgt, IDBM_SHOW, num,
+		   _CANNOT_MODIFY);
+	_rec_int_o3(NODE_STARTUP, recs, node, startup, IDBM_SHOW, "manual",
+		    "automatic", "onboot", num, _CAN_MODIFY);
+	_rec_bool(NODE_LEADING_LOGIN, recs, node, leading_login, IDBM_SHOW,
+		  num, _CAN_MODIFY);
+
+	/*
+	 * Note: because we do not add the iface.iscsi_ifacename to
+	 * sysfs iscsiadm does some weird matching. We can change the iface
+	 * values if a session is not running, but node record ifaces values
+	 * have to be changed and so do the iface record ones.
+	 *
+	 * Users should normally not want to change the iface ones
+	 * in the node record directly and instead do it through
+	 * the iface mode which will do the right thing (although that
+	 * needs some locking).
+	 */
+	num = _idbm_iface_rec_link(&((*node).iface), recs, num);
+
+	_rec_str(NODE_DISC_ADDR, recs, node, disc_address, IDBM_SHOW, num,
+		 _CANNOT_MODIFY);
+	_rec_int32(NODE_DISC_PORT, recs, node, disc_port, IDBM_SHOW, num,
+		   _CANNOT_MODIFY);
+	_rec_int_o6(NODE_DISC_TYPE, recs, node, disc_type, IDBM_SHOW,
+		    "send_targets", "isns", "offload_send_targets", "slp",
+		    "static", "fw", num, _CANNOT_MODIFY);
+
+	_rec_uint32(SESSION_INIT_CMDSN, recs, node, session.initial_cmdsn,
+		    IDBM_SHOW, num,_CAN_MODIFY);
+	_rec_int64(SESSION_INIT_LOGIN_RETRY, recs, node,
+		   session.initial_login_retry_max, IDBM_SHOW, num,
+		   _CAN_MODIFY);
+	_rec_int64(SESSION_XMIT_THREAD_PRIORITY, recs, node,
+		   session.xmit_thread_priority, IDBM_SHOW, num, _CAN_MODIFY);
+	_rec_uint16(SESSION_CMDS_MAX, recs, node, session.cmds_max, IDBM_SHOW,
+		    num, _CAN_MODIFY);
+	_rec_uint16(SESSION_QDEPTH, recs, node, session.queue_depth, IDBM_SHOW,
+		    num, _CAN_MODIFY);
+	_rec_int64(SESSION_NR_SESSIONS, recs, node, session.nr_sessions,
+		   IDBM_SHOW, num, _CAN_MODIFY);
+	_rec_int_o2(SESSION_AUTH_METHOD, recs, node, session.auth.authmethod,
+		    IDBM_SHOW, "None", "CHAP", num, _CAN_MODIFY);
+	_rec_str(SESSION_USERNAME, recs, node, session.auth.username, IDBM_SHOW,
+		 num, _CAN_MODIFY);
+	_rec_str(SESSION_PASSWORD, recs, node, session.auth.password,
+		 IDBM_MASKED, num, _CAN_MODIFY);
+	_rec_uint32(SESSION_PASSWORD_LEN, recs, node,
+		    session.auth.password_length, IDBM_HIDE, num, _CAN_MODIFY);
+	_rec_str(SESSION_USERNAME_IN, recs, node, session.auth.username_in,
+		 IDBM_SHOW, num, _CAN_MODIFY);
+	_rec_str(SESSION_PASSWORD_IN, recs, node, session.auth.password_in,
+		 IDBM_MASKED, num, _CAN_MODIFY);
+	_rec_uint32(SESSION_PASSWORD_IN_LEN, recs, node,
+		    session.auth.password_in_length, IDBM_HIDE, num,
+		    _CAN_MODIFY);
+	_rec_int64(SESSION_REPLACEMENT_TMO, recs, node,
+		   session.tmo.replacement_timeout, IDBM_SHOW, num,
+		   _CAN_MODIFY);
+	_rec_int64(SESSION_ABORT_TMO, recs, node, session.err_tmo.abort_timeout,
+		   IDBM_SHOW, num, _CAN_MODIFY);
+	_rec_int64(SESSION_LU_RESET_TMO, recs, node,
+		   session.err_tmo.lu_reset_timeout, IDBM_SHOW, num,
+		   _CAN_MODIFY);
+	_rec_int64(SESSION_TGT_RESET_TMO, recs, node,
+		   session.err_tmo.tgt_reset_timeout, IDBM_SHOW, num,
+		   _CAN_MODIFY);
+	_rec_int64(SESSION_HOST_RESET_TMO, recs, node,
+		   session.err_tmo.host_reset_timeout, IDBM_SHOW, num,
+		   _CAN_MODIFY);
+	_rec_bool(SESSION_FAST_ABORT, recs, node, session.op_cfg.FastAbort,
+		  IDBM_SHOW, num, _CAN_MODIFY);
+	_rec_bool(SESSION_INITIAL_R2T, recs, node, session.op_cfg.InitialR2T,
+		  IDBM_SHOW, num, _CAN_MODIFY);
+	_rec_bool(SESSION_IMM_DATA, recs, node, session.op_cfg.ImmediateData,
+		  IDBM_SHOW, num, _CAN_MODIFY);
+	_rec_int64(SESSION_FIRST_BURST, recs, node,
+		   session.op_cfg.FirstBurstLength, IDBM_SHOW, num,
+		   _CAN_MODIFY);
+	_rec_int64(SESSION_MAX_BURST, recs, node, session.op_cfg.MaxBurstLength,
+		   IDBM_SHOW, num, _CAN_MODIFY);
+	_rec_int64(SESSION_DEF_TIME2RETAIN, recs, node,
+		   session.op_cfg.DefaultTime2Retain, IDBM_SHOW, num,
+		   _CAN_MODIFY);
+	_rec_int64(SESSION_DEF_TIME2WAIT, recs, node,
+		   session.op_cfg.DefaultTime2Wait, IDBM_SHOW, num,
+		   _CAN_MODIFY);
+	_rec_int64(SESSION_MAX_CONNS, recs, node, session.op_cfg.MaxConnections,
+		   IDBM_SHOW, num, _CAN_MODIFY);
+	_rec_int64(SESSION_MAX_R2T, recs, node,
+		   session.op_cfg.MaxOutstandingR2T, IDBM_SHOW, num,
+		   _CAN_MODIFY);
+	_rec_int64(SESSION_ERL, recs, node, session.op_cfg.ERL, IDBM_SHOW, num,
+		   _CAN_MODIFY);
+	_rec_int_o2(SESSION_SCAN, recs, node, session.scan, IDBM_SHOW, "manual",
+		    "auto", num, _CAN_MODIFY);
+
+	_rec_str(CONN_ADDR, recs, node, conn.address, IDBM_SHOW, num,
+		 _CANNOT_MODIFY);
+	_rec_int32(CONN_PORT, recs, node, conn.port, IDBM_SHOW, num,
+		   _CANNOT_MODIFY);
+	_rec_int_o3(CONN_STARTUP, recs, node, conn.startup, IDBM_SHOW,
+		    "manual", "automatic", "onboot", num, _CAN_MODIFY);
+	_rec_int64(CONN_WINDOW_SIZE, recs, node, conn.tcp.window_size,
+		   IDBM_SHOW, num, _CAN_MODIFY);
+	_rec_int64(CONN_SERVICE_TYPE, recs, node, conn.tcp.type_of_service,
+		   IDBM_SHOW, num, _CAN_MODIFY);
+	_rec_int64(CONN_LOGOUT_TMO, recs, node, conn.tmo.logout_timeout,
+		   IDBM_SHOW, num, _CAN_MODIFY);
+	_rec_int64(CONN_LOGIN_TMO, recs, node, conn.tmo.login_timeout,
+		   IDBM_SHOW, num, _CAN_MODIFY);
+	_rec_int64(CONN_AUTH_TMO, recs, node, conn.tmo.auth_timeout,
+		   IDBM_SHOW, num, _CAN_MODIFY);
+	_rec_int64(CONN_NOP_INT, recs, node, conn.tmo.noop_out_interval,
+		   IDBM_SHOW, num, _CAN_MODIFY);
+	_rec_int64(CONN_NOP_TMO, recs, node, conn.tmo.noop_out_timeout,
+		   IDBM_SHOW, num, _CAN_MODIFY);
+	_rec_int64(CONN_MAX_XMIT_DLEN, recs, node,
+		   conn.op_cfg.MaxXmitDataSegmentLength, IDBM_SHOW,
+		   num, _CAN_MODIFY);
+	_rec_int64(CONN_MAX_RECV_DLEN, recs, node,
+		   conn.op_cfg.MaxRecvDataSegmentLength, IDBM_SHOW,
+		   num, _CAN_MODIFY);
+	_rec_int_o4(CONN_HDR_DIGEST, recs, node, conn.op_cfg.HeaderDigest,
+		    IDBM_SHOW, "None", "CRC32C", "CRC32C,None",
+		    "None,CRC32C", num, _CAN_MODIFY);
+	_rec_int_o4(CONN_DATA_DIGEST, recs, node, conn.op_cfg.DataDigest,
+		    IDBM_SHOW, "None", "CRC32C", "CRC32C,None",
+		    "None,CRC32C", num, _CAN_MODIFY);
+	_rec_bool(CONN_IFMARKER, recs, node, conn.op_cfg.IFMarker, IDBM_SHOW,
+		  num, _CAN_MODIFY);
+	_rec_bool(CONN_OFMARKER, recs, node, conn.op_cfg.OFMarker, IDBM_SHOW,
+		  num, _CAN_MODIFY);
+}
+
+int _idbm_node_get(struct iscsi_context *ctx, const char *target_name,
+		   const char *portal, const char *iface_name,
+		   struct iscsi_node **node)
+{
+	int rc = LIBISCSI_OK;
+	char conf_path[PATH_MAX];
+	struct idbm_rec *recs = NULL;
+
+	assert(node != NULL);
+	assert(ctx != NULL);
+
+	*node = NULL;
+
+	if ((target_name == NULL) || (portal == NULL))
+		goto out;
+
+	if (iface_name == NULL)			// old style of config
+		snprintf(conf_path, PATH_MAX, "%s/%s/%s", NODE_CONFIG_DIR,
+			 target_name, portal);
+	else
+		snprintf(conf_path, PATH_MAX, "%s/%s/%s/%s", NODE_CONFIG_DIR,
+			 target_name, portal, iface_name);
+
+	*node = calloc(1, sizeof(struct iscsi_node));
+	_alloc_null_check(ctx, *node, rc, out);
+
+	_default_node(*node);
+
+	recs = _idbm_recs_alloc();
+	_alloc_null_check(ctx, recs, rc, out);
+
+	_idbm_node_rec_link(*node, recs);
+
+	_good(_idbm_recs_read(ctx, recs, conf_path), rc, out);
+
+	if (! _iface_is_valid(&((*node)->iface))) {
+		_warn(ctx, "'%s' has invalid iSCSI interface configuration",
+		      conf_path);
+		iscsi_node_free(*node);
+		*node = NULL;
+		/* We still treat this as pass(no error) */
+		goto out;
+	}
+
+	// Add extra properties
+	if (strchr((*node)->conn.address, '.')) {
+		(*node)->conn.is_ipv6 = false;
+		snprintf((*node)->portal, sizeof((*node)->portal)/sizeof(char),
+			 "%s:%" PRIi32, (*node)->conn.address,
+			 (*node)->conn.port);
+
+	} else {
+		(*node)->conn.is_ipv6 = true;
+		snprintf((*node)->portal, sizeof((*node)->portal)/sizeof(char),
+			 "[%s]:%" PRIi32, (*node)->conn.address,
+			 (*node)->conn.port);
+	}
+
+
+
+out:
+	if (rc != LIBISCSI_OK) {
+		iscsi_node_free(*node);
+		*node = NULL;
+	}
+	_idbm_recs_free(recs);
+	return rc;
 }
