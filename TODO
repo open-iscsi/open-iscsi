@@ -372,3 +372,8 @@ iscsistart.
 I am working on this one. Hopefully it should be done soon.
 
 ---------------------------------------------------------------------------
+
+12. Figure out how to stop using our own copy of iscsi_if.h, since
+it gets out of sync with the kernel version, and that's not good.
+
+---------------------------------------------------------------------------
