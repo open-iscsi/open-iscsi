@@ -96,6 +96,11 @@ enum iscsiadm_op {
 	OP_LOGOUT		= 0x100
 };
 
+enum _print_node_tree_mode {
+	_PRINT_MODE_IFACE,
+	_PRINT_MODE_NODE,
+};
+
 static struct option const long_options[] =
 {
 	{"mode", required_argument, NULL, 'm'},
@@ -684,11 +689,20 @@ static void print_node_flat(struct iscsi_node *node)
 		       iscsi_node_target_name_get(node));
 }
 
-static void print_nodes_tree(struct iscsi_node **nodes, uint32_t node_count)
+// The 'iface_mode' argument is only used for command
+//	`iscsiadm -m iface -P 1`
+static void print_nodes_tree(struct iscsi_node **nodes, uint32_t node_count,
+			     enum _print_node_tree_mode print_mode)
 {
 	uint32_t i = 0;
 	struct iscsi_node *cur_node = NULL;
 	struct iscsi_node *pre_node = NULL;
+	const char *prefix = NULL;
+
+	if (print_mode == _PRINT_MODE_IFACE)
+		prefix = "\t";
+	else
+		prefix = "";
 
 	// According to libopeniscsiusr document, nodes are sorted. There
 	// is no need to create hash table for this.
@@ -699,21 +713,22 @@ static void print_nodes_tree(struct iscsi_node **nodes, uint32_t node_count)
 		if ((pre_node == NULL) ||
 		    (strcmp(iscsi_node_target_name_get(cur_node),
 			    iscsi_node_target_name_get(pre_node)) != 0))
-			printf("Target: %s\n",
+			printf("%sTarget: %s\n", prefix,
 			       iscsi_node_target_name_get(cur_node));
 		if ((pre_node == NULL) ||
 		    (strcmp(iscsi_node_conn_address_get(cur_node),
 			    iscsi_node_conn_address_get(pre_node)) != 0) ||
 		    (iscsi_node_conn_port_get(cur_node) !=
 		     iscsi_node_conn_port_get(pre_node)))
-			printf("\tPortal: %s,%d\n",
+			printf("%s\tPortal: %s,%d\n", prefix,
 			       iscsi_node_portal_get(cur_node),
 			       iscsi_node_tpgt_get(cur_node));
 		if ((pre_node == NULL) ||
 		    (strcmp(iscsi_node_iface_name_get(cur_node),
 			    iscsi_node_iface_name_get(pre_node)) != 0))
-			printf("\t\tIface Name: %s\n",
-			       iscsi_node_iface_name_get(cur_node));
+			if (print_mode == _PRINT_MODE_NODE)
+				printf("\t\tIface Name: %s\n",
+				       iscsi_node_iface_name_get(cur_node));
 	}
 }
 
@@ -735,7 +750,7 @@ static int print_nodes(struct iscsi_context *ctx, int info_level)
 		goto out;
 
 	if (info_level == 1)
-		print_nodes_tree(nodes, node_count);
+		print_nodes_tree(nodes, node_count, _PRINT_MODE_NODE);
 	else
 		for (i = 0; i < node_count; ++i)
 			print_node_flat(nodes[i]);
@@ -2374,6 +2389,68 @@ static int verify_iface_params(struct list_head *params, struct node_rec *rec)
 	return 0;
 }
 
+static void _print_iface_tree(struct iscsi_node **nodes, uint32_t node_count,
+			      const char *iface_name,
+			      struct iscsi_node **matched_nodes)
+{
+	struct iscsi_node *node = NULL;
+	uint32_t matched_node_count = 0;
+	uint32_t i = 0;
+
+	for (i = 0; i < node_count; ++i) {
+		node = nodes[i];
+		if (strcmp(iface_name, iscsi_node_iface_name_get(node))
+		    == 0)
+			matched_nodes[matched_node_count++] = node;
+	}
+	printf("Iface: %s\n", iface_name);
+	print_nodes_tree(matched_nodes, matched_node_count, _PRINT_MODE_IFACE);
+}
+
+static int print_iface_tree(struct iscsi_context *ctx,
+			     const char *iface_name)
+{
+	int rc = 0;
+	struct iscsi_node **nodes = NULL;
+	struct iscsi_node **matched_nodes = NULL;
+	uint32_t node_count = 0;
+	struct iscsi_iface *iface = NULL;
+	struct iscsi_iface **ifaces = NULL;
+	uint32_t iface_count = 0;
+	uint32_t i = 0;
+
+	_good(iscsi_nodes_get(ctx, &nodes, &node_count),
+	      rc, out);
+	if (node_count == 0)
+		goto out;
+	matched_nodes = calloc(node_count, sizeof(struct iscsi_node *));
+	if (matched_nodes == NULL) {
+		log_error("No memory");
+		goto out;
+	}
+
+	if (iface_name != NULL) {
+		// Just make sure specified iface exists
+		_good(iscsi_iface_get(ctx, iface_name, &iface), rc, out);
+		_print_iface_tree(nodes, node_count, iface_name,
+				  matched_nodes);
+	} else {
+		_good(iscsi_ifaces_get(ctx, &ifaces, &iface_count),
+		      rc, out);
+		for (i = 0; i < iface_count; ++i)
+			_print_iface_tree(nodes, node_count,
+					  iscsi_iface_name_get(ifaces[i]),
+					  matched_nodes);
+	}
+
+out:
+	free(matched_nodes);
+	iscsi_ifaces_free(ifaces, iface_count);
+	iscsi_iface_free(iface);
+	iscsi_nodes_free(nodes, node_count);
+	return rc;
+}
+
 /* TODO: merge iter helpers and clean them up, so we can use them here */
 static int exec_iface_op(struct iscsi_context *ctx, int op, int do_show,
 			 int info_level, struct iface_rec *iface,
@@ -2386,7 +2463,6 @@ static int exec_iface_op(struct iscsi_context *ctx, int op, int do_show,
 	struct iscsi_iface *iface_info = NULL;
 	uint32_t iface_count = 0;
 	uint32_t i = 0;
-	int num_found = 0;
 
 	switch (op) {
 	case OP_NEW:
@@ -2569,26 +2645,7 @@ update_fail:
 			 * TODO(Gris Ge): Once we have node support from
 			 * libopeniscsiusr, change below codes.
 			 */
-			if (iface) {
-				rc = iface_conf_read(iface);
-				if (rc) {
-					log_error("Could not read iface %s.",
-						 iface->name);
-					goto out;
-				}
-				iface_print_tree(NULL, iface);
-			} else {
-				rc = iface_for_each_iface(NULL, 0, &num_found,
-							   iface_print_tree);
-				if (rc)
-					goto out;
-				if (num_found <= 0) {
-					log_error("No interfaces found.");
-					rc = ISCSI_ERR_NO_OBJS_FOUND;
-					goto out;
-				}
-			}
-
+			rc = print_iface_tree(ctx, iface ? iface->name : NULL);
 			break;
 		default:
 			log_error("Invalid info level %d. Try 0 - 1.",
