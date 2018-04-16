@@ -111,7 +111,6 @@ int _iscsi_iface_get_from_sysfs(struct iscsi_context *ctx, uint32_t host_id,
 	bool matched = false;
 
 	assert(ctx != NULL);
-	assert(host_id != 0);
 	assert(iface != NULL);
 
 	*iface = NULL;
