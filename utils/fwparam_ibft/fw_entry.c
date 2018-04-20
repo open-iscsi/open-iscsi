@@ -161,7 +161,11 @@ void fw_free_targets(struct list_head *list)
 
 static void dump_initiator(struct boot_context *context)
 {
-	char transport_name[ISCSI_TRANSPORT_NAME_MAXLEN];
+	struct iface_rec iface;
+
+	memset(&iface, 0, sizeof(iface));
+	iface_setup_defaults(&iface);
+	iface_setup_from_boot_context(&iface, context);
 
 	if (strlen(context->initiatorname))
 		printf("%s = %s\n", IFACE_INAME, context->initiatorname);
@@ -169,9 +173,7 @@ static void dump_initiator(struct boot_context *context)
 	if (strlen(context->isid))
 		printf("%s = %s\n", IFACE_ISID, context->isid);
 
-	memset(transport_name, 0, ISCSI_TRANSPORT_NAME_MAXLEN);
-	if (!net_get_transport_name_from_netdev(context->iface, transport_name))
-		printf("%s = %s\n", IFACE_TRANSPORTNAME, transport_name);
+	printf("%s = %s\n", IFACE_TRANSPORTNAME, iface.transport_name);
 }
 
 static void dump_target(struct boot_context *context)
