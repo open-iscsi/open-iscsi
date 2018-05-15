@@ -27,6 +27,7 @@
 #include <unistd.h>
 #include <string.h>
 #include <signal.h>
+#include <time.h>
 #include <sys/mman.h>
 #include <sys/utsname.h>
 #include <sys/signal.h>
@@ -224,7 +225,8 @@ static int login_session(struct node_rec *rec)
 {
 	iscsiadm_req_t req;
 	iscsiadm_rsp_t rsp;
-	int rc, retries = 0;
+	int rc, msec, err;
+	struct timespec ts;
 
 	rc = apply_params(rec);
 	if (rc)
@@ -237,18 +239,29 @@ static int login_session(struct node_rec *rec)
 	req.command = MGMT_IPC_SESSION_LOGIN;
 	memcpy(&req.u.session.rec, rec, sizeof(*rec));
 
-retry:
-	rc = iscsid_exec_req(&req, &rsp, 0, ISCSID_REQ_TIMEOUT);
 	/*
-	 * handle race where iscsid proc is starting up while we are
-	 * trying to connect.
+	 * Need to handle race where iscsid proc is starting up while we are
+	 * trying to connect. Retry with exponential backoff, start from 50 ms.
 	 */
-	if (rc == ISCSI_ERR_ISCSID_NOTCONN && retries < 30) {
-		retries++;
-		sleep(1);
-		goto retry;
-	} else if (rc)
-		iscsi_err_print_msg(rc);
+	for (msec = 50; msec <= 15000; msec <<= 1) {
+		rc = iscsid_exec_req(&req, &rsp, 0, ISCSID_REQ_TIMEOUT);
+		if (rc == 0) {
+			return rc;
+		} else if (rc == ISCSI_ERR_ISCSID_NOTCONN) {
+			ts.tv_sec = msec / 1000;
+			ts.tv_nsec = (msec % 1000) * 1000000L;
+
+			/* On EINTR, retry nanosleep with remaining time. */
+			while ((err = nanosleep(&ts, &ts)) < 0 &&
+			       errno == EINTR);
+			if (err < 0)
+				break;
+		} else {
+			break;
+		}
+	}
+
+	iscsi_err_print_msg(rc);
 	return rc;
 }
 
