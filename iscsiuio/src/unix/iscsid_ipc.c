@@ -1245,7 +1245,8 @@ void iscsid_cleanup()
 {
 	int rc;
 
-	if (iscsid_opts.fd != INVALID_FD) {
+	if (iscsid_opts.fd != INVALID_FD &&
+	    iscsid_opts.thread != INVALID_THREAD) {
 		rc = pthread_cancel(iscsid_opts.thread);
 		if (rc != 0) {
 			LOG_ERR("Could not cancel iscsid listening thread: %s",
