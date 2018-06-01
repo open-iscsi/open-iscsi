@@ -59,7 +59,7 @@ user: iscsiuio/Makefile
 	@echo "Built management application:        usr/iscsiadm"
 	@echo "Built boot tool:                     usr/iscsistart"
 	@echo "Built iscsiuio daemon:               iscsiuio/src/unix/iscsiuio"
-	@echo "Built libopeniscsiusr library:           libopeniscsiusr/libopeniscsiusr.so"
+	@echo "Built libopeniscsiusr library:       libopeniscsiusr/libopeniscsiusr.so"
 	@echo
 	@echo "Read README file for detailed information."
 

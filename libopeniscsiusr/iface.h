@@ -23,6 +23,7 @@
 #include "libopeniscsiusr/libopeniscsiusr_common.h"
 #include <stdint.h>
 #include <netdb.h>
+#include <net/if.h>
 
 #define VALUE_MAXVAL	256   /* the maximum length of 223 bytes in the RFC. */
 /* ^ VALUE_MAXVAL is copied from usr/idbm.h

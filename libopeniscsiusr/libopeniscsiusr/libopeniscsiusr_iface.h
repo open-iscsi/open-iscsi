@@ -20,6 +20,9 @@
 #ifndef _LIB_OPEN_ISCSI_USR_IFACE_H_
 #define _LIB_OPEN_ISCSI_USR_IFACE_H_
 
+#include <stdint.h>
+#include <stdbool.h>
+
 #include "libopeniscsiusr_common.h"
 
 /**

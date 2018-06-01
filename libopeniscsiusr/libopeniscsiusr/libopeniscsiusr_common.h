@@ -76,4 +76,6 @@ struct __DLL_EXPORT iscsi_session;
 
 struct __DLL_EXPORT iscsi_iface;
 
+struct __DLL_EXPORT iscsi_node;
+
 #endif /* End of _LIB_OPEN_ISCSI_USR_COMMON_H_ */

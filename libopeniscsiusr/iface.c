@@ -44,13 +44,9 @@
 #include "iface.h"
 #include "context.h"
 #include "idbm.h"
+#include "default.h"
 
-#define DEFAULT_IFACENAME	"default"
-#define DEFAULT_NETDEV		"default"
-#define DEFAULT_IPADDRESS	"default"
-#define DEFAULT_HWADDRESS	"default"
 #define ISCSIUIO_PATH		"/sbin/iscsiuio"
-#define _IFACE_DUMP_SIZE	8192
 
 struct _iscsi_net_drv {
 	const char *net_driver_name;		// Ethernet driver.
@@ -743,8 +739,7 @@ int iscsi_ifaces_get(struct iscsi_context *ctx, struct iscsi_iface ***ifaces,
 	_good(_idbm_lock(ctx), rc, out);
 
 	_good(_scandir(ctx, IFACE_CONFIG_DIR, &namelist, &n), rc, out);
-	_debug(ctx, "Got %d iface from %s folder", *iface_count,
-	       IFACE_CONFIG_DIR);
+	_debug(ctx, "Got %d iface from %s folder", n, IFACE_CONFIG_DIR);
 	*iface_count = (n + sizeof(_DEFAULT_IFACES)/sizeof(struct iscsi_iface))
 		& UINT32_MAX;
 	*ifaces = (struct iscsi_iface **) calloc(*iface_count,
@@ -846,11 +841,11 @@ const char *iscsi_iface_dump_config(struct iscsi_iface *iface)
 
 	assert(iface != NULL);
 
-	buff = calloc(1, _IFACE_DUMP_SIZE);
+	buff = calloc(1, IDBM_DUMP_SIZE);
 	if (buff == NULL)
 		return NULL;
 
-	f = fmemopen(buff, _IFACE_DUMP_SIZE - 1, "w");
+	f = fmemopen(buff, IDBM_DUMP_SIZE - 1, "w");
 	if (f == NULL) {
 		free(buff);
 		return NULL;
@@ -880,6 +875,17 @@ int iscsi_iface_get(struct iscsi_context *ctx, const char *iface_name,
 
 	*iface = NULL;
 
+	size_t i = 0;
+	for (; i < sizeof(_DEFAULT_IFACES)/sizeof(struct iscsi_iface); ++i) {
+		if (strcmp(iface_name, _DEFAULT_IFACES[i].name) == 0) {
+			*iface = calloc(1, sizeof(struct iscsi_iface));
+			_alloc_null_check(ctx, *iface, rc, out);
+			memcpy(*iface, &_DEFAULT_IFACES[i],
+			       sizeof(struct iscsi_iface));
+			goto out;
+		}
+	}
+
 	rc = _idbm_lock(ctx);
 	if (rc != LIBISCSI_OK)
 		return rc;
@@ -890,6 +896,7 @@ int iscsi_iface_get(struct iscsi_context *ctx, const char *iface_name,
 
 	_idbm_unlock(ctx);
 
+out:
 	return rc;
 }
 
