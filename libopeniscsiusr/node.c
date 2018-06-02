@@ -29,6 +29,7 @@
 #include <unistd.h>
 #include <errno.h>
 #include <string.h>
+#include <limits.h>
 
 #include "libopeniscsiusr/libopeniscsiusr.h"
 #include "misc.h"
