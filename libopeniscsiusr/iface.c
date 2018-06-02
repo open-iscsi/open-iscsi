@@ -138,7 +138,7 @@ int _iscsi_iface_get_from_sysfs(struct iscsi_context *ctx, uint32_t host_id,
 
 	if (strncmp(proc_name, "iscsi_", strlen("iscsi_")) == 0)
 		_strncpy((*iface)->transport_name, proc_name + strlen("iscsi_"),
-			 sizeof((*iface)->transport_name) / sizeof(char));
+			 sizeof((*iface)->transport_name) / sizeof(char) - 1);
 	else
 		_strncpy((*iface)->transport_name, proc_name,
 			sizeof((*iface)->transport_name) / sizeof(char));
@@ -489,7 +489,8 @@ static int _fill_hw_iface_from_sys(struct iscsi_context *ctx,
 
 	sysfs_iface_dir_path = malloc(PATH_MAX);
 	_alloc_null_check(ctx, sysfs_iface_dir_path, rc, out);
-	snprintf(sysfs_iface_dir_path, PATH_MAX, "%s/%s",
+	sysfs_iface_dir_path[PATH_MAX+strlen(_ISCSI_SYS_IFACE_DIR)] = '\0';
+	snprintf(sysfs_iface_dir_path, PATH_MAX+strlen(_ISCSI_SYS_IFACE_DIR)+1, "%s/%s",
 		 _ISCSI_SYS_IFACE_DIR, iface_kern_id);
 
 	_good(_sysfs_prop_get_str(ctx, sysfs_iface_dir_path,
