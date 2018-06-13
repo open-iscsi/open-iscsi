@@ -27,6 +27,9 @@ struct iscsiadm_req;
 struct iscsiadm_rsp;
 struct node_rec;
 
+extern char iscsid_namespace[64];
+extern void iscsid_set_namespace(pid_t);
+
 extern int iscsid_exec_req(struct iscsiadm_req *req, struct iscsiadm_rsp *rsp,
 			   int iscsid_start, int tmo);
 extern int iscsid_req_wait(iscsiadm_cmd_e cmd, int fd);

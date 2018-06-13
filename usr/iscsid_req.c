@@ -98,9 +98,19 @@ static int ipc_connect(int *fd, char *unix_sock_name, int start_iscsid)
 	return ISCSI_ERR_ISCSID_NOTCONN;
 }
 
+char iscsid_namespace[64] = ISCSIADM_NAMESPACE;
+
+void iscsid_set_namespace(pid_t pid) {
+	if (pid) {
+		snprintf(iscsid_namespace, 64, ISCSIADM_NAMESPACE "-%d", pid);
+	} else {
+		snprintf(iscsid_namespace, 64, ISCSIADM_NAMESPACE);
+	}
+}
+
 static int iscsid_connect(int *fd, int start_iscsid)
 {
-	return ipc_connect(fd, ISCSIADM_NAMESPACE, start_iscsid);
+	return ipc_connect(fd, iscsid_namespace, start_iscsid);
 }
 
 int iscsid_request(int *fd, iscsiadm_req_t *req, int start_iscsid)
