@@ -139,6 +139,7 @@ struct iscsi_iface {
 
 __DLL_LOCAL int _iscsi_iface_get_from_sysfs(struct iscsi_context *ctx,
 					    uint32_t host_id, uint32_t sid,
+					    char *iface_kern_id,
 					    struct iscsi_iface **iface);
 
 __DLL_LOCAL bool _iface_is_valid(struct iscsi_iface *iface);

@@ -454,8 +454,10 @@ bool _iscsi_transport_is_loaded(const char *transport_name)
 	return false;
 }
 
-int _iscsi_iface_kern_id_of_host_id(struct iscsi_context *ctx,
-				    uint32_t host_id, char *iface_kern_id)
+int _iscsi_iface_kern_ids_of_host_id(struct iscsi_context *ctx,
+				    uint32_t host_id,
+				    char ***iface_kern_ids,
+				    uint32_t *iface_count)
 {
 	char *sysfs_sh_path = NULL;
 	char *dev_path = NULL;
@@ -463,6 +465,7 @@ int _iscsi_iface_kern_id_of_host_id(struct iscsi_context *ctx,
 	int rc = LIBISCSI_OK;
 	struct dirent **namelist = NULL;
 	int n = 0;
+	uint32_t i = 0;
 
 	sysfs_sh_path = malloc(PATH_MAX);
 	_alloc_null_check(ctx, sysfs_sh_path, rc, out);
@@ -485,24 +488,32 @@ int _iscsi_iface_kern_id_of_host_id(struct iscsi_context *ctx,
 	_good(_scandir(ctx, sysfs_iface_path, &namelist, &n), rc, out);
 
 	if (n == 0) {
-		rc = LIBISCSI_ERR_SYSFS_LOOKUP;
+		/* this is OK, and needed for transport drivers like
+		 * bnx2i and qedi */
+		rc = LIBISCSI_OK;
 		_debug(ctx, "No iSCSI interface for iSCSI host %" PRIu32,
 		       host_id);
 		goto out;
 	}
 
-	if (n != 1) {
-		rc = LIBISCSI_ERR_SYSFS_LOOKUP;
-		_debug(ctx, "Got unexpected(got %d, should be 1) file in "
-		       "folder %s", n, sysfs_iface_path);
-		goto out;
+	*iface_count = n;
+	*iface_kern_ids = calloc(*iface_count, sizeof(char *));
+	_alloc_null_check(ctx, *iface_kern_ids, rc, out);
+	for (i = 0; i < *iface_count; i++) {
+		(*iface_kern_ids)[i] = strdup(namelist[i]->d_name);
+		_alloc_null_check(ctx, (*iface_kern_ids)[i], rc, out);
+		_debug(ctx, "Found iSCSI iface '%s' for iSCSI host %" PRIu32,
+		       (*iface_kern_ids)[i], host_id);
 	}
-
-	snprintf(iface_kern_id, PATH_MAX, "%s", namelist[0]->d_name);
-	_debug(ctx, "Found iSCSI iface '%s' for iSCSI host %" PRIu32,
-	       iface_kern_id, host_id);
-
 out:
+	if (rc != LIBISCSI_OK) {
+		for (i = 0; i < *iface_count; i++ ) {
+			free((*iface_kern_ids)[i]);
+		}
+		free(*iface_kern_ids);
+		*iface_kern_ids = NULL;
+		*iface_count = 0;
+	}
 	_scandir_free(namelist, n);
 	free(sysfs_sh_path);
 	free(dev_path);

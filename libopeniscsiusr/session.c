@@ -229,7 +229,8 @@ int iscsi_session_get(struct iscsi_context *ctx, uint32_t sid,
 
 	_good(_iscsi_host_id_of_session(ctx, sid, &host_id), rc, out);
 
-	_good(_iscsi_iface_get_from_sysfs(ctx, host_id, sid, &((*se)->iface)),
+	/* does this need to the correct iface_kern_id for the session? */
+	_good(_iscsi_iface_get_from_sysfs(ctx, host_id, sid, NULL, &((*se)->iface)),
 	      rc, out);
 
 out:

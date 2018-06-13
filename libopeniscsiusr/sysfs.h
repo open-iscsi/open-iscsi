@@ -67,11 +67,13 @@ __DLL_LOCAL int _iscsi_host_id_of_session(struct iscsi_context *ctx,
 					  uint32_t sid, uint32_t *host_id);
 
 /*
- * iface_kern_id should be char[PATH_MAX]
+ * iface_kern_id returns an allocated (char *)[iface_count]
+ * that needs to be freed by the caller
  */
-__DLL_LOCAL int _iscsi_iface_kern_id_of_host_id(struct iscsi_context *ctx,
-						uint32_t host_id,
-						char *iface_kern_id);
+__DLL_LOCAL int _iscsi_iface_kern_ids_of_host_id(struct iscsi_context *ctx,
+						 uint32_t host_id,
+						 char ***iface_kern_ids,
+						 uint32_t *iface_count);
 
 /*
  * The memory of (uint32_t *sids) should be freed by free().
