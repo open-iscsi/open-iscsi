@@ -189,6 +189,9 @@ int log_enqueue (int prio, const char * fmt, va_list ap)
 	    (len + sizeof(struct logmsg)) > (la->end - la->tail)) {
 		logdbg(stderr, "enqueue: rewind tail to %p\n", la->tail);
 			la->tail = la->start;
+
+			if (la->empty)
+				la->head = lastmsg = la->tail;
 	}
 
 	/* not enough space on head : drop msg */
