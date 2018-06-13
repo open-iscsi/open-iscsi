@@ -841,6 +841,9 @@ int _idbm_iface_get(struct iscsi_context *ctx, const char *iface_name, struct
 	snprintf((*iface)->name, sizeof((*iface)->name)/sizeof(char),
 		 "%s", iface_name);
 
+	if (strstr(iface_name, "ipv6"))
+		(*iface)->is_ipv6 = true;
+
 	recs = _idbm_recs_alloc();
 	_alloc_null_check(ctx, recs, rc, out);
 
