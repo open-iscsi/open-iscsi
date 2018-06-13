@@ -370,6 +370,8 @@ static int _idbm_iface_rec_link(struct iscsi_iface *iface,
 		 _CAN_MODIFY);
 	_rec_str(IFACE_IPADDR, recs, iface, ipaddress, IDBM_SHOW, num,
 		 _CAN_MODIFY);
+	_rec_uint8(IFACE_PREFIX_LEN, recs, iface, prefix_len, IDBM_SHOW, num,
+		_CAN_MODIFY);
 	_rec_str(IFACE_HWADDR, recs, iface, hwaddress, IDBM_SHOW, num,
 		 _CAN_MODIFY);
 	_rec_str(IFACE_TRANSPORTNAME, recs, iface, transport_name, IDBM_SHOW,
