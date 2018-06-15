@@ -93,7 +93,8 @@ int iscsi_nodes_get(struct iscsi_context *ctx, struct iscsi_node ***nodes,
 	int p = 0;
 	struct dirent **namelist_ifaces = NULL;
 	int f = 0;
-	char path[PATH_MAX];
+	char *target_path = NULL;
+	char *path = NULL;
 	struct stat path_stat;
 	char strerr_buff[_STRERR_BUFF_LEN];
 
@@ -120,15 +121,17 @@ int iscsi_nodes_get(struct iscsi_context *ctx, struct iscsi_node ***nodes,
 
 	for (i = 0; i < n; ++i) {
 		target_name = namelist[i]->d_name;
-		snprintf(path, sizeof(path)/sizeof(char),
-			 "%s/%s", NODE_CONFIG_DIR, target_name);
-		_good(_scandir(ctx, path, &namelist_portals, &p), rc, out);
-		_debug(ctx, "Got %d portals from %s folder", p, path);
+		_good(_asprintf(&target_path, "%s/%s", NODE_CONFIG_DIR,
+				target_name), rc, out);
+		_good(_scandir(ctx, target_path, &namelist_portals, &p),
+		      rc, out);
+		_debug(ctx, "Got %d portals from %s folder", p, target_path);
+		free(target_path);
+		target_path = NULL;
 		for (j = 0; j < p; ++j) {
 			portal = namelist_portals[j]->d_name;
-			snprintf(path, sizeof(path)/sizeof(char),
-				 "%s/%s/%s", NODE_CONFIG_DIR, target_name,
-				 portal);
+			_good(_asprintf(&path, "%s/%s/%s", NODE_CONFIG_DIR,
+					target_name, portal), rc, out);
 			if (stat(path, &path_stat) != 0) {
 				_warn(ctx, "Cannot stat path '%s': %d, %s",
 				      path, errno,
@@ -166,6 +169,8 @@ int iscsi_nodes_get(struct iscsi_context *ctx, struct iscsi_node ***nodes,
 						   node_count, node),
 				      rc, out);
 			}
+			free(path);
+			path = NULL;
 			_scandir_free(namelist_ifaces, f);
 			namelist_ifaces = NULL;
 			f = 0;
@@ -178,6 +183,8 @@ int iscsi_nodes_get(struct iscsi_context *ctx, struct iscsi_node ***nodes,
 	*node_count = real_node_count;
 
 out:
+	free(path);
+	free(target_path);
 	_scandir_free(namelist, n);
 	_scandir_free(namelist_portals, p);
 	_scandir_free(namelist_ifaces, f);

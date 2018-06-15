@@ -96,7 +96,6 @@ int _iscsi_iface_get_from_sysfs(struct iscsi_context *ctx, uint32_t host_id,
 	char *sysfs_se_dir_path = NULL;
 	char *sysfs_sh_dir_path = NULL;
 	char *sysfs_scsi_host_dir_path = NULL;
-	char *sysfs_iface_dir_path = NULL;
 	char proc_name[ISCSI_TRANSPORT_NAME_MAXLEN];
 	struct iscsi_iface **ifaces = NULL;
 	uint32_t iface_count = 0;
@@ -112,21 +111,15 @@ int _iscsi_iface_get_from_sysfs(struct iscsi_context *ctx, uint32_t host_id,
 	*iface = NULL;
 
 	if (sid != 0) {
-		sysfs_se_dir_path = malloc(PATH_MAX);
-		_alloc_null_check(ctx, sysfs_se_dir_path, rc, out);
-		snprintf(sysfs_se_dir_path, PATH_MAX, "%s/session%" PRIu32,
-			 _ISCSI_SYS_SESSION_DIR, sid);
+		_good(_asprintf(&sysfs_se_dir_path, "%s/session%" PRIu32,
+			        _ISCSI_SYS_SESSION_DIR, sid), rc, out);
 	}
 
-	sysfs_sh_dir_path = malloc(PATH_MAX);
-	_alloc_null_check(ctx, sysfs_sh_dir_path, rc, out);
-	snprintf(sysfs_sh_dir_path, PATH_MAX, "%s/host%" PRIu32,
-		 _ISCSI_SYS_HOST_DIR, host_id);
+	_good(_asprintf(&sysfs_sh_dir_path, "%s/host%" PRIu32,
+		        _ISCSI_SYS_HOST_DIR, host_id),rc, out);
 
-	sysfs_scsi_host_dir_path = malloc(PATH_MAX);
-	_alloc_null_check(ctx, sysfs_scsi_host_dir_path, rc, out);
-	snprintf(sysfs_scsi_host_dir_path, PATH_MAX, "%s/host%" PRIu32,
-		 _SCSI_SYS_HOST_DIR, host_id);
+	_good(_asprintf(&sysfs_scsi_host_dir_path, "%s/host%" PRIu32,
+		 _SCSI_SYS_HOST_DIR, host_id), rc, out);
 
 	*iface = (struct iscsi_iface *) calloc(1, sizeof(struct iscsi_iface));
 	_alloc_null_check(ctx, *iface, rc, out);
@@ -262,7 +255,6 @@ out:
 	free(sysfs_se_dir_path);
 	free(sysfs_sh_dir_path);
 	free(sysfs_scsi_host_dir_path);
-	free(sysfs_iface_dir_path);
 	iscsi_ifaces_free(ifaces, iface_count);
 	return rc;
 }
@@ -329,7 +321,7 @@ int iscsi_default_iface_setup(struct iscsi_context *ctx)
 	uint32_t hid_count = 0;
 	struct iscsi_iface **ifaces = NULL;
 	uint32_t iface_count = 0;
-	char path[PATH_MAX];
+	char *path = NULL;
 
 	assert(ctx != NULL);
 
@@ -397,10 +389,12 @@ int iscsi_default_iface_setup(struct iscsi_context *ctx)
 			rc, out);
 		for (n = 0; n < iface_count; n++) {
 			if ( ! iscsi_is_default_iface(ifaces[n])) {
-				snprintf(path, PATH_MAX, "%s/%s", IFACE_CONFIG_DIR,
-					 ifaces[n]->name);
+				_good(_asprintf(&path, "%s/%s", IFACE_CONFIG_DIR,
+						ifaces[n]->name), rc, out);
 				if (access(path, F_OK) != 0)
 					rc = _iface_conf_write(ctx, ifaces[n]);
+				free(path);
+				path = NULL;
 			}
 			iscsi_iface_free(ifaces[n]);
 			ifaces[n] = NULL;
@@ -418,6 +412,7 @@ out:
 		free(ifaces);
 	}
 	_eth_ifs_free(eifs, eif_count);
+	free(path);
 	free(hids);
 	return rc;
 }
@@ -492,7 +487,7 @@ out:
 static int _iface_conf_write(struct iscsi_context *ctx,
 			     struct iscsi_iface *iface)
 {
-	char conf_path[PATH_MAX];
+	char *conf_path = NULL;
 	char strerr_buff[_STRERR_BUFF_LEN];
 	int errno_save = 0;
 	FILE *f = NULL;
@@ -506,7 +501,8 @@ static int _iface_conf_write(struct iscsi_context *ctx,
 
 	_good(_idbm_lock(ctx), rc, out);
 
-	snprintf(conf_path, PATH_MAX, "%s/%s", IFACE_CONFIG_DIR, iface->name);
+	_good(_asprintf(&conf_path, "%s/%s", IFACE_CONFIG_DIR,
+			iface->name), rc, out);
 	_debug(ctx, "Creating iSCSI interface configuration file '%s' "
 	       "using kernel information", conf_path);
 	f = fopen(conf_path, "w");
@@ -524,6 +520,7 @@ static int _iface_conf_write(struct iscsi_context *ctx,
 	_idbm_unlock(ctx);
 
 out:
+	free(conf_path);
 	if (f != NULL)
 		fclose(f);
 	return rc;
@@ -540,15 +537,12 @@ static int _fill_hw_iface_from_sys(struct iscsi_context *ctx,
 	uint32_t iface_num = 0;
 	int iface_type = 0;
 
-
 	assert(ctx != NULL);
 	assert(iface != NULL);
 	assert(iface_kern_id != NULL);
 
-	sysfs_iface_dir_path = malloc(PATH_MAX);
-	_alloc_null_check(ctx, sysfs_iface_dir_path, rc, out);
-	snprintf(sysfs_iface_dir_path, PATH_MAX, "%s/%s",
-		 _ISCSI_SYS_IFACE_DIR, iface_kern_id);
+	_good(_asprintf(&sysfs_iface_dir_path, "%s/%s", _ISCSI_SYS_IFACE_DIR,
+			iface_kern_id), rc, out);
 
 	_good(_sysfs_prop_get_str(ctx, sysfs_iface_dir_path,
 				  "ipaddress",

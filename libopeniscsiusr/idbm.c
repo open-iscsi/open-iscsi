@@ -822,7 +822,7 @@ int _idbm_iface_get(struct iscsi_context *ctx, const char *iface_name, struct
 		    iscsi_iface **iface)
 {
 	int rc = LIBISCSI_OK;
-	char conf_path[PATH_MAX];
+	char *conf_path = NULL;
 	struct idbm_rec *recs = NULL;
 
 	assert(iface != NULL);
@@ -833,7 +833,8 @@ int _idbm_iface_get(struct iscsi_context *ctx, const char *iface_name, struct
 	if (iface_name == NULL)
 		goto out;
 
-	snprintf(conf_path, PATH_MAX, "%s/%s", IFACE_CONFIG_DIR, iface_name);
+	_good(_asprintf(&conf_path, "%s/%s", IFACE_CONFIG_DIR, iface_name),
+	      rc, out);
 
 	*iface = calloc(1, sizeof(struct iscsi_iface));
 	_alloc_null_check(ctx, *iface, rc, out);
@@ -864,6 +865,7 @@ out:
 		iscsi_iface_free(*iface);
 		*iface = NULL;
 	}
+	free(conf_path);
 	_idbm_recs_free(recs);
 	return rc;
 }
@@ -1023,7 +1025,7 @@ int _idbm_node_get(struct iscsi_context *ctx, const char *target_name,
 		   struct iscsi_node **node)
 {
 	int rc = LIBISCSI_OK;
-	char conf_path[PATH_MAX];
+	char *conf_path = NULL;
 	struct idbm_rec *recs = NULL;
 
 	assert(node != NULL);
@@ -1035,11 +1037,11 @@ int _idbm_node_get(struct iscsi_context *ctx, const char *target_name,
 		goto out;
 
 	if (iface_name == NULL)			// old style of config
-		snprintf(conf_path, PATH_MAX, "%s/%s/%s", NODE_CONFIG_DIR,
-			 target_name, portal);
+		_good(_asprintf(&conf_path, "%s/%s/%s", NODE_CONFIG_DIR,
+			 target_name, portal), rc, out);
 	else
-		snprintf(conf_path, PATH_MAX, "%s/%s/%s/%s", NODE_CONFIG_DIR,
-			 target_name, portal, iface_name);
+		_good(_asprintf(&conf_path, "%s/%s/%s/%s", NODE_CONFIG_DIR,
+			 target_name, portal, iface_name), rc, out);
 
 	*node = calloc(1, sizeof(struct iscsi_node));
 	_alloc_null_check(ctx, *node, rc, out);
@@ -1083,6 +1085,7 @@ out:
 		iscsi_node_free(*node);
 		*node = NULL;
 	}
+	free(conf_path);
 	_idbm_recs_free(recs);
 	return rc;
 }

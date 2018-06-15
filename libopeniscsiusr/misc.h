@@ -35,6 +35,9 @@
 			goto out; \
 	} while(0)
 
+#define _asprintf(...) \
+	(asprintf(__VA_ARGS__) == -1 ? LIBISCSI_ERR_NOMEM : LIBISCSI_OK)
+
 __DLL_LOCAL void _iscsi_log(struct iscsi_context *ctx, int priority,
 			    const char *file, int line, const char *func_name,
 			    const char *format, ...);
