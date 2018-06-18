@@ -37,6 +37,7 @@
 #include "iscsi_ipc.h"
 #include "iscsi_err.h"
 #include "iscsi_util.h"
+#include "iscsid_req.h"
 
 #define PEERUSER_MAX	64
 #define EXTMSG_MAX	(64 * 1024)
@@ -60,7 +61,7 @@ mgmt_ipc_listen(void)
 		return fd;
 	}
 
-	addr_len = setup_abstract_addr(&addr, ISCSIADM_NAMESPACE);
+	addr_len = setup_abstract_addr(&addr, iscsid_namespace);
 
 	if ((err = bind(fd, (struct sockaddr *) &addr, addr_len)) < 0 ) {
 		log_error("Can not bind IPC socket");

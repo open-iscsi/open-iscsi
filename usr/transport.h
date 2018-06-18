@@ -40,6 +40,9 @@ struct iscsi_transport_template {
 	uint8_t use_boot_info;
         uint8_t bind_ep_required;
 	uint8_t no_netdev;
+	/* be2iscsi has a single host vlan setting,
+	 * but uses 2 ifaces for ipv4 and ipv6 settings; keep them in sync */
+	uint8_t sync_vlan_settings;
 	int (*ep_connect) (struct iscsi_conn *conn, int non_blocking);
 	int (*ep_poll) (struct iscsi_conn *conn, int timeout_ms);
 	void (*ep_disconnect) (struct iscsi_conn *conn);

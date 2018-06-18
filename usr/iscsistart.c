@@ -471,6 +471,10 @@ int main(int argc, char *argv[])
 	} else if (pid) {
 		int status, rc, rc2;
 
+		/* make a special socket path for only this iscsistart instance */
+		iscsid_set_namespace(pid);
+		sleep(1);
+
 		rc = setup_session();
 		rc2 = stop_event_loop();
 		/*
@@ -487,6 +491,9 @@ int main(int argc, char *argv[])
 		log_debug(1, "iscsi parent done");
 		exit(0);
 	}
+
+	pid = getpid();
+	iscsid_set_namespace(pid);
 
 	mgmt_ipc_fd = mgmt_ipc_listen();
 	if (mgmt_ipc_fd  < 0) {

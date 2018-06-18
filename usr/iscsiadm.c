@@ -2451,6 +2451,89 @@ out:
 	return rc;
 }
 
+static int iface_param_update(struct iface_rec *iface, struct list_head *params)
+{
+	struct node_rec *rec;
+	int rc = 0;
+
+	rec = idbm_create_rec(NULL, -1, NULL, -1, iface, 1);
+	if (!rec) {
+		rc = ISCSI_ERR_INVAL;
+		goto update_fail;
+	}
+
+	if (iscsi_check_for_running_session(rec))
+		log_warning("Updating iface while iscsi sessions "
+			    "are using it. You must logout the running "
+			    "sessions then log back in for the "
+			    "new settings to take affect.");
+
+	rc = verify_iface_params(params, rec);
+	if (rc)
+		goto update_fail;
+
+	rc = iface_conf_update(params, &rec->iface);
+	if (rc)
+		goto update_fail;
+
+	rc = __for_each_matched_rec(0, rec, params, idbm_node_set_param);
+	if (rc == ISCSI_ERR_NO_OBJS_FOUND)
+		rc = 0;
+	else if (rc)
+		goto update_fail;
+
+	printf("%s updated.\n", iface->name);
+	free(rec);
+	return rc;
+
+update_fail:
+	log_error("Could not update iface %s: %s",
+		  iface->name, iscsi_err_to_str(rc));
+	free(rec);
+	return rc;
+}
+
+struct iface_param_sync {
+	struct iface_rec *primary;
+	struct list_head *params;
+	int count;
+};
+
+static int update_sync_params(void *data, struct iface_rec *iface)
+{
+	struct iface_param_sync *iface_params = data;
+	struct iface_rec *primary = iface_params->primary;
+	struct list_head *params = iface_params->params;
+
+	if ((strcmp(primary->transport_name, iface->transport_name)) ||
+	    (strcmp(primary->hwaddress, iface->hwaddress)) ||
+	    (primary->iface_num != iface->iface_num))
+		return 0;
+
+	return iface_param_update(iface, params);
+}
+
+static int split_vlan_params(struct list_head *params, struct list_head *vlan_params)
+{
+	struct user_param *param, *tmp;
+
+	list_for_each_entry_safe(param, tmp, params, list) {
+		if (!strncmp(param->name, "iface.vlan", 10)) {
+			list_move_tail(&param->list, vlan_params);
+		}
+	}
+	return 0;
+}
+
+static inline void list_splice_tail(struct list_head *list, struct list_head *head)
+{
+	list->prev->next = head;
+	list->next->prev = head->prev;
+	head->prev->next = list->next;
+	head->prev = list->prev;
+	INIT_LIST_HEAD(list);
+}
+
 /* TODO: merge iter helpers and clean them up, so we can use them here */
 static int exec_iface_op(struct iscsi_context *ctx, int op, int do_show,
 			 int info_level, struct iface_rec *iface,
@@ -2464,6 +2547,8 @@ static int exec_iface_op(struct iscsi_context *ctx, int op, int do_show,
 	uint32_t iface_count = 0;
 	uint32_t i = 0;
 
+	LIST_HEAD(vlan_params);
+	struct iscsi_transport *t;
 	switch (op) {
 	case OP_NEW:
 		if (!iface) {
@@ -2525,36 +2610,27 @@ delete_fail:
 		rec = idbm_create_rec(NULL, -1, NULL, -1, iface, 1);
 		if (!rec) {
 			rc = ISCSI_ERR_INVAL;
-			goto update_fail;
-		}
-
-		if (iscsi_check_for_running_session(rec))
-			log_warning("Updating iface while iscsi sessions "
-				    "are using it. You must logout the running "
-				    "sessions then log back in for the "
-				    "new settings to take affect.");
-
-		rc = verify_iface_params(params, rec);
-		if (rc)
 			break;
-
-		/* pass rec's iface because it has the db values */
-		rc = iface_conf_update(params, &rec->iface);
-		if (rc)
-			goto update_fail;
-
-		rc = __for_each_matched_rec(0, rec, params,
-					    idbm_node_set_param);
-		if (rc == ISCSI_ERR_NO_OBJS_FOUND)
-			rc = 0;
-		else if (rc)
-			goto update_fail;
-
-		printf("%s updated.\n", iface->name);
-		break;
-update_fail:
-		log_error("Could not update iface %s: %s",
-			  iface->name, iscsi_err_to_str(rc));
+		}
+		t = iscsi_sysfs_get_transport_by_name(rec->iface.transport_name);
+		if (!t) {
+			log_error("Cound not locate transport for iface %s", iface->name);
+			rc = ISCSI_ERR_INVAL;
+			break;
+		}
+		if (t->template->sync_vlan_settings) {
+			/* sync shared vlan settings across ifaces */
+			int nr_found = 0;
+			struct iface_param_sync sync_params = {
+				.primary = &rec->iface,
+				.params = &vlan_params,
+				.count = 0,
+			};
+			split_vlan_params(params, &vlan_params);
+			iface_for_each_iface(&sync_params, 1, &nr_found, update_sync_params);
+		}
+		iface_param_update(&rec->iface, params);
+		list_splice_tail(&vlan_params, params);
 		break;
 	case OP_APPLY:
 		if (!iface) {
