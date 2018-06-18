@@ -35,6 +35,9 @@
 			goto out; \
 	} while(0)
 
+#define _asprintf(...) \
+	(asprintf(__VA_ARGS__) == -1 ? LIBISCSI_ERR_NOMEM : LIBISCSI_OK)
+
 __DLL_LOCAL void _iscsi_log(struct iscsi_context *ctx, int priority,
 			    const char *file, int line, const char *func_name,
 			    const char *format, ...);
@@ -84,10 +87,15 @@ __DLL_LOCAL void _iscsi_log_stderr(struct iscsi_context *ctx, int priority,
 #define _strerror(err_no, buff) \
 	strerror_r(err_no, buff, _STRERR_BUFF_LEN)
 
+/* Workaround for suppress GCC 8 `stringop-truncation` warnings. */
 #define _strncpy(dst, src, size) \
 	do { \
-		strncpy(dst, src, size); \
-		* (char *) (dst + (size - 1)) = '\0'; \
+		memcpy(dst, src, \
+		       (size_t) size > strlen(src) ? \
+		       strlen(src) : (size_t) size); \
+		* (char *) (dst + \
+			    ((size_t) size - 1 > strlen(src) ? \
+			     strlen(src) : (size_t) (size - 1))) = '\0'; \
 	} while(0)
 
 __DLL_LOCAL int _scan_filter_skip_dot(const struct dirent *dir);

@@ -57,9 +57,13 @@ struct iscsi_iface {
 	char			ipv6_autocfg[NI_MAXHOST];
 	char			linklocal_autocfg[NI_MAXHOST];
 	char			router_autocfg[NI_MAXHOST];
-//	uint8_t			prefix_len;
+	uint8_t			prefix_len;
 	/* ^ prefix_len is removed, as linux kernel has no such sysfs property
 	 * and there is no actual code in usr/ folder set this property
+	 *
+	 * Added back, we need to be backward compatible with iface records
+	 * created by older tools. Look at fixing code to ignore in record
+	 * files instead? - cleech
 	 */
 	uint16_t		vlan_id;
 	uint8_t			vlan_priority;
@@ -135,6 +139,7 @@ struct iscsi_iface {
 
 __DLL_LOCAL int _iscsi_iface_get_from_sysfs(struct iscsi_context *ctx,
 					    uint32_t host_id, uint32_t sid,
+					    char *iface_kern_id,
 					    struct iscsi_iface **iface);
 
 __DLL_LOCAL bool _iface_is_valid(struct iscsi_iface *iface);

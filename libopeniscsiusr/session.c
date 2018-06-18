@@ -105,8 +105,8 @@ int iscsi_session_get(struct iscsi_context *ctx, uint32_t sid,
 		      struct iscsi_session **se)
 {
 	int rc = LIBISCSI_OK;
-	char sysfs_se_dir_path[PATH_MAX];
-	char sysfs_con_dir_path[PATH_MAX];
+	char *sysfs_se_dir_path = NULL;
+	char *sysfs_con_dir_path = NULL;
 	uint32_t host_id = 0;
 
 	assert(ctx != NULL);
@@ -114,17 +114,16 @@ int iscsi_session_get(struct iscsi_context *ctx, uint32_t sid,
 
 	_debug(ctx, "Querying iSCSI session for sid %" PRIu32, sid);
 
-	snprintf(sysfs_se_dir_path, PATH_MAX, "%s/session%" PRIu32,
-		 _ISCSI_SYS_SESSION_DIR, sid);
-	snprintf(sysfs_con_dir_path, PATH_MAX, "%s/connection%" PRIu32 ":0",
-		 _ISCSI_SYS_CONNECTION_DIR, sid);
+	_good(_asprintf(&sysfs_se_dir_path, "%s/session%" PRIu32,
+			_ISCSI_SYS_SESSION_DIR, sid), rc, out);
+	_good(_asprintf(&sysfs_con_dir_path, "%s/connection%" PRIu32 ":0",
+			_ISCSI_SYS_CONNECTION_DIR, sid), rc, out);
 	/* ^ BUG(Gris Ge): ':0' here in kernel is referred as connection id.
 	 *		   but the open-iscsi assuming it's always 0, need
 	 *		   investigation.
 	 */
 
-	*se = (struct iscsi_session *)
-		calloc(sizeof(struct iscsi_session), 1);
+	*se = (struct iscsi_session *) calloc(1, sizeof(struct iscsi_session));
 	_alloc_null_check(ctx, *se , rc, out);
 
 	if (! _file_exists(sysfs_se_dir_path)) {
@@ -229,7 +228,8 @@ int iscsi_session_get(struct iscsi_context *ctx, uint32_t sid,
 
 	_good(_iscsi_host_id_of_session(ctx, sid, &host_id), rc, out);
 
-	_good(_iscsi_iface_get_from_sysfs(ctx, host_id, sid, &((*se)->iface)),
+	/* does this need to the correct iface_kern_id for the session? */
+	_good(_iscsi_iface_get_from_sysfs(ctx, host_id, sid, NULL, &((*se)->iface)),
 	      rc, out);
 
 out:
@@ -237,6 +237,8 @@ out:
 		iscsi_session_free(*se);
 		*se = NULL;
 	}
+	free(sysfs_se_dir_path);
+	free(sysfs_con_dir_path);
 	return rc;
 }
 
