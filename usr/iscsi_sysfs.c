@@ -706,6 +706,11 @@ static int iscsi_sysfs_read_boot(struct iface_rec *iface, char *session)
 		log_debug(5, "could not read %s/%s/subnet", boot_root,
 			  boot_nic);
 
+	if (sysfs_get_str(boot_nic, boot_root, "gateway",
+			  iface->gateway, NI_MAXHOST))
+		log_debug(5, "could not read %s/%s/gateway", boot_root,
+			  boot_nic);
+
 	log_debug(5, "sysfs read boot returns %s/%s/ vlan = %d subnet = %s",
 		  boot_root, boot_nic, iface->vlan_id, iface->subnet_mask);
 	return 0;
