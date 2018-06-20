@@ -75,6 +75,8 @@
 
 extern int nl_sock;
 
+static pthread_mutex_t host_mutex = PTHREAD_MUTEX_INITIALIZER;
+
 /*  Foward struct declarations */
 struct nic_ops qedi_op;
 
@@ -813,15 +815,26 @@ static void qedi_prepare_xmit_packet(nic_t *nic,
 	struct uip_vlan_eth_hdr *eth_vlan = (struct uip_vlan_eth_hdr *)pkt->buf;
 	struct uip_eth_hdr *eth = (struct uip_eth_hdr *)bp->tx_pkt;
 
+	LOG_DEBUG(PFX "%s: pkt->buf_size=%d tpid=0x%x", nic->log_name,
+		  pkt->buf_size, eth_vlan->tpid);
+	
 	if (eth_vlan->tpid == htons(UIP_ETHTYPE_8021Q)) {
 		memcpy(bp->tx_pkt, pkt->buf, sizeof(struct uip_eth_hdr));
 		eth->type = eth_vlan->type;
 		pkt->buf_size -= (sizeof(struct uip_vlan_eth_hdr) -
 				  sizeof(struct uip_eth_hdr));
+
+	LOG_DEBUG(PFX "%s: pkt->buf_size=%d type=0x%x", nic->log_name,
+		  pkt->buf_size, eth->type);
+	LOG_DEBUG(PFX "%s: pkt->buf_size - eth_hdr_size = %d", nic->log_name,
+		  pkt->buf_size - sizeof(struct uip_eth_hdr));
+
 		memcpy(bp->tx_pkt + sizeof(struct uip_eth_hdr),
 		       pkt->buf + sizeof(struct uip_vlan_eth_hdr),
 		       pkt->buf_size - sizeof(struct uip_eth_hdr));
 	} else {
+		LOG_DEBUG(PFX "%s: NO VLAN pkt->buf_size=%d", nic->log_name,
+			  pkt->buf_size);
 		memcpy(bp->tx_pkt, pkt->buf, pkt->buf_size);
 	}
 
@@ -877,11 +890,18 @@ void qedi_start_xmit(nic_t *nic, size_t len, u16_t vlan_id)
 	path_data->handle = QEDI_PATH_HANDLE;
 	path_data->vlan_id = vlan_id;
 	uctrl->host_tx_pkt_len = len;
+	LOG_DEBUG(PFX "%s: host_no:%d vlan_id=%d, tx_pkt_len=%d",
+		  nic->log_name, ev->u.set_path.host_no, path_data->vlan_id, uctrl->host_tx_pkt_len);
 
+	LOG_DEBUG(PFX "%s: ACQUIRE HOST MUTEX", nic->log_name);
+	pthread_mutex_lock(&host_mutex);
 	rc = __kipc_call(nl_sock, ev, buflen);
 	if (rc > 0) {
 		bp->tx_prod++;
 		uctrl->host_tx_prod++;
+		LOG_DEBUG(PFX "%s: bp->tx_prod: %d, uctrl->host_tx_prod=%d",
+			  nic->log_name, bp->tx_prod, uctrl->host_tx_prod);
+
 		msync(uctrl, sizeof(struct qedi_uio_ctrl), MS_SYNC);
 		LOG_PACKET(PFX "%s: sent %d bytes using bp->tx_prod: %d",
 			   nic->log_name, len, bp->tx_prod);
@@ -889,6 +909,8 @@ void qedi_start_xmit(nic_t *nic, size_t len, u16_t vlan_id)
 		LOG_ERR(PFX "Pkt transmission failed: %d", rc);
 	}
 
+	LOG_DEBUG(PFX "%s: RELEASE HOST MUTEX", nic->log_name);
+	pthread_mutex_unlock(&host_mutex);
 	free(ubuf);
 }
 
@@ -924,14 +946,18 @@ int qedi_write(nic_t *nic, nic_interface_t *nic_iface, packet_t *pkt)
 		struct timespec sleep_req = {.tv_sec = 0, .tv_nsec = 5000000 },
 		    sleep_rem;
 
+		LOG_DEBUG(PFX "%s: host:%d - calling clear_tx_intr from qedi_write",
+			  nic->log_name, nic->host_no);
 		if (qedi_clear_tx_intr(nic) == 0)
 			break;
 
 		nanosleep(&sleep_req, &sleep_rem);
 	}
 
+	LOG_DEBUG(PFX "%s: host:%d - try getting xmit mutex",
+		   nic->log_name, nic->host_no);
 	if (pthread_mutex_trylock(&nic->xmit_mutex) != 0) {
-		LOG_PACKET(PFX "%s: Dropped previous transmitted packet",
+		LOG_DEBUG(PFX "%s: Dropped previous transmitted packet",
 			   nic->log_name);
 		return -EINVAL;
 	}
@@ -945,7 +971,7 @@ int qedi_write(nic_t *nic, nic_interface_t *nic_iface, packet_t *pkt)
 	nic->stats.tx.packets++;
 	nic->stats.tx.bytes += uip->uip_len;
 
-	LOG_PACKET(PFX "%s: transmitted %d bytes dev->tx_cons: %d, dev->tx_prod: %d, dev->tx_bd_prod:%d",
+	LOG_DEBUG(PFX "%s: transmitted %d bytes dev->tx_cons: %d, dev->tx_prod: %d, dev->tx_bd_prod:%d",
 		   nic->log_name, pkt->buf_size,
 		   bp->tx_cons, bp->tx_prod, bp->tx_bd_prod);
 
@@ -1072,7 +1098,7 @@ static int qedi_clear_tx_intr(nic_t *nic)
 		return -EINVAL;
 	}
 
-	LOG_PACKET(PFX "%s: clearing tx interrupt [%d %d]",
+	LOG_DEBUG(PFX "%s: clearing tx interrupt [%d %d]",
 		   nic->log_name, bp->tx_cons, hw_cons);
 	bp->tx_cons = hw_cons;
 
@@ -1084,7 +1110,7 @@ static int qedi_clear_tx_intr(nic_t *nic)
 		packet_t *pkt;
 		int i;
 
-		LOG_PACKET(PFX "%s: sending queued tx packet", nic->log_name);
+		LOG_DEBUG(PFX "%s: sending queued tx packet", nic->log_name);
 		pkt = nic_dequeue_tx_packet(nic);
 
 		/* Got a TX packet buffer of the TX queue and put it onto
@@ -1097,7 +1123,7 @@ static int qedi_clear_tx_intr(nic_t *nic)
 					(pkt->nic_iface->vlan_priority << 12) |
 					pkt->nic_iface->vlan_id);
 
-			LOG_PACKET(PFX "%s: transmitted queued packet %d bytes, dev->tx_cons: %d, dev->tx_prod: %d, dev->tx_bd_prod:%d",
+			LOG_DEBUG(PFX "%s: transmitted queued packet %d bytes, dev->tx_cons: %d, dev->tx_prod: %d, dev->tx_bd_prod:%d",
 				   nic->log_name, pkt->buf_size,
 				   bp->tx_cons, bp->tx_prod, bp->tx_bd_prod);
 
@@ -1125,6 +1151,8 @@ static int qedi_clear_tx_intr(nic_t *nic)
 		}
 	}
 
+	LOG_DEBUG(PFX "%s: host:%d - releasing xmit mutex",
+		   nic->log_name, nic->host_no);
 	pthread_mutex_unlock(&nic->xmit_mutex);
 
 	return 0;

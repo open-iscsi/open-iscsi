@@ -103,6 +103,8 @@ static int cnic_arp_send(nic_t *nic, nic_interface_t *nic_iface, int fd,
 	static const uint8_t multicast_mac[] = {
 				0xff, 0xff, 0xff, 0xff, 0xff, 0xff };
 
+	LOG_DEBUG(PFX "%s: host:%d - try getting xmit mutex cnic arp send",
+		  nic->log_name, nic->host_no);
 	rc = pthread_mutex_trylock(&nic->xmit_mutex);
 	if (rc != 0) {
 		LOG_DEBUG(PFX "%s: could not get xmit_mutex", nic->log_name);
