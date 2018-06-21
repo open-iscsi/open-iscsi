@@ -212,6 +212,7 @@ typedef struct iscsi_session {
 	int erl;
 	uint32_t imm_data_en;
 	uint32_t initial_r2t_en;
+	uint32_t max_r2t;
 	uint32_t fast_abort;
 	uint32_t first_burst;
 	uint32_t max_burst;

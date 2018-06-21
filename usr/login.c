@@ -524,14 +524,9 @@ get_op_params_text_keys(iscsi_session_t *session, int cid,
 		text = value_end;
 	} else if (iscsi_find_key_value("MaxOutstandingR2T", text, end, &value,
 					 &value_end)) {
-		if (session->type == ISCSI_SESSION_TYPE_NORMAL) {
-			if (strcmp(value, "1")) {
-				log_error("Login negotiation "
-					       "failed, can't accept Max"
-					       "OutstandingR2T %s", value);
-				return LOGIN_NEGOTIATION_FAILED;
-			}
-		} else
+		if (session->type == ISCSI_SESSION_TYPE_NORMAL)
+			session->max_r2t = strtoul(value, NULL, 0);
+		else
 			session->irrelevant_keys_bitmap |=
 						IRRELEVANT_MAXOUTSTANDINGR2T;
 		text = value_end;
@@ -810,8 +805,9 @@ add_params_normal_session(iscsi_session_t *session, struct iscsi_hdr *pdu,
 		return 0;
 
 	/* these we must have */
+	sprintf(value, "%d", session->max_r2t);
 	if (!iscsi_add_text(pdu, data, max_data_length,
-			    "MaxOutstandingR2T", "1"))
+			    "MaxOutstandingR2T", value))
 		return 0;
 	if (!iscsi_add_text(pdu, data, max_data_length,
 			    "MaxConnections", "1"))
