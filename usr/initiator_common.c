@@ -173,6 +173,7 @@ iscsi_copy_operational_params(struct iscsi_conn *conn,
 
 	/* session's operational parameters */
 	session->initial_r2t_en = session_conf->InitialR2T;
+	session->max_r2t = session_conf->MaxOutstandingR2T;
 	session->imm_data_en = session_conf->ImmediateData;
 	session->first_burst = align_32_down(session_conf->FirstBurstLength);
 	/*
@@ -375,7 +376,7 @@ int iscsi_session_set_neg_params(struct iscsi_conn *conn)
 			.conn_only = 0,
 		}, {
 			.param = ISCSI_PARAM_MAX_R2T,
-			.value = &one, /* FIXME: session->max_r2t */
+			.value = &session->max_r2t,
 			.type = ISCSI_INT,
 			.conn_only = 0,
 		}, {
