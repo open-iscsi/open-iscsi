@@ -1433,6 +1433,10 @@ nic_interface_t *nic_find_nic_iface(nic_t *nic,
 	nic_interface_t *current_vlan = NULL;
 
 	while (current != NULL) {
+		LOG_DEBUG(PFX "%s: incoming protocol: %d, vlan_id:%d iface_num: %d, request_type: %d",
+			  nic->log_name, protocol, vlan_id, iface_num,  request_type);
+		LOG_DEBUG(PFX "%s: host:%d iface_num: 0x%x VLAN: %d protocol: %d",
+			  nic->log_name, nic->host_no, current->iface_num, current->vlan_id, current->protocol);
 		if (current->protocol != protocol)
 			goto next;
 

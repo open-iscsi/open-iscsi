@@ -799,6 +799,8 @@ int nic_process_intr(nic_t *nic, int discard_check)
 
 		nic->intr_count = count;
 
+		LOG_DEBUG(PFX "%s: host:%d - calling clear_tx_intr from process_intr",
+			   nic->log_name, nic->host_no);
 		(*nic->ops->clear_tx_intr) (nic);
 		ret = 1;
 	}
@@ -1036,9 +1038,11 @@ int process_packets(nic_t *nic,
 		case UIP_ETHTYPE_IPv4:
 		case UIP_ETHTYPE_ARP:
 			af_type = AF_INET;
+			LOG_DEBUG(PFX "%s: ARP or IPv4 vlan:0x%x ethertype:0x%x",
+				   nic->log_name, vlan_id, type);
 			break;
 		default:
-			LOG_PACKET(PFX "%s: Ignoring vlan:0x%x ethertype:0x%x",
+			LOG_DEBUG(PFX "%s: Ignoring vlan:0x%x ethertype:0x%x",
 				   nic->log_name, vlan_id, type);
 			goto done;
 		}
@@ -1064,7 +1068,7 @@ int process_packets(nic_t *nic,
 		if (nic_iface == NULL) {
 			/* Matching nic_iface not found */
 			pthread_mutex_unlock(&nic->nic_mutex);
-			LOG_PACKET(PFX "%s: Couldn't find interface for "
+			LOG_DEBUG(PFX "%s: Couldn't find interface for "
 				   "VLAN: %d af_type %d",
 				nic->log_name, vlan_id, af_type);
 			rc = EINVAL;  /* Return the +error code */
@@ -1118,6 +1122,8 @@ nic_iface_present:
 				prepare_ipv4_packet(nic, nic_iface,
 						    ustack, pkt);
 
+				LOG_DEBUG(PFX "%s: write called after arp_ipin, uip_len=%d",
+					  nic->log_name, ustack->uip_len);
 				(*nic->ops->write) (nic, nic_iface, pkt);
 			}
 
@@ -1129,8 +1135,11 @@ nic_iface_present:
 			 * in data that should be sent out on the
 			 * network, the global variable uip_len
 			 * is set to a value > 0. */
-			if (pkt->buf_size > 0)
+			if (pkt->buf_size > 0) {
+				LOG_DEBUG(PFX "%s: write called after arp_arpin, bufsize=%d",
+					   nic->log_name, pkt->buf_size);
 				(*nic->ops->write) (nic, nic_iface, pkt);
+			}
 			break;
 		}
 		ustack->uip_len = 0;
