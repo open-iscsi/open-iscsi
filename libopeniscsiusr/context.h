@@ -20,6 +20,7 @@
 #define __ISCSI_USR_CONTEXT_H__
 
 #include "idbm.h"
+#include <stdarg.h>
 
 struct iscsi_context {
 	void (*log_func)(struct iscsi_context *ctx, int priority,
