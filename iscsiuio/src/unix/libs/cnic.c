@@ -114,6 +114,7 @@ static int cnic_arp_send(nic_t *nic, nic_interface_t *nic_iface, int fd,
 	eth = (*nic->ops->get_tx_pkt) (nic);
 	if (eth == NULL) {
 		LOG_WARN(PFX "%s: couldn't get tx packet", nic->log_name);
+		pthread_mutex_unlock(&nic->xmit_mutex);
 		return -EAGAIN;
 	}
 
