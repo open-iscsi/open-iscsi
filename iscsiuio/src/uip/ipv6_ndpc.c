@@ -134,6 +134,7 @@ wait_rtr:
 	} while (!(ipv6c->flags & IPV6_FLAGS_ROUTER_ADV_RECEIVED));
 
 	LOG_DEBUG("%s: ndpc_handle got rtr adv", s->nic->log_name);
+	s->retry_count = 0;
 
 no_rtr_adv:
 	s->state = NDPC_STATE_RTR_ADV;
@@ -200,9 +201,13 @@ wait_dhcp:
 	} else {
 		/* Static IPv6 */
 		if (ustack->ip_config == IPV6_CONFIG_DHCP) {
-			LOG_DEBUG("%s: ndpc_handle DHCP failed",
-				  s->nic->log_name);
-			PT_RESTART(&s->pt);
+			s->retry_count++;
+			if (s->retry_count > DHCPV6_NUM_OF_RETRY) {
+				LOG_DEBUG("%s: ndpc_handle DHCP failed",
+					  s->nic->log_name);
+			} else {
+				PT_RESTART(&s->pt);
+			}
 		}
 staticv6:
 		ipv6_disable_dhcpv6(ipv6c);
