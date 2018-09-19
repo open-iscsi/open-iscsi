@@ -1704,7 +1704,8 @@ ctldev_open(void)
 
 	ctrl_fd = socket(PF_NETLINK, SOCK_RAW, NETLINK_ISCSI);
 	if (ctrl_fd < 0) {
-		log_error("can not create NETLINK_ISCSI socket");
+		log_error("can not create NETLINK_ISCSI socket [%s]",
+		          strerror(errno));
 		goto free_setparam_buf;
 	}
 
@@ -1713,7 +1714,8 @@ ctldev_open(void)
 	src_addr.nl_pid = getpid();
 	src_addr.nl_groups = 1;
 	if (bind(ctrl_fd, (struct sockaddr *)&src_addr, sizeof(src_addr))) {
-		log_error("can not bind NETLINK_ISCSI socket");
+		log_error("can not bind NETLINK_ISCSI socket [%s]",
+		          strerror(errno));
 		goto close_socket;
 	}
 

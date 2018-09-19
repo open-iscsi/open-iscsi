@@ -442,11 +442,6 @@ int main(int argc, char *argv[])
 			exit(0);
 		}
 
-		if ((control_fd = ipc->ctldev_open()) < 0) {
-			log_close(log_pid);
-			exit(ISCSI_ERR);
-		}
-
 		if (chdir("/") < 0)
 			log_debug(1, "Unable to chdir to /");
 		if (fd > 0) {
@@ -468,6 +463,11 @@ int main(int argc, char *argv[])
 			}
 		}
 		close(fd);
+
+		if ((control_fd = ipc->ctldev_open()) < 0) {
+			log_close(log_pid);
+			exit(ISCSI_ERR);
+		}
 
 		daemon_init();
 	} else {
