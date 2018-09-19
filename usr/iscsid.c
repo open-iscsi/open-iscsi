@@ -467,6 +467,7 @@ int main(int argc, char *argv[])
 				exit(ISCSI_ERR);
 			}
 		}
+		close(fd);
 
 		daemon_init();
 	} else {
