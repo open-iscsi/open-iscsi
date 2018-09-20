@@ -534,7 +534,7 @@ static void flush_nic_nl_process_ring(nic_t *nic)
  */
 int nic_nl_open()
 {
-	int rc;
+	int rc = 0;
 	char *msg_type_str;
 
 	/* Prepare the thread to issue the ARP's */
@@ -676,5 +676,5 @@ int nic_nl_open()
 	rc = 0;
 
 error:
-	return 0;
+	return rc;
 }
