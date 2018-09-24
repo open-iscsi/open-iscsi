@@ -208,22 +208,20 @@ int iscsi_session_get(struct iscsi_context *ctx, uint32_t sid,
 	_sysfs_prop_get_i32(ctx, sysfs_con_dir_path, "port",
 			    &((*se)->port), -1, true);
 
-	if ((strcmp((*se)->address, "") == 0) &&
-	    (strcmp((*se)->persistent_address, "") != 0))
-		_strncpy((*se)->persistent_address, (*se)->address,
-			 sizeof((*se)->persistent_address) / sizeof(char));
-
 	if ((strcmp((*se)->address, "") != 0) &&
 	    (strcmp((*se)->persistent_address, "") == 0))
+		_strncpy((*se)->persistent_address, (*se)->address,
+			 sizeof((*se)->persistent_address) / sizeof(char));
+	else if ((strcmp((*se)->address, "") == 0) &&
+	    (strcmp((*se)->persistent_address, "") != 0))
 		_strncpy((*se)->address, (*se)->persistent_address,
 			 sizeof((*se)->address) / sizeof(char));
 
-	if (((*se)->persistent_port != -1) &&
-	    ((*se)->port == -1))
+	if (((*se)->persistent_port == -1) &&
+	    ((*se)->port != -1))
 		(*se)->persistent_port = (*se)->port;
-
-	if (((*se)->persistent_port != -1) &&
-	    ((*se)->port == -1))
+	else if (((*se)->persistent_port != -1) &&
+		 ((*se)->port == -1))
 		(*se)->port = (*se)->persistent_port;
 
 	_good(_iscsi_host_id_of_session(ctx, sid, &host_id), rc, out);
