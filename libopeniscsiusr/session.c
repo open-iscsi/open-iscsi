@@ -205,8 +205,8 @@ int iscsi_session_get(struct iscsi_context *ctx, uint32_t sid,
 	_sysfs_prop_get_str(ctx, sysfs_con_dir_path, "address", (*se)->address,
 			    sizeof((*se)->address) / sizeof(char), "");
 
-	_good(_sysfs_prop_get_i32(ctx, sysfs_con_dir_path, "port",
-				  &((*se)->port), -1, false), rc, out);
+	_sysfs_prop_get_i32(ctx, sysfs_con_dir_path, "port",
+			    &((*se)->port), -1, true);
 
 	if ((strcmp((*se)->address, "") == 0) &&
 	    (strcmp((*se)->persistent_address, "") != 0))
