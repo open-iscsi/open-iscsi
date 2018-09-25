@@ -2056,8 +2056,22 @@ int session_logout_task(int sid, queue_task_t *qtask)
 		return ISCSI_ERR_SESS_NOT_FOUND;
 	}
 	conn = &session->conn[0];
+
 	/*
-	 * If syncing up or if this is the initial login and mgmt_ipc
+	 * If syncing up, in XPT_WAIT, and REOPENing, then return
+	 * an informative error, since the target for this session
+	 * is likely not connected
+	 */
+	if (session->notify_qtask &&
+	    (conn->state == ISCSI_CONN_STATE_XPT_WAIT) &&
+	    (session->r_stage == R_STAGE_SESSION_REOPEN)) {
+		log_warning("session cannot be terminted because it's trying to reconnect: try again later");
+		return ISCSI_ERR_SESSION_NOT_CONNECTED;
+	}
+
+	/*
+	 * If syncing up and not reconnecting,
+	 * or if this is the initial login and mgmt_ipc
 	 * has not been notified of that result fail the logout request
 	 */
 	if (session->notify_qtask ||
