@@ -184,6 +184,21 @@ int _sysfs_prop_get_str(struct iscsi_context *ctx, const char *dir_path,
 			_error(ctx, "Failed to read '%s': "
 			       "permission deny when reading '%s'", prop_name,
 			       file_path);
+		} else if (errno_save == ENOTCONN) {
+			if (default_value == NULL) {
+				rc = LIBISCSI_ERR_SYSFS_LOOKUP;
+				_error(ctx, "Failed to read '%s': "
+				       "error when reading '%s': "
+				       "Target unavailable",
+				       prop_name, file_path);
+			} else {
+				_info(ctx, "Failed to read '%s': "
+				       "error when reading '%s': "
+				       "Target unavailable, using default value '%s'",
+				       prop_name, file_path, default_value);
+				memcpy(buff, (void *) default_value,
+				       strlen(default_value) + 1);
+			}
 		} else {
 			rc = LIBISCSI_ERR_BUG;
 			_error(ctx, "Failed to read '%s': "
@@ -246,6 +261,22 @@ static int iscsi_sysfs_prop_get_ll(struct iscsi_context *ctx,
 			_error(ctx, "Permission deny when reading '%s'",
 			       file_path);
 			goto out;
+		} else if (errno_save == ENOTCONN) {
+			if (!ignore_error) {
+				rc = LIBISCSI_ERR_SYSFS_LOOKUP;
+				_error(ctx, "Failed to read '%s': "
+					"error when reading '%s': "
+					"Target unavailable",
+					prop_name, file_path);
+				goto out;
+			} else {
+				_info(ctx, "Failed to read '%s': "
+					"error when reading '%s': "
+					"Target unavailable, using default value %lld",
+					prop_name, file_path, default_value);
+				*val = default_value;
+				goto out;
+			}
 		} else {
 			rc = LIBISCSI_ERR_BUG;
 			_error(ctx, "Error when reading '%s': %d", file_path,
