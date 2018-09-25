@@ -237,7 +237,7 @@ static int iscsi_sysfs_prop_get_ll(struct iscsi_context *ctx,
 				       "Failed to read '%s': "
 				      "File '%s' does not exists, using ",
 				      "default value %lld",
-				      file_path, default_value);
+				      prop_name, file_path, default_value);
 				*val = default_value;
 				goto out;
 			}
