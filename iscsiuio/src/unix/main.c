@@ -394,7 +394,8 @@ int main(int argc, char *argv[])
 		goto error;
 
 	/*  NetLink connection to listen to NETLINK_ISCSI private messages */
-	nic_nl_open();
+	if (nic_nl_open() != 0)
+		goto error;
 
 error:
 	cleanup();
