@@ -346,8 +346,9 @@ int main(int argc, char *argv[])
 		sprintf(buf, "%d\n", getpid());
 		written_bytes = write(fd, buf, strlen(buf));
 		if (written_bytes == -1)
-			printf("Could not write lock file [%s]",
+			printf("Could not write pid file [%s]",
 			       strerror(errno));
+		close(fd);
 
 		daemon_init();
 	}
