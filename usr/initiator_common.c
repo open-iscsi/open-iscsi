@@ -342,7 +342,7 @@ int iscsi_session_set_neg_params(struct iscsi_conn *conn)
 {
 	struct iscsi_session *session = conn->session;
 	int i, rc;
-	uint32_t one = 1, zero = 0;
+	uint32_t zero = 0;
 	struct connparam {
 		int param;
 		int type;
