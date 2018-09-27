@@ -18,6 +18,7 @@
  *
  * See the file COPYING included with this distribution for more details.
  */
+#include <stdio.h>
 #include <unistd.h>
 #include <stdlib.h>
 #include <string.h>
