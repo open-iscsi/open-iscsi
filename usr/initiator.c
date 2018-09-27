@@ -253,12 +253,16 @@ __session_conn_create(iscsi_session_t *session, int cid)
 {
 	iscsi_conn_t *conn = &session->conn[cid];
 	conn_rec_t *conn_rec = &session->nrec.conn[cid];
+	node_rec_t *rec = &session->nrec;
 	int err;
 
 	if (iscsi_ev_context_alloc(conn)) {
 		log_error("cannot allocate context_pool for conn cid %d", cid);
 		return ISCSI_ERR_NOMEM;
 	}
+
+	/* set session reconnection retry max */
+	session->reopen_max = rec->session.reopen_max;
 
 	conn->state = ISCSI_CONN_STATE_FREE;
 	conn->session = session;
@@ -415,6 +419,9 @@ __session_create(node_rec_t *rec, struct iscsi_transport *t, int *rc)
                          *rc = 0;
                 }
         }
+
+	/* reset session reopen count */
+	session->reopen_cnt = 0;
 
 	list_add_tail(&session->list, &t->sessions);
 	return session;
@@ -724,8 +731,14 @@ static void iscsi_login_eh(struct iscsi_conn *conn, struct queue_task *qtask,
 			break;
 		case R_STAGE_SESSION_REOPEN:
 			log_debug(6, "login failed ISCSI_CONN_STATE_XPT_WAIT/"
-				  "R_STAGE_SESSION_REOPEN %d",
-				  session->reopen_cnt);
+				  "R_STAGE_SESSION_REOPEN (reopen_cnt=%d, reopen_max=%d)",
+				  session->reopen_cnt, session->reopen_max);
+			if (session->reopen_cnt > session->reopen_max) {
+				log_info("Giving up on session %d after %d retries", 
+						session->id, session->reopen_max);
+				session_conn_shutdown(conn, qtask, err);
+				break;
+			}
 			/* timeout during reopen connect. try again */
 			session_conn_reopen(conn, qtask, 0);
 			break;
@@ -2056,8 +2069,22 @@ int session_logout_task(int sid, queue_task_t *qtask)
 		return ISCSI_ERR_SESS_NOT_FOUND;
 	}
 	conn = &session->conn[0];
+
 	/*
-	 * If syncing up or if this is the initial login and mgmt_ipc
+	 * If syncing up, in XPT_WAIT, and REOPENing, then return
+	 * an informative error, since the target for this session
+	 * is likely not connected
+	 */
+	if (session->notify_qtask &&
+	    (conn->state == ISCSI_CONN_STATE_XPT_WAIT) &&
+	    (session->r_stage == R_STAGE_SESSION_REOPEN)) {
+		log_warning("session cannot be terminted because it's trying to reconnect: try again later");
+		return ISCSI_ERR_SESSION_NOT_CONNECTED;
+	}
+
+	/*
+	 * If syncing up and not reconnecting,
+	 * or if this is the initial login and mgmt_ipc
 	 * has not been notified of that result fail the logout request
 	 */
 	if (session->notify_qtask ||

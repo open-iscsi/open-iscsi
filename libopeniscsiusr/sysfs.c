@@ -47,7 +47,7 @@
 
 #define _SYS_NULL_STR			"(null)"
 
-#define _sysfs_prop_get_int_func_gen(func_name, out_type, type_max_value) \
+#define _sysfs_prop_get_uint_func_gen(func_name, out_type, type_max_value) \
 	int func_name(struct iscsi_context *ctx, const char *dir_path, \
 		      const char *prop_name, out_type *val, \
 		      out_type default_value, bool ignore_error) \
@@ -60,6 +60,28 @@
 					     ignore_error); \
 		if (rc == LIBISCSI_OK) \
 			*val = tmp_val & type_max_value; \
+		return rc; \
+	}
+
+#define _sysfs_prop_get_int_func_gen(func_name, out_type, type_min_value, type_max_value) \
+	int func_name(struct iscsi_context *ctx, const char *dir_path, \
+		      const char *prop_name, out_type *val, \
+		      out_type default_value, bool ignore_error) \
+	{ \
+		long long int tmp_val = 0; \
+		int rc = LIBISCSI_OK; \
+		long long int dv = default_value; \
+		rc = iscsi_sysfs_prop_get_ll(ctx, dir_path, prop_name, \
+					     &tmp_val, (long long int) dv, \
+					     ignore_error); \
+		if (rc == LIBISCSI_OK) { \
+			if (tmp_val > type_max_value) \
+				*val = type_max_value; \
+			else if (tmp_val < type_min_value) \
+				*val = type_min_value; \
+			else \
+				*val = tmp_val; \
+		} \
 		return rc; \
 	}
 
@@ -82,10 +104,10 @@ static int iscsi_sysfs_prop_get_ll(struct iscsi_context *ctx,
 static int sysfs_get_dev_path(struct iscsi_context *ctx, const char *path,
 			      enum _sysfs_dev_class class, char **dev_path);
 
-_sysfs_prop_get_int_func_gen(_sysfs_prop_get_u8, uint8_t, UINT8_MAX);
-_sysfs_prop_get_int_func_gen(_sysfs_prop_get_u16, uint16_t, UINT16_MAX);
-_sysfs_prop_get_int_func_gen(_sysfs_prop_get_i32, int32_t, INT32_MAX);
-_sysfs_prop_get_int_func_gen(_sysfs_prop_get_u32, uint32_t, UINT32_MAX);
+_sysfs_prop_get_uint_func_gen(_sysfs_prop_get_u8, uint8_t, UINT8_MAX);
+_sysfs_prop_get_uint_func_gen(_sysfs_prop_get_u16, uint16_t, UINT16_MAX);
+_sysfs_prop_get_int_func_gen(_sysfs_prop_get_i32, int32_t, INT32_MIN, INT32_MAX);
+_sysfs_prop_get_uint_func_gen(_sysfs_prop_get_u32, uint32_t, UINT32_MAX);
 
 static int sysfs_read_file(const char *path, uint8_t *buff, size_t buff_size)
 {
@@ -162,6 +184,21 @@ int _sysfs_prop_get_str(struct iscsi_context *ctx, const char *dir_path,
 			_error(ctx, "Failed to read '%s': "
 			       "permission deny when reading '%s'", prop_name,
 			       file_path);
+		} else if (errno_save == ENOTCONN) {
+			if (default_value == NULL) {
+				rc = LIBISCSI_ERR_SYSFS_LOOKUP;
+				_error(ctx, "Failed to read '%s': "
+				       "error when reading '%s': "
+				       "Target unavailable",
+				       prop_name, file_path);
+			} else {
+				_info(ctx, "Failed to read '%s': "
+				       "error when reading '%s': "
+				       "Target unavailable, using default value '%s'",
+				       prop_name, file_path, default_value);
+				memcpy(buff, (void *) default_value,
+				       strlen(default_value) + 1);
+			}
 		} else {
 			rc = LIBISCSI_ERR_BUG;
 			_error(ctx, "Failed to read '%s': "
@@ -215,7 +252,7 @@ static int iscsi_sysfs_prop_get_ll(struct iscsi_context *ctx,
 				       "Failed to read '%s': "
 				      "File '%s' does not exists, using ",
 				      "default value %lld",
-				      file_path, default_value);
+				      prop_name, file_path, default_value);
 				*val = default_value;
 				goto out;
 			}
@@ -224,6 +261,22 @@ static int iscsi_sysfs_prop_get_ll(struct iscsi_context *ctx,
 			_error(ctx, "Permission deny when reading '%s'",
 			       file_path);
 			goto out;
+		} else if (errno_save == ENOTCONN) {
+			if (!ignore_error) {
+				rc = LIBISCSI_ERR_SYSFS_LOOKUP;
+				_error(ctx, "Failed to read '%s': "
+					"error when reading '%s': "
+					"Target unavailable",
+					prop_name, file_path);
+				goto out;
+			} else {
+				_info(ctx, "Failed to read '%s': "
+					"error when reading '%s': "
+					"Target unavailable, using default value %lld",
+					prop_name, file_path, default_value);
+				*val = default_value;
+				goto out;
+			}
 		} else {
 			rc = LIBISCSI_ERR_BUG;
 			_error(ctx, "Error when reading '%s': %d", file_path,

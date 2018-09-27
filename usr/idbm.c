@@ -468,6 +468,8 @@ idbm_recinfo_node(node_rec_t *r, recinfo_t *ri)
 	__recinfo_int_o2(SESSION_SCAN, ri, r,
 			 session.scan, IDBM_SHOW, "manual", "auto",
 			 num, 1);
+	__recinfo_int(SESSION_REOPEN_MAX, ri, r,
+			session.reopen_max, IDBM_SHOW, num, 1);
 
 	for (i = 0; i < ISCSI_CONN_MAX; i++) {
 		char key[NAME_MAXVAL];
@@ -2978,7 +2980,7 @@ void idbm_node_setup_defaults(node_rec_t *rec)
 	rec->session.queue_depth = QUEUE_DEPTH;
 	rec->session.nr_sessions = 1;
 	rec->session.initial_login_retry_max = DEF_INITIAL_LOGIN_RETRIES_MAX;
-	rec->session.reopen_max = 32;
+	rec->session.reopen_max = DEF_SESSION_REOPEN_MAX;
 	rec->session.auth.authmethod = 0;
 	rec->session.auth.password_length = 0;
 	rec->session.auth.password_in_length = 0;

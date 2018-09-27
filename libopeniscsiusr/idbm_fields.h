@@ -136,6 +136,7 @@
 #define SESSION_MAX_R2T		"node.session.iscsi.MaxOutstandingR2T"
 #define SESSION_ERL		"node.session.iscsi.ERL"
 #define SESSION_SCAN		"node.session.scan"
+#define SESSION_REOPEN_MAX	"node.session.reopen_max"
 
 /* connections fields */
 #define CONN_ADDR		"node.conn[0].address"
