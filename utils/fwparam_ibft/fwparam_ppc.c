@@ -319,9 +319,9 @@ static int find_nics(const char *fpath, const struct stat *sb, int tflag,
 	return 0;
 }
 
-int nic_cmp(const char **a, const char **b)
+static int nic_cmp(const void *a, const void *b)
 {
-	return strcmp(*a, *b);
+	return strcmp(a, b);
 }
 
 static int find_initiator(const char *fpath, const struct stat *sb, int tflag,
