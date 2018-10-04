@@ -189,9 +189,11 @@ int iscsi_login_portal(void *data, struct list_head *list, struct node_rec *rec)
 
 	/*
 	 * Ensure the record's 'multiple' flag is set so __iscsi_login_portal
-	 * will allow multiple logins.
+	 * will allow multiple logins, but only if configured for more
+	 * than one 
 	 */
-	rec->session.multiple = 1;
+	if (rec->session.nr_sessions > 1)
+		rec->session.multiple = 1;
 	for (i = session_count; i < rec->session.nr_sessions; ++i) {
 		log_debug(1, "%s: Creating session %d/%d", rec->iface.name,
 			  i + 1, rec->session.nr_sessions);
