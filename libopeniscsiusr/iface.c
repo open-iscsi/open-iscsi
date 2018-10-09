@@ -33,9 +33,7 @@
 #include <sys/stat.h>
 #include <sys/wait.h>
 #include <stdbool.h>
-#ifdef USE_KMOD
 #include <libkmod.h>
-#endif
 #include <limits.h>
 
 #include "libopeniscsiusr/libopeniscsiusr.h"
@@ -419,7 +417,6 @@ out:
 
 static int _load_kernel_module(struct iscsi_context *ctx, const char *drv_name)
 {
-#ifdef USE_KMOD
 	struct kmod_ctx *kctx = NULL;
 	struct kmod_module *mod = NULL;
 	int rc = LIBISCSI_OK;
@@ -447,41 +444,6 @@ out:
 	if (kctx != NULL)
 		kmod_unref(kctx);
 	return rc;
-
-#else
-	char *cmdline[4];
-	pid_t pid = 0;
-	char strerr_buff[_STRERR_BUFF_LEN];
-	int errno_save = 0;
-
-	cmdline[0] = "/sbin/modprobe";
-	cmdline[1] = "-qb";
-	cmdline[2] = (char *) drv_name;
-	cmdline[3] = NULL;
-
-	pid = fork();
-	if (pid == 0) {
-		if (execv("/sbin/modprobe", cmdline) < 0) {
-			errno_save = errno;
-			_error(ctx, "Failed to load module %s, error %d: %s",
-			       drv_name, errno_save,
-			       _strerror(errno_save, strerr_buff));
-			exit(-errno_save);
-		}
-		exit(0);
-	} else if (pid < 0) {
-		_error(ctx, "Failed to fork process to load module %s: %s",
-		       drv_name, _strerror(errno_save, strerr_buff));
-		return LIBISCSI_ERR_TRANS_NOT_FOUND;
-	}
-
-	if (waitpid(pid, NULL, 0) < 0) {
-		_error(ctx, "Failed to load module %s", drv_name);
-		return LIBISCSI_ERR_TRANS_NOT_FOUND;
-	}
-
-	return LIBISCSI_OK;
-#endif
 }
 
 static int _iface_conf_write(struct iscsi_context *ctx,
