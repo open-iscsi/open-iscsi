@@ -55,7 +55,7 @@
 #define DEF_HOST_RESET_TIMEO		60
 
 /* session reopen max retries */
-#define	DEF_SESSION_REOPEN_MAX	32
+#define	DEF_SESSION_REOPEN_MAX		0
 
 /* default window size */
 #define TCP_WINDOW_SIZE			(512 * 1024)

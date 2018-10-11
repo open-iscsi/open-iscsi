@@ -15,7 +15,7 @@
 #define DEF_HOST_RESET_TIMEO	60
 
 /* session reopen max retries */
-#define	DEF_SESSION_REOPEN_MAX	32
+#define	DEF_SESSION_REOPEN_MAX	0
 
 /* q depths */
 #define CMDS_MAX	128
