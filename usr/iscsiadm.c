@@ -683,7 +683,7 @@ static int login_portals(struct node_rec *pattern_rec)
 
 static void print_node_flat(struct iscsi_node *node)
 {
-		printf("%s,%" PRIu16 "%s\n",
+		printf("%s,%" PRIu16 " %s\n",
 		       iscsi_node_portal_get(node),
 		       iscsi_node_tpgt_get(node),
 		       iscsi_node_target_name_get(node));
