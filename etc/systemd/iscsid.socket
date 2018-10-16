@@ -1,6 +1,6 @@
 [Unit]
 Description=Open-iSCSI iscsid Socket
-Documentation=man:iscsid(8) man:iscsiuio(8) man:iscsiadm(8)
+Documentation=man:iscsid(8) man:iscsiadm(8)
 
 [Socket]
 ListenStream=@ISCSIADM_ABSTRACT_NAMESPACE
