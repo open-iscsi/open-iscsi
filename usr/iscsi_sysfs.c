@@ -1514,6 +1514,51 @@ free_info:
 	return rc;
 }
 
+/*
+ * count the number of sessions -- a much-simplified
+ * version of iscsi_sysfs_for_each_session
+ *
+ * TODO: return an array of the session info we find, for use
+ * by iscsi_sysfs_for_each_session(), so it doesn't have to
+ * do it all over again
+ */
+int iscsi_sysfs_count_sessions(void)
+{
+	struct dirent **namelist = NULL;
+	int n, i;
+	struct session_info *info;
+
+
+	info = calloc(1, sizeof(*info));
+	if (!info)
+		/* no sessions found */
+		return 0;
+	info->iscsid_req_tmo = -1;
+
+	n = scandir(ISCSI_SESSION_DIR, &namelist, trans_filter, alphasort);
+	if (n <= 0)
+		/* no sessions found */
+		goto free_info;
+
+	/*
+	 * try to get session info for each session found, but ignore
+	 * errors if any since it may be a race condition
+	 */
+	for (i = 0; i < n; i++)
+		if (iscsi_sysfs_get_sessioninfo_by_id(info,
+					namelist[i]->d_name) != 0)
+			log_warning("could not find session info for %s",
+					namelist[i]->d_name);
+
+	for (i = 0; i < n; i++)
+		free(namelist[i]);
+	free(namelist);
+
+free_info:
+	free(info);
+	return n;
+}
+
 int iscsi_sysfs_get_session_state(char *state, int sid)
 {
 	char id[NAME_SIZE];
