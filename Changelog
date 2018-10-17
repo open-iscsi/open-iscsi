@@ -1,3 +1,130 @@
+open-iscsi-2.0-876 - open-iscsi-2.0.877
+
+Antoine de Maleprade (1):
+      iscsid: fix logging level when starting daemon
+
+Cathy Zhou (1):
+      Reduce delays to improve iscsi boot performance
+
+Chris Leech (16):
+      libopeniscsiusr: fixes err on prefix_len
+      vlan setting sync across ipv4/ipv6 for be2iscsi
+      iscsid logging blank messages at level EMERG
+      iscsistart: prevent unix socket cross-talk
+      libopeniscsiusr: hosts can have multiple ifaces
+      libopeniscsiusr: clear errno before calling strtoll
+      libopeniscsiusr: setup ipv6 records based on iface name
+      libopeniscsiusr: use asprintf and remove PATH_MAX stack buffers
+      Merge pull request #110 from cleech/libopeniscsiusr_fixes
+      Merge pull request #111 from cleech/for_upstream
+      Merge pull request #106 from phmccarty/lib-symlinks
+      enable MaxOutstandingR2T negotiation
+      Merge pull request #114 from njavali/iscsiuio-bug-fixes
+      Merge pull request #115 from cleech/for_upstream
+      Merge pull request #120 from maxnet/va
+      Merge pull request #122 from njavali/iscsiuio-bug-fixes
+
+Christian Ehrhardt (2):
+      iscsiuio: avoid loosing bad rc in nic_nl_open
+      iscsiuio: fail on nic_nl_open failing
+
+Floris Bos (1):
+      context.h: add missing stdarg.h include
+
+Gris Ge (8):
+      libopeniscsiusr: Fix iscsi_sessions_free() on 0 se_count.
+      libopeniscsiusr: Add full iscsi interface support.
+      Makefile: Trivial change on aligning output.
+      libopeniscsiusr: Fix incorrect debug message for iface query.
+      libopeniscsiusr: Add node query support
+      libopeniscsiusr: Fix iscsi_iface_get() on default interfaces.
+      iscsiadm: Use libopeniscsiusr in `iscsiadm -m iface -P1`
+      libopeniscsiusr: Fix compile error on GCC 8.
+
+Khem Raj (6):
+      libopeniscsiusr: Include limit.h for PATH_MAX
+      libopeniscsiusr: Add CFLAGS to linker cmdline
+      qedi.c: Removed unused linux/ethtool.h
+      idbm.c: Include fcnl.h for O_RDWR and O_CREAT definitions
+      bnx2x.c: Reorder the includes to avoid duplicate defines with musl
+      fwparam_ppc.c: Do not use __compar_fn_t
+
+Lee Duncan (55):
+      Merge pull request #91 from njavali/iscsiuio-bug-fixes
+      Merge pull request #92 from az0uz/master
+      Use correct size when copying nic name.
+      Do not overload global sysfs_path locally.
+      libopeniscsiusr: ensure sysfs pathname doesn't overflow.
+      Ensure sysfs pathname doesn't overflow.
+      Merge pull request #89 from kraj/kraj/musl-fixes
+      Merge pull request #94 from gonzoleeman/gcc-8-fixes
+      Merge branch 'master' into api
+      Merge pull request #93 from cathay4t/api
+      Keep iscsi_if in sync with kernel version.
+      Add a TODO item on iscsi_if.h.
+      Merge pull request #98 from gonzoleeman/update-iscsi_if-to-latest
+      Add error message for new ISCSI_ERR_NOP_TIMEDOUT
+      Merge pull request #99 from gonzoleeman/handle-new-kernel-error-code
+      Allow a host_id value of zero.
+      Merge pull request #100 from gonzoleeman/libopeniscsiusr-allow-zero-host_id
+      Merge pull request #101 from gonzoleeman/fix-qedi-iface-name
+      Fix iscsiuio segfault when shutting down.
+      Remove unused file fwparam_ibft_sysfs.c.
+      Merge pull request #96 from cathay4t/api
+      Merge pull request #103 from cathy-zhou/perf_fix
+      Plugging a memory leak from discovery.
+      Merge pull request #123 from gonzoleeman/fix-discovery-leak
+      Allow reading sysfs "port" to fail gracefully.
+      Fix incorrect sysfs logic for port and ip address.
+      Fix reading of sysfs signed integers when negative.
+      Create a new error for "target not connected".
+      Fix bug in error message when reading sysfs numbers.
+      Handle ENOTCONN error separately when reading sysfs values.
+      Limit session relogin attempts using config value.
+      Merge pull request #127 from smoser/fix/iscsid-pidfile-write
+      Merge pull request #129 from cpaelzer/cleanup-nic_nl_open-usage
+      Merge pull request #131 from gonzoleeman/fix-reconnect-forever
+      Removed unused value 'one'.
+      Include stdio.h for use of snprintf().
+      Fix qsort() comparator function call.
+      Merge pull request #132 from gonzoleeman/small-cleanups
+      Do not allow multiple sessions when nr_sessions=1
+      Merge pull request #136 from gonzoleeman/no-parallel-sessions
+      When reopen_max=0 retry reopening forever.
+      Merge pull request #137 from gonzoleeman/add-no-timeout-relogin-option
+      Use libkmod instead of fork/exec of modprobe.
+      Merge pull request #138 from gonzoleeman/remove-fork-exec-for-modprobe
+      Update GPLv2 License information.
+      Merge pull request #139 from gonzoleeman/fix-fsf-address
+      Make reconnect to session on startup forever default.
+      Merge pull request #141 from gonzoleeman/master
+      Restore space in node-mode level 0 output
+      Merge pull request #142 from gonzoleeman/fix-mode-node-level-0-print
+      Merge pull request #4 from open-iscsi/master
+      Added service file for iscsi logins
+      Use sd_notify() to tell systemd when iscsid is ready.
+      Update systemd unit files for iscsid
+      Merge pull request #143 from gonzoleeman/use-sd_notify-for-systemd
+
+Manish Rangankar (3):
+      iscsiuio: Add inter-host mutex while doing xmit
+      iscsid: Update boot gateway information during sync_session.
+      iscsiuio: Release xmit_mutex in error code path.
+
+Nilesh Javali (4):
+      iscsiuio: allow ARP for non-matching src and dst addresses
+      iscsiuio: v0.7.8.4
+      iscsiadm: get transport_name correctly for offload iface
+      iscsiuio: limit retries of performing dhcpv6 before declaring dhcp failure
+
+Patrick McCarty (1):
+      Fix installation of libopeniscsiusr symlinks
+
+Scott Moser (2):
+      Close file handles when writing pid files.
+      Better error message and failure if netlink socket fails.
+
+
 open-iscsi-2.0-875 - open-iscsi-2.0.876
 
 Chris Leech (2):
