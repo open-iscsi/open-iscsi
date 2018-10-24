@@ -799,9 +799,12 @@ int nic_process_intr(nic_t *nic, int discard_check)
 
 		nic->intr_count = count;
 
-		LOG_DEBUG(PFX "%s: host:%d - calling clear_tx_intr from process_intr",
-			   nic->log_name, nic->host_no);
-		(*nic->ops->clear_tx_intr) (nic);
+		if (strcmp(nic->ops->description, "qedi")) {
+			LOG_DEBUG(PFX "%s: host:%d - calling clear_tx_intr from process_intr",
+			          nic->log_name, nic->host_no);
+			(*nic->ops->clear_tx_intr) (nic);
+		}
+
 		ret = 1;
 	}
 	pthread_mutex_unlock(&nic->nic_mutex);
