@@ -30,6 +30,7 @@
 #include <fcntl.h>
 #include <sys/stat.h>
 #include <sys/file.h>
+#include <inttypes.h>
 
 #include "idbm.h"
 #include "idbm_fields.h"
@@ -65,7 +66,7 @@ static struct idbm *db;
 #define __recinfo_int(_key, _info, _rec, _name, _show, _n, _mod) do { \
 	_info[_n].type = TYPE_INT; \
 	strlcpy(_info[_n].name, _key, NAME_MAXVAL); \
-	snprintf(_info[_n].value, VALUE_MAXVAL, "%d", _rec->_name); \
+	snprintf(_info[_n].value, VALUE_MAXVAL, "%" PRIi32, _rec->_name); \
 	_info[_n].data = &_rec->_name; \
 	_info[_n].data_len = sizeof(_rec->_name); \
 	_info[_n].visible = _show; \
@@ -76,7 +77,7 @@ static struct idbm *db;
 #define __recinfo_uint8(_key, _info, _rec, _name, _show, _n, _mod) do { \
 	_info[_n].type = TYPE_UINT8; \
 	strlcpy(_info[_n].name, _key, NAME_MAXVAL); \
-	snprintf(_info[_n].value, VALUE_MAXVAL, "%d", _rec->_name); \
+	snprintf(_info[_n].value, VALUE_MAXVAL, "%" PRIu8, _rec->_name); \
 	_info[_n].data = &_rec->_name; \
 	_info[_n].data_len = sizeof(_rec->_name); \
 	_info[_n].visible = _show; \
@@ -87,7 +88,7 @@ static struct idbm *db;
 #define __recinfo_uint16(_key, _info, _rec, _name, _show, _n, _mod) do { \
 	_info[_n].type = TYPE_UINT16; \
 	strlcpy(_info[_n].name, _key, NAME_MAXVAL); \
-	snprintf(_info[_n].value, VALUE_MAXVAL, "%d", _rec->_name); \
+	snprintf(_info[_n].value, VALUE_MAXVAL, "%" PRIu16, _rec->_name); \
 	_info[_n].data = &_rec->_name; \
 	_info[_n].data_len = sizeof(_rec->_name); \
 	_info[_n].visible = _show; \
@@ -98,7 +99,7 @@ static struct idbm *db;
 #define __recinfo_uint32(_key, _info, _rec, _name, _show, _n, _mod) do { \
 	_info[_n].type = TYPE_UINT32; \
 	strlcpy(_info[_n].name, _key, NAME_MAXVAL); \
-	snprintf(_info[_n].value, VALUE_MAXVAL, "%d", _rec->_name); \
+	snprintf(_info[_n].value, VALUE_MAXVAL, "%" PRIu32, _rec->_name); \
 	_info[_n].data = &_rec->_name; \
 	_info[_n].data_len = sizeof(_rec->_name); \
 	_info[_n].visible = _show; \
@@ -1041,7 +1042,7 @@ updated:
 	if (!passwd_done && !strcmp(#_param, name)) { \
 		passwd_done = 1; \
 		name = #_param "_length"; \
-		snprintf(passwd_len, 8, "%d", (int)strlen(value)); \
+		snprintf(passwd_len, 8, "%.7" PRIi32, (int)strlen(value) & 0xffff); \
 		value = passwd_len; \
 		goto setup_passwd_len; \
 	}
