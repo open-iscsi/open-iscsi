@@ -676,7 +676,7 @@ updated:
 	if (!passwd_done && !strcmp(#_param, name)) { \
 		passwd_done = 1; \
 		name = #_param "_length"; \
-		snprintf(passwd_len, 8, "%d", (int)strlen(value)); \
+		snprintf(passwd_len, 8, "%.7d", (int)strlen(value) & 0xffff); \
 		value = passwd_len; \
 		goto setup_passwd_len; \
 	}
