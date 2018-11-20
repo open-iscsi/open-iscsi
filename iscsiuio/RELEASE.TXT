@@ -1,7 +1,7 @@
                               Release Notes
                         QLogic uIP Linux Driver
-                            Version 0.7.8.4
-                               2/22/2018
+                            Version 0.7.8.5
+                               11/20/2018
 
                           QLogic Corporation
                         26650 Aliso Viejo Pkwy,
@@ -11,7 +11,29 @@
                    Copyright (c) 2014, QLogic Corporation
                            All rights reserved
 
+uIP v0.7.8.5 (Nov 20, 2018)
+=======================================================
+    Fixes:
+    -------
+      1. Problem: CQ102578: observing ISCSI initiator IP ping drop
+         Change: 1. Do not flush tx queue on each uio interrupt
+		 2. Use UIO BD index instead on buffer index.
+		 3. Set buf_size in case of ICMP and ARP packet
+         Impact: QL41xxx adapters
 
+      2. Problem: CQ103034 - Unable to boot iSCSI BFS in IPv6 DHCP config
+         Change: Limit retries of performing dhcpv6 before declaring dhcp failure
+         Impact: All
+
+      3. Problem: CQ102438: I/O fails to resume on multipath LUN during port toggle.
+         Change: lib/cnic, lib/qedi, Release xmit_mutex in error code path and
+                 during clear tx queue.
+         Impact: QL84xx adapters
+
+      4. Problem: Netlink buffer corruption when more than one host
+		  try to xmit packet at the same time
+         Change: Add inter-host mutex while doing xmit
+         Impact: All
 
 uIP v0.7.8.4 (Feb 22, 2018)
 =======================================================
