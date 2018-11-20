@@ -1122,6 +1122,7 @@ nic_iface_present:
 			 * network, the global variable uip_len is
 			 * set to a value > 0. */
 			if (ustack->uip_len > 0) {
+				pkt->buf_size = ustack->uip_len;
 				prepare_ipv4_packet(nic, nic_iface,
 						    ustack, pkt);
 
@@ -1139,6 +1140,7 @@ nic_iface_present:
 			 * network, the global variable uip_len
 			 * is set to a value > 0. */
 			if (pkt->buf_size > 0) {
+				pkt->buf_size = ustack->uip_len;
 				LOG_DEBUG(PFX "%s: write called after arp_arpin, bufsize=%d",
 					   nic->log_name, pkt->buf_size);
 				(*nic->ops->write) (nic, nic_iface, pkt);
