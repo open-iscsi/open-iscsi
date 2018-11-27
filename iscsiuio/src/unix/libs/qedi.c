@@ -994,7 +994,7 @@ static int qedi_read(nic_t *nic, packet_t *pkt)
 	void *rx_pkt;
 	int rc = 0;
 	uint32_t sw_cons, bd_cons;
-	uint32_t hw_prod;
+	uint32_t hw_prod, bd_prod;
 	uint32_t rx_pkt_idx;
 	int len;
 	struct qedi_rx_bd *rx_bd;
@@ -1013,14 +1013,20 @@ static int qedi_read(nic_t *nic, packet_t *pkt)
 	msync(bp->rx_comp_ring, nic->page_size, MS_SYNC);
 	uctrl = (struct qedi_uio_ctrl *)bp->uctrl_map;
 	hw_prod = uctrl->hw_rx_prod;
+	bd_prod = uctrl->hw_rx_bd_prod;
 	sw_cons = uctrl->host_rx_cons;
 	bd_cons = uctrl->host_rx_bd_cons;
-	rx_bd = bp->rx_comp_ring + (bd_cons * sizeof(*rx_bd));
+	rx_bd = bp->rx_comp_ring + (bd_prod * sizeof(*rx_bd));
 	len = rx_bd->rx_pkt_len;
 	rx_pkt_idx = rx_bd->rx_pkt_index;
 	vlan_id = rx_bd->vlan_id;
 
-	if (sw_cons != hw_prod) {
+	LOG_DEBUG(PFX "%s:hw_prod %d bd_prod %d, rx_pkt_idx %d, rxlen %d",
+		  nic->log_name, hw_prod, bd_prod, rx_bd->rx_pkt_index, len);
+	LOG_DEBUG(PFX "%s: sw_con %d bd_cons %d num BD %d",
+		  nic->log_name, sw_cons, bd_cons, QEDI_NUM_RX_BD);
+
+	if (bd_cons != bd_prod) {
 		LOG_DEBUG(PFX "%s: clearing rx interrupt: %d %d",
 			  nic->log_name, sw_cons, hw_prod);
 		rc = 1;
