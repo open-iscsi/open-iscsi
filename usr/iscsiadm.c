@@ -694,9 +694,8 @@ static void print_node_flat(struct iscsi_node *node)
 static void print_nodes_tree(struct iscsi_node **nodes, uint32_t node_count,
 			     enum _print_node_tree_mode print_mode)
 {
-	uint32_t i = 0;
+	unsigned int i;
 	struct iscsi_node *cur_node = NULL;
-	struct iscsi_node *pre_node = NULL;
 	const char *prefix = NULL;
 
 	if (print_mode == _PRINT_MODE_IFACE)
@@ -708,27 +707,14 @@ static void print_nodes_tree(struct iscsi_node **nodes, uint32_t node_count,
 	// is no need to create hash table for this.
 	for (i = 0; i < node_count; ++i) {
 		cur_node = nodes[i];
-		if ( i != 0)
-			pre_node = nodes[i - 1];
-		if ((pre_node == NULL) ||
-		    (strcmp(iscsi_node_target_name_get(cur_node),
-			    iscsi_node_target_name_get(pre_node)) != 0))
-			printf("%sTarget: %s\n", prefix,
-			       iscsi_node_target_name_get(cur_node));
-		if ((pre_node == NULL) ||
-		    (strcmp(iscsi_node_conn_address_get(cur_node),
-			    iscsi_node_conn_address_get(pre_node)) != 0) ||
-		    (iscsi_node_conn_port_get(cur_node) !=
-		     iscsi_node_conn_port_get(pre_node)))
-			printf("%s\tPortal: %s,%d\n", prefix,
-			       iscsi_node_portal_get(cur_node),
-			       iscsi_node_tpgt_get(cur_node));
-		if ((pre_node == NULL) ||
-		    (strcmp(iscsi_node_iface_name_get(cur_node),
-			    iscsi_node_iface_name_get(pre_node)) != 0))
-			if (print_mode == _PRINT_MODE_NODE)
-				printf("\t\tIface Name: %s\n",
-				       iscsi_node_iface_name_get(cur_node));
+		printf("%sTarget: %s\n", prefix,
+		       iscsi_node_target_name_get(cur_node));
+		printf("%s\tPortal: %s,%d\n", prefix,
+		       iscsi_node_portal_get(cur_node),
+		       iscsi_node_tpgt_get(cur_node));
+		if (print_mode == _PRINT_MODE_NODE)
+			printf("\t\tIface Name: %s\n",
+			       iscsi_node_iface_name_get(cur_node));
 	}
 }
 
