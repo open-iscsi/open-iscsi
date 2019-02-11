@@ -833,6 +833,9 @@ int _idbm_iface_get(struct iscsi_context *ctx, const char *iface_name, struct
 	if (iface_name == NULL)
 		goto out;
 
+	if (strcmp(iface_name, "iface.example") == 0)
+		goto out;
+
 	_good(_asprintf(&conf_path, "%s/%s", IFACE_CONFIG_DIR, iface_name),
 	      rc, out);
 
