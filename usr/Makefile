@@ -35,13 +35,18 @@ endif
 PKG_CONFIG = /usr/bin/pkg-config
 
 CFLAGS ?= -O2 -g
+ifdef NO_SYSTEMD
+CFLAGS += -DNO_SYSTEMD
+endif
 WARNFLAGS ?= -Wall -Wstrict-prototypes
 CFLAGS += $(WARNFLAGS) -I../include -I. -D_GNU_SOURCE \
 	  -I$(TOPDIR)/libopeniscsiusr
 CFLAGS += $(shell $(PKG_CONFIG) --cflags libkmod)
 ISCSI_LIB = -L$(TOPDIR)/libopeniscsiusr -lopeniscsiusr
 LDFLAGS += $(shell $(PKG_CONFIG) --libs libkmod)
+ifndef NO_SYSTEMD
 LDFLAGS += $(shell $(PKG_CONFIG) --libs libsystemd)
+endif
 PROGRAMS = iscsid iscsiadm iscsistart
 
 # libc compat files
