@@ -10,6 +10,7 @@ Type=notify
 NotifyAccess=main
 ExecStart=/sbin/iscsid -f
 KillMode=mixed
+Restart=on-failure
 
 [Install]
 WantedBy=multi-user.target
