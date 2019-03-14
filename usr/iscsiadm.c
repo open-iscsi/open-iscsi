@@ -681,14 +681,6 @@ static int login_portals(struct node_rec *pattern_rec)
 	return rc;
 }
 
-static void print_node_flat(struct iscsi_node *node)
-{
-		printf("%s,%" PRIu16 " %s\n",
-		       iscsi_node_portal_get(node),
-		       iscsi_node_tpgt_get(node),
-		       iscsi_node_target_name_get(node));
-}
-
 // The 'iface_mode' argument is only used for command
 //	`iscsiadm -m iface -P 1`
 static void print_nodes_tree(struct iscsi_node **nodes, uint32_t node_count,
@@ -716,34 +708,6 @@ static void print_nodes_tree(struct iscsi_node **nodes, uint32_t node_count,
 			printf("\t\tIface Name: %s\n",
 			       iscsi_node_iface_name_get(cur_node));
 	}
-}
-
-static int print_nodes(struct iscsi_context *ctx, int info_level)
-{
-	struct iscsi_node **nodes = NULL;
-	uint32_t node_count = 0;
-	uint32_t i = 0;
-	int rc = 0;
-
-	if ((info_level != 0) && (info_level != -1) && (info_level != 1)) {
-		log_error("Invalid info level %d. Try 0 or 1.", info_level);
-		rc = ISCSI_ERR_INVAL;
-		goto out;
-	}
-
-	rc = iscsi_nodes_get(ctx, &nodes, &node_count);
-	if (rc != LIBISCSI_OK)
-		goto out;
-
-	if (info_level == 1)
-		print_nodes_tree(nodes, node_count, _PRINT_MODE_NODE);
-	else
-		for (i = 0; i < node_count; ++i)
-			print_node_flat(nodes[i]);
-
-out:
-	iscsi_nodes_free(nodes, node_count);
-	return rc;
 }
 
 static int print_nodes_config(struct iscsi_context *ctx, bool show_secret,
@@ -2813,14 +2777,6 @@ static int exec_node_op(struct iscsi_context *ctx, int op, int do_login,
 	if ((do_login || do_logout) && op > OP_NOOP) {
 		log_error("Invalid parameters. Login/logout and op passed in");
 		rc = ISCSI_ERR_INVAL;
-		goto out;
-	}
-
-	if ((!do_login && !do_logout && op == OP_NOOP) &&
-	    ((rec == NULL) ||
-	     (!strlen(rec->name) && !strlen(rec->conn[0].address) &&
-	      !strlen(rec->iface.name)))) {
-		rc = print_nodes(ctx, info_level);
 		goto out;
 	}
 
