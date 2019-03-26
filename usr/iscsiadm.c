@@ -689,13 +689,12 @@ static void print_node_flat(struct iscsi_node *node)
 		       iscsi_node_target_name_get(node));
 }
 
-// The 'iface_mode' argument is only used for command
-//	`iscsiadm -m iface -P 1`
 static void print_nodes_tree(struct iscsi_node **nodes, uint32_t node_count,
 			     enum _print_node_tree_mode print_mode)
 {
 	unsigned int i;
 	struct iscsi_node *cur_node = NULL;
+	struct iscsi_node *prev_node = NULL;
 	const char *prefix = NULL;
 
 	if (print_mode == _PRINT_MODE_IFACE)
@@ -707,14 +706,24 @@ static void print_nodes_tree(struct iscsi_node **nodes, uint32_t node_count,
 	// is no need to create hash table for this.
 	for (i = 0; i < node_count; ++i) {
 		cur_node = nodes[i];
-		printf("%sTarget: %s\n", prefix,
-		       iscsi_node_target_name_get(cur_node));
+		/*
+		 * Print the target line if this is our first pass, or
+		 * if if it does not match the prevous target. Always print
+		 * the Portal line. The original code seemed to want to
+		 * suppres duplicates here, as well, but it evidently
+		 * didn't work that way, so let's not regress output format
+		 */
+		if (!prev_node || strcmp(iscsi_node_target_name_get(prev_node),
+					 iscsi_node_target_name_get(cur_node)))
+			printf("%sTarget: %s\n", prefix,
+			       iscsi_node_target_name_get(cur_node));
 		printf("%s\tPortal: %s,%d\n", prefix,
 		       iscsi_node_portal_get(cur_node),
 		       iscsi_node_tpgt_get(cur_node));
 		if (print_mode == _PRINT_MODE_NODE)
 			printf("\t\tIface Name: %s\n",
 			       iscsi_node_iface_name_get(cur_node));
+		prev_node = cur_node;
 	}
 }
 
