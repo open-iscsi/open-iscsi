@@ -135,7 +135,7 @@ int init_logger(char *filename)
 	}
 	main_log.fp = fopen(filename, "a");
 	if (main_log.fp == NULL) {
-		printf("Could not create log file: %s <%s>\n",
+		fprintf(stderr, "WARN: Could not create log file: %s <%s>\n",
 		       filename, strerror(errno));
 		rc = -EIO;
 	}

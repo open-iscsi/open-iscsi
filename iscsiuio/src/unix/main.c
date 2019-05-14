@@ -146,7 +146,7 @@ signal_wait:
 		fini_logger(SHUTDOWN_LOGGER);
 		rc = init_logger(main_log.log_file);
 		if (rc != 0)
-			printf("Could not initialize the logger in "
+			fprintf(stderr, "WARN: Could not initialize the logger in "
 			       "signal!\n");
 		goto signal_wait;
 	default:
@@ -239,6 +239,7 @@ int main(int argc, char *argv[])
 	int foreground = 0;
 	pid_t pid;
 	pthread_attr_t attr;
+	int pipefds[2];
 
 	/*  Record the start time for the user space daemon */
 	opt.start_time = time(NULL);
@@ -281,7 +282,7 @@ int main(int argc, char *argv[])
 		/*  initialize the logger */
 		rc = init_logger(main_log.log_file);
 		if (rc != 0 && opt.debug == DEBUG_ON)
-			printf("WARN: Could not initialize the logger\n");
+			fprintf(stderr, "WARN: Could not initialize the logger\n");
 	}
 
 	LOG_INFO("Started iSCSI uio stack: Ver " PACKAGE_VERSION);
@@ -316,38 +317,53 @@ int main(int argc, char *argv[])
 
 		fd = open(pid_file, O_WRONLY | O_CREAT, 0644);
 		if (fd < 0) {
-			printf("Unable to create pid file: %s", pid_file);
+			fprintf(stderr, "ERR: Unable to create pid file: %s\n",
+				pid_file);
+			exit(1);
+		}
+
+		if (pipe(pipefds) < 0) {
+			fprintf(stderr, "ERR: Unable to create a PIPE: %s\n",
+				strerror(errno));
 			exit(1);
 		}
 
 		pid = fork();
 		if (pid < 0) {
-			printf("Starting daemon failed");
+			fprintf(stderr, "ERR: Starting daemon failed\n");
 			exit(1);
 		} else if (pid) {
+			char msgbuf[4];
+
+			/* parent: wait for child msg then exit */
+			close(pipefds[1]);
+			read(pipefds[0], msgbuf, sizeof(msgbuf));
 			exit(0);
 		}
 
+		/* the child */
 		rc = chdir("/");
 		if (rc == -1)
-			printf("Unable to chdir(\") [%s]", strerror(errno));
+			fprintf(stderr, "WARN: Unable to chdir(\") [%s]\n", strerror(errno));
 
 		if (lockf(fd, F_TLOCK, 0) < 0) {
-			printf("Unable to lock pid file: %s [%s]",
+			fprintf(stderr, "ERR: Unable to lock pid file: %s [%s]\n",
 			       pid_file, strerror(errno));
 			exit(1);
 		}
 
 		rc = ftruncate(fd, 0);
 		if (rc == -1)
-			printf("ftruncate(%d, 0) failed [%s]",
+			fprintf(stderr, "WARN: ftruncate(%d, 0) failed [%s]\n",
 			       fd, strerror(errno));
 
 		sprintf(buf, "%d\n", getpid());
 		written_bytes = write(fd, buf, strlen(buf));
-		if (written_bytes == -1)
-			printf("Could not write pid file [%s]",
+		if (written_bytes == -1) {
+			fprintf(stderr, "ERR: Could not write pid file [%s]\n",
 			       strerror(errno));
+			exit(1);
+		}
 		close(fd);
 
 		daemon_init();
@@ -392,6 +408,11 @@ int main(int argc, char *argv[])
 	rc = iscsid_start();
 	if (rc != 0)
 		goto error;
+
+	/* signal parent they can go away now */
+	close(pipefds[0]);
+	write(pipefds[1], "ok\n", 3);
+	close(pipefds[1]);
 
 	/*  NetLink connection to listen to NETLINK_ISCSI private messages */
 	if (nic_nl_open() != 0)
