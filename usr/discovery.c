@@ -1355,6 +1355,7 @@ reconnect:
 	if (--session->reopen_cnt < 0) {
 		log_error("connection login retries (reopen_max) %d exceeded",
 			  config->reopen_max);
+		rc = ISCSI_ERR_PDU_TIMEOUT;
 		goto login_failed;
 	}
 
