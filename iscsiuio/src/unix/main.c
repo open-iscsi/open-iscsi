@@ -76,7 +76,7 @@
  ******************************************************************************/
 #define PFX "main "
 
-static const char default_pid_filepath[] = "/var/run/iscsiuio.pid";
+static const char default_pid_filepath[] = "/run/iscsiuio.pid";
 
 /*******************************************************************************
  *  Global Variables

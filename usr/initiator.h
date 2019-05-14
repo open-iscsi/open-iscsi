@@ -38,9 +38,9 @@
 #define CONFIG_FILE		ISCSI_CONFIG_ROOT"iscsid.conf"
 #define INITIATOR_NAME_FILE	ISCSI_CONFIG_ROOT"initiatorname.iscsi"
 
-#define PID_FILE		"/var/run/iscsid.pid"
+#define PID_FILE		"/run/iscsid.pid"
 #ifndef LOCK_DIR
-#define LOCK_DIR		"/var/lock/iscsi"
+#define LOCK_DIR		"/run/lock/iscsi"
 #endif
 #define LOCK_FILE		LOCK_DIR"/lock"
 #define LOCK_WRITE_FILE		LOCK_DIR"/lock.write"
