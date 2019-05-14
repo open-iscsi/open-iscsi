@@ -48,6 +48,9 @@
 #include <net/ethernet.h>
 #include <arpa/inet.h>
 #include <sys/mman.h>
+#ifndef	NO_SYSTEMD
+#include <systemd/sd-daemon.h>
+#endif
 
 #include "uip.h"
 #include "uip_arp.h"
@@ -415,6 +418,11 @@ int main(int argc, char *argv[])
 		write(pipefds[1], "ok\n", 3);
 		close(pipefds[1]);
 	}
+
+#ifndef	NO_SYSTEMD
+	sd_notify(0, "READY=1\n"
+		     "STATUS=Ready to process requests\n");
+#endif
 
 	/*  NetLink connection to listen to NETLINK_ISCSI private messages */
 	if (nic_nl_open() != 0)

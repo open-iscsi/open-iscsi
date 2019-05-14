@@ -1,0 +1,19 @@
+[Unit]
+Description=iSCSI UserSpace I/O driver
+Documentation=man:iscsiuio(8)
+DefaultDependencies=no
+Conflicts=shutdown.target
+Requires=iscsid.service
+BindTo=iscsid.service
+After=network.target
+Before=remote-fs-pre.target iscsid.service
+
+[Service]
+Type=notify
+NotifyAccess=main
+ExecStart=/sbin/iscsiuio -f
+KillMode=mixed
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target
