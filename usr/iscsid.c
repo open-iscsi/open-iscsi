@@ -34,7 +34,9 @@
 #include <sys/wait.h>
 #include <sys/types.h>
 #include <sys/stat.h>
+#ifndef	NO_SYSTEMD
 #include <systemd/sd-daemon.h>
+#endif
 
 #include "iscsid.h"
 #include "mgmt_ipc.h"
@@ -339,6 +341,7 @@ static void missing_iname_warn(char *initiatorname_file)
 /* called right before we enter the event loop */
 static void set_state_to_ready(void)
 {
+#ifndef	NO_SYSTEMD
 	if (sessions_to_recover)
 		sd_notify(0, "READY=1\n"
 				"RELOADING=1\n"
@@ -346,14 +349,17 @@ static void set_state_to_ready(void)
 	else
 		sd_notify(0, "READY=1\n"
 				"STATUS=Ready to process requests\n");
+#endif
 }
 
 /* called when recovery process has been reaped */
 static void set_state_done_reloading(void)
 {
+#ifndef	NO_SYSTEMD
 	sessions_to_recover = 0;
 	sd_notifyf(0, "READY=1\n"
 			"STATUS=Ready to process requests\n");
+#endif
 }
 
 int main(int argc, char *argv[])
