@@ -409,10 +409,12 @@ int main(int argc, char *argv[])
 	if (rc != 0)
 		goto error;
 
-	/* signal parent they can go away now */
-	close(pipefds[0]);
-	write(pipefds[1], "ok\n", 3);
-	close(pipefds[1]);
+	if (!foreground) {
+		/* signal parent they can go away now */
+		close(pipefds[0]);
+		write(pipefds[1], "ok\n", 3);
+		close(pipefds[1]);
+	}
 
 	/*  NetLink connection to listen to NETLINK_ISCSI private messages */
 	if (nic_nl_open() != 0)
