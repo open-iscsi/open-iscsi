@@ -40,6 +40,11 @@ ifneq (,$(CFLAGS))
 export CFLAGS
 endif
 
+# export systemd disablement if set
+ifneq ($(NO_SYSTEMD),)
+export NO_SYSTEMD
+endif
+
 # Random comments:
 # using '$(MAKE)' instead of just 'make' allows make to run in parallel
 # over multiple makefile.
