@@ -93,7 +93,7 @@
 #define ISCSI_END_REC	"# END RECORD"
 
 #ifndef LOCK_DIR
-#define LOCK_DIR		"/var/lock/iscsi"
+#define LOCK_DIR		"/run/lock/iscsi"
 #endif
 #define LOCK_FILE		LOCK_DIR"/lock"
 #define LOCK_WRITE_FILE		LOCK_DIR"/lock.write"

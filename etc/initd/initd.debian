@@ -11,7 +11,7 @@
 PATH=/sbin:/bin:/usr/sbin:/usr/bin
 DAEMON=/sbin/iscsid
 ADM=/sbin/iscsiadm
-PIDFILE=/var/run/iscsid.pid
+PIDFILE=/run/iscsid.pid
 
 [ -x "$DAEMON" ] || exit 0
 

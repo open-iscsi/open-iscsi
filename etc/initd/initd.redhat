@@ -4,7 +4,7 @@
 # description: Starts and stops the iSCSI initiator
 #
 # processname: iscsid
-# pidfile: /var/run/iscsid.pid
+# pidfile: /run/iscsid.pid
 # config:  /etc/iscsi/iscsid.conf
 
 # Source function library.
@@ -23,7 +23,7 @@ start()
 	echo
 	[ $RETVAL -eq 0 ] || return
 
-	touch /var/lock/subsys/open-iscsi
+	touch /run/lock/subsys/open-iscsi
 
 	echo -n $"Setting up iSCSI targets: "
 	iscsiadm -m node --loginall=automatic
@@ -43,8 +43,8 @@ stop()
 		return $RETVAL
 	fi
 	iscsiadm -k 0
-	rm -f /var/run/iscsid.pid
-	[ $RETVAL -eq 0 ] && rm -f /var/lock/subsys/open-iscsi
+	rm -f /run/iscsid.pid
+	[ $RETVAL -eq 0 ] && rm -f /run/lock/subsys/open-iscsi
 	status=0
 	modprobe -r iscsi_tcp 2>/dev/null
 	if [ "$?" -ne "0" -a "$?" -ne "1" ]; then
@@ -94,7 +94,7 @@ case "$1" in
 			RETVAL=$?
 			;;
 	condrestart)
-			[ -f /var/lock/subsys/open-iscsi ] && restart
+			[ -f /run/lock/subsys/open-iscsi ] && restart
 			;;
 	*)
 			echo $"Usage: $0 {start|stop|restart|status|condrestart}"
