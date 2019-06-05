@@ -43,6 +43,9 @@ endif
 # export systemd disablement if set
 ifneq ($(NO_SYSTEMD),)
 export NO_SYSTEMD
+WITHOUT_ARG = --without-systemd
+else
+WITHOUT_ARG =
 endif
 
 # Random comments:
@@ -70,7 +73,7 @@ user: iscsiuio/Makefile
 	@echo "Read README file for detailed information."
 
 iscsiuio/Makefile: iscsiuio/configure iscsiuio/Makefile.in
-	cd iscsiuio; ./configure
+	cd iscsiuio; ./configure $(WITHOUT_ARG)
 
 iscsiuio/configure iscsiuio/Makefile.in: iscsiuio/configure.ac iscsiuio/Makefile.am
 	cd iscsiuio; autoreconf --install
