@@ -34,7 +34,6 @@
 #include "sysdeps.h"
 #include "auth.h"
 #include "initiator.h"
-#include "md5.h"
 #include "log.h"
 
 static const char acl_hexstring[] = "0123456789abcdefABCDEF";
@@ -43,9 +42,11 @@ static const char acl_base64_string[] =
 static const char acl_authmethod_set_chap_alg_list[] = "CHAP";
 static const char acl_reject_option_name[] = "Reject";
 
-void auth_md5_init(struct MD5Context *);
-void auth_md5_update(struct MD5Context *, unsigned char *, unsigned int);
-void auth_md5_final(unsigned char *, struct MD5Context *);
+#include <openssl/evp.h>
+static int auth_hash_init(EVP_MD_CTX **context, int chap_alg);
+static void auth_hash_update(EVP_MD_CTX *context, unsigned char *md, unsigned int);
+static unsigned int auth_hash_final(unsigned char *, EVP_MD_CTX *context);
+
 void get_random_bytes(unsigned char *data, unsigned int length);
 size_t strlcpy(char *, const char *, size_t);
 size_t strlcat(char *, const char *, size_t);
@@ -57,18 +58,19 @@ acl_chap_compute_rsp(struct iscsi_acl *client, int rmt_auth, unsigned int id,
 		     unsigned char *response_data)
 {
 	unsigned char id_data[1];
-	struct MD5Context context;
+	EVP_MD_CTX *context = NULL;
 	unsigned char out_data[AUTH_STR_MAX_LEN];
 	unsigned int out_length = AUTH_STR_MAX_LEN;
 
 	if (!client->passwd_present)
 		return AUTH_DBG_STATUS_LOCAL_PASSWD_NOT_SET;
 
-	auth_md5_init(&context);
+	if (auth_hash_init(&context, client->negotiated_chap_alg) != 0)
+		return AUTH_DBG_STATUS_AUTH_FAIL;
 
 	/* id byte */
 	id_data[0] = id;
-	auth_md5_update(&context, id_data, 1);
+	auth_hash_update(context, id_data, 1);
 
 	/* decrypt password */
 	if (acl_data(out_data, &out_length, client->passwd_data,
@@ -79,15 +81,15 @@ acl_chap_compute_rsp(struct iscsi_acl *client, int rmt_auth, unsigned int id,
 		return AUTH_DBG_STATUS_PASSWD_TOO_SHORT_WITH_NO_IPSEC;
 
 	/* shared secret */
-	auth_md5_update(&context, out_data, out_length);
+	auth_hash_update(context, out_data, out_length);
 
 	/* clear decrypted password */
 	memset(out_data, 0, AUTH_STR_MAX_LEN);
 
 	/* challenge value */
-	auth_md5_update(&context, challenge_data, challenge_length);
+	auth_hash_update(context, challenge_data, challenge_length);
 
-	auth_md5_final(response_data, &context);
+	auth_hash_final(response_data, context);
 
 	return AUTH_DBG_STATUS_NOT_SET;	/* no error */
 }
@@ -103,8 +105,8 @@ acl_chap_auth_request(struct iscsi_acl *client, char *username, unsigned int id,
 		      unsigned int rsp_length)
 {
 	iscsi_session_t *session = client->session_handle;
-	struct MD5Context context;
-	unsigned char verify_data[16];
+	EVP_MD_CTX *context = NULL;
+	unsigned char verify_data[client->chap_challenge_len];
 
 	/* the expected credentials are in the session */
 	if (session->username_in == NULL) {
@@ -137,21 +139,22 @@ acl_chap_auth_request(struct iscsi_acl *client, char *username, unsigned int id,
 		return AUTH_STATUS_FAIL;
 	}
 
-	auth_md5_init(&context);
+	if (auth_hash_init(&context, client->negotiated_chap_alg) != 0)
+		return AUTH_STATUS_FAIL;
 
 	/* id byte */
 	verify_data[0] = id;
-	auth_md5_update(&context, verify_data, 1);
+	auth_hash_update(context, verify_data, 1);
 
 	/* shared secret */
-	auth_md5_update(&context, (unsigned char *)session->password_in,
+	auth_hash_update(context, (unsigned char *)session->password_in,
 			session->password_in_length);
 
 	/* challenge value */
-	auth_md5_update(&context, (unsigned char *)challenge_data,
+	auth_hash_update(context, (unsigned char *)challenge_data,
 			challenge_length);
 
-	auth_md5_final(verify_data, &context);
+	auth_hash_final(verify_data, context);
 
 	if (memcmp(response_data, verify_data, sizeof(verify_data)) == 0) {
 		log_debug(1, "initiator authenticated target %s",
@@ -164,23 +167,54 @@ acl_chap_auth_request(struct iscsi_acl *client, char *username, unsigned int id,
 	return AUTH_STATUS_FAIL;
 }
 
-void
-auth_md5_init(struct MD5Context *context)
-{
-	MD5Init(context);
+static int auth_hash_init(EVP_MD_CTX **context, int chap_alg) {
+	const EVP_MD *digest = NULL;
+	*context = EVP_MD_CTX_new();
+	int rc;
+
+	switch (chap_alg) {
+	case AUTH_CHAP_ALG_MD5:
+		digest = EVP_md5();
+		break;
+	case AUTH_CHAP_ALG_SHA1:
+		digest = EVP_sha1();
+		break;
+	case AUTH_CHAP_ALG_SHA256:
+		digest = EVP_sha256();
+		break;
+	case AUTH_CHAP_ALG_SHA3_256:
+		digest = EVP_sha3_256();
+		break;
+	}
+
+	if (*context == NULL)
+		goto fail_context;
+	if (digest == NULL)
+		goto fail_digest;
+	rc = EVP_DigestInit_ex(*context, digest, NULL);
+	if (!rc)
+		goto fail_init;
+
+	return 0;
+
+fail_init:
+fail_digest:
+	EVP_MD_CTX_free(*context);
+	*context = NULL;
+fail_context:
+	return -1;
 }
 
-void
-auth_md5_update(struct MD5Context *context, unsigned char *data,
-		unsigned int length)
-{
-	MD5Update(context, data, length);
+static void auth_hash_update(EVP_MD_CTX *context, unsigned char *data, unsigned int length) {
+	EVP_DigestUpdate(context, data, length);
 }
 
-void
-auth_md5_final(unsigned char *hash, struct MD5Context *context)
-{
-	MD5Final(hash, context);
+static unsigned int auth_hash_final(unsigned char *hash, EVP_MD_CTX *context) {
+	unsigned int md_len;
+	EVP_DigestFinal_ex(context, hash, &md_len);
+	EVP_MD_CTX_free(context);
+	context = NULL;
+	return md_len;
 }
 
 void
@@ -301,6 +335,9 @@ static int
 acl_chk_chap_alg_optn(int chap_algorithm)
 {
 	if (chap_algorithm == AUTH_OPTION_NONE ||
+	    chap_algorithm == AUTH_CHAP_ALG_SHA3_256 ||
+	    chap_algorithm == AUTH_CHAP_ALG_SHA256 ||
+	    chap_algorithm == AUTH_CHAP_ALG_SHA1 ||
 	    chap_algorithm == AUTH_CHAP_ALG_MD5)
 		return 0;
 
@@ -701,6 +738,20 @@ acl_chk_chap_alg_key(struct iscsi_acl *client)
 			if (number == (unsigned long)client->chap_alg_list[i])
 			{
 				client->negotiated_chap_alg = number;
+				switch (number) {
+				case AUTH_CHAP_ALG_MD5:
+					client->chap_challenge_len = AUTH_CHAP_MD5_RSP_LEN;
+					break;
+				case AUTH_CHAP_ALG_SHA1:
+					client->chap_challenge_len = AUTH_CHAP_SHA1_RSP_LEN;
+					break;
+				case AUTH_CHAP_ALG_SHA256:
+					client->chap_challenge_len = AUTH_CHAP_SHA256_RSP_LEN;
+					break;
+				case AUTH_CHAP_ALG_SHA3_256:
+					client->chap_challenge_len = AUTH_CHAP_SHA3_256_RSP_LEN;
+					break;
+				}
 				return;
 			}
 	}
@@ -816,7 +867,7 @@ static void
 acl_local_auth(struct iscsi_acl *client)
 {
 	unsigned int chap_identifier;
-	unsigned char response_data[AUTH_CHAP_RSP_LEN];
+	unsigned char response_data[AUTH_CHAP_RSP_MAX];
 	unsigned long number;
 	int status;
 	enum auth_dbg_status dbg_status;
@@ -848,7 +899,10 @@ acl_local_auth(struct iscsi_acl *client)
 			client->local_state = AUTH_LOCAL_STATE_ERROR;
 			client->dbg_status = AUTH_DBG_STATUS_CHAP_ALG_REJECT;
 			break;
-		} else if (client->negotiated_chap_alg != AUTH_CHAP_ALG_MD5) {
+		} else if ((client->negotiated_chap_alg != AUTH_CHAP_ALG_SHA3_256) &&
+			   (client->negotiated_chap_alg != AUTH_CHAP_ALG_SHA256) &&
+			   (client->negotiated_chap_alg != AUTH_CHAP_ALG_SHA1) &&
+			   (client->negotiated_chap_alg != AUTH_CHAP_ALG_MD5)) {
 			client->local_state = AUTH_LOCAL_STATE_ERROR;
 			client->dbg_status = AUTH_DBG_STATUS_CHAP_ALG_BAD;
 			break;
@@ -923,8 +977,8 @@ acl_local_auth(struct iscsi_acl *client)
 			break;
 		}
 
-		acl_data_to_text(response_data,
-				 AUTH_CHAP_RSP_LEN, client->scratch_key_value,
+		acl_data_to_text(response_data, client->chap_challenge_len,
+				 client->scratch_key_value,
 				 AUTH_STR_MAX_LEN);
 		acl_set_key_value(&client->send_key_block,
 				  AUTH_KEY_TYPE_CHAP_RSP,
@@ -949,7 +1003,7 @@ acl_rmt_auth(struct iscsi_acl *client)
 	unsigned char id_data[1];
 	unsigned char response_data[AUTH_STR_MAX_LEN];
 	unsigned int rsp_len = AUTH_STR_MAX_LEN;
-	unsigned char my_rsp_data[AUTH_CHAP_RSP_LEN];
+	unsigned char my_rsp_data[AUTH_CHAP_RSP_MAX];
 	int status;
 	enum auth_dbg_status dbg_status;
 	const char *chap_rsp_key_val;
@@ -1012,7 +1066,7 @@ acl_rmt_auth(struct iscsi_acl *client)
 			break;
 		}
 
-		if (rsp_len == AUTH_CHAP_RSP_LEN) {
+		if (rsp_len == client->chap_challenge_len) {
 			dbg_status = acl_chap_compute_rsp(client, 1,
 							  client->send_chap_identifier,
 							  client->send_chap_challenge.large_binary,
@@ -1021,7 +1075,7 @@ acl_rmt_auth(struct iscsi_acl *client)
 
 			if (dbg_status == AUTH_DBG_STATUS_NOT_SET &&
 			    memcmp(my_rsp_data, response_data,
-				   AUTH_CHAP_RSP_LEN) == 0) {
+				   client->chap_challenge_len) == 0) {
 				client->rmt_state = AUTH_RMT_STATE_ERROR;
 				client->dbg_status = AUTH_DBG_STATUS_PASSWD_IDENTICAL;
 				break;
@@ -1765,6 +1819,26 @@ acl_set_chap_alg_list(struct iscsi_acl *client, unsigned int option_count,
 }
 
 int
+acl_init_chap_digests(int *value_list) {
+	EVP_MD_CTX *context = EVP_MD_CTX_new();
+	int i = 0;
+
+	if (EVP_DigestInit_ex(context, EVP_sha3_256(), NULL)) {
+		value_list[i++] = AUTH_CHAP_ALG_SHA3_256;
+	}
+	if (EVP_DigestInit_ex(context, EVP_sha256(), NULL)) {
+		value_list[i++] = AUTH_CHAP_ALG_SHA256;
+	}
+	if (EVP_DigestInit_ex(context, EVP_sha1(), NULL)) {
+		value_list[i++] = AUTH_CHAP_ALG_SHA1;
+	}
+	if (EVP_DigestInit_ex(context, EVP_md5(), NULL)) {
+		value_list[i++] = AUTH_CHAP_ALG_MD5;
+	}
+	return i;
+}
+
+int
 acl_init(int node_type, int buf_desc_count, struct auth_buffer_desc *buff_desc)
 {
 	struct iscsi_acl *client;
@@ -1772,7 +1846,7 @@ acl_init(int node_type, int buf_desc_count, struct auth_buffer_desc *buff_desc)
 	struct auth_str_block *send_str_blk;
 	struct auth_large_binary *recv_chap_challenge;
 	struct auth_large_binary *send_chap_challenge;
-	int value_list[2];
+	int value_list[3];
 
 	if (buf_desc_count != 5 || !buff_desc)
 		return AUTH_STATUS_ERROR;
@@ -1825,7 +1899,6 @@ acl_init(int node_type, int buf_desc_count, struct auth_buffer_desc *buff_desc)
 	client->node_type = (enum auth_node_type) node_type;
 	client->auth_rmt = 1;
 	client->passwd_present = 0;
-	client->chap_challenge_len = AUTH_CHAP_RSP_LEN;
 	client->ip_sec = 0;
 
 	client->phase = AUTH_PHASE_CONFIGURE;
@@ -1851,10 +1924,8 @@ acl_init(int node_type, int buf_desc_count, struct auth_buffer_desc *buff_desc)
 		return AUTH_STATUS_ERROR;
 	}
 
-	value_list[0] = AUTH_CHAP_ALG_MD5;
-
-	if (acl_set_chap_alg_list(client, 1, value_list) !=
-	    AUTH_STATUS_NO_ERROR) {
+	if (acl_set_chap_alg_list(client, acl_init_chap_digests(value_list),
+					value_list) != AUTH_STATUS_NO_ERROR) {
 		client->phase = AUTH_PHASE_ERROR;
 		return AUTH_STATUS_ERROR;
 	}
