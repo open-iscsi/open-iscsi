@@ -854,7 +854,7 @@ int iface_print_tree(void *data, struct iface_rec *iface)
 	print_data.match_iface = iface;
 	print_data.last_rec = &last_rec;
 
-	idbm_for_each_rec(&num_found, &print_data, iface_print_nodes);
+	idbm_for_each_rec(&num_found, &print_data, iface_print_nodes, false);
 	return 0;
 }
 

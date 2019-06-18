@@ -237,7 +237,7 @@ static int sync_session(void *data, struct session_info *info)
 
 	if (idbm_rec_read(&rec, info->targetname, info->tpgt,
 			  info->persistent_address, info->persistent_port,
-			  &info->iface)) {
+			  &info->iface, false)) {
 		log_warning("Could not read data from db. Using default and "
 			    "currently negotiated values");
 		setup_rec_from_negotiated_values(&rec, info);

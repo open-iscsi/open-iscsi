@@ -370,7 +370,7 @@ __logout_by_startup(void *data, struct list_head *list,
 	memset(&rec, 0, sizeof(node_rec_t));
 	if (idbm_rec_read(&rec, info->targetname, info->tpgt,
 			  info->persistent_address,
-			  info->persistent_port, &info->iface)) {
+			  info->persistent_port, &info->iface, false)) {
 		/*
 		 * this is due to a HW driver or some other driver
 		 * not hooked in
@@ -487,7 +487,7 @@ login_by_startup(char *mode)
 	startup.mode = mode;
 	INIT_LIST_HEAD(&startup.all_logins);
 	INIT_LIST_HEAD(&startup.leading_logins);
-	err = idbm_for_each_rec(&nr_found, &startup, link_startup_recs);
+	err = idbm_for_each_rec(&nr_found, &startup, link_startup_recs, false);
 	if (err && (!list_empty(&startup.all_logins) ||
 		    !list_empty(&startup.leading_logins)))
 		/* log msg and try to log into what we found */
@@ -634,7 +634,7 @@ static int __for_each_matched_rec(int verbose, struct node_rec *rec,
 	op_data.match_rec = rec;
 	op_data.fn = fn;
 
-	rc = idbm_for_each_rec(&nr_found, &op_data, rec_match_fn);
+	rc = idbm_for_each_rec(&nr_found, &op_data, rec_match_fn, true);
 	if (rc) {
 		if (verbose)
 			log_error("Could not execute operation on all "
@@ -994,8 +994,8 @@ done:
 	return rc;
 }
 
-static int add_static_portal(int *found, void *data,
-			     char *targetname, int tpgt, char *ip, int port)
+static int add_static_portal(int *found, void *data, char *targetname,
+			     int tpgt, char *ip, int port, bool ruw_lock)
 {
 	node_rec_t *rec = data;
 
@@ -1011,7 +1011,7 @@ static int add_static_portal(int *found, void *data,
 }
 
 static int add_static_node(int *found, void *data,
-			  char *targetname)
+			  char *targetname, bool ruw_lock)
 {
 	node_rec_t *rec = data;
 
@@ -1029,14 +1029,14 @@ static int add_static_node(int *found, void *data,
 			      rec->conn[0].port, &rec->iface);
 search:
 	return idbm_for_each_portal(found, data, add_static_portal,
-				    targetname);
+				    targetname, false);
 }
 
 static int add_static_recs(struct node_rec *rec)
 {
 	int rc, nr_found = 0;
 
-	rc = idbm_for_each_node(&nr_found, rec, add_static_node);
+	rc = idbm_for_each_node(&nr_found, rec, add_static_node, false);
 	if (rc)
 		goto done;
 	/* success */
@@ -1127,7 +1127,7 @@ exec_disc_op_on_recs(discovery_rec_t *drec, struct list_head *rec_list,
 
 	/* clean up node db */
 	if (op & OP_DELETE)
-		idbm_for_each_rec(&found, rec_list, delete_stale_rec);
+		idbm_for_each_rec(&found, rec_list, delete_stale_rec, false);
 
 	if (op & OP_NEW || op & OP_UPDATE) {
 		/* now add/update records */

@@ -23,6 +23,7 @@
 #define IDBM_H
 
 #include <stdio.h>
+#include <stdbool.h>
 #include <sys/types.h>
 #include "initiator.h"
 #include "config.h"
@@ -91,22 +92,22 @@ struct user_param {
 };
 
 typedef int (idbm_iface_op_fn)(void *data, node_rec_t *rec);
-typedef int (idbm_portal_op_fn)(int *found,  void *data,
-				char *targetname, int tpgt, char *ip, int port);
+typedef int (idbm_portal_op_fn)(int *found,  void *data, char *targetname,
+				int tpgt, char *ip, int port, bool ruw_lock);
 typedef int (idbm_node_op_fn)(int *found, void *data,
-			      char *targetname);
+			      char *targetname, bool ruw_lock);
 
 struct rec_op_data {
 	void *data;
 	node_rec_t *match_rec;
 	idbm_iface_op_fn *fn;
 };
-extern int idbm_for_each_portal(int *found, void *data,
-				idbm_portal_op_fn *fn, char *targetname);
+extern int idbm_for_each_portal(int *found, void *data, idbm_portal_op_fn *fn,
+				char *targetname, bool ruw_lock);
 extern int idbm_for_each_node(int *found, void *data,
-			      idbm_node_op_fn *fn);
+			      idbm_node_op_fn *fn, bool ruw_lock);
 extern int idbm_for_each_rec(int *found, void *data,
-			     idbm_iface_op_fn *fn);
+			     idbm_iface_op_fn *fn, bool ruw_lock);
 
 
 typedef int (idbm_drec_op_fn)(void *data, discovery_rec_t *drec);
@@ -144,7 +145,7 @@ extern int idbm_discovery_read(discovery_rec_t *rec, int type, char *addr,
 				int port);
 extern int idbm_rec_read(node_rec_t *out_rec, char *target_name,
 			 int tpgt, char *addr, int port,
-			 struct iface_rec *iface);
+			 struct iface_rec *iface, bool disable_lock);
 extern int idbm_node_set_rec_from_param(struct list_head *params,
 					node_rec_t *rec, int verify);
 extern int idbm_node_set_param(void *data, node_rec_t *rec);
