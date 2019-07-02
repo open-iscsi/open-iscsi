@@ -1,7 +1,7 @@
                               Release Notes
                         QLogic uIP Linux Driver
-                            Version 0.7.8.5
-                               11/20/2018
+                            Version 0.7.8.6
+                               06/27/2019
 
                           QLogic Corporation
                         26650 Aliso Viejo Pkwy,
@@ -10,6 +10,21 @@
                Copyright (c) 2004 - 2013 Broadcom Corporation
                    Copyright (c) 2014, QLogic Corporation
                            All rights reserved
+
+uIP v0.7.8.6 (Jun 27, 2019)
+=======================================================
+    Fixes:
+    -------
+      1. Problem: OS fails to boot after one path is
+                  disconnected from iSCSI MPIO config.
+         Change: In the event of DHCP failure, killing of enable_nic_thread did
+                 not process any iscsid requests leading to error,
+                 iscsistart: Could not broadcast to uIP after 5 tries
+                 and login failure of active path.
+                 Added fix to not kill enable_nic_thread and allow further
+                 processing of iscsid requests and performing login
+                 to next active path.
+         Impact: All
 
 uIP v0.7.8.5 (Nov 20, 2018)
 =======================================================

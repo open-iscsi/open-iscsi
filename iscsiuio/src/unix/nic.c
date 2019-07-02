@@ -1318,21 +1318,6 @@ static int do_acquisition(nic_t *nic, nic_interface_t *nic_iface,
 			/* For DHCPv4 failure, the ustack must be cleaned so
 			   it can re-acquire on the next iscsid request */
 			uip_reset(&nic_iface->ustack);
-
-			/*  Signal that the device enable is
-			    done */
-			pthread_cond_broadcast(&nic->enable_done_cond);
-			pthread_mutex_unlock(&nic->nic_mutex);
-
-			if (nic->enable_thread == INVALID_THREAD)
-				goto dhcp_err;
-
-			rc = pthread_cancel(nic->enable_thread);
-			if (rc != 0)
-				LOG_ERR(PFX "%s: Couldn't cancel "
-					"enable nic thread", nic->log_name);
-dhcp_err:
-			pthread_mutex_lock(&nic->nic_mutex);
 			goto error;
 		}
 
