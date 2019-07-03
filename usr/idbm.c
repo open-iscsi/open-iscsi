@@ -1398,7 +1398,12 @@ static FILE *idbm_open_rec_r(char *portal, char *config)
 	return fopen(portal, "r");
 }
 
-static int __idbm_rec_read(node_rec_t *out_rec, char *conf)
+/*
+ * When the disable_lock param is true, the idbm_lock/idbm_unlock needs
+ * to be holt by the caller, this will avoid overwriting each other in
+ * case of updating(read-modify-write) the recs in parallel.
+ */
+static int __idbm_rec_read(node_rec_t *out_rec, char *conf, bool disable_lock)
 {
 	recinfo_t *info;
 	FILE *f;
@@ -1408,9 +1413,11 @@ static int __idbm_rec_read(node_rec_t *out_rec, char *conf)
 	if (!info)
 		return ISCSI_ERR_NOMEM;
 
-	rc = idbm_lock();
-	if (rc)
-		goto free_info;
+	if (!disable_lock) {
+		rc = idbm_lock();
+		if (rc)
+			goto free_info;
+	}
 
 	f = fopen(conf, "r");
 	if (!f) {
@@ -1427,15 +1434,21 @@ static int __idbm_rec_read(node_rec_t *out_rec, char *conf)
 	fclose(f);
 
 unlock:
-	idbm_unlock();
+	if (!disable_lock)
+		idbm_unlock();
 free_info:
 	free(info);
 	return rc;
 }
 
+/*
+ * When the disable_lock param is true, the idbm_lock/idbm_unlock needs
+ * to be holt by the caller, this will avoid overwriting each other in
+ * case of updating(read-modify-write) the recs in parallel.
+ */
 int
 idbm_rec_read(node_rec_t *out_rec, char *targetname, int tpgt,
-	      char *ip, int port, struct iface_rec *iface)
+	      char *ip, int port, struct iface_rec *iface, bool disable_lock)
 {
 	struct stat statb;
 	char *portal;
@@ -1467,7 +1480,7 @@ idbm_rec_read(node_rec_t *out_rec, char *targetname, int tpgt,
 	}
 
 read:
-	rc = __idbm_rec_read(out_rec, portal);
+	rc = __idbm_rec_read(out_rec, portal, disable_lock);
 free_portal:
 	free(portal);
 	return rc;
@@ -1523,7 +1536,7 @@ static int idbm_print_discovered(discovery_rec_t *drec, int info_level)
 	int num_found = 0;
 
 	if (info_level < 1)
-		idbm_for_each_rec(&num_found, drec, print_discovered_flat);
+		idbm_for_each_rec(&num_found, drec, print_discovered_flat, false);
 	else {
 		struct discovered_tree_info tree_info;
 		struct node_rec last_rec;
@@ -1533,7 +1546,7 @@ static int idbm_print_discovered(discovery_rec_t *drec, int info_level)
 		tree_info.drec = drec;
 		tree_info.last_rec = &last_rec;
 
-		idbm_for_each_rec(&num_found, &tree_info,							  print_discovered_tree);
+		idbm_for_each_rec(&num_found, &tree_info, print_discovered_tree, false);
 	}
 	return num_found;
 }
@@ -1705,9 +1718,9 @@ int idbm_print_all_discovery(int info_level)
  * fn should return -1 if it skipped the rec, an ISCSI_ERR error code if
  * the operation failed or 0 if fn was run successfully.
  */
-static int idbm_for_each_iface(int *found, void *data,
-				idbm_iface_op_fn *fn,
-				char *targetname, int tpgt, char *ip, int port)
+static int idbm_for_each_iface(int *found, void *data, idbm_iface_op_fn *fn,
+			       char *targetname, int tpgt, char *ip, int port,
+			       bool ruw_lock)
 {
 	DIR *iface_dirfd;
 	struct dirent *iface_dent;
@@ -1732,7 +1745,7 @@ static int idbm_for_each_iface(int *found, void *data,
 		goto free_portal;
 	}
 
-	rc = __idbm_rec_read(&rec, portal);
+	rc = __idbm_rec_read(&rec, portal, ruw_lock);
 	if (rc)
 		goto free_portal;
 
@@ -1765,7 +1778,7 @@ read_iface:
 		memset(portal, 0, PATH_MAX);
 		snprintf(portal, PATH_MAX, "%s/%s/%s,%d,%d/%s", NODE_CONFIG_DIR,
 			 targetname, ip, port, tpgt, iface_dent->d_name);
-		if (__idbm_rec_read(&rec, portal))
+		if (__idbm_rec_read(&rec, portal, ruw_lock))
 			continue;
 
 		curr_rc = fn(data, &rec);
@@ -1787,7 +1800,7 @@ free_portal:
  * The portal could be a file or dir with interfaces
  */
 int idbm_for_each_portal(int *found, void *data, idbm_portal_op_fn *fn,
-			 char *targetname)
+			 char *targetname, bool ruw_lock)
 {
 	DIR *portal_dirfd;
 	struct dirent *portal_dent;
@@ -1824,7 +1837,8 @@ int idbm_for_each_portal(int *found, void *data, idbm_portal_op_fn *fn,
 
 		curr_rc = fn(found, data, targetname,
 			tmp_tpgt ? atoi(tmp_tpgt) : -1,
-			portal_dent->d_name, atoi(tmp_port));
+			portal_dent->d_name, atoi(tmp_port),
+			ruw_lock);
 		/* less than zero means it was not a match */
 		if (curr_rc > 0 && !rc)
 			rc = curr_rc;
@@ -1835,7 +1849,7 @@ done:
 	return rc;
 }
 
-int idbm_for_each_node(int *found, void *data, idbm_node_op_fn *fn)
+int idbm_for_each_node(int *found, void *data, idbm_node_op_fn *fn, bool ruw_lock)
 {
 	DIR *node_dirfd;
 	struct dirent *node_dent;
@@ -1856,7 +1870,7 @@ int idbm_for_each_node(int *found, void *data, idbm_node_op_fn *fn)
 			continue;
 
 		log_debug(5, "searching %s", node_dent->d_name);
-		curr_rc = fn(found, data, node_dent->d_name);
+		curr_rc = fn(found, data, node_dent->d_name, ruw_lock);
 		/* less than zero means it was not a match */
 		if (curr_rc > 0 && !rc)
 			rc = curr_rc;
@@ -1874,18 +1888,30 @@ static int iface_fn(void *data, node_rec_t *rec)
 }
 
 static int portal_fn(int *found, void *data, char *targetname,
-		     int tpgt, char *ip, int port)
+		     int tpgt, char *ip, int port, bool ruw_lock)
 {
-	return idbm_for_each_iface(found, data, iface_fn, targetname,
-				   tpgt, ip, port);
+	int rc;
+
+	if (ruw_lock) {
+		rc = idbm_lock();
+		if (rc)
+			return rc;
+	}
+
+	rc = idbm_for_each_iface(found, data, iface_fn, targetname,
+			         tpgt, ip, port, ruw_lock);
+	if (ruw_lock)
+		idbm_unlock();
+
+	return rc;
 }
 
-static int node_fn(int *found, void *data, char *targetname)
+static int node_fn(int *found, void *data, char *targetname, bool ruw_lock)
 {
-	return idbm_for_each_portal(found, data, portal_fn, targetname);
+	return idbm_for_each_portal(found, data, portal_fn, targetname, ruw_lock);
 }
 
-int idbm_for_each_rec(int *found, void *data, idbm_iface_op_fn *fn)
+int idbm_for_each_rec(int *found, void *data, idbm_iface_op_fn *fn, bool ruw_lock)
 {
 	struct rec_op_data op_data;
 
@@ -1893,7 +1919,7 @@ int idbm_for_each_rec(int *found, void *data, idbm_iface_op_fn *fn)
 	op_data.data = data;
 	op_data.fn = fn;
 
-	return idbm_for_each_node(found, &op_data, node_fn);
+	return idbm_for_each_node(found, &op_data, node_fn, ruw_lock);
 }
 
 static struct {
@@ -2004,7 +2030,12 @@ mkdir_portal:
 	return f;
 }
 
-static int idbm_rec_write(node_rec_t *rec)
+/*
+ * When the disable_lock param is true, the idbm_lock/idbm_unlock needs
+ * to be holt by the caller, this will avoid overwriting each other in
+ * case of updating(read-modify-write) the recs in parallel.
+ */
+static int idbm_rec_write(node_rec_t *rec, bool disable_lock)
 {
 	struct stat statb;
 	FILE *f;
@@ -2041,9 +2072,11 @@ static int idbm_rec_write(node_rec_t *rec)
 		 rec->name, rec->conn[0].address, rec->conn[0].port);
 	log_debug(5, "Looking for config file %s", portal);
 
-	rc = idbm_lock();
-	if (rc)
-		goto free_portal;
+	if (!disable_lock) {
+		rc = idbm_lock();
+		if (rc)
+			goto free_portal;
+	}
 
 	rc = stat(portal, &statb);
 	if (rc) {
@@ -2109,7 +2142,8 @@ open_conf:
 	idbm_print(IDBM_PRINT_TYPE_NODE, rec, 1, f);
 	fclose(f);
 unlock:
-	idbm_unlock();
+	if (!disable_lock)
+		idbm_unlock();
 free_portal:
 	free(portal);
 	return rc;
@@ -2284,18 +2318,24 @@ static int setup_disc_to_node_link(char *disc_portal, node_rec_t *rec)
 int idbm_add_node(node_rec_t *newrec, discovery_rec_t *drec, int overwrite)
 {
 	node_rec_t rec;
-	char *node_portal, *disc_portal;
+	char *node_portal = NULL, *disc_portal;
 	int rc;
+
+	rc = idbm_lock();
+	if (rc)
+		return rc;
 
 	if (!idbm_rec_read(&rec, newrec->name, newrec->tpgt,
 			   newrec->conn[0].address, newrec->conn[0].port,
-			   &newrec->iface)) {
-		if (!overwrite)
-			return 0;
+			   &newrec->iface, true)) {
+		if (!overwrite) {
+			rc = 0;
+			goto unlock;
+		}
 
 		rc = idbm_delete_node(&rec);
 		if (rc)
-			return rc;
+			goto unlock;
 		log_debug(7, "overwriting existing record");
 	} else
 		log_debug(7, "adding new DB record");
@@ -2306,17 +2346,19 @@ int idbm_add_node(node_rec_t *newrec, discovery_rec_t *drec, int overwrite)
 		strcpy(newrec->disc_address, drec->address);
 	}
 
-	rc = idbm_rec_write(newrec);
+	rc = idbm_rec_write(newrec, true);
 	/*
 	 * if a old app passed in a bogus tpgt then we do not create links
 	 * since it will set a different tpgt in another iscsiadm call
 	 */
 	if (rc || !drec || newrec->tpgt == PORTAL_GROUP_TAG_UNKNOWN)
-		return rc;
+		goto unlock;
 
 	node_portal = calloc(2, PATH_MAX);
-	if (!node_portal)
-		return ISCSI_ERR_NOMEM;
+	if (!node_portal) {
+		rc = ISCSI_ERR_NOMEM;
+		goto unlock;
+	}
 
 	disc_portal = node_portal + PATH_MAX;
 	snprintf(node_portal, PATH_MAX, "%s/%s/%s,%d,%d", NODE_CONFIG_DIR,
@@ -2324,14 +2366,10 @@ int idbm_add_node(node_rec_t *newrec, discovery_rec_t *drec, int overwrite)
 		 newrec->tpgt);
 	rc = setup_disc_to_node_link(disc_portal, newrec);
 	if (rc)
-		goto free_portal;
+		goto unlock;
 
 	log_debug(7, "node addition making link from %s to %s", node_portal,
 		 disc_portal);
-
-	rc = idbm_lock();
-	if (rc)
-		goto free_portal;
 
 	if (symlink(node_portal, disc_portal)) {
 		if (errno == EEXIST)
@@ -2344,8 +2382,8 @@ int idbm_add_node(node_rec_t *newrec, discovery_rec_t *drec, int overwrite)
 				 strerror(errno));
 		}
 	}
+unlock:
 	idbm_unlock();
-free_portal:
 	free(node_portal);
 	return rc;
 }
@@ -2584,7 +2622,7 @@ static int idbm_remove_disc_to_node_link(node_rec_t *rec,
 		 rec->name, rec->conn[0].address, rec->conn[0].port, rec->tpgt,
 		 rec->iface.name);
 
-	rc = __idbm_rec_read(tmprec, portal);
+	rc = __idbm_rec_read(tmprec, portal, false);
 	if (rc) {
 		/* old style recs will not have tpgt or a link so skip */
 		rc = 0;
@@ -2811,7 +2849,7 @@ int idbm_node_set_param(void *data, node_rec_t *rec)
 	if (rc)
 		return rc;
 
-	return idbm_rec_write(rec);
+	return idbm_rec_write(rec, true);
 }
 
 int idbm_discovery_set_param(void *data, discovery_rec_t *rec)
