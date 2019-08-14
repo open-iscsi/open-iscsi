@@ -5,6 +5,7 @@ Before=remote-fs.target
 After=network.target network-online.target iscsid.service
 Requires=iscsid.service
 ConditionPathExists=/etc/iscsi/initiatorname.iscsi
+Requires=iscsid.service
 
 [Service]
 Type=oneshot
