@@ -14,6 +14,7 @@ mandir = $(prefix)/share/man
 etcdir = /etc
 initddir = $(etcdir)/init.d
 rulesdir = $(etcdir)/udev/rules.d
+systemddir = $(prefix)/lib/systemd/system
 
 MANPAGES = doc/iscsid.8 doc/iscsiadm.8 doc/iscsi_discovery.8 \
 		iscsiuio/docs/iscsiuio.8 doc/iscsi_fw_login.8 doc/iscsi-iname.8 \
@@ -26,6 +27,9 @@ INSTALL = install
 ETCFILES = etc/iscsid.conf
 IFACEFILES = etc/iface.example
 RULESFILES = utils/50-iscsi-firmware-login.rules
+SYSTEMDFILES = etc/systemd/iscsi.service \
+			   etc/systemd/iscsid.service etc/systemd/iscsid.socket \
+			   etc/systemd/iscsiuio.service etc/systemd/iscsiuio.socket
 
 export DESTDIR prefix INSTALL
 
@@ -105,6 +109,10 @@ install_user: install_programs install_doc install_etc \
 install_udev_rules:
 	$(INSTALL) -d $(DESTDIR)$(rulesdir)
 	$(INSTALL) -m 644 $(RULESFILES) $(DESTDIR)/$(rulesdir)
+
+install_systemd:
+	$(INSTALL) -d $(DESTDIR)$(systemddir)
+	$(INSTALL) -m 644 $(SYSTEMDFILES) $(DESTDIR)/$(systemddir)
 
 install_programs:  $(PROGRAMS) $(SCRIPTS)
 	$(INSTALL) -d $(DESTDIR)$(sbindir)
