@@ -1,3 +1,50 @@
+open-iscsi-2.0-877 - open-iscsi-2.0.878
+
+# output from "git shortlog --no-merges 2.0.877..HEAD"
+
+Daniel Schaefer (1):
+      Add target to install systemd units
+
+Lee Duncan (18):
+      iscsistart is not installed
+      Fix i586 build issues with string length overflow.
+      Use pkg-config in Makefiles for newer libraries.
+      Updated iscsiadm man page: add "onboot" handling.
+      Fix output for iscsiadm node/iface print level P1
+      When displaying interfaces, skip "iface.example"
+      Fix node print return value when no nodes.
+      Fix printing of node database again.
+      Fix output of node printing for multiple paths.
+      Stop using /var directory for PIDfile and locks
+      Improve daemon synchronization, fix err msgs
+      Fix pipe notification code
+      Add systemd support for iscsiuio
+      Make iscsid systemd usage optional
+      Fix possible discovery hang when timing out
+      Handle systemd disablement correctly in iscsiuio
+      The iscsi login/logout service requires iscsid.
+      Remove redundant Requires= from iscsi.service
+
+Manish Rangankar (3):
+      iscsiuio: Do not flush tx queue on each uio interrupt.
+      qedi: Set buf_size in case of ICMP and ARP packet.
+      qedi: Use uio BD index instead on buffer index.
+
+Nilesh Javali (3):
+      iscsiuio: v0.7.8.5
+      iscsiuio: allow processing of iscsid requests in DHCP failure condition
+      iscsiuio: update version to 0.7.8.6
+
+Xiubo Li (1):
+      rec update: disable the idbm_lock in read/write when updating the rec
+
+fredvx (1):
+      Add Restart=on-failure option to iscsid.service
+
+igo95862 (2):
+      Make iscsid.service a requirement.
+      Fixed iscsi.service considering every signal and exit code as successful. Now only code 21 (no objects found to execute on) and normal exit conditions are valid.
+
 open-iscsi-2.0-876 - open-iscsi-2.0.877
 
 Antoine de Maleprade (1):
