@@ -3948,6 +3948,7 @@ main(int argc, char **argv)
 				rc = ISCSI_ERR_NOMEM;
 				goto out;
 			}
+			info->iscsid_req_tmo = -1;
 
 			rc = iscsi_sysfs_get_sessioninfo_by_id(info, session);
 			if (rc) {
