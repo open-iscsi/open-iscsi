@@ -524,10 +524,9 @@ login_by_startup(char *mode)
 		 */
 		struct iface_rec *pattern_iface, *tmp_iface;
 		struct node_rec *rec, *tmp_rec;
-		struct list_head iface_list;
+		LIST_HEAD(iface_list);
 		int missed_leading_login = 0;
 		log_debug(1, "Logging into leading-login portals");
-		INIT_LIST_HEAD(&iface_list);
 		iface_link_ifaces(&iface_list);
 		list_for_each_entry_safe(pattern_iface, tmp_iface, &iface_list,
 					 list) {
@@ -657,10 +656,9 @@ static int for_each_matched_rec(struct node_rec *rec, void *data,
 
 static int login_portals(struct node_rec *pattern_rec)
 {
-	struct list_head rec_list;
+	LIST_HEAD(rec_list);
 	int nr_found, rc, err;
 
-	INIT_LIST_HEAD(&rec_list);
 	err = for_each_matched_rec(pattern_rec, &rec_list, link_recs);
 	if (err == ISCSI_ERR_NO_OBJS_FOUND)
 		return err;
@@ -1172,11 +1170,10 @@ static int
 do_software_sendtargets(discovery_rec_t *drec, struct list_head *ifaces,
 		        int info_level, int do_login, int op, int sync_drec)
 {
-	struct list_head rec_list;
+	LIST_HEAD(rec_list);
 	struct node_rec *rec, *tmp;
 	int rc;
 
-	INIT_LIST_HEAD(&rec_list);
 	/*
 	 * compat: if the user did not pass any op then we do all
 	 * ops for them
@@ -1222,11 +1219,10 @@ do_software_sendtargets(discovery_rec_t *drec, struct list_head *ifaces,
 static int do_isns(discovery_rec_t *drec, struct list_head *ifaces,
 		   int info_level, int do_login, int op)
 {
-	struct list_head rec_list;
+	LIST_HEAD(rec_list);
 	struct node_rec *rec, *tmp;
 	int rc;
 
-	INIT_LIST_HEAD(&rec_list);
 	/*
 	 * compat: if the user did not pass any op then we do all
 	 * ops for them
@@ -2884,14 +2880,13 @@ out:
 static int exec_fw_disc_op(discovery_rec_t *drec, struct list_head *ifaces,
 			   int info_level, int do_login, int op)
 {
-	struct list_head targets, rec_list, new_ifaces;
+	LIST_HEAD(targets);
+	LIST_HEAD(rec_list);
+	LIST_HEAD(new_ifaces);
 	struct iface_rec *iface, *tmp_iface;
 	struct node_rec *rec, *tmp_rec;
 	int rc = 0;
 
-	INIT_LIST_HEAD(&targets);
-	INIT_LIST_HEAD(&rec_list);
-	INIT_LIST_HEAD(&new_ifaces);
 	/*
 	 * compat: if the user did not pass any op then we do all
 	 * ops for them
@@ -2972,12 +2967,10 @@ static int exec_fw_op(discovery_rec_t *drec, struct list_head *ifaces,
 		      int info_level, int do_login, int op)
 {
 	struct boot_context *context;
-	struct list_head targets, rec_list;
+	LIST_HEAD(targets);
+        LIST_HEAD(rec_list);
 	struct node_rec *rec;
 	int rc = 0;
-
-	INIT_LIST_HEAD(&targets);
-	INIT_LIST_HEAD(&rec_list);
 
 	if (drec)
 		return exec_fw_disc_op(drec, ifaces, info_level, do_login, op);
@@ -3532,13 +3525,13 @@ main(int argc, char **argv)
 	int timeout = ISCSID_REQ_TIMEOUT;
 	struct sigaction sa_old;
 	struct sigaction sa_new;
-	struct list_head ifaces;
+	LIST_HEAD(ifaces);
 	struct iface_rec *iface = NULL, *tmp;
 	struct node_rec *rec = NULL;
 	uint64_t host_no =  (uint64_t)MAX_HOST_NO + 1;
 	uint64_t index = ULLONG_MAX;
 	struct user_param *param;
-	struct list_head params;
+	LIST_HEAD(params);
 	struct iscsi_context *ctx = NULL;
 	int librc = LIBISCSI_OK;
 	struct iscsi_session **ses = NULL;
@@ -3551,8 +3544,6 @@ main(int argc, char **argv)
 		goto out;
 	}
 
-	INIT_LIST_HEAD(&params);
-	INIT_LIST_HEAD(&ifaces);
 	/* do not allow ctrl-c for now... */
 	memset(&sa_old, 0, sizeof(struct sigaction));
 	memset(&sa_new, 0, sizeof(struct sigaction));
