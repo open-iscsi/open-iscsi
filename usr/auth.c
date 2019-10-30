@@ -259,7 +259,7 @@ static int
 acl_text_to_number(const char *text, unsigned long *num)
 {
 	char *end;
-	unsigned long number = *num;
+	unsigned long number;
 
 	if (text[0] == '0' && (text[1] == 'x' || text[1] == 'X'))
 		number = strtoul(text + 2, &end, 16);
