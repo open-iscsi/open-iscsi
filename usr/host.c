@@ -262,14 +262,14 @@ static int host_info_print_tree(void *data, struct host_info *hinfo)
 			matched_ses[matched_se_count++] = ses[i];
 
 	if (!matched_se_count)
-		return 0;
+		goto out;
 
 	printf("\t*********\n");
 	printf("\tSessions:\n");
 	printf("\t*********\n");
 	session_info_print_tree(matched_ses, matched_se_count, "\t",
 				session_info_flags, 0/* don't show password */);
-
+out:
 	free(matched_ses);
 	return 0;
 }
