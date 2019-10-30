@@ -193,7 +193,7 @@ static char *find_vlan_dev(char *netdev, int vlan_id) {
 
 	sockfd = socket(AF_INET, SOCK_DGRAM, 0);
 
-	strncpy(if_hwaddr.ifr_name, netdev, IFNAMSIZ);
+	strlcpy(if_hwaddr.ifr_name, netdev, IFNAMSIZ);
 	ioctl(sockfd, SIOCGIFHWADDR, &if_hwaddr);
 
 	if (if_hwaddr.ifr_hwaddr.sa_family != ARPHRD_ETHER)
@@ -201,14 +201,14 @@ static char *find_vlan_dev(char *netdev, int vlan_id) {
 
 	ifni = if_nameindex();
 	for (i = 0; ifni[i].if_index && ifni[i].if_name; i++) {
-		strncpy(vlan_hwaddr.ifr_name, ifni[i].if_name, IFNAMSIZ);
+		strlcpy(vlan_hwaddr.ifr_name, ifni[i].if_name, IFNAMSIZ);
 		ioctl(sockfd, SIOCGIFHWADDR, &vlan_hwaddr);
 
 		if (vlan_hwaddr.ifr_hwaddr.sa_family != ARPHRD_ETHER)
 			continue;
 
 		if (!memcmp(if_hwaddr.ifr_hwaddr.sa_data, vlan_hwaddr.ifr_hwaddr.sa_data, ETH_ALEN)) {
-			strncpy(vlanrq.device1, ifni[i].if_name, IFNAMSIZ);
+			strlcpy(vlanrq.device1, ifni[i].if_name, IFNAMSIZ);
 			rc = ioctl(sockfd, SIOCGIFVLAN, &vlanrq);
 			if ((rc == 0) && (vlanrq.u.VID == vlan_id)) {
 				vlan = strdup(vlanrq.device1);
