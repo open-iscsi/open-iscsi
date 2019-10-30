@@ -225,7 +225,7 @@ struct sysfs_device *sysfs_device_get(const char *devpath)
 	strlcpy(link_path, sysfs_path, sizeof(link_path));
 	strlcat(link_path, dev->devpath, sizeof(link_path));
 	strlcat(link_path, "/subsystem", sizeof(link_path));
-	len = readlink(link_path, link_target, sizeof(link_target));
+	len = readlink(link_path, link_target, sizeof(link_target) - 1);
 	if (len > 0) {
 		/* get subsystem from "subsystem" link */
 		link_target[len] = '\0';
@@ -255,7 +255,7 @@ struct sysfs_device *sysfs_device_get(const char *devpath)
 	strlcpy(link_path, sysfs_path, sizeof(link_path));
 	strlcat(link_path, dev->devpath, sizeof(link_path));
 	strlcat(link_path, "/driver", sizeof(link_path));
-	len = readlink(link_path, link_target, sizeof(link_target));
+	len = readlink(link_path, link_target, sizeof(link_target) - 1);
 	if (len > 0) {
 		link_target[len] = '\0';
 		dbg("driver link '%s' points to '%s'", link_path, link_target);
@@ -363,7 +363,7 @@ char *sysfs_attr_get_value(const char *devpath, const char *attr_name)
 		int len;
 		const char *pos;
 
-		len = readlink(path_full, link_target, sizeof(link_target));
+		len = readlink(path_full, link_target, sizeof(link_target) - 1);
 		if (len > 0) {
 			link_target[len] = '\0';
 			pos = strrchr(link_target, '/');
