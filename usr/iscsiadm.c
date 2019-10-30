@@ -1660,7 +1660,7 @@ static int set_host_chap_info(uint32_t host_no, uint64_t chap_index,
 			rc = ISCSI_ERR;
 		}
 
-		goto exit_set_chap;
+		goto free_iovec;
 	}
 
 	ipc->ctldev_close();
