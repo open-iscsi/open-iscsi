@@ -464,7 +464,7 @@ int iscsi_sysfs_get_flashnode_info(struct flashnode_rec *fnode,
 		log_debug(7, "could not get transport name for host%d",
 			  host_no);
 	else
-		strncpy(fnode->transport_name, t->name,
+		strlcpy(fnode->transport_name, t->name,
 			ISCSI_TRANSPORT_NAME_MAXLEN);
 
 	snprintf(sess_id, sizeof(sess_id), ISCSI_FLASHNODE_SESS, host_no,
