@@ -1838,6 +1838,8 @@ acl_init_chap_digests(int *value_list) {
 	return i;
 }
 
+#define MAX(a,b) ((a) > (b) ? (a) : (b))
+
 int
 acl_init(int node_type, int buf_desc_count, struct auth_buffer_desc *buff_desc)
 {
@@ -1846,7 +1848,7 @@ acl_init(int node_type, int buf_desc_count, struct auth_buffer_desc *buff_desc)
 	struct auth_str_block *send_str_blk;
 	struct auth_large_binary *recv_chap_challenge;
 	struct auth_large_binary *send_chap_challenge;
-	int value_list[3];
+	int value_list[MAX(AUTH_METHOD_MAX_COUNT, AUTH_CHAP_ALG_MAX_COUNT)];
 
 	if (buf_desc_count != 5 || !buff_desc)
 		return AUTH_STATUS_ERROR;
