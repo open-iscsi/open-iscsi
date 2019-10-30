@@ -974,7 +974,7 @@ static int add_static_rec(int *found, char *targetname, int tpgt,
 		if (rc) {
 			log_error("Could not read iface %s. Error %d",
 				  iface->name, rc);
-			return rc;
+			goto free_drec;
 		}
 
 		iface_copy(&rec->iface, iface);
@@ -987,6 +987,7 @@ static int add_static_rec(int *found, char *targetname, int tpgt,
 			rec->iface.transport_name, iface_str(&rec->iface),
 			ip, port, tpgt, targetname);
 	}
+free_drec:
 	free(drec);
 free_rec:
 	free(rec);
