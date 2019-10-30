@@ -442,7 +442,7 @@ static int qedi_open(nic_t *nic)
 	qedi_t *bp = NULL;
 	struct stat uio_stat;
 	int i, rc;
-	int count;
+	size_t count;
 	uint32_t bus;
 	uint32_t slot;
 	uint32_t func;
@@ -666,7 +666,7 @@ static int qedi_open(nic_t *nic)
 		 nic->mac_addr[0], nic->mac_addr[1], nic->mac_addr[2],
 		 nic->mac_addr[3], nic->mac_addr[4], nic->mac_addr[5]);
 
-	qedi_get_library_name(&nic->library_name, (size_t *)&count);
+	qedi_get_library_name(&nic->library_name, &count);
 	LOG_INFO("%s: qedi initialized", nic->log_name);
 
 	bp->flags |= QEDI_OPENED;
