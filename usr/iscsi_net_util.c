@@ -196,8 +196,10 @@ static char *find_vlan_dev(char *netdev, int vlan_id) {
 	strlcpy(if_hwaddr.ifr_name, netdev, IFNAMSIZ);
 	ioctl(sockfd, SIOCGIFHWADDR, &if_hwaddr);
 
-	if (if_hwaddr.ifr_hwaddr.sa_family != ARPHRD_ETHER)
+	if (if_hwaddr.ifr_hwaddr.sa_family != ARPHRD_ETHER) {
+		close(sockfd);
 		return NULL;
+	}
 
 	ifni = if_nameindex();
 	for (i = 0; ifni[i].if_index && ifni[i].if_name; i++) {
