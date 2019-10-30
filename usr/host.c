@@ -217,7 +217,7 @@ static int print_host_iface(void *data, struct iface_rec *iface)
 
 static void print_host_ifaces(struct host_info *hinfo, char *prefix)
 {
-	int nr_found;
+	int nr_found = 0;
 
 	iscsi_sysfs_for_each_iface_on_host(prefix, hinfo->host_no, &nr_found,
 					   print_host_iface);
