@@ -271,7 +271,8 @@ int net_setup_netdev(char *netdev, char *local_ip, char *mask, char *gateway,
 	if ((sock = socket(AF_INET, SOCK_DGRAM, 0)) == -1) {
 		log_error("Could not open socket to manage network "
 			  "(err %d - %s)", errno, strerror(errno));
-		return errno;
+		ret = errno;
+		goto done;
 	}
 
 	/* Bring up NIC with correct address  - unless it
@@ -389,7 +390,8 @@ int net_setup_netdev(char *netdev, char *local_ip, char *mask, char *gateway,
 	ret = 0;
 
 done:
-	close(sock);
+	if (sock >= 0)
+		close(sock);
 	if (vlan_id)
 		free(netdev);
 	return ret;
