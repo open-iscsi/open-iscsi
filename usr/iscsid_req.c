@@ -55,6 +55,8 @@ static void iscsid_startup(void)
 	if (system(startup_cmd) < 0)
 		log_error("Could not execute '%s' (err %d)",
 			  startup_cmd, errno);
+
+	free(startup_cmd);
 }
 
 #define MAXSLEEP 128
