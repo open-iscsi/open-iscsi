@@ -97,6 +97,8 @@ static int ipc_connect(int *fd, char *unix_sock_name, int start_iscsid)
 		if (nsec <= MAXSLEEP/2)
 			sleep(nsec);
 	}
+	close(*fd);
+	*fd = -1;
 	log_error("can not connect to iSCSI daemon (%d)!", errno);
 	return ISCSI_ERR_ISCSID_NOTCONN;
 }
