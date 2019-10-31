@@ -43,7 +43,6 @@
 int
 main(int argc, char *argv[])
 {
-	char iname[256];
 	struct timeval time;
 	struct utsname system_info;
 	long hostid;
@@ -56,7 +55,6 @@ main(int argc, char *argv[])
 	char *prefix;
 
 	/* initialize */
-	memset(iname, 0, sizeof (iname));
 	memset(digest, 0, sizeof (digest));
 	memset(&context, 0, sizeof (context));
 	MD5Init(&context);
@@ -141,10 +139,7 @@ main(int argc, char *argv[])
 	}
 
 	/* print the prefix followed by 6 bytes of the MD5 hash */
-	sprintf(iname, "%s:%x%x%x%x%x%x", prefix,
+	printf("%s:%x%x%x%x%x%x\n", prefix,
 		bytes[0], bytes[1], bytes[2], bytes[3], bytes[4], bytes[5]);
-
-	iname[sizeof (iname) - 1] = '\0';
-	printf("%s\n", iname);
 	return 0;
 }
