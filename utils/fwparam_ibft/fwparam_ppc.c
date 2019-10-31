@@ -132,6 +132,7 @@ static int locate_mac(const char *devtree, struct ofw_dev *ofwdev)
 		error = errno;
 		fprintf(stderr, "%s: open %s, %s\n", __func__, mac_file,
 			strerror(errno));
+		free(mac_file);
 		goto lpm_bail;
 	}
 
@@ -140,11 +141,9 @@ static int locate_mac(const char *devtree, struct ofw_dev *ofwdev)
 		error = EIO;
 		fprintf(stderr, "%s: read %s, %s\n", __func__, mac_file,
 			strerror(errno));
-		goto lpm_bail;
 	}
 	free(mac_file);
 	close(mac_fd);
-
 
 lpm_bail:
 	return error;
