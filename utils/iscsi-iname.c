@@ -36,6 +36,10 @@
 
 #define RANDOM_NUM_GENERATOR	"/dev/urandom"
 
+/* iSCSI names have a maximum length of 223 characters, we reserve 13 to append
+ * a seperator and 12 characters (6 random bytes in hex representation) */
+#define PREFIX_MAX_LEN 210
+
 int
 main(int argc, char *argv[])
 {
@@ -67,6 +71,11 @@ main(int argc, char *argv[])
 			exit(0);
 		} else if ( strcmp(prefix, "-p") == 0 ) {
 			prefix = argv[2];
+			if (strnlen(prefix, PREFIX_MAX_LEN + 1) > PREFIX_MAX_LEN) {
+				printf("Error: Prefix cannot exceed %d "
+				       "characters.\n", PREFIX_MAX_LEN);
+				exit(1);
+			}
 		} else {
 			printf("\nUsage: iscsi-iname [-h | --help | "
 			       "-p <prefix>]\n");
