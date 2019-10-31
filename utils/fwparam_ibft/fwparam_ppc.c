@@ -483,7 +483,6 @@ int fwparam_ppc_boot_info(struct boot_context *context)
 		if (!error)
 			error = locate_mac(devtree, ofwdevs[0]);
 		if (!error) {
-			context = calloc(1, sizeof(*context));
 			if (!context)
 				error = ISCSI_ERR_NOMEM;
 			else
