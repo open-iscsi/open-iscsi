@@ -217,7 +217,7 @@ static int print_host_iface(void *data, struct iface_rec *iface)
 
 static void print_host_ifaces(struct host_info *hinfo, char *prefix)
 {
-	int nr_found;
+	int nr_found = 0;
 
 	iscsi_sysfs_for_each_iface_on_host(prefix, hinfo->host_no, &nr_found,
 					   print_host_iface);
@@ -262,14 +262,14 @@ static int host_info_print_tree(void *data, struct host_info *hinfo)
 			matched_ses[matched_se_count++] = ses[i];
 
 	if (!matched_se_count)
-		return 0;
+		goto out;
 
 	printf("\t*********\n");
 	printf("\tSessions:\n");
 	printf("\t*********\n");
 	session_info_print_tree(matched_ses, matched_se_count, "\t",
 				session_info_flags, 0/* don't show password */);
-
+out:
 	free(matched_ses);
 	return 0;
 }

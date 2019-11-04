@@ -193,22 +193,24 @@ static char *find_vlan_dev(char *netdev, int vlan_id) {
 
 	sockfd = socket(AF_INET, SOCK_DGRAM, 0);
 
-	strncpy(if_hwaddr.ifr_name, netdev, IFNAMSIZ);
+	strlcpy(if_hwaddr.ifr_name, netdev, IFNAMSIZ);
 	ioctl(sockfd, SIOCGIFHWADDR, &if_hwaddr);
 
-	if (if_hwaddr.ifr_hwaddr.sa_family != ARPHRD_ETHER)
+	if (if_hwaddr.ifr_hwaddr.sa_family != ARPHRD_ETHER) {
+		close(sockfd);
 		return NULL;
+	}
 
 	ifni = if_nameindex();
 	for (i = 0; ifni[i].if_index && ifni[i].if_name; i++) {
-		strncpy(vlan_hwaddr.ifr_name, ifni[i].if_name, IFNAMSIZ);
+		strlcpy(vlan_hwaddr.ifr_name, ifni[i].if_name, IFNAMSIZ);
 		ioctl(sockfd, SIOCGIFHWADDR, &vlan_hwaddr);
 
 		if (vlan_hwaddr.ifr_hwaddr.sa_family != ARPHRD_ETHER)
 			continue;
 
 		if (!memcmp(if_hwaddr.ifr_hwaddr.sa_data, vlan_hwaddr.ifr_hwaddr.sa_data, ETH_ALEN)) {
-			strncpy(vlanrq.device1, ifni[i].if_name, IFNAMSIZ);
+			strlcpy(vlanrq.device1, ifni[i].if_name, IFNAMSIZ);
 			rc = ioctl(sockfd, SIOCGIFVLAN, &vlanrq);
 			if ((rc == 0) && (vlanrq.u.VID == vlan_id)) {
 				vlan = strdup(vlanrq.device1);
@@ -271,7 +273,8 @@ int net_setup_netdev(char *netdev, char *local_ip, char *mask, char *gateway,
 	if ((sock = socket(AF_INET, SOCK_DGRAM, 0)) == -1) {
 		log_error("Could not open socket to manage network "
 			  "(err %d - %s)", errno, strerror(errno));
-		return errno;
+		ret = errno;
+		goto done;
 	}
 
 	/* Bring up NIC with correct address  - unless it
@@ -389,7 +392,8 @@ int net_setup_netdev(char *netdev, char *local_ip, char *mask, char *gateway,
 	ret = 0;
 
 done:
-	close(sock);
+	if (sock >= 0)
+		close(sock);
 	if (vlan_id)
 		free(netdev);
 	return ret;

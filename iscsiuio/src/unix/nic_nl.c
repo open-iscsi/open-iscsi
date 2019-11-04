@@ -278,7 +278,7 @@ static const struct timespec ctldev_sleep_req = {
 
 static int ctldev_handle(char *data, nic_t *nic)
 {
-	int rc;
+	int rc = 0;
 	struct iscsi_uevent *ev;
 	uint8_t *payload;
 	struct iscsi_path *path;

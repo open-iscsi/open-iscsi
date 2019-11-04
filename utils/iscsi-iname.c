@@ -36,10 +36,13 @@
 
 #define RANDOM_NUM_GENERATOR	"/dev/urandom"
 
+/* iSCSI names have a maximum length of 223 characters, we reserve 13 to append
+ * a seperator and 12 characters (6 random bytes in hex representation) */
+#define PREFIX_MAX_LEN 210
+
 int
 main(int argc, char *argv[])
 {
-	char iname[256];
 	struct timeval time;
 	struct utsname system_info;
 	long hostid;
@@ -52,7 +55,6 @@ main(int argc, char *argv[])
 	char *prefix;
 
 	/* initialize */
-	memset(iname, 0, sizeof (iname));
 	memset(digest, 0, sizeof (digest));
 	memset(&context, 0, sizeof (context));
 	MD5Init(&context);
@@ -67,13 +69,18 @@ main(int argc, char *argv[])
 			exit(0);
 		} else if ( strcmp(prefix, "-p") == 0 ) {
 			prefix = argv[2];
+			if (strnlen(prefix, PREFIX_MAX_LEN + 1) > PREFIX_MAX_LEN) {
+				printf("Error: Prefix cannot exceed %d "
+				       "characters.\n", PREFIX_MAX_LEN);
+				exit(1);
+			}
 		} else {
 			printf("\nUsage: iscsi-iname [-h | --help | "
 			       "-p <prefix>]\n");
 			exit(0);
 		}
 	} else {
-		prefix = "iqn.2005-03.org.open-iscsi";
+		prefix = "iqn.2016-04.com.open-iscsi";
 	}
 
 	/* try to feed some entropy from the pool to MD5 in order to get
@@ -132,10 +139,7 @@ main(int argc, char *argv[])
 	}
 
 	/* print the prefix followed by 6 bytes of the MD5 hash */
-	sprintf(iname, "%s:%x%x%x%x%x%x", prefix,
+	printf("%s:%x%x%x%x%x%x\n", prefix,
 		bytes[0], bytes[1], bytes[2], bytes[3], bytes[4], bytes[5]);
-
-	iname[sizeof (iname) - 1] = '\0';
-	printf("%s\n", iname);
 	return 0;
 }

@@ -196,6 +196,7 @@ static void daemon_init()
 	dup2(fd, 2);
 	setsid();
 	chdir("/");
+	close(fd);
 }
 
 #define ISCSI_OOM_PATH_LEN 48

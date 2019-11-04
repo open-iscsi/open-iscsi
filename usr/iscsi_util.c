@@ -62,6 +62,7 @@ void daemon_init(void)
 	setsid();
 	if (chdir("/") < 0)
 		log_debug(1, "Could not chdir to /: %s", strerror(errno));
+	close(fd);
 }
 
 #define ISCSI_OOM_PATH_LEN 48

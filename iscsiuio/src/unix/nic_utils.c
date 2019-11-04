@@ -245,6 +245,7 @@ int nic_discover_iscsi_hosts()
 						"space for NIC %s "
 						"during scan", raw);
 
+					free(raw);
 					rc = -ENOMEM;
 					break;
 				}
