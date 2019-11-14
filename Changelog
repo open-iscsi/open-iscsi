@@ -1,3 +1,42 @@
+open-iscsi-2.1.0 - open-iscsi-2.0.878
+
+# output from "git shortlog --no-merges 2.0.878..HEAD"
+
+Chris Leech (29):
+      CHAP SHA-1, SHA-256, SHA3-256 via OpenSSL's libcrypto
+      setup Travis-CI builds and Coverity scans
+      fix Coverity scan
+      Resource leak: returning without freeing netdev
+      Out-of-bounds-write: Overrunning array link_target
+      Resource leak: Variable rec going out of scope leaks the storage it points to
+      Out-of-bounds write: Overrunning array link_target
+      Buffer not null terminated: Calling strncpy with a maximum size argument on destination array might leave the destination string unterminated
+      Out-of-bounds access: Overrunning array value_list
+      Resource leak: Variable startup_cmd going out of scope leaks the storage it point to.
+      Buffer not null terminated: Calling strncpy with a maximum size argument on destination array
+      Uninitialized scalar variable
+      Uninitialized pointer read: Using uninitialized value ifaces.next
+      Uninitialized scalar variable: Using uninitialized value number when calling acl_text_to_number
+      Resource leak: Handle variable sockfd going out of scope leaks the handle.
+      Resource leak: Variable chap_info going out of scope leaks the storage it points to.
+      Resource leak: Variable matched_ses going out of scope leaks the storage it points to.
+      Resource leak: Handle variable fd going out of scope leaks the handle.
+      Resource leak: Handle variable fd going out of scope leaks the handle.
+      Out-of-bounds read: Overrunning array of 4 bytes at byte offset 7 by dereferencing pointer
+      iscsi-iname: change default IQN prefix
+      iscsi-iname: verify prefix length is at most 210 characters
+      iscsi-iname remove unneeded temp buffer
+      iscsistart -b probably never worked with PPC OF parsing?
+      fwparam_pcc mulitple resource leaks
+      Resource leak: Handle variable fd going out of scope leaks the handle.
+      Out-of-bounds read: Overrunning array of 8 2-byte elements
+      Resource leak: Variable raw going out of scope leaks the storage it points to.
+      Uninitialized scalar value rc
+
+Lee Duncan (2):
+      Initialize timeout for printing specific session info.
+      Fix version strings in ChangeLog
+
 open-iscsi-2.0.877 - open-iscsi-2.0.878
 
 # output from "git shortlog --no-merges 2.0.877..HEAD"
