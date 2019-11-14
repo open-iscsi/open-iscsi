@@ -1,4 +1,4 @@
-open-iscsi-2.1.0 - open-iscsi-2.0.878
+open-iscsi-2.0.878 - open-iscsi-2.1.0
 
 # output from "git shortlog --no-merges 2.0.878..HEAD"
 
