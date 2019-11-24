@@ -50,6 +50,8 @@
 
 static struct idbm *db;
 
+#define ARRAY_LEN(x) ( sizeof(x) / sizeof((x)[0]) )
+
 #define __recinfo_str(_key, _info, _rec, _name, _show, _n, _mod) do { \
 	_info[_n].type = TYPE_STR; \
 	strlcpy(_info[_n].name, _key, NAME_MAXVAL); \
@@ -164,6 +166,42 @@ static struct idbm *db;
 	_n++; \
 } while(0)
 
+#define __recinfo_int_list(_key,_info,_rec,_name,_show,_tbl,_n,_mod) do { \
+	_info[_n].type = TYPE_INT_LIST; \
+	strlcpy(_info[_n].name, _key, NAME_MAXVAL); \
+	for(int _i = 0; _i < ARRAY_LEN(_rec->_name); _i++) { \
+		if (_rec->_name[_i] != ~0) { \
+			for (int _j = 0; _j < ARRAY_LEN(_tbl); _j++) { \
+				if (_tbl[_j].value == _rec->_name[_i]) { \
+					strcat(_info[_n].value, _tbl[_j].name); \
+					strcat(_info[_n].value, ","); \
+					break; \
+				} \
+			} \
+		} \
+	} \
+	/* delete trailing ',' */ \
+	if (strrchr(_info[_n].value, ',')) \
+		*strrchr(_info[_n].value, ',') = '\0'; \
+	_info[_n].data = &_rec->_name; \
+	_info[_n].data_len = sizeof(_rec->_name); \
+	_info[_n].visible = _show; \
+	_info[_n].opts[0] = (void *)&_tbl; \
+	_info[_n].numopts = ARRAY_LEN(_tbl); \
+	_info[_n].can_modify = _mod; \
+	_n++; \
+} while (0)
+
+static struct int_list_tbl {
+	const char *name;
+	int value;
+} chap_algs [] = {
+	{ "MD5", AUTH_CHAP_ALG_MD5 },
+	{ "SHA1", AUTH_CHAP_ALG_SHA1 },
+	{ "SHA256", AUTH_CHAP_ALG_SHA256 },
+	{ "SHA3-256", AUTH_CHAP_ALG_SHA3_256 },
+};
+
 static void
 idbm_recinfo_discovery(discovery_rec_t *r, recinfo_t *ri)
 {
@@ -196,6 +234,10 @@ idbm_recinfo_discovery(discovery_rec_t *r, recinfo_t *ri)
 		__recinfo_int(DISC_ST_PASSWORD_IN_LEN, ri, r,
 			u.sendtargets.auth.password_in_length, IDBM_HIDE,
 			num, 1);
+		/* reusing SESSION_CHAP_ALGS */
+		__recinfo_int_list(SESSION_CHAP_ALGS, ri, r,
+				   u.sendtargets.auth.chap_algs,
+				   IDBM_SHOW, chap_algs, num, 1);
 		__recinfo_int(DISC_ST_LOGIN_TMO, ri, r,
 			u.sendtargets.conn_timeo.login_timeout,
 			IDBM_SHOW, num, 1);
@@ -428,6 +470,8 @@ idbm_recinfo_node(node_rec_t *r, recinfo_t *ri)
 		      session.auth.password_in, IDBM_MASKED, num, 1);
 	__recinfo_int(SESSION_PASSWORD_IN_LEN, ri, r,
 		      session.auth.password_in_length, IDBM_HIDE, num, 1);
+	__recinfo_int_list(SESSION_CHAP_ALGS, ri, r,
+			   session.auth.chap_algs, IDBM_SHOW, chap_algs, num, 1);
 	__recinfo_int(SESSION_REPLACEMENT_TMO, ri, r,
 		      session.timeo.replacement_timeout,
 		      IDBM_SHOW, num, 1);
@@ -933,6 +977,9 @@ idbm_discovery_setup_defaults(discovery_rec_t *rec, discovery_type_e type)
 		rec->u.sendtargets.auth.authmethod = 0;
 		rec->u.sendtargets.auth.password_length = 0;
 		rec->u.sendtargets.auth.password_in_length = 0;
+		/* TYPE_INT_LIST fields should be initialized to ~0 to indicate unset values */
+		memset(rec->u.sendtargets.auth.chap_algs, ~0, sizeof(rec->u.sendtargets.auth.chap_algs));
+		rec->u.sendtargets.auth.chap_algs[0] = AUTH_CHAP_ALG_MD5;
 		rec->u.sendtargets.conn_timeo.login_timeout=15;
 		rec->u.sendtargets.conn_timeo.auth_timeout = 45;
 		rec->u.sendtargets.conn_timeo.active_timeout=30;
@@ -966,59 +1013,109 @@ int idbm_rec_update_param(recinfo_t *info, char *name, char *value,
 	int i;
 	int passwd_done = 0;
 	char passwd_len[8];
+	char *tmp_value, *token;
+	bool *found;
+	int *tmp_data;
 
 setup_passwd_len:
 	for (i=0; i<MAX_KEYS; i++) {
 		if (!strcmp(name, info[i].name)) {
-			int j;
+			int j,k;
+			struct int_list_tbl *tbl;
 
 			log_debug(7, "updated '%s', '%s' => '%s'", name,
 				  info[i].value, value);
 			/* parse recinfo by type */
-			if (info[i].type == TYPE_INT) {
+			switch (info[i].type) {
+			case TYPE_INT:
 				if (!info[i].data)
 					continue;
 
 				*(int*)info[i].data =
 					strtoul(value, NULL, 10);
 				goto updated;
-			} else if (info[i].type == TYPE_UINT8) {
+			case TYPE_UINT8:
 				if (!info[i].data)
 					continue;
 
 				*(uint8_t *)info[i].data =
 					strtoul(value, NULL, 10);
 				goto updated;
-			} else if (info[i].type == TYPE_UINT16) {
+			case TYPE_UINT16:
 				if (!info[i].data)
 					continue;
 
 				*(uint16_t *)info[i].data =
 					strtoul(value, NULL, 10);
 				goto updated;
-			} else if (info[i].type == TYPE_UINT32) {
+			case TYPE_UINT32:
 				if (!info[i].data)
 					continue;
 
 				*(uint32_t *)info[i].data =
 					strtoul(value, NULL, 10);
 				goto updated;
-			} else if (info[i].type == TYPE_STR) {
+			case TYPE_STR:
 				if (!info[i].data)
 					continue;
 
 				strlcpy((char*)info[i].data,
 					value, info[i].data_len);
 				goto updated;
-			}
-			for (j=0; j<info[i].numopts; j++) {
-				if (!strcmp(value, info[i].opts[j])) {
-					if (!info[i].data)
-						continue;
+			case TYPE_INT_O:
+				for (j=0; j<info[i].numopts; j++) {
+					if (!strcmp(value, info[i].opts[j])) {
+						if (!info[i].data)
+							continue;
 
-					*(int*)info[i].data = j;
-					goto updated;
+						*(int*)info[i].data = j;
+						goto updated;
+					}
 				}
+			case TYPE_INT_LIST:
+				if (!info[i].data)
+					continue;
+				tbl = (void *)info[i].opts[0];
+				/* strsep is destructive, make a copy to work with */
+				tmp_value = strdup(value);
+				k = 0;
+				tmp_data = malloc(info[i].data_len);
+				memset(tmp_data, ~0, info[i].data_len);
+				found = calloc(info[i].numopts, sizeof(bool));
+
+next_token:			while ((token = strsep(&tmp_value, ", \n"))) {
+					if (!strlen(token))
+						continue;
+					if ((k * (int)sizeof(int)) >= (info[i].data_len)) {
+						log_warning("Too many values set for '%s'"
+						            ", continuing without processing them all",
+						            info[i].name);
+						break;
+					}
+					for (j = 0; j < info[i].numopts; j++) {
+						if (!strcmp(token, tbl[j].name)) {
+							if ((found[j])) {
+								log_warning("Ignoring repeated "
+								            "value '%s' "
+								            "for '%s'", token,
+								            info[i].name);
+								goto next_token;
+							}
+							((int*)tmp_data)[k++] = tbl[j].value;
+							found[j] = true;
+							goto next_token;
+						}
+					}
+					log_warning("Ignoring unknown value '%s'"
+					            " for '%s'", token, info[i].name);
+				}
+				memcpy(info[i].data, tmp_data, info[i].data_len);
+				free(tmp_value);
+				free(tmp_data);
+				tmp_value = NULL;
+				tmp_data = NULL;
+				token = NULL;
+				goto updated;
 			}
 			if (line_number) {
 				log_warning("config file line %d contains "
@@ -3021,6 +3118,9 @@ void idbm_node_setup_defaults(node_rec_t *rec)
 	rec->session.initial_login_retry_max = DEF_INITIAL_LOGIN_RETRIES_MAX;
 	rec->session.reopen_max = DEF_SESSION_REOPEN_MAX;
 	rec->session.auth.authmethod = 0;
+	/* TYPE_INT_LIST fields should be initialized to ~0 to indicate unset values */
+	memset(rec->session.auth.chap_algs, ~0, sizeof(rec->session.auth.chap_algs));
+	rec->session.auth.chap_algs[0] = AUTH_CHAP_ALG_MD5;
 	rec->session.auth.password_length = 0;
 	rec->session.auth.password_in_length = 0;
 	rec->session.err_timeo.abort_timeout = DEF_ABORT_TIMEO;

@@ -1806,7 +1806,7 @@ acl_chk_chap_alg_list(unsigned int option_count, const int *option_list)
 	return 0;
 }
 
-static int
+int
 acl_set_chap_alg_list(struct iscsi_acl *client, unsigned int option_count,
 		      const int *option_list)
 {
@@ -1819,22 +1819,54 @@ acl_set_chap_alg_list(struct iscsi_acl *client, unsigned int option_count,
 }
 
 int
-acl_init_chap_digests(int *value_list) {
+acl_init_chap_digests(int *value_list, unsigned *chap_algs, int conf_count) {
 	EVP_MD_CTX *context = EVP_MD_CTX_new();
 	int i = 0;
 
-	if (EVP_DigestInit_ex(context, EVP_sha3_256(), NULL)) {
-		value_list[i++] = AUTH_CHAP_ALG_SHA3_256;
+	for (int j = 0; j < conf_count; j++) {
+		switch (chap_algs[j]) {
+		case AUTH_CHAP_ALG_MD5:
+			if (EVP_DigestInit_ex(context, EVP_md5(), NULL)) {
+				value_list[i++] = AUTH_CHAP_ALG_MD5;
+			} else {
+				log_warning("Ignoring CHAP algorthm request for "
+				            "MD5 due to crypto lib configuration");
+			}
+			break;
+		case AUTH_CHAP_ALG_SHA1:
+			if (EVP_DigestInit_ex(context, EVP_sha1(), NULL)) {
+				value_list[i++] = AUTH_CHAP_ALG_SHA1;
+			} else {
+				log_warning("Ignoring CHAP algorthm request for "
+				            "SHA1 due to crypto lib configuration");
+			}
+			break;
+		case AUTH_CHAP_ALG_SHA256:
+			if (EVP_DigestInit_ex(context, EVP_sha256(), NULL)) {
+				value_list[i++] = AUTH_CHAP_ALG_SHA256;
+			} else {
+				log_warning("Ignoring CHAP algorthm request for "
+				            "SHA256 due to crypto lib configuration");
+			}
+			break;
+		case AUTH_CHAP_ALG_SHA3_256:
+			if (EVP_DigestInit_ex(context, EVP_sha3_256(), NULL)) {
+				value_list[i++] = AUTH_CHAP_ALG_SHA3_256;
+			} else {
+				log_warning("Ignoring CHAP algorthm request for "
+				            "SHA3-256 due to crypto lib configuration");
+			}
+			break;
+		case ~0:
+			/* unset value in array, just ignore */
+			break;
+		default:
+			log_warning("Ignoring unknown CHAP algorithm request "
+				    "'%d'", chap_algs[j]);
+			break;
+		}
 	}
-	if (EVP_DigestInit_ex(context, EVP_sha256(), NULL)) {
-		value_list[i++] = AUTH_CHAP_ALG_SHA256;
-	}
-	if (EVP_DigestInit_ex(context, EVP_sha1(), NULL)) {
-		value_list[i++] = AUTH_CHAP_ALG_SHA1;
-	}
-	if (EVP_DigestInit_ex(context, EVP_md5(), NULL)) {
-		value_list[i++] = AUTH_CHAP_ALG_MD5;
-	}
+
 	return i;
 }
 
@@ -1922,12 +1954,6 @@ acl_init(int node_type, int buf_desc_count, struct auth_buffer_desc *buff_desc)
 	 */
 	if (acl_set_auth_method_list(client, 2, value_list) !=
 	    AUTH_STATUS_NO_ERROR) {
-		client->phase = AUTH_PHASE_ERROR;
-		return AUTH_STATUS_ERROR;
-	}
-
-	if (acl_set_chap_alg_list(client, acl_init_chap_digests(value_list),
-					value_list) != AUTH_STATUS_NO_ERROR) {
 		client->phase = AUTH_PHASE_ERROR;
 		return AUTH_STATUS_ERROR;
 	}

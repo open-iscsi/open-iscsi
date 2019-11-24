@@ -120,6 +120,7 @@
 #define SESSION_USERNAME_IN	"node.session.auth.username_in"
 #define SESSION_PASSWORD_IN	"node.session.auth.password_in"
 #define SESSION_PASSWORD_IN_LEN	"node.session.auth.password_in_length"
+#define SESSION_CHAP_ALGS	"node.session.auth.chap_algs"
 #define SESSION_REPLACEMENT_TMO	"node.session.timeo.replacement_timeout"
 #define SESSION_ABORT_TMO	"node.session.err_timeo.abort_timeout"
 #define SESSION_LU_RESET_TMO	"node.session.err_timeo.lu_reset_timeout"
