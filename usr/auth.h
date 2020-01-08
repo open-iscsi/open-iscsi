@@ -271,6 +271,9 @@ extern int acl_send_transit_bit(struct iscsi_acl *client, int *value);
 extern int acl_set_user_name(struct iscsi_acl *client, const char *username);
 extern int acl_set_passwd(struct iscsi_acl *client,
 			  const unsigned char *pw_data, unsigned int pw_len);
+extern int acl_set_chap_alg_list(struct iscsi_acl *client, unsigned int option_count,
+		      const int *option_list);
+extern int acl_init_chap_digests(int *value_list, unsigned int *chap_algs, int count);
 extern int acl_set_auth_rmt(struct iscsi_acl *client, int auth_rmt);
 extern int acl_set_ip_sec(struct iscsi_acl *client, int ip_sec);
 extern int acl_get_dbg_status(struct iscsi_acl *client, int *value);

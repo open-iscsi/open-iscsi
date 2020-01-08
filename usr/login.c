@@ -1262,6 +1262,17 @@ check_for_authentication(iscsi_session_t *session,
 		goto end;
 	}
 
+	int value_list[AUTH_CHAP_ALG_MAX_COUNT];
+
+	if (acl_set_chap_alg_list(auth_client,
+				acl_init_chap_digests(value_list,
+					session->chap_algs,
+					AUTH_CHAP_ALG_MAX_COUNT),
+				value_list) != AUTH_STATUS_NO_ERROR) {
+		log_error("Couldn't set CHAP algorithm list");
+		goto end;
+	}
+
 	if (acl_set_ip_sec(auth_client, 1) != AUTH_STATUS_NO_ERROR) {
 		log_error("Couldn't set IPSec");
 		goto end;

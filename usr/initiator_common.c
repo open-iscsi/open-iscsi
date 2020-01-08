@@ -94,6 +94,8 @@ int iscsi_setup_authentication(struct iscsi_session *session,
 		memcpy(session->password_in, auth_cfg->password_in,
 		       session->password_in_length);
 
+	memcpy(session->chap_algs, auth_cfg->chap_algs, sizeof(auth_cfg->chap_algs));
+
 	if (session->password_length || session->password_in_length) {
 		/* setup the auth buffers */
 		session->auth_buffers[0].address = &session->auth_client_block;

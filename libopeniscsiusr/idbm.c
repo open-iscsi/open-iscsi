@@ -73,6 +73,7 @@
 #define TYPE_INT32	6
 #define TYPE_INT64	7
 #define TYPE_BOOL	8
+#define TYPE_INT_LIST	9
 #define MAX_KEYS	256   /* number of keys total(including CNX_MAX) */
 #define NAME_MAXVAL	128   /* the maximum length of key name */
 #define VALUE_MAXVAL	256   /* the maximum length of 223 bytes in the RFC. */
@@ -245,6 +246,39 @@ do { \
 	if (_org->_name == 5) _strncpy(_recs[_n].value, _op5, VALUE_MAXVAL);\
 	_recs[_n].opts[5] = _op5; \
 	_recs[_n].numopts = 6; \
+	_n++; \
+} while(0)
+
+#define ARRAY_LEN(x) ( sizeof(x) / sizeof((x)[0]) )
+
+/* Options list type, rather than matching a single value this populates an
+ * array with a list of values in user specified order.
+ * Requires a table matching config strings to values.
+ **/
+#define _rec_int_list(_key, _recs, _org, _name, _show, _tbl, _n, _mod) \
+do {\
+	_recs[_n].type = TYPE_INT_LIST; \
+	_strncpy(_recs[_n].name, _key, NAME_MAXVAL); \
+	for (unsigned int _i = 0; _i < ARRAY_LEN(_org->_name); _i++) { \
+		if (_org->_name[_i] != ~0UL) { \
+			for (unsigned int _j = 0; _j < ARRAY_LEN(_tbl); _j++) { \
+				if (_tbl[_j].value == _org->_name[_i]) { \
+					strcat(_recs[_n].value, _tbl[_j].name); \
+					strcat(_recs[_n].value, ","); \
+					break; \
+				} \
+			} \
+		} \
+	} \
+	/* delete traling ',' */ \
+	if (strrchr(_recs[_n].value, ',')) \
+		*strrchr(_recs[_n].value, ',') = '\0'; \
+	_recs[_n].data = &_org->_name; \
+	_recs[_n].data_len = sizeof(_org->_name); \
+	_recs[_n].visible = _show; \
+	_recs[_n].opts[0] = (void *)&_tbl; \
+	_recs[_n].numopts = ARRAY_LEN(_tbl); \
+	_recs[_n].can_modify = _mod; \
 	_n++; \
 } while(0)
 
@@ -558,6 +592,11 @@ void _idbm_node_print(struct iscsi_node *node, FILE *f, bool show_secret)
 	_idbm_recs_free(recs);
 }
 
+struct int_list_tbl {
+	const char *name;
+	unsigned int value;
+};
+
 static int _idbm_rec_update_param(struct iscsi_context *ctx,
 				  struct idbm_rec *recs, char *name,
 				  char *value, int line_number)
@@ -565,8 +604,14 @@ static int _idbm_rec_update_param(struct iscsi_context *ctx,
 	int rc = LIBISCSI_OK;
 	int i = 0;
 	int j = 0;
+	int k = 0;
 	int passwd_done = 0;
 	char passwd_len[8];
+	struct int_list_tbl *tbl = NULL;
+	char *tmp_value;
+	int *tmp_data;
+	bool *found;
+	char *token;
 
 	assert(ctx != NULL);
 	assert(recs != NULL);
@@ -642,6 +687,47 @@ setup_passwd_len:
 					*(bool *)recs[i].data = false;
 				else
 					goto unknown_value;
+				goto updated;
+			case TYPE_INT_LIST:
+				if (!recs[i].data)
+					continue;
+				tbl = (void *)recs[i].opts[0];
+				/* strsep is destructive, make a copy to work with */
+				tmp_value = strdup(value);
+				k = 0;
+				tmp_data = malloc(recs[i].data_len);
+				memset(tmp_data, ~0, recs[i].data_len);
+				found = calloc(recs[i].numopts, sizeof(bool));
+next_token:			while ((token = strsep(&tmp_value, ", \n"))) {
+					if (!strlen(token))
+						continue;
+					if ((k * (int)sizeof(int)) >= (recs[i].data_len)) {
+						_warn(ctx, "Too many values set for '%s'"
+						      ", continuing without processing them all",
+						      recs[i].name);
+						break;
+					}
+					for (j = 0; j < recs[i].numopts; j++) {
+						if (!strcmp(token, tbl[j].name)) {
+							if ((found[j])) {
+								_warn(ctx, "Ignoring repeated value '%s'"
+								      " for '%s'", token, recs[i].name);
+								goto next_token;
+							}
+							((unsigned *)tmp_data)[k++] = tbl[j].value;
+							found[j] = true;
+							goto next_token;
+						}
+					}
+					_warn(ctx, "Ignoring unknown value '%s'"
+					      " for '%s'", token, recs[i].name);
+				}
+				memcpy(recs[i].data, tmp_data, recs[i].data_len);
+				free(tmp_value);
+				free(tmp_data);
+				tmp_value = NULL;
+				tmp_data = NULL;
+				token = NULL;
 				goto updated;
 			default:
 unknown_value:
@@ -882,6 +968,13 @@ void _idbm_free(struct idbm *db)
 	free(db);
 }
 
+static struct int_list_tbl chap_algs[] = {
+	{ "MD5", ISCSI_AUTH_CHAP_ALG_MD5 },
+	{ "SHA1", ISCSI_AUTH_CHAP_ALG_SHA1 },
+	{ "SHA256", ISCSI_AUTH_CHAP_ALG_SHA256 },
+	{ "SHA3-256", ISCSI_AUTH_CHAP_ALG_SHA3_256 },
+};
+
 static void _idbm_node_rec_link(struct iscsi_node *node, struct idbm_rec *recs)
 {
 	int num = 0;
@@ -944,6 +1037,8 @@ static void _idbm_node_rec_link(struct iscsi_node *node, struct idbm_rec *recs)
 	_rec_uint32(SESSION_PASSWORD_IN_LEN, recs, node,
 		    session.auth.password_in_length, IDBM_HIDE, num,
 		    _CAN_MODIFY);
+	_rec_int_list(SESSION_CHAP_ALGS, recs, node, session.auth.chap_algs,
+		IDBM_SHOW, chap_algs, num, _CAN_MODIFY);
 	_rec_int64(SESSION_REPLACEMENT_TMO, recs, node,
 		   session.tmo.replacement_timeout, IDBM_SHOW, num,
 		   _CAN_MODIFY);

@@ -48,6 +48,14 @@ enum iscsi_auth_method {
 	ISCSI_AUTH_METHOD_CHAP,
 };
 
+enum iscsi_chap_algs {
+	ISCSI_AUTH_CHAP_ALG_MD5 = 5,
+	ISCSI_AUTH_CHAP_ALG_SHA1 = 6,
+	ISCSI_AUTH_CHAP_ALG_SHA256 = 7,
+	ISCSI_AUTH_CHAP_ALG_SHA3_256 = 8,
+	AUTH_CHAP_ALG_MAX_COUNT = 5,
+};
+
 enum iscsi_startup_type {
 	ISCSI_STARTUP_MANUAL,
 	ISCSI_STARTUP_AUTOMATIC,
@@ -92,6 +100,7 @@ struct iscsi_auth_config {
 	char					username_in[AUTH_STR_MAX_LEN];
 	unsigned char				password_in[AUTH_STR_MAX_LEN];
 	uint32_t				password_in_length;
+	unsigned int				chap_algs[AUTH_CHAP_ALG_MAX_COUNT];
 };
 
 /* all TCP options go in this structure.

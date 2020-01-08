@@ -78,6 +78,9 @@ void _default_node(struct iscsi_node *node)
 	node->session.initial_login_retry_max = DEF_INITIAL_LOGIN_RETRIES_MAX;
 	node->session.reopen_max = DEF_SESSION_REOPEN_MAX;
 	node->session.auth.authmethod = 0;
+	/* TYPE_INT_LIST fields should be initialized to ~0 to indicate unset values */
+	memset(node->session.auth.chap_algs, ~0, sizeof(node->session.auth.chap_algs));
+	node->session.auth.chap_algs[0] = ISCSI_AUTH_CHAP_ALG_MD5;
 	node->session.auth.password_length = 0;
 	node->session.auth.password_in_length = 0;
 	node->session.err_tmo.abort_timeout = DEF_ABORT_TIMEO;
