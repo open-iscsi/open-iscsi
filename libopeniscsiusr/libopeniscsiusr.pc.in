@@ -5,5 +5,5 @@ Name: libopeniscsiusr
 Version: __VERSION__
 Description: iSCSI userspace library
 Requires:
-Libs: -L${libdir} -liscsiusr
+Libs: -L${libdir} -lopeniscsiusr
 Cflags: -I${includedir}
