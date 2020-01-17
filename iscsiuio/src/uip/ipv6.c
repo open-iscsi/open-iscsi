@@ -521,7 +521,7 @@ static void ipv6_insert_protocol_chksum(struct ipv6_hdr *ipv6)
 	sum = 0;
 	ptr = (u16_t *)&ipv6->ipv6_src;
 
-	for (i = 0; i < sizeof(struct ipv6_addr); i += 2) {
+	for (i = 0; i < sizeof(struct ipv6_addr); i++) {
 		sum += HOST_TO_NET16(*ptr);
 		ptr++;
 	}
