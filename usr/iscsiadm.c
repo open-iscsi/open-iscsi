@@ -787,7 +787,7 @@ static int print_nodes_config(struct iscsi_context *ctx, bool show_secret,
 		    (strlen(address) != 0) &&
 		    (strcmp(address, iscsi_node_conn_address_get(node)) != 0))
 			match = false;
-		if ((port != -1) && (port != iscsi_node_conn_port_get(node)))
+		if ((port != -1) && (port != (int32_t)iscsi_node_conn_port_get(node)))
 			match = false;
 		if ((iface_name != NULL) &&
 		    (strlen(iface_name) != 0) &&
@@ -931,7 +931,7 @@ session_stats(void *data, struct session_info *info)
 	if (rsp.u.getstats.stats.custom_length)
 		printf( "iSCSI Extended:\n");
 
-	for (i = 0; i < rsp.u.getstats.stats.custom_length; i++) {
+	for (i = 0; i < (int)rsp.u.getstats.stats.custom_length; i++) {
 		printf("\t%s: %llu\n", rsp.u.getstats.stats.custom[i].desc,
 		      (unsigned long long)rsp.u.getstats.stats.custom[i].value);
 	}
@@ -994,7 +994,8 @@ done:
 }
 
 static int add_static_portal(int *found, void *data, char *targetname,
-			     int tpgt, char *ip, int port, bool ruw_lock)
+			     int tpgt, char *ip, int port,
+			     __attribute__((unused))bool ruw_lock)
 {
 	node_rec_t *rec = data;
 
@@ -1009,8 +1010,8 @@ static int add_static_portal(int *found, void *data, char *targetname,
 			      &rec->iface);
 }
 
-static int add_static_node(int *found, void *data,
-			  char *targetname, bool ruw_lock)
+static int add_static_node(int *found, void *data, char *targetname,
+			   __attribute__((unused))bool ruw_lock)
 {
 	node_rec_t *rec = data;
 
@@ -1066,7 +1067,8 @@ do_offload_sendtargets(discovery_rec_t *drec, int host_no, int do_login)
 	return discovery_offload_sendtargets(host_no, do_login, drec);
 }
 
-static int delete_node(void *data, struct node_rec *rec)
+static int delete_node(__attribute__((unused))void *data,
+		       struct node_rec *rec)
 {
 	if (iscsi_check_for_running_session(rec)) {
 		/*
@@ -1343,7 +1345,7 @@ verify_mode_params(int argc, char **argv, char *allowed, int skip_m)
 	return ret;
 }
 
-static void catch_sigint( int signo ) {
+static void catch_sigint(__attribute__((unused))int signo) {
 	log_warning("caught SIGINT, exiting...");
 	exit(1);
 }
@@ -1401,7 +1403,7 @@ static int iface_apply_net_config(struct iface_rec *iface, int op)
 	}
 
 	host_no = iscsi_sysfs_get_host_no_from_hwinfo(iface, &rc);
-	if (host_no == -1) {
+	if (host_no == 0) {
 		log_error("Can't find host_no.");
 		goto free_buf;
 	}
@@ -1442,7 +1444,7 @@ static int get_host_chap_info(uint32_t host_no)
 	uint32_t num_entries;
 	uint16_t chap_tbl_idx = 0;
 	int rc = 0;
-	int fd, i = 0;
+	int fd;
 
 	t = iscsi_sysfs_get_transport_by_hba(host_no);
 	if (!t) {
@@ -1487,7 +1489,7 @@ get_chap:
 		(crec + (valid_chap_entries - 1))->chap_tbl_idx + 1;
 
 	/* print chap info */
-	for (i = 0; i < valid_chap_entries; i++) {
+	for (uint32_t i = 0; i < valid_chap_entries; i++) {
 		idbm_print_host_chap_info(crec);
 		crec++;
 	}
@@ -1725,8 +1727,11 @@ exit_delete_chap:
 	return rc;
 }
 
-static int exec_host_chap_op(int op, int info_level, uint32_t host_no,
-			     uint64_t chap_index, struct list_head *params)
+static int exec_host_chap_op(int op,
+			     __attribute__((unused))int info_level,
+			     uint32_t host_no,
+			     uint64_t chap_index,
+			     struct list_head *params)
 {
 	int rc = ISCSI_ERR_INVAL;
 
@@ -1766,7 +1771,8 @@ static int get_flashnode_info(uint32_t host_no, uint32_t flashnode_idx)
 	return rc;
 }
 
-static int list_flashnodes(int info_level, uint32_t host_no)
+static int list_flashnodes(__attribute__((unused))int info_level,
+			   uint32_t host_no)
 {
 	int rc = 0;
 	int num_found = 0;
@@ -2307,7 +2313,9 @@ static void print_host_stats(struct iscsi_offload_host_stats *host_stats)
 	       (unsigned long long)host_stats->iscsi_sequence_error);
 }
 
-static int exec_host_stats_op(int op, int info_level, uint32_t host_no)
+static int exec_host_stats_op(__attribute__((unused))int op,
+			      __attribute__((unused))int info_level,
+			      uint32_t host_no)
 {
 	struct iscsi_transport *t = NULL;
 	char *req_buf = NULL;
@@ -2533,9 +2541,13 @@ static inline void list_splice_tail(struct list_head *list, struct list_head *he
 }
 
 /* TODO: merge iter helpers and clean them up, so we can use them here */
-static int exec_iface_op(struct iscsi_context *ctx, int op, int do_show,
-			 int info_level, struct iface_rec *iface,
-			 uint64_t host_no, struct list_head *params)
+static int exec_iface_op(struct iscsi_context *ctx,
+			 int op,
+			 __attribute__((unused))int do_show,
+			 int info_level,
+			 struct iface_rec *iface,
+			 uint64_t host_no,
+			 struct list_head *params)
 {
 	struct host_info hinfo;
 	struct node_rec *rec = NULL;
@@ -3204,9 +3216,15 @@ done:
 	return rc;
 }
 
-static int exec_disc_op(int disc_type, char *ip, int port,
-			struct list_head *ifaces, int info_level, int do_login,
-			int do_discover, int op, struct list_head *params,
+static int exec_disc_op(int disc_type,
+			char *ip,
+			int port,
+			struct list_head *ifaces,
+			int info_level,
+			int do_login,
+			int do_discover,
+			int op,
+			__attribute__((unused))struct list_head *params,
 			int do_show)
 {
 	struct discovery_rec drec;
@@ -3383,7 +3401,7 @@ static char *iscsi_ping_stat_strs[] = {
 
 static char *iscsi_ping_stat_to_str(uint32_t status)
 {
-	if (status < 0 || status > ISCSI_PING_NO_ARP_RECEIVED) {
+	if (status == 0 || status > ISCSI_PING_NO_ARP_RECEIVED) {
 		log_error("Invalid ping status %u", status);
 		return NULL;
 	}
@@ -3449,7 +3467,7 @@ static int exec_ping_op(struct iface_rec *iface, char *ip, int size, int count,
 	}
 
 	host_no = iscsi_sysfs_get_host_no_from_hwinfo(iface, &rc);
-	if (host_no == -1) {
+	if (host_no == 0) {
 		log_error("Can't find host_no.");
 		rc = ISCSI_ERR_INVAL;
 		goto ping_exit;
@@ -3528,7 +3546,7 @@ main(int argc, char **argv)
 	LIST_HEAD(ifaces);
 	struct iface_rec *iface = NULL, *tmp;
 	struct node_rec *rec = NULL;
-	uint64_t host_no =  (uint64_t)MAX_HOST_NO + 1;
+	uint32_t host_no =  MAX_HOST_NO + 1;
 	uint64_t index = ULLONG_MAX;
 	struct user_param *param;
 	LIST_HEAD(params);

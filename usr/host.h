@@ -7,7 +7,7 @@
 #include "types.h"
 #include "config.h"
 
-#define MAX_HOST_NO UINT_MAX
+#define MAX_HOST_NO UINT32_MAX
 
 #define MAX_CHAP_ENTRIES 2048
 #define MAX_CHAP_BUF_SZ 4096

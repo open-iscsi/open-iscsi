@@ -31,7 +31,7 @@ static LIST_HEAD(ready_list);
 static volatile int poll_in_progress;
 
 static uint64_t
-actor_time_left(actor_t *thread, uint64_t current_time)
+actor_time_left(actor_t *thread, time_t current_time)
 {
 	if (current_time > thread->ttschedule)
 		return 0;

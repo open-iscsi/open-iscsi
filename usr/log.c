@@ -186,7 +186,7 @@ int log_enqueue (int prio, const char * fmt, va_list ap)
 
 	/* not enough space on tail : rewind */
 	if (la->head <= la->tail &&
-	    (len + sizeof(struct logmsg)) > (la->end - la->tail)) {
+	    (long)(len + sizeof(struct logmsg)) > (la->end - la->tail)) {
 		logdbg(stderr, "enqueue: rewind tail to %p\n", la->tail);
 			la->tail = la->start;
 
@@ -196,7 +196,7 @@ int log_enqueue (int prio, const char * fmt, va_list ap)
 
 	/* not enough space on head : drop msg */
 	if (la->head > la->tail &&
-	    (len + sizeof(struct logmsg)) > (la->head - la->tail)) {
+	    (long)(len + sizeof(struct logmsg)) > (la->head - la->tail)) {
 		logdbg(stderr, "enqueue: log area overrun, drop msg\n");
 
 		if (!la->empty)
@@ -262,7 +262,10 @@ static void log_syslog (void * buff)
 	syslog(msg->prio, "%s", (char *)&msg->str);
 }
 
-void log_do_log_daemon(int prio, void *priv, const char *fmt, va_list ap)
+void log_do_log_daemon(int prio,
+		       __attribute__((unused))void *priv,
+		       const char *fmt,
+		       va_list ap)
 {
 	struct sembuf ops[1];
 
@@ -282,7 +285,10 @@ void log_do_log_daemon(int prio, void *priv, const char *fmt, va_list ap)
 		syslog(LOG_ERR, "semop up failed");
 }
 
-void log_do_log_std(int prio, void *priv, const char *fmt, va_list ap)
+void log_do_log_std(int prio,
+		    __attribute__((unused))void *priv,
+		    const char *fmt,
+		    va_list ap)
 {
 	if (prio == LOG_INFO) {
 		vfprintf(stdout, fmt, ap);

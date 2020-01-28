@@ -513,7 +513,8 @@ static int iface_setup_binding_from_kern_iface(void *data,
 	return 0;
 }
 
-static int __iface_setup_host_bindings(void *data, struct host_info *hinfo)
+static int __iface_setup_host_bindings(__attribute__((unused))void *data,
+				       struct host_info *hinfo)
 {
 	struct iface_rec *def_iface;
 	struct iscsi_transport *t;
@@ -841,7 +842,8 @@ static int iface_print_nodes(void *data, node_rec_t *rec)
  * have the binding info. When we store the iface specific node settings
  * in the iface record then it will look different.
  */
-int iface_print_tree(void *data, struct iface_rec *iface)
+int iface_print_tree(__attribute__((unused))void *data,
+		     struct iface_rec *iface)
 {
 	struct node_rec last_rec;
 	struct iface_print_node_data print_data;

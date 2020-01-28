@@ -84,7 +84,7 @@ int mgmt_ipc_systemd(void)
 
 	env = getenv("LISTEN_PID");
 
-	if (!env || (strtoul(env, NULL, 10) != getpid()))
+	if (!env || ((pid_t)strtoul(env, NULL, 10) != getpid()))
 		return -EINVAL;
 
 	env = getenv("LISTEN_FDS");
@@ -211,7 +211,7 @@ mgmt_ipc_cfg_filename(queue_task_t *qtask)
 }
 
 static int
-mgmt_ipc_conn_add(queue_task_t *qtask)
+mgmt_ipc_conn_add(__attribute__((unused))queue_task_t *qtask)
 {
 	return ISCSI_ERR;
 }
@@ -224,7 +224,7 @@ mgmt_ipc_immediate_stop(queue_task_t *qtask)
 }
 
 static int
-mgmt_ipc_conn_remove(queue_task_t *qtask)
+mgmt_ipc_conn_remove(__attribute__((unused))queue_task_t *qtask)
 {
 	return ISCSI_ERR;
 }
@@ -300,25 +300,29 @@ mgmt_ipc_notify_common(queue_task_t *qtask, int (*handler)(int, char **))
 /* Replace these dummies as you implement them
    elsewhere */
 static int
-iscsi_discovery_add_node(int argc, char **argv)
+iscsi_discovery_add_node(__attribute__((unused))int argc,
+			 __attribute__((unused))char **argv)
 {
 	return ISCSI_SUCCESS;
 }
 
 static int
-iscsi_discovery_del_node(int argc, char **argv)
+iscsi_discovery_del_node(__attribute__((unused))int argc,
+			 __attribute__((unused))char **argv)
 {
 	return ISCSI_SUCCESS;
 }
 
 static int
-iscsi_discovery_add_portal(int argc, char **argv)
+iscsi_discovery_add_portal(__attribute__((unused))int argc,
+			   __attribute__((unused))char **argv)
 {
 	return ISCSI_SUCCESS;
 }
 
 static int
-iscsi_discovery_del_portal(int argc, char **argv)
+iscsi_discovery_del_portal(__attribute__((unused))int argc,
+			   __attribute__((unused))char **argv)
 {
 	return ISCSI_SUCCESS;
 }
@@ -509,8 +513,10 @@ void mgmt_ipc_handle(int accept_fd)
 	command = qtask->req.command;
 	qtask->rsp.command = command;
 
-	if (0 <= command && command < __MGMT_IPC_MAX_COMMAND)
+	if (command > 0 &&
+	    command < __MGMT_IPC_MAX_COMMAND)
 		handler = mgmt_ipc_functions[command];
+
 	if (handler != NULL) {
 		/* If the handler returns OK, this means it
 		 * already sent the reply. */

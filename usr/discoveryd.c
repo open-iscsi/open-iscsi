@@ -387,7 +387,7 @@ free_ifaces:
 	return rc;
 }
 
-static void isns_reg_refresh_with_disc(void *data)
+static void isns_reg_refresh_with_disc(__attribute__((unused))void *data)
 {
 	int retries = 0, rc;
 
@@ -551,7 +551,7 @@ static int isns_setup_registration_refresh(isns_simple_t *rsp, int poll_inval)
 {
 	isns_object_list_t objs = ISNS_OBJECT_LIST_INIT;
 	struct isns_refresh_data *refresh_data;
-	int status, i, rc = 0;
+	int status, rc = 0;
 	uint32_t interval = 0;
 
 	status = isns_query_response_get_objects(rsp, &objs);
@@ -562,7 +562,7 @@ static int isns_setup_registration_refresh(isns_simple_t *rsp, int poll_inval)
 		return ISCSI_ERR;
 	}
 
-	for (i = 0; i < objs.iol_count; ++i) {
+	for (unsigned int i = 0; i < objs.iol_count; ++i) {
 		isns_object_t *obj = objs.iol_data[i]; 
 
 		if (!isns_object_is_entity(obj))
@@ -605,7 +605,7 @@ static int isns_setup_registration_refresh(isns_simple_t *rsp, int poll_inval)
 
 	if (poll_inval > 0) {
 		/* user wants to override server and do disc */
-		if (isns_refresh_interval > poll_inval)
+		if ((int)isns_refresh_interval > poll_inval)
 			isns_refresh_interval = poll_inval;
 		isns_add_timer(isns_refresh_interval,
 			       isns_reg_refresh_with_disc,
@@ -831,9 +831,11 @@ done:
 	return rc;
 }
 
-static void isns_scn_callback(isns_db_t *db, uint32_t bitmap,
-			      isns_object_template_t *node_type,
-			      const char *node_name, const char *dst_name)
+static void isns_scn_callback(__attribute__((unused))isns_db_t *db,
+			      uint32_t bitmap,
+			      __attribute__((unused))isns_object_template_t *node_type,
+			      const char *node_name,
+			      const char *dst_name)
 {
 	log_error("SCN for initiator: %s (Target: %s, Event: %s.)",
 		    dst_name, node_name, isns_event_string(bitmap));
@@ -1052,7 +1054,7 @@ free_ifaces:
 	}
 }
 
-static void do_st_disc_and_login(const char *def_iname,
+static void do_st_disc_and_login(__attribute__((unused))const char *def_iname,
 				 struct discovery_rec *drec, int poll_inval)
 {
 	if (poll_inval < 0)
@@ -1067,7 +1069,8 @@ static void do_st_disc_and_login(const char *def_iname,
 	discoveryd_stop();
 }
 
-static int st_start(void *data, struct discovery_rec *drec)
+static int st_start(__attribute__((unused))void *data,
+		    struct discovery_rec *drec)
 {
 	log_debug(1, "st_start %s:%d %d", drec->address, drec->port,
 		  drec->u.sendtargets.use_discoveryd);

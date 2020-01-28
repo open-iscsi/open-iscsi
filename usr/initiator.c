@@ -356,7 +356,7 @@ __session_create(node_rec_t *rec, struct iscsi_transport *t, int *rc)
 	INIT_LIST_HEAD(&session->list);
 	session->t = t;
 	session->reopen_qtask.mgmt_ipc_fd = -1;
-	session->id = -1;
+	session->id = INVALID_SESSION_ID;
 	session->use_ipc = 1;
 
 	/* save node record. we might need it for redirection */
@@ -476,7 +476,7 @@ session_conn_shutdown(iscsi_conn_t *conn, queue_task_t *qtask,
 	if (session->t->template->ep_disconnect)
 		session->t->template->ep_disconnect(conn);
 
-	if (session->id == -1)
+	if (session->id == INVALID_SESSION_ID)
 		goto cleanup;
 
 	if (!iscsi_sysfs_session_has_leadconn(session->id))
@@ -502,7 +502,7 @@ session_conn_shutdown(iscsi_conn_t *conn, queue_task_t *qtask,
 	}
 
 cleanup:
-	if (session->id != -1) {
+	if (session->id != INVALID_SESSION_ID) {
 		log_debug(2, "kdestroy session %u", session->id);
 		session->r_stage = R_STAGE_SESSION_DESTOYED;
 		if (ipc->destroy_session(session->t->handle, session->id)) {
@@ -1558,7 +1558,7 @@ static void session_conn_poll(void *data)
 		memset(c, 0, sizeof(iscsi_login_context_t));
 
 		/* do not allocate new connection in case of reopen */
-		if (session->id == -1) {
+		if (session->id == INVALID_SESSION_ID) {
 			if (conn->id == 0 && session_ipc_create(session)) {
 				log_error("Can't create session.");
 				err = ISCSI_ERR_INTERNAL;
@@ -2137,7 +2137,9 @@ invalid_state:
 }
 
 int
-iscsi_host_send_targets(queue_task_t *qtask, int host_no, int do_login,
+iscsi_host_send_targets(__attribute__((unused))queue_task_t *qtask,
+			int host_no,
+			__attribute__((unused))int do_login,
 			struct sockaddr_storage *ss)
 {
 	struct iscsi_transport *t;

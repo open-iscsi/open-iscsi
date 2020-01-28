@@ -169,10 +169,10 @@ static struct idbm *db;
 #define __recinfo_int_list(_key,_info,_rec,_name,_show,_tbl,_n,_mod) do { \
 	_info[_n].type = TYPE_INT_LIST; \
 	strlcpy(_info[_n].name, _key, NAME_MAXVAL); \
-	for(int _i = 0; _i < ARRAY_LEN(_rec->_name); _i++) { \
-		if (_rec->_name[_i] != ~0) { \
-			for (int _j = 0; _j < ARRAY_LEN(_tbl); _j++) { \
-				if (_tbl[_j].value == _rec->_name[_i]) { \
+	for (unsigned long _i = 0; _i < ARRAY_LEN(_rec->_name); _i++) {	\
+		if (_rec->_name[_i] != (unsigned)~0) {			\
+			for (unsigned long _j = 0; _j < ARRAY_LEN(_tbl); _j++) {	\
+				if (_tbl[_j].value == (int)_rec->_name[_i]) { \
 					strcat(_info[_n].value, _tbl[_j].name); \
 					strcat(_info[_n].value, ","); \
 					break; \
@@ -1072,6 +1072,8 @@ setup_passwd_len:
 						goto updated;
 					}
 				}
+				/* internal error if reached ?? */
+				break;
 			case TYPE_INT_LIST:
 				if (!info[i].data)
 					continue;
@@ -1351,7 +1353,7 @@ int idbm_print_flashnode_info(struct flashnode_rec *fnode)
 	return 0;
 }
 
-int idbm_print_node_flat(void *data, node_rec_t *rec)
+int idbm_print_node_flat(__attribute__((unused))void *data, node_rec_t *rec)
 {
 	if (strchr(rec->conn[0].address, '.'))
 		printf("%s:%d,%d %s\n", rec->conn[0].address, rec->conn[0].port,

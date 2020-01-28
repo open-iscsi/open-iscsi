@@ -53,7 +53,7 @@ struct iscsi_session *session_find_by_sid(uint32_t sid)
 	return NULL;
 }
 
-const static unsigned int align_32_down(unsigned int param)
+static unsigned int align_32_down(unsigned int param)
 {
 	return param & ~0x3;
 }

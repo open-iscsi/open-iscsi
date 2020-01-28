@@ -1781,8 +1781,8 @@ struct iscsi_transport *iscsi_sysfs_get_transport_by_hba(uint32_t host_no)
 	char id[NAME_SIZE];
 	int rc;
 
-	if (host_no == -1)
-		return NULL;
+	if (host_no > MAX_HOST_NO)
+		return NULL;	/* not set? */
 
 	snprintf(id, sizeof(id), ISCSI_HOST_ID, host_no);
 	rc = sysfs_get_str(id, SCSI_HOST_SUBSYS, "proc_name", name,
@@ -1914,7 +1914,8 @@ void iscsi_sysfs_set_queue_depth(void *data, int hostno, int target, int lun)
 		log_error("Could not queue depth for LUN %d err %d.", lun, err);
 }
 
-void iscsi_sysfs_set_device_online(void *data, int hostno, int target, int lun)
+void iscsi_sysfs_set_device_online(__attribute__((unused))void *data,
+				   int hostno, int target, int lun)
 {
 	char *write_buf = "running\n";
 	char id[NAME_SIZE];
@@ -1930,7 +1931,8 @@ void iscsi_sysfs_set_device_online(void *data, int hostno, int target, int lun)
 		log_error("Could not online LUN %d err %d.", lun, err);
 }
 
-void iscsi_sysfs_rescan_device(void *data, int hostno, int target, int lun)
+void iscsi_sysfs_rescan_device(__attribute__((unused))void *data,
+			       int hostno, int target, int lun)
 {
 	char *write_buf = "1";
 	char id[NAME_SIZE];

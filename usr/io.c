@@ -58,7 +58,7 @@ do { \
 static int timedout;
 
 static void
-sigalarm_handler(int unused)
+sigalarm_handler(__attribute__((unused))int unused)
 {
 	timedout = 1;
 }
@@ -503,8 +503,12 @@ iscsi_log_text(struct iscsi_hdr *pdu, char *data)
 }
 
 int
-iscsi_io_send_pdu(iscsi_conn_t *conn, struct iscsi_hdr *hdr,
-	       int hdr_digest, char *data, int data_digest, int timeout)
+iscsi_io_send_pdu(iscsi_conn_t *conn,
+		  struct iscsi_hdr *hdr,
+		  __attribute__((unused))int hdr_digest,
+		  char *data,
+		  __attribute__((unused))int data_digest,
+		  int timeout)
 {
 	int rc, ret = 0;
 	char *header = (char *) hdr;
@@ -665,9 +669,13 @@ iscsi_io_send_pdu(iscsi_conn_t *conn, struct iscsi_hdr *hdr,
 }
 
 int
-iscsi_io_recv_pdu(iscsi_conn_t *conn, struct iscsi_hdr *hdr,
-	       int hdr_digest, char *data, int max_data_length, int data_digest,
-	       int timeout)
+iscsi_io_recv_pdu(iscsi_conn_t *conn,
+		  struct iscsi_hdr *hdr,
+		  __attribute__((unused))int hdr_digest,
+		  char *data,
+		  int max_data_length,
+		  __attribute__((unused))int data_digest,
+		  int timeout)
 {
 	uint32_t h_bytes = 0;
 	uint32_t ahs_bytes = 0;
