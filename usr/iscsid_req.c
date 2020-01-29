@@ -299,9 +299,8 @@ int uip_broadcast(void *buf, size_t buf_len, int fd_flags, uint32_t *status)
 		/*  Wait for the response */
 		err = read(fd, &rsp, sizeof(rsp));
 		if (err == sizeof(rsp)) {
-			log_debug(3, "Broadcasted to uIP with length: %ld "
-				     "cmd: 0x%x rsp: 0x%x", buf_len,
-				     rsp.command, rsp.err);
+			log_debug(3, "Broadcasted to uIP with length: %zu cmd: 0x%x rsp: 0x%x",
+				  buf_len, rsp.command, rsp.err);
 			err = 0;
 			break;
 		} else if ((err == -1) && (errno == EAGAIN)) {

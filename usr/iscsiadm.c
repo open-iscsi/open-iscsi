@@ -2677,7 +2677,8 @@ delete_fail:
 		memset(&hinfo, 0, sizeof(struct host_info));
 		hinfo.host_no = host_no;
 		if (iscsi_sysfs_get_hostinfo_by_host_no(&hinfo)) {
-			log_error("Could not match host%lu to ifaces.", host_no);
+			log_error("Could not match host%" PRIu64 " to ifaces.",
+				  host_no);
 			rc = ISCSI_ERR_INVAL;
 			break;
 		}
@@ -2688,7 +2689,7 @@ delete_fail:
 			break;
 		}
 
-		printf("Applied settings to ifaces attached to host%lu.\n",
+		printf("Applied settings to ifaces attached to host%" PRIu64 ".\n",
 		       host_no);
 		break;
 	default:

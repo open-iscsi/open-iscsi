@@ -488,7 +488,7 @@ static void isns_reg_refresh_by_eid_qry(void *data)
 	int status, timeout;
 
 	log_debug(1, "Refresh registration using eid qry");
-	if (refresh_data->start_time + refresh_data->interval <= time(NULL)) {
+	if ((time_t)(refresh_data->start_time + refresh_data->interval) <= time(NULL)) {
 		log_error("Could not refresh registration with server "
 			  "before registration period. Starting new "
 			  "registration.");

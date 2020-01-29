@@ -137,7 +137,7 @@ nlpayload_read(int ctrl_fd, char *data, int count, int flags)
 	iov.iov_len = NLMSG_SPACE(count);
 
 	if (iov.iov_len > NLM_BUF_DEFAULT_MAX) {
-		log_error("Cannot read %lu bytes. nlm_recvbuf too small.",
+		log_error("Cannot read %zu bytes. nlm_recvbuf too small.",
 			  iov.iov_len);
 		return -1;
 	}

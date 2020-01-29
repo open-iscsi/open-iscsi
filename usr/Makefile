@@ -35,7 +35,7 @@ endif
 PKG_CONFIG = /usr/bin/pkg-config
 
 CFLAGS ?= -O2 -g
-WARNFLAGS ?= -Wall -Wextra -Werror -Wstrict-prototypes
+WARNFLAGS ?= -Wall -Wextra -Werror -Wstrict-prototypes -fno-common
 CFLAGS += $(WARNFLAGS) -I../include -I. -D_GNU_SOURCE \
 	  -I$(TOPDIR)/libopeniscsiusr
 CFLAGS += $(shell $(PKG_CONFIG) --cflags libkmod)

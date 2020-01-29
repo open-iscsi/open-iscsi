@@ -51,6 +51,7 @@
 #ifndef	NO_SYSTEMD
 #include <systemd/sd-daemon.h>
 #endif
+#include <assert.h>
 
 #include "uip.h"
 #include "uip_arp.h"
@@ -186,16 +187,17 @@ static void main_usage()
 static void daemon_init()
 {
 	int fd;
+	int res;
 
 	fd = open("/dev/null", O_RDWR);
-	if (fd == -1)
-		exit(-1);
+	assert(fd >= 0);
 
 	dup2(fd, 0);
 	dup2(fd, 1);
 	dup2(fd, 2);
 	setsid();
-	chdir("/");
+	res = chdir("/");
+	assert(res == 0);
 	close(fd);
 }
 
@@ -338,10 +340,12 @@ int main(int argc, char *argv[])
 			exit(1);
 		} else if (pid) {
 			char msgbuf[4];
+			int res;
 
 			/* parent: wait for child msg then exit */
-			close(pipefds[1]);
-			read(pipefds[0], msgbuf, sizeof(msgbuf));
+			close(pipefds[1]);	/* close unused end */
+			res = read(pipefds[0], msgbuf, sizeof(msgbuf));
+			assert(res > 0);
 			exit(0);
 		}
 
@@ -414,9 +418,12 @@ int main(int argc, char *argv[])
 		goto error;
 
 	if (!foreground) {
+		int res;
+
 		/* signal parent they can go away now */
-		close(pipefds[0]);
-		write(pipefds[1], "ok\n", 3);
+		close(pipefds[0]);	/* close unused end */
+		res = write(pipefds[1], "ok\n", 3);
+		assert(res > 0);
 		close(pipefds[1]);
 	}
 
