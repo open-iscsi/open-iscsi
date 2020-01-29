@@ -33,6 +33,7 @@
 
 char *log_name;
 int log_level = 0;
+struct logarea *la = NULL;
 
 static int log_stop_daemon = 0;
 static void (*log_func)(int prio, void *priv, const char *fmt, va_list ap);

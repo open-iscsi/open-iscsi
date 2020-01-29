@@ -21,6 +21,8 @@
 #include "iscsi_err.h"
 #include "log.h"
 
+enum iscsi_error_list iscsi_err;
+
 static char *iscsi_err_msgs[] = {
 	/* 0 */ "",
 	/* 1 */ "unknown error",
