@@ -136,7 +136,7 @@ int discovery_isns_query(struct discovery_rec *drec, const char *iname,
 	isns_simple_t *qry;
 	isns_client_t *clnt;
 	uint32_t status;
-	int rc, i;
+	int rc;
 
 	isns_config.ic_security = 0;
 	source = isns_source_create_iscsi(iname);
@@ -198,7 +198,7 @@ int discovery_isns_query(struct discovery_rec *drec, const char *iname,
 		goto free_query;
 	}
 
-	for (i = 0; i < objects.iol_count; ++i) {
+	for (unsigned int i = 0; i < objects.iol_count; ++i) {
 		isns_object_t *obj = objects.iol_data[i];
 		const char *pg_tgt = NULL;
 		struct in6_addr in_addr;
@@ -378,7 +378,8 @@ retry:
 	return rc;
 }
 
-int discovery_fw(void *data, struct iface_rec *iface,
+int discovery_fw(void *data,
+		 __attribute__((unused))struct iface_rec *iface,
 		 struct list_head *rec_list)
 {
 	struct discovery_rec *drec = data;
@@ -466,8 +467,10 @@ int discovery_offload_sendtargets(int host_no, int do_login,
 }
 
 static int
-iscsi_make_text_pdu(iscsi_session_t *session, struct iscsi_hdr *hdr,
-		    char *data, int max_data_length)
+iscsi_make_text_pdu(iscsi_session_t *session,
+		    struct iscsi_hdr *hdr,
+		    __attribute__((unused))char *data,
+		    __attribute__((unused))int max_data_length)
 {
 	struct iscsi_text *text_pdu = (struct iscsi_text *)hdr;
 
@@ -866,7 +869,7 @@ iscsi_alloc_session(struct iscsi_sendtargets_config *config,
 	session->initiator_alias = initiator_alias;
 	session->portal_group_tag = PORTAL_GROUP_TAG_UNKNOWN;
 	session->type = ISCSI_SESSION_TYPE_DISCOVERY;
-	session->id = -1;
+	session->id = INVALID_SESSION_ID;
 
 	/* setup authentication variables for the session*/
 	*rc = iscsi_setup_authentication(session, &config->auth);
@@ -1021,7 +1024,7 @@ static void iscsi_destroy_session(struct iscsi_session *session)
 	struct iscsi_conn *conn = &session->conn[0];
 	int rc;
 
-	if (session->id == -1)
+	if (session->id == INVALID_SESSION_ID)
 		return;
 
 	if (!(t->caps & CAP_TEXT_NEGO)) {
@@ -1064,7 +1067,7 @@ done:
 		ipc->ctldev_close();
 		conn->socket_fd = -1;
 	}
-	session->id = -1;
+	session->id = INVALID_SESSION_ID;
 }
 
 static int iscsi_create_leading_conn(struct iscsi_session *session)
@@ -1186,7 +1189,7 @@ static int iscsi_create_leading_conn(struct iscsi_session *session)
 disconnect:
 	t->template->ep_disconnect(conn);
 
-	if (session->id != -1 &&
+	if (session->id != INVALID_SESSION_ID &&
 	    iscsi_sysfs_session_has_leadconn(session->id)) {
 		if (ipc->destroy_conn(session->t->handle, session->id,
 				       conn->id))
@@ -1194,11 +1197,11 @@ disconnect:
 				  session->id, conn->id);
 	}
 
-	if (session->id != -1) {
+	if (session->id != INVALID_SESSION_ID) {
 		if (ipc->destroy_session(session->t->handle, session->id))
 			log_error("Could not safely destroy session %d",
 				  session->id);
-		session->id = -1;
+		session->id = INVALID_SESSION_ID;
 	}
 
 close_ipc:
@@ -1213,7 +1216,8 @@ close_ipc:
 }
 
 static struct iscsi_ev_context *
-iscsi_ev_context_get(struct iscsi_conn *conn, int ev_size)
+iscsi_ev_context_get(__attribute__((unused))struct iscsi_conn *conn,
+		     int ev_size)
 {
 	log_debug(2, "%s: ev_size %d", __FUNCTION__, ev_size);
 
@@ -1232,7 +1236,8 @@ static void iscsi_ev_context_put(struct iscsi_ev_context *ev_context)
 }
 
 static int iscsi_sched_ev_context(struct iscsi_ev_context *ev_context,
-				  struct iscsi_conn *conn, unsigned long tmo,
+				  struct iscsi_conn *conn,
+				  __attribute__((unused))unsigned long tmo,
 				  int event)
 {
 	if (event == EV_CONN_RECV_PDU || event == EV_CONN_LOGIN) {
@@ -1688,7 +1693,7 @@ repoll:
 			rc = process_recvd_pdu(pdu, drec, rec_list,
 					       session, &sendtargets,
 					       &active, &valid_text, data);
-			if (rc == DISCOVERY_NEED_RECONNECT)
+			if (rc == (int)DISCOVERY_NEED_RECONNECT)
 				goto reconnect;
 
 			/* reset timers after receiving a PDU */

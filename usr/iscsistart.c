@@ -295,7 +295,10 @@ static int setup_session(void)
 	return rc;
 }
 
-int session_in_use(int sid) { return 0; }
+int session_in_use(__attribute__((unused))int sid)
+{
+	return 0;
+}
 
 static void catch_signal(int signo)
 {

@@ -256,7 +256,8 @@ int uip_broadcast(void *buf, size_t buf_len, int fd_flags, uint32_t *status)
 	iscsid_uip_rsp_t rsp;
 	int flags;
 	int count;
-
+	size_t write_res;
+	
 	err = uip_connect(&fd);
 	if (err) {
 		log_warning("uIP daemon is not up");
@@ -266,10 +267,10 @@ int uip_broadcast(void *buf, size_t buf_len, int fd_flags, uint32_t *status)
 	log_debug(3, "connected to uIP daemon");
 
 	/*  Send the data to uIP */
-	err = write(fd, buf, buf_len);
-	if (err != buf_len) {
+	write_res = write(fd, buf, buf_len);
+	if (write_res != buf_len) {
 		log_error("got write error (%d/%d), daemon died?",
-			  err, errno);
+			  (int)write_res, errno);
 		close(fd);
 		return ISCSI_ERR_ISCSID_COMM_ERR;
 	}
@@ -298,9 +299,8 @@ int uip_broadcast(void *buf, size_t buf_len, int fd_flags, uint32_t *status)
 		/*  Wait for the response */
 		err = read(fd, &rsp, sizeof(rsp));
 		if (err == sizeof(rsp)) {
-			log_debug(3, "Broadcasted to uIP with length: %ld "
-				     "cmd: 0x%x rsp: 0x%x", buf_len,
-				     rsp.command, rsp.err);
+			log_debug(3, "Broadcasted to uIP with length: %zu cmd: 0x%x rsp: 0x%x",
+				  buf_len, rsp.command, rsp.err);
 			err = 0;
 			break;
 		} else if ((err == -1) && (errno == EAGAIN)) {

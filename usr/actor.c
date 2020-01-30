@@ -31,7 +31,7 @@ static LIST_HEAD(ready_list);
 static volatile int poll_in_progress;
 
 static uint64_t
-actor_time_left(actor_t *thread, uint64_t current_time)
+actor_time_left(actor_t *thread, time_t current_time)
 {
 	if (current_time > thread->ttschedule)
 		return 0;
@@ -239,7 +239,8 @@ actor_poll(void)
 		uint64_t time_left = actor_time_left(thread, current_time);
 		if (time_left) {
 			log_debug(7, "thread %08lx due %" PRIu64 ", wait %" PRIu64 " more",
-				  (long)thread, thread->ttschedule, time_left);
+				  (long)thread,
+				  (uint64_t)thread->ttschedule, time_left);
 
 			alarm(time_left);
 			break;
@@ -251,7 +252,7 @@ actor_poll(void)
 		log_debug(2, "thread %08lx was scheduled for "
 			  "%" PRIu64 ", curtime %" PRIu64 " q_forw %p "
 			  "&pend_list %p",
-			  (long)thread, thread->ttschedule,
+			  (long)thread, (uint64_t)thread->ttschedule,
 			  current_time, pend_list.next, &pend_list);
 
 		list_add_tail(&thread->list, &ready_list);

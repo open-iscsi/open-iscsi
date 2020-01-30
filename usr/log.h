@@ -64,7 +64,7 @@ struct logarea {
 	union semun semarg;
 };
 
-struct logarea *la;
+extern struct logarea *la;
 
 extern int log_init(char *program_name, int size,
 	void (*func)(int prio, void *priv, const char *fmt, va_list ap),

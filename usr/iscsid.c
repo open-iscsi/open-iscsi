@@ -189,7 +189,8 @@ setup_rec_from_negotiated_values(node_rec_t *rec, struct session_info *info)
 	}
 }
 
-static int sync_session(void *data, struct session_info *info)
+static int sync_session(__attribute__((unused))void *data,
+			struct session_info *info)
 {
 	node_rec_t rec, sysfsrec;
 	iscsiadm_req_t req;

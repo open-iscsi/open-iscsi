@@ -48,8 +48,10 @@ char *to_key(const char *fmt)
 	return key;
 }
 
-int flashnode_info_print_flat(void *data, struct flashnode_rec *fnode,
-			      uint32_t host_no, uint32_t flashnode_idx)
+int flashnode_info_print_flat(__attribute__((unused))void *data,
+			      struct flashnode_rec *fnode,
+			      __attribute__((unused))uint32_t host_no,
+			      uint32_t flashnode_idx)
 {
 	printf("%s: [%d] ", fnode->transport_name, flashnode_idx);
 	if (!strlen((char *)fnode->conn[0].ipaddress))
@@ -207,7 +209,8 @@ static int flashnode_fill_ipaddr(struct flashnode_rec *fnode, struct iovec *iov,
 	return rc;
 }
 
-static int flashnode_fill_uint8(struct flashnode_rec *fnode, struct iovec *iov,
+static int flashnode_fill_uint8(__attribute__((unused))struct flashnode_rec *fnode,
+				struct iovec *iov,
 				int param_type, uint8_t val)
 {
 	struct iscsi_flashnode_param_info *fnode_param;
@@ -229,7 +232,8 @@ static int flashnode_fill_uint8(struct flashnode_rec *fnode, struct iovec *iov,
 	return 0;
 }
 
-static int flashnode_fill_uint16(struct flashnode_rec *fnode, struct iovec *iov,
+static int flashnode_fill_uint16(__attribute__((unused))struct flashnode_rec *fnode,
+				 struct iovec *iov,
 				 int param_type, uint16_t val)
 {
 	struct iscsi_flashnode_param_info *fnode_param;
@@ -251,7 +255,8 @@ static int flashnode_fill_uint16(struct flashnode_rec *fnode, struct iovec *iov,
 	return 0;
 }
 
-static int flashnode_fill_uint32(struct flashnode_rec *fnode, struct iovec *iov,
+static int flashnode_fill_uint32(__attribute__((unused))struct flashnode_rec *fnode,
+				 struct iovec *iov,
 				 int param_type, uint32_t val)
 {
 	struct iscsi_flashnode_param_info *fnode_param;
@@ -273,7 +278,8 @@ static int flashnode_fill_uint32(struct flashnode_rec *fnode, struct iovec *iov,
 	return 0;
 }
 
-static int flashnode_fill_str(struct flashnode_rec *fnode, struct iovec *iov,
+static int flashnode_fill_str(__attribute__((unused))struct flashnode_rec *fnode,
+			      struct iovec *iov,
 			      int param_type, char *buf, int buflen)
 {
 	struct iscsi_flashnode_param_info *fnode_param;

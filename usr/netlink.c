@@ -137,7 +137,7 @@ nlpayload_read(int ctrl_fd, char *data, int count, int flags)
 	iov.iov_len = NLMSG_SPACE(count);
 
 	if (iov.iov_len > NLM_BUF_DEFAULT_MAX) {
-		log_error("Cannot read %lu bytes. nlm_recvbuf too small.",
+		log_error("Cannot read %zu bytes. nlm_recvbuf too small.",
 			  iov.iov_len);
 		return -1;
 	}
@@ -581,7 +581,7 @@ ksend_pdu_begin(uint64_t transport_handle, uint32_t sid, uint32_t cid,
 		exit(-EIO);
 	}
 
-	if (total_xmitlen > PDU_SENDBUF_DEFAULT_MAX) {
+	if (total_xmitlen > (int)PDU_SENDBUF_DEFAULT_MAX) {
 		log_error("BUG: Cannot send %d bytes.", total_xmitlen);
 		exit(-EINVAL);
 	}
@@ -603,8 +603,8 @@ ksend_pdu_begin(uint64_t transport_handle, uint32_t sid, uint32_t cid,
 }
 
 static int
-ksend_pdu_end(uint64_t transport_handle, uint32_t sid, uint32_t cid,
-	      int *retcode)
+ksend_pdu_end(__attribute__((unused))uint64_t transport_handle,
+	      uint32_t sid, uint32_t cid, int *retcode)
 {
 	int rc;
 	struct iscsi_uevent *ev;
@@ -929,7 +929,7 @@ ktransport_ep_disconnect(iscsi_conn_t *conn)
 
 	log_debug(7, "in %s", __FUNCTION__);
 
-	if (conn->transport_ep_handle == -1)
+	if (conn->transport_ep_handle == (uint64_t)-1)
 		return;
 
 	memset(&ev, 0, sizeof(struct iscsi_uevent));

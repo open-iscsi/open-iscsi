@@ -78,7 +78,7 @@ AC_CONFIG_COMMANDS([default],[[
     else
         echo 'char *build_date = "'`date`'";' > src/unix/build_date.c
     fi
-    echo 'char *build_date;'> src/unix/build_date.h
+    echo 'extern char *build_date;'> src/unix/build_date.h
 ]],[[]])
 
 AC_PREFIX_DEFAULT()

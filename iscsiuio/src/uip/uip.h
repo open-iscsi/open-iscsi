@@ -70,8 +70,8 @@ struct uip_stack;
 typedef u16_t uip_ip4addr_t[2];
 typedef u16_t uip_ip6addr_t[8];
 
-const uip_ip6addr_t all_zeroes_addr6;
-const uip_ip4addr_t all_zeroes_addr4;
+extern const uip_ip6addr_t all_zeroes_addr6;
+extern const uip_ip4addr_t all_zeroes_addr4;
 
 #define ETH_BUF(buf) ((struct uip_eth_hdr *)buf)
 #define VLAN_ETH_BUF(buf) ((struct uip_vlan_eth_hdr *)buf)

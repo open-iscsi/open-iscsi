@@ -62,14 +62,14 @@ iscsi_add_text(struct iscsi_hdr *pdu, char *data, int max_data_length,
 	}
 
 	/* param */
-	strncpy(text, param, param_len);
+	memcpy(text, param, param_len);
 	text += param_len;
 
 	/* separator */
 	*text++ = ISCSI_TEXT_SEPARATOR;
 
 	/* value */
-	strncpy(text, value, value_len);
+	memcpy(text, value, value_len);
 	text += value_len;
 
 	/* NUL */
@@ -399,7 +399,7 @@ get_op_params_text_keys(iscsi_session_t *session, int cid,
 			 * what the target gave us.
 			 */
 			if (!conn_rec->iscsi.MaxXmitDataSegmentLength ||
-			    tgt_max_xmit < conn->max_xmit_dlength)
+			    tgt_max_xmit < (int)conn->max_xmit_dlength)
 				conn->max_xmit_dlength = tgt_max_xmit;
 		}
 		text = value_end;

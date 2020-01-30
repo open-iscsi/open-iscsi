@@ -22,9 +22,9 @@
 #include "iscsid_req.h"
 #include "iscsi_err.h"
 
-int uip_broadcast_params(struct iscsi_transport *t,
+int uip_broadcast_params(__attribute__((unused))struct iscsi_transport *t,
 			 struct iface_rec *iface,
-			 struct iscsi_session *session)
+			 __attribute__((unused))struct iscsi_session *session)
 {
 	struct iscsid_uip_broadcast broadcast;
 
@@ -42,7 +42,7 @@ int uip_broadcast_params(struct iscsi_transport *t,
 			     sizeof(*iface), O_NONBLOCK, NULL);
 }
 
-int uip_broadcast_ping_req(struct iscsi_transport *t,
+int uip_broadcast_ping_req(__attribute__((unused))struct iscsi_transport *t,
 			   struct iface_rec *iface, int datalen,
 			   struct sockaddr_storage *dst_addr, uint32_t *status)
 {
