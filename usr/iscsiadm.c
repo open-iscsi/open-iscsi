@@ -391,6 +391,9 @@ __logout_by_startup(void *data, struct list_head *list,
 	if (rec.startup == ISCSI_STARTUP_ONBOOT)
 		return -1;
 
+	if (rec.disc_type == DISCOVERY_TYPE_FW)
+		return -1;
+
 	if (match_startup_mode(&rec, mode))
 		return -1;
 
