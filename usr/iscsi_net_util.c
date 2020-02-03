@@ -192,6 +192,10 @@ static char *find_vlan_dev(char *netdev, int vlan_id) {
 	int sockfd, i, rc;
 
 	sockfd = socket(AF_INET, SOCK_DGRAM, 0);
+	if (sockfd < 0) {
+		log_error("Could not open socket for ioctl.");
+		return NULL;
+	}
 
 	strlcpy(if_hwaddr.ifr_name, netdev, IFNAMSIZ);
 	ioctl(sockfd, SIOCGIFHWADDR, &if_hwaddr);
