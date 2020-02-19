@@ -17,3 +17,8 @@
     - discovery, with and without authentication
     - session creation, w/ & w/o auth
     - etc
+
+* Gather actual regression data!
+  - Since we are testing all of these combinations, why not
+    keep historical data to see if there are any negative
+    trends (i.e. regressions)?

@@ -6,18 +6,23 @@ import os
 import shutil
 import sys
 import unittest
+import time
+import tempfile
 
 #
 # globals
 #
 class Global:
-    _FSTYPE = os.getenv('FSTYPE', 'ext3')
-    _MOUNTOPTIONS = os.getenv('MOUNTOPTIONS', '').split(' ') + [' -t ', _FSTYPE]
-    _MKFSCMD = [os.getenv('MKFSCMD', 'mkfs.' + _FSTYPE)]
+    FSTYPE = os.getenv('FSTYPE', 'ext3')
+    if os.getenv('MOUNTOPTIONS'):
+        MOUNTOPTIONS = os.getenv('MOUNTOPTIONS').split(' ')
+    else:
+        MOUNTOPTIONS = []
+    MOUNTOPTIONS += ['-t', FSTYPE]
+    MKFSCMD = [os.getenv('MKFSCMD', 'mkfs.' + FSTYPE)]
     if os.getenv('MKFSOPTS'):
-        _MKFSCMD += os.getenv('MKFSOPTS').split(' ')
-    _PARTITIONSUFFIX = '1'
-    _BONNIEPARAMS = os.getenv('BONNIEPARAMS', '--r0 -n10:0:0 -s16 -uroot -f -q').split(' ')
+        MKFSCMD += os.getenv('MKFSOPTS').split(' ')
+    BONNIEPARAMS = os.getenv('BONNIEPARAMS', '-r0 -n10:0:0 -s16 -uroot -f -q').split(' ')
     verbosity = 1
     debug = False
     # the target (e.g. "iqn.*")
@@ -51,31 +56,22 @@ def vprint(*args):
             print(arg, end='')
         print('')
 
-def notice(*args):
-    """
-    Print if not in quiet mode
-    """
-    if Global.verbosity > 0:
-        for arg in args:
-            print(arg, end='')
-        print('')
-
-def run_cmd(cmd, output_save_file=None, quiet_mode=False):
+def run_cmd(cmd, output_save_file=None):
     """
     run specified command, waiting for and returning result
     """
-    if (Global.verbosity > 1 and not quiet_mode) or Global.debug:
+    if Global.debug:
         cmd_str = ' '.join(cmd)
         if output_save_file:
             cmd_str += ' >& %s' % output_save_file
-        vprint(cmd_str)
+        dprint(cmd_str)
     pid = os.fork()
     if pid < 0:
         print("Error: cannot fork!", flie=sys.stderr)
         sys.exit(1)
     if pid == 0:
         # the child
-        if output_save_file or quiet_mode:
+        if output_save_file or not Global.debug:
             stdout_fileno = sys.stdout.fileno()
             stderr_fileno = sys.stderr.fileno()
             if output_save_file:
@@ -87,6 +83,7 @@ def run_cmd(cmd, output_save_file=None, quiet_mode=False):
             os.dup2(new_stdout, stderr_fileno)
         os.execvp(cmd[0], cmd)
         # not reached
+        sys.exit(1)
 
     # the parent
     wpid, wstat = os.waitpid(pid, 0)
@@ -163,6 +160,7 @@ def verify_needed_commands_exist(cmd_list):
     Verify that the commands in the supplied list are in our path
     """
     path_list = os.getenv('PATH').split(':')
+    any_cmd_not_found = False
     for cmd in cmd_list:
         found = False
         for a_path in path_list:
@@ -171,7 +169,9 @@ def verify_needed_commands_exist(cmd_list):
                 break
         if not found:
             print('Error: %s must be in your PATH' % cmd)
-            sys.exit(1)
+            any_cmd_not_found = True
+    if any_cmd_not_found:
+        sys.exit(1)
 
 
 def run_fio():
@@ -192,26 +192,46 @@ def run_fio():
                 '16k', '32k', '75536', '128k', '1000000']
     # for each block size, do a read test, then a write test
     for bs in blocksizes:
-        vprint('Running "fio" read test: 2 seconds, 8 threads, bs=%s' % bs)
+        vprint('Running "fio" read test: 8 threads, bs=%s' % bs)
+        # only support direct IO with aligned reads
+        if bs.endswith('k'):
+            direct=1
+        else:
+            direct=0
         res = run_cmd(['fio', '--name=read-test', '--readwrite=randread',
             '--runtime=2s', '--numjobs=8', '--blocksize=%s' % bs, 
-            '--direct=1', '--filename=%s' % Global.device], quiet_mode=True)
+            '--direct=%d' % direct, '--filename=%s' % Global.device])
         if res != 0:
             return (res, 'fio failed')
-        vprint('Running "fio" write test: 2 seconds, 8 threads, bs=%s' % bs)
+        vprint('Running "fio" write test: 8 threads, bs=%s' % bs)
         res = run_cmd(['fio', '--name=write-test', '--readwrite=randwrite',
             '--runtime=2s', '--numjobs=8', '--blocksize=%s' % bs, 
-            '--direct=1', '--filename=%s' % Global.device], quiet_mode=True)
+            '--direct=%d' % direct, '--filename=%s' % Global.device])
         if res != 0:
             return (res, 'fio failed')
-        vprint('Running "fio" verify test: 2 seconds, 8 threads, bs=%s' % bs)
+        vprint('Running "fio" verify test: 1 thread, bs=%s' % bs)
         res = run_cmd(['fio', '--name=verify-test', '--readwrite=randwrite',
             '--runtime=2s', '--numjobs=1', '--blocksize=%s' % bs, 
-            '--direct=1', '--filename=%s' % Global.device,
-            '--verify=md5', '--verify_state_save=0'], quiet_mode=True)
+            '--direct=%d' % direct, '--filename=%s' % Global.device,
+            '--verify=md5', '--verify_state_save=0'])
         if res != 0:
             return (res, 'fio failed')
-    return (0, None)
+    return (0, 'Success')
+
+def wait_for_path(path, present=True):
+    """Wait until a path exists or is gone"""
+    dprint("Looking for path=%s, present=%s" % (path, present))
+    for i in range(10):
+        if os.path.exists(path) == present:
+            dprint("Found path!")
+            break
+        time.sleep(1)
+    if os.path.exists(path) != present:
+        dprint("Did NOT find path!")
+        return False
+    dprint("%s: present=%d after %d second(s)" % \
+           (path, present, i))
+    return True
 
 def run_parted():
     """
@@ -224,34 +244,47 @@ def run_parted():
     Uses Globals: device, partition
     """
     # zero out the label and parition table
-    res = run_cmd(['dd', 'if=/dev/zero', 'of=%s' % Global.device, 'bs=4k', 'count=100'],
-            quiet_mode=True)
+    res = run_cmd(['dd', 'if=/dev/zero', 'of=%s' % Global.device, 'bs=4k', 'count=100'])
     if res != 0:
         return (res, '%s: could not zero out label' % Global.device)
     # ensure our partition file is not there, to be safe
-    if os.path.exists(Global.partition):
+    if not wait_for_path(Global.partition, present=False):
         return (1, '%s: Partition already exists?' % Global.partition)
     # make a label, then a partition table with one partition
-    res = run_cmd(['parted', Global.device, 'mklabel', 'gpt'], quiet_mode=True)
+    vprint('Running "parted" to create a label and partition table')
+    res = run_cmd(['parted', Global.device, 'mklabel', 'gpt'])
     if res != 0:
         return (res, '%s: Could not create a GPT label' % Global.device)
-    res = run_cmd(['parted', '-a', 'none', Global.device, 'mkpart', 'primary', '0', '100%'],
-            quiet_mode=True)
+    res = run_cmd(['parted', '-a', 'none', Global.device, 'mkpart', 'primary', '0', '100%'])
     if res != 0:
         return (res, '%s: Could not create a primary partition' % Global.device)
     # wait for the partition to show up
-    for i in range(10):
-        if os.path.exists(Global.partition):
-            break
-        os.sleep(1)
-    if not os.path.exists(Global.partition):
+    if not wait_for_path(Global.partition):
         return (1, '%s: Partition never showed up?' % Global.partition)
-    return (0, None)
+    # success
+    return (0, 'Success')
 
 def run_mkfs():
-    #return (1, "Not Yet Implemented: mkfs")
-    return (0, None)
+    vprint('Running "mkfs" to to create filesystem')
+    res = run_cmd(Global.MKFSCMD + [ Global.partition ] )
+    if res != 0:
+        return (res, '%s: mkfs failed (%d)' % (Global.partition, res))
+    return (0, 'Success')
 
 def run_bonnie():
-    #return (1, "Not Yet Implemented: bonnie")
-    return (0, None)
+    # make a temp dir and mount the device there
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        vprint('Mounting the filesystem')
+        res = run_cmd(['mount'] + Global.MOUNTOPTIONS + [Global.partition, tmp_dir])
+        if res != 0:
+            return (res, '%s: mount failed (%d)' % (Global.partition, res))
+        # run bonnie++ on the new directory
+        vprint('Running "bonnie++" on the filesystem')
+        res = run_cmd(['bonnie++'] + Global.BONNIEPARAMS + ['-d', tmp_dir])
+        if res != 0:
+            return (res, '%s: umount failed (%d)' % (tmp_dir, res))
+        # unmount the device and remove the temp dir
+        res = run_cmd(['umount', tmp_dir])
+        if res != 0:
+            return (res, '%s: umount failed (%d)' % (tmp_dir, res))
+    return (0, 'Success')
