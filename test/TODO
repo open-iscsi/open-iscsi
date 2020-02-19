@@ -1,0 +1,19 @@
+* get current tests running
+  * this will mean replacing disktest with something
+    (like fio?)
+
+* convert to PyTest insteal of shell
+
+* have tests create their own target using targetcli and
+  a file?
+
+* have tests do discovery themselves, instead of requiring
+  that to be done already
+
+* Augment tests
+  * framework for adding new tests and test types,e.g.:
+    - multipathing
+    - using interface files or not
+    - discovery, with and without authentication
+    - session creation, w/ & w/o auth
+    - etc
