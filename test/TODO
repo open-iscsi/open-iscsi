@@ -30,3 +30,13 @@
 * Add in test cases for Discovery and/or Connection validation,
   which would require either a separate target set up for that,
   or control of our own target
+
+* Only allow /dev/disk/by-* paths, as /dev/sd? paths are
+  inherently problematic, since they can change names.
+
+* Add back in the "big warning" from regression.sh?
+
+* Add info to the README about how to run the python tests
+
+* Leave the regression test around, for now? It doesn't run,
+  so maybe it should just be removed?
