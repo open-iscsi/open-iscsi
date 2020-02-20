@@ -9,6 +9,8 @@ import unittest
 import time
 import tempfile
 
+from . import __version__ as lib_version
+
 #
 # globals
 #
@@ -113,6 +115,9 @@ def new_initArgParsers(self):
     self._main_parser.add_argument('-B', '--blocksize', dest='blocksize',
             action='store',
             help='block size (defaults to an assortment of sizes)')
+    self._main_parser.add_argument('-V', '--version', dest='version_request',
+            action='store_true',
+            help='Display Version info and exit')
 
 def new_parseArgs(self, argv):
     """
@@ -120,9 +125,13 @@ def new_parseArgs(self, argv):
     called to parse then validate the arguments, inside each TestCase
     instance.
     """
-    global old_parseArgs
+    global old_parseArgs, prog_name, parent_version, lib_version
 
     old_parseArgs(self, argv)
+    if self.version_request:
+        print('%s Version %s, harnes version %s' % \
+              (prog_name, parent_version, lib_version))
+        sys.exit(0)
     Global.verbosity = self.verbosity
     Global.debug = self.debug
     for v in ['target', 'ipnr', 'device']:
@@ -144,18 +153,19 @@ def new_parseArgs(self, argv):
                 Global.device, file=sys.sttderr)
         sys.exit(1)
 
-def setup_testProgram_overrides():
+def setup_testProgram_overrides(version_str, name):
     """
     Add in special handling for a couple of the methods in TestProgram (main)
     so that we can add parameters and detect some globals we care about
     """
-    global old_parseArgs, old_initArgParsers
+    global old_parseArgs, old_initArgParsers, parent_version, prog_name
 
     old_initArgParsers = unittest.TestProgram._initArgParsers
     unittest.TestProgram._initArgParsers = new_initArgParsers
     old_parseArgs = unittest.TestProgram.parseArgs
     unittest.TestProgram.parseArgs = new_parseArgs
-
+    parent_version = version_str
+    prog_name = name
 
 def verify_needed_commands_exist(cmd_list):
     """

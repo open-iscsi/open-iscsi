@@ -11,6 +11,7 @@ from harness import util
 from harness.util import Global
 from harness.iscsi import IscsiData
 
+__version__ = '1.0'
 
 class TestRegression(unittest.TestCase):
     """
@@ -134,6 +135,6 @@ class TestRegression(unittest.TestCase):
 if __name__ == '__main__':
     # do our own hackery first, to get access to verbosity, debug, etc,
     # as well as add our own command-line options
-    util.setup_testProgram_overrides()
+    util.setup_testProgram_overrides(__version__, 'test-open-iscsi.py')
     # now run the tests
     unittest.main()
