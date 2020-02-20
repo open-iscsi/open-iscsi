@@ -19,7 +19,7 @@ class TestRegression(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        util.verify_needed_commands_exist(['parted', 'fio', 'mkfs', 'bonnie++', 'dd', 'iscsiadm'])
+        util.verify_needed_commands_exist(['parted', 'fio', 'mkfs', 'bonnie++', 'sgdisk', 'iscsiadm'])
         util.vprint('*** Starting %s' % cls.__name__)
         # XXX validate that target exists?
         # an array of first burts, max burst, and max recv values, for testing
@@ -54,24 +54,49 @@ class TestRegression(unittest.TestCase):
             self.fail('logout failed')
         self.assertFalse(os.path.exists(Global.device), '%s: exists after logout!' % Global.device)
 
-    def test_InitialR2T(self):
-        """Test Initial Request to Transmit set, but no Immediate Data"""
+    def test_InitialR2T_on(self):
+        """Test Initial Request to Transmit on, but Immediate Data off"""
         i = 1
         for v in self.param_values:
             with self.subTest('Testing FirstBurst={} MaxBurts={} MaxRecv={}'.format(*v), i=i):
+                util.vprint('Running subtest %d: FirstBurst={} MaxBurts={} MaxRecv={}'.format(*v) % i)
                 self.iscsi_logout()
                 iscsi_data = IscsiData('No', 'Yes', 'None', 'None', v[0], v[1], v[2])
                 iscsi_data.update_cfg(Global.target, Global.ipnr)
                 self.run_the_rest()
             i += 1
 
-    def test_ImmediateData(self):
-        """Test Initial Request to Transmit set, but no Immediate Data"""
+    def test_ImmediateData_on(self):
+        """Test Initial Request to Transmit off, Immediate Data on"""
         i = 1
         for v in self.param_values:
             with self.subTest('Testing FirstBurst={} MaxBurts={} MaxRecv={}'.format(*v), i=i):
                 self.iscsi_logout()
                 iscsi_data = IscsiData('Yes', 'No', 'None', 'None', v[0], v[1], v[2])
+                iscsi_data.update_cfg(Global.target, Global.ipnr)
+                self.run_the_rest()
+            i += 1
+
+    def test_InitialR2T_and_ImmediateData_on(self):
+        """Test Initial Request to Transmit and Immediate Data on"""
+        i = 1
+        for v in self.param_values:
+            with self.subTest('Testing FirstBurst={} MaxBurts={} MaxRecv={}'.format(*v), i=i):
+                util.vprint('Running subtest %d: FirstBurst={} MaxBurts={} MaxRecv={}'.format(*v) % i)
+                self.iscsi_logout()
+                iscsi_data = IscsiData('Yes', 'Yes', 'None', 'None', v[0], v[1], v[2])
+                iscsi_data.update_cfg(Global.target, Global.ipnr)
+                self.run_the_rest()
+            i += 1
+
+    def test_InitialR2T_and_ImmediateData_off(self):
+        """Test Initial Request to Transmit and Immediate Data off"""
+        i = 1
+        for v in self.param_values:
+            with self.subTest('Testing FirstBurst={} MaxBurts={} MaxRecv={}'.format(*v), i=i):
+                util.vprint('Running subtest %d: FirstBurst={} MaxBurts={} MaxRecv={}'.format(*v) % i)
+                self.iscsi_logout()
+                iscsi_data = IscsiData('No', 'No', 'None', 'None', v[0], v[1], v[2])
                 iscsi_data.update_cfg(Global.target, Global.ipnr)
                 self.run_the_rest()
             i += 1

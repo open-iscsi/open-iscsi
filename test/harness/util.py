@@ -116,7 +116,9 @@ def new_initArgParsers(self):
 
 def new_parseArgs(self, argv):
     """
-    Gather globals from unittest main for local consumption
+    Gather globals from unittest main for local consumption -- this
+    called to parse then validate the arguments, inside each TestCase
+    instance.
     """
     global old_parseArgs
 
@@ -218,21 +220,32 @@ def run_fio():
             return (res, 'fio failed')
     return (0, 'Success')
 
-def wait_for_path(path, present=True):
+def wait_for_path(path, present=True, amt=10):
     """Wait until a path exists or is gone"""
     dprint("Looking for path=%s, present=%s" % (path, present))
-    for i in range(10):
-        if os.path.exists(path) == present:
-            dprint("Found path!")
-            break
+    for i in range(amt):
         time.sleep(1)
-    if os.path.exists(path) != present:
-        dprint("Did NOT find path!")
-        return False
-    dprint("%s: present=%d after %d second(s)" % \
-           (path, present, i))
-    return True
+        if os.path.exists(path) == present:
+            dprint("We are Happy :) present=%s, cnt=%d" % (present, i))
+            return True
+    dprint("We are not happy :( present=%s actual=%s after %d seconds" % \
+           (present, os.path.exists(path), amt))
+    return False
 
+def wipe_disc():
+    """
+    Wipe the label and partition table from the disc drive -- the sleep-s
+    are needed to give the async OS and udev a chance to notice the partition
+    table has been erased
+    """
+    # zero out the label and parition table
+    vprint('Running "sgdisk" to wipe disc label and partitions')
+    time.sleep(1)
+    res = run_cmd(['sgdisk', '-Z', Global.device])
+    if res != 0:
+        return (res, '%s: could not zero out label: %d' % (Global.device, res))
+    return (0, 'Success')
+    
 def run_parted():
     """
     Run the parted program to ensure there is one partition,
@@ -243,12 +256,9 @@ def run_parted():
 
     Uses Globals: device, partition
     """
-    # zero out the label and parition table
-    res = run_cmd(['dd', 'if=/dev/zero', 'of=%s' % Global.device, 'bs=4k', 'count=100'])
-    if res != 0:
-        return (res, '%s: could not zero out label' % Global.device)
+    wipe_disc()
     # ensure our partition file is not there, to be safe
-    if not wait_for_path(Global.partition, present=False):
+    if not wait_for_path(Global.partition, present=False, amt=30):
         return (1, '%s: Partition already exists?' % Global.partition)
     # make a label, then a partition table with one partition
     vprint('Running "parted" to create a label and partition table')
