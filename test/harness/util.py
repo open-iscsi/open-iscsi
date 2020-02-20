@@ -118,6 +118,18 @@ def new_initArgParsers(self):
     self._main_parser.add_argument('-V', '--version', dest='version_request',
             action='store_true',
             help='Display Version info and exit')
+    self._main_parser.add_argument('-l', '--list', dest='list_tests',
+            action='store_true',
+            help='List test cases and exit')
+
+def print_suite(suite):
+    """Print a list of tests from a test suite"""
+    dprint("print_suite: entering for", suite)
+    if hasattr(suite, '__iter__'):
+        for x in suite:
+            print_suite(x)
+    else:
+        print(suite)
 
 def new_parseArgs(self, argv):
     """
@@ -134,6 +146,9 @@ def new_parseArgs(self, argv):
         sys.exit(0)
     Global.verbosity = self.verbosity
     Global.debug = self.debug
+    if self.list_tests:
+        print_suite(unittest.defaultTestLoader.discover('.'))
+        sys.exit(0)
     for v in ['target', 'ipnr', 'device']:
         if getattr(self, v) is None:
             print('Error: "%s" required' % v.upper())
