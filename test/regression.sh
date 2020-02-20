@@ -64,13 +64,16 @@ function disktest_run() {
 	test "x$bsize" = xbonnie && return 0;
 	for bs in $bsizes; do
 		echo -n "disktest -T2 -K8 -B$bs -r -ID $device: "
-		if ! ${disktest} -T2 -K8 -B$bs -r -ID $device >/dev/null; then
+		#if ! ${disktest} -T2 -K8 -B$bs -r -ID $device >/dev/null; then
+		if ! ${disktest} -T2 -K8 -B$bs -r -ID $device; then
 			echo "FAILED"
 			return 1;
 		fi
 		echo "PASSED"
-		echo -n "disktest -T2 -K8 -B$bs -E16 -w -ID $device: "
-		if ! ${disktest} -T2 -K8 -B$bs -E16 -w -ID $device >/dev/null;then
+		#echo -n "disktest -T2 -K8 -B$bs -E16 -w -ID $device: "
+		#if ! ${disktest} -T2 -K8 -B$bs -E16 -w -ID $device >/dev/null;then
+		echo -n "disktest -T2 -K8 -B$bs -E16 -ID $device: "
+		if ! ${disktest} -T2 -K8 -B$bs -E16 -ID $device; then
 			echo "FAILED"
 			return 1;
 		fi
@@ -80,12 +83,11 @@ function disktest_run() {
 }
 
 function fdisk_run() {
-	echo -n "sfdisk -Lqf $device: "
-	sfdisk -Lqf $device >/dev/null 2>/dev/null <<-EOF
-	0,
-	;
-	;
-	;
+	echo -n "sfdisk -qf $device: "
+	#sfdisk -Lqf $device >/dev/null 2>/dev/null <<-EOF
+	sfdisk -Lqf $device <<-EOF
+	,
+	quit
 	EOF
 	rc=$?
 	if [ $rc -ne 0 ]; then
@@ -98,7 +100,8 @@ function fdisk_run() {
 
 function mkfs_run() {
 	echo -n "${MKFSCMD} $device_partition: "
-	if ! ${MKFSCMD} $device_partition 2>/dev/null >/dev/null; then
+	#if ! ${MKFSCMD} $device_partition 2>/dev/null >/dev/null; then
+	if ! ${MKFSCMD} $device_partition ; then
 		echo "FAILED"
 		return 1;
 	fi

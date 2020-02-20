@@ -1,0 +1,68 @@
+#
+# Things to do for testing
+#
+
+* get current tests running
+  * this will mean replacing disktest with something
+    (like fio?)
+
+  PASS -- no need to spend time getting disktest working
+  when (1) it's hard to find, and (2) it's going to be
+  replaced anyway.
+
+* ensure user is root? -- easy to do
+
+* have tests create their own target using targetcli and
+  a file? -- this would be much better, but would pull
+  in a requirement for targetcli-fb and friends, plus we
+  would still need a place for a decent-sized (1G?) file.
+
+* have tests do discovery themselves, instead of requiring
+  that to be done already. Either way, we may still need
+  to know the IQN of our target and the host where it lives.
+
+  PASS -- we still would have to know two things (IQN and
+  IP:Port). See next item.
+
+* Have tests figure out the device path, so it doesn't have
+  to be passed in. Passing it in requires the called to
+  login to the remote iscsi target and look at the path
+  in /dev/disk/by-id (for example). If we created the
+  disk, we might have a better chance of guessing its name?
+
+* Augment tests
+  Right now, the test is a long-ass regression test. Very
+  repetitive and time-consuming. But we also have need of
+  regular unit tests, e.g. for functionality, where a new
+  test could be added each time we find a bug? New tests
+  could include things like:
+    - multipathing
+    - using interface files or not
+    - discovery, with and without authentication
+    - session creation, w/ & w/o auth
+
+* Gather actual regression data!
+  - Since we are testing all of these combinations, why not
+    keep historical data to see if there are any negative
+    trends (i.e. regressions)? Need to understand fio and bonnie++
+    output better to find a way to gather one or two datapoints
+    (max) per test, out of all the info dumped by these
+    programs.
+
+* Add in test cases for Discovery and/or Connection validation,
+  which would require either a separate target set up for that,
+  or control of our own target
+
+* Only allow /dev/disk/by-* paths, as /dev/sd? paths are
+  inherently problematic, since they can change names.
+
+* Add back in the "big warning" from regression.sh?
+
+* Add info to the README about how to run the python tests
+
+* Leave the regression test around, for now? It doesn't run,
+  so maybe it should just be removed?
+
+* Add in option to specify which subtests (of 16) are run
+  for each test case. Would make it much faster for testing
+  and go/no-go testing?
