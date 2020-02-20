@@ -608,7 +608,7 @@ static int _idbm_rec_update_param(struct iscsi_context *ctx,
 	int passwd_done = 0;
 	char passwd_len[8];
 	struct int_list_tbl *tbl = NULL;
-	char *tmp_value;
+	char *tmp_value, *orig_tmp_value;
 	int *tmp_data;
 	bool *found;
 	char *token;
@@ -693,7 +693,7 @@ setup_passwd_len:
 					continue;
 				tbl = (void *)recs[i].opts[0];
 				/* strsep is destructive, make a copy to work with */
-				tmp_value = strdup(value);
+				orig_tmp_value = tmp_value = strdup(value);
 				k = 0;
 				tmp_data = malloc(recs[i].data_len);
 				memset(tmp_data, ~0, recs[i].data_len);
@@ -722,10 +722,12 @@ next_token:			while ((token = strsep(&tmp_value, ", \n"))) {
 					_warn(ctx, "Ignoring unknown value '%s'"
 					      " for '%s'", token, recs[i].name);
 				}
+				free(found);
+				found = NULL;
+				free(orig_tmp_value);
+				orig_tmp_value = NULL;
 				memcpy(recs[i].data, tmp_data, recs[i].data_len);
-				free(tmp_value);
 				free(tmp_data);
-				tmp_value = NULL;
 				tmp_data = NULL;
 				token = NULL;
 				goto updated;
