@@ -58,11 +58,14 @@ class TestRegression(unittest.TestCase):
         i = 1
         for v in self.param_values:
             with self.subTest('Testing FirstBurst={} MaxBurts={} MaxRecv={}'.format(*v), i=i):
-                util.vprint('Running subtest %d: FirstBurst={} MaxBurts={} MaxRecv={}'.format(*v) % i)
-                self.iscsi_logout()
-                iscsi_data = IscsiData('No', 'Yes', 'None', 'None', v[0], v[1], v[2])
-                iscsi_data.update_cfg(Global.target, Global.ipnr)
-                self.run_the_rest()
+                if i not in Global.subtest_list:
+                    util.vprint('Skipping subtest %d: FirstBurst={} MaxBurts={} MaxRecv={}'.format(*v) % i)
+                else:
+                    util.vprint('Running subtest %d: FirstBurst={} MaxBurts={} MaxRecv={}'.format(*v) % i)
+                    self.iscsi_logout()
+                    iscsi_data = IscsiData('No', 'Yes', 'None', 'None', v[0], v[1], v[2])
+                    iscsi_data.update_cfg(Global.target, Global.ipnr)
+                    self.run_the_rest()
             i += 1
 
     def test_InitialR2T_off_ImmediateData_on(self):
@@ -70,10 +73,13 @@ class TestRegression(unittest.TestCase):
         i = 1
         for v in self.param_values:
             with self.subTest('Testing FirstBurst={} MaxBurts={} MaxRecv={}'.format(*v), i=i):
-                self.iscsi_logout()
-                iscsi_data = IscsiData('Yes', 'No', 'None', 'None', v[0], v[1], v[2])
-                iscsi_data.update_cfg(Global.target, Global.ipnr)
-                self.run_the_rest()
+                if i not in Global.subtest_list:
+                    util.vprint('Skipping subtest %d: FirstBurst={} MaxBurts={} MaxRecv={}'.format(*v) % i)
+                else:
+                    self.iscsi_logout()
+                    iscsi_data = IscsiData('Yes', 'No', 'None', 'None', v[0], v[1], v[2])
+                    iscsi_data.update_cfg(Global.target, Global.ipnr)
+                    self.run_the_rest()
             i += 1
 
     def test_InitialR2T_on_ImmediateData_on(self):
@@ -81,11 +87,14 @@ class TestRegression(unittest.TestCase):
         i = 1
         for v in self.param_values:
             with self.subTest('Testing FirstBurst={} MaxBurts={} MaxRecv={}'.format(*v), i=i):
-                util.vprint('Running subtest %d: FirstBurst={} MaxBurts={} MaxRecv={}'.format(*v) % i)
-                self.iscsi_logout()
-                iscsi_data = IscsiData('Yes', 'Yes', 'None', 'None', v[0], v[1], v[2])
-                iscsi_data.update_cfg(Global.target, Global.ipnr)
-                self.run_the_rest()
+                if i not in Global.subtest_list:
+                    util.vprint('Skipping subtest %d: FirstBurst={} MaxBurts={} MaxRecv={}'.format(*v) % i)
+                else:
+                    util.vprint('Running subtest %d: FirstBurst={} MaxBurts={} MaxRecv={}'.format(*v) % i)
+                    self.iscsi_logout()
+                    iscsi_data = IscsiData('Yes', 'Yes', 'None', 'None', v[0], v[1], v[2])
+                    iscsi_data.update_cfg(Global.target, Global.ipnr)
+                    self.run_the_rest()
             i += 1
 
     def test_InitialR2T_off_ImmediateData_off(self):
@@ -93,11 +102,44 @@ class TestRegression(unittest.TestCase):
         i = 1
         for v in self.param_values:
             with self.subTest('Testing FirstBurst={} MaxBurts={} MaxRecv={}'.format(*v), i=i):
-                util.vprint('Running subtest %d: FirstBurst={} MaxBurts={} MaxRecv={}'.format(*v) % i)
-                self.iscsi_logout()
-                iscsi_data = IscsiData('No', 'No', 'None', 'None', v[0], v[1], v[2])
-                iscsi_data.update_cfg(Global.target, Global.ipnr)
-                self.run_the_rest()
+                if i not in Global.subtest_list:
+                    util.vprint('Skipping subtest %d: FirstBurst={} MaxBurts={} MaxRecv={}'.format(*v) % i)
+                else:
+                    util.vprint('Running subtest %d: FirstBurst={} MaxBurts={} MaxRecv={}'.format(*v) % i)
+                    self.iscsi_logout()
+                    iscsi_data = IscsiData('No', 'No', 'None', 'None', v[0], v[1], v[2])
+                    iscsi_data.update_cfg(Global.target, Global.ipnr)
+                    self.run_the_rest()
+            i += 1
+
+    def test_HdrDigest_on_DataDigest_off(self):
+        """Test With Header Digest"""
+        i = 1
+        for v in self.param_values:
+            with self.subTest('Testing FirstBurst={} MaxBurts={} MaxRecv={}'.format(*v), i=i):
+                if i not in Global.subtest_list:
+                    util.vprint('Skipping subtest %d: FirstBurst={} MaxBurts={} MaxRecv={}'.format(*v) % i)
+                else:
+                    util.vprint('Running subtest %d: FirstBurst={} MaxBurts={} MaxRecv={}'.format(*v) % i)
+                    self.iscsi_logout()
+                    iscsi_data = IscsiData('No', 'Yes', 'CRC32C', 'None', v[0], v[1], v[2])
+                    iscsi_data.update_cfg(Global.target, Global.ipnr)
+                    self.run_the_rest()
+            i += 1
+
+    def test_HdrDigest_on_DataDigest_on(self):
+        """Test With Header Digest"""
+        i = 1
+        for v in self.param_values:
+            with self.subTest('Testing FirstBurst={} MaxBurts={} MaxRecv={}'.format(*v), i=i):
+                if i not in Global.subtest_list:
+                    util.vprint('Skipping subtest %d: FirstBurst={} MaxBurts={} MaxRecv={}'.format(*v) % i)
+                else:
+                    util.vprint('Running subtest %d: FirstBurst={} MaxBurts={} MaxRecv={}'.format(*v) % i)
+                    self.iscsi_logout()
+                    iscsi_data = IscsiData('No', 'Yes', 'CRC32C', 'CRC32C', v[0], v[1], v[2])
+                    iscsi_data.update_cfg(Global.target, Global.ipnr)
+                    self.run_the_rest()
             i += 1
 
     def run_the_rest(self):

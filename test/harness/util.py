@@ -8,6 +8,7 @@ import sys
 import unittest
 import time
 import tempfile
+import re
 
 from . import __version__ as lib_version
 
@@ -37,6 +38,10 @@ class Global:
     partition = None
     # optional override for fio disk testing block size(s)
     blocksize = None
+    # subtests to run -- by default, all of them
+    # XXX we should really look how many subtests there are, but there's
+    # no good way to detect that.
+    subtest_list = [i+1 for i in range(16)]
 
 
 def dprint(*args):
@@ -121,6 +126,9 @@ def new_initArgParsers(self):
     self._main_parser.add_argument('-l', '--list', dest='list_tests',
             action='store_true',
             help='List test cases and exit')
+    self._main_parser.add_argument('-s', '--subtests', dest='subtest_list',
+            action='store',
+            help='Subtests to execute [default all, i.e. "1-16"]')
 
 def print_suite(suite):
     """Print a list of tests from a test suite"""
@@ -139,7 +147,10 @@ def new_parseArgs(self, argv):
     """
     global old_parseArgs, prog_name, parent_version, lib_version
 
+    # actually parse the arguments
     old_parseArgs(self, argv)
+
+    # now validate stuff
     if self.version_request:
         print('%s Version %s, harnes version %s' % \
               (prog_name, parent_version, lib_version))
@@ -167,7 +178,49 @@ def new_parseArgs(self, argv):
         print('Error: must start with "/dev" or "/dev/disk/by-{id,path}": %s' % \
                 Global.device, file=sys.sttderr)
         sys.exit(1)
+    if self.subtest_list:
+        if not user_spec_to_list(self.subtest_list):
+            self._print_help()
+            sys.exit(1)
 
+def user_spec_to_list(user_spec):
+    """
+    We have 16 subtests. By default, we run them all, but if
+    the user has specified a subset, like 'N' or 'N-M', then
+    a list of the indicies they requested.
+
+    XXX: expand to handle groups, e.g. 1,3-4,12 ???
+
+    XXX: should we validate that the range will work, or just
+    let an exception happen in that case?
+    """
+    pat_single = re.compile(r'(\d+)$')
+    pat_range = re.compile(r'(\d+)-(\d+)$')
+    found = False
+    start_idx = None
+    end_idx = None
+    res = pat_range.match(user_spec)
+    if res:
+        # user wants just one subtest
+        start_idx = int(res.group(1)) - 1
+        end_idx = int(res.group(2))
+        dprint("Found request for range: %d-%d" % (start_idx, end_idx))
+        found = True
+    else:
+        res = pat_single.match(user_spec)
+        if res:
+            start_idx = int(res.group(1)) - 1
+            end_idx = start_idx + 1
+            dprint("Found request for single: %d-%d" % (start_idx, end_idx))
+            found = True
+    if not found:
+        print('Error: subtest spec does not match N or N-M: %s' % user_spec)
+    else:
+        dprint("subtest_list before:", Global.subtest_list)
+        Global.subtest_list = Global.subtest_list[start_idx:end_idx]
+        dprint("subtest_list after:", Global.subtest_list)
+    return found
+    
 def setup_testProgram_overrides(version_str, name):
     """
     Add in special handling for a couple of the methods in TestProgram (main)
@@ -264,11 +317,14 @@ def wipe_disc():
     table has been erased
     """
     # zero out the label and parition table
-    vprint('Running "sgdisk" to wipe disc label and partitions')
+    vprint('Running "sgdisk" and "dd" to wipe disc label, partitions, and filesystem')
     time.sleep(1)
     res = run_cmd(['sgdisk', '-Z', Global.device])
     if res != 0:
         return (res, '%s: could not zero out label: %d' % (Global.device, res))
+    res = run_cmd(['dd', 'if=/dev/zero', 'of=%s' % Global.device, 'bs=256k', 'count=20', 'oflag=direct'])
+    if res != 0:
+        return (res, '%s: could not zero out filesystem: %d' % (Global.device, res))
     return (0, 'Success')
     
 def run_parted():
@@ -281,7 +337,9 @@ def run_parted():
 
     Uses Globals: device, partition
     """
-    wipe_disc()
+    (res, reason) = wipe_disc()
+    if res != 0:
+        return (res, resason)
     # ensure our partition file is not there, to be safe
     if not wait_for_path(Global.partition, present=False, amt=30):
         return (1, '%s: Partition already exists?' % Global.partition)
