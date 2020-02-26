@@ -1,3 +1,36 @@
+open-iscsi-2.1.0 - open-iscsi-2.1.1
+
+# output from "git shortlog --no-merges 2.1.0..HEAD"
+
+Chris Leech (2):
+      configuration support for CHAP algorithms
+      Revert "Out-of-bounds read: Overrunning array of 8 2-byte elements"
+
+Kiyotaka Nakamura (1):
+      Avoid logout of iscsi boot session
+
+Lee Duncan (13):
+      Fixed Changelog message, first line
+      Enabled compiler checking options, fixed issues.
+      Updates to support gcc -fno-common option.
+      Fix 586 compiler issues.
+      Beginning to get python tests set up.
+      First 32 tests working?
+      64 tests now working and passing
+      Update TODO list
+      Add in "-V" for version info
+      Test code rearranged to make discovery work.
+      more things to do
+      Allow sub-tests to be specified.
+      Fix memory leaks in libopeniscsiusr/idbm.c
+
+Patrick McCarty (1):
+      Fix bug with libopeniscsiusr.pc
+
+l00464806 (1):
+      Check whether socket is opened successfully in find_vlan_dev func
+
+
 open-iscsi-2.0.878 - open-iscsi-2.1.0
 
 # output from "git shortlog --no-merges 2.0.878..HEAD"
