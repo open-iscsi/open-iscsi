@@ -3,7 +3,7 @@ Description=Login and scanning of iSCSI devices
 Documentation=man:iscsiadm(8) man:iscsid(8)
 Before=remote-fs.target
 After=network.target network-online.target iscsid.service
-Requires=iscsid.service
+Requires=iscsid.socket
 ConditionPathExists=/etc/iscsi/initiatorname.iscsi
 
 [Service]
@@ -11,7 +11,7 @@ Type=oneshot
 ExecStart=/sbin/iscsiadm -m node --loginall=automatic
 ExecStop=/sbin/iscsiadm -m node --logoutall=automatic
 ExecStop=/sbin/iscsiadm -m node --logoutall=manual
-SuccessExitStatus=21
+SuccessExitStatus=21 15
 RemainAfterExit=true
 
 [Install]
