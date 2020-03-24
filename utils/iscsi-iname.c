@@ -69,7 +69,7 @@ main(int argc, char *argv[])
 			exit(0);
 		} else if ( strcmp(prefix, "-p") == 0 ) {
 			prefix = argv[2];
-			if (strnlen(prefix, PREFIX_MAX_LEN + 1) > PREFIX_MAX_LEN) {
+			if (prefix && (strnlen(prefix, PREFIX_MAX_LEN + 1) > PREFIX_MAX_LEN)) {
 				printf("Error: Prefix cannot exceed %d "
 				       "characters.\n", PREFIX_MAX_LEN);
 				exit(1);
