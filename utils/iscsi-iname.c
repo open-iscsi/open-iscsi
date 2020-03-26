@@ -40,6 +40,13 @@
  * a seperator and 12 characters (6 random bytes in hex representation) */
 #define PREFIX_MAX_LEN 210
 
+static void usage(void)
+{
+	fprintf(stderr, "Usage: iscsi-iname [-h | --help | -p <prefix>]\n");
+	fprintf(stderr, "where <prefix> has max length of %d\n",
+		PREFIX_MAX_LEN);
+}
+
 int
 main(int argc, char *argv[])
 {
@@ -68,15 +75,17 @@ main(int argc, char *argv[])
 			       "on every invocation.\n");
 			exit(0);
 		} else if ( strcmp(prefix, "-p") == 0 ) {
+			if (argc != 3) {
+				usage();
+				exit(1);
+			}
 			prefix = argv[2];
 			if (strnlen(prefix, PREFIX_MAX_LEN + 1) > PREFIX_MAX_LEN) {
-				printf("Error: Prefix cannot exceed %d "
-				       "characters.\n", PREFIX_MAX_LEN);
+				usage();
 				exit(1);
 			}
 		} else {
-			printf("\nUsage: iscsi-iname [-h | --help | "
-			       "-p <prefix>]\n");
+			usage();
 			exit(0);
 		}
 	} else {

@@ -1,7 +1,7 @@
 # This Makefile will work only with GNU make.
 
 CFLAGS ?= -O2 -fno-inline -g
-CFLAGS += -Wall -Wstrict-prototypes
+CFLAGS += -Wall -Wextra -Wstrict-prototypes
 PROGRAMS = iscsi-iname
 
 all: $(PROGRAMS)
