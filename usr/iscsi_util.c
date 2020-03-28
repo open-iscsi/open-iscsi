@@ -152,7 +152,9 @@ int increase_max_files(void)
 		log_debug(1, "Could not get file limit (err %d)", errno);
 		return errno;
 	}
-	log_debug(1, "Max file limits %lu %lu", rl.rlim_cur, rl.rlim_max);
+	log_debug(1, "Max file limits %lu %lu",
+		        (long unsigned)rl.rlim_cur,
+			(long unsigned)rl.rlim_max);
 
 	if (rl.rlim_cur < ISCSI_MAX_FILES)
 		rl.rlim_cur = ISCSI_MAX_FILES;
@@ -162,7 +164,8 @@ int increase_max_files(void)
 	err = setrlimit(RLIMIT_NOFILE, &rl);
 	if (err) {
 		log_debug(1, "Could not set file limit to %lu/%lu (err %d)",
-			  rl.rlim_cur, rl.rlim_max, errno);
+			  (long unsigned)rl.rlim_cur,
+			  (long unsigned)rl.rlim_max, errno);
 		return errno;
 	}
 
