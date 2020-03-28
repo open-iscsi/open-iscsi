@@ -24,7 +24,7 @@
 #include <signal.h>
 #include <unistd.h>
 #include <fcntl.h>
-#include <sys/poll.h>
+#include <poll.h>
 #include <sys/ioctl.h>
 #include <netinet/tcp.h>
 #include <arpa/inet.h>
