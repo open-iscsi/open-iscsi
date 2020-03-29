@@ -1,6 +1,6 @@
 #include <unistd.h>
 #include <pwd.h>
-#include <sys/errno.h>
+#include <errno.h>
 #include <sys/types.h>
 
 static struct passwd root_pw = {
@@ -17,4 +17,3 @@ getpwuid(uid_t uid)
 		return 0;
 	}
 }
-
