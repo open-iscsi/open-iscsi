@@ -4,6 +4,7 @@ Documentation=man:iscsid(8) man:iscsiuio(8) man:iscsiadm(8)
 DefaultDependencies=no
 After=network.target iscsiuio.service
 Before=remote-fs-pre.target
+Wants=remote-fs-pre.target
 
 [Service]
 Type=notify
