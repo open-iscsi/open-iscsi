@@ -30,7 +30,6 @@
 #include <time.h>
 #include <sys/mman.h>
 #include <sys/utsname.h>
-#include <sys/signal.h>
 #include <sys/types.h>
 #include <sys/wait.h>
 
