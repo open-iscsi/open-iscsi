@@ -905,6 +905,9 @@ int iface_for_each_iface(void *data, int skip_def, int *nr_found,
 		    !strcmp(iface_dent->d_name, ".."))
 			continue;
 
+		if (!strcmp(iface_dent->d_name, "iface.example"))
+			continue;
+
 		log_debug(5, "iface_for_each_iface found %s",
 			 iface_dent->d_name);
 		iface = iface_alloc(iface_dent->d_name, &err);
