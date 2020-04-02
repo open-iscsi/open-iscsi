@@ -51,6 +51,7 @@ iscsiadm \- open-iscsi administration utility
 .IR printlevel ]
 .RB [ \-L
 .IR all,manual,automatic,onboot ]
+.RB [ \-W ]
 .RB [ \-U
 .IR all,manual,automatic,onboot ]
 .RB [ \-S ]
@@ -292,7 +293,14 @@ in or all running session, except ones marked onboot, if all is passed in.
 This option is only valid for node mode (it is valid but not functional
 for session mode).
 .TP
-\fB\-m, \-\-mode \fIop\fR
+\fB\-W\fR, \fB\-\-\-no_wait\fR
+In node mode, when logging in to one or more targets using the
+\fB\-\-loginall\fR option, do not wait for a response from the targets.
+This means that success will be returned if the command is able to
+send the login requests, whether or not they succeed. In this case, it will
+be up to the caller to poll for success (i.e. session creation).
+.TP
+\fB\-m\fR, \fB\-\-mode \fIop\fR
 specify the mode. \fIop\fR
 must be one of \fIdiscovery\fR, \fIdiscoverydb\fR, \fInode\fR, \fIfw\fR,
 \fIhost\fR \fIiface\fR or \fIsession\fR.
