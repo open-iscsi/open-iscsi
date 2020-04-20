@@ -30,7 +30,7 @@
 #include <asm/types.h>
 #include <sys/socket.h>
 #include <sys/types.h>
-#include <sys/poll.h>
+#include <poll.h>
 #include <linux/netlink.h>
 
 #include "types.h"

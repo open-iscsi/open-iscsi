@@ -26,6 +26,7 @@
 #include <unistd.h>
 #include <pwd.h>
 #include <sys/un.h>
+#include <string.h>
 
 #include "iscsid.h"
 #include "idbm.h"
