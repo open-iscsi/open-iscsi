@@ -82,7 +82,6 @@ main(int argc, char *argv[])
 			prefix = argv[2];
 			if (strnlen(prefix, PREFIX_MAX_LEN + 1) > PREFIX_MAX_LEN) {
 				usage();
-
 				exit(1);
 			}
 		} else {
