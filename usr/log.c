@@ -73,7 +73,7 @@ static int logarea_init (int size)
 	logdbg(stderr,"enter logarea_init\n");
 
 	if ((shmid = shmget(IPC_PRIVATE, sizeof(struct logarea),
-			    0644 | IPC_CREAT | IPC_EXCL)) == -1) {
+			    0600 | IPC_CREAT | IPC_EXCL)) == -1) {
 		syslog(LOG_ERR, "shmget logarea failed %d", errno);
 		return 1;
 	}
@@ -93,7 +93,7 @@ static int logarea_init (int size)
 		size = DEFAULT_AREA_SIZE;
 
 	if ((shmid = shmget(IPC_PRIVATE, size,
-			    0644 | IPC_CREAT | IPC_EXCL)) == -1) {
+			    0600 | IPC_CREAT | IPC_EXCL)) == -1) {
 		syslog(LOG_ERR, "shmget msg failed %d", errno);
 		free_logarea();
 		return 1;
@@ -114,7 +114,7 @@ static int logarea_init (int size)
 	la->tail = la->start;
 
 	if ((shmid = shmget(IPC_PRIVATE, MAX_MSG_SIZE + sizeof(struct logmsg),
-			    0644 | IPC_CREAT | IPC_EXCL)) == -1) {
+			    0600 | IPC_CREAT | IPC_EXCL)) == -1) {
 		syslog(LOG_ERR, "shmget logmsg failed %d", errno);
 		free_logarea();
 		return 1;
