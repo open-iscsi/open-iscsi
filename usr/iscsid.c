@@ -310,7 +310,12 @@ static void iscsid_shutdown(void)
 
 static void catch_signal(int signo)
 {
-	log_debug(1, "pid %d caught signal %d", getpid(), signo);
+	/*
+	 * Do not try to call log_debug() if there is a PIPE error
+	 * because we can get caught in a PIPE error loop.
+	 */
+	if (signo != SIGPIPE)
+		log_debug(1, "pid %d caught signal %d", getpid(), signo);
 
 	/* In foreground mode, treat SIGINT like SIGTERM */
 	if (!daemonize && signo == SIGINT)
