@@ -711,11 +711,7 @@ static void iscsi_login_eh(struct iscsi_conn *conn, struct queue_task *qtask,
 			    !iscsi_retry_initial_login(conn))
 				session_conn_shutdown(conn, qtask, err);
 			else {
-				session->reopen_cnt++;
-				session->t->template->ep_disconnect(conn);
-				if (iscsi_conn_connect(conn, qtask))
-					queue_delayed_reopen(qtask,
-						ISCSI_CONN_ERR_REOPEN_DELAY);
+				session_conn_reopen(conn, qtask, STOP_CONN_TERM);
 			}
 			break;
 		case R_STAGE_SESSION_REDIRECT:
