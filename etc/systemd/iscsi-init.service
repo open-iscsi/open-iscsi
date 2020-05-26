@@ -1,0 +1,8 @@
+[Unit]
+Description=One time configuration for iscsi.service
+ConditionPathExists=!/etc/iscsi/initiatorname.iscsi
+
+[Service]
+Type=oneshot
+RemainAfterExit=no
+ExecStart=/usr/bin/sh -c 'echo "InitiatorName=`/usr/sbin/iscsi-iname`" > /etc/iscsi/initiatorname.iscsi'
