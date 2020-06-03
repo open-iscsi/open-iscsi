@@ -841,7 +841,7 @@ struct iscsi_stats {
 	 * up to ISCSI_STATS_CUSTOM_MAX
 	 */
 	uint32_t custom_length;
-	struct iscsi_stats_custom custom[0]
+	struct iscsi_stats_custom custom[]
 		__attribute__ ((aligned (sizeof(uint64_t))));
 };
 
@@ -972,7 +972,7 @@ struct iscsi_offload_host_stats {
 	 * up to ISCSI_HOST_STATS_CUSTOM_MAX
 	 */
 	uint32_t custom_length;
-	struct iscsi_host_stats_custom custom[0]
+	struct iscsi_host_stats_custom custom[]
 		 __attribute__ ((aligned (sizeof(uint64_t))));
 };
 
