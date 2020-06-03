@@ -603,7 +603,10 @@ static int from_uio_find_associated_host(nic_t *nic, int uio_minor,
 				search_filters[path_iterator], alphasort);
 
 		switch (count) {
-		case 1:
+		case 1: {
+			char *parsed_src;
+			size_t parsed_size;
+
 			parsed_name = (*extract_name[path_iterator]) (files);
 			if (!parsed_name) {
 				LOG_WARN(PFX "Couldn't find delimiter in: %s",
@@ -612,15 +615,22 @@ static int from_uio_find_associated_host(nic_t *nic, int uio_minor,
 				break;
 			}
 
-			strncpy(name,
-				parsed_name +
-				extract_name_offset[path_iterator], name_size);
+			parsed_src = parsed_name + extract_name_offset[path_iterator];
+			parsed_size = strlen(parsed_src);
+			if (parsed_size >= name_size) {
+				LOG_WARN(PFX "uio device name too long: %s (max %d)",
+					parsed_src, (int)name_size - 1);
+				rc = -EINVAL;
+			} else {
+				strncpy(name, parsed_src, name_size);
+				rc = 0;
+			}
 
 			free(files[0]);
 			free(files);
 
-			rc = 0;
 			break;
+		}
 
 		case 0:
 			rc = -EINVAL;
