@@ -115,8 +115,11 @@ static int get_iface_from_device(char *id, struct boot_context *context)
 				break;
 			}
 
-			if (sscanf(dent->d_name, "net:%s", context->iface) != 1)
+			if (sscanf(dent->d_name, "net:%s", context->iface) != 1) {
 				rc = EINVAL;
+				break;
+			}
+
 			rc = 0;
 			break;
 		} else {
