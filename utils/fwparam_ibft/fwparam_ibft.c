@@ -463,6 +463,7 @@ fwparam_ibft(struct boot_context *context, const char *filepath)
 	if (stat(filename, &buf)!=0) {
 		fprintf(stderr, "Could not stat file %s: %s (%d)\n",
 			filename, strerror(errno), errno);
+		close(fd);
 		return -1;
 	}
 	/* And if not zero use that size */
