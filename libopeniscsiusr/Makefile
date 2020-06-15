@@ -37,7 +37,8 @@ PKGFILE = libopeniscsiusr.pc
 HEADERS = libopeniscsiusr/libopeniscsiusr.h \
 	  libopeniscsiusr/libopeniscsiusr_common.h \
 	  libopeniscsiusr/libopeniscsiusr_session.h \
-	  libopeniscsiusr/libopeniscsiusr_iface.h
+	  libopeniscsiusr/libopeniscsiusr_iface.h \
+	  libopeniscsiusr/libopeniscsiusr_node.h
 TESTS = tests/test_context tests/test_session tests/test_iface tests/test_node
 EXTRA_MAN_FILES = libopeniscsiusr.h.3
 
