@@ -43,11 +43,11 @@ static const char acl_authmethod_set_chap_alg_list[] = "CHAP";
 static const char acl_reject_option_name[] = "Reject";
 
 #include <openssl/evp.h>
+#include <openssl/rand.h>
 static int auth_hash_init(EVP_MD_CTX **context, int chap_alg);
 static void auth_hash_update(EVP_MD_CTX *context, unsigned char *md, unsigned int);
 static unsigned int auth_hash_final(unsigned char *, EVP_MD_CTX *context);
 
-void get_random_bytes(unsigned char *data, unsigned int length);
 size_t strlcpy(char *, const char *, size_t);
 size_t strlcat(char *, const char *, size_t);
 
@@ -215,42 +215,6 @@ static unsigned int auth_hash_final(unsigned char *hash, EVP_MD_CTX *context) {
 	EVP_MD_CTX_free(context);
 	context = NULL;
 	return md_len;
-}
-
-void
-get_random_bytes(unsigned char *data, unsigned int length)
-{
-
-	long r;
-        unsigned n;
-	int fd, r_size = sizeof(r);
-
-	fd = open("/dev/urandom", O_RDONLY);
-        while (length > 0) {
-
-		if (fd == -1 || read(fd, &r, r_size) != r_size)
-			r = rand();
-                r = r ^ (r >> 8);
-                r = r ^ (r >> 4);
-                n = r & 0x7;
-
-		if (fd == -1 || read(fd, &r, r_size) != r_size)
-			r = rand();
-                r = r ^ (r >> 8);
-                r = r ^ (r >> 5);
-                n = (n << 3) | (r & 0x7);
-
-		if (fd == -1 || read(fd, &r, r_size) != r_size)
-			r = rand();
-                r = r ^ (r >> 8);
-                r = r ^ (r >> 5);
-                n = (n << 2) | (r & 0x3);
-
-                *data++ = n;
-                length--;
-        }
-	if (fd)
-		close(fd);
 }
 
 static const char acl_none_option_name[] = "None";
@@ -1008,6 +972,7 @@ acl_rmt_auth(struct iscsi_acl *client)
 	enum auth_dbg_status dbg_status;
 	const char *chap_rsp_key_val;
 	const char *chap_username_key_val;
+	int ssl_ret = 0;
 
 	switch (client->rmt_state) {
 	case AUTH_RMT_STATE_SEND_ALG:
@@ -1023,7 +988,13 @@ acl_rmt_auth(struct iscsi_acl *client)
 			client->rmt_state = AUTH_RMT_STATE_DONE;
 			break;
 		}
-		get_random_bytes(id_data, 1);
+
+		ssl_ret = RAND_bytes(id_data, sizeof(id_data));
+		if (ssl_ret != 1) {
+			client->rmt_state = AUTH_RMT_STATE_ERROR;
+			client->dbg_status = AUTH_DBG_STATUS_AUTH_FAIL;
+			break;
+		}
 		client->send_chap_identifier = id_data[0];
 		snprintf(client->scratch_key_value, AUTH_STR_MAX_LEN, "%lu",
 			 (unsigned long)client->send_chap_identifier);
@@ -1032,8 +1003,13 @@ acl_rmt_auth(struct iscsi_acl *client)
 				  client->scratch_key_value);
 
 		client->send_chap_challenge.length = client->chap_challenge_len;
-		get_random_bytes(client->send_chap_challenge.large_binary,
-				 client->send_chap_challenge.length);
+		ssl_ret = RAND_bytes(client->send_chap_challenge.large_binary,
+				     client->send_chap_challenge.length);
+		if (ssl_ret != 1) {
+			client->rmt_state = AUTH_RMT_STATE_ERROR;
+			client->dbg_status = AUTH_DBG_STATUS_AUTH_FAIL;
+			break;
+		}
 		acl_set_key_value(&client->send_key_block,
 				  AUTH_KEY_TYPE_CHAP_CHALLENGE, "");
 
