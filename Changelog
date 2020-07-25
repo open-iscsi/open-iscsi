@@ -1,3 +1,46 @@
+open-iscsi-2.1.0 - open-iscsi-2.1.2
+
+Christian Glombek (1):
+      Add iscsi-init.service
+
+David Disseldorp (2):
+      use openssl for random data generation
+      drop unused get_random_bytes()
+
+Lee Duncan (10):
+      Fix iscsi.service so it handles restarts better
+      Fix issue where "iscsi-iname -p" core dumps.
+      Add Wants=remote-fs-pre.target for sequencing.
+      Change include of <sys/poll.h> to <poll.h>
+      Fix type mismatch under musl.
+      More changes for musl.
+      Ignore iface.example in iface match checks
+      Fix issue with zero-length arrays at end of struct
+      Fix a compiler complaint about writing one byte
+      Fix compiler complaint about string copy in iscsiuio
+
+Luis.wu (1):
+      Update iscsi-iname.c
+
+Rafael David Tinoco (1):
+      Misspelled socket name might cause confusion to inexperienced user.
+
+Wu Bo (2):
+      iscsi-iname: fix iscsi-iname -p access NULL pointer without given IQN prefix
+      log:modify iSCSI shared memory permissions for logs
+
+fredvx (1):
+      Fix SIGPIPE loop in signal handler
+
+gulams (1):
+      Proper disconnect of TCP connection
+
+wubo009 (3):
+      iscsi: Add break to while loop
+      iscsi: fix fd leak
+      iscsi/libopeniscsiusr:add libopeniscsiuser_node.h to HEADERS
+
+
 open-iscsi-2.1.0 - open-iscsi-2.1.1
 
 # output from "git shortlog --no-merges 2.1.0..HEAD"
