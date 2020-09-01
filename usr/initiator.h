@@ -308,6 +308,7 @@ extern int resolve_address(char *host, char *port, struct sockaddr_storage *ss);
 #define IRRELEVANT_DATAPDUINORDER	0x40
 #define IRRELEVANT_DATASEQUENCEINORDER	0x80
 
+#define INVALID_SESSION_ID              0xFFFFFFFF
 
 /*
  * These user/kernel IPC calls are used by transports (eg iSER) that have their
