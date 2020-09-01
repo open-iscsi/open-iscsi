@@ -692,6 +692,7 @@ static void iscsi_login_eh(struct iscsi_conn *conn, struct queue_task *qtask,
 			   int err)
 {
 	struct iscsi_session *session = conn->session;
+	int stop_flag = 0;
 
 	log_debug(3, "iscsi_login_eh");
 	/*
@@ -711,7 +712,11 @@ static void iscsi_login_eh(struct iscsi_conn *conn, struct queue_task *qtask,
 			    !iscsi_retry_initial_login(conn))
 				session_conn_shutdown(conn, qtask, err);
 			else {
-				session_conn_reopen(conn, qtask, STOP_CONN_TERM);
+				stop_flag = (session->id < INVALID_SESSION_ID) ? STOP_CONN_TERM : 0;
+                                log_debug(6, "connection %p socket_fd: %d, "
+                                    "session id: %d stop_flag: %d\n",
+                                    conn, conn->socket_fd, session->id, stop_flag);
+				session_conn_reopen(conn, qtask, stop_flag);
 			}
 			break;
 		case R_STAGE_SESSION_REDIRECT:
