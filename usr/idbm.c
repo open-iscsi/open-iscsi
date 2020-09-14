@@ -169,6 +169,7 @@ static struct idbm *db;
 #define __recinfo_int_list(_key,_info,_rec,_name,_show,_tbl,_n,_mod) do { \
 	_info[_n].type = TYPE_INT_LIST; \
 	strlcpy(_info[_n].name, _key, NAME_MAXVAL); \
+	_info[_n].value[0] = '\0'; \
 	for (unsigned long _i = 0; _i < ARRAY_LEN(_rec->_name); _i++) {	\
 		if (_rec->_name[_i] != (unsigned)~0) {			\
 			for (unsigned long _j = 0; _j < ARRAY_LEN(_tbl); _j++) {	\
