@@ -377,3 +377,16 @@ I am working on this one. Hopefully it should be done soon.
 it gets out of sync with the kernel version, and that's not good.
 
 ---------------------------------------------------------------------------
+
+13. Node database
+
+Current implementation of node data is not scalable. It handles database using
+some bunch of files and directories. It has not locking and can not handle
+thousands of targets.
+
+---------------------------------------------------------------------------
+
+14. Migration of duplicate functionality out of iscsid/iscsiadm into libopeniscsi
+and add better error handling .
+
+---------------------------------------------------------------------------
