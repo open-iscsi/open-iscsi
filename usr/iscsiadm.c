@@ -660,7 +660,7 @@ static int for_each_matched_rec(struct node_rec *rec, void *data,
 }
 
 
-static int login_portals(struct node_rec *pattern_rec)
+static int login_portals(struct node_rec *pattern_rec, bool wait)
 {
 	LIST_HEAD(rec_list);
 	int nr_found, rc, err;
@@ -674,7 +674,7 @@ static int login_portals(struct node_rec *pattern_rec)
 	rc = err;
 	/* if there is an err but some recs then try to login to what we have */
 
-	err = iscsi_login_portals(pattern_rec, &nr_found, 1, &rec_list,
+	err = iscsi_login_portals(pattern_rec, &nr_found, wait ? 1 : 0, &rec_list,
 				  iscsi_login_portal);
 	if (err)
 		log_error("Could not log into all portals");
@@ -2809,7 +2809,7 @@ static int verify_node_params(struct list_head *params, struct node_rec *rec)
 /* TODO cleanup arguments */
 static int exec_node_op(struct iscsi_context *ctx, int op, int do_login,
 			int do_logout, int do_show, int do_rescan, int do_stats,
-			int info_level, struct node_rec *rec,
+			bool wait, int info_level, struct node_rec *rec,
 			struct list_head *params)
 {
 	int rc = 0;
@@ -2856,7 +2856,7 @@ static int exec_node_op(struct iscsi_context *ctx, int op, int do_login,
 	}
 
 	if (do_login) {
-		rc = login_portals(rec);
+		rc = login_portals(rec, wait);
 		goto out;
 	}
 
@@ -3946,7 +3946,7 @@ main(int argc, char **argv)
 		}
 
 		rc = exec_node_op(ctx, op, do_login, do_logout, do_show,
-				  do_rescan, do_stats, info_level, rec,
+				  do_rescan, do_stats, wait, info_level, rec,
 				  &params);
 		break;
 	case MODE_SESSION:
@@ -4032,7 +4032,7 @@ main(int argc, char **argv)
 
 			/* drop down to node ops */
 			rc = exec_node_op(ctx, op, do_login, do_logout, do_show,
-					  do_rescan, do_stats, info_level,
+					  do_rescan, do_stats, wait, info_level,
 					  rec, &params);
 free_info:
 			free(info);
@@ -4047,7 +4047,7 @@ free_info:
 			if (do_logout || do_rescan || do_stats) {
 				rc = exec_node_op(ctx, op, do_login, do_logout,
 						 do_show, do_rescan, do_stats,
-						 info_level, NULL, &params);
+						 wait, info_level, NULL, &params);
 				goto out;
 			}
 

@@ -218,7 +218,7 @@ The output will be similar to the following.
 
 iscsiadm -m discoverydb [ -hV ] [ -d debug_level ] [-P printlevel] [ -t type -p ip:port -I ifaceN ... [ -Dl ] ] | [ [ -p ip:port -t type] [ -o operation ] [ -n name ] [ -v value ] [ -lD ] ] 
 iscsiadm -m discovery [ -hV ] [ -d debug_level ] [-P printlevel] [ -t type -p ip:port -I ifaceN ... [ -l ] ] | [ [ -p ip:port ] [ -l | -D ] ] 
-iscsiadm -m node [ -hV ] [ -d debug_level ] [ -P printlevel ] [ -L all,manual,automatic ] [ -U all,manual,automatic ] [ -S ] [ [ -T targetname -p ip:port -I ifaceN ] [ -l | -u | -R | -s] ] [ [ -o  operation  ] [ -n name ] [ -v value ] ]
+iscsiadm -m node [ -hV ] [ -d debug_level ] [ -P printlevel ] [ -L all,manual,automatic ] [ -W ] [ -U all,manual,automatic ] [ -S ] [ [ -T targetname -p ip:port -I ifaceN ] [ -l | -u | -R | -s] ] [ [ -o  operation  ] [ -n name ] [ -v value ] ]
 iscsiadm -m session [ -hV ] [ -d debug_level ] [ -P  printlevel] [ -r sessionid | sysfsdir [ -R | -u | -s ] [ -o operation ] [ -n name ] [ -v value ] ]
 iscsiadm -m iface [ -hV ] [ -d debug_level ] [ -P printlevel ] [ -I ifacename | -H hostno|MAC ] [ [ -o  operation  ] [ -n name ] [ -v value ] ] [ -C ping [ -a ip ] [ -b packetsize ] [ -c count ] [ -i interval ] ]
 iscsiadm -m fw [ -d debug_level ] [ -l ]
@@ -380,7 +380,7 @@ Mode "node"
 
   -m node --targetname=[name] --portal=[ip:port] \
 			--interface=iscsi_ifacename] \
-			[--login|--logout|--rescan|--stats]
+			[--login|--logout|--rescan|--stats] [-W]
   -m node --targetname=[name] --portal=[ip:port]
 			--interface=[driver,HWaddress] \
 			--op=[op] [--name=[name] --value=[value]]
@@ -407,6 +407,13 @@ Mode "node"
 
 			  --stats prints the iSCSI stats for the session.
 
+			  --login normally sends a login request to the specified
+			  target and normally waits for the results. If
+			  -W/--no_wait is supplied return success if we are
+			  able to send the login request, and do not wait
+			  for the response. The user will have to poll for
+			  success
+
 			  Print level can be 0 to 1.
 
   -m node --logoutall=[all|manual|automatic]
@@ -414,10 +421,15 @@ Mode "node"
 			  with a node startup value manual or automatic.
 			  Nodes marked as ONBOOT are skipped.
 
-  -m node --loginall=[all|manual|automatic]
+  -m node --loginall=[all|manual|automatic] [-W]
 			  Login "all" the running sessions or just the ones
 			  with a node startup value manual or automatic.
 			  Nodes marked as ONBOOT are skipped.
+
+			  If -W is supplied then do not wait for the login
+			  response for the target, returning success if we
+			  are able to just send the request. The client
+			  will have to poll for success.
 
 Mode "session"
 --------------
@@ -915,8 +927,8 @@ Passing in none of them will result in all node records being operated on.
 	iscsiadm -m node -l
 
 - iSCSI login to all portals on a node/target through each interface set
-		in the db:
-	iscsiadm -m node -T iqn.2005-03.com.max -l
+		in the db, but do not wait for the login response:
+	iscsiadm -m node -T iqn.2005-03.com.max -l -W
 
 - iSCSI login to a specific portal through each interface set in the db:
 	iscsiadm -m node -T iqn.2005-03.com.max -p 192.168.0.4:3260 -l
@@ -1131,11 +1143,11 @@ copied into e.g. /usr/local/share/man8.
 ==================
 
 There are three steps needed to set up a system to use iSCSI storage:
-7.1. iSCSI startup using the init script or manual startup.
+7.1. iSCSI startup using the systemd units or manual startup.
 7.2. Discover targets.
 7.3. Automate target logins for future system reboots.
 
-The init scripts will start the iSCSI daemon and log into any
+The systemd startup units will start the iSCSI daemon and log into any
 portals that are set up for automatic login (discussed in 7.2)
 or discovered through the discover daemon iscsid.conf params
 (discussed in 7.1.2).
@@ -1151,12 +1163,11 @@ Red Hat or Fedora:
 -----------------
 To start open-iscsi in Red Hat/Fedora you can do:
 
-	service open-iscsi start
+	systemctl start open-iscsi
 
 To get open-iscsi to automatically start at run time you may have to
 run:
-	chkconfig --level <levels> open-iscsi on
-Where <levels> are the run levels.
+	systemctl enable open-iscsi
 
 And, to automatically mount a file system during startup
 you must have the partition entry in /etc/fstab marked with the "_netdev"
@@ -1166,12 +1177,10 @@ option. For example this would mount an iscsi disk sdb:
 
 SUSE or Debian:
 ---------------
-Otherwise, if there is an initd script for your distro in etc/initd that
-gets installed with "make install"
-
-	/etc/init.d/open-iscsi start
-
-will usually get you started.
+The open-iscsi service is socket activated, so there is no need to
+enable the open-iscsi service. Likewise, the iscsi.service login
+service is enabled automatically, so setting 'startup' to "automatic'
+will enable automatic login to open-iscsi targets.
 
 
 7.1.2 Manual Startup
@@ -1184,12 +1193,12 @@ If there is no initd script, you must start the tools by hand. First load the
 iscsi modules:
 	modprobe -q iscsi_tcp
 
-After that, start iSCSI daemon process:
-	./iscsid
+After that, start iSCSI as a daemon process:
+	iscsid
 
-or alternatively, start it with debug enabled and with output
-redirected to the current console:
-	./iscsid -d 8 -f &
+or alternatively, start it with debug enabled, in a seperate window,
+which will force it into "foreground" mode:
+	iscsid -d 8 
 
 
 7.1.2.2 Logging into Targets
@@ -1198,7 +1207,7 @@ redirected to the current console:
 Use the configuration utility, iscsiadm, to add/remove/update Discovery
 records, iSCSI Node records or monitor active iSCSI sessions (see above or the
 iscsiadm man files and see section 7.2 below for how to discover targets):
-	./iscsiadm  -m node
+	iscsiadm  -m node
 
 will print out the nodes that have been discovered as:
 
@@ -1210,7 +1219,7 @@ The format is:
 
 If you are using the iface argument or want to see the driver
 info, use the following:
-	./iscsiadm -m node -P 1
+	iscsiadm -m node -P 1
 
 Example output:
 	Target: iqn.1992-08.com.netapp:sn.33615311
@@ -1234,14 +1243,22 @@ Default here is iscsi_tcp/tcp to be used over whichever NIC the
 network layer decides is best.
 
 To login, take the ip, port and targetname from above and run:
-	./iscsiadm -m node -T targetname -p ip:port -l
+	iscsiadm -m node -T targetname -p ip:port -l
 
 In this example we would run:
-	./iscsiadm -m node -T iqn.1992-08.com.netapp:sn.33615311 \
+	iscsiadm -m node -T iqn.1992-08.com.netapp:sn.33615311 \
 		-p 10.15.84.19:3260 -l
 
 	Note: drop the portal group tag from the "iscsiadm -m node" output.
 
+If you wish, for example to login to all targets represented in the node
+database, but not wait for the login responses:
+
+	iscsiadm -m node -l -W
+
+after which you can use "session" mode to detect when the logins complete:
+
+	iscsiadm -m session
 
 7.2. Discover Targets
 =====================
@@ -1318,8 +1335,8 @@ all sessions add the following to the /etc/iscsi/iscsid.conf:
 Setting this in iscsid.conf will not affect existing nodes. It will only
 affect nodes that are discovered after setting the value.
 
-To login to all automated nodes, simply restart the iscsi service, e.g. with:
-	/etc/init.d/open-iscsi restart
+To login to all automated nodes, simply restart the iscsi login service, e.g. with:
+	systemctl restart iscsi
 
 On your next startup the nodes will be logged into automatically.
 
@@ -1375,7 +1392,7 @@ SendTargets
 		-n discovery.sendtargets.discoveryd_poll_inval -v 30
 
 To have the new settings take effect, restart iscsid by restarting the
-iscsi service.
+iscsi services.
 
 Note:
 When iscsiadm is run with the -o new argument, it will use the
@@ -1404,7 +1421,7 @@ iSNS
 		-n discovery.isns.discoveryd_poll_inval -v 30
 
 To have the new settings take effect, restart iscsid by restarting the
-iscsi service.
+iscsi services.
 
 Note:
 When iscsiadm is run with the -o new argument, it will use the
