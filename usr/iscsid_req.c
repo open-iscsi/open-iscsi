@@ -156,7 +156,7 @@ int iscsid_response(int fd, iscsiadm_cmd_e cmd, iscsiadm_rsp_t *rsp,
 		if (!err) {
 			if (poll_wait)
 				continue;
-			return ISCSI_ERR_ISCSID_NOTCONN;
+			return ISCSI_ERR_SESSION_NOT_CONNECTED;
 		} else if (err < 0) {
 			if (errno == EINTR)
 				continue;
