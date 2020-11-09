@@ -1,4 +1,4 @@
-.TH ISCSIADM 8 "Sep 2006" "" "Linux Administrator's Manual"
+.TH ISCSIADM 8 "Nov 2020" "" "Linux Administrator's Manual"
 .SH NAME
 iscsiadm \- open-iscsi administration utility
 .SH SYNOPSIS
@@ -9,8 +9,9 @@ iscsiadm \- open-iscsi administration utility
 .IR debug_level ]
 .RB [ \-P
 .IR printlevel ]
-[\
-.BI \-I\  iface\  \-t\  type\  \-p\  ip:port
+.RB [ \-I
+.I iface
+.BI \-t\  type\  \-p\  ip:port
 .RB [ \-lD ]
 ] | [
 .RB [ \-p
@@ -33,8 +34,8 @@ iscsiadm \- open-iscsi administration utility
 .IR debug_level ]
 .RB [ \-P
 .IR printlevel ]
-[\
-.BI \-I\  iface\  \-t\  type\  \-p\  ip:port
+.RB [ \-I
+.IB iface\  \-t\  type\  \-p\  ip:port
 .RB [ \-l ]
 ] | [
 .RB [ \-p
@@ -57,8 +58,8 @@ iscsiadm \- open-iscsi administration utility
 .RB [ \-S ]
 [
 .RB [ \-T
-.IB targetname\  \-p\  ip:port\  \-I\  iface
-]
+.IB targetname\  \-p\  ip:port\  \-I
+.IR iface ]
 .RB [ \-l | \-u | \-R | \-s ]
 ]
 [
@@ -79,8 +80,7 @@ iscsiadm \- open-iscsi administration utility
 .IR debug_level ]
 .RB [ \-P
 .IR printlevel ]
-[
-.B \-r
+.RB [ \-r
 .IR sessionid | sysfsdir
 .RB [ \-R ]
 .RB [ \-u | \-s | \-o
@@ -94,11 +94,10 @@ iscsiadm \- open-iscsi administration utility
 .IR debug_level ]
 .RB [ \-P
 .IR printlevel ]
-[
-.BI \-I\  ifacename
-|
-.BI \-H\  hostno|MAC
-]
+.RB [ \-I
+.IR ifacename\  |
+.B \-H
+.IR hostno|MAC ]
 [
 .RB [ \-o
 .IR operation ]
@@ -132,20 +131,20 @@ iscsiadm \- open-iscsi administration utility
 .RB [ \-H
 .IR hostno|MAC ]
 [
-.RB [\  \-C
-.IR chap
+.RB [ \-C
+.I chap
 .RB [ \-x
 .IR chap_tbl_idx ]
 ] |
-.RB [\  \-C
-.IR flashnode
+.RB [ \-C
+.I flashnode
 .RB [ \-A
 .IR portal_type ]
 .RB [ \-x
 .IR flashnode_idx ]
 ] |
-.RB [\  \-C
-.IR stats \ ]
+.RB [ \-C
+.IR stats ]
 ]
 [
 .RB [ \-o
@@ -158,7 +157,7 @@ iscsiadm \- open-iscsi administration utility
 .PP
 .B iscsiadm
 .B \-k  priority
-.SH "DESCRIPTION"
+.SH DESCRIPTION
 The iscsiadm utility is a command-line tool allowing discovery and login
 to iSCSI targets, as well as access and management of the open-iscsi
 database.
@@ -239,22 +238,33 @@ layer's interface name (iface.net_ifacename), and it must have the
 driver/transport_name
 .IP
 The available drivers/iscsi_transports are tcp (software iSCSI over TCP/IP),
-iser (software iSCSI over InfiniBand), or qla4xxx (Qlogic 4XXXX HBAs). The
-hwaddress is the MAC address or for software iSCSI it may be the special
-value "default" which directs the initiator to not bind the session to a
+\fIiser\fR (software iSCSI over InfiniBand),
+\fIqla4xxx\fR (Qlogic 4XXXX and 82XXX HBAs),
+\fIcxgb3i\fR and \fIcxgb4i\fR (Chelsio T3 and T4 adapters),
+\fIbnx2i\fR (QLogic Netextreme II adapters),
+\fIbe2iscsi\fR (Emulex 10G adapter),
+\fIqedi\fR (QLogic QEDI 25/40/100Gb adapter), and
+\fIocs\fR (Emulex One Connect storage).
+Some of these are considered experimental, as they are not fully tested.
+.IP
+The hwaddress is the MAC address or for software iSCSI it may be the special
+value \fIdefault\fR which directs the initiator to not bind the session to a
 specific hardware resource and instead allow the network or InfiniBand layer
 to decide what to do. There is no need to create an iface config with the default
 behavior. If you do not specify an iface, then the default behavior is used.
 .IP
-As mentioned above there is a special iface name default. There are three
-others -- cxgb3i, bnx2i and iser, which does not bind the session to a
-specific card, but will bind the session to the cxgb3i, bnx2i or iser transport. These
-are experimental and the use is not supported as a stable interface yet.
+As mentioned above there is a special iface name \fIdefault\fR. There are
+others which do not bind the session to a specific card, but instead bind
+the session to the transport:
+\fIiser\fR,
+\fIcxgb3i\fR,
+\fIcxgb4i\fR, and
+\fIbnx2i\fR.
 .IP
 In discovery mode multiple interfaces can be specified by passing in multiple
 \-I/\-\-interface instances. For example:
 .IP
-"iscsiadm \-m discoverydb \-t st \-p ip:port \-I iface0 \-I iface2 \-\-discover"
+\fBsh#\fR iscsiadm \-m discoverydb \-t st \-p ip:port \-I iface0 \-I iface2 \-\-discover
 .IP
 Will direct iscsiadm to setup the node db to create records which will create
 sessions through the two intefaces passed in.
@@ -266,7 +276,7 @@ This option is valid for discovery, node and iface mode.
 \fB\-k\fR, \fB\-\-killiscsid=\fI[priority]\fR
 Currently priority must be zero. This will immediately stop all iscsid
 operations and shutdown iscsid. It does not logout any sessions. Running
-this command is the same as doing "killall iscsid". Neither should
+this command is the same as doing \fIkillall iscsid\fR. Neither should
 normally be used, because if iscsid is doing error recovery or if there
 is an error while iscsid is not running, the system may not be able to recover.
 This command and iscsid's SIGTERM handling are experimental.
@@ -490,7 +500,7 @@ resource.
 .IP
 Performing fw discovery will print the portals, like with other discovery
 methods. To see other settings like CHAP values and initiator settings,
-like you would in node mode, run "iscsiadm \-m fw".
+like you would in node mode, run \fIiscsiadm \-m fw\fR.
 .IP
 fw support in open-iscsi is experimental. The settings and iscsiadm
 syntax and output format may change.
@@ -618,26 +628,50 @@ ISCSI_ERR_ISNS_QUERY - iSNS query failure.
 .B
 26
 ISCSI_ERR_ISNS_REG_FAILED - iSNS registration/deregistration failed.
+.TP
+.B
+27
+ISCSI_ERR_OP_NOT_SUPP - operation not support
+.TP
+.B
+28
+ISCSI_ERR_BUSY - device or resource in use
+.TP
+.B
+29
+ISCSI_ERR_AGAIN - operation failed, but retrying later may succeed
+.TP
+.B
+30
+ISCSI_ERR_UNKNOWN_DISCOVERY_TYPE - unknown discovery type
+.TP
+.B
+31
+ISCSI_ERR_CHILD_TERMINATED - child process terminated
+.TP
+.B
+32
+ISCSI_ERR_SESSION_NOT_CONNECTED - session likely not connected
 .SH EXAMPLES
 Discover targets at a given IP address:
 .IP
-iscsiadm \-\-mode discoverydb \-\-type sendtargets \-\-portal 192.168.1.10 \-\-discover
+\fBsh#\fR iscsiadm \-\-mode discoverydb \-\-type sendtargets \-\-portal 192.168.1.10 \-\-discover
 .PP
 Login, must use a node record id found by the discovery:
 .IP
-iscsiadm \-\-mode node \-\-targetname iqn.2001-05.com.doe:test \-\-portal 192.168.1.1:3260 \-\-login
+\fBsh#\fR iscsiadm \-\-mode node \-\-targetname iqn.2001-05.com.doe:test \-\-portal 192.168.1.1:3260 \-\-login
 .PP
 Logout:
 .IP
-iscsiadm \-\-mode node \-\-targetname iqn.2001-05.com.doe:test \-\-portal 192.168.1.1:3260 \-\-logout
+\fBsh#\fR iscsiadm \-\-mode node \-\-targetname iqn.2001-05.com.doe:test \-\-portal 192.168.1.1:3260 \-\-logout
 .PP
 List node records:
 .IP
-iscsiadm \-\-mode node
+\fBsh#\fR iscsiadm \-\-mode node
 .PP
 Display all data for a given node record:
 .IP
-iscsiadm \-\-mode node \-\-targetname iqn.2001-05.com.doe:test \-\-portal 192.168.1.1:3260
+\fBsh#\fR iscsiadm \-\-mode node \-\-targetname iqn.2001-05.com.doe:test \-\-portal 192.168.1.1:3260
 .SH FILES
 .TP
 /etc/iscsi/iscsid.conf
