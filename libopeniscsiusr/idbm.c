@@ -260,7 +260,7 @@ do {\
 	_recs[_n].type = TYPE_INT_LIST; \
 	_strncpy(_recs[_n].name, _key, NAME_MAXVAL); \
 	for (unsigned int _i = 0; _i < ARRAY_LEN(_org->_name); _i++) { \
-		if (_org->_name[_i] != ~0UL) { \
+		if (_org->_name[_i] != UINT_MAX) { \
 			for (unsigned int _j = 0; _j < ARRAY_LEN(_tbl); _j++) { \
 				if (_tbl[_j].value == _org->_name[_i]) { \
 					strcat(_recs[_n].value, _tbl[_j].name); \
