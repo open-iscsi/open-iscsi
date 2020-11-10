@@ -574,8 +574,12 @@ int sysfs_get_str(char *id, char *subsys, char *param, char *value,
 
 	value[0] = '\0';
 	sysfs_value = sysfs_get_value(id, subsys, param);
-	if (!sysfs_value || !strlen(sysfs_value))
+	if (!sysfs_value)
 		return EIO;
+	if (!strlen(sysfs_value)) {
+		free(sysfs_value);
+		return EIO;
+	}
 
 	len = strlen(sysfs_value);
 	if (len && (sysfs_value[len - 1] == '\n'))
