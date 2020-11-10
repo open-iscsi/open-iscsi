@@ -2095,11 +2095,16 @@ tcp_send_finack:
 		} else {
 			uip_urglen = 0;
 #else /* UIP_URGDATA > 0 */
-			ustack->uip_appdata =
-			    ((char *)ustack->uip_appdata) +
-			    ((tcp_hdr->urgp[0] << 8) | tcp_hdr->urgp[1]);
-			ustack->uip_len -=
-			    (tcp_hdr->urgp[0] << 8) | tcp_hdr->urgp[1];
+			tmp16 = (tcp_hdr->urgp[0] << 8) | tcp_hdr->urgp[1];
+			if (tmp16 <= ustack->uip_len) {
+				ustack->uip_appdata = ((char *)ustack->uip_appdata) + tmp16;
+				ustack->uip_len -= tmp16;
+			} else {
+				/* invalid urgent pointer length greater than frame */
+				/* we're discarding urgent data anyway, throw it all out */
+				ustack->uip_appdata = ((char *)ustack->uip_appdata) + ustack->uip_len;
+				ustack->uip_len = 0;
+			}
 #endif /* UIP_URGDATA > 0 */
 		}
 
