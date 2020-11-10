@@ -1795,16 +1795,18 @@ found_listen:
 			} else {
 				/* All other options have a length field, so
 				   that we easily can skip past them. */
-				if (ustack->
-				    uip_buf[uip_ip_tcph_len + UIP_LLH_LEN + 1 +
-					    c] == 0) {
+				if (ustack->uip_buf[uip_ip_tcph_len + UIP_LLH_LEN + 1 + c] == 0) {
 					/* If the length field is zero, the
 					   options are malformed
 					   and we don't process them further. */
 					break;
 				}
-				c += ustack->uip_buf[uip_ip_tcph_len +
-						     UIP_LLH_LEN + 1 + c];
+				if ((ustack->uip_buf[uip_ip_tcph_len + UIP_LLH_LEN + 1 + c]) > (256 - c)) {
+					/* u8 overflow, actually there should
+					 * never be more than 40 bytes of options */
+					break;
+				}
+				c += ustack->uip_buf[uip_ip_tcph_len + UIP_LLH_LEN + 1 + c];
 			}
 		}
 	}
@@ -2008,6 +2010,14 @@ found:
 							   are malformed and we
 							   don't process them
 							   further. */
+							break;
+						}
+						if ((ustack->uip_buf[uip_ip_tcph_len
+							  + UIP_LLH_LEN + 1 +
+							  c]) > (256 - c)) {
+							/* u8 overflow, actually there should
+							 * never be more than 40 bytes of
+							 * options */
 							break;
 						}
 						c += ustack->
