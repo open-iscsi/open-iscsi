@@ -316,7 +316,13 @@ static u16_t upper_layer_chksum_ipv4(struct uip_stack *ustack, u8_t proto)
 	tcp_ipv4_hdr = (struct uip_tcp_ipv4_hdr *)ustack->network_layer;
 
 	upper_layer_len = (((u16_t) (tcp_ipv4_hdr->len[0]) << 8) +
-			   tcp_ipv4_hdr->len[1]) - UIP_IPv4_H_LEN;
+			   tcp_ipv4_hdr->len[1]);
+	/* check for underflow from an invalid length field */
+	if (upper_layer_len < UIP_IPv4_H_LEN) {
+		/* return 0 as an invalid checksum */
+		return 0;
+	}
+	upper_layer_len -= UIP_IPv4_H_LEN;
 
 	/* First sum pseudoheader. */
 	/* IP protocol and length fields. This addition cannot carry. */
