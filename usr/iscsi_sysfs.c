@@ -372,17 +372,29 @@ uint32_t iscsi_sysfs_get_host_no_from_hwaddress(char *hwaddress, int *rc)
 
 	info = calloc(1, sizeof(*info));
 	if (!info) {
+		log_debug(4, "No memory for host info");
 		*rc = ISCSI_ERR_NOMEM;
 		return -1;
 	}
-	strcpy(info->iface.hwaddress, hwaddress);
+	/* make sure there is room for the MAC address plus NULL terminator */
+	if (strlen(hwaddress) > (ISCSI_HWADDRESS_BUF_SIZE - 1)) {
+		log_debug(4, "HW Address \"%s\" too long (%d max)",
+				hwaddress, ISCSI_HWADDRESS_BUF_SIZE-1);
+		*rc = ISCSI_ERR_INVAL;
+		goto dun;
+	}
+	strncpy(info->iface.hwaddress, hwaddress, ISCSI_HWADDRESS_BUF_SIZE-1);
 
 	local_rc = iscsi_sysfs_for_each_host(info, &nr_found,
 					__get_host_no_from_hwaddress);
 	if (local_rc == 1)
 		host_no = info->host_no;
-	else
+	else {
+		log_debug(4, "Host not found from HW Address \"%s\"",
+				hwaddress);
 		*rc = ISCSI_ERR_HOST_NOT_FOUND;
+	}
+dun:
 	free(info);
 	return host_no;
 }
