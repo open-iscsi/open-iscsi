@@ -448,7 +448,7 @@ int log_init(char *program_name, int size,
 			syslog(LOG_ERR, "starting logger failed");
 			exit(1);
 		} else if (pid) {
-			syslog(LOG_WARNING,
+			syslog(LOG_INFO,
 			       "iSCSI logger with pid=%d started!", pid);
 			return pid;
 		}

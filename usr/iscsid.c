@@ -301,7 +301,7 @@ static void iscsid_shutdown(void)
 	while ((pid = waitpid(0, NULL, 0) > 0))
 		log_debug(7, "cleaned up pid %d", pid);
 
-	log_warning("iscsid shutting down.");
+	log_info("iscsid shutting down.");
 	if (daemonize && log_pid >= 0) {
 		log_debug(1, "daemon stopping");
 		log_close(log_pid);
