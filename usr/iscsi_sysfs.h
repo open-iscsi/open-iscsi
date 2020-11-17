@@ -34,6 +34,7 @@ struct iscsi_auth_config;
 struct flashnode_rec;
 
 #define SCSI_MAX_STATE_VALUE 32
+#define ISCSID_RESP_POLL_TIMEOUT 60000
 
 extern void free_transports(void);
 extern char *iscsi_sysfs_get_iscsi_kernel_version(void);
