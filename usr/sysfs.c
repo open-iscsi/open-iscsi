@@ -168,9 +168,11 @@ struct sysfs_device *sysfs_device_get(const char *devpath)
 	int len;
 	char *pos;
 
+	if (!devpath)
+		return NULL;
+
 	/* we handle only these devpathes */
-	if (devpath != NULL &&
-	    strncmp(devpath, "/devices/", 9) != 0 &&
+	if (strncmp(devpath, "/devices/", 9) != 0 &&
 	    strncmp(devpath, "/subsystem/", 11) != 0 &&
 	    strncmp(devpath, "/module/", 8) != 0 &&
 	    strncmp(devpath, "/bus/", 5) != 0 &&
