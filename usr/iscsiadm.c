@@ -101,6 +101,22 @@ enum _print_node_tree_mode {
 	_PRINT_MODE_NODE,
 };
 
+struct verify_mode_t {
+	char *mode;
+	char *allowed;
+	int skip_m;
+};
+
+static const struct verify_mode_t mode_paras[] = {
+	[MODE_DISCOVERY] = {"discovery", "DSIPdmntplov", 0},
+	[MODE_DISCOVERYDB] = {"discovery", "DSIPdmntplov", 0},
+	[MODE_NODE] = {"node", "RsPIdmlSonvupTULW", 0},
+	[MODE_SESSION] = {"session", "PiRdrmusonuSv", 1},
+	[MODE_HOST] = {"host", "CHdmPotnvxA", 0},
+	[MODE_IFACE] = {"iface", "HIdnvmPoCabci", 0},
+	[MODE_FW] = {"fw", "dml", 0},
+};
+
 static struct option const long_options[] =
 {
 	{"mode", required_argument, NULL, 'm'},
@@ -1331,10 +1347,21 @@ sw_discovery:
 
 
 static int
-verify_mode_params(int argc, char **argv, char *allowed, int skip_m)
+verify_mode_params(int argc, char **argv, enum iscsiadm_mode mode)
 {
 	int ch, longindex;
-	int ret = 0;
+	int ret = ISCSI_SUCCESS;
+	char *allowed;
+	int skip_m;
+	int tmp = optind;
+
+	if (mode > MODE_FW || mode < MODE_DISCOVERY) {
+		log_error("mode %d is not yet supported", mode);
+		return ISCSI_ERR_INVAL;
+	}
+
+	allowed = mode_paras[mode].allowed;
+	skip_m = mode_paras[mode].skip_m;
 
 	optind = 0;
 
@@ -1343,10 +1370,14 @@ verify_mode_params(int argc, char **argv, char *allowed, int skip_m)
 		if (!strchr(allowed, ch)) {
 			if (ch == 'm' && skip_m)
 				continue;
-			ret = ch;
+			log_error("%s mode: option '-%c' is not "
+				  "allowed/supported",
+				  mode_paras[mode].mode, ch);
+			ret = ISCSI_ERR_INVAL;
 			break;
 		}
 	}
+	optind = tmp;
 
 	return ret;
 }
@@ -3677,6 +3708,9 @@ main(int argc, char **argv)
 			break;
 		case 'm':
 			mode = str_to_mode(optarg);
+			rc = verify_mode_params(argc, argv, mode);
+			if (ISCSI_SUCCESS != rc)
+				goto free_ifaces;
 			break;
 		case 'C':
 			sub_mode = str_to_submode(optarg);
@@ -3767,13 +3801,6 @@ main(int argc, char **argv)
 		usage(ISCSI_ERR_INVAL);
 
 	if (mode == MODE_FW) {
-		if ((rc = verify_mode_params(argc, argv, "dml", 0))) {
-			log_error("fw mode: option '-%c' is not "
-				  "allowed/supported", rc);
-			rc = ISCSI_ERR_INVAL;
-			goto free_ifaces;
-		}
-
 		rc = exec_fw_op(NULL, NULL, info_level, do_login, op);
 		goto free_ifaces;
 	}
@@ -3787,12 +3814,6 @@ main(int argc, char **argv)
 
 	switch (mode) {
 	case MODE_HOST:
-		if ((rc = verify_mode_params(argc, argv, "CHdmPotnvxA", 0))) {
-			log_error("host mode: option '-%c' is not "
-				  "allowed/supported", rc);
-			rc = ISCSI_ERR_INVAL;
-			goto out;
-		}
 		if (sub_mode != -1) {
 			switch (sub_mode) {
 			case MODE_CHAP:
@@ -3858,13 +3879,6 @@ main(int argc, char **argv)
 	case MODE_IFACE:
 		iscsi_default_iface_setup(ctx);
 
-		if ((rc = verify_mode_params(argc, argv, "HIdnvmPoCabci", 0))) {
-			log_error("iface mode: option '-%c' is not "
-				  "allowed/supported", rc);
-			rc = ISCSI_ERR_INVAL;
-			goto out;
-		}
-
 		if (!list_empty(&ifaces)) {
 			iface = list_entry(ifaces.next, struct iface_rec,
 					   list);
@@ -3883,38 +3897,16 @@ main(int argc, char **argv)
 
 		break;
 	case MODE_DISCOVERYDB:
-		if ((rc = verify_mode_params(argc, argv, "DSIPdmntplov", 0))) {
-			log_error("discovery mode: option '-%c' is not "
-				  "allowed/supported", rc);
-			rc = ISCSI_ERR_INVAL;
-			goto out;
-		}
-
 		rc = exec_disc2_op(type, ip, port, &ifaces, info_level,
 				   do_login, do_discover, op, &params,
 				   do_show);
 		break;
 	case MODE_DISCOVERY:
-		if ((rc = verify_mode_params(argc, argv, "DSIPdmntplov", 0))) {
-			log_error("discovery mode: option '-%c' is not "
-				  "allowed/supported", rc);
-			rc = ISCSI_ERR_INVAL;
-			goto out;
-		}
-
 		rc = exec_disc_op(type, ip, port, &ifaces, info_level,
 				  do_login, do_discover, op, &params,
 				  do_show);
 		break;
 	case MODE_NODE:
-		if ((rc = verify_mode_params(argc, argv, "RsPIdmlSonvupTULW",
-					     0))) {
-			log_error("node mode: option '-%c' is not "
-				  "allowed/supported", rc);
-			rc = ISCSI_ERR_INVAL;
-			goto out;
-		}
-
 		if (do_login_all) {
 			rc = login_by_startup(group_session_mgmt_mode, wait);
 			goto out;
@@ -3950,13 +3942,6 @@ main(int argc, char **argv)
 				  &params);
 		break;
 	case MODE_SESSION:
-		if ((rc = verify_mode_params(argc, argv,
-					      "PiRdrmusonuSv", 1))) {
-			log_error("session mode: option '-%c' is not "
-				  "allowed or supported", rc);
-			rc = ISCSI_ERR_INVAL;
-			goto out;
-		}
 		if (sid >= 0) {
 			char session[64];
 			struct session_info *info;
