@@ -76,6 +76,9 @@ static char *find_devtree(const char *filename)
 	 * /chosen.
 	 */
 
+	if (!devtree)
+		return NULL;
+
 	chop_at = strstr(devtree, "/chosen");
 	if (!chop_at)
 		chop_at = strstr(devtree, "/aliases");
