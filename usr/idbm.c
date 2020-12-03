@@ -2903,6 +2903,20 @@ free_param:
 	return NULL;
 }
 
+void idbm_free_user_param(struct user_param *param)
+{
+	if (!param)
+		return;
+
+	if (param->name)
+		free(param->name);
+
+	if (param->value)
+		free(param->value);
+
+	free(param);
+}
+
 int idbm_node_set_rec_from_param(struct list_head *params, node_rec_t *rec,
 				 int verify)
 {
