@@ -446,6 +446,7 @@ int fwparam_ppc_boot_info(struct boot_context *context)
 	char filename[FILENAMESZ];
 	int error;
 	char *devtree;
+	int i;
 
 	/*
 	 * For powerpc, our operations are fundamentally to locate
@@ -511,6 +512,10 @@ free_bootpath_val:
 
 free_devtree:
 	free(devtree);
+	for (i = 0; i < dev_count; i++)
+		if (ofwdevs[i])
+			free(ofwdevs[i]);
+
 	return error;
 }
 
@@ -525,6 +530,7 @@ int fwparam_ppc_get_targets(struct list_head *list)
 	struct boot_context *context;
 	int error;
 	char *devtree;
+	int i;
 
 	/*
 	 * For powerpc, our operations are fundamentally to locate
@@ -592,5 +598,9 @@ free_bootpath_val:
 
 free_devtree:
 	free(devtree);
+	for (i = 0; i < dev_count; i++)
+		if (ofwdevs[i])
+			free(ofwdevs[i]);
+
 	return error;
 }
