@@ -292,15 +292,17 @@ static int find_file(const char *filename)
 		fprintf(stderr, "%s: Could not open %s: %s (%d)\n",
 			__func__, filename, strerror(errno), errno);
 		free(bootpath_val);
+		bootpath_val = NULL;
 		return -1;
 	}
 
 	bytes_read = read(fd, bootpath_val, bootpath_stat.st_size);
 	close(fd);
-	free(bootpath_val);
 	if (bytes_read != bootpath_stat.st_size) {
-		fprintf(stderr, "%s: Could not open %s: %s (%d)\n",
+		fprintf(stderr, "%s: Failed to read %s: %s (%d)\n",
 			__func__, filename, strerror(EIO), EIO);
+		free(bootpath_val);
+		bootpath_val = NULL;
 		return -1;
 	}
 
@@ -381,6 +383,8 @@ static int loop_devs(const char *devtree)
 			if (!error)
 				error = locate_mac(devtree, ofwdevs[i]);
 
+			free(bootpath_val);
+			bootpath_val = NULL;
 		}
 	}
 	return error;
@@ -468,9 +472,10 @@ int fwparam_ppc_boot_info(struct boot_context *context)
 	if (error)
 		goto free_devtree;
 
-	if (find_file(filename) < 1)
+	if (find_file(filename) < 1) {
 		error = ISCSI_ERR_NO_OBJS_FOUND;
-	else {
+		goto free_devtree;
+	} else {
 		if (debug)
 			printf("%s:\n%s\n\n", filename, bootpath_val);
 		/*
@@ -480,12 +485,12 @@ int fwparam_ppc_boot_info(struct boot_context *context)
 
 		if (!strstr(bootpath_val, "iscsi")) {
 			error = ISCSI_ERR_INVAL;
-			goto free_devtree;
+			goto free_bootpath_val;
 		}
 		ofwdevs[0] = calloc(1, sizeof(struct ofw_dev));
 		if (!ofwdevs[0]) {
 			error = ISCSI_ERR_NOMEM;
-			goto free_devtree;
+			goto free_bootpath_val;
 		}
 
 		error = parse_params(bootpath_val, ofwdevs[0]);
@@ -499,6 +504,10 @@ int fwparam_ppc_boot_info(struct boot_context *context)
 		}
 		free(ofwdevs[0]);
 	}
+
+free_bootpath_val:
+	free(bootpath_val);
+	bootpath_val = NULL;
 
 free_devtree:
 	free(devtree);
@@ -542,9 +551,10 @@ int fwparam_ppc_get_targets(struct list_head *list)
 	if (error)
 		goto free_devtree;
 
-	if (find_file(filename) < 1)
+	if (find_file(filename) < 1) {
 		error = ISCSI_ERR_NO_OBJS_FOUND;
-	else {
+		goto free_devtree;
+	} else {
 		if (debug)
 			printf("%s:\n%s\n\n", filename, bootpath_val);
 		/*
@@ -554,12 +564,12 @@ int fwparam_ppc_get_targets(struct list_head *list)
 
 		if (!strstr(bootpath_val, "iscsi")) {
 			error = ISCSI_ERR_INVAL;
-			goto free_devtree;
+			goto free_bootpath_val;
 		}
 		ofwdevs[0] = calloc(1, sizeof(struct ofw_dev));
 		if (!ofwdevs[0]) {
 			error = ISCSI_ERR_NOMEM;
-			goto free_devtree;
+			goto free_bootpath_val;
 		}
 
 		error = parse_params(bootpath_val, ofwdevs[0]);
@@ -576,6 +586,9 @@ int fwparam_ppc_get_targets(struct list_head *list)
 		}
 		free(ofwdevs[0]);
 	}
+free_bootpath_val:
+	free(bootpath_val);
+	bootpath_val = NULL;
 
 free_devtree:
 	free(devtree);
