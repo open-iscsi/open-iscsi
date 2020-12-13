@@ -751,6 +751,13 @@ static int bnx2x_open(nic_t *nic)
 			count++;
 		}
 	}
+	if (nic->fd == INVALID_FD) {
+		LOG_ERR(PFX "%s: Could not open device: %s, [%s]",
+			nic->log_name, nic->uio_device_name,
+			strerror(errno));
+		rc = errno;
+		goto open_error;
+	}
 	if (fstat(nic->fd, &uio_stat) < 0) {
 		LOG_ERR(PFX "%s: Could not fstat device", nic->log_name);
 		rc = -ENODEV;

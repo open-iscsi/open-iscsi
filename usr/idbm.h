@@ -153,6 +153,7 @@ extern int idbm_node_set_rec_from_param(struct list_head *params,
 extern int idbm_node_set_param(void *data, node_rec_t *rec);
 extern int idbm_discovery_set_param(void *data, discovery_rec_t *rec);
 struct user_param *idbm_alloc_user_param(char *name, char *value);
+void idbm_free_user_param(struct user_param *param);
 extern void idbm_node_setup_defaults(node_rec_t *rec);
 extern struct node_rec *idbm_find_rec_in_list(struct list_head *rec_list,
 					      char *targetname, char *addr,

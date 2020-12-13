@@ -206,6 +206,12 @@ static char *find_vlan_dev(char *netdev, int vlan_id) {
 	}
 
 	ifni = if_nameindex();
+	if (!ifni) {
+		log_error("Failed to find netdev:%s", strerror(errno));
+		close(sockfd);
+		return NULL;
+	}
+
 	for (i = 0; ifni[i].if_index && ifni[i].if_name; i++) {
 		strlcpy(vlan_hwaddr.ifr_name, ifni[i].if_name, IFNAMSIZ);
 		ioctl(sockfd, SIOCGIFHWADDR, &vlan_hwaddr);

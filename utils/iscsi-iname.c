@@ -96,7 +96,8 @@ main(int argc, char *argv[])
 	 * uniqueness properties
 	 */
 
-	if ((fd = open(RANDOM_NUM_GENERATOR, O_RDONLY))) {
+	fd = open(RANDOM_NUM_GENERATOR, O_RDONLY);
+	if (fd != -1) {
 		e = read(fd, &entropy, 16);
 		if (e >= 1)
 			MD5Update(&context, (md5byte *)entropy, e);
@@ -141,7 +142,8 @@ main(int argc, char *argv[])
 	 * good as any other).
 	 */
 
-	if ((fd = open(RANDOM_NUM_GENERATOR, O_RDONLY))) {
+	fd = open(RANDOM_NUM_GENERATOR, O_RDONLY);
+	if (fd != -1) {
 		if (read(fd, entropy, 1) == 1)
 			bytes = &digest[(entropy[0] % (sizeof(digest) - 6))];
 		close(fd);

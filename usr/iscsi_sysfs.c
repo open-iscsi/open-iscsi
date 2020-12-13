@@ -856,7 +856,7 @@ static int iscsi_sysfs_read_iface(struct iface_rec *iface, int host_no,
 		}
 	}
 
-	if (session && t->template->use_boot_info)
+	if (session && t && t->template->use_boot_info)
 		iscsi_sysfs_read_boot(iface, session);
 
 	if (!iface_kern_id)

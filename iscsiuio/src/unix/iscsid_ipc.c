@@ -54,9 +54,6 @@
 
 #define PFX "iscsi_ipc "
 
-/* TODO fix me */
-#define IFNAMSIZ 15
-
 #include "nic.h"
 #include "nic_utils.h"
 #include "nic_vlan.h"

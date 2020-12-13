@@ -453,8 +453,11 @@ mgmt_ipc_read_req(queue_task_t *qtask)
 		/* Remember the allocated pointer in the
 		 * qtask - it will be freed by write_rsp.
 		 * Note: we allocate one byte in excess
-		 * so we can append a NUL byte. */
+		 * so we can append a NULL byte. */
 		qtask->payload = malloc(req->payload_len + 1);
+		if (!qtask->payload)
+			return -ENOMEM;
+
 		rc = mgmt_ipc_read_data(qtask->mgmt_ipc_fd,
 				qtask->payload,
 				req->payload_len);

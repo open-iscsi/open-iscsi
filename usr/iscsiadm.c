@@ -4075,6 +4075,10 @@ free_ifaces:
 		list_del(&iface->list);
 		free(iface);
 	}
+	list_for_each_entry(param, &params, list) {
+		list_del(&param->list);
+		idbm_free_user_param(param);
+	}
 	free_transports();
 	sysfs_cleanup();
 	return rc;
