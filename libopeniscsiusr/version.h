@@ -25,6 +25,6 @@
  * This may not be the same value as the kernel versions because
  * some other maintainer could merge a patch without going through us
  */
-#define ISCSI_VERSION_STR	"2.1.2"
+#define ISCSI_VERSION_STR	"2.1.3"
 
 #endif  /* End of __ISCSI_OPEN_USR_VERSION_H__ */
