@@ -316,7 +316,13 @@ static u16_t upper_layer_chksum_ipv4(struct uip_stack *ustack, u8_t proto)
 	tcp_ipv4_hdr = (struct uip_tcp_ipv4_hdr *)ustack->network_layer;
 
 	upper_layer_len = (((u16_t) (tcp_ipv4_hdr->len[0]) << 8) +
-			   tcp_ipv4_hdr->len[1]) - UIP_IPv4_H_LEN;
+			   tcp_ipv4_hdr->len[1]);
+	/* check for underflow from an invalid length field */
+	if (upper_layer_len < UIP_IPv4_H_LEN) {
+		/* return 0 as an invalid checksum */
+		return 0;
+	}
+	upper_layer_len -= UIP_IPv4_H_LEN;
 
 	/* First sum pseudoheader. */
 	/* IP protocol and length fields. This addition cannot carry. */
@@ -1789,16 +1795,18 @@ found_listen:
 			} else {
 				/* All other options have a length field, so
 				   that we easily can skip past them. */
-				if (ustack->
-				    uip_buf[uip_ip_tcph_len + UIP_LLH_LEN + 1 +
-					    c] == 0) {
+				if (ustack->uip_buf[uip_ip_tcph_len + UIP_LLH_LEN + 1 + c] == 0) {
 					/* If the length field is zero, the
 					   options are malformed
 					   and we don't process them further. */
 					break;
 				}
-				c += ustack->uip_buf[uip_ip_tcph_len +
-						     UIP_LLH_LEN + 1 + c];
+				if ((ustack->uip_buf[uip_ip_tcph_len + UIP_LLH_LEN + 1 + c]) > (256 - c)) {
+					/* u8 overflow, actually there should
+					 * never be more than 40 bytes of options */
+					break;
+				}
+				c += ustack->uip_buf[uip_ip_tcph_len + UIP_LLH_LEN + 1 + c];
 			}
 		}
 	}
@@ -2004,6 +2012,14 @@ found:
 							   further. */
 							break;
 						}
+						if ((ustack->uip_buf[uip_ip_tcph_len
+							  + UIP_LLH_LEN + 1 +
+							  c]) > (256 - c)) {
+							/* u8 overflow, actually there should
+							 * never be more than 40 bytes of
+							 * options */
+							break;
+						}
 						c += ustack->
 						    uip_buf[uip_ip_tcph_len +
 							    UIP_LLH_LEN + 1 +
@@ -2079,11 +2095,16 @@ tcp_send_finack:
 		} else {
 			uip_urglen = 0;
 #else /* UIP_URGDATA > 0 */
-			ustack->uip_appdata =
-			    ((char *)ustack->uip_appdata) +
-			    ((tcp_hdr->urgp[0] << 8) | tcp_hdr->urgp[1]);
-			ustack->uip_len -=
-			    (tcp_hdr->urgp[0] << 8) | tcp_hdr->urgp[1];
+			tmp16 = (tcp_hdr->urgp[0] << 8) | tcp_hdr->urgp[1];
+			if (tmp16 <= ustack->uip_len) {
+				ustack->uip_appdata = ((char *)ustack->uip_appdata) + tmp16;
+				ustack->uip_len -= tmp16;
+			} else {
+				/* invalid urgent pointer length greater than frame */
+				/* we're discarding urgent data anyway, throw it all out */
+				ustack->uip_appdata = ((char *)ustack->uip_appdata) + ustack->uip_len;
+				ustack->uip_len = 0;
+			}
 #endif /* UIP_URGDATA > 0 */
 		}
 

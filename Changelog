@@ -1,3 +1,49 @@
+open-iscsi-2.1.2 - open-iscsi-2.1.3
+
+Chris Leech (4):
+      iscsiadm buffer overflow regression when discovering many targets at once
+      check for header length underflow during checksum calculation
+      check for u8 overflow when processing TCP options
+      check for TCP urgent pointer past end of frame
+
+Gulam Mohamed (1):
+      iscsid: Poll timeout value to 1 minute for iscsid
+
+Khem Raj (1):
+      libopeniscsiusr: Compare with max int instead of max long
+
+Lee Duncan (4):
+      Add ability to attempt target logins asynchronously
+      Implement login "no_wait" for iscsiadm NODE mode
+      Updated iscsiadm man page.
+      iscsiadm: fix host stats mode coredump
+
+Wenchao Hao (15):
+      Fix memory leak in sysfs_get_str
+      iscsiadm: Optimize the the verification of mode paramters
+      Update .gitignore for cscope and gtags data base
+      iscsi_sysfs: Fix NULL pointer deference in iscsi_sysfs_read_iface
+      iscsi-iname: Verify open() return value before calling read()
+      iscsiuio: Fix invalid parameter when call fstat()
+      open-iscsi: Fix invalid pointer deference in find_initiator()
+      open-iscsi: Fix NULL pointer dereference in mgmt_ipc_read_req()
+      iscsi_net_util: Fix NULL pointer dereference in find_vlan_dev()
+      open-iscsi: Clean user_param list when process exit
+      fwparam_ppc: Fix NULL pointer dereference in find_devtree()
+      sysfs: Verify parameter of sysfs_device_get()
+      fwparam_ppc: Fix illegal memory access in fwparam_ppc.c
+      iscsiuio: Remove unused macro IFNAMSIZ defined in iscsid_ipc.c
+      fwparam_ppc: Fix memory leak in fwparam_ppc.c
+
+Yoshifumi Kinoshita (1):
+      iscsid: fix logging level when starting and shutting down daemon
+
+gulams (1):
+      iscsid: Check Invalid Session id for stop connection
+
+sonukumar159842@gmail.com (1):
+      TODO: Update to todo list.
+
 open-iscsi-2.1.0 - open-iscsi-2.1.2
 
 Christian Glombek (1):
