@@ -451,6 +451,7 @@ int main(int argc, char *argv[])
 
 	if ((mgmt_ipc_fd = mgmt_ipc_listen()) < 0) {
 		log_close(log_pid);
+		idbm_terminate();
 		exit(ISCSI_ERR);
 	}
 
@@ -463,6 +464,8 @@ int main(int argc, char *argv[])
 			if (fd < 0) {
 				log_error("Unable to create pid file");
 				log_close(log_pid);
+				idbm_terminate();
+				close(mgmt_ipc_fd);
 				exit(ISCSI_ERR);
 			}
 		}
@@ -470,9 +473,15 @@ int main(int argc, char *argv[])
 		if (pid < 0) {
 			log_error("Starting daemon failed");
 			log_close(log_pid);
+			idbm_terminate();
+			close(mgmt_ipc_fd);
+			close(fd);
 			exit(ISCSI_ERR);
 		} else if (pid) {
 			log_info("iSCSI daemon with pid=%d started!", pid);
+			idbm_terminate();
+			close(mgmt_ipc_fd);
+			close(fd);
 			exit(0);
 		}
 
