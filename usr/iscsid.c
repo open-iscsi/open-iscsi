@@ -479,15 +479,7 @@ int main(int argc, char *argv[])
 			exit(ISCSI_ERR);
 		} else if (pid) {
 			log_info("iSCSI daemon with pid=%d started!", pid);
-			idbm_terminate();
-			close(mgmt_ipc_fd);
-			close(fd);
-			exit(0);
-		}
 
-		if (chdir("/") < 0)
-			log_debug(1, "Unable to chdir to /");
-		if (fd > 0) {
 			if (lockf(fd, F_TLOCK, 0) < 0) {
 				log_error("Unable to lock pid file");
 				log_close(log_pid);
@@ -498,13 +490,21 @@ int main(int argc, char *argv[])
 				log_close(log_pid);
 				exit(ISCSI_ERR);
 			}
-			sprintf(buf, "%d\n", getpid());
+			sprintf(buf, "%d\n", pid);
 			if (write(fd, buf, strlen(buf)) < 0) {
 				log_error("Unable to write pid file");
 				log_close(log_pid);
 				exit(ISCSI_ERR);
 			}
+
+			idbm_terminate();
+			close(mgmt_ipc_fd);
+			close(fd);
+			exit(0);
 		}
+
+		if (chdir("/") < 0)
+			log_debug(1, "Unable to chdir to /");
 		close(fd);
 
 		if ((control_fd = ipc->ctldev_open()) < 0) {
