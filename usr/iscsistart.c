@@ -246,7 +246,7 @@ static int login_session(struct node_rec *rec)
 		rc = iscsid_exec_req(&req, &rsp, 0, ISCSID_REQ_TIMEOUT);
 		if (rc == 0) {
 			return rc;
-		} else if (rc == ISCSI_ERR_ISCSID_NOTCONN) {
+		} else if (rc == ISCSI_ERR_SESSION_NOT_CONNECTED) {
 			ts.tv_sec = msec / 1000;
 			ts.tv_nsec = (msec % 1000) * 1000000L;
 
