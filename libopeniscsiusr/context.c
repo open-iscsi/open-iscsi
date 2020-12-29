@@ -55,8 +55,12 @@ struct iscsi_context *iscsi_context_new(void)
 
 void iscsi_context_free(struct iscsi_context *ctx)
 {
-	if (ctx != NULL)
+	if (ctx == NULL)
+		return;
+
+	if (ctx->db)
 		_idbm_free(ctx->db);
+
 	free(ctx);
 }
 
