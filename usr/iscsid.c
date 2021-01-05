@@ -437,7 +437,7 @@ int main(int argc, char *argv[])
 		exit(ISCSI_ERR);
 	}
 
-	umask(0177);
+	umask(0077);
 
 	mgmt_ipc_fd = -1;
 	control_fd = -1;

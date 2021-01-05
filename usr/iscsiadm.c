@@ -3575,7 +3575,7 @@ main(int argc, char **argv)
 	sa_new.sa_flags = 0;
 	sigaction(SIGINT, &sa_new, &sa_old );
 
-	umask(0177);
+	umask(0077);
 
 	/* enable stdout logging */
 	log_init(program_name, 1024, log_do_log_std, NULL);

@@ -1432,7 +1432,7 @@ int idbm_lock(void)
 	}
 
 	if (access(LOCK_DIR, F_OK) != 0) {
-		if (mkdir(LOCK_DIR, 0660) != 0) {
+		if (mkdir(LOCK_DIR, 0770) != 0) {
 			log_error("Could not open %s: %s", LOCK_DIR,
 				  strerror(errno));
 			return ISCSI_ERR_IDBM;
@@ -2114,7 +2114,7 @@ static FILE *idbm_open_rec_w(char *portal, char *config)
 		}
 
 mkdir_portal:
-		if (mkdir(portal, 0660) != 0) {
+		if (mkdir(portal, 0770) != 0) {
 			log_error("Could not make dir %s err %d",
 				  portal, errno);
 			return NULL;
@@ -2149,7 +2149,7 @@ static int idbm_rec_write(node_rec_t *rec, bool disable_lock)
 
 	snprintf(portal, PATH_MAX, "%s", NODE_CONFIG_DIR);
 	if (access(portal, F_OK) != 0) {
-		if (mkdir(portal, 0660) != 0) {
+		if (mkdir(portal, 0770) != 0) {
 			log_error("Could not make %s: %s", portal,
 				  strerror(errno));
 			rc = ISCSI_ERR_IDBM;
@@ -2159,7 +2159,7 @@ static int idbm_rec_write(node_rec_t *rec, bool disable_lock)
 
 	snprintf(portal, PATH_MAX, "%s/%s", NODE_CONFIG_DIR, rec->name);
 	if (access(portal, F_OK) != 0) {
-		if (mkdir(portal, 0660) != 0) {
+		if (mkdir(portal, 0770) != 0) {
 			log_error("Could not make %s: %s", portal,
 				  strerror(errno));
 			rc = ISCSI_ERR_IDBM;
@@ -2219,7 +2219,7 @@ mkdir_portal:
 	snprintf(portal, PATH_MAX, "%s/%s/%s,%d,%d", NODE_CONFIG_DIR,
 		 rec->name, rec->conn[0].address, rec->conn[0].port, rec->tpgt);
 	if (stat(portal, &statb)) {
-		if (mkdir(portal, 0660) != 0) {
+		if (mkdir(portal, 0770) != 0) {
 			log_error("Could not make dir %s: %s",
 				  portal, strerror(errno));
 			rc = ISCSI_ERR_IDBM;
@@ -2271,7 +2271,7 @@ idbm_discovery_write(discovery_rec_t *rec)
 	snprintf(portal, PATH_MAX, "%s",
 		 disc_type_to_config_vals[rec->type].config_root);
 	if (access(portal, F_OK) != 0) {
-		if (mkdir(portal, 0660) != 0) {
+		if (mkdir(portal, 0770) != 0) {
 			log_error("Could not make %s: %s", portal,
 				  strerror(errno));
 			rc = ISCSI_ERR_IDBM;
@@ -2330,7 +2330,7 @@ static int setup_disc_to_node_link(char *disc_portal, node_rec_t *rec)
 		break;
 	case DISCOVERY_TYPE_FW:
 		if (access(FW_CONFIG_DIR, F_OK) != 0) {
-			if (mkdir(FW_CONFIG_DIR, 0660) != 0) {
+			if (mkdir(FW_CONFIG_DIR, 0770) != 0) {
 				log_error("Could not make %s: %s",
 					  FW_CONFIG_DIR, strerror(errno));
 				rc = ISCSI_ERR_IDBM;
@@ -2344,7 +2344,7 @@ static int setup_disc_to_node_link(char *disc_portal, node_rec_t *rec)
 		break;
 	case DISCOVERY_TYPE_STATIC:
 		if (access(STATIC_CONFIG_DIR, F_OK) != 0) {
-			if (mkdir(STATIC_CONFIG_DIR, 0660) != 0) {
+			if (mkdir(STATIC_CONFIG_DIR, 0770) != 0) {
 				log_error("Could not make %s; %s",
 					  STATIC_CONFIG_DIR, strerror(errno));
 				rc = ISCSI_ERR_IDBM;
@@ -2358,7 +2358,7 @@ static int setup_disc_to_node_link(char *disc_portal, node_rec_t *rec)
 		break;
 	case DISCOVERY_TYPE_ISNS:
 		if (access(ISNS_CONFIG_DIR, F_OK) != 0) {
-			if (mkdir(ISNS_CONFIG_DIR, 0660) != 0) {
+			if (mkdir(ISNS_CONFIG_DIR, 0770) != 0) {
 				log_error("Could not make %s: %s",
 					  ISNS_CONFIG_DIR, strerror(errno));
 				rc = ISCSI_ERR_IDBM;
@@ -2989,7 +2989,7 @@ int idbm_init(idbm_get_config_file_fn *fn)
 {
 	/* make sure root db dir is there */
 	if (access(ISCSI_CONFIG_ROOT, F_OK) != 0) {
-		if (mkdir(ISCSI_CONFIG_ROOT, 0660) != 0) {
+		if (mkdir(ISCSI_CONFIG_ROOT, 0770) != 0) {
 			log_error("Could not make %s %d", ISCSI_CONFIG_ROOT,
 				   errno);
 			return errno;

@@ -322,7 +322,7 @@ int _idbm_lock(struct iscsi_context *ctx)
 	}
 
 	if (access(LOCK_DIR, F_OK) != 0) {
-		if (mkdir(LOCK_DIR, 0660) != 0) {
+		if (mkdir(LOCK_DIR, 0770) != 0) {
 			_error(ctx, "Could not open %s: %d %s", LOCK_DIR, errno,
 				_strerror(errno, strerr_buff));
 			return LIBISCSI_ERR_IDBM;
