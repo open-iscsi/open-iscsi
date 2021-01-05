@@ -63,7 +63,7 @@ struct iscsi_daemon_config *dconfig = &daemon_config;
 static char program_name[] = "iscsid";
 static pid_t log_pid;
 static gid_t gid;
-static int daemonize = 1;
+static bool daemonize = true;
 static int mgmt_ipc_fd;
 static int sessions_to_recover = 0;
 
@@ -381,6 +381,8 @@ int main(int argc, char *argv[])
 	struct sigaction sa_new;
 	int control_fd;
 	pid_t pid;
+	bool pid_file_specified = false;
+	bool no_pid_file_specified = false;
 
 	while ((ch = getopt_long(argc, argv, "c:i:fd:nu:g:p:vh", long_options,
 				 &longindex)) >= 0) {
@@ -392,7 +394,7 @@ int main(int argc, char *argv[])
 			initiatorname_file = optarg;
 			break;
 		case 'f':
-			daemonize = 0;
+			daemonize = false;
 			break;
 		case 'd':
 			log_level = atoi(optarg);
@@ -405,9 +407,11 @@ int main(int argc, char *argv[])
 			break;
 		case 'n':
 			pid_file = NULL;
+			no_pid_file_specified = true;
 			break;
 		case 'p':
 			pid_file = optarg;
+			pid_file_specified = true;
 			break;
 		case 'v':
 			printf("%s version %s\n", program_name,
@@ -419,6 +423,17 @@ int main(int argc, char *argv[])
 		default:
 			usage(1);
 			break;
+		}
+	}
+
+	if (pid_file_specified) {
+		if (no_pid_file_specified) {
+			fprintf(stderr, "error: Conflicting PID-file options requested\n");
+			usage(1);
+		}
+		if (!daemonize) {
+			fprintf(stderr, "error: PID file specified but unused in foreground mode\n");
+			usage(1);
 		}
 	}
 

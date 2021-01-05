@@ -24,23 +24,28 @@ Read initiator name from \fIiname\-file\fR rather than the default
 .BI [-f|--foreground]
 run
 .B iscsid
-in the foreground.
+in the foreground. Implies
+.BR --no-pid-file .
 .TP
-.BI [-d|--debug=]\fIdebug_level\fP
+.BI [-d|--debug=] debug_level
 print debugging information. Valid values for debug_level are 0 to 8.
 .TP
-.BI [-u|--uid=]\fIuid\fP
-run under user ID \fIuid\fR (default is the current user ID)
+.BI [-u|--uid=] uid
+run under user ID \fIuid\fR (default is the current user ID).
 .TP
-.BI [-g|--gid=]\fIgid\fP
+.BI [-g|--gid=] gid
 run under user group ID \fIgid\fR (default is the current user group ID).
 .TP
-.BI [-n|--no-pid-file]\fP
-do not write a process ID file.
+.BI [-n|--no-pid-file]
+do not write a process ID file. Conflicts with the
+.BI --pid=
+option.
 .TP
-.BI [-p|--pid=]\fIpid\-file\fP
+.BI [-p|--pid=] pid\-file
 write process ID to \fIpid\-file\fR rather than the default
-\fI/run/iscsid.pid\fR
+\fI/run/iscsid.pid\fR. Conflicts with the 
+.BI --no-pid-file
+option. 
 .TP
 .BI [-h|--help]
 display this help and exit
