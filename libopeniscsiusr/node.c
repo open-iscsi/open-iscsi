@@ -109,6 +109,15 @@ int iscsi_nodes_get(struct iscsi_context *ctx, struct iscsi_node ***nodes,
 
 	_good(_scandir(ctx, NODE_CONFIG_DIR, &namelist, &n), rc, out);
 	_debug(ctx, "Got %d target from %s nodes folder", n, NODE_CONFIG_DIR);
+	/*
+	 * If continue with n == 0, calloc() might return a memory which failed
+	 * to be freed in iscsi_nodes_free()
+	 *
+	 * So here just goto out to exit if n == 0
+	 */
+	if (n == 0)
+		goto out;
+
 	*node_count = n & UINT32_MAX;
 	*nodes = (struct iscsi_node **) calloc(*node_count,
 					       sizeof(struct iscsi_node *));

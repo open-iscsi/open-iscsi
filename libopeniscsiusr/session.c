@@ -256,6 +256,8 @@ int iscsi_sessions_get(struct iscsi_context *ctx,
 	*session_count = 0;
 
 	_good(_iscsi_sids_get(ctx, &sids, session_count), rc ,out);
+	if (!*session_count)
+		goto out;
 
 	*sessions = calloc (*session_count, sizeof(struct iscsi_session *));
 	_alloc_null_check(ctx, *sessions, rc, out);

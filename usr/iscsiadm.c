@@ -3627,7 +3627,7 @@ main(int argc, char **argv)
 					  "Priority must be greater than or "
 					  "equal to zero.", killiscsid);
 				rc = ISCSI_ERR_INVAL;
-				goto free_ifaces;
+				goto out;
 			}
 			break;
 		case 't':
@@ -3639,7 +3639,7 @@ main(int argc, char **argv)
 				log_error("can not recognize operation: '%s'",
 					optarg);
 				rc = ISCSI_ERR_INVAL;
-				goto free_ifaces;
+				goto out;
 			}
 			break;
 		case 'n':
@@ -3651,7 +3651,7 @@ main(int argc, char **argv)
 		case 'H':
 			host_no = parse_host_info(optarg, &rc);
 			if (rc)
-				goto free_ifaces;
+				goto out;
 			break;
 		case 'r':
 			sid = iscsi_sysfs_get_sid_from_path(optarg);
@@ -3659,7 +3659,7 @@ main(int argc, char **argv)
 				log_error("invalid sid '%s'",
 					  optarg);
 				rc = ISCSI_ERR_INVAL;
-				goto free_ifaces;
+				goto out;
 			}
 			break;
 		case 'R':
@@ -3710,7 +3710,7 @@ main(int argc, char **argv)
 			mode = str_to_mode(optarg);
 			rc = verify_mode_params(argc, argv, mode);
 			if (ISCSI_SUCCESS != rc)
-				goto free_ifaces;
+				goto out;
 			break;
 		case 'C':
 			sub_mode = str_to_submode(optarg);
@@ -3739,11 +3739,11 @@ main(int argc, char **argv)
 				printf("Invalid iface name %s. Must be from "
 					"1 to %d characters.\n",
 					optarg, ISCSI_MAX_IFACE_LEN - 1);
-				goto free_ifaces;
+				goto out;
 			} else if (!iface || rc) {
 				printf("Could not add iface %s.", optarg);
 				rc = ISCSI_ERR_INVAL;
-				goto free_ifaces;
+				goto out;
 			}
 
 			list_add_tail(&iface->list, &ifaces);
@@ -3760,7 +3760,7 @@ main(int argc, char **argv)
 				log_error("Invalid index %s. %s.",
 					  optarg, strerror(errno));
 				rc = ISCSI_ERR_INVAL;
-				goto free_ifaces;
+				goto out;
 			}
 			break;
 		case 'A':
@@ -3778,7 +3778,7 @@ main(int argc, char **argv)
 			if (!param) {
 				log_error("Cannot allocate memory for params.");
 				rc = ISCSI_ERR_NOMEM;
-				goto free_ifaces;
+				goto out;
 			}
 			list_add_tail(&param->list, &params);
 			name = NULL;
@@ -3789,12 +3789,12 @@ main(int argc, char **argv)
 	if (optopt) {
 		log_error("unrecognized character '%c'", optopt);
 		rc = ISCSI_ERR_INVAL;
-		goto free_ifaces;
+		goto out;
 	}
 
 	if (killiscsid >= 0) {
 		kill_iscsid(killiscsid, timeout);
-		goto free_ifaces;
+		goto out;
 	}
 
 	if (mode < 0)
@@ -3802,14 +3802,14 @@ main(int argc, char **argv)
 
 	if (mode == MODE_FW) {
 		rc = exec_fw_op(NULL, NULL, info_level, do_login, op);
-		goto free_ifaces;
+		goto out;
 	}
 
 	increase_max_files();
 	if (idbm_init(get_config_file)) {
 		log_warning("exiting due to idbm configuration error");
 		rc = ISCSI_ERR_IDBM;
-		goto free_ifaces;
+		goto out;
 	}
 
 	switch (mode) {
@@ -4070,7 +4070,6 @@ out:
 		free(rec);
 	iscsi_sessions_free(ses, se_count);
 	idbm_terminate();
-free_ifaces:
 	list_for_each_entry_safe(iface, tmp, &ifaces, list) {
 		list_del(&iface->list);
 		free(iface);

@@ -1014,8 +1014,8 @@ int idbm_rec_update_param(recinfo_t *info, char *name, char *value,
 	int i;
 	int passwd_done = 0;
 	char passwd_len[8];
-	char *tmp_value, *token;
-	bool *found;
+	char *tmp_value, *token, *tmp;
+	bool *found = NULL;
 	int *tmp_data;
 
 setup_passwd_len:
@@ -1079,12 +1079,25 @@ setup_passwd_len:
 				if (!info[i].data)
 					continue;
 				tbl = (void *)info[i].opts[0];
-				/* strsep is destructive, make a copy to work with */
+				/*
+				 * strsep is destructive, make a copy to work with
+				 * tmp_value would be modified in strsep() too, so
+				 * here make a copy of tmp_value to tmp
+				 */
 				tmp_value = strdup(value);
+				if (!tmp_value)
+					return ISCSI_ERR_NOMEM;
+				tmp = tmp_value;
+
 				k = 0;
 				tmp_data = malloc(info[i].data_len);
+				if (!tmp_data)
+					goto free_tmp;
 				memset(tmp_data, ~0, info[i].data_len);
+
 				found = calloc(info[i].numopts, sizeof(bool));
+				if (!found)
+					goto free_tmp_data;
 
 next_token:			while ((token = strsep(&tmp_value, ", \n"))) {
 					if (!strlen(token))
@@ -1113,7 +1126,7 @@ next_token:			while ((token = strsep(&tmp_value, ", \n"))) {
 					            " for '%s'", token, info[i].name);
 				}
 				memcpy(info[i].data, tmp_data, info[i].data_len);
-				free(tmp_value);
+				free(tmp);
 				free(tmp_data);
 				tmp_value = NULL;
 				tmp_data = NULL;
@@ -1135,8 +1148,17 @@ next_token:			while ((token = strsep(&tmp_value, ", \n"))) {
 
 	return ISCSI_ERR_INVAL;
 
+free_tmp_data:
+	free(tmp_data);
+
+free_tmp:
+	free(tmp);
+	return ISCSI_ERR_NOMEM;
+
 updated:
 	strlcpy((char*)info[i].value, value, VALUE_MAXVAL);
+	if (found)
+		free(found);
 
 #define check_password_param(_param) \
 	if (!passwd_done && !strcmp(#_param, name)) { \
