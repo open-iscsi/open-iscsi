@@ -152,7 +152,7 @@ def new_parseArgs(self, argv):
 
     # now validate stuff
     if self.version_request:
-        print('%s Version %s, harnes version %s' % \
+        print('%s Version %s, harness version %s' % \
               (prog_name, parent_version, lib_version))
         sys.exit(0)
     Global.verbosity = self.verbosity
@@ -176,7 +176,7 @@ def new_parseArgs(self, argv):
         Global.partition = '%s-part1' % Global.device
     else:
         print('Error: must start with "/dev" or "/dev/disk/by-{id,path}": %s' % \
-                Global.device, file=sys.sttderr)
+                Global.device, file=sys.stderr)
         sys.exit(1)
     if self.subtest_list:
         if not user_spec_to_list(self.subtest_list):
