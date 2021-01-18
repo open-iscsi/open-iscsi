@@ -551,7 +551,7 @@ void iface_setup_host_bindings(void)
 		return;
 
 	if (access(IFACE_CONFIG_DIR, F_OK) != 0) {
-		if (mkdir(IFACE_CONFIG_DIR, 0660) != 0) {
+		if (mkdir(IFACE_CONFIG_DIR, 0770) != 0) {
 			log_error("Could not make %s. HW/OFFLOAD iscsi "
 				  "may not be supported", IFACE_CONFIG_DIR);
 			idbm_unlock();

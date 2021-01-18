@@ -326,7 +326,7 @@ int iscsi_default_iface_setup(struct iscsi_context *ctx)
 	_good(_idbm_lock(ctx), rc, out);
 
 	if ((access(IFACE_CONFIG_DIR, F_OK) != 0) &&
-	    (mkdir(IFACE_CONFIG_DIR, 0660) != 0)) {
+	    (mkdir(IFACE_CONFIG_DIR, 0770) != 0)) {
 		errno_save = errno;
 		_idbm_unlock(ctx);
 		_error(ctx, "Could not make %s folder(%d %s). "
