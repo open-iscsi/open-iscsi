@@ -43,6 +43,8 @@ ISCSI_LIB = -L$(TOPDIR)/libopeniscsiusr -lopeniscsiusr
 LDFLAGS += $(shell $(PKG_CONFIG) --libs libkmod)
 ifeq ($(NO_SYSTEMD),)
 LDFLAGS += $(shell $(PKG_CONFIG) --libs libsystemd)
+else
+CFLAGS += -DNO_SYSTEMD
 endif
 PROGRAMS = iscsid iscsiadm iscsistart
 
