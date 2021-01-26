@@ -3582,11 +3582,11 @@ main(int argc, char **argv)
 	struct sigaction sa_old;
 	struct sigaction sa_new;
 	LIST_HEAD(ifaces);
-	struct iface_rec *iface = NULL, *tmp;
+	struct iface_rec *iface = NULL, *tmp_iface;
 	struct node_rec *rec = NULL;
 	uint32_t host_no =  MAX_HOST_NO + 1;
 	uint64_t index = ULLONG_MAX;
-	struct user_param *param;
+	struct user_param *param, *tmp_param;
 	LIST_HEAD(params);
 	struct iscsi_context *ctx = NULL;
 	int librc = LIBISCSI_OK;
@@ -4070,11 +4070,11 @@ out:
 		free(rec);
 	iscsi_sessions_free(ses, se_count);
 	idbm_terminate();
-	list_for_each_entry_safe(iface, tmp, &ifaces, list) {
+	list_for_each_entry_safe(iface, tmp_iface, &ifaces, list) {
 		list_del(&iface->list);
 		free(iface);
 	}
-	list_for_each_entry(param, &params, list) {
+	list_for_each_entry_safe(param, tmp_param, &params, list) {
 		list_del(&param->list);
 		idbm_free_user_param(param);
 	}
