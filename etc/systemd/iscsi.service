@@ -5,6 +5,7 @@ Before=remote-fs.target
 After=network.target network-online.target
 After=iscsid.service iscsi-init.service
 Requires=iscsid.socket iscsi-init.service
+Wants=network-online.target
 
 [Service]
 Type=oneshot
