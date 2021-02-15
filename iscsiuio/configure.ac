@@ -67,10 +67,21 @@ AM_CONDITIONAL([DEBUG], [test x$debug = xtrue])
 AC_ARG_WITH([systemd],
 	    AS_HELP_STRING([--without-systemd], [Build without systemd]),
     [case "${withval}" in
-     yes) LDFLAGS="`pkg-config --libs libsystemd`" ;;
-     no)  CFLAGS="${CFLAGS} -DNO_SYSTEMD" ;;
+     yes) with_libsystemd=yes ;;
+     no)  wth_libsystemd=no ;;
      *)   AC_MSG_ERROR([bad value $withval for --with-systemd]) ;;
-     esac],[LDFLAGS="`pkg-config --libs libsystemd`"])
+     esac],[with_libsystemd=auto])
+AS_IF([test "$with_libsystemd" != no],[
+    PKG_CHECK_MODULES([LIBSYSTEMD],[libsystemd],[LDFLAGS=$LIBSYSTEMD_LIBS],[
+        if test "$with_libsystemd" = yes; then
+            AC_MSG_ERROR([could not find libsystemd using pkg-config])
+	else
+            CFLAGS="${CFLAGS} -DNO_SYSTEMD"
+	fi
+    ])
+],[
+    CFLAGS="${CFLAGS} -DNO_SYSTEMD"
+])
 
 AC_CONFIG_COMMANDS([default],[[
     if [ -n "$SOURCE_DATE_EPOCH" ] ; then
