@@ -246,6 +246,7 @@ int iscsi_sessions_get(struct iscsi_context *ctx,
 {
 	int rc = LIBISCSI_OK;
 	uint32_t i = 0;
+	uint32_t j = 0;
 	uint32_t *sids = NULL;
 
 	assert(ctx != NULL);
@@ -264,9 +265,22 @@ int iscsi_sessions_get(struct iscsi_context *ctx,
 
 	for (i = 0; i < *session_count; ++i) {
 		_debug(ctx, "sid %" PRIu32, sids[i]);
-		_good(iscsi_session_get(ctx, sids[i], &((*sessions)[i])),
-		      rc, out);
+		rc = iscsi_session_get(ctx, sids[i], &((*sessions)[j]));
+		if (rc == LIBISCSI_OK) {
+			/* if session info was successfully read from sysfs, advance the sessions pointer */
+			j++;
+		} else {
+			/* if not, just ignore the issue and keep trying with the next session ID,
+			 * there's always going to be an inherent race against session removal when collecting
+			 * attribute data from sysfs
+			 */
+			_debug(ctx, "Problem reading session %" PRIu32 ", skipping.", sids[i]);
+			rc = LIBISCSI_OK;
+		}
 	}
+	/* reset session count and sessions array length to what we were able to read from sysfs */
+	*session_count = j;
+	*sessions = reallocarray(*sessions, *session_count, sizeof(struct iscsi_session *));
 
 out:
 	free(sids);
