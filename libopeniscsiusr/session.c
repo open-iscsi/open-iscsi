@@ -101,8 +101,8 @@ _iscsi_getter_func_gen(iscsi_session, address, const char *);
 _iscsi_getter_func_gen(iscsi_session, port, int32_t);
 _iscsi_getter_func_gen(iscsi_session, iface, struct iscsi_iface *);
 
-int iscsi_session_get(struct iscsi_context *ctx, uint32_t sid,
-		      struct iscsi_session **se)
+int _iscsi_session_get(struct iscsi_context *ctx, uint32_t sid,
+		      struct iscsi_session **se, bool verbose)
 {
 	int rc = LIBISCSI_OK;
 	char *sysfs_se_dir_path = NULL;
@@ -137,8 +137,14 @@ int iscsi_session_get(struct iscsi_context *ctx, uint32_t sid,
 		rc = LIBISCSI_ERR_SESS_NOT_FOUND;
 	}
 	if (rc == LIBISCSI_ERR_SESS_NOT_FOUND) {
-		_error(ctx, "Specified SID %" PRIu32 " does not exist",
-		       sid);
+		/* don't complain loudly if called through iscsi_sessions_get()
+		 * the caller is not looking for a specific session,
+		 * and the list could be changing as we work through it
+		 */
+		if (verbose) {
+			_error(ctx, "Specified SID %" PRIu32 " does not exist",
+			       sid);
+		}
 		goto out;
 	}
 
@@ -240,6 +246,11 @@ out:
 	return rc;
 }
 
+int iscsi_session_get(struct iscsi_context *ctx, uint32_t sid,
+		      struct iscsi_session **se) {
+	return _iscsi_session_get(ctx, sid, se, true);
+}
+
 int iscsi_sessions_get(struct iscsi_context *ctx,
 		       struct iscsi_session ***sessions,
 		       uint32_t *session_count)
@@ -265,7 +276,7 @@ int iscsi_sessions_get(struct iscsi_context *ctx,
 
 	for (i = 0; i < *session_count; ++i) {
 		_debug(ctx, "sid %" PRIu32, sids[i]);
-		rc = iscsi_session_get(ctx, sids[i], &((*sessions)[j]));
+		rc = _iscsi_session_get(ctx, sids[i], &((*sessions)[j]), false);
 		if (rc == LIBISCSI_OK) {
 			/* if session info was successfully read from sysfs, advance the sessions pointer */
 			j++;
