@@ -127,17 +127,17 @@ int iscsi_session_get(struct iscsi_context *ctx, uint32_t sid,
 	_alloc_null_check(ctx, *se , rc, out);
 
 	if (! _file_exists(sysfs_se_dir_path)) {
-		_info(ctx, "Sysfs path '%s' does not exists",
+		_info(ctx, "Sysfs path '%s' does not exist",
 		      sysfs_se_dir_path);
 		rc = LIBISCSI_ERR_SESS_NOT_FOUND;
 	}
 	if (! _file_exists(sysfs_con_dir_path)) {
-		_info(ctx, "Sysfs path '%s' does not exists",
+		_info(ctx, "Sysfs path '%s' does not exist",
 		      sysfs_se_dir_path);
 		rc = LIBISCSI_ERR_SESS_NOT_FOUND;
 	}
 	if (rc == LIBISCSI_ERR_SESS_NOT_FOUND) {
-		_error(ctx, "Specified SID %" PRIu32, "does not exists",
+		_error(ctx, "Specified SID %" PRIu32 " does not exist",
 		       sid);
 		goto out;
 	}
