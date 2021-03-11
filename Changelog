@@ -1,3 +1,42 @@
+open-iscsi-2.1.3 - open-iscsi-2.1.4
+
+Abhinav Rajagopalan (1):
+      Fix typo in util.py
+
+Chris Leech (3):
+      libopeniscsiusr: fix error messages
+      libopeniscsiusr: skip over removed sessions
+      libopeniscsiusr: dont error loudly if a session isn't found when working through iscsi_sessions_get()
+
+Fabian Möller (1):
+      iscsid: Add NO_SYSTEMD to CFLAGS
+
+Helmut Grohne (1):
+      Avoid hardcoding pkg-config to fix cross build
+
+John Schaeffer (1):
+      Add etc/systemd/iscsi-init.service to SYSTEMDFILES Makefile variable
+
+Lee Duncan (4):
+      iscsid: Do not allow conflicting pid-file options
+      Fix iscsiadm segfault when exiting
+      Fix iscsistart login issue when target is delayed.
+      Enable iscsi.service asynchronous logins, cleanup services
+
+Matwey V. Kornilov (1):
+      Wants=network-online.target in iscsi.service
+
+Patrick Lawrence (1):
+      Change mkdir permissions to 0770, adjust usmask
+
+Wenchao Hao (4):
+      idbm: Fix memory leak and NULL pointer dereference in idbm_rec_update_param()
+      libopeniscsiusr: Fix memory leak in iscsi_nodes_get()
+      libopeniscsiusr: Fix memory leak in iscsi_sessions_get()
+      iscsiadm: Fix memory leak in iscsiadm
+
+---------------------------------------------------------------------------
+
 open-iscsi-2.1.2 - open-iscsi-2.1.3
 
 Chris Leech (4):
