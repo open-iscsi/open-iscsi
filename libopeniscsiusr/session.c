@@ -101,8 +101,8 @@ _iscsi_getter_func_gen(iscsi_session, address, const char *);
 _iscsi_getter_func_gen(iscsi_session, port, int32_t);
 _iscsi_getter_func_gen(iscsi_session, iface, struct iscsi_iface *);
 
-int iscsi_session_get(struct iscsi_context *ctx, uint32_t sid,
-		      struct iscsi_session **se)
+int _iscsi_session_get(struct iscsi_context *ctx, uint32_t sid,
+		      struct iscsi_session **se, bool verbose)
 {
 	int rc = LIBISCSI_OK;
 	char *sysfs_se_dir_path = NULL;
@@ -127,18 +127,24 @@ int iscsi_session_get(struct iscsi_context *ctx, uint32_t sid,
 	_alloc_null_check(ctx, *se , rc, out);
 
 	if (! _file_exists(sysfs_se_dir_path)) {
-		_info(ctx, "Sysfs path '%s' does not exists",
+		_info(ctx, "Sysfs path '%s' does not exist",
 		      sysfs_se_dir_path);
 		rc = LIBISCSI_ERR_SESS_NOT_FOUND;
 	}
 	if (! _file_exists(sysfs_con_dir_path)) {
-		_info(ctx, "Sysfs path '%s' does not exists",
+		_info(ctx, "Sysfs path '%s' does not exist",
 		      sysfs_se_dir_path);
 		rc = LIBISCSI_ERR_SESS_NOT_FOUND;
 	}
 	if (rc == LIBISCSI_ERR_SESS_NOT_FOUND) {
-		_error(ctx, "Specified SID %" PRIu32, "does not exists",
-		       sid);
+		/* don't complain loudly if called through iscsi_sessions_get()
+		 * the caller is not looking for a specific session,
+		 * and the list could be changing as we work through it
+		 */
+		if (verbose) {
+			_error(ctx, "Specified SID %" PRIu32 " does not exist",
+			       sid);
+		}
 		goto out;
 	}
 
@@ -240,12 +246,18 @@ out:
 	return rc;
 }
 
+int iscsi_session_get(struct iscsi_context *ctx, uint32_t sid,
+		      struct iscsi_session **se) {
+	return _iscsi_session_get(ctx, sid, se, true);
+}
+
 int iscsi_sessions_get(struct iscsi_context *ctx,
 		       struct iscsi_session ***sessions,
 		       uint32_t *session_count)
 {
 	int rc = LIBISCSI_OK;
 	uint32_t i = 0;
+	uint32_t j = 0;
 	uint32_t *sids = NULL;
 
 	assert(ctx != NULL);
@@ -264,9 +276,22 @@ int iscsi_sessions_get(struct iscsi_context *ctx,
 
 	for (i = 0; i < *session_count; ++i) {
 		_debug(ctx, "sid %" PRIu32, sids[i]);
-		_good(iscsi_session_get(ctx, sids[i], &((*sessions)[i])),
-		      rc, out);
+		rc = _iscsi_session_get(ctx, sids[i], &((*sessions)[j]), false);
+		if (rc == LIBISCSI_OK) {
+			/* if session info was successfully read from sysfs, advance the sessions pointer */
+			j++;
+		} else {
+			/* if not, just ignore the issue and keep trying with the next session ID,
+			 * there's always going to be an inherent race against session removal when collecting
+			 * attribute data from sysfs
+			 */
+			_debug(ctx, "Problem reading session %" PRIu32 ", skipping.", sids[i]);
+			rc = LIBISCSI_OK;
+		}
 	}
+	/* reset session count and sessions array length to what we were able to read from sysfs */
+	*session_count = j;
+	*sessions = reallocarray(*sessions, *session_count, sizeof(struct iscsi_session *));
 
 out:
 	free(sids);

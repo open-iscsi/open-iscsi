@@ -288,7 +288,7 @@ __DLL_EXPORT void iscsi_sessions_free(struct iscsi_session **ses,
  *	Output pointer of 'struct iscsi_session' pointer. Its memory
  *	should be freed by iscsi_session_free().
  *	If this pointer is NULL, your program will be terminated by assert.
- *	If specified iSCSI session does not exists, this pointer will be set to
+ *	If specified iSCSI session does not exist, this pointer will be set to
  *	NULL with LIBISCSI_OK returned.
  *
  * Return:

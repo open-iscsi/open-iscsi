@@ -169,11 +169,11 @@ int _sysfs_prop_get_str(struct iscsi_context *ctx, const char *dir_path,
 			if (default_value == NULL) {
 				rc = LIBISCSI_ERR_SYSFS_LOOKUP;
 				_error(ctx, "Failed to read '%s': "
-				       "file '%s' does not exists", prop_name,
+				       "file '%s' does not exist", prop_name,
 				       file_path);
 			} else {
 				_info(ctx, "Failed to read '%s': "
-				      "file '%s' does not exists, "
+				      "file '%s' does not exist, "
 				      "using default value %s", prop_name,
 				      file_path, default_value);
 				memcpy(buff, (void *) default_value,
@@ -244,13 +244,13 @@ static int iscsi_sysfs_prop_get_ll(struct iscsi_context *ctx,
 			if (! ignore_error) {
 				rc = LIBISCSI_ERR_SYSFS_LOOKUP;
 				_error(ctx, "Failed to read '%s': "
-				       "file '%s' does not exists",
+				       "file '%s' does not exist",
 				       prop_name, file_path);
 				goto out;
 			} else {
 				_info(ctx,
 				       "Failed to read '%s': "
-				      "File '%s' does not exists, using ",
+				      "File '%s' does not exist, using ",
 				      "default value %lld",
 				      prop_name, file_path, default_value);
 				*val = default_value;
