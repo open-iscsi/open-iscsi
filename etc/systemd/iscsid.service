@@ -2,9 +2,10 @@
 Description=Open-iSCSI
 Documentation=man:iscsid(8) man:iscsiuio(8) man:iscsiadm(8)
 DefaultDependencies=no
-After=network.target iscsiuio.service
+After=network-online.target iscsiuio.service iscsi-init.service
 Before=remote-fs-pre.target
 Wants=remote-fs-pre.target
+Requires=iscsi-init.service
 
 [Service]
 Type=notify
