@@ -624,8 +624,8 @@ check_security_stage_status(iscsi_session_t *session,
 	case AUTH_STATUS_ERROR:
 	case AUTH_STATUS_FAIL:
 	default:
-		acl_get_dbg_status(auth_client, &debug_status);
-		if (debug_status !=   AUTH_DBG_STATUS_NOT_SET)
+		if (acl_get_dbg_status(auth_client, &debug_status) == 
+			AUTH_STATUS_NO_ERROR)
 			log_error("Login authentication failed "
 				       "with target %s, %s",
 				       session->target_name,
