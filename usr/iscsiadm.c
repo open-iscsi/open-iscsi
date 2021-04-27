@@ -114,7 +114,7 @@ static const struct verify_mode_t mode_paras[] = {
 	[MODE_SESSION] = {"session", "PiRdrmusonuSv", 1},
 	[MODE_HOST] = {"host", "CHdmPotnvxA", 0},
 	[MODE_IFACE] = {"iface", "HIdnvmPoCabci", 0},
-	[MODE_FW] = {"fw", "dml", 0},
+	[MODE_FW] = {"fw", "dmlW", 0},
 };
 
 static struct option const long_options[] =
@@ -163,12 +163,12 @@ static void usage(int status)
 		printf("\
 iscsiadm -m discoverydb [-hV] [-d debug_level] [-P printlevel] [-t type -p ip:port -I ifaceN ... [-Dl]] | [[-p ip:port -t type] \
 [-o operation] [-n name] [-v value] [-lD]] \n\
-iscsiadm -m discovery [-hV] [-d debug_level] [-P printlevel] [-t type -p ip:port -I ifaceN ... [-l]] | [[-p ip:port] [-l | -D]] \n\
+iscsiadm -m discovery [-hV] [-d debug_level] [-P printlevel] [-t type -p ip:port -I ifaceN ... [-l]] | [[-p ip:port] [-l | -D]] [-W]\n\
 iscsiadm -m node [-hV] [-d debug_level] [-P printlevel] [-L all,manual,automatic,onboot] [-W] [-U all,manual,automatic,onboot] [-S] [[-T targetname -p ip:port -I ifaceN] [-l | -u | -R | -s]] \
 [[-o  operation ] [-n name] [-v value]]\n\
 iscsiadm -m session [-hV] [-d debug_level] [-P  printlevel] [-r sessionid | sysfsdir [-R | -u | -s] [-o operation] [-n name] [-v value]]\n\
 iscsiadm -m iface [-hV] [-d debug_level] [-P printlevel] [-I ifacename | -H hostno|MAC] [[-o  operation ] [-n name] [-v value]] [-C ping [-a ip] [-b packetsize] [-c count] [-i interval]]\n\
-iscsiadm -m fw [-d debug_level] [-l]\n\
+iscsiadm -m fw [-d debug_level] [-l] [-W]\n\
 iscsiadm -m host [-P printlevel] [-H hostno|MAC] [[-C chap [-x chap_tbl_idx]] | [-C flashnode [-A portal_type] [-x flashnode_idx]] | [-C stats]] [[-o operation] [-n name] [-v value]] \n\
 iscsiadm -k priority\n");
 	}
@@ -3014,7 +3014,7 @@ done:
 }
 
 static int exec_fw_op(discovery_rec_t *drec, struct list_head *ifaces,
-		      int info_level, int do_login, int op)
+		      int info_level, int do_login, int op, bool wait)
 {
 	struct boot_context *context;
 	LIST_HEAD(targets);
@@ -3043,7 +3043,10 @@ static int exec_fw_op(discovery_rec_t *drec, struct list_head *ifaces,
 				break;
 			}
 
-			iscsi_login_portal(NULL, NULL, rec);
+			if (wait)
+				iscsi_login_portal(NULL, NULL, rec);
+			else
+				iscsi_login_portal_nowait(rec);
 			free(rec);
 		}
 	} else {
@@ -3202,7 +3205,7 @@ static int exec_disc2_op(int disc_type, char *ip, int port,
 		}
 
 		drec.type = DISCOVERY_TYPE_FW;
-		rc = exec_fw_op(&drec, ifaces, info_level, do_login, op);
+		rc = exec_fw_op(&drec, ifaces, info_level, do_login, op, true);
 		goto done;
 	default:
 		rc = ISCSI_ERR_INVAL;
@@ -3263,7 +3266,8 @@ static int exec_disc_op(int disc_type,
 			int do_discover,
 			int op,
 			__attribute__((unused))struct list_head *params,
-			int do_show)
+			int do_show,
+			bool wait)
 {
 	struct discovery_rec drec;
 	int rc = 0;
@@ -3319,7 +3323,7 @@ static int exec_disc_op(int disc_type,
 		break;
 	case DISCOVERY_TYPE_FW:
 		drec.type = DISCOVERY_TYPE_FW;
-		rc = exec_fw_op(&drec, ifaces, info_level, do_login, op);
+		rc = exec_fw_op(&drec, ifaces, info_level, do_login, op, wait);
 		break;
 	default:
 		if (ip) {
@@ -3801,7 +3805,7 @@ main(int argc, char **argv)
 		usage(ISCSI_ERR_INVAL);
 
 	if (mode == MODE_FW) {
-		rc = exec_fw_op(NULL, NULL, info_level, do_login, op);
+		rc = exec_fw_op(NULL, NULL, info_level, do_login, op, wait);
 		goto out;
 	}
 
@@ -3904,7 +3908,7 @@ main(int argc, char **argv)
 	case MODE_DISCOVERY:
 		rc = exec_disc_op(type, ip, port, &ifaces, info_level,
 				  do_login, do_discover, op, &params,
-				  do_show);
+				  do_show, wait);
 		break;
 	case MODE_NODE:
 		if (do_login_all) {
