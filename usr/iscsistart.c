@@ -361,7 +361,7 @@ int main(int argc, char *argv[])
 	struct boot_context *context, boot_context;
 	struct sigaction sa_old;
 	struct sigaction sa_new;
-	struct user_param *param;
+	struct user_param *param, *tmp_param;
 	int control_fd, mgmt_ipc_fd, err;
 	pid_t pid;
 
@@ -556,7 +556,7 @@ int main(int argc, char *argv[])
 	mgmt_ipc_close(mgmt_ipc_fd);
 	free_initiator();
 	sysfs_cleanup();
-	list_for_each_entry(param, &user_params, list) {
+	list_for_each_entry_safe(param, tmp_param, &user_params, list) {
 		list_del(&param->list);
 		idbm_free_user_param(param);
 	}
