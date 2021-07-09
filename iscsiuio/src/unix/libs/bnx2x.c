@@ -350,6 +350,13 @@ static int bnx2x_is_drv_version_unknown(struct bnx2x_driver_version *version)
 	return 0;
 }
 
+static void bnx2x_set_drv_version_default(bnx2x_t *bp)
+{
+	bp->version.major = BNX2X_DEFAULT_MAJOR_VERSION;
+	bp->version.minor = BNX2X_DEFAULT_MINOR_VERSION;
+	bp->version.sub_minor = BNX2X_DEFAULT_SUB_MINOR_VERSION;
+}
+
 /**
  * bnx2x_get_drv_version() - Used to determine the driver version
  * @param bp - Device used to determine bnx2x driver version
@@ -405,8 +412,7 @@ static int bnx2x_get_drv_version(bnx2x_t *bp)
 	}
 	bp->version.sub_minor = atoi(tok);
 
-	LOG_INFO(PFX "%s: bnx2x driver using version %d.%d.%d",
-		 nic->log_name,
+	LOG_INFO(PFX "%s: interface version %d.%d.%d", nic->log_name,
 		 bp->version.major, bp->version.minor, bp->version.sub_minor);
 
 	close(fd);
@@ -710,7 +716,14 @@ static int bnx2x_open(nic_t *nic)
 		/* If version is unknown, go read from ethtool */
 		rc = bnx2x_get_drv_version(bp);
 		if (rc)
-			goto open_error;
+			bnx2x_set_drv_version_default(bp);
+		else if (!(bnx2x_is_ver60_plus(bp) || bnx2x_is_ver52(bp)))
+			bnx2x_set_drv_version_default(bp);
+
+		LOG_INFO(PFX "%s: bnx2x Use baseline version %d.%d.%d",
+			 nic->log_name,
+			 bp->version.major, bp->version.minor,
+			 bp->version.sub_minor);
 	} else {
 		/* Version is not unknown, just use it */
 		bnx2x_version.major = bp->version.major;
