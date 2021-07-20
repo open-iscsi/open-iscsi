@@ -190,6 +190,12 @@ case "$driver" in
     qla*)
 	mod=qla4xxx
 	;;
+    qede)
+	mod=qede
+	;;
+    qedi)
+	mod=qedi
+	;;
 esac
 
 if [ -z "$mod" ] ; then
@@ -217,6 +223,8 @@ elif [ "$mod" = "cxgb3i" ] ; then
 elif [ "$mod" = "be2iscsi" ] ; then
     mac=$(iscsi_macaddress_from_pcifn $pcipath $IFNAME)
 elif [ "$mod" = "qla4xxx" ] ; then
+    mac=$(iscsi_macaddress_from_pcifn $pcipath $IFNAME)
+elif [ "$mod" = "qede" -o "$mod" = "qedi" ] ; then
     mac=$(iscsi_macaddress_from_pcifn $pcipath $IFNAME)
 fi
 
