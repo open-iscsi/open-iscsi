@@ -29,4 +29,5 @@ extern char *cfg_get_string_param(char *pathname, const char *key);
 struct sockaddr_un;
 extern int setup_abstract_addr(struct sockaddr_un *addr, char *unix_sock_name);
 
+extern int setup_safe_io_memory(void);
 #endif

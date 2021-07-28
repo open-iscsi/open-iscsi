@@ -30,6 +30,7 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <sys/resource.h>
+#include <sys/prctl.h>
 
 #include "sysdeps.h"
 #include "log.h"
@@ -384,4 +385,21 @@ int iscsi_match_target(void *data, struct session_info *info)
 				     info->persistent_address,
 				     info->persistent_port, NULL,
 				     MATCH_ANY_SID);
+}
+
+int setup_safe_io_memory(void)
+{
+	int res = 0;
+
+#ifdef	PR_SET_IO_FLUSHER
+	log_debug(3, "Setting up SAFE I/O Kernel Mem Alloc");
+	if ((res = prctl(PR_SET_IO_FLUSHER, 1)) < 0) {
+		log_error("Cannot setup safe kernel memory allocation");
+		log_debug(5, "prctl() failed, errno=%d", errno);
+	}
+#else
+	log_debug(3, "Skipping setup of SAFE I/O Kernel Mem Alloc: no PR_SET_IO_FLUSHER ioctl");
+#endif
+
+	return res;
 }

@@ -464,6 +464,12 @@ int main(int argc, char *argv[])
 	daemon_config.initiator_name = NULL;
 	daemon_config.initiator_alias = NULL;
 
+	/* this must be done before memory allocation, including socket creation */
+	if (setup_safe_io_memory() != 0) {
+		log_close(log_pid);
+		exit(ISCSI_ERR);
+	}
+
 	if ((mgmt_ipc_fd = mgmt_ipc_listen()) < 0) {
 		log_close(log_pid);
 		exit(ISCSI_ERR);
