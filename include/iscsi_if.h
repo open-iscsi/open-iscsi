@@ -393,8 +393,11 @@ struct iscsi_path {
 #define ISCSI_IPV6_ROUTER_AUTOCFG_ENABLE	0x01
 #define ISCSI_IPV6_ROUTER_AUTOCFG_DISABLE	0x02
 
-#define ISCSI_IFACE_TYPE_IPV4		0x01
-#define ISCSI_IFACE_TYPE_IPV6		0x02
+/* Interface IP Type */
+enum iscsi_iface_type {
+	ISCSI_IFACE_TYPE_IPV4			= 1,
+	ISCSI_IFACE_TYPE_IPV6,
+};
 
 #define ISCSI_MAX_VLAN_ID		4095
 #define ISCSI_MAX_VLAN_PRIORITY		7

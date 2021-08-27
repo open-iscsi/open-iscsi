@@ -445,25 +445,34 @@ int iface_get_by_net_binding(struct iface_rec *pattern,
 	return ISCSI_ERR_NO_OBJS_FOUND;
 }
 
-int iface_get_iptype(struct iface_rec *iface)
+/*
+ * detect IPv4 vs IPv4 IP address
+ */
+enum iscsi_iface_type iface_get_iptype(struct iface_rec *iface)
 {
+	enum iscsi_iface_type res = ISCSI_IFACE_TYPE_IPV4;
+
 	/* address might not be set if user config with another tool */
 	if (!strlen(iface->ipaddress) ||
 	    !strcmp(UNKNOWN_VALUE, iface->ipaddress)) {
-		/* try to figure out by name */
-		if (strstr(iface->name, "ipv4"))
-			return ISCSI_IFACE_TYPE_IPV4;
-		else if (strstr(iface->name, "ipv6"))
-			return ISCSI_IFACE_TYPE_IPV6;
-		else	/* assume ipv4 by default */
-			return ISCSI_IFACE_TYPE_IPV4;
+		/* unknown or empty IP address: try to figure out by name */
+		if (strstr(iface->name, "ipv6"))
+			res = ISCSI_IFACE_TYPE_IPV6;
 	} else {
+		/* figure out what type of IP address string we have */
 		if (strcmp(iface->bootproto, "dhcp") &&
-		    !strstr(iface->ipaddress, "."))
-			return ISCSI_IFACE_TYPE_IPV6;
-		else
-			return ISCSI_IFACE_TYPE_IPV4;
+		    !strchr(iface->ipaddress, '.')) {
+			/* bootproto is NOT "dhcp", IP addr does NOT have a dot in it */
+			res = ISCSI_IFACE_TYPE_IPV6;
+		}
 	}
+
+	log_debug(8, "iface: ipaddr=\"%s\" name=\"%s\" bootproto=\"%s\" -> %s",
+			iface->ipaddress, iface->name,
+			iface->bootproto,
+			res == ISCSI_IFACE_TYPE_IPV4 ? "IPv4" : "IPv6");
+
+	return res;
 }
 
 static int iface_setup_binding_from_kern_iface(void *data,
@@ -1211,7 +1220,7 @@ static void iface_get_common_param_count(struct iface_rec *iface, int *count)
 static int __iface_get_param_count(void *data, struct iface_rec *iface)
 {
 	struct iface_param_count *iface_params = data;
-	int iptype = ISCSI_IFACE_TYPE_IPV4;
+	enum iscsi_iface_type iptype;
 	int count = 0;
 
 	if (strcmp(iface_params->primary->hwaddress, iface->hwaddress))
