@@ -995,6 +995,30 @@ void iface_link_ifaces(struct list_head *ifaces)
 	iface_for_each_iface(ifaces, 1, &nr_found, iface_link);
 }
 
+/*
+ * ipv6 address strings will have at least two colons
+ *
+ * NOTE: does NOT validate the IP address
+ */
+static bool ipaddr_is_ipv6(char *ipaddr)
+{
+	char *first_colon, *second_colon;
+	bool res = false;
+
+	if (ipaddr) {
+		first_colon = strchr(ipaddr, ':');
+		if (first_colon) {
+			second_colon = strchr(first_colon+1, ':');
+			if (second_colon &&
+			    (second_colon != first_colon))
+				res = true;
+		}
+	}
+	log_debug(8, "%s(%s) -> %u",
+		__FUNCTION__, ipaddr, res);
+	return res;
+}
+
 /**
  * iface_setup_from_boot_context - setup iface from boot context info
  * @iface: iface t setup
@@ -1068,9 +1092,6 @@ int iface_setup_from_boot_context(struct iface_rec *iface,
 	}
 	strcpy(iface->transport_name, t->name);
 
-	memset(iface->name, 0, sizeof(iface->name));
-	snprintf(iface->name, sizeof(iface->name), "%s.%s",
-		 iface->transport_name, context->mac);
 	strlcpy(iface->hwaddress, context->mac,
 		sizeof(iface->hwaddress));
 	strlcpy(iface->ipaddress, context->ipaddr,
@@ -1080,6 +1101,11 @@ int iface_setup_from_boot_context(struct iface_rec *iface,
 		sizeof(iface->subnet_mask));
 	strlcpy(iface->gateway, context->gateway,
 		sizeof(iface->gateway));
+	snprintf(iface->name, sizeof(iface->name), "%s.%s.%s.%u",
+		 iface->transport_name, context->mac,
+		 ipaddr_is_ipv6(iface->ipaddress) ?  "ipv6" : "ipv4",
+		 iface->iface_num);
+
 	log_debug(1, "iface " iface_fmt "", iface_str(iface));
 	return 1;
 }
