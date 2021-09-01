@@ -35,13 +35,12 @@ iscsiadm \- open-iscsi administration utility
 .RB [ \-P
 .IR printlevel ]
 .RB [ \-I
-.IB iface\  \-t\  type\  \-p\  ip:port
-.RB [ \-l ]
-] | [
+.IR iface ]
+.RB [ \-t
+.IR  type ]
 .RB [ \-p
 .IR ip:port ]
-.RB [ \-l | \-D ]
-]
+.RB [ \-l ]
 .PP
 .B iscsiadm
 .B \-m node
@@ -473,6 +472,11 @@ Specify the \fIindex\fR of the entity to operate on.
 This option is only valid for chap and flashnode submodes of host mode.
 .SH DISCOVERY TYPES
 iSCSI defines 3 discovery types: SendTargets, SLP, and iSNS.
+.PP
+A special discovery type called
+.I fw
+(for firmware) is also supported, for discoverying firmware interfaces,
+and populating the interface database in the process.
 .TP
 .B
 SendTargets
@@ -494,6 +498,7 @@ optionally the port of the iSNS server to do discovery to.
 .TP
 .B
 fw
+Firmware mode.
 Several NICs and systems contain a mini iSCSI initiator which can be used
 for boot. To get the values used for boot the fw option can be used.
 Doing fw discovery, does not store persistent records in the node or
@@ -503,17 +508,9 @@ resource.
 Performing fw discovery will print the portals, like with other discovery
 methods. To see other settings like CHAP values and initiator settings,
 like you would in node mode, run \fIiscsiadm \-m fw\fR.
-.IP
-fw support in open-iscsi is experimental. The settings and iscsiadm
-syntax and output format may change.
 .P
-iscsiadm supports the
-.B
-iSNS (isns)
-or
-.B
-SendTargets (st)
-discovery type. An SLP implementation is under development.
+Note that the SLP implementation is under development and currently
+is not supported.
 .SH EXIT STATUS
 On success 0 is returned. On error one of the return codes below will
 be returned.
