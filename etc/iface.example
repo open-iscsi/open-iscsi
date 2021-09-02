@@ -91,6 +91,13 @@
 # example
 # iface.vlan_state = enable
 
+#
+# The IPv6 attributes require the interface file
+# be named with the string "ipv6" in it. Otherwise,
+# parsing such a file will cause errors, since IPv4
+# is otherwise assumed.
+#
+
 # OPTIONAL: iface.ipv6_linklocal
 # Specify the IPV6 Link Local Address with the
 # link local prefix of FE80::0/64
@@ -155,7 +162,7 @@
 #
 # IPV6 sample config file with neighbor discovery:
 #  BEGIN RECORD 2.0-872
-# iface.iscsi_ifacename = qla4xxx-3-1
+# iface.iscsi_ifacename = qla4xxx-3-1-ipv6
 # iface.ipaddress =
 # iface.hwaddress = 00:0e:1e:04:93:92
 # iface.transport_name = qla4xxx
@@ -182,7 +189,7 @@
 
 # Sample ipv6 config file(manual configured IPs):
 # BEGIN RECORD 2.0-872
-# iface.iscsi_ifacename = iface-new-file
+# iface.iscsi_ifacename = iface-new-file-ipv6
 # iface.ipaddress = fec0:ce00:7014:0041:1111:2222:1e04:9392
 # iface.hwaddress = 00:0e:1e:04:93:92
 # iface.transport_name = qla4xxx
