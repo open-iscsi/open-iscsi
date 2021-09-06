@@ -254,7 +254,7 @@ static int login_session(struct node_rec *rec)
 	 * login.
 	 */
 	for (msec = 50; msec <= 15000; msec <<= 1) {
-		int tmo = ISCSID_REQ_TIMEOUT * 10;
+		int tmo = ISCSID_REQ_TIMEOUT * 60;
 
 		rc = iscsid_exec_req(&req, &rsp, 0, tmo);
 		if (rc == 0) {
