@@ -65,6 +65,8 @@ static char program_name[] = "iscsistart";
 /* used by initiator */
 extern struct iscsi_ipc *ipc;
 
+static int login_req_timeout = 10;
+
 static struct option const long_options[] = {
 	{"initiatorname", required_argument, NULL, 'i'},
 	{"targetname", required_argument, NULL, 't'},
@@ -79,6 +81,7 @@ static struct option const long_options[] = {
 	{"fwparam_connect", no_argument, NULL, 'b'},
 	{"fwparam_network", no_argument, NULL, 'N'},
 	{"fwparam_print", no_argument, NULL, 'f'},
+	{"login_timeout", required_argument, NULL, 'l'},
 	{"param", required_argument, NULL, 'P'},
 	{"help", no_argument, NULL, 'h'},
 	{"version", no_argument, NULL, 'v'},
@@ -107,6 +110,7 @@ Open-iSCSI initiator.\n\
   -b, --fwparam_connect    create a session to the target using iBFT or OF\n\
   -N, --fwparam_network    bring up the network as specified by iBFT or OF\n\
   -f, --fwparam_print      print the iBFT or OF info to STDOUT \n\
+  -l, --login_timeout      set login request timeout \n\
   -P, --param=NAME=VALUE   set parameter with the name NAME to VALUE\n\
   -h, --help               display this help and exit\n\
   -v, --version            display version and exit\n\
@@ -254,7 +258,7 @@ static int login_session(struct node_rec *rec)
 	 * login.
 	 */
 	for (msec = 50; msec <= 15000; msec <<= 1) {
-		int tmo = ISCSID_REQ_TIMEOUT * 10;
+		int tmo = ISCSID_REQ_TIMEOUT * login_req_timeout;
 
 		rc = iscsid_exec_req(&req, &rsp, 0, tmo);
 		if (rc == 0) {
@@ -381,7 +385,7 @@ int main(int argc, char *argv[])
 
 	sysfs_init();
 
-	while ((ch = getopt_long(argc, argv, "P:i:t:g:a:p:d:u:w:U:W:bNfvh",
+	while ((ch = getopt_long(argc, argv, "P:i:t:g:a:p:d:u:w:l:U:W:bNfvh",
 				 long_options, &longindex)) >= 0) {
 		switch (ch) {
 		case 'i':
@@ -460,6 +464,9 @@ int main(int argc, char *argv[])
 
 			fw_free_targets(&targets);
 			exit(0);
+		case 'l':
+			login_req_timeout = atoi(optarg);
+			break;
 		case 'P':
 			err = parse_param(optarg);
 			if (err)
