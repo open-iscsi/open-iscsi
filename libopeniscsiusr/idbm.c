@@ -303,7 +303,7 @@ struct idbm_rec {
 	enum modify_mode	can_modify;
 };
 
-static void _idbm_node_rec_link(struct iscsi_node *node, struct idbm_rec *recs);
+static void _idbm_node_rec_link(struct iscsi_node *node, struct idbm_rec *recs, const char *iface_name);
 
 int _idbm_lock(struct iscsi_context *ctx)
 {
@@ -394,6 +394,10 @@ static int _idbm_iface_rec_link(struct iscsi_iface *iface,
 				 struct idbm_rec *recs, int num)
 {
 	int init_num = num;
+
+	if (strstr(iface->name, "ipv6"))
+		iface->is_ipv6 = true;
+
 	if (init_num == 0)
 		_rec_str(IFACE_ISCSINAME, recs, iface, name, IDBM_SHOW, num,
 			 _CANNOT_MODIFY);
@@ -587,7 +591,7 @@ void _idbm_node_print(struct iscsi_node *node, FILE *f, bool show_secret)
 	if (recs == NULL)
 		return;
 
-	_idbm_node_rec_link(node, recs);
+	_idbm_node_rec_link(node, recs, NULL);
 	_idbm_recs_print(recs, f, show_secret ? IDBM_SHOW : IDBM_MASKED);
 	_idbm_recs_free(recs);
 }
@@ -977,7 +981,7 @@ static struct int_list_tbl chap_algs[] = {
 	{ "SHA3-256", ISCSI_AUTH_CHAP_ALG_SHA3_256 },
 };
 
-static void _idbm_node_rec_link(struct iscsi_node *node, struct idbm_rec *recs)
+static void _idbm_node_rec_link(struct iscsi_node *node, struct idbm_rec *recs, const char *iface_name)
 {
 	int num = 0;
 
@@ -989,6 +993,10 @@ static void _idbm_node_rec_link(struct iscsi_node *node, struct idbm_rec *recs)
 		    "automatic", "onboot", num, _CAN_MODIFY);
 	_rec_bool(NODE_LEADING_LOGIN, recs, node, leading_login, IDBM_SHOW,
 		  num, _CAN_MODIFY);
+
+	/* use the interface name passed in, if any */
+	if (iface_name)
+		strncpy((*node).iface.name, iface_name, ISCSI_MAX_IFACE_LEN);
 
 	/*
 	 * Note: because we do not add the iface.iscsi_ifacename to
@@ -1153,7 +1161,7 @@ int _idbm_node_get(struct iscsi_context *ctx, const char *target_name,
 	recs = _idbm_recs_alloc();
 	_alloc_null_check(ctx, recs, rc, out);
 
-	_idbm_node_rec_link(*node, recs);
+	_idbm_node_rec_link(*node, recs, iface_name);
 
 	_good(_idbm_recs_read(ctx, recs, conf_path), rc, out);
 
@@ -1179,8 +1187,6 @@ int _idbm_node_get(struct iscsi_context *ctx, const char *target_name,
 			 "[%s]:%" PRIi32, (*node)->conn.address,
 			 (*node)->conn.port);
 	}
-
-
 
 out:
 	if (rc != LIBISCSI_OK) {

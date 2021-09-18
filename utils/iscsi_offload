@@ -85,10 +85,11 @@ iscsi_macaddress_from_pcifn()
     local h
     local host
     local ifmac
+    local olemacoffset=$3
 
     ifmac=$(ip addr show dev $if | sed -n 's/ *link\/ether \(.*\) brd.*/\1/p')
     m5=$(( 0x${ifmac##*:} ))
-    m5=$(( $m5 + 1 ))
+    m5=$(( $m5 + $olemacoffset ))
     ifmac=$(printf "%s:%02x" ${ifmac%:*} $m5)
     for host in /sys/class/iscsi_host/host* ; do
 	if [ -L "$host" ] ; then
@@ -190,10 +191,7 @@ case "$driver" in
     qla*)
 	mod=qla4xxx
 	;;
-    qede)
-	mod=qede
-	;;
-    qedi)
+    qed*)
 	mod=qedi
 	;;
 esac
@@ -221,11 +219,11 @@ if [ "$mod" = "bnx2i" ] ; then
 elif [ "$mod" = "cxgb3i" ] ; then
     mac=$(iscsi_macaddress_from_pcidevice $pcipath $IFNAME)
 elif [ "$mod" = "be2iscsi" ] ; then
-    mac=$(iscsi_macaddress_from_pcifn $pcipath $IFNAME)
+    mac=$(iscsi_macaddress_from_pcifn $pcipath $IFNAME 1)
 elif [ "$mod" = "qla4xxx" ] ; then
-    mac=$(iscsi_macaddress_from_pcifn $pcipath $IFNAME)
+    mac=$(iscsi_macaddress_from_pcifn $pcipath $IFNAME 1)
 elif [ "$mod" = "qede" -o "$mod" = "qedi" ] ; then
-    mac=$(iscsi_macaddress_from_pcifn $pcipath $IFNAME)
+    mac=$(iscsi_macaddress_from_pcifn $pcipath $IFNAME 4)
 fi
 
 if [ -z "$mac" ] ; then

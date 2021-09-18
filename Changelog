@@ -1,3 +1,30 @@
+open-iscsi-2.1.4 - open-iscsi-2.1.5
+
+Chris Leech (1):
+      iscsistart: fix null pointer deref before exit
+
+Lee Duncan (8):
+      Add iscsiadm "no wait" option for firmware login.
+      Set default 'startup' to 'onboot' for FW nodes
+      Support the "qede" CNA-card driver.
+      Handle qedi correctly in NPAR mode
+      Change iscsi IP type from defines to enum.
+      Update iface.example for ipv6
+      Update iscsiadm man page
+      Handle IPv6 interfaces correctly.
+
+Manish Rangankar (1):
+      bnx2x.c: Re-initialize bp->version with baseline version.
+
+Mike Christie (1):
+      iscsid: set PR_SET_IO_FLUSHER
+
+gulams (3):
+      Log error message when auth debug status is set
+      Check ISCSI_ERR_ISCSID_NOTCONN in iscsistart login
+      Handle recv() returning 0 in iscsid_response()
+
+
 open-iscsi-2.1.3 - open-iscsi-2.1.4
 
 Abhinav Rajagopalan (1):

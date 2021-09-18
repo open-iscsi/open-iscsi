@@ -34,6 +34,7 @@
 #include <sys/wait.h>
 #include <sys/types.h>
 #include <sys/stat.h>
+#include <sys/prctl.h>
 #ifndef	NO_SYSTEMD
 #include <systemd/sd-daemon.h>
 #endif
@@ -55,6 +56,10 @@
 #include "discoveryd.h"
 #include "iscsid_req.h"
 #include "iscsi_err.h"
+
+#ifndef PR_SET_IO_FLUSHER
+#define PR_SET_IO_FLUSHER 57
+#endif
 
 /* global config info */
 struct iscsi_daemon_config daemon_config;
@@ -620,6 +625,15 @@ int main(int argc, char *argv[])
 		log_error("failed to mlockall, exiting...");
 		log_close(log_pid);
 		exit(ISCSI_ERR);
+	}
+
+	if (prctl(PR_SET_IO_FLUSHER, 1, 0, 0, 0) == -1) {
+		if (errno == EINVAL) {
+			log_info("prctl could not mark iscsid with the PR_SET_IO_FLUSHER flag, because the feature is not supported in this kernel. Will proceed, but iscsid may hang during session level recovery if memory is low.\n");
+		} else {
+			log_error("prctl could not mark iscsid with the PR_SET_IO_FLUSHER flag due to error %s\n",
+				  strerror(errno));
+		}
 	}
 
 	set_state_to_ready();

@@ -86,6 +86,29 @@ _iscsi_getter_func_gen(iscsi_iface, port_state, const char *);
 _iscsi_getter_func_gen(iscsi_iface, port_speed, const char *);
 _iscsi_getter_func_gen(iscsi_iface, name, const char *);
 
+/*
+ * ipv6 address strings will have at least two colons
+ *
+ * NOTE: does NOT validate the IP address
+ */
+static bool lib_ipaddr_is_ipv6(struct iscsi_context *ctx, char *ipaddr)
+{
+	char *first_colon, *second_colon;
+	bool res = false;
+
+	if (ipaddr) {
+		first_colon = strchr(ipaddr, ':');
+		if (first_colon) {
+			second_colon = strchr(first_colon+1, ':');
+			if (second_colon &&
+			    (second_colon != first_colon))
+				res = true;
+		}
+	}
+	_debug(ctx, "ipaddr=\"%s\" -> %u", ipaddr, res);
+	return res;
+}
+
 int _iscsi_iface_get_from_sysfs(struct iscsi_context *ctx, uint32_t host_id,
 				uint32_t sid, char *iface_kern_id,
 				struct iscsi_iface **iface)
@@ -203,8 +226,10 @@ int _iscsi_iface_get_from_sysfs(struct iscsi_context *ctx, uint32_t host_id,
 		if (bound_by_hwaddr)
 			snprintf((*iface)->name,
 				 sizeof((*iface)->name)/sizeof(char),
-				 "%s.%s", (*iface)->transport_name,
-				 (*iface)->hwaddress);
+				 "%s.%s.%s.%u", (*iface)->transport_name,
+				 (*iface)->hwaddress,
+				 lib_ipaddr_is_ipv6(ctx, (*iface)->ipaddress) ? "ipv6" : "ipv4",
+				 (*iface)->iface_num);
 	}
 
 	if (strcmp((*iface)->name, "") == 0) {

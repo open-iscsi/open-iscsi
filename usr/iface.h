@@ -59,7 +59,7 @@ extern int iface_get_param_count(struct iface_rec *iface_primary,
 				 int iface_all);
 extern int iface_build_net_config(struct iface_rec *iface_primary,
 				  int iface_all, struct iovec *iovs);
-extern int iface_get_iptype(struct iface_rec *iface);
+extern enum iscsi_iface_type iface_get_iptype(struct iface_rec *iface);
 
 #define iface_fmt "[hw=%s,ip=%s,net_if=%s,iscsi_if=%s]"
 #define iface_str(_iface) \

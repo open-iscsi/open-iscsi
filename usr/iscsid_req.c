@@ -165,7 +165,7 @@ int iscsid_response(int fd, iscsiadm_cmd_e cmd, iscsiadm_rsp_t *rsp,
 			return ISCSI_ERR_ISCSID_COMM_ERR;
 		} else if (pfd.revents & POLLIN) {
 			err = recv(fd, rsp, sizeof(*rsp), MSG_WAITALL);
-			if (err < 0) {
+			if (err <= 0) {
 				log_error("read error (%d/%d), daemon died?",
 					  err, errno);
 				break;
