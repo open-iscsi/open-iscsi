@@ -996,7 +996,7 @@ static void _idbm_node_rec_link(struct iscsi_node *node, struct idbm_rec *recs, 
 
 	/* use the interface name passed in, if any */
 	if (iface_name)
-		strncpy((*node).iface.name, iface_name, ISCSI_MAX_IFACE_LEN);
+		strncpy((*node).iface.name, iface_name, ISCSI_MAX_IFACE_LEN-1);
 
 	/*
 	 * Note: because we do not add the iface.iscsi_ifacename to
