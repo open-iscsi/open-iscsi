@@ -12,7 +12,7 @@ Wants=remote-fs-pre.target
 [Service]
 Type=notify
 NotifyAccess=main
-ExecStart=/sbin/iscsiuio -f
+ExecStart=@SBINDIR@/iscsiuio -f
 KillMode=mixed
 Restart=on-failure
 

@@ -6,4 +6,4 @@ DefaultDependencies=no
 [Service]
 Type=oneshot
 RemainAfterExit=no
-ExecStart=/usr/bin/sh -c 'echo "InitiatorName=`/usr/sbin/iscsi-iname`" > /etc/iscsi/initiatorname.iscsi'
+ExecStart=/usr/bin/sh -c 'echo "InitiatorName=`@SBINDIR@/iscsi-iname`" > /etc/iscsi/initiatorname.iscsi'
