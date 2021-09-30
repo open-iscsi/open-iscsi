@@ -10,7 +10,7 @@ Requires=iscsi-init.service
 [Service]
 Type=notify
 NotifyAccess=main
-ExecStart=/sbin/iscsid -f
+ExecStart=@SBINDIR@/iscsid -f
 KillMode=mixed
 Restart=on-failure
 

@@ -114,6 +114,10 @@ install_udev_rules:
 install_systemd:
 	$(INSTALL) -d $(DESTDIR)$(systemddir)
 	$(INSTALL) -m 644 $(SYSTEMDFILES) $(DESTDIR)/$(systemddir)
+	for f in $(SYSTEMDFILES); do \
+		p=$(DESTDIR)/$(systemddir)/system/$${f##*/}; \
+		sed -i -e 's:@SBINDIR@:$(sbindir):' $$p; \
+	done
 
 install_programs:  $(PROGRAMS) $(SCRIPTS)
 	$(INSTALL) -d $(DESTDIR)$(sbindir)
