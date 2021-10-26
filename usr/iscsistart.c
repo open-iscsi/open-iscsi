@@ -65,7 +65,7 @@ static char program_name[] = "iscsistart";
 /* used by initiator */
 extern struct iscsi_ipc *ipc;
 
-static int login_req_timeout = 10;
+static int login_req_timeout = 10000;
 
 static struct option const long_options[] = {
 	{"initiatorname", required_argument, NULL, 'i'},
@@ -258,7 +258,7 @@ static int login_session(struct node_rec *rec)
 	 * login.
 	 */
 	for (msec = 50; msec <= 15000; msec <<= 1) {
-		int tmo = ISCSID_REQ_TIMEOUT * login_req_timeout;
+		int tmo = login_req_timeout;
 
 		rc = iscsid_exec_req(&req, &rsp, 0, tmo);
 		if (rc == 0) {
