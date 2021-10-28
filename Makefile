@@ -6,6 +6,8 @@
 # that you want everything installed into.
 DESTDIR ?=
 
+SED = /usr/bin/sed
+
 prefix = /usr
 exec_prefix = /
 sbindir = $(exec_prefix)/sbin
@@ -60,7 +62,7 @@ endif
 all: user
 
 user: iscsiuio/Makefile
-	$(MAKE) -C libopeniscsiusr
+	$(MAKE) -C libopeniscsiusr SBINDIR=$(sbindir) SBINDIR=$(sbindir)
 	$(MAKE) -C utils/sysdeps
 	$(MAKE) -C utils/fwparam_ibft
 	$(MAKE) -C usr
@@ -110,18 +112,26 @@ install_user: install_programs install_doc install_etc \
 install_udev_rules:
 	$(INSTALL) -d $(DESTDIR)$(rulesdir)
 	$(INSTALL) -m 644 $(RULESFILES) $(DESTDIR)/$(rulesdir)
-
-install_systemd:
-	$(INSTALL) -d $(DESTDIR)$(systemddir)
-	$(INSTALL) -m 644 $(SYSTEMDFILES) $(DESTDIR)/$(systemddir)
-	for f in $(SYSTEMDFILES); do \
-		p=$(DESTDIR)/$(systemddir)/system/$${f##*/}; \
-		sed -i -e 's:@SBINDIR@:$(sbindir):' $$p; \
+	for f in $(RULESFILES); do \
+		p=$(DESTDIR)/$(rulesdir)/$${f##*/}; \
+		$(SED) -i -e 's:@SBINDIR@:$(sbindir):' $$p; \
 	done
 
-install_programs:  $(PROGRAMS) $(SCRIPTS)
+install_systemd:
+	$(INSTALL) -d $(DESTDIR)$(systemddir)/system
+	$(INSTALL) -m 644 $(SYSTEMDFILES) $(DESTDIR)/$(systemddir)/system
+	for f in $(SYSTEMDFILES); do \
+		p=$(DESTDIR)/$(systemddir)/system/$${f##*/}; \
+		$(SED) -i -e 's:@SBINDIR@:$(sbindir):' $$p; \
+	done
+
+install_programs: $(PROGRAMS) $(SCRIPTS)
 	$(INSTALL) -d $(DESTDIR)$(sbindir)
 	$(INSTALL) -m 755 $^ $(DESTDIR)$(sbindir)
+	for f in $(SCRIPTS); do \
+		p=$(DESTDIR)/$(sbindir)/$${f##*/}; \
+		$(SED) -i -e 's:@SBINDIR@:$(sbindir):' $$p; \
+	done
 
 # ugh, auto-detection is evil
 # Gentoo maintains their own init.d stuff
@@ -168,7 +178,7 @@ install_doc: $(MANPAGES)
 
 install_iname:
 	if [ ! -f $(DESTDIR)/etc/iscsi/initiatorname.iscsi ]; then \
-		echo "InitiatorName=`$(DESTDIR)/sbin/iscsi-iname`" > $(DESTDIR)/etc/iscsi/initiatorname.iscsi ; \
+		echo "InitiatorName=`$(DESTDIR)$(sbindir)/iscsi-iname`" > $(DESTDIR)/etc/iscsi/initiatorname.iscsi ; \
 		echo "***************************************************" ; \
 		echo "Setting InitiatorName to `cat $(DESTDIR)/etc/iscsi/initiatorname.iscsi`" ; \
 		echo "To override edit $(DESTDIR)/etc/iscsi/initiatorname.iscsi" ; \

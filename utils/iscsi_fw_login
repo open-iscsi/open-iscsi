@@ -7,6 +7,6 @@
 #
 
 ARGS="-m fw -l"
-ISCSIADM="/sbin/iscsiadm"
+ISCSIADM="@SBINDIR@/iscsiadm"
 
 $ISCSIADM $ARGS

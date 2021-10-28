@@ -12,4 +12,4 @@
 # having it as one single line avoids those problems.
 #
 # DO NOT WRAP THIS LINE
-SUBSYSTEM=="iscsi_boot*", ACTION=="add", DEVPATH=="*/target*", RUN+="/sbin/iscsi_fw_login"
+SUBSYSTEM=="iscsi_boot*", ACTION=="add", DEVPATH=="*/target*", RUN+="@SBINDIR@/iscsi_fw_login"
