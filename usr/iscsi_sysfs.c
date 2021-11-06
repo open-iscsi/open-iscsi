@@ -1929,18 +1929,41 @@ void iscsi_sysfs_set_queue_depth(void *data, int hostno, int target, int lun)
 void iscsi_sysfs_set_device_online(__attribute__((unused))void *data,
 				   int hostno, int target, int lun)
 {
-	char *write_buf = "running\n";
+	char *write_buf = "running\n", *state;
 	char id[NAME_SIZE];
 	int err;
 
 	snprintf(id, sizeof(id), "%d:0:%d:%d", hostno, target, lun);
 	log_debug(4, "online device %s", id);
 
+	state = sysfs_get_value(id, SCSI_SUBSYS, "state");
+	if (!state) {
+		log_error("Could not read state for LUN %s\n", id);
+		goto set_state;
+	}
+
+	if (!strcmp(state, "running"))
+		goto done;
+	/*
+	 * The kernel can start to perform session level recovery cleanup
+	 * any time after the conn start call, so we only want to change the
+	 * state if we are in one of the offline states.
+	 */
+	if (strcmp(state, "offline") && strcmp(state, "transport-offline")) {
+		log_debug(4, "Dev not offline. Skip onlining %s", id);
+		goto done;
+	}
+
+set_state:
 	err = sysfs_set_param(id, SCSI_SUBSYS, "state", write_buf,
 			      strlen(write_buf));
 	if (err && err != EINVAL)
 		/* we should read the state */
 		log_error("Could not online LUN %d err %d.", lun, err);
+
+done:
+	if (state)
+		free(state);
 }
 
 void iscsi_sysfs_rescan_device(__attribute__((unused))void *data,
