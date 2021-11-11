@@ -47,7 +47,7 @@
 #ifndef	SBINDIR
 #define SBINDIR "/sbin"
 #endif
-#define ISCSIUIO_PATH		SBINDIR "/iscsiuio"
+#define ISCSIUIO_PATH	SBINDIR "/iscsiuio"
 
 struct _iscsi_net_drv {
 	const char *net_driver_name;		// Ethernet driver.
