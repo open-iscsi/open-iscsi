@@ -62,7 +62,7 @@ endif
 all: user
 
 user: iscsiuio/Makefile
-	$(MAKE) -C libopeniscsiusr SBINDIR=$(sbindir) SBINDIR=$(sbindir)
+	$(MAKE) -C libopeniscsiusr SBINDIR=$(sbindir)
 	$(MAKE) -C utils/sysdeps
 	$(MAKE) -C utils/fwparam_ibft
 	$(MAKE) -C usr
