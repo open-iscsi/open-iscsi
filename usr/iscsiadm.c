@@ -3599,6 +3599,9 @@ main(int argc, char **argv)
 	struct iscsi_session *se = NULL;
 	bool wait = true;
 
+	/* enable stdout logging */
+	log_init(program_name, 1024, log_do_log_std, NULL);
+
 	ctx = iscsi_context_new();
 	if (ctx == NULL) {
 		log_error("No memory");
@@ -3616,8 +3619,6 @@ main(int argc, char **argv)
 
 	umask(0077);
 
-	/* enable stdout logging */
-	log_init(program_name, 1024, log_do_log_std, NULL);
 	sysfs_init();
 
 	optopt = 0;
