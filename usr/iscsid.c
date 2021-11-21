@@ -448,6 +448,9 @@ int main(int argc, char *argv[])
 	if (log_pid < 0)
 		exit(ISCSI_ERR);
 
+	if (mgmt_init_iscsid_uniq_id())
+		exit(ISCSI_ERR);
+
 	/* do not allow ctrl-c for now... */
 	sa_new.sa_handler = catch_signal;
 	sigemptyset(&sa_new.sa_mask);

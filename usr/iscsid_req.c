@@ -38,6 +38,9 @@
 #include "iscsid_req.h"
 #include "uip_mgmt_ipc.h"
 
+int iscsid_response(int fd, iscsiadm_cmd_e cmd, iscsiadm_rsp_t *rsp,
+		    int timeout);
+
 static void iscsid_startup(void)
 {
 	char *startup_cmd;
@@ -118,13 +121,50 @@ static int iscsid_connect(int *fd, int start_iscsid)
 	return ipc_connect(fd, iscsid_namespace, start_iscsid);
 }
 
+static int iscsid_get_iscsid_uniq_id(int start_iscsid, uint32_t *iscsid_uniq_id)
+{
+	int err = 0;
+	int fd = 0;
+	iscsiadm_req_t req;
+	iscsiadm_rsp_t rsp;
+
+	err = iscsid_connect(&fd, start_iscsid);
+	if (err)
+		return err;
+
+	memset(&req, 0, sizeof(req));
+	req.command = MGMT_IPC_GET_ISCSID_UNIQ_ID;
+
+	if ((err = write(fd, &req, sizeof(req))) != sizeof(req)) {
+		log_error("write cmd MGMT_IPC_GET_ISCSID_UNIQ_ID failed: %s",
+			strerror(errno));
+		close(fd);
+		return ISCSI_ERR_ISCSID_COMM_ERR;
+	}
+
+	err = iscsid_response(fd, MGMT_IPC_GET_ISCSID_UNIQ_ID, &rsp, ISCSID_REQ_TIMEOUT);
+	if (err)
+		return err;
+
+	*iscsid_uniq_id = rsp.u.iscsid_uniq_id;
+
+	return 0;
+}
+
 int iscsid_request(int *fd, iscsiadm_req_t *req, int start_iscsid)
 {
 	int err;
+	uint32_t iscsid_uniq_id = 0;
+
+	err = iscsid_get_iscsid_uniq_id(start_iscsid, &iscsid_uniq_id);
+	if (err)
+		return err;
 
 	err = iscsid_connect(fd, start_iscsid);
 	if (err)
 		return err;
+
+	req->iscsid_uniq_id = iscsid_uniq_id;
 
 	if ((err = write(*fd, req, sizeof(*req))) != sizeof(*req)) {
 		log_error("got write error (%d/%d) on cmd %d, daemon died?",

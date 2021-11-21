@@ -46,6 +46,7 @@ typedef enum iscsiadm_cmd {
 	MGMT_IPC_NOTIFY_DEL_NODE	= 17,
 	MGMT_IPC_NOTIFY_ADD_PORTAL	= 18,
 	MGMT_IPC_NOTIFY_DEL_PORTAL	= 19,
+	MGMT_IPC_GET_ISCSID_UNIQ_ID	= 20,
 
 	__MGMT_IPC_MAX_COMMAND
 } iscsiadm_cmd_e;
@@ -54,6 +55,7 @@ typedef enum iscsiadm_cmd {
 typedef struct iscsiadm_req {
 	iscsiadm_cmd_e command;
 	uint32_t payload_len;
+	uint32_t iscsid_uniq_id;
 
 	union {
 		/* messages */
@@ -86,6 +88,7 @@ typedef struct iscsiadm_rsp {
 	int err;	/* ISCSI_ERR value */
 
 	union {
+		uint32_t iscsid_uniq_id;
 #define MGMT_IPC_GETSTATS_BUF_MAX	(sizeof(struct iscsi_uevent) + \
 					sizeof(struct iscsi_stats) + \
 					sizeof(struct iscsi_stats_custom) * \
@@ -110,6 +113,7 @@ struct queue_task;
 typedef int mgmt_ipc_fn_t(struct queue_task *);
 
 struct queue_task;
+int mgmt_init_iscsid_uniq_id(void);
 void mgmt_ipc_write_rsp(struct queue_task *qtask, int err);
 int mgmt_ipc_listen(void);
 int mgmt_ipc_systemd(void);

@@ -27,6 +27,7 @@
 #include <pwd.h>
 #include <sys/un.h>
 #include <string.h>
+#include <openssl/rand.h>
 
 #include "iscsid.h"
 #include "idbm.h"
@@ -43,6 +44,23 @@
 #define PEERUSER_MAX	64
 #define EXTMSG_MAX	(64 * 1024)
 #define SD_SOCKET_FDS_START 3
+
+static uint32_t iscsid_uniq_id;
+
+int mgmt_init_iscsid_uniq_id(void)
+{
+	int err = 0;
+
+	err = RAND_bytes((unsigned char *)&iscsid_uniq_id, 4);
+	if (err != 1) {
+		log_error("failed to generate iscsid_uniq_id");
+		return -1;
+	}
+
+	log_debug(3, "iscsid_uniq_id is 0x%x\n", iscsid_uniq_id);
+
+	return 0;
+}
 
 int
 mgmt_ipc_listen(void)
@@ -353,6 +371,18 @@ mgmt_ipc_notify_del_portal(queue_task_t *qtask)
 }
 
 static int
+mgmt_ipc_get_iscsid_uniq_id(queue_task_t *qtask)
+{
+	qtask->rsp.command = MGMT_IPC_GET_ISCSID_UNIQ_ID;
+	qtask->rsp.err = ISCSI_SUCCESS;
+	qtask->rsp.u.iscsid_uniq_id = iscsid_uniq_id;
+
+	mgmt_ipc_write_rsp(qtask, ISCSI_SUCCESS);
+
+	return ISCSI_SUCCESS;
+}
+
+static int
 mgmt_peeruser(int sock, char *user)
 {
 	/* Linux style: use getsockopt(SO_PEERCRED) */
@@ -482,6 +512,7 @@ static mgmt_ipc_fn_t *	mgmt_ipc_functions[__MGMT_IPC_MAX_COMMAND] = {
 [MGMT_IPC_NOTIFY_DEL_NODE]	= mgmt_ipc_notify_del_node,
 [MGMT_IPC_NOTIFY_ADD_PORTAL]	= mgmt_ipc_notify_add_portal,
 [MGMT_IPC_NOTIFY_DEL_PORTAL]	= mgmt_ipc_notify_del_portal,
+[MGMT_IPC_GET_ISCSID_UNIQ_ID]	= mgmt_ipc_get_iscsid_uniq_id,
 };
 
 void mgmt_ipc_handle(int accept_fd)
@@ -516,6 +547,19 @@ void mgmt_ipc_handle(int accept_fd)
 
 	command = qtask->req.command;
 	qtask->rsp.command = command;
+
+	/*
+	 * if iscsid_uniq_id do not match nor command type MGMT_IPC_GET_ISCSID_UNIQ_ID, then
+	 * this request is not send to current iscsid(may be a previous killed iscsid)
+	 * do not handle it
+	 */
+	if ((qtask->req.iscsid_uniq_id != iscsid_uniq_id) &&
+	    (command != MGMT_IPC_GET_ISCSID_UNIQ_ID)) {
+		log_error("mismatch iscsid_uniq_id: 0x%x desired while 0x%x provided",
+			iscsid_uniq_id, qtask->req.iscsid_uniq_id);
+		mgmt_ipc_destroy_queue_task(qtask);
+		return;
+	}
 
 	if (command > 0 &&
 	    command < __MGMT_IPC_MAX_COMMAND)
