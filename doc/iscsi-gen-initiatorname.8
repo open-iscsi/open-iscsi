@@ -1,0 +1,36 @@
+.TH ISCSI_GEN_INITIATORNAME 8 "Dec 2021" "" "Linux Administrator's Manual"
+.SH NAME
+iscsi-gen-initiatorname \- smart iSCSI initiator name generation tool
+.SH SYNOPSIS
+.BI iscsi-gen-initiatorname
+[OPTIONS]
+.SH "DESCRIPTION"
+.B iscsi-gen-initiatorname
+generates a unique iSCSI node name on every invocation. If
+iBFT is in use, the iBFT-registered initiator name will be used.
+.P
+If there is an existing initiator name, it will not be overwritten
+unless the \fB-f\fP option is supplied.
+.SH OPTIONS
+.TP
+.BI [-h]
+Display a help message and exit.
+.TP
+.BI [-f]
+Force overwrite of existing initiator name, if present.
+.TP
+.BI [-p] \fIIQN-PREFIX\fP
+Use \fIIQN-PREFIX\fP as the prefix to the IQN generated,
+instead of the default of \fBiqn.1996-04.de.suse:01\fP.
+.SH FILES
+.TP
+/etc/iscsi/initiatorname.iscsi
+The file containing the initiator name. Do not edit manually.
+.SH "SEE ALSO"
+.BR iscsi-iname (8)
+.SH AUTHORS
+Open-iSCSI project <http://www.open-iscsi.com/>
+.br
+Hannes Reinecke <hare@suse.de>
+.br
+Lee Duncan <lduncan@suse.com>
