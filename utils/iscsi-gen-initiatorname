@@ -10,7 +10,7 @@
 
 NAME="$0"
 INAME_FILE="/etc/iscsi/initiatorname.iscsi"
-IQN_BASE="iqn.1996-04.de.suse:01"
+IQN_PREFIX="iqn.1996-04.de.suse:01"
 
 usage_and_exit()
 {
@@ -20,15 +20,15 @@ usage_and_exit()
     echo "Where OPTIONS are from:"
     echo "   -h          print usage and exit"
     echo "   -f          overwrite existing initiator name, if any"
-    echo "   -b IQN-BASE use IQN-BASE for the IQN generated (default $IQN_BASE)"
+    echo "   -p IQN-PRE  set the prefix for the IQN generated (default $IQN_PREFIX)"
     exit $xit_val
 }
 
-while getopts "hfb:" o ; do
+while getopts "hfp:" o ; do
     case "${o}" in
 	h) usage_and_exit 0 ;;
 	f) FORCE=1 ;;
-	b) IQN_BASE=${OPTARG} ;;
+	p) IQN_PREFIX=${OPTARG} ;;
 	?) usage_and_exit 1 ;;
     esac
 done
@@ -94,7 +94,7 @@ if [ ! -f $INAME_FILE ] ; then
 ## for each iSCSI initiator.  Do NOT duplicate iSCSI InitiatorNames.
 EOF
     # create a unique initiator name using iscsi-iname
-    INAME=$(@SBINDIR@/iscsi-iname -p "$IQN_BASE")
+    INAME=$(@SBINDIR@/iscsi-iname -p "$IQN_PREFIX")
     echo "InitiatorName=$INAME" >> $INAME_FILE
     chmod 0600 $INAME_FILE
 fi
