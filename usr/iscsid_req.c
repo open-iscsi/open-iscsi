@@ -149,7 +149,7 @@ int iscsid_response(int fd, iscsiadm_cmd_e cmd, iscsiadm_rsp_t *rsp,
 		pfd.events = POLLIN;
 		err = poll(&pfd, 1, timeout);
 		if (!err) {
-			return ISCSI_ERR_SESSION_NOT_CONNECTED;
+			return ISCSI_ERR_REQ_TIMEDOUT;
 		} else if (err < 0) {
 			if (errno == EINTR)
 				continue;

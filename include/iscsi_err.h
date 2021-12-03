@@ -70,6 +70,8 @@ enum iscsi_error_list {
 	ISCSI_ERR_CHILD_TERMINATED	= 31,
 	/* session likely not connected */
 	ISCSI_ERR_SESSION_NOT_CONNECTED = 32,
+	/* iscsid request timed out */
+	ISCSI_ERR_REQ_TIMEDOUT = 33,
 
 	/* Always last. Indicates end of error code space */
 	ISCSI_MAX_ERR_VAL,
