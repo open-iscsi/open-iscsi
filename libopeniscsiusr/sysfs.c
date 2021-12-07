@@ -240,7 +240,7 @@ static int iscsi_sysfs_prop_get_ll(struct iscsi_context *ctx,
 
 	errno_save = sysfs_read_file(file_path, buff, _INT32_STR_MAX_LEN);
 	if (errno_save != 0) {
-		if (errno_save == ENOENT) {
+		if (errno_save == ENOENT || errno_save == EINVAL) {
 			if (! ignore_error) {
 				rc = LIBISCSI_ERR_SYSFS_LOOKUP;
 				_error(ctx, "Failed to read '%s': "
