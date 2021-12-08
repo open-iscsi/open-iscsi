@@ -141,12 +141,7 @@ int iscsid_response(int fd, iscsiadm_cmd_e cmd, iscsiadm_rsp_t *rsp,
 	size_t len = sizeof(*rsp);
 	int iscsi_err = ISCSI_ERR_ISCSID_COMM_ERR;
 	int err;
-	int poll_wait = 0;
 
-	if (timeout == -1) {
-		timeout = ISCSID_REQ_TIMEOUT;
-		poll_wait = 1;
-	}
 	while (len) {
 		struct pollfd pfd;
 
@@ -154,9 +149,7 @@ int iscsid_response(int fd, iscsiadm_cmd_e cmd, iscsiadm_rsp_t *rsp,
 		pfd.events = POLLIN;
 		err = poll(&pfd, 1, timeout);
 		if (!err) {
-			if (poll_wait)
-				continue;
-			return ISCSI_ERR_SESSION_NOT_CONNECTED;
+			return ISCSI_ERR_REQ_TIMEDOUT;
 		} else if (err < 0) {
 			if (errno == EINTR)
 				continue;

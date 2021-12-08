@@ -241,26 +241,18 @@ static int login_session(struct node_rec *rec)
 	/*
 	 * Need to handle race where iscsid proc is starting up while we are
 	 * trying to connect. Retry with exponential backoff, start from 50 ms.
-	 *
-	 * NOTE: another race condition can occur if the system is just coming
-	 * up, where our login request will be sent, but the login response
-	 * takes a while. In such a case, if we timeout and give up, the
-	 * login response may still show up once we give up, in which case
-	 * it seems to get iscsistart into a state where it cannot try to
-	 * login again because it thinks there's already a session. So make
-	 * sure our timeout is long enough, on each try, to give the response
-	 * a chance to show up. The old value of 1 second was not enough,
-	 * so we multiply that by 10, which seems reasonable for initial
-	 * login.
 	 */
 	for (msec = 50; msec <= 15000; msec <<= 1) {
-		int tmo = ISCSID_REQ_TIMEOUT * 10;
-
-		rc = iscsid_exec_req(&req, &rsp, 0, tmo);
+		/*
+		 * Once our event loop is up then we want to wait for the login
+		 * response. Either it logs in, we hit the login retries count,
+		 * or this program crashes, so there no need for the response
+		 * timeout.
+		 */
+		rc = iscsid_exec_req(&req, &rsp, 0, -1);
 		if (rc == 0) {
 			return rc;
-		} else if (rc == ISCSI_ERR_SESSION_NOT_CONNECTED ||
-			   rc == ISCSI_ERR_ISCSID_NOTCONN) {
+		} else if (rc == ISCSI_ERR_ISCSID_NOTCONN) {
 			ts.tv_sec = msec / 1000;
 			ts.tv_nsec = (msec % 1000) * 1000000L;
 
