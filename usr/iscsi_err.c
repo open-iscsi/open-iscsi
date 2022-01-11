@@ -57,6 +57,7 @@ static char *iscsi_err_msgs[] = {
 	/* 30 */ "unknown discovery type",
 	/* 31 */ "child process terminated",
 	/* 32 */ "target likely not connected",
+	/* 33 */ "iscsid request timed out",
 };
 
 char *iscsi_err_to_str(int err)
