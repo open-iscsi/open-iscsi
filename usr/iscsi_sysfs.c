@@ -1416,8 +1416,8 @@ int iscsi_sysfs_get_sessioninfo_by_id(struct session_info *info, char *session)
 	log_debug(7, "found targetname %s address %s pers address %s port %d "
 		 "pers port %d driver %s iface name %s ipaddress %s "
 		 "netdev %s hwaddress %s iname %s",
-		  info->targetname, info->address ? info->address : "NA",
-		  info->persistent_address ? info->persistent_address : "NA",
+		  info->targetname, info->address[0] ? info->address : "NA",
+		  info->persistent_address[0] ? info->persistent_address : "NA",
 		  info->port, info->persistent_port, info->iface.transport_name,
 		  info->iface.name, info->iface.ipaddress,
 		  info->iface.netdev, info->iface.hwaddress,
