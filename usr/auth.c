@@ -109,7 +109,7 @@ acl_chap_auth_request(struct iscsi_acl *client, char *username, unsigned int id,
 	unsigned char verify_data[client->chap_challenge_len];
 
 	/* the expected credentials are in the session */
-	if (session->username_in == NULL) {
+	if (session->username_in[0] == '\0') {
 		log_error("failing authentication, no incoming username "
 			  "configured to authenticate target %s",
 			  session->target_name);
@@ -122,7 +122,6 @@ acl_chap_auth_request(struct iscsi_acl *client, char *username, unsigned int id,
 	}
 
 	if ((session->password_in_length < 1) ||
-	    (session->password_in == NULL) ||
 	    (session->password_in[0] == '\0')) {
 		log_error("failing authentication, no incoming password "
 		       "configured to authenticate target %s",

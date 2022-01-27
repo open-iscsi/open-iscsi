@@ -657,7 +657,7 @@ iscsi_process_login_response(iscsi_session_t *session, int cid,
 	struct iscsi_acl *auth_client;
 	iscsi_conn_t *conn = &session->conn[cid];
 
-	auth_client = (session->auth_buffers && session->num_auth_buffers) ?
+	auth_client = (session->num_auth_buffers > 0) ?
 		(struct iscsi_acl *)session->auth_buffers[0].address : NULL;
 
 	end = text + ntoh24(login_rsp->dlength) + 1;
@@ -1135,7 +1135,7 @@ iscsi_make_login_pdu(iscsi_session_t *session, int cid, struct iscsi_hdr *hdr,
 	struct iscsi_acl *auth_client;
 	iscsi_conn_t *conn = &session->conn[cid];
 
-	auth_client = (session->auth_buffers && session->num_auth_buffers) ?
+	auth_client = (session->num_auth_buffers > 0) ?
 		(struct iscsi_acl *)session->auth_buffers[0].address : NULL;
 
 	/* initialize the PDU header */
@@ -1170,7 +1170,7 @@ iscsi_make_login_pdu(iscsi_session_t *session, int cid, struct iscsi_hdr *hdr,
 				return 0;
 		}
 
-		if ((session->target_name && session->target_name[0]) &&
+		if ((session->target_name[0] != '\0') &&
 		    (session->type == ISCSI_SESSION_TYPE_NORMAL)) {
 			if (!iscsi_add_text(hdr, data, max_data_length,
 			    "TargetName", session->target_name))
@@ -1248,16 +1248,16 @@ check_for_authentication(iscsi_session_t *session,
 		return LOGIN_FAILED;
 	}
 
-	if (session->username &&
+	if ((session->username[0] != '\0') &&
 	    (acl_set_user_name(auth_client, session->username) !=
-	    AUTH_STATUS_NO_ERROR)) {
+	     AUTH_STATUS_NO_ERROR)) {
 		log_error("Couldn't set username");
 		goto end;
 	}
 
-	if (session->password && (acl_set_passwd(auth_client,
-	    session->password, session->password_length) !=
-		 AUTH_STATUS_NO_ERROR)) {
+	if ((session->password[0] != '\0') &&
+       	    (acl_set_passwd(auth_client, session->password, session->password_length) !=
+	     AUTH_STATUS_NO_ERROR)) {
 		log_error("Couldn't set password");
 		goto end;
 	}
@@ -1366,7 +1366,7 @@ iscsi_login_begin(iscsi_session_t *session, iscsi_login_context_t *c)
 	conn->current_stage = ISCSI_INITIAL_LOGIN_STAGE;
 	conn->partial_response = 0;
 
-	if (session->auth_buffers && session->num_auth_buffers) {
+	if (session->num_auth_buffers > 0) {
 		c->ret = check_for_authentication(session, c->auth_client);
 		if (c->ret != LOGIN_OK)
 			return 1;

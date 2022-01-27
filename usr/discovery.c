@@ -623,7 +623,7 @@ add_target_record(char *name, char *end, discovery_rec_t *drec,
 
 	/* if no address is provided, use the default */
 	if (text >= end) {
-		if (drec->address == NULL) {
+		if (drec->address[0] == '\0') {
 			log_error("no default address known for target %s",
 				  name);
 			return 0;
