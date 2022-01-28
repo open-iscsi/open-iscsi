@@ -16,7 +16,7 @@ mandir = $(prefix)/share/man
 etcdir = /etc
 initddir = $(etcdir)/init.d
 rulesdir = $(etcdir)/udev/rules.d
-systemddir = $(prefix)/lib/systemd/system
+systemddir = $(prefix)/lib/systemd
 
 MANPAGES = doc/iscsid.8 doc/iscsiadm.8 doc/iscsi_discovery.8 \
 		iscsiuio/docs/iscsiuio.8 doc/iscsi_fw_login.8 doc/iscsi-iname.8 \
