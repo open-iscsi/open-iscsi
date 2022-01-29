@@ -32,6 +32,7 @@
 #include "config.h"
 #include "actor.h"
 #include "list.h"
+#include "log.h"
 
 #define ISCSI_CONFIG_ROOT	"/etc/iscsi/"
 
@@ -44,6 +45,46 @@
 #endif
 #define LOCK_FILE		LOCK_DIR"/lock"
 #define LOCK_WRITE_FILE		LOCK_DIR"/lock.write"
+
+#define conn_info(conn, fmt, ...)				\
+do {								\
+	if (conn->session == NULL) { 				\
+		log_info(fmt, ##__VA_ARGS__);			\
+		break;						\
+	}							\
+	log_info("connection%d:%d " fmt,			\
+		   conn->session->id, conn->id, ##__VA_ARGS__);	\
+} while(0)
+
+#define conn_warn(conn, fmt, ...)				\
+do {								\
+	if (conn->session == NULL) { 				\
+		log_warning(fmt, ##__VA_ARGS__);		\
+		break;						\
+	}							\
+	log_warning("connection%d:%d " fmt,			\
+		   conn->session->id, conn->id, ##__VA_ARGS__);	\
+} while(0)
+
+#define conn_error(conn, fmt, ...)				\
+do {								\
+	if (conn->session == NULL) { 				\
+		log_error(fmt, ##__VA_ARGS__);			\
+		break;						\
+	}							\
+	log_error("connection%d:%d " fmt,			\
+		   conn->session->id, conn->id, ##__VA_ARGS__);	\
+} while(0)
+
+#define conn_debug(level, conn, fmt, ...)			\
+do {								\
+	if (conn->session == NULL) { 				\
+		log_debug(level, fmt, ##__VA_ARGS__);		\
+		break;						\
+	}							\
+	log_debug(level, "connection%d:%d " fmt,		\
+		   conn->session->id, conn->id, ##__VA_ARGS__);	\
+} while(0)
 
 typedef enum iscsi_session_r_stage_e {
 	R_STAGE_NO_CHANGE,
