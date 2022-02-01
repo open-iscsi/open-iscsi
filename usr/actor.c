@@ -43,7 +43,7 @@ actor_time_left(actor_t *thread, time_t current_time)
 	((int64_t)(b) - (int64_t)(a) < 0)
 
 void
-actor_init(actor_t *thread, void (*callback)(void *), void *data)
+__actor_init(actor_t *thread, void (*callback)(void *), void *data)
 {
 	INIT_LIST_HEAD(&thread->list);
 	thread->state = ACTOR_NOTSCHEDULED;
@@ -188,10 +188,10 @@ actor_schedule(actor_t *thread)
 }
 
 void
-actor_timer(actor_t *thread, uint32_t timeout_secs, void (*callback)(void *),
+__actor_timer(actor_t *thread, uint32_t timeout_secs, void (*callback)(void *),
 	    void *data)
 {
-	actor_init(thread, callback, data);
+	__actor_init(thread, callback, data);
 	actor_schedule_private(thread, timeout_secs, 0);
 }
 
