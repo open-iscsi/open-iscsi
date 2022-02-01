@@ -137,7 +137,8 @@ iscsi_ev_context_get(iscsi_conn_t *conn, int ev_size)
 
 static void iscsi_ev_context_put(struct iscsi_ev_context *ev_context)
 {
-	log_debug(7, "put ev context %p", &ev_context->actor);
+	log_debug(7, "put ev context %p:%s", &ev_context->actor,
+		  (&ev_context->actor)->name);
 	ev_context->allocated = 0;
 }
 
