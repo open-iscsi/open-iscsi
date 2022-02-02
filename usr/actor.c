@@ -45,6 +45,10 @@ actor_time_left(actor_t *thread, time_t current_time)
 void
 __actor_init(actor_t *thread, void (*callback)(void *), void *data)
 {
+	if (thread->state != ACTOR_INVALID)
+		log_error("bug:thread %p:%s has already been initialized",
+			  thread, thread->name);
+
 	INIT_LIST_HEAD(&thread->list);
 	thread->state = ACTOR_NOTSCHEDULED;
 	thread->callback = callback;
