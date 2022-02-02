@@ -273,12 +273,10 @@ static int host_set_param(struct iscsi_transport *t,
 
 static void print_param_value(enum iscsi_param param, void *value, int type)
 {
-	log_debug(3, "set operational parameter %d to:", param);
-
 	if (type == ISCSI_STRING)
-		log_debug(3, "%s", value ? (char *)value : "NULL");
+		log_debug(3, "set operational parameter %d to %s", param, value ? (char *)value : "NULL");
 	else
-		log_debug(3, "%u", *(uint32_t *)value);
+		log_debug(3, "set operational parameter %d to %u", param, *(uint32_t *)value);
 }
 
 #define MAX_HOST_PARAMS 2
