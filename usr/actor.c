@@ -43,8 +43,12 @@ actor_time_left(actor_t *thread, time_t current_time)
 	((int64_t)(b) - (int64_t)(a) < 0)
 
 void
-actor_init(actor_t *thread, void (*callback)(void *), void *data)
+__actor_init(actor_t *thread, void (*callback)(void *), void *data)
 {
+	if (thread->state != ACTOR_INVALID)
+		log_error("bug:thread %p:%s has already been initialized",
+			  thread, thread->name);
+
 	INIT_LIST_HEAD(&thread->list);
 	thread->state = ACTOR_NOTSCHEDULED;
 	thread->callback = callback;
@@ -54,7 +58,8 @@ actor_init(actor_t *thread, void (*callback)(void *), void *data)
 void
 actor_delete(actor_t *thread)
 {
-	log_debug(7, "thread %08lx delete: state %d", (long)thread,
+	log_debug(7, "thread %p:%s delete: state %d",
+			thread, thread->name,
 			thread->state);
 	switch(thread->state) {
 	case ACTOR_WAITING:
@@ -62,7 +67,8 @@ actor_delete(actor_t *thread)
 		/* priority: low */
 		/* fallthrough */
 	case ACTOR_SCHEDULED:
-		log_debug(1, "deleting a scheduled/waiting thread!");
+		log_debug(1, "deleting a scheduled/waiting thread %p:%s!",
+			 thread, thread->name);
 		list_del_init(&thread->list);
 		if (list_empty(&pend_list)) {
 			log_debug(7, "nothing left on pend_list, deactivating alarm");
@@ -93,10 +99,10 @@ actor_insert_on_pend_list(actor_t *thread, uint32_t delay_secs)
 	/* insert new entry in sort order */
 	list_for_each_entry(next_thread, &pend_list, list) {
 		if (time_after(next_thread->ttschedule, thread->ttschedule)) {
-			log_debug(7, "next thread %p due %lld", next_thread,
-			  (long long)next_thread->ttschedule);
-			log_debug(7, "new thread %p is before (%lld), inserting", thread,
-			  (long long)thread->ttschedule);
+			log_debug(7, "next thread %p:%s due %lld", next_thread,
+			  next_thread->name, (long long)next_thread->ttschedule);
+			log_debug(7, "new thread %p:%s is before (%lld), inserting",
+			  thread, next_thread->name, (long long)thread->ttschedule);
 
 			/* insert new thread before the next thread */
 			__list_add(&thread->list, next_thread->list.prev, &next_thread->list);
@@ -105,14 +111,14 @@ actor_insert_on_pend_list(actor_t *thread, uint32_t delay_secs)
 	}
 
 	if (orig_head) {
-		log_debug(7, "last thread %p due %lld", next_thread,
-			  (long long)next_thread->ttschedule);
-		log_debug(7, "new thread %p is after (%lld), inserting at tail", thread,
-			  (long long)thread->ttschedule);
+		log_debug(7, "last thread %p:%s due %lld", next_thread,
+			  next_thread->name, (long long)next_thread->ttschedule);
+		log_debug(7, "new thread %p:%s is after (%lld), inserting at tail",
+			  thread, thread->name, (long long)thread->ttschedule);
 	}
 	else
-		log_debug(7, "new thread %p due %lld is first item on pend_list", thread,
-			  (long long)thread->ttschedule);
+		log_debug(7, "new thread %p:%s due %lld is first item on pend_list",
+			  thread, thread->name, (long long)thread->ttschedule);
 
 	/* Not before any existing entries */
 	list_add_tail(&thread->list, &pend_list);
@@ -140,12 +146,13 @@ actor_schedule_private(actor_t *thread, uint32_t delay_secs, int head)
 
 	current_time = tv.tv_sec;
 
-	log_debug(7, "thread %p schedule: delay %u state %d",
-		thread, delay_secs, thread->state);
+	log_debug(7, "thread %p:%s schedule: delay %u state %d",
+		thread, thread->name, delay_secs, thread->state);
 
 	switch(thread->state) {
 	case ACTOR_WAITING:
-		log_error("rescheduling a waiting thread!");
+		log_error("rescheduling a waiting thread %p:%s !",
+			  thread, thread->name);
 		list_del(&thread->list);
 		/* fall-through */
 	case ACTOR_NOTSCHEDULED:
@@ -168,8 +175,9 @@ actor_schedule_private(actor_t *thread, uint32_t delay_secs, int head)
 		// don't do anything
 		break;
 	case ACTOR_INVALID:
-		log_error("BUG: Trying to schedule a thread that has not been "
-			  "setup. Ignoring sched.");
+		log_error("BUG: Trying to schedule a thread %p"
+			  "that has not been setup. Ignoring sched.",
+			  thread);
 		break;
 	}
 
@@ -188,10 +196,10 @@ actor_schedule(actor_t *thread)
 }
 
 void
-actor_timer(actor_t *thread, uint32_t timeout_secs, void (*callback)(void *),
+__actor_timer(actor_t *thread, uint32_t timeout_secs, void (*callback)(void *),
 	    void *data)
 {
-	actor_init(thread, callback, data);
+	__actor_init(thread, callback, data);
 	actor_schedule_private(thread, timeout_secs, 0);
 }
 
@@ -238,8 +246,8 @@ actor_poll(void)
 	list_for_each_entry_safe(thread, tmp, &pend_list, list) {
 		uint64_t time_left = actor_time_left(thread, current_time);
 		if (time_left) {
-			log_debug(7, "thread %08lx due %" PRIu64 ", wait %" PRIu64 " more",
-				  (long)thread,
+			log_debug(7, "thread %p:%s due %" PRIu64 ", wait %" PRIu64 " more",
+				  thread, thread->name,
 				  (uint64_t)thread->ttschedule, time_left);
 
 			alarm(time_left);
@@ -249,17 +257,17 @@ actor_poll(void)
 		/* This entry can be run now */
 		list_del_init(&thread->list);
 
-		log_debug(2, "thread %08lx was scheduled for "
+		log_debug(2, "thread %p:%s was scheduled for "
 			  "%" PRIu64 ", curtime %" PRIu64 " q_forw %p "
 			  "&pend_list %p",
-			  (long)thread, (uint64_t)thread->ttschedule,
+			  thread, thread->name, (uint64_t)thread->ttschedule,
 			  current_time, pend_list.next, &pend_list);
 
 		list_add_tail(&thread->list, &ready_list);
 		assert(thread->state == ACTOR_WAITING);
 		thread->state = ACTOR_SCHEDULED;
-		log_debug(7, "thread %08lx now in ready_list",
-			  (long)thread);
+		log_debug(7, "thread %p:%s now in ready_list",
+			  thread, thread->name);
 	}
 
 	/* Disable alarm if nothing else pending */
@@ -274,13 +282,15 @@ actor_poll(void)
 		list_del_init(&thread->list);
 
 		if (thread->state != ACTOR_SCHEDULED)
-			log_error("ready_list: thread state corrupted! "
+			log_error("ready_list: thread %p:%s state corrupted! "
 				  "Thread with state %d in actor list.",
+				  thread, thread->name,
 				  thread->state);
 		thread->state = ACTOR_NOTSCHEDULED;
-		log_debug(7, "exec thread %08lx callback", (long)thread);
+		log_debug(7, "exec thread %p:%s",
+			  thread, thread->name);
 		thread->callback(thread->data);
-		log_debug(7, "thread %08lx done", (long)thread);
+		log_debug(7, "thread %p:%s done", thread, thread->name);
 	}
 	poll_in_progress = 0;
 }

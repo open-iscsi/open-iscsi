@@ -19,8 +19,11 @@
 #ifndef ACTOR_H
 #define ACTOR_H
 
+#include <stdio.h>
 #include "types.h"
 #include "list.h"
+
+#define ACTOR_NAME_LEN 128
 
 typedef enum actor_state_e {
     ACTOR_INVALID,
@@ -30,6 +33,7 @@ typedef enum actor_state_e {
 } actor_state_e;
 
 typedef struct actor {
+	char name[ACTOR_NAME_LEN];
 	struct list_head list;
 	actor_state_e state;
 	void *data;
@@ -37,14 +41,26 @@ typedef struct actor {
 	time_t ttschedule;
 } actor_t;
 
-extern void actor_init(actor_t *thread, void (*callback)(void *), void * data);
+extern void __actor_init(actor_t *thread, void (*callback)(void *), void * data);
 extern void actor_delete(actor_t *thread);
 extern void actor_schedule_head(actor_t *thread);
 extern void actor_schedule(actor_t *thread);
-extern void actor_timer(actor_t *thread, uint32_t delay_secs,
+extern void __actor_timer(actor_t *thread, uint32_t delay_secs,
 			void (*callback)(void *), void *data);
 extern void actor_timer_mod(actor_t *thread, uint32_t new_delay_secs,
 			    void *data);
 extern void actor_poll(void);
+
+#define actor_init(thread, callback, data) \
+do { \
+	snprintf((thread)->name, ACTOR_NAME_LEN, #callback); \
+	__actor_init(thread, callback, data); \
+} while (0)
+
+#define actor_timer(thread, timeout_secs, callback, data) \
+do { \
+	snprintf((thread)->name, ACTOR_NAME_LEN, #callback); \
+	__actor_timer(thread, timeout_secs, callback, data); \
+} while (0)
 
 #endif /* ACTOR_H */
