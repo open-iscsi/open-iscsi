@@ -289,7 +289,10 @@ retry:
 		retries++;
 		sleep(1);
 		goto retry;
+	} else if (rc == ISCSI_ERR_SESS_EXISTS) {
+		log_debug(1, "sync session %d returned ISCSI_ERR_SESS_EXISTS", info->sid);
 	}
+
 	return 0;
 }
 

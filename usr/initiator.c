@@ -2012,6 +2012,10 @@ iscsi_sync_session(node_rec_t *rec, queue_task_t *qtask, uint32_t sid)
 	struct iscsi_transport *t;
 	int err;
 
+	session = session_find_by_sid(sid);
+	if (session != NULL)
+		return ISCSI_ERR_SESS_EXISTS;
+
 	t = iscsi_sysfs_get_transport_by_name(rec->iface.transport_name);
 	if (!t)
 		return ISCSI_ERR_TRANS_NOT_FOUND;
