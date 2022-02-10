@@ -99,7 +99,7 @@ static void iscsi_ev_context_free(iscsi_conn_t *conn)
 
 		if (conn->context_pool[i]->allocated)
 			/* missing flush on shutdown */
-			log_error("BUG: context_pool leak %p",
+			conn_error(conn, "BUG: context_pool leak %p",
 				  conn->context_pool[i]);
 		free(conn->context_pool[i]);
 	}
@@ -127,7 +127,7 @@ iscsi_ev_context_get(iscsi_conn_t *conn, int ev_size)
 			/* some callers abuse this pointer */
 			ev_context->data = (void *)ev_context +
 					sizeof(struct iscsi_ev_context);
-			log_debug(7, "get ev context %p",
+			conn_debug(7, conn, "get ev context %p",
 				  &ev_context->actor);
 			return ev_context;
 		}
@@ -162,8 +162,7 @@ __login_response_status(iscsi_conn_t *conn,
 	case LOGIN_REDIRECTION_FAILED:
 		return CONN_LOGIN_RETRY;
 	default:
-		log_error("Login error (Login status %d) on conn %d", conn->id,
-			  login_status);
+		conn_error(conn, "Login error (Login status %d)", login_status);
 		break;
 	}
 
@@ -193,9 +192,8 @@ __check_iscsi_status_class(iscsi_session_t *session, int cid,
 			conn->failback_saddr = conn->saddr;
                         return CONN_LOGIN_IMM_REDIRECT_RETRY;
 		default:
-			log_error("conn %d login rejected: redirection "
-			        "type 0x%x not supported",
-				conn->id, status_detail);
+			conn_error(conn, "login rejected: redirection "
+			        "type 0x%x not supported", status_detail);
 			return CONN_LOGIN_RETRY;
 		}
 	case ISCSI_STATUS_CLS_INITIATOR_ERR:
@@ -206,13 +204,13 @@ __check_iscsi_status_class(iscsi_session_t *session, int cid,
 				session->id);
 			return CONN_LOGIN_AUTH_FAILED;
 		case ISCSI_LOGIN_STATUS_TGT_FORBIDDEN:
-			log_error("conn %d login rejected: initiator "
-			       "failed authorization with target", conn->id);
+			conn_error(conn, "login rejected: initiator "
+			       "failed authorization with target");
 			return CONN_LOGIN_AUTH_FAILED;
 		case ISCSI_LOGIN_STATUS_TGT_NOT_FOUND:
-			log_error("conn %d login rejected: initiator "
+			conn_error(conn, "login rejected: initiator "
 			       "error - target not found (%02x/%02x)",
-			       conn->id, status_class, status_detail);
+			       status_class, status_detail);
 			return CONN_LOGIN_FAILED;
 		case ISCSI_LOGIN_STATUS_NO_VERSION:
 			/*
@@ -220,29 +218,26 @@ __check_iscsi_status_class(iscsi_session_t *session, int cid,
 			 * before we log an error, try the other supported
 			 * versions.
 			 */
-			log_error("conn %d login rejected: incompatible "
+			conn_error(conn, "login rejected: incompatible "
 			       "version (%02x/%02x), non-retryable, "
-			       "giving up", conn->id, status_class,
-			       status_detail);
+			       "giving up", status_class, status_detail);
 			return CONN_LOGIN_FAILED;
 		default:
-			log_error("conn %d login rejected: initiator "
-			       "error (%02x/%02x)", conn->id, status_class,
-			       status_detail);
+			conn_error(conn, "login rejected: initiator "
+			       "error (%02x/%02x)", status_class, status_detail);
 			return CONN_LOGIN_FAILED;
 		}
 	case ISCSI_STATUS_CLS_TARGET_ERR:
-		log_error("conn %d login rejected: target error "
-		       "(%02x/%02x)", conn->id, status_class, status_detail);
+		conn_error(conn, "login rejected: target error "
+		       "(%02x/%02x)", status_class, status_detail);
 		/*
 		 * We have no idea what the problem is. But spec says initiator
 		 * may retry later.
 		 */
 		 return CONN_LOGIN_RETRY;
 	default:
-		log_error("conn %d login response with unknown status "
-		       "class 0x%x, detail 0x%x", conn->id, status_class,
-		       status_detail);
+		conn_error(conn, "login response with unknown status "
+		       "class 0x%x, detail 0x%x", status_class, status_detail);
 		break;
 	}
 
@@ -257,8 +252,9 @@ __session_conn_create(iscsi_session_t *session, int cid)
 	node_rec_t *rec = &session->nrec;
 	int err;
 
+	conn->id = cid;
 	if (iscsi_ev_context_alloc(conn)) {
-		log_error("cannot allocate context_pool for conn cid %d", cid);
+		conn_error(conn, "cannot allocate context_pool");
 		return ISCSI_ERR_NOMEM;
 	}
 
@@ -277,10 +273,9 @@ __session_conn_create(iscsi_session_t *session, int cid)
 	conn->socket_fd = -1;
 	conn->transport_ep_handle = -1;
 	/* connection's timeouts */
-	conn->id = cid;
 	conn->logout_timeout = conn_rec->timeo.logout_timeout;
 	if (!conn->logout_timeout) {
-		log_error("Invalid timeo.logout_timeout. Must be greater "
+		conn_error(conn, "Invalid timeo.logout_timeout. Must be greater "
 			  "than zero. Using default %d.",
 			  DEF_LOGOUT_TIMEO);
 		conn->logout_timeout = DEF_LOGOUT_TIMEO;
@@ -288,7 +283,7 @@ __session_conn_create(iscsi_session_t *session, int cid)
 
 	conn->login_timeout = conn_rec->timeo.login_timeout;
 	if (!conn->login_timeout) {
-		log_error("Invalid timeo.login_timeout. Must be greater "
+		conn_error(conn, "Invalid timeo.login_timeout. Must be greater "
 			  "than zero. Using default %d.",
 			  DEF_LOGIN_TIMEO);
 		conn->login_timeout = DEF_LOGIN_TIMEO;
@@ -300,14 +295,14 @@ __session_conn_create(iscsi_session_t *session, int cid)
 	conn->noop_out_interval = conn_rec->timeo.noop_out_interval;
 	conn->noop_out_timeout = conn_rec->timeo.noop_out_timeout;
 	if (conn->noop_out_interval && !conn->noop_out_timeout) {
-		log_error("Invalid timeo.noop_out_timeout. Must be greater "
+		conn_error(conn, "Invalid timeo.noop_out_timeout. Must be greater "
 			  "than zero. Using default %d.",
 			  DEF_NOOP_OUT_TIMEO);
 		conn->noop_out_timeout = DEF_NOOP_OUT_TIMEO;
 	}
 
 	if (conn->noop_out_timeout && !conn->noop_out_interval) {
-		log_error("Invalid timeo.noop_out_interval. Must be greater "
+		conn_error(conn, "Invalid timeo.noop_out_interval. Must be greater "
 			  "than zero. Using default %d.",
 			  DEF_NOOP_OUT_INTERVAL);
 		conn->noop_out_interval = DEF_NOOP_OUT_INTERVAL;
@@ -330,7 +325,7 @@ __session_conn_create(iscsi_session_t *session, int cid)
 static void
 session_release(iscsi_session_t *session)
 {
-	log_debug(2, "Releasing session %p", session);
+	log_debug(2, "Releasing session:%d %p", session->id, session);
 
 	if (session->target_alias)
 		free(session->target_alias);
@@ -453,7 +448,7 @@ static void iscsi_flush_context_pool(struct iscsi_session *session)
 static void
 __session_destroy(iscsi_session_t *session)
 {
-	log_debug(1, "destroying session");
+	log_debug(1, "destroying session:%d", session->id);
 	list_del(&session->list);
 	iscsi_flush_context_pool(session);
 	session_release(session);
@@ -472,7 +467,7 @@ session_conn_shutdown(iscsi_conn_t *conn, queue_task_t *qtask,
 {
 	iscsi_session_t *session = conn->session;
 
-	log_debug(2, "disconnect conn");
+	conn_debug(2, conn, "disconnect conn");
 	/* this will check for a valid interconnect connection */
 	if (session->t->template->ep_disconnect)
 		session->t->template->ep_disconnect(conn);
@@ -486,19 +481,18 @@ session_conn_shutdown(iscsi_conn_t *conn, queue_task_t *qtask,
 	if (conn->state == ISCSI_CONN_STATE_IN_LOGIN ||
 	    conn->state == ISCSI_CONN_STATE_IN_LOGOUT ||
 	    conn->state == ISCSI_CONN_STATE_LOGGED_IN) {
-		log_debug(2, "stop conn (conn state %d)", conn->state);
+		conn_debug(2, conn, "stop conn (conn state %d)", conn->state);
 		if (ipc->stop_conn(session->t->handle, session->id,
 				   conn->id, STOP_CONN_TERM)) {
-			log_error("can't stop connection %d:%d (%d)",
-				  session->id, conn->id, errno);
+			conn_error(conn, "can't stop connection (%d)", errno);
 			return ISCSI_ERR_INTERNAL;
 		}
 	}
 
-	log_debug(2, "kdestroy conn");
+	conn_debug(2, conn, "kdestroy conn");
 	if (ipc->destroy_conn(session->t->handle, session->id,
 		conn->id)) {
-		log_error("can not safely destroy connection %d", conn->id);
+		conn_error(conn, "can not safely destroy connection");
 		return ISCSI_ERR_INTERNAL;
 	}
 
@@ -531,7 +525,7 @@ queue_delayed_reopen(queue_task_t *qtask, int delay)
 {
 	iscsi_conn_t *conn = qtask->conn;
 
-	log_debug(4, "Requeue reopen attempt in %d secs", delay);
+	conn_debug(4, conn, "Requeue reopen attempt in %d secs", delay);
 
 	/*
  	 * iscsi_login_eh can handle the login resched as
@@ -548,7 +542,7 @@ static int iscsi_conn_connect(struct iscsi_conn *conn, queue_task_t *qtask)
 	ev_context = iscsi_ev_context_get(conn, 0);
 	if (!ev_context) {
 		/* while reopening the recv pool should be full */
-		log_error("BUG: __session_conn_reopen could not get conn "
+		conn_error(conn, "BUG: __session_conn_reopen could not get conn "
 			  "context for recv.");
 		return ENOMEM;
 	}
@@ -563,14 +557,14 @@ static int iscsi_conn_connect(struct iscsi_conn *conn, queue_task_t *qtask)
 			    conn->host, sizeof(conn->host), serv, sizeof(serv),
 			    NI_NUMERICHOST|NI_NUMERICSERV);
 
-		log_error("cannot make a connection to %s:%s (%d,%d)",
+		conn_error(conn, "cannot make a connection to %s:%s (%d,%d)",
 			  conn->host, serv, rc, errno);
 		iscsi_ev_context_put(ev_context);
 		return ENOTCONN;
 	}
 
 	iscsi_sched_ev_context(ev_context, conn, 0, EV_CONN_POLL);
-	log_debug(3, "Setting login timer %p timeout %d", &conn->login_timer,
+	conn_debug(3, conn, "Setting login timer %p timeout %d", &conn->login_timer,
 		  conn->login_timeout);
 	actor_timer_mod(&conn->login_timer, conn->login_timeout, qtask);
 	return 0;
@@ -629,7 +623,7 @@ __session_conn_reopen(iscsi_conn_t *conn, queue_task_t *qtask, int do_stop,
 	return;
 
 queue_reopen:
-	log_debug(4, "Waiting %u seconds before trying to reconnect.", delay);
+	conn_debug(4, conn, "Waiting %u seconds before trying to reconnect.", delay);
 	queue_delayed_reopen(qtask, delay);
 }
 
@@ -661,7 +655,7 @@ static int iscsi_retry_initial_login(struct iscsi_conn *conn)
 
 	timeout.tv_sec = initial_login_retry_max * conn->login_timeout;
 	if (gettimeofday(&now, NULL)) {
-		log_error("Could not get time of day. Dropping down to "
+		conn_error(conn, "Could not get time of day. Dropping down to "
 			  "max retry check.");
 		return initial_login_retry_max > conn->session->reopen_cnt;
 	}
@@ -672,7 +666,7 @@ static int iscsi_retry_initial_login(struct iscsi_conn *conn)
 	 * then it is time to give up
 	 */
 	if (timercmp(&now, &fail_time, >)) {
-		log_debug(1, "Giving up on initial login attempt after "
+		conn_debug(1, conn, "Giving up on initial login attempt after "
 			  "%u seconds.",
 			  initial_login_retry_max * conn->login_timeout);
 		return 0;
@@ -695,7 +689,7 @@ static void iscsi_login_eh(struct iscsi_conn *conn, struct queue_task *qtask,
 	struct iscsi_session *session = conn->session;
 	int stop_flag = 0;
 
-	log_debug(3, "iscsi_login_eh");
+	conn_debug(3, conn, "iscsi_login_eh");
 	/*
 	 * Flush polls and other events
 	 */
@@ -705,7 +699,7 @@ static void iscsi_login_eh(struct iscsi_conn *conn, struct queue_task *qtask,
 	case ISCSI_CONN_STATE_XPT_WAIT:
 		switch (session->r_stage) {
 		case R_STAGE_NO_CHANGE:
-			log_debug(6, "login failed ISCSI_CONN_STATE_XPT_WAIT/"
+			conn_debug(6, conn, "login failed ISCSI_CONN_STATE_XPT_WAIT/"
 				  "R_STAGE_NO_CHANGE");
 			/* timeout during initial connect.
 			 * clean connection. write ipc rsp or retry */
@@ -714,14 +708,13 @@ static void iscsi_login_eh(struct iscsi_conn *conn, struct queue_task *qtask,
 				session_conn_shutdown(conn, qtask, err);
 			else {
 				stop_flag = (session->id < INVALID_SESSION_ID) ? STOP_CONN_TERM : 0;
-				log_debug(6, "connection %p socket_fd: %d, "
-					  "session id: %d stop_flag: %d\n",
-					  conn, conn->socket_fd, session->id, stop_flag);
+				conn_debug(6, conn, "connection %p socket_fd: %d stop_flag: %d\n",
+					  conn, conn->socket_fd, stop_flag);
 				session_conn_reopen(conn, qtask, stop_flag);
 			}
 			break;
 		case R_STAGE_SESSION_REDIRECT:
-			log_debug(6, "login failed ISCSI_CONN_STATE_XPT_WAIT/"
+			conn_debug(6, conn, "login failed ISCSI_CONN_STATE_XPT_WAIT/"
 				  "R_STAGE_SESSION_REDIRECT");
 			/* timeout during initial redirect connect
 			 * clean connection. write ipc rsp or retry */
@@ -732,7 +725,7 @@ static void iscsi_login_eh(struct iscsi_conn *conn, struct queue_task *qtask,
 				session_conn_reopen(conn, qtask, 0);
 			break;
 		case R_STAGE_SESSION_REOPEN:
-			log_debug(6, "login failed ISCSI_CONN_STATE_XPT_WAIT/"
+			conn_debug(6, conn, "login failed ISCSI_CONN_STATE_XPT_WAIT/"
 				  "R_STAGE_SESSION_REOPEN (reopen_cnt=%d, reopen_max=%d)",
 				  session->reopen_cnt, session->reopen_max);
 			if (session->reopen_max &&
@@ -757,7 +750,7 @@ static void iscsi_login_eh(struct iscsi_conn *conn, struct queue_task *qtask,
 		switch (session->r_stage) {
 		case R_STAGE_NO_CHANGE:
 		case R_STAGE_SESSION_REDIRECT:
-			log_debug(6, "login failed ISCSI_CONN_STATE_IN_LOGIN/"
+			conn_debug(6, conn, "login failed ISCSI_CONN_STATE_IN_LOGIN/"
 				  "R_STAGE_NO_CHANGE %d",
 				  session->reopen_cnt);
 			/*
@@ -773,7 +766,7 @@ static void iscsi_login_eh(struct iscsi_conn *conn, struct queue_task *qtask,
 						    STOP_CONN_RECOVER);
 			break;
 		case R_STAGE_SESSION_REOPEN:
-			log_debug(6, "login failed ISCSI_CONN_STATE_IN_LOGIN/"
+			conn_debug(6, conn, "login failed ISCSI_CONN_STATE_IN_LOGIN/"
 				  "R_STAGE_SESSION_REOPEN %d",
 				  session->reopen_cnt);
 			session_conn_reopen(conn, qtask, STOP_CONN_RECOVER);
@@ -788,7 +781,7 @@ static void iscsi_login_eh(struct iscsi_conn *conn, struct queue_task *qtask,
 
 		break;
 	default:
-		log_error("Ignoring login error %d in conn state %d.",
+		conn_error(conn, "Ignoring login error %d in conn state %d.",
 			  err, conn->state);
 		break;
 	}
@@ -850,19 +843,19 @@ __conn_error_handle(iscsi_session_t *session, iscsi_conn_t *conn)
 			iscsi_login_eh(conn, qtask, ISCSI_ERR_TRANS);
 			return;
 		}
-		log_debug(1, "ignoring conn error in login. "
+		conn_debug(1, conn, "ignoring conn error in login. "
 			  "let it timeout");
 		return;
 	case ISCSI_CONN_STATE_XPT_WAIT:
-		log_debug(1, "ignoring conn error in XPT_WAIT. "
+		conn_debug(1, conn, "ignoring conn error in XPT_WAIT. "
 			  "let connection fail on its own");
 		return;
 	case ISCSI_CONN_STATE_CLEANUP_WAIT:
-		log_debug(1, "ignoring conn error in CLEANUP_WAIT. "
+		conn_debug(1, conn, "ignoring conn error in CLEANUP_WAIT. "
 			  "let connection stop");
 		return;
 	default:
-		log_debug(8, "invalid state %d", conn->state);
+		conn_debug(8, conn, "invalid state %d", conn->state);
 		return;
 	}
 
@@ -879,6 +872,7 @@ static void session_conn_error(void *data)
 	enum iscsi_err error = *(enum iscsi_err *)ev_context->data;
 	iscsi_conn_t *conn = ev_context->conn;
 	iscsi_session_t *session = conn->session;
+	int sid = session->id;
 
 	log_warning("Kernel reported iSCSI connection %d:%d error (%d - %s) "
 		    "state (%d)", session->id, conn->id, error,
@@ -889,7 +883,7 @@ static void session_conn_error(void *data)
 	switch (error) {
 	case ISCSI_ERR_INVALID_HOST:
 		if (session_conn_shutdown(conn, NULL, ISCSI_SUCCESS))
-			log_error("BUG: Could not shutdown session.");
+			log_error("BUG: Could not shutdown session:%d.", sid);
 		break;
 	default:
 		__conn_error_handle(session, conn);
@@ -919,7 +913,7 @@ static void iscsi_login_redirect(iscsi_conn_t *conn)
 	iscsi_session_t *session = conn->session;
 	iscsi_login_context_t *c = &conn->login_context;
 
-	log_debug(3, "login redirect ...");
+	conn_debug(3, conn, "login redirect ...");
 
 	if (session->r_stage == R_STAGE_NO_CHANGE)
 		session->r_stage = R_STAGE_SESSION_REDIRECT;
@@ -988,7 +982,7 @@ static void conn_send_nop_out(void *data)
 
 	actor_timer(&conn->nop_out_timer, conn->noop_out_timeout,
 		    conn_nop_out_timeout, conn);
-	log_debug(3, "noop out timeout timer %p start, timeout %d",
+	conn_debug(3, conn, "noop out timeout timer %p start, timeout %d",
 		 &conn->nop_out_timer, conn->noop_out_timeout);
 }
 
@@ -1091,7 +1085,7 @@ setup_full_feature_phase(iscsi_conn_t *conn)
 	if (conn->userspace_nop && conn->noop_out_interval) {
 		actor_timer(&conn->nop_out_timer, conn->noop_out_interval,
 			   conn_send_nop_out, conn);
-		log_debug(3, "noop out timer %p start",
+		conn_debug(3, conn, "noop out timer %p start",
 			  &conn->nop_out_timer);
 	}
 }
@@ -1106,7 +1100,7 @@ static void iscsi_logout_timedout(void *data)
 	 * assume we were in ISCSI_CONN_STATE_IN_LOGOUT or there
 	 * was some nasty error
 	 */
-	log_debug(3, "logout timeout, dropping conn...");
+	conn_debug(3, conn, "logout timeout, dropping conn...");
 	__conn_error_handle(conn->session, conn);
 }
 
@@ -1132,12 +1126,13 @@ static int iscsi_send_logout(iscsi_conn_t *conn)
 	ev_context = iscsi_ev_context_get(conn, 0);
 	if (!ev_context)
 		/* unbounded logout */
-		log_warning("Could not allocate conn context for logout.");
+		log_warning("connection%d:%d Could not allocate conn context for logout.",
+			conn->session->id, conn->id);
 	else {
 		iscsi_sched_ev_context(ev_context, conn,
 					 conn->logout_timeout,
 					 EV_CONN_LOGOUT_TIMER);
-		log_debug(3, "logout timeout timer %u",
+		conn_debug(3, conn, "logout timeout timer %u",
 			  conn->logout_timeout * 1000);
 	}
 
@@ -1149,6 +1144,7 @@ static void iscsi_stop(void *data)
 	struct iscsi_ev_context *ev_context = data;
 	struct iscsi_conn *conn = ev_context->conn;
 	int rc = 0;
+	int sid = conn->session->id;
 
 	iscsi_ev_context_put(ev_context);
 
@@ -1159,13 +1155,13 @@ static void iscsi_stop(void *data)
 
 	rc = session_conn_shutdown(conn, conn->logout_qtask, ISCSI_SUCCESS);
 	if (rc)
-		log_error("BUG: Could not shutdown session.");
+		log_error("BUG: Could not shutdown session:%d.", sid);
 }
 
 static void iscsi_recv_nop_in(iscsi_conn_t *conn, struct iscsi_hdr *hdr)
 {
 	if (!conn->userspace_nop) {
-		log_error("Got nop in, but kernel supports nop handling.");
+		conn_error(conn, "Got nop in, but kernel supports nop handling.");
 		return;
 	}
 
@@ -1178,7 +1174,7 @@ static void iscsi_recv_nop_in(iscsi_conn_t *conn, struct iscsi_hdr *hdr)
 	} else /*  noop in req */
 		if (!__send_nopin_rsp(conn, (struct iscsi_nopin*)hdr,
 				      conn->data)) {
-			log_error("can not send nopin response");
+			conn_error(conn, "can not send nopin response");
 		}
 }
 
@@ -1186,10 +1182,10 @@ static void iscsi_recv_logout_rsp(iscsi_conn_t *conn, struct iscsi_hdr *hdr)
 {
 	struct iscsi_logout_rsp *logout_rsp = (struct iscsi_logout_rsp *)hdr;
 
-	log_debug(3, "Recv: logout response %d", logout_rsp->response);
+	conn_debug(3, conn, "Recv: logout response %d", logout_rsp->response);
 	if (logout_rsp->response == 2 || logout_rsp->response == 3) {
 		conn->session->def_time2wait = ntohs(logout_rsp->t2wait);
-		log_debug(4, "logout rsp returned time2wait %u",
+		conn_debug(4, conn, "logout rsp returned time2wait %u",
 			  conn->session->def_time2wait);
 	}
 	/* TODO process the hdr */
@@ -1204,7 +1200,7 @@ static void iscsi_recv_async_msg(iscsi_conn_t *conn, struct iscsi_hdr *hdr)
 	unsigned int senselen;
 	struct scsi_sense_hdr sshdr;
 
-	log_debug(3, "Read AEN %d", async_hdr->async_event);
+	conn_debug(3, conn, "Read AEN %d", async_hdr->async_event);
 
 	switch (async_hdr->async_event) {
 	case ISCSI_ASYNC_MSG_SCSI_EVENT:
@@ -1212,7 +1208,7 @@ static void iscsi_recv_async_msg(iscsi_conn_t *conn, struct iscsi_hdr *hdr)
 		buf += 2;
 
 		if (!scsi_normalize_sense((uint8_t *)buf, senselen, &sshdr)) {
-			log_error("Could not handle AEN %d. Invalid sense.",
+			conn_error(conn, "Could not handle AEN %d. Invalid sense.",
 				  async_hdr->async_event);
 			break;
 		}
@@ -1222,15 +1218,13 @@ static void iscsi_recv_async_msg(iscsi_conn_t *conn, struct iscsi_hdr *hdr)
 			session_scan_host(session, session->hostno, NULL);
 		break;
 	case ISCSI_ASYNC_MSG_REQUEST_LOGOUT:
-		log_warning("Target requests logout within %u seconds for "
-			   "connection", ntohs(async_hdr->param3));
+		conn_warn(conn, "Target requests logout within %u seconds" , ntohs(async_hdr->param3));
 		if (iscsi_send_logout(conn))
-			log_error("Could not send logout in response to"
+			conn_error(conn, "Could not send logout in response to"
 				 "logout request aen");
 		break;
 	case ISCSI_ASYNC_MSG_DROPPING_CONNECTION:
-		log_warning("Target dropping connection %u, reconnect min %u "
-			    "max %u", ntohs(async_hdr->param1),
+		conn_warn(conn, "Target dropping %u, reconnect min %u max %u", ntohs(async_hdr->param1),
 			    ntohs(async_hdr->param2), ntohs(async_hdr->param3));
 		session->def_time2wait =
 			(uint32_t)ntohs(async_hdr->param2) & 0x0000FFFFFL;
@@ -1244,7 +1238,7 @@ static void iscsi_recv_async_msg(iscsi_conn_t *conn, struct iscsi_hdr *hdr)
 		break;
 	case ISCSI_ASYNC_MSG_PARAM_NEGOTIATION:
 		log_warning("Received async event param negotiation, "
-			    "dropping session");
+			    "dropping session:%d", session->id);
 		__conn_error_handle(session, conn);
 		break;
 	case ISCSI_ASYNC_MSG_VENDOR_SPECIFIC:
@@ -1260,7 +1254,7 @@ static void iscsi_recv_login_rsp(struct iscsi_conn *conn)
 	int err = ISCSI_ERR_FATAL_LOGIN;
 
 	if (iscsi_login_rsp(session, c)) {
-		log_debug(1, "login_rsp ret (%d)", c->ret);
+		conn_debug(1, conn, "login_rsp ret (%d)", c->ret);
 
 		switch (__login_response_status(conn, c->ret)) {
 		case CONN_LOGIN_FAILED:
@@ -1348,23 +1342,23 @@ static void session_conn_recv_pdu(void *data)
 			iscsi_recv_async_msg(conn, &hdr);
 			break;
 		default:
-			log_error("unsupported opcode 0x%x", hdr.opcode);
+			conn_error(conn, "unsupported opcode 0x%x", hdr.opcode);
 			break;
 		}
 		break;
 	case ISCSI_CONN_STATE_XPT_WAIT:
 		iscsi_ev_context_put(ev_context);
-		log_debug(1, "ignoring incoming PDU in XPT_WAIT. "
+		conn_debug(1, conn, "ignoring incoming PDU in XPT_WAIT. "
 			  "let connection re-establish or fail");
 		break;
 	case ISCSI_CONN_STATE_CLEANUP_WAIT:
 		iscsi_ev_context_put(ev_context);
-		log_debug(1, "ignoring incoming PDU in XPT_WAIT. "
+		conn_debug(1, conn, "ignoring incoming PDU in XPT_WAIT. "
 			  "let connection cleanup");
 		break;
 	default:
 		iscsi_ev_context_put(ev_context);
-		log_error("Invalid state. Dropping PDU.");
+		conn_error(conn, "Invalid state %d. Dropping PDU.", conn->state);
 	}
 }
 
@@ -1511,7 +1505,7 @@ static void setup_offload_login_phase(iscsi_conn_t *conn)
 	if (ipc->start_conn(session->t->handle, session->id, conn->id,
 			    &rc) || rc) {
 		if (rc == -EEXIST) {
-			log_error("Session already exists.");
+			conn_error(conn, "Session already exists.");
 			session_conn_shutdown(conn, c->qtask,
 					      ISCSI_ERR_SESS_EXISTS);
 		} else {
@@ -1543,11 +1537,11 @@ static void session_conn_poll(void *data)
 
 	rc = session->t->template->ep_poll(conn, 1);
 	if (rc == 0) {
-		log_debug(4, "poll not connected %d", rc);
+		conn_debug(4, conn, "poll not connected %d", rc);
 		ev_context = iscsi_ev_context_get(conn, 0);
 		if (!ev_context) {
 			/* while polling the recv pool should be full */
-			log_error("BUG: session_conn_poll could not get conn "
+			conn_error(conn, "BUG: session_conn_poll could not get conn "
 				  "context.");
 			iscsi_login_eh(conn, qtask, ISCSI_ERR_INTERNAL);
 			return;
@@ -1572,7 +1566,8 @@ static void session_conn_poll(void *data)
 			err = ipc->create_conn(session->t->handle,
 					session->id, conn->id, &conn->id);
 			if (err) {
-				log_error("Can't create connection.");
+				log_error("Can't create connection for session%d.",
+					session->id);
 				err = ISCSI_ERR_INTERNAL;
 				goto cleanup;
 			}
@@ -1636,7 +1631,7 @@ static void session_conn_poll(void *data)
 			return;
 		}
 	} else {
-		log_debug(4, "poll error %d", rc);
+		conn_debug(4, conn, "poll error %d", rc);
 		queue_delayed_reopen(qtask, ISCSI_CONN_ERR_REOPEN_DELAY);
 	}
 
@@ -1708,7 +1703,8 @@ failed_login:
 	session->notify_qtask = NULL;
 	mgmt_ipc_write_rsp(qtask, ISCSI_ERR_LOGIN);
 	if (ipc->destroy_conn(session->t->handle, session->id, conn->id))
-		log_error("can not safely destroy connection %d", conn->id);
+		log_error("can not safely destroy connection%d:%d",
+			session->id, conn->id);
 	if (ipc->destroy_session(session->t->handle, session->id))
 		log_error("can not safely destroy session %d", session->id);
 	__session_destroy(session);
@@ -1721,7 +1717,7 @@ static int iscsi_sched_ev_context(struct iscsi_ev_context *ev_context,
 {
 	enum iscsi_err error;
 
-	log_debug(7, "sched conn context %p event %d, tmo %lu",
+	conn_debug(7, conn, "sched conn context %p event %d, tmo %lu",
 		  &ev_context->actor, event, tmo);
 
 	ev_context->conn = conn;
@@ -1765,7 +1761,7 @@ static int iscsi_sched_ev_context(struct iscsi_ev_context *ev_context,
 		actor_schedule(&ev_context->actor);
 		break;
 	default:
-		log_error("Invalid event type %d.", event);
+		conn_error(conn, "Invalid event type %d.", event);
 	}
 	return 0;
 }
@@ -2060,7 +2056,7 @@ static int session_unbind(struct iscsi_session *session)
 	err = ipc->unbind_session(session->t->handle, session->id);
 	if (err)
 		/* older kernels did not support unbind */
-		log_debug(2, "Could not unbind session %d.", err);
+		log_debug(2, "Could not unbind session%d %d.", session->id, err);
 	return err;
 }
 
@@ -2085,7 +2081,9 @@ int session_logout_task(int sid, queue_task_t *qtask)
 	if (session->notify_qtask &&
 	    (conn->state == ISCSI_CONN_STATE_XPT_WAIT) &&
 	    (session->r_stage == R_STAGE_SESSION_REOPEN)) {
-		log_warning("session cannot be terminted because it's trying to reconnect: try again later");
+		log_warning("session %d cannot be terminted because "
+			    "it's trying to reconnect: try again later",
+			session->id);
 		return ISCSI_ERR_SESSION_NOT_CONNECTED;
 	}
 
@@ -2100,14 +2098,14 @@ int session_logout_task(int sid, queue_task_t *qtask)
 	    (session->r_stage == R_STAGE_NO_CHANGE ||
 	     session->r_stage == R_STAGE_SESSION_REDIRECT))) {
 invalid_state:
-		log_error("session in invalid state for logout. "
-			   "Try again later");
+		log_error("session %d in invalid state for logout. "
+			   "Try again later", session->id);
 		return ISCSI_ERR_INTERNAL;
 	}
 
 	if (dconfig->safe_logout && session_in_use(sid)) {
-		log_error("Session is actively in use for mounted storage, "
-			  "and iscsid.safe_logout is configured.");
+		log_error("Session %d is actively in use for mounted storage, "
+			  "and iscsid.safe_logout is configured.", session->id);
 		return ISCSI_ERR_BUSY;
 	}
 
@@ -2132,7 +2130,7 @@ invalid_state:
 				return ISCSI_SUCCESS;
 		}
 
-		log_error("Could not send logout pdu. Dropping session");
+		conn_error(conn, "Could not send logout pdu. Dropping session");
 		/* fallthrough */
 	default:
 		rc = session_conn_shutdown(conn, qtask, ISCSI_SUCCESS);
