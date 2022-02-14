@@ -1,3 +1,45 @@
+-> open-iscsi-2.1.5 - open-iscsi-2.1.6
+
+Chris Leech (1):
+      libopeniscsiusr: extend sysfs ignore_error to include EINVAL
+
+Lee Duncan (15):
+      Fix compiler error introduced with recent IPv6 commit.
+      Remove dependences from iscsi-init.service
+      Use "sbindir" for path in systemd service files
+      Updated README a bit
+      Finish ability to have binary location configurable.
+      Fix iscsi-init so that it runs when root writable
+      remove redundant params in Makefile
+      Fixing last parts of sbindir configuration
+      Cosmetic cleanup on recent addition
+      Update the iscsi-gen-initiatorname script: harden and generalize
+      change iscsi-gen-initiatorname option -b => -p
+      Add man page for the iscsi-gen-initiatorname script.
+      Install new man page for iscsi-gen-initiatorname
+      Fix issues discovered by gcc12
+      Fix more issues discovered by gcc12
+
+Mike Christie (4):
+      iscsi sysfs: check state before onlining devs
+      iscsistart: fix login timeout handling
+      iscsid: use infinite timeout if passed in
+      iscsid: add error code for req timeouts
+
+Samy Mahmoudi (1):
+      Improve 'iscsid.conf'
+
+Wenchao Hao (8):
+      iscsiadm: Call log_init() first to fix a segmentation fault
+      iscsi_err: Add iscsid request timed out error messages
+      Fix wrong install_systemd destination path
+      actor: add name to struct actor and init it with function name
+      actor: print thread name in log
+      actor: enhanced: print error log when init a initilized thread
+      initiator_common: make set operational parameter log easy to read
+      iscsid: Check session id before start sync a thread
+
+
 open-iscsi-2.1.4 - open-iscsi-2.1.5
 
 Chris Leech (1):
