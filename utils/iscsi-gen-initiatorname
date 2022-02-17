@@ -4,13 +4,36 @@
 #
 # Generate a default iSCSI Initiatorname for SUSE installations.
 #
-# Copyright (c) 2021 Hannes Reinecke, SUSE Labs
+# Copyright (c) 2022 Hannes Reinecke, SUSE Labs
 # This script is licensed under the GPL.
 #
 
 NAME="$0"
 INAME_FILE="/etc/iscsi/initiatorname.iscsi"
 IQN_PREFIX="iqn.1996-04.de.suse:01"
+
+IBFT_COMMENTS="\
+##
+## iSCSI Initiatorname taken from iBFT BIOS tables.
+##
+## DO NOT EDIT OR REMOVE THIS FILE! 
+## If you remove this file, the iSCSI daemon will not start.
+## Any change here will not be reflected to the iBFT BIOS tables.
+## If a different initiatorname is required please change the 
+## initiatorname in the BIOS setup and call
+## @SBINDIR@/iscsi-gen-initiatorname -f
+## to recreate an updated version of this file.
+##"
+
+NORMAL_COMMENTS="\
+##
+## Default iSCSI Initiatorname.
+##
+## DO NOT EDIT OR REMOVE THIS FILE! 
+## If you remove this file, the iSCSI daemon will not start.
+## If you change the InitiatorName, existing access control lists
+## may reject this initiator.  The InitiatorName must be unique
+## for each iSCSI initiator.  Do NOT duplicate iSCSI InitiatorNames."
 
 usage_and_exit()
 {
@@ -62,19 +85,7 @@ fi
 if [ "$iSCSI_INITIATOR_NAME" ] ; then
     echo "##" > $INAME_FILE || exit 1
     echo "## $INAME_FILE" >> $INAME_FILE
-    cat << EOF >> $INAME_FILE
-##
-## iSCSI Initiatorname taken from iBFT BIOS tables.
-##
-## DO NOT EDIT OR REMOVE THIS FILE! 
-## If you remove this file, the iSCSI daemon will not start.
-## Any change here will not be reflected to the iBFT BIOS tables.
-## If a different initiatorname is required please change the 
-## initiatorname in the BIOS setup and call
-## @SBINDIR@/iscsi-gen-initiatorname -f
-## to recreate an updated version of this file.
-##
-EOF
+    echo "$IBFT_COMMENTS" >> $INAME_FILE
     echo "InitiatorName=$iSCSI_INITIATOR_NAME" >> $INAME_FILE
     chmod 0600 $INAME_FILE
 fi
@@ -83,19 +94,9 @@ fi
 if [ ! -f $INAME_FILE ] ; then
     echo "##" > $INAME_FILE || exit 1
     echo "## $INAME_FILE" >> $INAME_FILE
-    cat << EOF >> $INAME_FILE
-##
-## Default iSCSI Initiatorname.
-##
-## DO NOT EDIT OR REMOVE THIS FILE! 
-## If you remove this file, the iSCSI daemon will not start.
-## If you change the InitiatorName, existing access control lists
-## may reject this initiator.  The InitiatorName must be unique
-## for each iSCSI initiator.  Do NOT duplicate iSCSI InitiatorNames.
-EOF
+    echo "$NORMAL_COMMENTS" >> $INAME_FILE
     # create a unique initiator name using iscsi-iname
     INAME=$(@SBINDIR@/iscsi-iname -p "$IQN_PREFIX")
     echo "InitiatorName=$INAME" >> $INAME_FILE
     chmod 0600 $INAME_FILE
 fi
-
