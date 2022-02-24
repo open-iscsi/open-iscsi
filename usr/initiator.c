@@ -249,6 +249,16 @@ __check_iscsi_status_class(iscsi_session_t *session, int cid,
 	return CONN_LOGIN_FAILED;
 }
 
+static bool
+in_initrd(void)
+{
+	bool res = false;
+	if (access("/etc/initrd-release", F_OK) == 0)
+		res = true;
+	log_debug(6, "in_initrd == %s", res ? "true" : "false");
+	return res;
+}
+
 static int
 __session_conn_create(iscsi_session_t *session, int cid)
 {
@@ -297,21 +307,28 @@ __session_conn_create(iscsi_session_t *session, int cid)
 	conn->auth_timeout = conn_rec->timeo.auth_timeout;
 
 	/* noop-out setting */
-	conn->noop_out_interval = conn_rec->timeo.noop_out_interval;
-	conn->noop_out_timeout = conn_rec->timeo.noop_out_timeout;
-	if (conn->noop_out_interval && !conn->noop_out_timeout) {
-		log_error("Invalid timeo.noop_out_timeout. Must be greater "
-			  "than zero. Using default %d.",
-			  DEF_NOOP_OUT_TIMEO);
-		conn->noop_out_timeout = DEF_NOOP_OUT_TIMEO;
-	}
+	if (in_initrd()) {
+		/* NOOPs disabled for firmware nodes */
+		conn->noop_out_interval = 0;
+		conn->noop_out_timeout = 0;
+	} else {
+		/* get the NOP values from the database for these nodes */
+		conn->noop_out_interval = conn_rec->timeo.noop_out_interval;
+		conn->noop_out_timeout = conn_rec->timeo.noop_out_timeout;
 
-	if (conn->noop_out_timeout && !conn->noop_out_interval) {
-		log_error("Invalid timeo.noop_out_interval. Must be greater "
-			  "than zero. Using default %d.",
-			  DEF_NOOP_OUT_INTERVAL);
-		conn->noop_out_interval = DEF_NOOP_OUT_INTERVAL;
+		/* validate the NOOP values */
+		if (conn->noop_out_interval && !conn->noop_out_timeout) {
+			log_error("Invalid timeo.noop_out_timeout. Must be greater than zero. Using default %d.",
+				  DEF_NOOP_OUT_TIMEO);
+			conn->noop_out_timeout = DEF_NOOP_OUT_TIMEO;
+		} else if (conn->noop_out_timeout && !conn->noop_out_interval) {
+			log_error("Invalid timeo.noop_out_interval. Must be greater than zero. Using default %d.",
+				  DEF_NOOP_OUT_INTERVAL);
+			conn->noop_out_interval = DEF_NOOP_OUT_INTERVAL;
+		}
 	}
+	log_debug(4, "Set connection NOOP-OUT interval/timeout to %u/%u",
+		  conn->noop_out_interval, conn->noop_out_timeout);
 
 	iscsi_copy_operational_params(conn, &session->nrec.session.iscsi,
 				      &conn_rec->iscsi);
