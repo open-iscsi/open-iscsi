@@ -1241,7 +1241,7 @@ void idbm_recinfo_config(recinfo_t *info, FILE *f)
 			*(name+i) = *nl; i++; nl++;
 		}
 		if (!*nl) {
-			log_warning("config file line %d do not has value",
+			log_warning("Config file line %d does not have value",
 			       line_number);
 			continue;
 		}
@@ -1249,7 +1249,7 @@ void idbm_recinfo_config(recinfo_t *info, FILE *f)
 		/* skip after-name traling spaces */
 		while (*nl && isspace(c = *nl)) nl++;
 		if (*nl && *nl != '=') {
-			log_warning("config file line %d has not '=' sepa",
+			log_warning("Config file line %d does not have '=' separator",
 			       line_number);
 			continue;
 		}
@@ -1258,7 +1258,7 @@ void idbm_recinfo_config(recinfo_t *info, FILE *f)
 		/* skip after-sepa traling spaces */
 		while (*nl && isspace(c = *nl)) nl++;
 		if (!*nl) {
-			log_warning("config file line %d do not has value",
+			log_warning("Config file line %d does not have value",
 			       line_number);
 			continue;
 		}
