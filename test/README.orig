@@ -1,3 +1,14 @@
+---------------------------------------------------------------------------
+A Note from current open-iscsi maintainer Lee Duncan:
+
+README.orig:
+  This is the old README for the "test" subdirectory, directed
+  at being able to use the "regressioin..sh" shell script. But
+  I no longer maintain the shell script, much preferring the
+  python unittest package. Please see the new README file
+  for how to use that package. (2/2022)
+---------------------------------------------------------------------------
+
 From the original test/README:
 ---------------------------------------------------------------------------
 This directory contains regression suite.
