@@ -2017,8 +2017,13 @@ iscsi_sync_session(node_rec_t *rec, queue_task_t *qtask, uint32_t sid)
 	if (err)
 		goto destroy_session;
 
+	/*
+	 * The caller only cares we have rebuilt our state, and can process
+	 * errors from the kernel and new commands like logout, so send the
+	 * response now.
+	 */
 	qtask->rsp.command = MGMT_IPC_SESSION_SYNC;
-	session->conn[0].login_qtask = qtask;
+	mgmt_ipc_write_rsp(qtask, ISCSI_SUCCESS);
 
 	log_debug(3, "Started sync iSCSI session %d", session->id);
 	session_conn_reopen(&session->conn[0], STOP_CONN_RECOVER);
