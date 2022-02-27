@@ -1582,6 +1582,17 @@ int iscsi_sysfs_get_session_state(char *state, int sid)
 	return 0;
 }
 
+int iscsi_sysfs_get_conn_state(char *state, int sid)
+{
+	char id[NAME_SIZE];
+
+	snprintf(id, sizeof(id), ISCSI_CONN_ID, sid);
+	if (sysfs_get_str(id, ISCSI_CONN_SUBSYS, "state", state,
+			  SCSI_MAX_STATE_VALUE))
+		return ISCSI_ERR_SYSFS_LOOKUP;
+	return 0;
+}
+
 int iscsi_sysfs_get_host_state(char *state, int host_no)
 {
 	char id[NAME_SIZE];
@@ -1846,6 +1857,20 @@ int iscsi_sysfs_get_exp_statsn(int sid)
 		exp_statsn = 0;
 	}
 	return exp_statsn;
+}
+
+int iscsi_sysfs_conn_needs_cleanup(int sid)
+{
+	char id[NAME_SIZE];
+	int needs_cleanup;
+
+	snprintf(id, sizeof(id), ISCSI_CONN_ID, sid);
+
+	if (sysfs_get_int(id, ISCSI_CONN_SUBSYS, "needs_cleanup",
+			  &needs_cleanup))
+		return -1;
+
+	return needs_cleanup;
 }
 
 int iscsi_sysfs_session_supports_nop(int sid)
