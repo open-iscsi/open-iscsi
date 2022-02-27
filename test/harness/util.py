@@ -339,7 +339,7 @@ def run_parted():
     """
     (res, reason) = wipe_disc()
     if res != 0:
-        return (res, resason)
+        return (res, reason)
     # ensure our partition file is not there, to be safe
     if not wait_for_path(Global.partition, present=False, amt=30):
         return (1, '%s: Partition already exists?' % Global.partition)
@@ -367,7 +367,7 @@ def run_mkfs():
 def run_bonnie():
     # make a temp dir and mount the device there
     with tempfile.TemporaryDirectory() as tmp_dir:
-        vprint('Mounting the filesystem')
+        vprint('Running "mount" to mount the filesystem')
         res = run_cmd(['mount'] + Global.MOUNTOPTIONS + [Global.partition, tmp_dir])
         if res != 0:
             return (res, '%s: mount failed (%d)' % (Global.partition, res))
@@ -377,6 +377,7 @@ def run_bonnie():
         if res != 0:
             return (res, '%s: umount failed (%d)' % (tmp_dir, res))
         # unmount the device and remove the temp dir
+        vprint('Running "unmount" to unmount the filesystem')
         res = run_cmd(['umount', tmp_dir])
         if res != 0:
             return (res, '%s: umount failed (%d)' % (tmp_dir, res))
