@@ -194,14 +194,17 @@ setup_rec_from_negotiated_values(node_rec_t *rec, struct session_info *info)
 	}
 }
 
-static int sync_session(__attribute__((unused))void *data,
-			struct session_info *info)
-{
-	node_rec_t rec, sysfsrec;
+struct iscsid_async_req {
+	struct list_head list;
 	iscsiadm_req_t req;
-	iscsiadm_rsp_t rsp;
+};
+
+static int init_sync_session_req(void *data, struct session_info *info)
+{
+	struct list_head *sync_list = data;
+	node_rec_t rec, sysfsrec;
+	struct iscsid_async_req *req;
 	struct iscsi_transport *t;
-	int rc, retries = 0;
 
 	log_debug(7, "sync session [%d][%s,%s.%d][%s]", info->sid,
 		  info->targetname, info->persistent_address,
@@ -272,28 +275,48 @@ static int sync_session(__attribute__((unused))void *data,
 	/* multiple drivers could be connected to the same portal */
 	if (!iscsi_match_session(&rec, info))
 		return -1;
+
+	req = calloc(1, sizeof(*req));
+	if (!req)
+		return -1;
+	INIT_LIST_HEAD(&req->list);
+
 	/*
 	 * We use the initiator name from sysfs because
 	 * the session could have come from our db or ibft or some other
 	 * app.
 	 */
 	strcpy(rec.iface.iname, info->iface.iname);
-	memset(&req, 0, sizeof(req));
-	req.command = MGMT_IPC_SESSION_SYNC;
-	req.u.session.sid = info->sid;
-	memcpy(&req.u.session.rec, &rec, sizeof(node_rec_t));
+	req->req.command = MGMT_IPC_SESSION_SYNC;
+	req->req.u.session.sid = info->sid;
+	memcpy(&req->req.u.session.rec, &rec, sizeof(node_rec_t));
 
-retry:
-	rc = iscsid_exec_req(&req, &rsp, 0, info->iscsid_req_tmo);
-	if (rc == ISCSI_ERR_ISCSID_NOTCONN && retries < 30) {
-		retries++;
-		sleep(1);
-		goto retry;
-	} else if (rc == ISCSI_ERR_SESS_EXISTS) {
-		log_debug(1, "sync session %d returned ISCSI_ERR_SESS_EXISTS", info->sid);
-	}
-
+	list_add_tail(&req->list, sync_list);
 	return 0;
+}
+
+static void sync_sessions(struct list_head *sync_list)
+{
+	struct iscsid_async_req *req, *tmp;
+	iscsiadm_rsp_t rsp;
+	int retries = 0, rc;
+
+	list_for_each_entry_safe(req, tmp, sync_list, list) {
+retry:
+		rc = iscsid_exec_req(&req->req, &rsp, 0,
+				     ISCSID_RESP_POLL_TIMEOUT);
+		if (rc == ISCSI_ERR_ISCSID_NOTCONN && retries < 30) {
+			retries++;
+			sleep(1);
+			goto retry;
+		} else if (rc == ISCSI_ERR_SESS_EXISTS) {
+			log_debug(1, "sync session %d returned ISCSI_ERR_SESS_EXISTS",
+				  req->req.u.session.sid);
+		}
+
+		list_del(&req->list);
+		free(req);
+	}
 }
 
 static char *iscsid_get_config_file(void)
@@ -593,10 +616,13 @@ int main(int argc, char *argv[])
 
 		pid = fork();
 		if (pid == 0) {
+			LIST_HEAD(sync_list);
 			int nr_found; /* not used */
 			/* child */
-			/* TODO - test with async support enabled */
-			iscsi_sysfs_for_each_session(NULL, &nr_found, sync_session, 0);
+			iscsi_sysfs_for_each_session(&sync_list, &nr_found,
+						     init_sync_session_req, 0);
+			if (nr_found)
+				sync_sessions(&sync_list);
 			exit(0);
 		} else if (pid < 0) {
 			log_error("Fork failed error %d: existing sessions"
