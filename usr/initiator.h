@@ -143,7 +143,6 @@ typedef struct iscsi_login_context {
 	int timeout;
 	int final;
 	enum iscsi_login_status ret;
-	struct queue_task *qtask;
 } iscsi_login_context_t;
 
 struct iscsi_session;
@@ -156,11 +155,13 @@ typedef struct iscsi_conn {
 	struct iscsi_session *session;
 	iscsi_login_context_t login_context;
 	struct iscsi_ev_context *recv_context;
-	struct queue_task *logout_qtask;
 	char data[ISCSI_DEF_MAX_RECV_SEG_LEN];
 	char host[NI_MAXHOST];	/* scratch */
 	enum iscsi_conn_state state;
 	int userspace_nop;
+
+	struct queue_task *login_qtask;
+	struct queue_task *logout_qtask;
 
 	struct timeval initial_connect_time;
 	actor_t login_timer;
@@ -291,7 +292,6 @@ typedef struct iscsi_session {
 	/* connection reopens during recovery */
 	int reopen_cnt;
 	int reopen_max;
-	queue_task_t reopen_qtask;
 	iscsi_session_r_stage_e r_stage;
 	uint32_t replacement_timeout;
 
@@ -299,12 +299,6 @@ typedef struct iscsi_session {
 	int tgt_reset_timeout;
 	int lu_reset_timeout;
 	int abort_timeout;
-
-	/*
-	 * used for hw and sync up to notify caller that the operation
-	 * is complete
-	 */
-	queue_task_t *notify_qtask;
 } iscsi_session_t;
 
 #define	INVALID_SESSION_ID	(uint32_t)-1
