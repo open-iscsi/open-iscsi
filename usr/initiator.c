@@ -1969,27 +1969,13 @@ static int queue_session_login_task_retry(struct login_task_retry_info *info,
 	return 0;
 }
 
-static int
-sync_conn(iscsi_session_t *session, uint32_t cid)
-{
-	iscsi_conn_t *conn;
-	int rc;
-
-	rc = __session_conn_create(session, cid);
-	if (rc)
-		return rc;
-	conn = &session->conn[cid];
-
-	/* TODO: must export via sysfs so we can pick this up */
-	conn->state = ISCSI_CONN_STATE_CLEANUP_WAIT;
-	return 0;
-}
-
 int
 iscsi_sync_session(node_rec_t *rec, queue_task_t *qtask, uint32_t sid)
 {
-	iscsi_session_t *session;
+	char state_buff[SCSI_MAX_STATE_VALUE];
 	struct iscsi_transport *t;
+	iscsi_session_t *session;
+	iscsi_conn_t *conn;
 	int err;
 
 	session = session_find_by_sid(sid);
@@ -2011,11 +1997,10 @@ iscsi_sync_session(node_rec_t *rec, queue_task_t *qtask, uint32_t sid)
 		goto destroy_session;
 	}
 
-	session->r_stage = R_STAGE_SESSION_REOPEN;
-
-	err = sync_conn(session, 0);
+	err = __session_conn_create(session, 0);
 	if (err)
 		goto destroy_session;
+	conn = &session->conn[0];
 
 	/*
 	 * The caller only cares we have rebuilt our state, and can process
@@ -2025,7 +2010,34 @@ iscsi_sync_session(node_rec_t *rec, queue_task_t *qtask, uint32_t sid)
 	qtask->rsp.command = MGMT_IPC_SESSION_SYNC;
 	mgmt_ipc_write_rsp(qtask, ISCSI_SUCCESS);
 
-	log_debug(3, "Started sync iSCSI session %d", session->id);
+	/*
+	 * Older kernels do not support needs_cleanup and/or the conn state
+	 * field, so we have to force the relogin.
+	 */
+	if (iscsi_sysfs_conn_needs_cleanup(sid)) {
+		conn_debug(4, conn, "Conn needs recovery cleanup.");
+		goto reopen;
+	}
+
+	memset(state_buff, 0, SCSI_MAX_STATE_VALUE);
+	if (iscsi_sysfs_get_conn_state(state_buff, sid)) {
+		goto reopen;
+	}
+	conn_debug(4, conn, "Conn in %s state.\n", state_buff);
+
+	if (strcmp("up", state_buff))
+		goto reopen;
+
+	conn->state = ISCSI_CONN_STATE_LOGGED_IN;
+	session->r_stage = R_STAGE_NO_CHANGE;
+	log_info("connection%d:%d is operational after resync.", session->id,
+		conn->id);
+	return 0;
+
+reopen:
+	conn_debug(3, conn, "Started sync iSCSI session");
+	conn->state = ISCSI_CONN_STATE_CLEANUP_WAIT;
+	session->r_stage = R_STAGE_SESSION_REOPEN;
 	session_conn_reopen(&session->conn[0], STOP_CONN_RECOVER);
 
 	return 0;
