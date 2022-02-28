@@ -42,6 +42,11 @@ class Global:
     # XXX we should really look how many subtests there are, but there's
     # no good way to detect that.
     subtest_list = [i+1 for i in range(16)]
+    # for timing
+    fio_time = 0.0
+    sgdisk_time = 0.0
+    dd_time = 0.0
+    bonnie_time = 0.0
 
 
 def dprint(*args):
@@ -261,7 +266,7 @@ def run_fio():
     Return zero for success.
     Return non-zero for failure and a failure reason.
 
-    Uses Globals: device, blocksize
+    Uses Globals: partition, blocksize
     """
     if Global.blocksize is not None:
         dprint('Found a block size passed in: %s' % Global.blocksize)
@@ -272,30 +277,34 @@ def run_fio():
                 '16k', '32k', '75536', '128k', '1000000']
     # for each block size, do a read test, then a write test
     for bs in blocksizes:
-        vprint('Running "fio" read test: 8 threads, bs=%s' % bs)
+        vprint('Running "fio" read/write/verify tests with 8/8/1 threads, bs=%s' % bs)
         # only support direct IO with aligned reads
         if bs.endswith('k'):
             direct=1
         else:
             direct=0
+        ts = time.time()
         res = run_cmd(['fio', '--name=read-test', '--readwrite=randread',
             '--runtime=2s', '--numjobs=8', '--blocksize=%s' % bs, 
-            '--direct=%d' % direct, '--filename=%s' % Global.device])
+            '--offset=256k',
+            '--direct=%d' % direct, '--filename=%s' % Global.partition])
         if res != 0:
             return (res, 'fio failed')
-        vprint('Running "fio" write test: 8 threads, bs=%s' % bs)
         res = run_cmd(['fio', '--name=write-test', '--readwrite=randwrite',
             '--runtime=2s', '--numjobs=8', '--blocksize=%s' % bs, 
-            '--direct=%d' % direct, '--filename=%s' % Global.device])
+            '--offset=256k',
+            '--direct=%d' % direct, '--filename=%s' % Global.partition])
         if res != 0:
             return (res, 'fio failed')
-        vprint('Running "fio" verify test: 1 thread, bs=%s' % bs)
         res = run_cmd(['fio', '--name=verify-test', '--readwrite=randwrite',
             '--runtime=2s', '--numjobs=1', '--blocksize=%s' % bs, 
-            '--direct=%d' % direct, '--filename=%s' % Global.device,
+            '--direct=%d' % direct, '--filename=%s' % Global.partition,
+            '--offset=256k',
             '--verify=md5', '--verify_state_save=0'])
         if res != 0:
             return (res, 'fio failed')
+        te = time.time()
+        Global.fio_time += (te - ts)
     return (0, 'Success')
 
 def wait_for_path(path, present=True, amt=10):
@@ -319,12 +328,26 @@ def wipe_disc():
     # zero out the label and parition table
     vprint('Running "sgdisk" and "dd" to wipe disc label, partitions, and filesystem')
     time.sleep(1)
-    res = run_cmd(['sgdisk', '-Z', Global.device])
+    ts = time.time()
+    res = run_cmd(['sgdisk', '--clear', Global.device])
+    te = time.time()
+    Global.sgdisk_time += (te - ts)
     if res != 0:
-        return (res, '%s: could not zero out label: %d' % (Global.device, res))
+        if res == 4:
+            dprint("Oh oh -- 'clear' failed! trying one more time ...")
+        ts = time.time()
+        res = run_cmd(['sgdisk', '--clear', Global.device])
+        te = time.time()
+        if res != 0:
+            return (res, '%s: could not zero out label after two tries: %d' % \
+                    (Global.device, res))
+        Global.sgdisk_time += (te - ts)
+    ts = time.time()
     res = run_cmd(['dd', 'if=/dev/zero', 'of=%s' % Global.device, 'bs=256k', 'count=20', 'oflag=direct'])
+    te = time.time()
     if res != 0:
         return (res, '%s: could not zero out filesystem: %d' % (Global.device, res))
+    Global.dd_time += (te - ts)
     return (0, 'Success')
     
 def run_parted():
@@ -373,9 +396,12 @@ def run_bonnie():
             return (res, '%s: mount failed (%d)' % (Global.partition, res))
         # run bonnie++ on the new directory
         vprint('Running "bonnie++" on the filesystem')
+        ts = time.time()
         res = run_cmd(['bonnie++'] + Global.BONNIEPARAMS + ['-d', tmp_dir])
+        te = time.time()
         if res != 0:
             return (res, '%s: umount failed (%d)' % (tmp_dir, res))
+        Global.bonnie_time += (te - ts)
         # unmount the device and remove the temp dir
         vprint('Running "unmount" to unmount the filesystem')
         res = run_cmd(['umount', tmp_dir])

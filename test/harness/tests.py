@@ -151,12 +151,16 @@ class TestRegression(unittest.TestCase):
         # wait a few seconds for the device to show up
         if not util.wait_for_path(Global.device):
             self.fail('%s: does not exist after login' % Global.device)
-        (res, reason) = util.run_fio()
-        self.assertEqual(res, 0, reason)
+        # run parted to partition the disc with one whole disk partition
         (res, reason) = util.run_parted()
         self.assertEqual(res, 0, reason)
+        # run fio to test file IO
+        (res, reason) = util.run_fio()
+        self.assertEqual(res, 0, reason)
+        # make a filesystem
         (res, reason) = util.run_mkfs()
         self.assertEqual(res, 0, reason)
+        # run bonnie++ to test the filesystem IO
         (res, reason) = util.run_bonnie()
         self.assertEqual(res, 0, reason)
 
@@ -170,4 +174,6 @@ class TestRegression(unittest.TestCase):
                       '-T', Global.target,
                       '-p', Global.ipnr,
                       '--logout'])
+        util.vprint("Times: fio=%-5.3f, sgdisk=%-5.3f, dd=%-5.3f, bonnie=%-5.3f" % \
+                (Global.fio_time, Global.sgdisk_time, Global.dd_time, Global.bonnie_time))
 
