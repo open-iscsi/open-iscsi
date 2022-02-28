@@ -18,7 +18,7 @@ class TestRegression(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        util.verify_needed_commands_exist(['parted', 'fio', Global.MKFSCMD, 'bonnie++', 'sgdisk', 'iscsiadm'])
+        util.verify_needed_commands_exist(['parted', 'fio', Global.MKFSCMD[0], 'bonnie++', 'sgdisk', 'iscsiadm'])
         util.vprint('*** Starting %s' % cls.__name__)
         # XXX validate that target exists?
         # an array of first burts, max burst, and max recv values, for testing
