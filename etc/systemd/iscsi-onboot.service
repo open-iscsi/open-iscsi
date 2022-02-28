@@ -1,0 +1,15 @@
+[Unit]
+Description=Special handling of early boot iSCSI sessions
+Documentation=man:iscsiadm(8) man:iscsid(8)
+DefaultDependencies=no
+RefuseManualStart=true
+Before=iscsi.service
+After=systemd-remount-fs.service
+ConditionDirectoryNotEmpty=/sys/class/iscsi_session
+
+[Service]
+Type=oneshot
+ExecStart=-/usr/libexec/iscsi-mark-root-nodes
+
+[Install]
+WantedBy=sysinit.target

@@ -1,0 +1,15 @@
+[Unit]
+Description=Logout off all iSCSI sessions on shutdown
+Documentation=man:iscsid(8) man:iscsiadm(8)
+DefaultDependencies=no
+Conflicts=shutdown.target
+After=systemd-remount-fs.service network.target iscsid.service iscsiuio.service
+Before=remote-fs-pre.target
+Wants=remote-fs-pre.target
+RefuseManualStop=yes
+
+[Service]
+Type=oneshot
+RemainAfterExit=true
+ExecStart=-/usr/bin/true
+ExecStop=-/usr/sbin/iscsiadm -m node --logoutall=all

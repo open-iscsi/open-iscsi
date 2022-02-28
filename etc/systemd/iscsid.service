@@ -4,16 +4,14 @@ Documentation=man:iscsid(8) man:iscsiuio(8) man:iscsiadm(8)
 DefaultDependencies=no
 After=network-online.target iscsiuio.service iscsi-init.service
 Before=remote-fs-pre.target
-Wants=remote-fs-pre.target
-Requires=iscsi-init.service
+Requires=iscsi-init.service iscsi-shutdown.service
 
 [Service]
 Type=notify
 NotifyAccess=main
-ExecStart=@SBINDIR@/iscsid -f
+ExecStart=/usr/sbin/iscsid -f
 KillMode=mixed
 Restart=on-failure
 
 [Install]
 WantedBy=multi-user.target
-Also=iscsid.socket
