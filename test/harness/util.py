@@ -47,6 +47,8 @@ class Global:
     sgdisk_time = 0.0
     dd_time = 0.0
     bonnie_time = 0.0
+    mkfs_time = 0.0
+    sleep_time = 0
 
 
 def dprint(*args):
@@ -312,6 +314,7 @@ def wait_for_path(path, present=True, amt=10):
     dprint("Looking for path=%s, present=%s" % (path, present))
     for i in range(amt):
         time.sleep(1)
+        Global.sleep_time += 1
         if os.path.exists(path) == present:
             dprint("We are Happy :) present=%s, cnt=%d" % (present, i))
             return True
@@ -328,6 +331,7 @@ def wipe_disc():
     # zero out the label and parition table
     vprint('Running "sgdisk" and "dd" to wipe disc label, partitions, and filesystem')
     time.sleep(1)
+    Global.sleep_time += 1
     ts = time.time()
     res = run_cmd(['sgdisk', '--clear', Global.device])
     te = time.time()
@@ -382,9 +386,12 @@ def run_parted():
 
 def run_mkfs():
     vprint('Running "mkfs" to to create filesystem')
+    ts = time.time()
     res = run_cmd(Global.MKFSCMD + [ Global.partition ] )
+    te = time.time()
     if res != 0:
         return (res, '%s: mkfs failed (%d)' % (Global.partition, res))
+    Global.mkfs_time += (te - ts)
     return (0, 'Success')
 
 def run_bonnie():

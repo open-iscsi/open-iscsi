@@ -76,6 +76,7 @@ class TestRegression(unittest.TestCase):
                 if i not in Global.subtest_list:
                     util.vprint('Skipping subtest %d: FirstBurst={} MaxBurst={} MaxRecv={}'.format(*v) % i)
                 else:
+                    util.vprint('Running subtest %d: FirstBurst={} MaxBurst={} MaxRecv={}'.format(*v) % i)
                     self.iscsi_logout()
                     iscsi_data = IscsiData('Yes', 'No', 'None', 'None', v[0], v[1], v[2])
                     iscsi_data.update_cfg(Global.target, Global.ipnr)
@@ -174,6 +175,7 @@ class TestRegression(unittest.TestCase):
                       '-T', Global.target,
                       '-p', Global.ipnr,
                       '--logout'])
-        util.vprint("Times: fio=%-5.3f, sgdisk=%-5.3f, dd=%-5.3f, bonnie=%-5.3f" % \
-                (Global.fio_time, Global.sgdisk_time, Global.dd_time, Global.bonnie_time))
+        util.vprint("Times: fio=%-5.3f, sgdisk=%-5.3f, dd=%-5.3f, bonnie=%-5.3f, mkfs=%-5.3f, sleep=%d" % \
+                (Global.fio_time, Global.sgdisk_time, Global.dd_time, \
+                 Global.bonnie_time, Global.mkfs_time, Global.sleep_time))
 
