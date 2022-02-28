@@ -1,7 +1,10 @@
 ---------------------------------------------------------------------------
+
+======
 README
 ======
 
+--------------------
 Setting up the tests
 --------------------
 
@@ -32,6 +35,7 @@ Setting up the tests
   * iscsiadm (with the iscsid daemon or service running) [of course]
 
 
+-----------------
 Running the tests
 -----------------
 
@@ -49,7 +53,8 @@ Running the tests
 	-i 192.168.20.168 \
 	-D /dev/sdc
 
-  This can take quite a while to run (how long on my server?).				<< TODO XXX
+  This can take quite a while to run -- hours -- unless you limit
+  the tests to a subset of the whole suite.
 
   The data on your target iSCSI disc will be wiped, so don't use a target
   that has data you wish to save. As far as the size of the target, I
@@ -77,16 +82,7 @@ Running the tests
   classes to test things besides regression (like functionality,
   bug-fix detection, etc).]
 
-  Here's an exmaple of running just the "test_InitialR2T_off_ImmediateData_off"
-  subtest:
-
-    # ./test-open-iscsi.py -v -f \
-        -t iqn.2003-01.org.linux-iscsi.linux-o2br.x8664:sn.2296be998e2c \
-	-i 192.168.20.168 \
-	-D /dev/sdc \
-	test_InitialR2T_off_ImmediateData_off
-
-    ... (start of the output goes here)							<< TODO XXX
+  See below for an exapmle of how you might use this option.
 
   One can also specify the list of subtests (by number) for each test,
   further reducing test executing amount and time, if one wishes, using
@@ -122,9 +118,19 @@ Running the tests
 
 	[512,1k,2k,4k,8k,16k,32k,75536,128k,1000000]
 
-  Using this is left an exercise for the reader. :)
+  For example, to run a test for block size 4k, all subtest 12, for
+  the test_HdrDigest_on_DataDigest_on test:
+
+    # ./test-open-iscsi.py -v -f \
+        -t iqn.2003-01.org.linux-iscsi.linux-o2br.x8664:sn.2296be998e2c \
+	-i 192.168.20.168 \
+	-D /dev/sdc \
+	-B 4k \
+	-s 12 \
+	TestRegression.test_HdrDigest_on_DataDigest_on
 
 
+------------------
 Test Descriptsions
 ------------------
 
