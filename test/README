@@ -223,4 +223,17 @@ Test Descriptsions
     BONNIEPARAMS	"-r0 -n10:0:0 -s16 -uroot -f -q"
 						params used when running bonnie++
 
+-----------------------------------
+Suggestions for running these tests
+-----------------------------------
+
+  I suggest the following values for setting up these tests:
+
+  - Set up a smaller target -- maybe 100M -- which makes tests run faster
+  - Ensure that noop_out_* values are 0 (NOPs off) for your target
+  - Use the local system for your target, to avoid network/switch delays
+  - If there are failures, check dmesg for possible error messages
+  - If you use targetcli for your target, disable NOP-INs on the
+    target ACL attributes
+
 ---------------------------------------------------------------------------
