@@ -408,7 +408,7 @@ def run_bonnie():
             return (res, '%s: umount failed (%d)' % (tmp_dir, res))
         Global.bonnie_time += (te - ts)
         # unmount the device and remove the temp dir
-        vprint('Running "unmount" to unmount the filesystem')
+        vprint('Running "umount" to unmount the filesystem')
         res = run_cmd(['umount', tmp_dir])
         if res != 0:
             return (res, '%s: umount failed (%d)' % (tmp_dir, res))
