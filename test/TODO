@@ -2,14 +2,6 @@
 # Things to do for testing
 #
 
-* get current tests running
-  * this will mean replacing disktest with something
-    (like fio?)
-
-  PASS -- no need to spend time getting disktest working
-  when (1) it's hard to find, and (2) it's going to be
-  replaced anyway.
-
 * ensure user is root? -- easy to do
 
 * have tests create their own target using targetcli and
@@ -20,9 +12,6 @@
 * have tests do discovery themselves, instead of requiring
   that to be done already. Either way, we may still need
   to know the IQN of our target and the host where it lives.
-
-  PASS -- we still would have to know two things (IQN and
-  IP:Port). See next item.
 
 * Have tests figure out the device path, so it doesn't have
   to be passed in. Passing it in requires the called to
@@ -58,11 +47,13 @@
 
 * Add back in the "big warning" from regression.sh?
 
-* Add info to the README about how to run the python tests
+* Find a faster way to zero the disc than using sgdisk and
+  dd. Running both of these on a 10G disc can take minutes.
 
-* Leave the regression test around, for now? It doesn't run,
-  so maybe it should just be removed?
+* Come up with some common subsets of tests that can be run
+  when needed, since running all the tests takes forever. Maybe
+  a "short", "medium", and "long" option, so the caller doesn't
+  have to remember the arcane command-line options?
 
-* Add in option to specify which subtests (of 16) are run
-  for each test case. Would make it much faster for testing
-  and go/no-go testing?
+* keep track of our session id (when we have one), so that
+  we can log out of just our session more easily

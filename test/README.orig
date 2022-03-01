@@ -1,0 +1,104 @@
+---------------------------------------------------------------------------
+A Note from current open-iscsi maintainer Lee Duncan:
+
+README.orig:
+  This is the old README for the "test" subdirectory, directed
+  at being able to use the "regressioin..sh" shell script. But
+  I no longer maintain the shell script, much preferring the
+  python unittest package. Please see the new README file
+  for how to use that package. (2/2022)
+---------------------------------------------------------------------------
+
+From the original test/README:
+---------------------------------------------------------------------------
+This directory contains regression suite.
+
+I would appreciate if developer will run it at least once after
+modifications done before commit or mailing list submit.
+
+./regression.sh script expects next binaries and data files exists
+in current directory:
+
+	- regression.dat
+	- iscsiadm
+	- bonnie++ (source: http://www.open-iscsi.org/bits/bonnie++.tar.gz)
+	- disktest (source: http://www.open-iscsi.org/bits/disktest.tar.gz)
+
+Thanks!
+Dmitry
+---------------------------------------------------------------------------
+Call:
+
+> # ./regression.sh -f/--format <device>
+
+to run "mkfs" on the device and exit, or
+
+> # ./regression.sh <targetname> <ipnumber#> <device> [test#[:#]] [bsize]
+
+Where:
+	<targetname>	?
+	<ipnumber#>	?
+	<device>	the device on which to test (e.g. /dev/sd?)
+	test#[:#]	test(s) to run, i.e. single or range (default: all)
+	bsize		disktest block size (default: a range of 10 sizes)
+			special value "bonnie" => skip disktest
+
+And env var "SKIP_WARNING" skips a big warning about writing on the device?
+
+---------------------------------------------------------------------------
+
+The problem is that these tests have not been run for a while, and,
+additionally, disktest seems to be extinct and unfindable.
+
+I plan to get these tests working, and consider these the steps I plan
+to take:
+
+* understand the current tests
+  - particularly, what disktest and bonnie++ are doing
+
+* try to replace disktest and/or bonnie++, if needed
+  - there are a lot of good disk test packages these days
+
+* replace the shell code with PyTest code, to make it
+  easier to use
+
+Lee Duncan -- 2/13/2020
+
+Analysis of disktest usage:
+
+	options used:					fio option for this?
+	=======================================		==================================
+							--name=test (or whatever)
+	-T2		-- run 2 seconds		--runtime=2
+	-K8		-- run with 8 threads		--numjobs=8
+	-B<bs>		-- set block xfer size		--blocksize=<bs> (default 4k?)
+	-ID		-- use direct IO		--direct=1
+	<dev>		-- use device			--filename=<dev>
+
+	in read mode:
+	-r		-- read mode			--readwrite=randread
+
+	in write mode:
+	-w		-- write mode			--readwrite=randwrite
+	-E 16		-- compare 16 bytes		--verify=md5? (lots of options)
+
+It looks like the "fio" program may address these needs?
+
+e.g. running
+
+with file "test.fio":
+> [test]
+> rw=randread
+> bs=8k
+> filename=/dev/sdb
+> direct=1
+> numjobs=4
+> runtime=60s
+
+run:
+
+> # fio test.fio
+
+The output is interactive? But results are ridiculously verbose,
+but include a nice summary line or two that could be used as a
+go/no-go?

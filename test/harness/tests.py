@@ -18,7 +18,7 @@ class TestRegression(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        util.verify_needed_commands_exist(['parted', 'fio', 'mkfs', 'bonnie++', 'sgdisk', 'iscsiadm'])
+        util.verify_needed_commands_exist(['parted', 'fio', Global.MKFSCMD[0], 'bonnie++', 'sgdisk', 'iscsiadm'])
         util.vprint('*** Starting %s' % cls.__name__)
         # XXX validate that target exists?
         # an array of first burts, max burst, and max recv values, for testing
@@ -57,11 +57,11 @@ class TestRegression(unittest.TestCase):
         """Test Initial Request to Transmit on, but Immediate Data off"""
         i = 1
         for v in self.param_values:
-            with self.subTest('Testing FirstBurst={} MaxBurts={} MaxRecv={}'.format(*v), i=i):
+            with self.subTest('Testing FirstBurst={} MaxBurst={} MaxRecv={}'.format(*v), i=i):
                 if i not in Global.subtest_list:
-                    util.vprint('Skipping subtest %d: FirstBurst={} MaxBurts={} MaxRecv={}'.format(*v) % i)
+                    util.vprint('Skipping subtest %d: FirstBurst={} MaxBurst={} MaxRecv={}'.format(*v) % i)
                 else:
-                    util.vprint('Running subtest %d: FirstBurst={} MaxBurts={} MaxRecv={}'.format(*v) % i)
+                    util.vprint('Running subtest %d: FirstBurst={} MaxBurst={} MaxRecv={}'.format(*v) % i)
                     self.iscsi_logout()
                     iscsi_data = IscsiData('No', 'Yes', 'None', 'None', v[0], v[1], v[2])
                     iscsi_data.update_cfg(Global.target, Global.ipnr)
@@ -72,10 +72,11 @@ class TestRegression(unittest.TestCase):
         """Test Initial Request to Transmit off, Immediate Data on"""
         i = 1
         for v in self.param_values:
-            with self.subTest('Testing FirstBurst={} MaxBurts={} MaxRecv={}'.format(*v), i=i):
+            with self.subTest('Testing FirstBurst={} MaxBurst={} MaxRecv={}'.format(*v), i=i):
                 if i not in Global.subtest_list:
-                    util.vprint('Skipping subtest %d: FirstBurst={} MaxBurts={} MaxRecv={}'.format(*v) % i)
+                    util.vprint('Skipping subtest %d: FirstBurst={} MaxBurst={} MaxRecv={}'.format(*v) % i)
                 else:
+                    util.vprint('Running subtest %d: FirstBurst={} MaxBurst={} MaxRecv={}'.format(*v) % i)
                     self.iscsi_logout()
                     iscsi_data = IscsiData('Yes', 'No', 'None', 'None', v[0], v[1], v[2])
                     iscsi_data.update_cfg(Global.target, Global.ipnr)
@@ -86,11 +87,11 @@ class TestRegression(unittest.TestCase):
         """Test Initial Request to Transmit and Immediate Data on"""
         i = 1
         for v in self.param_values:
-            with self.subTest('Testing FirstBurst={} MaxBurts={} MaxRecv={}'.format(*v), i=i):
+            with self.subTest('Testing FirstBurst={} MaxBurst={} MaxRecv={}'.format(*v), i=i):
                 if i not in Global.subtest_list:
-                    util.vprint('Skipping subtest %d: FirstBurst={} MaxBurts={} MaxRecv={}'.format(*v) % i)
+                    util.vprint('Skipping subtest %d: FirstBurst={} MaxBurst={} MaxRecv={}'.format(*v) % i)
                 else:
-                    util.vprint('Running subtest %d: FirstBurst={} MaxBurts={} MaxRecv={}'.format(*v) % i)
+                    util.vprint('Running subtest %d: FirstBurst={} MaxBurst={} MaxRecv={}'.format(*v) % i)
                     self.iscsi_logout()
                     iscsi_data = IscsiData('Yes', 'Yes', 'None', 'None', v[0], v[1], v[2])
                     iscsi_data.update_cfg(Global.target, Global.ipnr)
@@ -101,11 +102,11 @@ class TestRegression(unittest.TestCase):
         """Test Initial Request to Transmit and Immediate Data off"""
         i = 1
         for v in self.param_values:
-            with self.subTest('Testing FirstBurst={} MaxBurts={} MaxRecv={}'.format(*v), i=i):
+            with self.subTest('Testing FirstBurst={} MaxBurst={} MaxRecv={}'.format(*v), i=i):
                 if i not in Global.subtest_list:
-                    util.vprint('Skipping subtest %d: FirstBurst={} MaxBurts={} MaxRecv={}'.format(*v) % i)
+                    util.vprint('Skipping subtest %d: FirstBurst={} MaxBurst={} MaxRecv={}'.format(*v) % i)
                 else:
-                    util.vprint('Running subtest %d: FirstBurst={} MaxBurts={} MaxRecv={}'.format(*v) % i)
+                    util.vprint('Running subtest %d: FirstBurst={} MaxBurst={} MaxRecv={}'.format(*v) % i)
                     self.iscsi_logout()
                     iscsi_data = IscsiData('No', 'No', 'None', 'None', v[0], v[1], v[2])
                     iscsi_data.update_cfg(Global.target, Global.ipnr)
@@ -116,11 +117,11 @@ class TestRegression(unittest.TestCase):
         """Test With Header Digest"""
         i = 1
         for v in self.param_values:
-            with self.subTest('Testing FirstBurst={} MaxBurts={} MaxRecv={}'.format(*v), i=i):
+            with self.subTest('Testing FirstBurst={} MaxBurst={} MaxRecv={}'.format(*v), i=i):
                 if i not in Global.subtest_list:
-                    util.vprint('Skipping subtest %d: FirstBurst={} MaxBurts={} MaxRecv={}'.format(*v) % i)
+                    util.vprint('Skipping subtest %d: FirstBurst={} MaxBurst={} MaxRecv={}'.format(*v) % i)
                 else:
-                    util.vprint('Running subtest %d: FirstBurst={} MaxBurts={} MaxRecv={}'.format(*v) % i)
+                    util.vprint('Running subtest %d: FirstBurst={} MaxBurst={} MaxRecv={}'.format(*v) % i)
                     self.iscsi_logout()
                     iscsi_data = IscsiData('No', 'Yes', 'CRC32C', 'None', v[0], v[1], v[2])
                     iscsi_data.update_cfg(Global.target, Global.ipnr)
@@ -131,11 +132,11 @@ class TestRegression(unittest.TestCase):
         """Test With Header Digest"""
         i = 1
         for v in self.param_values:
-            with self.subTest('Testing FirstBurst={} MaxBurts={} MaxRecv={}'.format(*v), i=i):
+            with self.subTest('Testing FirstBurst={} MaxBurst={} MaxRecv={}'.format(*v), i=i):
                 if i not in Global.subtest_list:
-                    util.vprint('Skipping subtest %d: FirstBurst={} MaxBurts={} MaxRecv={}'.format(*v) % i)
+                    util.vprint('Skipping subtest %d: FirstBurst={} MaxBurst={} MaxRecv={}'.format(*v) % i)
                 else:
-                    util.vprint('Running subtest %d: FirstBurst={} MaxBurts={} MaxRecv={}'.format(*v) % i)
+                    util.vprint('Running subtest %d: FirstBurst={} MaxBurst={} MaxRecv={}'.format(*v) % i)
                     self.iscsi_logout()
                     iscsi_data = IscsiData('No', 'Yes', 'CRC32C', 'CRC32C', v[0], v[1], v[2])
                     iscsi_data.update_cfg(Global.target, Global.ipnr)
@@ -151,12 +152,18 @@ class TestRegression(unittest.TestCase):
         # wait a few seconds for the device to show up
         if not util.wait_for_path(Global.device):
             self.fail('%s: does not exist after login' % Global.device)
-        (res, reason) = util.run_fio()
-        self.assertEqual(res, 0, reason)
+        # run parted to partition the disc with one whole disk partition
         (res, reason) = util.run_parted()
         self.assertEqual(res, 0, reason)
+        # run fio to test file IO
+        (res, reason) = util.run_fio()
+        self.assertEqual(res, 0, reason)
+        # wait a bit for cache to flush
+        util.sleep_some(1)
+        # make a filesystem
         (res, reason) = util.run_mkfs()
         self.assertEqual(res, 0, reason)
+        # run bonnie++ to test the filesystem IO
         (res, reason) = util.run_bonnie()
         self.assertEqual(res, 0, reason)
 
@@ -170,4 +177,7 @@ class TestRegression(unittest.TestCase):
                       '-T', Global.target,
                       '-p', Global.ipnr,
                       '--logout'])
+        util.vprint("Times: fio=%-.3f, sgdisk=%-.3f, dd=%-.3f, bonnie=%-.3f, mkfs=%-.3f, sleep=%-.3f" % \
+                (Global.fio_time, Global.sgdisk_time, Global.dd_time, \
+                 Global.bonnie_time, Global.mkfs_time, Global.sleep_time))
 

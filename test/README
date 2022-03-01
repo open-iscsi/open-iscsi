@@ -1,93 +1,239 @@
-From the original test/README:
----------------------------------------------------------------------------
-This directory contains regression suite.
-
-I would appreciate if developer will run it at least once after
-modifications done before commit or mailing list submit.
-
-./regression.sh script expects next binaries and data files exists
-in current directory:
-
-	- regression.dat
-	- iscsiadm
-	- bonnie++ (source: http://www.open-iscsi.org/bits/bonnie++.tar.gz)
-	- disktest (source: http://www.open-iscsi.org/bits/disktest.tar.gz)
-
-Thanks!
-Dmitry
----------------------------------------------------------------------------
-Call:
-
-> # ./regression.sh -f/--format <device>
-
-to run "mkfs" on the device and exit, or
-
-> # ./regression.sh <targetname> <ipnumber#> <device> [test#[:#]] [bsize]
-
-Where:
-	<targetname>	?
-	<ipnumber#>	?
-	<device>	the device on which to test (e.g. /dev/sd?)
-	test#[:#]	test(s) to run, i.e. single or range (default: all)
-	bsize		disktest block size (default: a range of 10 sizes)
-			special value "bonnie" => skip disktest
-
-And env var "SKIP_WARNING" skips a big warning about writing on the device?
-
 ---------------------------------------------------------------------------
 
-The problem is that these tests have not been run for a while, and,
-additionally, disktest seems to be extinct and unfindable.
+======
+README
+======
 
-I plan to get these tests working, and consider these the steps I plan
-to take:
+--------------------
+Setting up the tests
+--------------------
 
-* understand the current tests
-  - particularly, what disktest and bonnie++ are doing
+  This is the README for the updated "test" open-iscsi subdirectory.
 
-* try to replace disktest and/or bonnie++, if needed
-  - there are a lot of good disk test packages these days
+  Note that these tests are *not* performance tests. So no
+  attempt is made to track or display how long each test takes,
+  so it is not currently possible to track any improvement
+  nor degredation in IO performance. Please feel free to
+  add tests to measure performance, if you wish.
 
-* replace the shell code with PyTest code, to make it
-  easier to use
+  The tests here are based on the python unittest package. Please use
+  the included "test-open-iscsi.py" python script to run the tests.
+  You can run:
 
-Lee Duncan -- 2/13/2020
+    # ./test-open-iscsi.py --help
 
-Analysis of disktest usage:
+  to get a list of options for this script. You will need the following
+  packages or commands to run these tests:
 
-	options used:					fio option for this?
-	=======================================		==================================
-							--name=test (or whatever)
-	-T2		-- run 2 seconds		--runtime=2
-	-K8		-- run with 8 threads		--numjobs=8
-	-B<bs>		-- set block xfer size		--blocksize=<bs> (default 4k?)
-	-ID		-- use direct IO		--direct=1
-	<dev>		-- use device			--filename=<dev>
+  * fio
+  * bonie++
+  * mkfs.FSTYPE (e.g. mkfs.ext3)
+  * sgdisk
+  * dd
+  * parted
+  * mount/umount
+  * iscsiadm (with the iscsid daemon or service running) [of course]
 
-	in read mode:
-	-r		-- read mode			--readwrite=randread
 
-	in write mode:
-	-w		-- write mode			--readwrite=randwrite
-	-E 16		-- compare 16 bytes		--verify=md5? (lots of options)
+-----------------
+Running the tests
+-----------------
 
-It looks like the "fio" program may address these needs?
+  You will also need to know the IQN (name) of an accesable iscsi target,
+  set up with appropriate access controls so that you can log into it,
+  as well as the IP address where you can access this
+  target, and you will need to know which SCSI disk will show in in
+  /dev for this target (e.g. "/dev/sdc", if you already have a "/dev/sda"
+  and a "/dev/sdb"). You will need to pass in this information to the
+  python script to test. For example, to run all tests on my test
+  system (as root, of course):
 
-e.g. running
+    # ./test-open-iscsi.py -v -f \
+        -t iqn.2003-01.org.linux-iscsi.linux-o2br.x8664:sn.2296be998e2c \
+	-i 192.168.20.168 \
+	-D /dev/sdc
 
-with file "test.fio":
-> [test]
-> rw=randread
-> bs=8k
-> filename=/dev/sdb
-> direct=1
-> numjobs=4
-> runtime=60s
+  This can take quite a while to run -- hours -- unless you limit
+  the tests to a subset of the whole suite.
 
-run:
+  The data on your target iSCSI disc will be wiped, so don't use a target
+  that has data you wish to save. As far as the size of the target, I
+  set up a 10G block-based iscsi target. Having a larger target makes
+  the test run take longer, though. I believe 1G or even 100M might work?
 
-> # fio test.fio
+  Instead of running all the tests, one can instead run a subtest, since
+  the unittest package supports this. To get a list of the tests, run:
 
-The output is interactive? But results are ridiculously verbose,
-but include a nice summary line or two that could be used as a
-go/no-go?
+    # ./test-open-iscsi.py -l
+    test_HdrDigest_on_DataDigest_off (harness.tests.TestRegression)
+    test_HdrDigest_on_DataDigest_on (harness.tests.TestRegression)
+    test_InitialR2T_off_ImmediateData_off (harness.tests.TestRegression)
+    test_InitialR2T_off_ImmediateData_on (harness.tests.TestRegression)
+    test_InitialR2T_on_ImmediateData_off (harness.tests.TestRegression)
+    test_InitialR2T_on_ImmediateData_on (harness.tests.TestRegression)
+
+  I believe the names are self-explanitory. (If not, submit a pull
+  request or let me know.)
+
+  There are 6 test groups, all coming from one test script file (in
+  harness/tests.py), and that are in the the TestRegression python class.
+
+  [In the future, one can add more tests to this class, and other
+  classes to test things besides regression (like functionality,
+  bug-fix detection, etc).]
+
+  See below for an exapmle of how you might use this option.
+
+  One can also specify the list of subtests (by number) for each test,
+  further reducing test executing amount and time, if one wishes, using
+  the "-l/--list" option. Each subtest specifies a different
+  combination of FirstBurst, MaxBurstLength, and MaxRecv for the IO test.
+  Here's a list of the subest values:
+
+    Subtest   [FirstBurstLength, MaxBurstLength, MaxRecvDataSegmentLength]
+        1	    4096	     4096	     4096
+        2	    8192	     4096	     4096
+        3	   16384	     4096	     4096
+        4	   32768	     4096	     4096
+        5	   65536	     4096	     4096
+        6	  131972	     4096	     4096
+        7	    4096	     8192	     4096
+        8	    4096	    16384	     4096
+        9	    4096	    32768	     4096
+       10	    4096	    65536	     4096
+       11	    4096	   131072	     4096
+       12	    4096	     4096	     8192
+       13	    4096	     4096	    16384
+       14	    4096	     4096	    32768
+       15	    4096	     4096	    65536
+       16	    4096	     4096	   131072
+
+  So to run subtest 7 through 11 of test_InitialR2T_off_ImmediateData_off:
+
+    # ... (fill in)									<< TODO XXX
+
+  Lastly, one can reduce the number of tests run (and hence the length of
+  time spent testing) by specifying the block size to test with during
+  IO testing. By default the script uses an array of block sizes:
+
+	[512,1k,2k,4k,8k,16k,32k,75536,128k,1000000]
+
+  For example, to run a test for block size 4k, all subtest 12, for
+  the test_HdrDigest_on_DataDigest_on test:
+
+    # ./test-open-iscsi.py -v -f \
+        -t iqn.2003-01.org.linux-iscsi.linux-o2br.x8664:sn.2296be998e2c \
+	-i 192.168.20.168 \
+	-D /dev/sdc \
+	-B 4k \
+	-s 12 \
+	TestRegression.test_HdrDigest_on_DataDigest_on
+
+
+------------------
+Test Descriptsions
+------------------
+
+  The "regression" test sequence was laid out in regression.sh (the
+  previous test script, still around for reference). I am not sure
+  why we still call it a regression test, when it does not in fact
+  check for any regression in performance. Instead, it tests
+  functionality.
+
+  Each iscsi test has the following default values
+  (called "IscsiData()" in the test suite). These correspond to
+  the default values usually found in open-iscsi:
+
+    Immediate Data		= on
+    Initial Request to Transmit	= off
+    Header Digest		= 'None,CRC32C' (i.e. off by default)
+    Data Digest			= 'None,CRC32C' (i.e. off by default)
+    First Burst Length		= 256k
+    Max Burst Length		= (16 Meg - 1k)
+    Max Receive Data Length	= 128k
+    Max Request to Transmit	= 1
+
+  but one or more of these values can be overwritten for each test.
+
+  The current test suite is laid out like this:
+
+    test_HdrDigest_on_DataDigest_off (harness.tests.TestRegression)
+
+	This tests the Header Digest functionality, by itself.
+
+    test_HdrDigest_on_DataDigest_on (harness.tests.TestRegression)
+
+	This one tests both the Header and Data Digest functionality,
+	together
+
+    test_InitialR2T_off_ImmediateData_off (harness.tests.TestRegression)
+
+	Test both Initial Rquest to Transmit and Imediate data off
+
+    test_InitialR2T_off_ImmediateData_on (harness.tests.TestRegression)
+
+	Test with Initial Request to Transmit off but Imeediate Data
+	on. (This is the default configuration)
+
+    test_InitialR2T_on_ImmediateData_off (harness.tests.TestRegression)
+
+	Test Initial Request to Transmit on but Imediate Data off
+
+    test_InitialR2T_on_ImmediateData_on (harness.tests.TestRegression)
+
+	Test with both Initial Request to Transmit and Immediate Data
+	on.
+
+  For each test run (from this list above), we perform the following tests:
+
+    - Use "iscsiadm" to log into the iscsi target and wait for the
+      device to show up
+    - Run "fio" on the raw disc device
+	This is done 16 times, one for each subtest (see above)
+	  Each of these 16 tests has 10 different block sizes used
+	  (see above)
+	  fio actually does (for each block size):
+	  - fio read test (8 threads)
+	  - fio write test (8 threads)
+	  - fio verify test (1 thread)
+    - Run "parted" to partition
+	This actually first runs "sgdisk" then "dd" to wipe the disc,
+	then runs "parted" make a label then partition it, then
+	waits for the partition to show up.
+    - Run "mkfs" to create a filesystem (EXT3 by default)
+    - Run "bonnie++" on the created filesystem
+
+  For the math-friendly out there, I believe this adds up to about
+  960 tests (10x16x6). By far the slowest part of the tests seems
+  to be wiping the discs clean of a label or partitions. Perhaps this
+  can be sped up?
+
+  The following things can be overridden in the environment, if you
+  wish, by setting the appropriate environment variable before running
+  the test script:
+
+    env. var.		default			meaning
+    ---------		-------			-------
+    FSTYPE		"ext3"			filesystem type to create
+    MOUNTOPTIONS	"-t FSTYPE"		"-t FSTYPE" is added to whatever
+						options you pass in, if any
+    MKFSCMD		"mkfs.FSTYPE"		which mkfs command to call
+    MKFSOPTS		<none>			options too add to mkfs call,
+						if any
+    BONNIEPARAMS	"-r0 -n10:0:0 -s16 -uroot -f -q"
+						params used when running bonnie++
+
+-----------------------------------
+Suggestions for running these tests
+-----------------------------------
+
+  I suggest the following values for setting up these tests:
+
+  - Set up a smaller target -- maybe 100M -- which makes tests run faster
+  - Ensure that noop_out_* values are 0 (NOPs off) for your target
+  - Use the local system for your target, to avoid network/switch delays
+  - If there are failures, check dmesg for possible error messages
+  - If you use targetcli for your target, disable NOP-INs on the
+    target ACL attributes
+
+---------------------------------------------------------------------------
