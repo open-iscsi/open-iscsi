@@ -48,7 +48,7 @@ class Global:
     dd_time = 0.0
     bonnie_time = 0.0
     mkfs_time = 0.0
-    sleep_time = 0
+    sleep_time = 0.0
 
 
 def dprint(*args):
@@ -313,8 +313,7 @@ def wait_for_path(path, present=True, amt=10):
     """Wait until a path exists or is gone"""
     dprint("Looking for path=%s, present=%s" % (path, present))
     for i in range(amt):
-        time.sleep(1)
-        Global.sleep_time += 1
+        sleep_some(1)
         if os.path.exists(path) == present:
             dprint("We are Happy :) present=%s, cnt=%d" % (present, i))
             return True
@@ -330,8 +329,7 @@ def wipe_disc():
     """
     # zero out the label and parition table
     vprint('Running "sgdisk" and "dd" to wipe disc label, partitions, and filesystem')
-    time.sleep(1)
-    Global.sleep_time += 1
+    sleep_some(1)
     ts = time.time()
     res = run_cmd(['sgdisk', '--clear', Global.device])
     te = time.time()
@@ -415,3 +413,10 @@ def run_bonnie():
         if res != 0:
             return (res, '%s: umount failed (%d)' % (tmp_dir, res))
     return (0, 'Success')
+
+def sleep_some(s):
+    # sleep s seconds
+    ts = time.time()
+    time.sleep(s)
+    te = time.time()
+    Global.sleep_time += (te - ts)

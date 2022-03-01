@@ -158,6 +158,8 @@ class TestRegression(unittest.TestCase):
         # run fio to test file IO
         (res, reason) = util.run_fio()
         self.assertEqual(res, 0, reason)
+        # wait a bit for cache to flush
+        util.sleep_some(1)
         # make a filesystem
         (res, reason) = util.run_mkfs()
         self.assertEqual(res, 0, reason)
@@ -175,7 +177,7 @@ class TestRegression(unittest.TestCase):
                       '-T', Global.target,
                       '-p', Global.ipnr,
                       '--logout'])
-        util.vprint("Times: fio=%-5.3f, sgdisk=%-5.3f, dd=%-5.3f, bonnie=%-5.3f, mkfs=%-5.3f, sleep=%d" % \
+        util.vprint("Times: fio=%-.3f, sgdisk=%-.3f, dd=%-.3f, bonnie=%-.3f, mkfs=%-.3f, sleep=%-.3f" % \
                 (Global.fio_time, Global.sgdisk_time, Global.dd_time, \
                  Global.bonnie_time, Global.mkfs_time, Global.sleep_time))
 
