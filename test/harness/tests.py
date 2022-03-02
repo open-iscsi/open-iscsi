@@ -5,10 +5,39 @@ tests -- the actual TestCase (just one)
 import sys
 import os
 import unittest
+import time
 
 from . import util
 from .util import Global
 from .iscsi import IscsiData
+
+
+def s2dt(s):
+    # seconds to "HH:MM:SS.sss"
+    s_orig = s
+    hrs = s / 3600
+    s -= (int(hrs) * 3600)
+    mins = s / 60
+    s -= (int(mins) * 60)
+    a_str="%02d:%02d:%06.3f" % (hrs, mins, s)
+    dprint("s2dt: %f -> %s" % (s_orig, a_str))
+    return a_str
+
+
+def print_time_values():
+    # print out global exec time values
+    util.vprint('')
+    util.vprint('Times spent running sub-programs:')
+    ttl_time = 0.0
+    for s in Global.timing.keys():
+        v = Global.timing[s]
+        r = s2dt(v)
+        ttl_time += v
+        util.vprint('  %10s = %s' % (s, r))
+    util.vprint('    =======================')
+    util.vprint('  %10s = %s' % ('Total', s2dt(ttl_time)))
+    util.vprint('')
+    util.vprint('Total test-run time: %s' % (s2dt(Global.total_time)))
 
 
 class TestRegression(unittest.TestCase):
@@ -38,6 +67,7 @@ class TestRegression(unittest.TestCase):
                             [4096, 4096, 32768],
                             [4096, 4096, 65536],
                             [4096, 4096, 131072]]
+        cls.time_start = time.perf_counter()
 
     def setUp(self):
         if Global.debug or Global.verbosity > 1:
@@ -177,7 +207,5 @@ class TestRegression(unittest.TestCase):
                       '-T', Global.target,
                       '-p', Global.ipnr,
                       '--logout'])
-        util.vprint("Times: fio=%-.3f, sgdisk=%-.3f, dd=%-.3f, bonnie=%-.3f, mkfs=%-.3f, sleep=%-.3f" % \
-                (Global.fio_time, Global.sgdisk_time, Global.dd_time, \
-                 Global.bonnie_time, Global.mkfs_time, Global.sleep_time))
-
+        Global.total_time = time.perf_counter() - cls.time_start
+        print_time_values()
