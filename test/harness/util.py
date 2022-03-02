@@ -43,12 +43,8 @@ class Global:
     # no good way to detect that.
     subtest_list = [i+1 for i in range(16)]
     # for timing
-    fio_time = 0.0
-    sgdisk_time = 0.0
-    dd_time = 0.0
-    bonnie_time = 0.0
-    mkfs_time = 0.0
-    sleep_time = 0.0
+    timing = dict.fromkeys(['fio', 'sgdisk', 'dd', 'bonnie', 'mkfs', 'sleep'], 0.0)
+    total_time = 0.0
 
 
 def dprint(*args):
@@ -285,7 +281,7 @@ def run_fio():
             direct=1
         else:
             direct=0
-        ts = time.time()
+        ts = time.perf_counter()
         res = run_cmd(['fio', '--name=read-test', '--readwrite=randread',
             '--runtime=2s', '--numjobs=8', '--blocksize=%s' % bs, 
             '--offset=256k',
@@ -305,8 +301,8 @@ def run_fio():
             '--verify=md5', '--verify_state_save=0'])
         if res != 0:
             return (res, 'fio failed')
-        te = time.time()
-        Global.fio_time += (te - ts)
+        te = time.perf_counter()
+        Global.timing['fio'] += te - ts
     return (0, 'Success')
 
 def wait_for_path(path, present=True, amt=10):
@@ -330,26 +326,26 @@ def wipe_disc():
     # zero out the label and parition table
     vprint('Running "sgdisk" and "dd" to wipe disc label, partitions, and filesystem')
     sleep_some(1)
-    ts = time.time()
+    ts = time.perf_counter()
     res = run_cmd(['sgdisk', '--clear', Global.device])
-    te = time.time()
-    Global.sgdisk_time += (te - ts)
+    te = time.perf_counter()
+    Global.timing['sgdisk'] += te -ts
     if res != 0:
         if res == 4:
             dprint("Oh oh -- 'clear' failed! trying one more time ...")
-        ts = time.time()
+        ts = time.perf_counter()
         res = run_cmd(['sgdisk', '--clear', Global.device])
-        te = time.time()
+        te = time.perf_counter()
         if res != 0:
             return (res, '%s: could not zero out label after two tries: %d' % \
                     (Global.device, res))
-        Global.sgdisk_time += (te - ts)
-    ts = time.time()
+        Global.timing['sgdisk'] += te - ts
+    ts = time.perf_counter()
     res = run_cmd(['dd', 'if=/dev/zero', 'of=%s' % Global.device, 'bs=256k', 'count=20', 'oflag=direct'])
-    te = time.time()
+    te = time.perf_counter()
     if res != 0:
         return (res, '%s: could not zero out filesystem: %d' % (Global.device, res))
-    Global.dd_time += (te - ts)
+    Global.timing['dd'] += te - ts
     return (0, 'Success')
     
 def run_parted():
@@ -384,12 +380,12 @@ def run_parted():
 
 def run_mkfs():
     vprint('Running "mkfs" to to create filesystem')
-    ts = time.time()
+    ts = time.perf_counter()
     res = run_cmd(Global.MKFSCMD + [ Global.partition ] )
-    te = time.time()
+    te = time.perf_counter()
     if res != 0:
         return (res, '%s: mkfs failed (%d)' % (Global.partition, res))
-    Global.mkfs_time += (te - ts)
+    Global.timing['mkfs'] += te - ts
     return (0, 'Success')
 
 def run_bonnie():
@@ -401,12 +397,12 @@ def run_bonnie():
             return (res, '%s: mount failed (%d)' % (Global.partition, res))
         # run bonnie++ on the new directory
         vprint('Running "bonnie++" on the filesystem')
-        ts = time.time()
+        ts = time.perf_counter()
         res = run_cmd(['bonnie++'] + Global.BONNIEPARAMS + ['-d', tmp_dir])
-        te = time.time()
+        te = time.perf_counter()
         if res != 0:
             return (res, '%s: umount failed (%d)' % (tmp_dir, res))
-        Global.bonnie_time += (te - ts)
+        Global.timing['bonnie'] += te - ts
         # unmount the device and remove the temp dir
         vprint('Running "umount" to unmount the filesystem')
         res = run_cmd(['umount', tmp_dir])
@@ -416,7 +412,7 @@ def run_bonnie():
 
 def sleep_some(s):
     # sleep s seconds
-    ts = time.time()
+    ts = time.perf_counter()
     time.sleep(s)
-    te = time.time()
-    Global.sleep_time += (te - ts)
+    te = time.perf_counter()
+    Global.timing['sleep'] += te - ts

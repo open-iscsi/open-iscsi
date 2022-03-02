@@ -57,3 +57,8 @@
 
 * keep track of our session id (when we have one), so that
   we can log out of just our session more easily
+
+* do a better job of tracking time spent exec-ing other
+  programs -- maybe have the run_cmd() function do it
+  automatically, using a dict, based on the argv[0]
+  command being run?
