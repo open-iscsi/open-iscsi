@@ -1,0 +1,34 @@
+#!/bin/bash
+
+ISCSIADM=/usr/sbin/iscsiadm
+start_iscsid=0
+start_iscsiuio=0
+
+while read t num p target flash; do
+  # strip tag number from portal, keep "ip:port"
+  portal=${p%,*}
+  transport=${t%:}
+
+  # use session number to find the iface name in use
+  num=${num#[}; num=${num%]}
+  iface=$(iscsiadm -m session -r $num | grep iface.iscsi_ifacename | cut -d= -f2)
+
+  $ISCSIADM -m node -p $portal -T $target -I $iface -o update -n node.startup -v onboot
+
+  start_iscsid=1
+
+  if [ "$transport" = bnx2i ] || [ "$transport" = qedi ]; then
+    start_iscsiuio=1
+  fi
+done < <( $ISCSIADM -m session )
+
+# force iscsid and iscsiuio to start if needed for
+# recovering sessions created in the initrd
+
+if [ "$start_iscsid" -eq 1 ]; then
+  systemctl --no-block start iscsid.service
+fi
+if [ "$start_iscsiuio" -eq 1 ]; then
+  systemctl --no-block start iscsiuio.service
+fi
+
