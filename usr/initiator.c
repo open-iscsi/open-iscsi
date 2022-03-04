@@ -1150,8 +1150,11 @@ static void iscsi_stop(void *data)
 	iscsi_ev_context_put(ev_context);
 
 	if (!(conn->session->t->caps & CAP_LOGIN_OFFLOAD)) {
-		if (!iscsi_send_logout(conn))
+		rc = iscsi_send_logout(conn);
+		if (!rc)
 			return;
+		conn_error(conn, "Could not send logout pdu(%s) from iscsi_stop."
+			"Dropping session", strerror(rc));
 	}
 
 	rc = session_conn_shutdown(conn, conn->logout_qtask, ISCSI_SUCCESS);
@@ -2142,11 +2145,13 @@ invalid_state:
 		/* LLDs that offload login also offload logout */
 		if (!(session->t->caps & CAP_LOGIN_OFFLOAD)) {
 			/* unbind is not supported so just do old logout */
-			if (!iscsi_send_logout(conn))
+			rc = iscsi_send_logout(conn);
+			if (rc)
 				return ISCSI_SUCCESS;
 		}
 
-		conn_error(conn, "Could not send logout pdu. Dropping session");
+		conn_error(conn, "Could not send logout pdu(%s) from session_logout_task."
+			"Dropping session", strerror(rc));
 		/* fallthrough */
 	default:
 		rc = session_conn_shutdown(conn, qtask, ISCSI_SUCCESS);
