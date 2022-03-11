@@ -1124,11 +1124,12 @@ static int iscsi_send_logout(iscsi_conn_t *conn)
 	conn->state = ISCSI_CONN_STATE_IN_LOGOUT;
 
 	ev_context = iscsi_ev_context_get(conn, 0);
-	if (!ev_context)
+	if (!ev_context) {
 		/* unbounded logout */
 		log_warning("connection%d:%d Could not allocate conn context for logout.",
 			conn->session->id, conn->id);
-	else {
+		return ENOMEM;
+	} else {
 		iscsi_sched_ev_context(ev_context, conn,
 					 conn->logout_timeout,
 					 EV_CONN_LOGOUT_TIMER);
@@ -1149,8 +1150,11 @@ static void iscsi_stop(void *data)
 	iscsi_ev_context_put(ev_context);
 
 	if (!(conn->session->t->caps & CAP_LOGIN_OFFLOAD)) {
-		if (!iscsi_send_logout(conn))
+		rc = iscsi_send_logout(conn);
+		if (!rc)
 			return;
+		conn_error(conn, "Could not send logout pdu(%s) from iscsi_stop."
+			"Dropping session", strerror(rc));
 	}
 
 	rc = session_conn_shutdown(conn, conn->logout_qtask, ISCSI_SUCCESS);
@@ -1199,6 +1203,7 @@ static void iscsi_recv_async_msg(iscsi_conn_t *conn, struct iscsi_hdr *hdr)
 	char *buf = conn->data;
 	unsigned int senselen;
 	struct scsi_sense_hdr sshdr;
+	int rc = 0;
 
 	conn_debug(3, conn, "Read AEN %d", async_hdr->async_event);
 
@@ -1219,9 +1224,23 @@ static void iscsi_recv_async_msg(iscsi_conn_t *conn, struct iscsi_hdr *hdr)
 		break;
 	case ISCSI_ASYNC_MSG_REQUEST_LOGOUT:
 		conn_warn(conn, "Target requests logout within %u seconds" , ntohs(async_hdr->param3));
-		if (iscsi_send_logout(conn))
+		/*
+		 * for ASYNC LOUOUT request, initiator would try to send a
+		 * logout request and desire target's logout response, in
+		 * logout response handler, initiator would call __conn_error_handle()
+		 * to try to relogin.
+		 *
+		 * While if iscsi_send_logout() failed, we don't know what target
+		 * would do, maybe target would close connection? Which would trigger
+		 * initiator relogin too.
+		 *
+		 * Now we just print an error log to tell the iscsi_send_logout()
+		 * failed and the failed reason, do nothing special.
+		 */
+		rc = iscsi_send_logout(conn);
+		if (rc)
 			conn_error(conn, "Could not send logout in response to"
-				 "logout request aen");
+				 "logout request aen:%s", strerror(rc));
 		break;
 	case ISCSI_ASYNC_MSG_DROPPING_CONNECTION:
 		conn_warn(conn, "Target dropping %u, reconnect min %u max %u", ntohs(async_hdr->param1),
@@ -2126,11 +2145,13 @@ invalid_state:
 		/* LLDs that offload login also offload logout */
 		if (!(session->t->caps & CAP_LOGIN_OFFLOAD)) {
 			/* unbind is not supported so just do old logout */
-			if (!iscsi_send_logout(conn))
+			rc = iscsi_send_logout(conn);
+			if (rc)
 				return ISCSI_SUCCESS;
 		}
 
-		conn_error(conn, "Could not send logout pdu. Dropping session");
+		conn_error(conn, "Could not send logout pdu(%s) from session_logout_task."
+			"Dropping session", strerror(rc));
 		/* fallthrough */
 	default:
 		rc = session_conn_shutdown(conn, qtask, ISCSI_SUCCESS);
