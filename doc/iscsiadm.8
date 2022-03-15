@@ -1,4 +1,4 @@
-.TH ISCSIADM 8 "Nov 2020" "" "Linux Administrator's Manual"
+.TH ISCSIADM 8 "Mar 2021" "" "Linux Administrator's Manual"
 .SH NAME
 iscsiadm \- open-iscsi administration utility
 .SH SYNOPSIS
@@ -37,7 +37,7 @@ iscsiadm \- open-iscsi administration utility
 .RB [ \-I
 .IR iface ]
 .RB [ \-t
-.IR  type ]
+.IR type ]
 .RB [ \-p
 .IR ip:port ]
 .RB [ \-l ]
@@ -156,53 +156,53 @@ iscsiadm \- open-iscsi administration utility
 ]
 .PP
 .B iscsiadm
-.B \-k  priority
+.B \-k priority
 .SH DESCRIPTION
 The iscsiadm utility is a command-line tool allowing discovery and login
 to iSCSI targets, as well as access and management of the open-iscsi
 database.
 .PP
-Open-iscsi does not use the term node as defined by the iSCSI RFC,
+Open-iscsi does not use the term \fInode\fR as defined by the iSCSI RFC,
 where a node is a single iSCSI initiator or target. Open-iscsi uses the
-term node to refer to a portal on a target.
+term \fInode\fR to refer to a portal on a target.
 .PP
-For session mode, a session id (sid) is used. The sid of a session can be
-found by running iscsiadm \-m session \-P 1. The session id and sysfs
+For \fIsession\fR mode, a session id (\fIsid\fR) is used. The \fIsid\fR of a session can be
+found by running \fIiscsiadm \-m session \-P 1\fR. The session id and sysfs
 path are not currently persistent and is partially determined by when the
 session is setup.
 .PP
-Note that many of the node and discovery operations require that the iSCSI
+Note that many of the \fInode\fR and \fIdiscovery\fR operations require that the iSCSI
 daemon (iscsid) be running.
 .SH OPTIONS
 .TP
 \fB\-a\fR, \fB\-\-ip=\fIipaddr\fP
 \fIipaddr\fR can be IPv4 or IPv6.
 .IP
-This option is only valid for ping submode.
+This option is only valid for \fIping\fR submode.
 .TP
 \fB\-A\fR, \fB\-\-portal_type=\fI[ipv4|ipv6]\fR
 Specify the portal type for the new flash node entry to be created.
 .IP
-This option is only valid for flashnode submode of host mode and only with \fInew\fR operation.
+This option is only valid for \fIflashnode\fR submode of \fIhost\fR mode and only with \fInew\fR operation.
 .TP
 \fB\-b\fR, \fB\-\-packetsize=\fIpacketsize\fP
 Specify the ping \fIpacketsize\fR.
 .IP
-This option is only valid for ping submode.
+This option is only valid for \fIping\fR submode.
 .TP
 \fB\-c\fR, \fB\-\-count=\fIcount\fP
-\fIcount\fR specify number of ping iterations.
+\fIcount\fR specifies the number of ping iterations.
 .IP
-This option is only valid for ping submode.
+This option is only valid for \fIping\fR submode.
 .TP
 \fB\-C\fR, \fB\-\-submode=\fIop\fP
-Specify the submode for mode. op must be name of submode.
+Specify the submode for mode. \fIop\fR must be name of submode.
 .IP
-Currently iscsiadm support ping as submode for iface. For example:
+Currently iscsiadm supports \fIping\fR as a submode for \fIiface\fR. For example:
 .IP
 iscsiadm \-m iface \-I ifacename \-C ping \-a ipaddr \-b packetsize \-c count \-i interval
 .IP
-For host, it supports chap , flashnode and stats as submodes. For example:
+For \fIhost\fR, it supports \fIchap\fR, \fIflashnode\fR and \fIstats\fR as submodes. For example:
 .IP
 iscsiadm \-m host \-H hostno \-C chap \-x chap_tbl_idx \-o operation
 .IP
@@ -211,33 +211,33 @@ iscsiadm \-m host \-H hostno \-C flashnode \-x flashnode_idx \-o operation
 iscsiadm \-m host \-H hostno \-C stats
 .TP
 \fB\-d\fR, \fB\-\-debug=\fIdebug_level\fP
-print debugging information. Valid values for debug_level are 0 to 8.
+print debugging information. Valid values for \fIdebug_level\fR are 0 to 8.
 .TP
 \fB\-h\fR, \fB\-\-help\fR
 display help text and exit
 .TP
 \fB\-H\fR, \fB\-\-host=\fI[hostno|MAC]\fR
-The host argument specifies the SCSI host to use for the operation. It can be
+The \fIhost\fR argument specifies the SCSI host to use for the operation. It can be
 the scsi host number assigned to the host by the kernel's scsi layer, or the
 MAC address of a scsi host.
 .TP
 \fB\-i\fR, \fB\-\-interval=\fIinterval\fP
-\fIinterval\fP specify delay between two ping iterations.
+\fIinterval\fP specifies the delay between two ping iterations.
 .IP
-This option is only valid for ping submode.
+This option is only valid for \fIping\fR submode.
 .TP
 \fB\-I\fR, \fB\-\-interface=\fI[iface]\fR
-The interface argument specifies the iSCSI interface to use for the operation.
-iSCSI interfaces (iface) are defined in /etc/iscsi/ifaces. For hardware
-iSCSI (qla4xxx) the iface config must have the hardware address
-(iface.hwaddress = port's MAC address)
-and the driver/transport_name (iface.transport_name). The iface's name is
-then the filename of the iface config. For software iSCSI, the iface config
-must have either the hardware address (iface.hwaddress), or the network
-layer's interface name (iface.net_ifacename), and it must have the
-driver/transport_name
+The \fIinterface\fR argument specifies the iSCSI interface to use for the operation.
+iSCSI interfaces (\fIiface\fR) are defined in /etc/iscsi/ifaces. For hardware
+iSCSI (e.g. qla4xxx) the \fIiface\fR configuration must have the hardware address
+(\fIiface.hwaddress\fR = port's MAC address)
+and the driver/transport_name (\fIiface.transport_name\fR). The \fIiface\fR's name is
+then the filename of the iface configuration. For software iSCSI, the iface configuration
+must have either the hardware address (\fIiface.hwaddress\fR), or the network
+layer's interface name (\fIiface.net_ifacename\fR), and it must have the
+driver/transport_name.
 .IP
-The available drivers/iscsi_transports are tcp (software iSCSI over TCP/IP),
+The available drivers/iscsi_transports are \fItcp\fR (software iSCSI over TCP/IP),
 \fIiser\fR (software iSCSI over InfiniBand),
 \fIqla4xxx\fR (Qlogic 4XXXX and 82XXX HBAs),
 \fIcxgb3i\fR and \fIcxgb4i\fR (Chelsio T3 and T4 adapters),
@@ -247,11 +247,11 @@ The available drivers/iscsi_transports are tcp (software iSCSI over TCP/IP),
 \fIocs\fR (Emulex One Connect storage).
 Some of these are considered experimental, as they are not fully tested.
 .IP
-The hwaddress is the MAC address or for software iSCSI it may be the special
+The \fIhwaddress\fR is the MAC address or for software iSCSI it may be the special
 value \fIdefault\fR which directs the initiator to not bind the session to a
 specific hardware resource and instead allow the network or InfiniBand layer
-to decide what to do. There is no need to create an iface config with the default
-behavior. If you do not specify an iface, then the default behavior is used.
+to decide what to do. There is no need to create an iface configuration with the default
+behavior. If you do not specify an \fIiface\fR, then the default behavior is used.
 .IP
 As mentioned above there is a special iface name \fIdefault\fR. There are
 others which do not bind the session to a specific card, but instead bind
@@ -261,20 +261,20 @@ the session to the transport:
 \fIcxgb4i\fR, and
 \fIbnx2i\fR.
 .IP
-In discovery mode multiple interfaces can be specified by passing in multiple
-\-I/\-\-interface instances. For example:
+In \fIdiscovery\fR mode multiple interfaces can be specified by passing in
+multiple \fI\-I/\-\-interface\fR instances. For example:
 .IP
 \fBsh#\fR iscsiadm \-m discoverydb \-t st \-p ip:port \-I iface0 \-I iface2 \-\-discover
 .IP
 Will direct iscsiadm to setup the node db to create records which will create
-sessions through the two intefaces passed in.
+sessions through the two interfaces passed in.
 .IP
-In node mode, only a single interface is supported in each call to iscsiadm.
+In \fInode\fR mode, only a single interface is supported in each call to iscsiadm.
 .IP
-This option is valid for discovery, node and iface mode.
+This option is valid for \fIdiscovery\fR, \fInode\fR and \fIiface\fR modes.
 .TP
 \fB\-k\fR, \fB\-\-killiscsid=\fI[priority]\fR
-Currently priority must be zero. This will immediately stop all iscsid
+Currently \fIpriority\fR must be zero. This will immediately stop all iscsid
 operations and shutdown iscsid. It does not logout any sessions. Running
 this command is the same as doing \fIkillall iscsid\fR. Neither should
 normally be used, because if iscsid is doing error recovery or if there
@@ -282,30 +282,30 @@ is an error while iscsid is not running, the system may not be able to recover.
 This command and iscsid's SIGTERM handling are experimental.
 .TP
 \fB\-D\fR, \fB\-\-discover\fR
-Discover targets using the discovery record with the  \fIrecid\fR matching
+Discover targets using the discovery record with the \fIrecid\fR matching
 the the discovery type and portal passed in. If there is no matching record,
 it will be created using the iscsid.conf discovery settings.
-This must be passed in \fIdiscoverydb\fR mode to instruct iscsiadm to perform
+This must be passed in to \fIdiscoverydb\fR mode to instruct iscsiadm to perform
 discovery.
 .IP
-This option is only valid for SendTargets discovery mode.
+This option is only valid for \fISendTargets\fR discovery mode.
 .TP
 \fB\-l\fR, \fB\-\-login\fR
-For node and fw mode, login to a specified record. For discovery mode, login to
-all discovered targets.
+For \fInode\fR and \fIfw\fR modes, login to a specified record. For \fIdiscovery\fR mode,
+login to all discovered targets.
 .IP
-This option is only valid for discovery and node modes.
+This option is only valid for \fIdiscovery\fR, \fInode\fR, and \fIfw\fR modes.
 .TP
 \fB\-L\fR, \fB\-\-loginall=\fI[all|manual|automatic|onboot]\fR
-For node mode, login all sessions with the node or conn startup values passed
-in or all running session, except ones marked onboot, if all is passed in.
+For \fInode\fR mode, login to all sessions with the node or conn startup values passed
+in or all running session, except ones marked \fIonboot\fR, if \fIall\fR is passed in.
 .IP
-This option is only valid for node mode (it is valid but not functional
-for session mode).
+This option is only valid for \fInode\fR mode (it is valid but not functional
+for \fIsession\fR mode).
 .TP
 \fB\-W\fR, \fB\-\-\-no_wait\fR
-In node, discovery, or firmware mode,
-do not wait for a response from the targets.
+In \fInode\fR, \fIdiscovery\fR, or \fIfw\fR (firmware) mode,
+do not wait for a response from the target(s).
 This means that success will be returned if the command is able to
 send the login requests, whether or not they succeed. In this case, it will
 be up to the caller to poll for success (i.e. session creation).
@@ -313,17 +313,17 @@ be up to the caller to poll for success (i.e. session creation).
 \fB\-m\fR, \fB\-\-mode \fIop\fR
 specify the mode. \fIop\fR
 must be one of \fIdiscovery\fR, \fIdiscoverydb\fR, \fInode\fR, \fIfw\fR,
-\fIhost\fR \fIiface\fR or \fIsession\fR.
+\fIhost\fR, \fIiface\fR or \fIsession\fR.
 .IP
 If no other options are specified: for \fIdiscovery\fR, \fIdiscoverydb\fR and
-\fInode\fR, all of their respective records are displayed; for \fIsession\fR,
-all active sessions and connections are displayed; for \fIfw\fR, all boot
-firmware values are displayed; for \fIhost\fR, all iSCSI hosts are displayed;
-and for \fIiface\fR, all ifaces setup in /etc/iscsi/ifaces are displayed.
+\fInode\fR mode, all of their respective records are displayed; for \fIsession\fR mode,
+all active sessions and connections are displayed; for \fIfw\fR mode, all boot
+firmware values are displayed; for \fIhost\fR mode, all iSCSI hosts are displayed;
+and for \fIiface\fR mode, all interfaces setup in /etc/iscsi/ifaces are displayed.
 .TP
 \fB\-n\fR, \fB\-\-name=\fIname\fR
-In node mode, specify a field \fIname\fR in a record. In flashnode submode
-of host mode, specify name of the flash node parameter.
+In \fInode\fR mode, specify a field \fIname\fR in a record. In \fIflashnode\fR submode
+of \fIhost\fR mode, specify name of the flash node parameter.
 .IP
 For use with the \fIupdate\fR operator.
 .TP
@@ -331,151 +331,151 @@ For use with the \fIupdate\fR operator.
 Specifies a database operator \fIop\fR. \fIop\fR must be one of
 \fInew\fR, \fIdelete\fR, \fIupdate\fR, \fIshow\fR or \fInonpersistent\fR.
 .IP
-For iface mode, \fIapply\fR and \fIapplyall\fR  are also applicable.
+For \fIiface\fR mode, \fIapply\fR and \fIapplyall\fR are also applicable.
 .IP
-For flashnode submode of host mode, \fIlogin\fR and \fIlogout\fR are also applicable.
+For \fIflashnode\fR submode of \fIhost\fR mode, \fIlogin\fR and \fIlogout\fR are also applicable.
 .IP
-This option is valid for all modes except fw. Delete should not be used
+This option is valid for all modes except \fIfw\fR. Delete should not be used
 on a running session. If it is iscsiadm will stop the session and then delete the
 record.
 .IP
-\fInew\fR creates a new database record for a given object. In node mode, the
-\fIrecid\fR is the target name and portal (IP:port). In iface mode, the \fIrecid\fR
-is the iface name. In discovery mode, the \fIrecid\fR is the portal and
+An \fIop\fR of \fInew\fR creates a new database record for a given object. In \fInode\fR mode, the
+\fIrecid\fR is the target name and portal (IP:port). In \fIiface\fR mode, the \fIrecid\fR
+is the iface name. In \fIdiscovery\fR mode, the \fIrecid\fR is the portal and
 discovery type.
 .IP
-In session mode, the \fInew\fR operation logs in a new session using
+In \fIsession\fR mode, the \fInew\fR operation logs in a new session using
 the same node database and iface information as the specified session.
 .IP
-In discovery mode, if the \fIrecid\fR and new operation is passed in,
-but the \fI--discover\fR argument is not, then iscsiadm will only create a
-discovery record (it will not perform discovery). If the \fI--discover\fR
+In \fIdiscovery\fR mode, if the \fIrecid\fR and \fInew\fR operation is passed in,
+but the \fI\-\-discover\fR argument is not passed in, then iscsiadm will only create a
+discovery record (it will not perform discovery). If the \fI\-\-discover\fR
 argument is passed in with the portal and discovery type, then iscsiadm
 will create the discovery record if needed, and it will create records
 for portals returned by the target that do not yet have a node DB record.
 .IP
-\fIdelete\fR deletes a specified \fIrecid\fR. In discovery mode, if
-iscsiadm is performing discovery it will delete records for portals that
+Setting \fIop\fR to \fIdelete\fR deletes the specified \fIrecid\fR. In \fIdiscovery\fR mode, if
+iscsiadm is performing discovery, it will delete records for portals that
 are no longer returned.
 .IP
-\fIupdate\fR will update the \fIrecid\fR with \fIname\fR to the specified
+Setting \fIop\fR to \fIupdate\fR will update the \fIrecid\fR with \fIname\fR to the specified
 \fIvalue\fR. In discovery mode, if iscsiadm is performing discovery the
-\fIrecid\fR, \fIname\fR  and \fIvalue\fR arguments are not needed. The
+\fIrecid\fR, \fIname\fR and \fIvalue\fR arguments are not needed. The
 update operation will operate on the portals returned by the target,
-and will update the node records with info from the config file and
+and will update the node records with info from the configuration file and
 command line.
 .IP
-\fIshow\fR is the default behaviour for node, discovery and iface mode. It is
-also used when there are no commands passed into session mode and a running
-sid is passed in.
-\fIname\fR and \fIvalue\fR are currently ignored when used with \fIshow\fR.
+The \fIop\fR value of \fIshow\fR is the default behaviour for \fInode\fR,
+\fIdiscovery\fR and \fIiface\fR mode. It is
+also used when there are no commands passed into \fIsession\fR mode and a
+running \fIsid\fR is passed in.
+If \fIname\fR and \fIvalue\fR are passed in, they are currently ignored in \fIshow\fR mode.
 .IP
-\fInonpersistent\fR instructs iscsiadm to not manipulate the node DB.
+An \fIop\fR value of \fInonpersistent\fR instructs iscsiadm to not manipulate the node DB.
 .IP
-\fIapply\fR will cause the network settings to take effect on the specified iface.
+An \fIop\fR value of \fIapply\fR will cause the network settings to take effect on the specified iface.
 .IP
-\fIapplyall\fR will cause the network settings to take effect on all the
+An \fIop\fR value of \fIapplyall\fR will cause the network settings to take effect on all the
 ifaces whose MAC address or host number matches that of the specific host.
 .IP
-\fIlogin\fR will log into the specified flash node entry.
+An \fIop\fR value of \fIlogin\fR will log into the specified flash node entry.
 .IP
-\fIlogout\fR does the logout from the given flash node entry.
+An \fIop\fR value of \fIlogout\fR does the logout from the given flash node entry.
 .TP
 \fB\-p\fR, \fB\-\-portal=\fIip[:port]\fR
-Use target portal with ip-address \fIip\fR and \fIport\fR. If port is not passed
-in the default \fIport\fR value is 3260.
+Use target portal with IP address \fIip\fR and port \fIport\fR. If \fIport\fI is not passed
+in the default value of 3260 is used.
 .IP
-IPv6 addresses can be specified as [ddd.ddd.ddd.ddd]:port or
-ddd.ddd.ddd.ddd.
+IPv6 addresses can be specified as \fI[ddd.ddd.ddd.ddd]:port\fI or \fIddd.ddd.ddd.ddd\fR.
 .IP
-Hostnames can also be used for the ip argument.
+Hostnames can also be used for the \fIip\fI argument.
 .IP
-This option is only valid for discovery, or for node operations with
+This option is only valid for \fIdiscovery\fR, or for \fInode\fR operations with
 the \fInew\fR operator.
 .IP
-This should be used along with \-\-target in node mode, to specify what
-the open-iscsi docs refer to as a node or node record. Note: open-iscsi's
+This should be used along with \fI\-\-target\fR in \fInode\fR mode, to specify what
+the open-iscsi documents refer to as a node or node record. Note: open-iscsi's
 use of the word node, does not match the iSCSI RFC's iSCSI Node term.
 .TP
-\fB\-P\fR,  \fB\-\-print=\fIprintlevel\fR
-If in node mode print nodes in tree format. If in session mode print
-sessions in tree format. If in discovery mode print the nodes in
+\fB\-P\fR, \fB\-\-print=\fIprintlevel\fR
+If in \fInode\fR mode print nodes in tree format. If in \fIsession\fR mode print
+sessions in tree format. If in \fIdiscovery\fR mode print the nodes in
 tree format.
 .TP
 \fB\-T\fR, \fB\-\-targetname=\fItargetname\fR
 Use target \fItargetname\fR.
 .IP
-This should be used along with \-\-portal in node mode, to specify what
-the open-iscsi docs refer to as a node or node record. Note: open-iscsi's
+This should be used along with \fI\-\-portal\fR in \fInode\fR mode, to specify what
+the open-iscsi documents refer to as a node or node record. Note: open-iscsi's
 use of the word node, does not match the iSCSI RFC's iSCSI Node term.
 .TP
-\fB\-r\fR,  \fB\-\-sid=\fIsid | sysfsdir\fR
-Use session ID \fIsid\fR. The sid of a session can be found from running
-iscsiadm in session mode with the \-\-info argument.
+\fB\-r\fR, \fB\-\-sid=\fIsid | sysfsdir\fR
+Use session ID \fIsid\fR. The session ID of a session can be found from running
+iscsiadm in session mode with the \fI\-\-info\fR argument.
 .IP
-Instead of sid, a sysfs path containing the session can be used.
+Instead of a session ID, a sysfs path containing the session can be used.
 For example using one of the following:
 /sys/devices/platform/hostH/sessionS/targetH:B:I/H:B:I:L,
 /sys/devices/platform/hostH/sessionS/targetH:B:I, or
-/sys/devices/platform/hostH/sessionS, for the sysfsdir argument would
-result in the session with sid S to be used.
+/sys/devices/platform/hostH/sessionS, for the \fIsysfsdir\fR argument would
+result in the session with session ID \fIS\fR to be used.
 .IP
-\fIsid | sysfsdir\fR is only required for session mode.
+\fIsid | sysfsdir\fR is only required for \fIsession\fR mode.
 .TP
-\fB\-R\fR,  \fB\-\-rescan\fR
-In session mode, if sid is also passed in rescan the session. If no sid has
-been passed in  rescan all running sessions.
+\fB\-R\fR, \fB\-\-rescan\fR
+In \fIsession\fR mode, if \fIsid\fR is also passed in, rescan the session.
+If no \fIsid\fR has been passed in rescan all running sessions.
 .IP
-In node mode, rescan a session running through the target, portal, iface
+In \fInode\fR mode, rescan a session running through the target, portal, iface
 tuple passed in.
 .TP
 \fB\-s\fR, \fB\-\-stats\fR
 Display session statistics.
-This option when used with host mode, displays host statistics.
+This option when used with \fIhost\fR mode, displays host statistics.
 .TP
 \fB\-S\fR, \fB\-\-show\fR
 When displaying records, do not hide masked values, such as the CHAP
 secret (password).
 .IP
-This option is only valid for node and session mode.
+This option is only valid for \fInode\fR and \fIsession\fR mode.
 .TP
 \fB\-t\fR, \fB\-\-type=\fItype\fR
 \fItype\fR must be \fIsendtargets\fR (or abbreviated as \fIst\fR),
-\fIslp\fR, \fIisns\fR or \fIfw\fR. Currently only sendtargets, fw, and
-iSNS is supported, see the DISCOVERY TYPES section.
+\fIslp\fR, \fIisns\fR or \fIfw\fR. Currently only \fIsendtargets\fR, \fIfw\fR, and
+\fIiSNS\fR are supported, see the \fBDISCOVERY TYPES\fR section.
 .IP
-This option is only valid for discovery mode.
+This option is only valid for \fIdiscovery\fR mode.
 .TP
 \fB\-u\fR, \fB\-\-logout\fR
-logout for a specified record.
+Logout for the specified record.
 .IP
-This option is only valid for node and session mode.
+This option is only valid for \fInode\fR and \fIsession\fR mode.
 .TP
 \fB\-U\fR, \fB\-\-logoutall=\fI[all,manual,automatic|onboot]\fR
-logout all sessions with the node or conn startup values passed in or all
-running session, except ones marked onboot, if all is passed in.
+Logout of all sessions with the node or conn startup values passed in or all
+running sessions, except ones marked \fIonboot\fR, if \fIall\fR is passed in.
 .IP
-This option is only valid for node mode (it is valid but not functional
-for session mode).
+This option is only valid for \fInode\fR mode (it is valid but not functional
+for \fIsession\fR mode).
 .TP
 \fB\-v\fR, \fB\-\-value=\fIvalue\fR
 Specify a \fIvalue\fR for use with the \fIupdate\fR operator.
 .IP
-This option is only valid for node mode and flashnode submode of host mode.
+This option is only valid for \fInode\fR mode and \fIflashnode\fR submode of \fIhost\fR mode.
 .TP
 \fB\-V\fR, \fB\-\-version\fR
-display version and exit
+Display version and exit.
 .TP
 \fB\-x\fR, \fB\-\-index=\fIindex\fR
 Specify the \fIindex\fR of the entity to operate on.
 .IP
-This option is only valid for chap and flashnode submodes of host mode.
+This option is only valid for \fIchap\fR and \fIflashnode\fR submodes of \fIhost\fR mode.
 .SH DISCOVERY TYPES
-iSCSI defines 3 discovery types: SendTargets, SLP, and iSNS.
+iSCSI defines 3 discovery types: \fISendTargets\fR, \fISLP\fR, and \fIiSNS\fR.
 .PP
 A special discovery type called
 .I fw
-(for firmware) is also supported, for discoverying firmware interfaces,
+(for firmware) is also supported, for discovering firmware interfaces,
 and populating the interface database in the process.
 .TP
 .B
@@ -500,16 +500,16 @@ optionally the port of the iSNS server to do discovery to.
 fw
 Firmware mode.
 Several NICs and systems contain a mini iSCSI initiator which can be used
-for boot. To get the values used for boot the fw option can be used.
-Doing fw discovery, does not store persistent records in the node or
+for boot. To get the values used for boot the \fIfw\fR option can be used.
+Doing \fIfw\fR discovery does not store persistent records in the node or
 discovery DB, because the values are stored in the system's or NIC's
 resource.
 .IP
-Performing fw discovery will print the portals, like with other discovery
+Performing \fIfw\fR discovery will print the portals, like with other discovery
 methods. To see other settings like CHAP values and initiator settings,
-like you would in node mode, run \fIiscsiadm \-m fw\fR.
+like you would in \fInode\fR mode, run \fIiscsiadm \-m fw\fR.
 .P
-Note that the SLP implementation is under development and currently
+Note that the \fISLP\fR implementation is under development and currently
 is not supported.
 .SH EXIT STATUS
 On success 0 is returned. On error one of the return codes below will
@@ -554,7 +554,7 @@ ISCSI_ERR_INVAL - invalid argument.
 .TP
 .B
 8
-ISCSI_ERR_TRANS_TIMEOUT - connection timer exired while trying to connect.
+ISCSI_ERR_TRANS_TIMEOUT - connection timer expired while trying to connect.
 .TP
 .B
 9
@@ -566,7 +566,7 @@ ISCSI_ERR_LOGOUT - iSCSI logout failed.
 .TP
 .B
 11
-ISCSI_ERR_PDU_TIMEOUT - iSCSI PDU timedout.
+ISCSI_ERR_PDU_TIMEOUT - iSCSI PDU timed out.
 .TP
 .B
 12
