@@ -100,7 +100,7 @@ clean:
 # now -jXXX will still be safe
 # note that make may still execute the blocks in parallel
 .NOTPARALLEL: install_user install_programs install_initd \
-	install_initd_suse install_initd_redhat install_initd_debian \
+	install_initd_redhat install_initd_debian \
 	install_etc install_iface install_doc install_iname
 
 install: install_programs install_doc install_etc \
@@ -140,18 +140,9 @@ install_initd:
 		$(MAKE) install_initd_debian ; \
 	elif [ -f /etc/redhat-release ]; then \
 		$(MAKE) install_initd_redhat ; \
-	elif [ -f /etc/SuSE-release ]; then \
-		$(MAKE) install_initd_suse ; \
 	fi
 
 # these are external targets to allow bypassing distribution detection
-install_initd_suse:
-	$(INSTALL) -d $(DESTDIR)$(initddir)
-	$(INSTALL) -m 755 etc/initd/initd.suse \
-		$(DESTDIR)$(initddir)/open-iscsi
-	$(INSTALL) -m 755 etc/initd/boot.suse \
-		$(DESTDIR)$(initddir)/boot.open-iscsi
-
 install_initd_redhat:
 	$(INSTALL) -d $(DESTDIR)$(initddir)
 	$(INSTALL) -m 755 etc/initd/initd.redhat \
