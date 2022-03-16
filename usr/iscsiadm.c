@@ -114,7 +114,7 @@ static const struct verify_mode_t mode_paras[] = {
 	[MODE_SESSION] = {"session", "PiRdrmusonuSv", 1},
 	[MODE_HOST] = {"host", "CHdmPotnvxA", 0},
 	[MODE_IFACE] = {"iface", "HIdnvmPoCabci", 0},
-	[MODE_FW] = {"fw", "dmlW", 0},
+	[MODE_FW] = {"fw", "dmlWnv", 0},
 };
 
 static struct option const long_options[] =
@@ -165,10 +165,10 @@ iscsiadm -m discoverydb [-hV] [-d debug_level] [-P printlevel] [-t type -p ip:po
 [-o operation] [-n name] [-v value] [-lD]] \n\
 iscsiadm -m discovery [-hV] [-d debug_level] [-P printlevel] [-t type -p ip:port -I ifaceN ... [-l]] | [[-p ip:port] [-l | -D]] [-W]\n\
 iscsiadm -m node [-hV] [-d debug_level] [-P printlevel] [-L all,manual,automatic,onboot] [-W] [-U all,manual,automatic,onboot] [-S] [[-T targetname -p ip:port -I ifaceN] [-l | -u | -R | -s]] \
-[[-o  operation ] [-n name] [-v value]]\n\
-iscsiadm -m session [-hV] [-d debug_level] [-P  printlevel] [-r sessionid | sysfsdir [-R | -u | -s] [-o operation] [-n name] [-v value]]\n\
-iscsiadm -m iface [-hV] [-d debug_level] [-P printlevel] [-I ifacename | -H hostno|MAC] [[-o  operation ] [-n name] [-v value]] [-C ping [-a ip] [-b packetsize] [-c count] [-i interval]]\n\
-iscsiadm -m fw [-d debug_level] [-l] [-W]\n\
+[[-o operation ] [-n name] [-v value]]\n\
+iscsiadm -m session [-hV] [-d debug_level] [-P printlevel] [-r sessionid | sysfsdir [-R | -u | -s] [-o operation] [-n name] [-v value]]\n\
+iscsiadm -m iface [-hV] [-d debug_level] [-P printlevel] [-I ifacename | -H hostno|MAC] [[-o operation ] [-n name] [-v value]] [-C ping [-a ip] [-b packetsize] [-c count] [-i interval]]\n\
+iscsiadm -m fw [-d debug_level] [-l] [-W] [[-n name] [-v value]]\n\
 iscsiadm -m host [-P printlevel] [-H hostno|MAC] [[-C chap [-x chap_tbl_idx]] | [-C flashnode [-A portal_type] [-x flashnode_idx]] | [-C stats]] [[-o operation] [-n name] [-v value]] \n\
 iscsiadm -k priority\n");
 	}
@@ -3013,8 +3013,61 @@ done:
 	return rc;
 }
 
+static int fill_in_default_fw_values(node_rec_t *rec, struct list_head *params)
+{
+	struct user_param *param;
+	int rc;
+
+	/* must init this so we can check if user overrode them */
+	rec->session.initial_login_retry_max = -1;
+	rec->conn[0].timeo.noop_out_interval = -1;
+	rec->conn[0].timeo.noop_out_timeout = -1;
+	rec->session.scan = -1;
+
+	list_for_each_entry(param, params, list) {
+		/*
+		 * do not allow user to override iface parameters, since
+		 * firmware/ibft values should be used and not overridden
+		 */
+		if (!strcmp(param->name, IFACE_NETNAME) ||
+		    !strcmp(param->name, IFACE_HWADDR) ||
+		    !strcmp(param->name, IFACE_TRANSPORTNAME)) {
+			log_error("Cannot override interface parameters for firmware logins");
+			return ISCSI_ERR_INVAL;
+		}
+	}
+
+	if (!list_empty(params)) {
+		rc = idbm_node_set_rec_from_param(params, rec, 0);
+		if (rc)
+			return rc;
+	}
+
+	/*
+	 * For root boot we could not change this in older versions so
+	 * if user did not override then use the defaults.
+	 *
+	 * Increase to account for boot using static setup.
+	 */
+	if (rec->session.initial_login_retry_max == -1)
+		rec->session.initial_login_retry_max = 30;
+
+	/* firmware logins are usually used for booting, so no NOPs */
+	if (rec->conn[0].timeo.noop_out_interval == -1)
+		rec->conn[0].timeo.noop_out_interval = 0;
+	if (rec->conn[0].timeo.noop_out_timeout == -1)
+		rec->conn[0].timeo.noop_out_timeout = 0;
+
+	/* default scan mode is "auto" */
+	if (rec->session.scan == -1)
+		rec->session.scan = DEF_INITIAL_SCAN;
+
+	return 0;
+}
+
 static int exec_fw_op(discovery_rec_t *drec, struct list_head *ifaces,
-		      int info_level, int do_login, int op, bool wait)
+		      int info_level, int do_login, int op, bool wait,
+		      struct list_head *params)
 {
 	struct boot_context *context;
 	LIST_HEAD(targets);
@@ -3040,6 +3093,12 @@ static int exec_fw_op(discovery_rec_t *drec, struct list_head *ifaces,
 				log_error("Could not convert firmware info to "
 					  "node record.");
 				rc = ISCSI_ERR_NOMEM;
+				break;
+			}
+			/* update rec based on params and default values */
+			rc = fill_in_default_fw_values(rec, params);
+			if (rc) {
+				log_error("Could not merge user params");
 				break;
 			}
 
@@ -3205,7 +3264,7 @@ static int exec_disc2_op(int disc_type, char *ip, int port,
 		}
 
 		drec.type = DISCOVERY_TYPE_FW;
-		rc = exec_fw_op(&drec, ifaces, info_level, do_login, op, true);
+		rc = exec_fw_op(&drec, ifaces, info_level, do_login, op, true, NULL);
 		goto done;
 	default:
 		rc = ISCSI_ERR_INVAL;
@@ -3323,7 +3382,7 @@ static int exec_disc_op(int disc_type,
 		break;
 	case DISCOVERY_TYPE_FW:
 		drec.type = DISCOVERY_TYPE_FW;
-		rc = exec_fw_op(&drec, ifaces, info_level, do_login, op, wait);
+		rc = exec_fw_op(&drec, ifaces, info_level, do_login, op, wait, NULL);
 		break;
 	default:
 		if (ip) {
@@ -3806,7 +3865,7 @@ main(int argc, char **argv)
 		usage(ISCSI_ERR_INVAL);
 
 	if (mode == MODE_FW) {
-		rc = exec_fw_op(NULL, NULL, info_level, do_login, op, wait);
+		rc = exec_fw_op(NULL, NULL, info_level, do_login, op, wait, &params);
 		goto out;
 	}
 
