@@ -11,7 +11,7 @@ endif
 DESTDIR ?=
 prefix ?= /usr
 INSTALL ?= install
-exec_prefix = /
+exec_prefix =
 sbindir = $(exec_prefix)/sbin
 
 ifndef LIB_DIR
