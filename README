@@ -73,7 +73,7 @@ Linux operating system with kernel version 2.6.16 or later. 2.6.14 and
 2.6.15 are partially supported. Known issues with 2.6.14 - .15 support:
 
 - If the device is using a write back cache, during session logout
-the cache sync command will fail.
+  the cache sync command will fail.
 - iscsiadm's -P 3 option will not print out scsi devices.
 - iscsid will not automatically online devices.
 
@@ -131,10 +131,13 @@ The output will be similar to the following.
 Usage: iscsid [OPTION]
 
   -c, --config=[path]     Execute in the config file (/etc/iscsi/iscsid.conf).
+  -i, --initiatorname=[path]     read initiatorname from file (/etc/iscsi/initiatorname.iscsi).
   -f, --foreground        run iscsid in the foreground
   -d, --debug debuglevel  print debugging information
   -u, --uid=uid           run as uid, default is current user
   -g, --gid=gid           run as gid, default is current user group
+  -n, --no-pid-file       do not use a pid file
+  -p, --pid=pidfile       use pid file (default /run/iscsid.pid).
   -h, --help              display this help and exit
   -v, --version           display version and exit
 
@@ -183,13 +186,13 @@ For help, run:
 
 The output will be similar to the following.
 
-iscsiadm -m discoverydb [ -hV ] [ -d debug_level ] [-P printlevel] [ -t type -p ip:port -I ifaceN ... [ -Dl ] ] | [ [ -p ip:port -t type] [ -o operation ] [ -n name ] [ -v value ] [ -lD ] ] 
-iscsiadm -m discovery [ -hV ] [ -d debug_level ] [-P printlevel] [ -t type -p ip:port -I ifaceN ... [ -l ] ] | [ [ -p ip:port ] [ -l | -D ] ] 
-iscsiadm -m node [ -hV ] [ -d debug_level ] [ -P printlevel ] [ -L all,manual,automatic ] [ -W ] [ -U all,manual,automatic ] [ -S ] [ [ -T targetname -p ip:port -I ifaceN ] [ -l | -u | -R | -s] ] [ [ -o  operation  ] [ -n name ] [ -v value ] ]
-iscsiadm -m session [ -hV ] [ -d debug_level ] [ -P  printlevel] [ -r sessionid | sysfsdir [ -R | -u | -s ] [ -o operation ] [ -n name ] [ -v value ] ]
-iscsiadm -m iface [ -hV ] [ -d debug_level ] [ -P printlevel ] [ -I ifacename | -H hostno|MAC ] [ [ -o  operation  ] [ -n name ] [ -v value ] ] [ -C ping [ -a ip ] [ -b packetsize ] [ -c count ] [ -i interval ] ]
-iscsiadm -m fw [ -d debug_level ] [ -l ]
-iscsiadm -m host [ -P printlevel ] [ -H hostno|MAC ] [ [ -C chap [ -x chap_tbl_idx ] ] | [ -C flashnode [ -A portal_type ] [ -x flashnode_idx ] ] | [ -C stats ] ] [ [ -o operation ] [ -n name ] [ -v value ] ] 
+iscsiadm -m discoverydb [-hV] [-d debug_level] [-P printlevel] [-t type -p ip:port -I ifaceN ... [-Dl]] | [[-p ip:port -t type] [-o operation] [-n name] [-v value] [-lD]]
+iscsiadm -m discovery [-hV] [-d debug_level] [-P printlevel] [-t type -p ip:port -I ifaceN ... [-l]] | [[-p ip:port] [-l | -D]] [-W]
+iscsiadm -m node [-hV] [-d debug_level] [-P printlevel] [-L all,manual,automatic,onboot] [-W] [-U all,manual,automatic,onboot] [-S] [[-T targetname -p ip:port -I ifaceN] [-l | -u | -R | -s]] [[-o  operation ] [-n name] [-v value]]
+iscsiadm -m session [-hV] [-d debug_level] [-P  printlevel] [-r sessionid | sysfsdir [-R | -u | -s] [-o operation] [-n name] [-v value]]
+iscsiadm -m iface [-hV] [-d debug_level] [-P printlevel] [-I ifacename | -H hostno|MAC] [[-o  operation ] [-n name] [-v value]] [-C ping [-a ip] [-b packetsize] [-c count] [-i interval]]
+iscsiadm -m fw [-d debug_level] [-l] [-W]
+iscsiadm -m host [-P printlevel] [-H hostno|MAC] [[-C chap [-x chap_tbl_idx]] | [-C flashnode [-A portal_type] [-x flashnode_idx]] | [-C stats]] [[-o operation] [-n name] [-v value]]
 iscsiadm -k priority
 
 
@@ -1165,7 +1168,7 @@ After that, start iSCSI as a daemon process:
 
 or alternatively, start it with debug enabled, in a seperate window,
 which will force it into "foreground" mode:
-	iscsid -d 8 
+	iscsid -d 8
 
 
 7.1.2.2 Logging into Targets
