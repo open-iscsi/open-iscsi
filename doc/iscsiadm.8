@@ -123,6 +123,10 @@ iscsiadm \- open-iscsi administration utility
 .IR debug_level ]
 .RB [ \-l ]
 .RB [ \-W ]
+.RB [ \-n
+.IR name ]
+.RB [ \-v
+.IR value ]
 .PP
 .B iscsiadm
 .B \-m host
@@ -295,6 +299,9 @@ For \fInode\fR and \fIfw\fR modes, login to a specified record. For \fIdiscovery
 login to all discovered targets.
 .IP
 This option is only valid for \fIdiscovery\fR, \fInode\fR, and \fIfw\fR modes.
+For \fIfw\fR mode only, \fIname\fR and \fIvalue\fR pairs can optionally be passed in,
+so that those values get used for the sessions created. In this case, no \fIop\fR
+is needed, since \fIupdate\fR is assumed.
 .TP
 \fB\-L\fR, \fB\-\-loginall=\fI[all|manual|automatic|onboot]\fR
 For \fInode\fR mode, login to all sessions with the node or conn startup values passed
@@ -362,7 +369,7 @@ Setting \fIop\fR to \fIupdate\fR will update the \fIrecid\fR with \fIname\fR to 
 \fIvalue\fR. In discovery mode, if iscsiadm is performing discovery the
 \fIrecid\fR, \fIname\fR and \fIvalue\fR arguments are not needed. The
 update operation will operate on the portals returned by the target,
-and will update the node records with info from the configuration file and
+and will update the node records with information from the configuration file and
 command line.
 .IP
 The \fIop\fR value of \fIshow\fR is the default behaviour for \fInode\fR,
@@ -459,7 +466,7 @@ This option is only valid for \fInode\fR mode (it is valid but not functional
 for \fIsession\fR mode).
 .TP
 \fB\-v\fR, \fB\-\-value=\fIvalue\fR
-Specify a \fIvalue\fR for use with the \fIupdate\fR operator.
+Specify a \fIvalue\fR for use with the \fIupdate\fR operator, or for firmware login mode.
 .IP
 This option is only valid for \fInode\fR mode and \fIflashnode\fR submode of \fIhost\fR mode.
 .TP
