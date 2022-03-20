@@ -4,6 +4,11 @@ ifeq ($(TOPDIR),)
 	TOPDIR = ..
 endif
 
+INSTALL = install
+
+DESTDR ?=
+SBINDIR ?= $(DESTDIR)/sbin
+
 OSNAME=$(shell uname -s)
 
 # allow users to override these
@@ -46,7 +51,9 @@ LDFLAGS += $(shell $(PKG_CONFIG) --libs libsystemd)
 else
 CFLAGS += -DNO_SYSTEMD
 endif
-PROGRAMS = iscsid iscsiadm iscsistart
+
+PROGRAMS	= iscsid iscsiadm iscsistart
+PROGRAMS_DEST	= $(addprefix $(SBINDIR)/,$(PROGRAMS))
 
 # libc compat files
 SYSDEPS_SRCS = $(sort $(wildcard ../utils/sysdeps/*.o))
@@ -77,6 +84,15 @@ iscsiadm: $(ISCSI_LIB_SRCS) $(DISCOVERY_SRCS) iscsiadm.o session_mgmt.o mntcheck
 iscsistart: $(ISCSI_LIB_SRCS) $(INITIATOR_SRCS) $(FW_BOOT_SRCS) \
 		iscsistart.o statics.o
 	$(CC) $(CFLAGS) $^ -o $@ -lcrypto -lrt $(LDFLAGS) $(ISCSI_LIB)
+
+install: $(SBINDIR) $(PROGRAMS_DEST)
+
+$(SBINDIR):
+	[ -d $@ ] || $(INSTALL) -d $@
+
+$(PROGRAMS_DEST): $(SBINDIR)/%: %
+	$(INSTALL) -m 755 $? $@
+
 clean:
 	rm -f *.o $(PROGRAMS) .depend $(LIBSYS)
 

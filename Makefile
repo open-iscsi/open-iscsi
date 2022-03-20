@@ -6,33 +6,15 @@
 # that you want everything installed into.
 DESTDIR ?=
 
-SED = /usr/bin/sed
-
 prefix = /usr
 exec_prefix =
-sbindir = $(exec_prefix)/sbin
-bindir = $(exec_prefix)/bin
+sbindir ?= $(exec_prefix)/sbin
 mandir = $(prefix)/share/man
-etcdir = /etc
-initddir = $(etcdir)/init.d
-rulesdir = $(etcdir)/udev/rules.d
-systemddir = $(prefix)/lib/systemd
 
 MANPAGES = doc/iscsid.8 doc/iscsiadm.8 doc/iscsi_discovery.8 \
 		iscsiuio/docs/iscsiuio.8 doc/iscsi_fw_login.8 doc/iscsi-iname.8 \
 		doc/iscsistart.8 doc/iscsi-gen-initiatorname.8
-PROGRAMS = usr/iscsid usr/iscsiadm utils/iscsi-iname iscsiuio/src/unix/iscsiuio \
-		usr/iscsistart
-SCRIPTS = utils/iscsi_discovery utils/iscsi_fw_login utils/iscsi_offload \
-		utils/iscsi-gen-initiatorname
 INSTALL = install
-CONFIGFILE = etc/iscsid.conf
-IFACEFILES = etc/iface.example
-RULESFILES = utils/50-iscsi-firmware-login.rules
-SYSTEMDFILES = etc/systemd/iscsi.service \
-		etc/systemd/iscsi-init.service \
-		etc/systemd/iscsid.service etc/systemd/iscsid.socket \
-		etc/systemd/iscsiuio.service etc/systemd/iscsiuio.socket
 
 export DESTDIR prefix INSTALL
 
@@ -62,12 +44,13 @@ endif
 all: user
 
 user: iscsiuio/Makefile
-	$(MAKE) -C libopeniscsiusr SBINDIR=$(sbindir)
-	$(MAKE) -C utils/sysdeps
-	$(MAKE) -C utils/fwparam_ibft
-	$(MAKE) -C usr
-	$(MAKE) -C utils
-	$(MAKE) -C iscsiuio
+	$(MAKE) $(MFLAGS) -C libopeniscsiusr SBINDIR=$(sbindir)
+	$(MAKE) $(MFLAGS) -C utils/sysdeps
+	$(MAKE) $(MFLAGS) -C utils/fwparam_ibft
+	$(MAKE) $(MFLAGS) -C usr SBINDIR=$(sbindir)
+	$(MAKE) $(MFLAGS) -C utils SBINDIR=$(sbindir)
+	$(MAKE) $(MFLAGS) -C etc SBINDIR=$(sbindir)
+	$(MAKE) $(MFLAGS) -C iscsiuio
 	@echo
 	@echo "Compilation complete                 Output file"
 	@echo "-----------------------------------  ----------------"
@@ -88,13 +71,14 @@ iscsiuio/configure iscsiuio/Makefile.in: iscsiuio/configure.ac iscsiuio/Makefile
 force: ;
 
 clean:
-	$(MAKE) -C utils/sysdeps clean
-	$(MAKE) -C utils/fwparam_ibft clean
-	$(MAKE) -C utils clean
-	$(MAKE) -C usr clean
-	$(MAKE) -C libopeniscsiusr clean
-	[ ! -f iscsiuio/Makefile ] || $(MAKE) -C iscsiuio clean
-	[ ! -f iscsiuio/Makefile ] || $(MAKE) -C iscsiuio distclean
+	$(MAKE) $(MFLAGS) -C utils/sysdeps clean
+	$(MAKE) $(MFLAGS) -C utils/fwparam_ibft clean
+	$(MAKE) $(MFLAGS) -C utils clean
+	$(MAKE) $(MFLAGS) -C usr clean
+	$(MAKE) $(MFLAGS) -C etc clean
+	$(MAKE) $(MFLAGS) -C libopeniscsiusr clean
+	[ ! -f iscsiuio/Makefile ] || $(MAKE) $(MFLAGS) -C iscsiuio clean
+	[ ! -f iscsiuio/Makefile ] || $(MAKE) $(MFLAGS) -C iscsiuio distclean
 
 # this is for safety
 # now -jXXX will still be safe
@@ -104,64 +88,24 @@ clean:
 	install_etc install_iface install_doc install_iname
 
 install: install_programs install_doc install_etc \
-	install_systemd install_iname install_iface install_libopeniscsiusr
+	install_systemd install_iname install_iface install_libopeniscsiusr \
+	install_iscsiuio
+
+install_iscsiuio:
+	$(MAKE) $(MFLAGS) -C iscsiuio install
 
 install_user: install_programs install_doc install_etc \
 	install_systemd install_iname install_iface
 
 install_udev_rules:
-	$(INSTALL) -d $(DESTDIR)$(rulesdir)
-	$(INSTALL) -m 644 $(RULESFILES) $(DESTDIR)$(rulesdir)
-	for f in $(RULESFILES); do \
-		p=$(DESTDIR)$(rulesdir)/$${f##*/}; \
-		$(SED) -i -e 's:@SBINDIR@:$(sbindir):' $$p; \
-	done
+	$(MAKE) $(MFLAGS) -C utils $@
 
-install_systemd:
-	$(INSTALL) -d $(DESTDIR)$(systemddir)/system
-	$(INSTALL) -m 644 $(SYSTEMDFILES) $(DESTDIR)$(systemddir)/system
-	for f in $(SYSTEMDFILES); do \
-		p=$(DESTDIR)$(systemddir)/system/$${f##*/}; \
-		$(SED) -i -e 's:@SBINDIR@:$(sbindir):' $$p; \
-	done
+install_programs:
+	$(MAKE) $(MFLAGS) -C utils install
+	$(MAKE) $(MFLAGS) -C usr install
 
-install_programs: $(PROGRAMS) $(SCRIPTS)
-	$(INSTALL) -d $(DESTDIR)$(sbindir)
-	$(INSTALL) -m 755 $^ $(DESTDIR)$(sbindir)
-	for f in $(SCRIPTS); do \
-		p=$(DESTDIR)$(sbindir)/$${f##*/}; \
-		$(SED) -i -e 's:@SBINDIR@:$(sbindir):' $$p; \
-	done
-
-# ugh, auto-detection is evil
-# Gentoo maintains their own init.d stuff
-install_initd:
-	if [ -f /etc/debian_version ]; then \
-		$(MAKE) install_initd_debian ; \
-	elif [ -f /etc/redhat-release ]; then \
-		$(MAKE) install_initd_redhat ; \
-	fi
-
-# these are external targets to allow bypassing distribution detection
-install_initd_redhat:
-	$(INSTALL) -d $(DESTDIR)$(initddir)
-	$(INSTALL) -m 755 etc/initd/initd.redhat \
-		$(DESTDIR)$(initddir)/open-iscsi
-
-install_initd_debian:
-	$(INSTALL) -d $(DESTDIR)$(initddir)
-	$(INSTALL) -m 755 etc/initd/initd.debian \
-		$(DESTDIR)$(initddir)/open-iscsi
-
-install_iface: $(IFACEFILES)
-	$(INSTALL) -d $(DESTDIR)$(etcdir)/iscsi/ifaces
-	$(INSTALL) -m 644 $^ $(DESTDIR)$(etcdir)/iscsi/ifaces
-
-install_etc: $(CONFIGFILE)
-	if [ ! -f $(DESTDIR)/etc/iscsi/iscsid.conf ]; then \
-		$(INSTALL) -d $(DESTDIR)$(etcdir)/iscsi ; \
-		$(INSTALL) -m 644 $^ $(DESTDIR)$(etcdir)/iscsi ; \
-	fi
+install_initd install_initd_redhat install_initd_debian install_ifae install_etc install_systemd install_iface:
+	$(MAKE) $(MFLAGS) -C etc $@
 
 install_doc: $(MANPAGES)
 	$(INSTALL) -d $(DESTDIR)$(mandir)/man8
@@ -177,11 +121,15 @@ install_iname:
 	fi
 
 install_libopeniscsiusr:
-	$(MAKE) -C libopeniscsiusr install
+	$(MAKE) $(MFLAGS) -C libopeniscsiusr install
 
 depend:
 	for dir in usr utils utils/fwparam_ibft; do \
-		$(MAKE) -C $$dir $@; \
+		$(MAKE) $(MFLAGS) -C $$dir $@; \
 	done
+
+.PHONY: all user install force clean install_user install_udev_rules install_systemd \
+	install_programs install_initrd install_initrd_redhat install_initrd_debian \
+	install_etc install_doc install_iname install_libopeniscsiusr
 
 # vim: ft=make tw=72 sw=4 ts=4:

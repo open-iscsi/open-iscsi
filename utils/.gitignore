@@ -1,1 +1,4 @@
 iscsi-iname
+50-iscsi-firmware-login.rules
+iscsi-gen-initiatorname.sh
+iscsi_fw_login.sh
