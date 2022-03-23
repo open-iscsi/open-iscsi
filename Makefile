@@ -85,16 +85,16 @@ clean:
 # note that make may still execute the blocks in parallel
 .NOTPARALLEL: install_user install_programs install_initd \
 	install_initd_redhat install_initd_debian \
-	install_etc install_iface install_doc install_iname
+	install_iface install_doc install_iname
 
-install: install_programs install_doc install_etc \
+install: install_programs install_doc \
 	install_systemd install_iname install_iface install_libopeniscsiusr \
 	install_iscsiuio
 
 install_iscsiuio:
 	$(MAKE) $(MFLAGS) -C iscsiuio install
 
-install_user: install_programs install_doc install_etc \
+install_user: install_programs install_doc \
 	install_systemd install_iname install_iface
 
 install_udev_rules:
@@ -104,7 +104,7 @@ install_programs:
 	$(MAKE) $(MFLAGS) -C utils install
 	$(MAKE) $(MFLAGS) -C usr install
 
-install_initd install_initd_redhat install_initd_debian install_ifae install_etc install_systemd install_iface:
+install_initd install_initd_redhat install_initd_debian install_ifae install_systemd install_iface:
 	$(MAKE) $(MFLAGS) -C etc $@
 
 install_doc: $(MANPAGES)
@@ -130,6 +130,6 @@ depend:
 
 .PHONY: all user install force clean install_user install_udev_rules install_systemd \
 	install_programs install_initrd install_initrd_redhat install_initrd_debian \
-	install_etc install_doc install_iname install_libopeniscsiusr
+	install_doc install_iname install_libopeniscsiusr
 
 # vim: ft=make tw=72 sw=4 ts=4:
