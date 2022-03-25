@@ -12,7 +12,9 @@ DESTDIR ?=
 prefix ?= /usr
 INSTALL ?= install
 exec_prefix =
-sbindir = $(exec_prefix)/sbin
+etcdir = $(DESTDIR)/etc
+SBINDIR ?= $(exec_prefix)/sbin
+DBROOT ?= $(etcdir)/iscsi
 
 ifndef LIB_DIR
 	ifeq ($(shell test -d /lib64 && echo 1),1)
@@ -50,7 +52,8 @@ OBJS = context.o misc.o session.o sysfs.o iface.o idbm.o node.o default.o
 CFLAGS ?= -O2 -g
 CFLAGS += -Wall -Werror -Wextra -fvisibility=hidden -fPIC
 CFLAGS += $(shell $(PKG_CONFIG) --cflags libkmod)
-CFLAGS += -DSBINDIR=\"$(sbindir)\"
+CFLAGS += -DSBINDIR=\"$(SBINDIR)\"
+CFLAGS += -DISCSI_DB_ROOT=\"$(DBROOT)\"
 
 LDFLAGS += $(shell $(PKG_CONFIG) --libs libkmod)
 

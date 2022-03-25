@@ -93,8 +93,8 @@ static void iface_init(struct iface_rec *iface)
 }
 
 /*
- * default is to use tcp through whatever the network layer
- * selects for us with the /etc/iscsi/initiatorname.iscsi iname.
+ * Default is to use tcp through whatever the network layer
+ * selects for us with the initiatorname.iscsi iname.
  */
 void iface_setup_defaults(struct iface_rec *iface)
 {

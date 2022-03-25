@@ -1835,7 +1835,7 @@ int idbm_print_all_discovery(int info_level)
  * @port: rec's port
  *
  * This will run fn over all recs with the {targetname,tpgt,ip,port}
- * id. It does not iterate over the ifaces setup in /etc/iscsi/ifaces.
+ * id. It does not iterate over the ifaces setup in the iface DB directory.
  *
  * fn should return -1 if it skipped the rec, an ISCSI_ERR error code if
  * the operation failed or 0 if fn was run successfully.
@@ -3031,9 +3031,9 @@ free_info:
 int idbm_init(idbm_get_config_file_fn *fn)
 {
 	/* make sure root db dir is there */
-	if (access(ISCSI_CONFIG_ROOT, F_OK) != 0) {
-		if (mkdir(ISCSI_CONFIG_ROOT, 0770) != 0) {
-			log_error("Could not make %s %d", ISCSI_CONFIG_ROOT,
+	if (access(ISCSI_DB_ROOT, F_OK) != 0) {
+		if (mkdir(ISCSI_DB_ROOT, 0770) != 0) {
+			log_error("Could not make %s %d", ISCSI_DB_ROOT,
 				   errno);
 			return errno;
 		}

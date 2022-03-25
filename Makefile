@@ -8,15 +8,17 @@ DESTDIR ?=
 
 prefix = /usr
 exec_prefix =
-sbindir ?= $(exec_prefix)/sbin
 mandir = $(prefix)/share/man
+etcdir = $(DESTDIR)/etc
 
-MANPAGES = doc/iscsid.8 doc/iscsiadm.8 doc/iscsi_discovery.8 \
-		iscsiuio/docs/iscsiuio.8 doc/iscsi_fw_login.8 doc/iscsi-iname.8 \
-		doc/iscsistart.8 doc/iscsi-gen-initiatorname.8
-INSTALL = install
+SBINDIR = $(exec_prefix)/sbin
+HOMEDIR = $(etcdir)/iscsi
+DBROOT = $(etcdir)/iscsi
 
-export DESTDIR prefix INSTALL
+INSTALL = /usr/bin/install
+
+# pass these on to sub-Makefiles
+export DESTDIR prefix INSTALL SBINDIR HOMEDIR DBROOT
 
 # Compatibility: parse old OPTFLAGS argument
 ifdef OPTFLAGS
@@ -43,14 +45,18 @@ endif
 
 all: user
 
+make_utils:
+	$(MAKE) $(MFLAGS) -C utils
+
 user: iscsiuio/Makefile
-	$(MAKE) $(MFLAGS) -C libopeniscsiusr SBINDIR=$(sbindir)
+	$(MAKE) $(MFLAGS) -C libopeniscsiusr
 	$(MAKE) $(MFLAGS) -C utils/sysdeps
 	$(MAKE) $(MFLAGS) -C utils/fwparam_ibft
-	$(MAKE) $(MFLAGS) -C usr SBINDIR=$(sbindir)
-	$(MAKE) $(MFLAGS) -C utils SBINDIR=$(sbindir)
-	$(MAKE) $(MFLAGS) -C etc SBINDIR=$(sbindir)
+	$(MAKE) $(MFLAGS) -C usr
+	$(MAKE) $(MFLAGS) -C utils
+	$(MAKE) $(MFLAGS) -C etc
 	$(MAKE) $(MFLAGS) -C iscsiuio
+	$(MAKE) $(MFLAGS) -C doc
 	@echo
 	@echo "Compilation complete                 Output file"
 	@echo "-----------------------------------  ----------------"
@@ -63,9 +69,9 @@ user: iscsiuio/Makefile
 	@echo "Read README file for detailed information."
 
 iscsiuio/Makefile: iscsiuio/configure iscsiuio/Makefile.in
-	cd iscsiuio; ./configure $(WITHOUT_ARG)
+	cd iscsiuio; ./configure $(WITHOUT_ARG) --sbindir=$(SBINDIR)
 
-iscsiuio/configure iscsiuio/Makefile.in: iscsiuio/configure.ac iscsiuio/Makefile.am
+iscsiuio/configure: iscsiuio/configure.ac iscsiuio/Makefile.am
 	cd iscsiuio; autoreconf --install
 
 force: ;
@@ -85,17 +91,16 @@ clean:
 # note that make may still execute the blocks in parallel
 .NOTPARALLEL: install_user install_programs install_initd \
 	install_initd_redhat install_initd_debian \
-	install_iface install_doc install_iname
+	install_doc install_iname install_etc install_etc_all
 
 install: install_programs install_doc \
-	install_systemd install_iname install_iface install_libopeniscsiusr \
-	install_iscsiuio
+	install_systemd install_iname install_libopeniscsiusr \
+	install_iscsiuio install_etc_all
 
 install_iscsiuio:
 	$(MAKE) $(MFLAGS) -C iscsiuio install
 
-install_user: install_programs install_doc \
-	install_systemd install_iname install_iface
+install_user: install_programs install_doc install_systemd install_iname
 
 install_udev_rules:
 	$(MAKE) $(MFLAGS) -C utils $@
@@ -104,21 +109,17 @@ install_programs:
 	$(MAKE) $(MFLAGS) -C utils install
 	$(MAKE) $(MFLAGS) -C usr install
 
-install_initd install_initd_redhat install_initd_debian install_ifae install_systemd install_iface:
+install_initd install_initd_redhat install_initd_debian install_iface install_systemd install_etc install_iname:
 	$(MAKE) $(MFLAGS) -C etc $@
 
-install_doc: $(MANPAGES)
-	$(INSTALL) -d $(DESTDIR)$(mandir)/man8
-	$(INSTALL) -m 644 $^ $(DESTDIR)$(mandir)/man8
+install_etc_all:
+	$(MAKE) $(MFLAGS) -C etc install
 
-install_iname:
-	if [ ! -f $(DESTDIR)/etc/iscsi/initiatorname.iscsi ]; then \
-		echo "InitiatorName=`$(DESTDIR)$(sbindir)/iscsi-iname`" > $(DESTDIR)/etc/iscsi/initiatorname.iscsi ; \
-		echo "***************************************************" ; \
-		echo "Setting InitiatorName to `cat $(DESTDIR)/etc/iscsi/initiatorname.iscsi`" ; \
-		echo "To override edit $(DESTDIR)/etc/iscsi/initiatorname.iscsi" ; \
-		echo "***************************************************" ; \
-	fi
+install_doc:
+	$(MAKE) $(MFLAGS) -C doc $@
+
+$(DESTDIR)$(HOMEDIR):
+	[ -d $@ ] || $(INSTALL) -d -m 755 $@
 
 install_libopeniscsiusr:
 	$(MAKE) $(MFLAGS) -C libopeniscsiusr install
@@ -130,6 +131,4 @@ depend:
 
 .PHONY: all user install force clean install_user install_udev_rules install_systemd \
 	install_programs install_initrd install_initrd_redhat install_initrd_debian \
-	install_doc install_iname install_libopeniscsiusr
-
-# vim: ft=make tw=72 sw=4 ts=4:
+	install_doc install_iname install_libopeniscsiusr install_etc install_ec_all

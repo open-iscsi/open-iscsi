@@ -44,7 +44,7 @@ struct iscsi_node {
 	char					portal[NI_MAXHOST * 2];
 };
 
-#define NODE_CONFIG_DIR		ISCSI_CONFIG_ROOT"nodes"
+#define NODE_CONFIG_DIR		ISCSI_DB_ROOT"/nodes"
 
 /* Might be public in the future */
 __DLL_LOCAL void iscsi_node_free(struct iscsi_node *node);

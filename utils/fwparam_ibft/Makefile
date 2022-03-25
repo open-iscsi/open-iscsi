@@ -24,6 +24,7 @@ ifeq ($(TOPDIR),)
 	TOPDIR = ../..
 endif
 
+SBINDIR ?= $(DESTDIR)/sbin
 
 SYSDEPS_OBJS = $(sort $(wildcard ../sysdeps/*.o))
 OBJS := fw_entry.o fwparam_sysfs.o $(SYSDEPS_OBJS) \
@@ -35,6 +36,7 @@ CFLAGS ?= -O2 -g
 WARNFLAGS ?= -Wall -Wstrict-prototypes -Wno-format-truncation
 CFLAGS += -fPIC $(WARNFLAGS) -I$(TOPDIR)/include -I$(TOPDIR)/usr -D_GNU_SOURCE \
 	  -I$(TOPDIR)/libopeniscsiusr
+CFLAGS += -DSBINDIR=\"$(SBINDIR)\"
 
 LDFLAGS += -L$(TOPDIR)/libopeniscsiusr -liscsiusr
 

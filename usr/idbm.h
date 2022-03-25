@@ -30,12 +30,13 @@
 #include "list.h"
 #include "flashnode.h"
 
-#define NODE_CONFIG_DIR		ISCSI_CONFIG_ROOT"nodes"
-#define SLP_CONFIG_DIR		ISCSI_CONFIG_ROOT"slp"
-#define ISNS_CONFIG_DIR		ISCSI_CONFIG_ROOT"isns"
-#define STATIC_CONFIG_DIR	ISCSI_CONFIG_ROOT"static"
-#define FW_CONFIG_DIR		ISCSI_CONFIG_ROOT"fw"
-#define ST_CONFIG_DIR		ISCSI_CONFIG_ROOT"send_targets"
+#define NODE_CONFIG_DIR		ISCSI_DB_ROOT"/nodes"
+#define SLP_CONFIG_DIR		ISCSI_DB_ROOT"/slp"
+#define ISNS_CONFIG_DIR		ISCSI_DB_ROOT"/isns"
+#define STATIC_CONFIG_DIR	ISCSI_DB_ROOT"/static"
+#define FW_CONFIG_DIR		ISCSI_DB_ROOT"/fw"
+#define ST_CONFIG_DIR		ISCSI_DB_ROOT"/send_targets"
+
 #define ST_CONFIG_NAME		"st_config"
 #define ISNS_CONFIG_NAME	"isns_config"
 
