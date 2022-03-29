@@ -3,13 +3,19 @@
 # 	initd and systemd subdirectories
 #
 
+ifeq ($(TOPDIR),)
+	TOPDIR = ..
+endif
+
 prefix = /usr
 DESTDIR ?=
-SBINDIR ?= $(DESTDIR)/sbin
+SBINDIR ?= /sbin
+
+ISCSI_INAME ?= $(TOPDIR)/utils/iscsi-iname
 
 systemddir ?= $(DESTDIR)$(prefix)/lib/systemd
-etcdir = $(DESTDIR)/etc
-initddir ?= $(etcdir)/init.d
+etcdir = /etc
+initddir ?= $(DESTDIR)$(etcdir)/init.d
 
 HOMEDIR ?= $(etcdir)/iscsi
 
@@ -24,12 +30,14 @@ SYSTEMD_TEMPLATE_FILES	= iscsi-init.service.template \
 			  iscsiuio.service.template
 SYSTEMD_TEMPLATES	= $(addprefix systemd/,$(SYSTEMD_TEMPLATE_FILES))
 SYSTEMD_GENERATED_SERVICE_FILES	= $(SYSTEMD_TEMPLATES:.template=)
-SYSTEMD_DEST_FILES	= $(addprefix $(systemddir)/system/,$(notdir $(SYSTEMD_SOURCES))) \
+SYSTEMD_DEST_FILES	= $(addprefix $(systemddir)/system/,$(SYSTEMD_SOURCE_FILES)) \
 			  $(addprefix $(systemddir)/system/,$(notdir $(SYSTEMD_GENERATED_SERVICE_FILES)))
 IFACE_FILES		= iface.example
-IFACE_DEST_FILES	= $(addprefix $(HOMEDIR)/ifaces/,$(IFACE_FILES))
+IFACE_DEST_FILES	= $(addprefix $(DESTDIR)$(DBROOT)/ifaces/,$(IFACE_FILES))
 ETC_FILES		= iscsid.conf
-ETC_DEST_FILES		= $(addprefix $(HOMEDIR)/,$(ETC_FILES))
+ETC_DEST_FILES		= $(addprefix $(DESTDIR)$(HOMEDIR)/,$(ETC_FILES))
+
+INAME_DEST_FILE		= $(DESTDIR)$(HOMEDIR)/initiatorname.iscsi
 
 all: $(SYSTEMD_SOURCES) $(SYSTEMD_GENERATED_SERVICE_FILES)
 
@@ -38,14 +46,14 @@ $(SYSTEMD_GENERATED_SERVICE_FILES): systemd/%.service: systemd/%.service.templat
 
 install: install_systemd install_iface install_etc
 
-install_iface: $(IFACE_DEST_FILES)
+install_iface: $(DESTDIR)$(DBROOT)/ifaces $(IFACE_DEST_FILES)
 
-$(IFACE_DEST_FILES): $(HOMEDIR)/ifaces/%: %
+$(IFACE_DEST_FILES): $(DESTDIR)$(DBROOT)/ifaces/%: %
 	$(INSTALL) -m 644 $? $@
 
-install_etc: $(ETC_DEST_FILES)
+install_etc: $(DESTDIR)$(HOMEDIR) $(ETC_DEST_FILES)
 
-$(ETC_DEST_FILES): $(HOMEDIR)/%: %
+$(ETC_DEST_FILES): $(DESTDIR)$(HOMEDIR)/%: %
 	$(INSTALL) -m 644 $? $@
 
 install_initd_distro = $(INSTALL) -m 755 $(1) $(initddir)/open-iscsi/
@@ -57,9 +65,6 @@ install_initd: $(initddir)/open-iscsi
 		$(call install_initd_distro,initd/initd.debian) ; \
 	fi
 
-$(initddir)/open-iscsi:
-	[ -d $@ ] || $(INSTALL) -d $@
-
 install_initd_redhat: $(initddir)/open-iscsi
 	$(call install_initd_distro,initd/initd.redhat)
 
@@ -68,11 +73,25 @@ install_initd_debian: $(initddir)/open-iscsi
 
 install_systemd: $(systemddir)/system $(SYSTEMD_DEST_FILES)
 
-$(systemddir)/system:
-	[ -d $@ ] || $(INSTALL) -d -m 775 $@
-
 $(SYSTEMD_DEST_FILES): $(systemddir)/system/%: systemd/%
 	$(INSTALL) $? $@
+
+install_iname: $(DESTDIR)$(HOMEDIR) $(ISCSI_INAME)
+	if [ ! -f $(INAME_DEST_FILE) ]; then \
+		INAME="`$(ISCSI_INAME)`" ; \
+		echo "InitiatorName=$$INAME" > $(INAME_DEST_FILE) ; \
+		echo "***************************************************" ; \
+		echo "Setting InitiatorName to $$INAME" ; \
+		echo "To override edit $(INAME_DEST_FILE)" ; \
+		echo "***************************************************" ; \
+	fi
+
+$(ISCSI_INAME):
+	$(MAKE) $(MFLAGS) -c $(TOPDIR)/utils $(notdir $@)
+
+# make needed directories
+$(systemddir)/system $(DESTDIR)$(HOMEDIR) $(DESTDIR)$(DBROOT)/ifaces $(initddir)/open-iscsi:
+	[ -d $@ ] || $(INSTALL) -d -m 775 $@
 
 clean:
 	$(RM) $(SYSTEMD_GENERATED_SERVICE_FILES)

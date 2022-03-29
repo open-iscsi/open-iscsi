@@ -95,16 +95,16 @@ static void usage(int status)
 		printf("Usage: %s [OPTION]\n", program_name);
 		printf("\
 Open-iSCSI initiator daemon.\n\
-  -c, --config=[path]     Execute in the config file (" CONFIG_FILE ").\n\
+  -c, --config=[path]     Execute using the config file (" CONFIG_FILE ").\n\
   -i, --initiatorname=[path]     read initiatorname from file (" INITIATOR_NAME_FILE ").\n\
-  -f, --foreground        make the program run in the foreground\n\
-  -d, --debug debuglevel  print debugging information\n\
-  -u, --uid=uid           run as uid, default is current user\n\
-  -g, --gid=gid           run as gid, default is current user group\n\
-  -n, --no-pid-file       do not use a pid file\n\
-  -p, --pid=pidfile       use pid file (default " PID_FILE ").\n\
-  -h, --help              display this help and exit\n\
-  -v, --version           display version and exit\n\
+  -f, --foreground        Make the program run in the foreground\n\
+  -d, --debug debuglevel  Print debugging information\n\
+  -u, --uid=uid           Run as uid, default is current user\n\
+  -g, --gid=gid           Run as gid, default is current user group\n\
+  -n, --no-pid-file       Do not use a pid file\n\
+  -p, --pid=pidfile       Use pid file (default " PID_FILE ").\n\
+  -h, --help              Display this help and exit\n\
+  -v, --version           Display version and exit\n\
 ");
 	}
 	exit(status);

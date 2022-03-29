@@ -1,4 +1,4 @@
-.TH ISCSIADM 8 "Mar 2021" "" "Linux Administrator's Manual"
+.TH ISCSIADM 8 "Mar 2022" "" "Linux Administrator's Manual"
 .SH NAME
 iscsiadm \- open-iscsi administration utility
 .SH SYNOPSIS
@@ -174,9 +174,25 @@ For \fIsession\fR mode, a session id (\fIsid\fR) is used. The \fIsid\fR of a ses
 found by running \fIiscsiadm \-m session \-P 1\fR. The session id and sysfs
 path are not currently persistent and is partially determined by when the
 session is setup.
+.SH NOTES
 .PP
-Note that many of the \fInode\fR and \fIdiscovery\fR operations require that the iSCSI
-daemon (iscsid) be running.
+Many of the node and discovery operations require that the iSCSI
+daemon (iscsid) be running. If running on a system that uses systemd,
+the daemon may start up automatically, if enabled, when needed.
+.PP
+Open-iscsi has two groups of files it needs to store or get access to,
+while running: the \fBHOMEDIR\fR and the \fBDBROOT\fR. The following
+describes them:
+.TP
+.B Home Directory
+The \fIhome directory\fR for open-iscsi is @HOMEDIR@. This is
+where it keeps it's configuration file (\fIiscsid.conf\fR) and it's
+initiator name file (\fIinitiatorname.iscsi\fR).
+.TP
+.B Database Root Directory
+The \fIdatabase root directory\fR for open-iscsi is @DBROOT@. This
+is where it keeps its flat database files, such as it's list of \fInode\fRs
+(see below).
 .SH OPTIONS
 .TP
 \fB\-a\fR, \fB\-\-ip=\fIipaddr\fP
@@ -232,7 +248,7 @@ This option is only valid for \fIping\fR submode.
 .TP
 \fB\-I\fR, \fB\-\-interface=\fI[iface]\fR
 The \fIinterface\fR argument specifies the iSCSI interface to use for the operation.
-iSCSI interfaces (\fIiface\fR) are defined in /etc/iscsi/ifaces. For hardware
+iSCSI interfaces (\fIiface\fR) are defined in @DBROOT@/ifaces. For hardware
 iSCSI (e.g. qla4xxx) the \fIiface\fR configuration must have the hardware address
 (\fIiface.hwaddress\fR = port's MAC address)
 and the driver/transport_name (\fIiface.transport_name\fR). The \fIiface\fR's name is
@@ -326,7 +342,7 @@ If no other options are specified: for \fIdiscovery\fR, \fIdiscoverydb\fR and
 \fInode\fR mode, all of their respective records are displayed; for \fIsession\fR mode,
 all active sessions and connections are displayed; for \fIfw\fR mode, all boot
 firmware values are displayed; for \fIhost\fR mode, all iSCSI hosts are displayed;
-and for \fIiface\fR mode, all interfaces setup in /etc/iscsi/ifaces are displayed.
+and for \fIiface\fR mode, all interfaces setup in @DBROOT@/ifaces are displayed.
 .TP
 \fB\-n\fR, \fB\-\-name=\fIname\fR
 In \fInode\fR mode, specify a field \fIname\fR in a record. In \fIflashnode\fR submode
@@ -680,17 +696,17 @@ Display all data for a given node record:
 \fBsh#\fR iscsiadm \-\-mode node \-\-targetname iqn.2001-05.com.doe:test \-\-portal 192.168.1.1:3260
 .SH FILES
 .TP
-/etc/iscsi/iscsid.conf
+@HOMEDIR@/iscsid.conf
 The configuration file read by \fBiscsid\fR and \fBiscsiadm\fR on startup.
 .TP
-/etc/iscsi/initiatorname.iscsi
+@HOMEDIR@/initiatorname.iscsi
 The file containing the iSCSI InitiatorName and InitiatorAlias read by
 \fBiscsid\fR and \fBiscsiadm\fR on startup.
 .TP
-/etc/iscsi/nodes/
+@DBROOT@/nodes/
 This directory contains the nodes with their targets.
 .TP
-/etc/iscsi/send_targets
+@DBROOT@/send_targets
 This directory contains the portals.
 .SH "SEE ALSO"
 .BR iscsid (8)

@@ -24,7 +24,7 @@ Use \fIIQN-PREFIX\fP as the prefix to the IQN generated,
 instead of the default of \fBiqn.1996-04.de.suse:01\fP.
 .SH FILES
 .TP
-/etc/iscsi/initiatorname.iscsi
+@HOMEDIR@/initiatorname.iscsi
 The file containing the initiator name. Do not edit manually.
 .SH "SEE ALSO"
 .BR iscsi-iname (8)

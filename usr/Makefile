@@ -7,7 +7,8 @@ endif
 INSTALL = install
 
 DESTDR ?=
-SBINDIR ?= $(DESTDIR)/sbin
+SBINDIR ?= /sbin
+etcdir = /etc
 
 OSNAME=$(shell uname -s)
 
@@ -37,6 +38,9 @@ IPC_OBJ=ioctl.o
 endif
 endif
 
+DBROOT ?= $(etcdir)/iscsi
+HOMEDIR ?= $(etcdir)/iscsi
+
 PKG_CONFIG = /usr/bin/pkg-config
 
 CFLAGS ?= -O2 -g
@@ -51,9 +55,11 @@ LDFLAGS += $(shell $(PKG_CONFIG) --libs libsystemd)
 else
 CFLAGS += -DNO_SYSTEMD
 endif
+CFLAGS += -DISCSI_DB_ROOT=\"$(DBROOT)\"
+CFLAGS += -DISCSI_CONFIG_ROOT=\"$(HOMEDIR)\"
 
 PROGRAMS	= iscsid iscsiadm iscsistart
-PROGRAMS_DEST	= $(addprefix $(SBINDIR)/,$(PROGRAMS))
+PROGRAMS_DEST	= $(addprefix $(DESTDIR)$(SBINDIR)/,$(PROGRAMS))
 
 # libc compat files
 SYSDEPS_SRCS = $(sort $(wildcard ../utils/sysdeps/*.o))
@@ -85,12 +91,12 @@ iscsistart: $(ISCSI_LIB_SRCS) $(INITIATOR_SRCS) $(FW_BOOT_SRCS) \
 		iscsistart.o statics.o
 	$(CC) $(CFLAGS) $^ -o $@ -lcrypto -lrt $(LDFLAGS) $(ISCSI_LIB)
 
-install: $(SBINDIR) $(PROGRAMS_DEST)
+install: $(DESTDIR)$(SBINDIR) $(PROGRAMS_DEST)
 
-$(SBINDIR):
+$(DESTDIR)$(SBINDIR):
 	[ -d $@ ] || $(INSTALL) -d $@
 
-$(PROGRAMS_DEST): $(SBINDIR)/%: %
+$(PROGRAMS_DEST): $(DESTDIR)$(SBINDIR)/%: %
 	$(INSTALL) -m 755 $? $@
 
 clean:

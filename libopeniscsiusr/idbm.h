@@ -30,8 +30,12 @@
 
 #include "libopeniscsiusr/libopeniscsiusr_common.h"
 
-#define ISCSI_CONFIG_ROOT	"/etc/iscsi/"
-#define IFACE_CONFIG_DIR	ISCSI_CONFIG_ROOT"ifaces"
+#ifndef ISCSI_DB_ROOT
+#define ISCSI_DB_ROOT "/etc/iscsi"
+#endif
+
+#define	IFACE_CONFIG_DIR	ISCSI_DB_ROOT"/ifaces"
+
 #define AUTH_STR_MAX_LEN	256
 #define BOOT_NAME_MAXLEN	256
 #define IDBM_DUMP_SIZE		8192

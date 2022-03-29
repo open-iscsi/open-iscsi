@@ -22,7 +22,7 @@
 
 #include <libopeniscsiusr/libopeniscsiusr.h>
 
-#define IFACE_CONFIG_DIR	ISCSI_CONFIG_ROOT"ifaces"
+#define IFACE_CONFIG_DIR	ISCSI_DB_ROOT"/ifaces"
 
 struct iface_rec;
 struct list_head;

@@ -9,7 +9,7 @@
 #
 
 NAME="$0"
-INAME_FILE="/etc/iscsi/initiatorname.iscsi"
+INAME_FILE="@HOMEDIR@/initiatorname.iscsi"
 IQN_PREFIX="iqn.1996-04.de.suse:01"
 
 IBFT_COMMENTS="\
