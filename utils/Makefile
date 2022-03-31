@@ -2,8 +2,8 @@
 #
 # Make file for the util sub-directory
 #
-# This make file does not control the fwparam_ibft
-# or sysdeps subdirectories. Those are still controlled
+# This make file does not control the sysdeps
+# subdirectory, which is controlled
 # from the top-level make file.
 #
 
