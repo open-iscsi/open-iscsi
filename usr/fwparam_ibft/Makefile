@@ -27,10 +27,9 @@ endif
 SBINDIR ?= $(DESTDIR)/sbin
 
 SYSDEPS_OBJS = $(sort $(wildcard ../sysdeps/*.o))
-OBJS := fw_entry.o fwparam_sysfs.o $(SYSDEPS_OBJS) \
-	$(TOPDIR)/usr/iscsi_net_util.o
-OBJS += prom_lex.o prom_parse.tab.o fwparam_ppc.o
-CLEANFILES = $(OBJS) *.output *~
+OBJS := fw_entry.o fwparam_sysfs.o \
+	prom_lex.o prom_parse.tab.o fwparam_ppc.o
+CLEANFILES = $(OBJS) *.output
 
 CFLAGS ?= -O2 -g
 WARNFLAGS ?= -Wall -Wstrict-prototypes -Wno-format-truncation
@@ -43,9 +42,9 @@ LDFLAGS += -L$(TOPDIR)/libopeniscsiusr -liscsiusr
 all: $(OBJS)
 
 clean:
-	rm -f *.o $(CLEANFILES) .depend
+	rm -f $(CLEANFILES) .depend
 
-$(OBJS): prom_parse.tab.h prom_parse.h fwparam_ibft.h
+$(OBJS): prom_parse.tab.h prom_parse.h
 
 depend:
 	gcc $(CFLAGS) -M `ls *.c` > .depend
