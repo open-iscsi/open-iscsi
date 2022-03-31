@@ -123,7 +123,7 @@ install_libopeniscsiusr:
 	$(MAKE) $(MFLAGS) -C libopeniscsiusr install
 
 depend:
-	for dir in usr utils utils/fwparam_ibft; do \
+	for dir in usr utils utils/fwparam_ibft utils/sysdeps; do \
 		$(MAKE) $(MFLAGS) -C $$dir $@; \
 	done
 
