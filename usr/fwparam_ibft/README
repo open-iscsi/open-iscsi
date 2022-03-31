@@ -1,0 +1,23 @@
+The files in this directory are used by
+iscsi programs in "usr" to access and parse
+the iBFT data.
+
+This code uses bison/lex to parse the data,
+but at some point it was decided to check in
+the output files from bison and flex, so that
+the average source-code user would not have
+to run those tools to compile the code.
+
+Now it is likely that most folks can get those
+tools, but the system of having static
+parsing and lexical analysis has worked for
+so long (and isn't broken), it would be a
+shame to change and break it. So the static
+files remain, for now.
+
+Note: if you wish to use these object files,
+they have two external requirements: they
+need the compatability routines in sysdeps.o,
+and they need the file iscsi_net_util.o.
+
+Lee Duncan	Mar, 2022
