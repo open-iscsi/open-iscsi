@@ -61,6 +61,10 @@ CFLAGS += -DISCSI_CONFIG_ROOT=\"$(HOMEDIR)\"
 PROGRAMS	= iscsid iscsiadm iscsistart
 PROGRAMS_DEST	= $(addprefix $(DESTDIR)$(SBINDIR)/,$(PROGRAMS))
 
+ISCSID_OBJS	= iscsid.o session_mgmt.o discoveryd.o mntcheck.o
+ISCSIADM_OBJS	= iscsiadm.o session_mgmt.o mntcheck.o
+ISCSISTART_OBJS	= iscsistart.o statics.o
+
 # libc compat files
 SYSDEPS_DIR = $(TOPDIR)/utils/sysdeps
 SYSDEPS_OBJS = $(SYSDEPS_DIR)/sysdeps.o
@@ -84,15 +88,15 @@ DISCOVERY_OBJS = local_strings.o discovery.o
 all: $(PROGRAMS)
 
 iscsid: $(ISCSI_LIB_OBJS) $(SYSDEPS_OBJS) $(INITIATOR_OBJS) $(DISCOVERY_OBJS) $(FW_BOOT_OBJS) \
-	iscsid.o session_mgmt.o discoveryd.o mntcheck.o
+	$(ISCSID_OBJS)
 	$(CC) $(CFLAGS) $^ -o $@  -lisns -lcrypto -lrt -lmount $(LDFLAGS) $(ISCSI_LIB)
 
 iscsiadm: $(ISCSI_LIB_OBJS) $(SYSDEPS_OBJS) $(DISCOVERY_OBJS) $(FW_BOOT_OBJS) \
-	iscsiadm.o session_mgmt.o mntcheck.o
+	$(ISCSIADM_OBJS)
 	$(CC) $(CFLAGS) $^ -o $@ -lisns -lcrypto -lmount $(LDFLAGS) $(ISCSI_LIB)
 
 iscsistart: $(ISCSI_LIB_OBJS) $(SYSDEPS_OBJS) $(INITIATOR_OBJS) $(FW_BOOT_OBJS) \
-		iscsistart.o statics.o
+	$(ISCSISTART_OBJS)
 	$(CC) $(CFLAGS) $^ -o $@ -lcrypto -lrt $(LDFLAGS) $(ISCSI_LIB)
 
 install: $(DESTDIR)$(SBINDIR) $(PROGRAMS_DEST)
@@ -111,6 +115,7 @@ $(FW_BOOT_OBJS):
 
 clean:
 	$(RM) $(ISCSI_LIB_OBJS) $(INITIATOR_OBJS) $(DISCOVERY_OBJS) \
+		$(ISCSISTART_OBJS) $(ISCSID_OBJS) $(ISCSIADM_OBJS) \
 		$(PROGRAMS) .depend
 	$(MAKE) $(MFLAGS) -C $(FW_BOOT_DIR) clean
 
