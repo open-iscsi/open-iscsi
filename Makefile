@@ -51,7 +51,6 @@ make_utils:
 user: iscsiuio/Makefile
 	$(MAKE) $(MFLAGS) -C libopeniscsiusr
 	$(MAKE) $(MFLAGS) -C utils/sysdeps
-	$(MAKE) $(MFLAGS) -C utils/fwparam_ibft
 	$(MAKE) $(MFLAGS) -C usr
 	$(MAKE) $(MFLAGS) -C utils
 	$(MAKE) $(MFLAGS) -C etc
@@ -78,7 +77,6 @@ force: ;
 
 clean:
 	$(MAKE) $(MFLAGS) -C utils/sysdeps clean
-	$(MAKE) $(MFLAGS) -C utils/fwparam_ibft clean
 	$(MAKE) $(MFLAGS) -C utils clean
 	$(MAKE) $(MFLAGS) -C usr clean
 	$(MAKE) $(MFLAGS) -C etc clean
@@ -125,7 +123,7 @@ install_libopeniscsiusr:
 	$(MAKE) $(MFLAGS) -C libopeniscsiusr install
 
 depend:
-	for dir in usr utils utils/fwparam_ibft; do \
+	for dir in usr utils utils/fwparam_ibft utils/sysdeps; do \
 		$(MAKE) $(MFLAGS) -C $$dir $@; \
 	done
 

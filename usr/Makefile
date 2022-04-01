@@ -61,34 +61,42 @@ CFLAGS += -DISCSI_CONFIG_ROOT=\"$(HOMEDIR)\"
 PROGRAMS	= iscsid iscsiadm iscsistart
 PROGRAMS_DEST	= $(addprefix $(DESTDIR)$(SBINDIR)/,$(PROGRAMS))
 
+ISCSID_OBJS	= iscsid.o session_mgmt.o discoveryd.o mntcheck.o
+ISCSIADM_OBJS	= iscsiadm.o session_mgmt.o mntcheck.o
+ISCSISTART_OBJS	= iscsistart.o statics.o
+
 # libc compat files
-SYSDEPS_SRCS = $(sort $(wildcard ../utils/sysdeps/*.o))
+SYSDEPS_DIR = $(TOPDIR)/utils/sysdeps
+SYSDEPS_OBJS = $(SYSDEPS_DIR)/sysdeps.o
 # sources shared between iscsid, iscsiadm and iscsistart
-ISCSI_LIB_SRCS = iscsi_util.o io.o auth.o iscsi_timer.o login.o log.o \
+ISCSI_LIB_OBJS = iscsi_util.o io.o auth.o iscsi_timer.o login.o log.o \
 	iface.o idbm.o sysfs.o host.o session_info.o iscsi_sysfs.o \
 	iscsi_net_util.o iscsid_req.o transport.o iser.o cxgbi.o be2iscsi.o \
 	initiator_common.o iscsi_err.o flashnode.o uip_mgmt_ipc.o \
-	netlink.o $(SYSDEPS_SRCS)
+	netlink.o
 # core initiator files
-INITIATOR_SRCS = initiator.o scsi.o actor.o event_poll.o mgmt_ipc.o kern_err_table.o
+INITIATOR_OBJS = initiator.o scsi.o actor.o event_poll.o mgmt_ipc.o kern_err_table.o
 
 # fw boot files
-FW_BOOT_SRCS = $(sort $(wildcard ../utils/fwparam_ibft/*.o))
+FW_BOOT_DIR = fwparam_ibft
+FW_BOOT_OBJ_FILES = fw_entry.o fwparam_sysfs.o prom_lex.o prom_parse.tab.o fwparam_ppc.o
+FW_BOOT_OBJS = $(addprefix $(FW_BOOT_DIR)/,$(FW_BOOT_OBJ_FILES))
 
 # core discovery files
-DISCOVERY_SRCS = $(FW_BOOT_SRCS) local_strings.o discovery.o
+DISCOVERY_OBJS = local_strings.o discovery.o
 
 all: $(PROGRAMS)
 
-iscsid: $(ISCSI_LIB_SRCS) $(INITIATOR_SRCS) $(DISCOVERY_SRCS) \
-	iscsid.o session_mgmt.o discoveryd.o mntcheck.o
+iscsid: $(ISCSI_LIB_OBJS) $(SYSDEPS_OBJS) $(INITIATOR_OBJS) $(DISCOVERY_OBJS) $(FW_BOOT_OBJS) \
+	$(ISCSID_OBJS)
 	$(CC) $(CFLAGS) $^ -o $@  -lisns -lcrypto -lrt -lmount $(LDFLAGS) $(ISCSI_LIB)
 
-iscsiadm: $(ISCSI_LIB_SRCS) $(DISCOVERY_SRCS) iscsiadm.o session_mgmt.o mntcheck.o
+iscsiadm: $(ISCSI_LIB_OBJS) $(SYSDEPS_OBJS) $(DISCOVERY_OBJS) $(FW_BOOT_OBJS) \
+	$(ISCSIADM_OBJS)
 	$(CC) $(CFLAGS) $^ -o $@ -lisns -lcrypto -lmount $(LDFLAGS) $(ISCSI_LIB)
 
-iscsistart: $(ISCSI_LIB_SRCS) $(INITIATOR_SRCS) $(FW_BOOT_SRCS) \
-		iscsistart.o statics.o
+iscsistart: $(ISCSI_LIB_OBJS) $(SYSDEPS_OBJS) $(INITIATOR_OBJS) $(FW_BOOT_OBJS) \
+	$(ISCSISTART_OBJS)
 	$(CC) $(CFLAGS) $^ -o $@ -lcrypto -lrt $(LDFLAGS) $(ISCSI_LIB)
 
 install: $(DESTDIR)$(SBINDIR) $(PROGRAMS_DEST)
@@ -99,10 +107,20 @@ $(DESTDIR)$(SBINDIR):
 $(PROGRAMS_DEST): $(DESTDIR)$(SBINDIR)/%: %
 	$(INSTALL) -m 755 $? $@
 
+$(SYSDEPS_OBJS):
+	$(MAKE) $(MFLAGS) -C $(SYSDEPS_DIR)
+
+$(FW_BOOT_OBJS):
+	$(MAKE) $(MFLAGS) -C $(FW_BOOT_DIR)
+
 clean:
-	rm -f *.o $(PROGRAMS) .depend $(LIBSYS)
+	$(RM) $(ISCSI_LIB_OBJS) $(INITIATOR_OBJS) $(DISCOVERY_OBJS) \
+		$(ISCSISTART_OBJS) $(ISCSID_OBJS) $(ISCSIADM_OBJS) \
+		$(PROGRAMS) .depend
+	$(MAKE) $(MFLAGS) -C $(FW_BOOT_DIR) clean
 
 depend:
 	gcc $(CFLAGS) -M `ls *.c` > .depend
+	$(MAKE) $(MFLAGS) -C $(FW_BOOT_DIR) depend
 
 -include .depend
