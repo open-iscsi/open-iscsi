@@ -89,7 +89,7 @@ install: $(LIBS) $(LIBS_MAJOR)
 	ln -sf $(LIBS) $(DESTDIR)/$(LIB_DIR)/$(LIBS_MAJOR)
 	$(INSTALL) $(HEADERS) $(DESTDIR)$(INCLUDE_DIR)/
 	$(INSTALL) -m 644 -D $(PKGFILE).in $(DESTDIR)$(PKGCONF_DIR)/$(PKGFILE)
-	perl -i -pe 's|__VERSION__|$(LIBNVME_VERSION)|g' \
+	perl -i -pe 's|__VERSION__|$(LIBISCSI_USR_VERSION)|g' \
 		$(DESTDIR)$(PKGCONF_DIR)/$(PKGFILE)
 	perl -i -pe 's|__LIB_DIR__|$(LIB_DIR)|g' \
 		$(DESTDIR)$(PKGCONF_DIR)/$(PKGFILE)
