@@ -27,8 +27,8 @@ endif
 INCLUDE_DIR ?= $(prefix)/include
 PKGCONF_DIR ?= $(LIB_DIR)/pkgconfig
 
-PKG_CONFIG = /usr/bin/pkg-config
-SED = /usr/bin/sed
+PKG_CONFIG ?= /usr/bin/pkg-config
+SED ?= /usr/bin/sed
 
 LIBISCSI_USR_DIR=$(TOPDIR)/libopeniscsiusr
 

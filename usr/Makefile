@@ -41,7 +41,7 @@ endif
 DBROOT ?= $(etcdir)/iscsi
 HOMEDIR ?= $(etcdir)/iscsi
 
-PKG_CONFIG = /usr/bin/pkg-config
+PKG_CONFIG ?= /usr/bin/pkg-config
 
 CFLAGS ?= -O2 -g
 WARNFLAGS ?= -Wall -Wextra -Werror -Wstrict-prototypes -fno-common
