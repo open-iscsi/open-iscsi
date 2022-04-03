@@ -1042,9 +1042,9 @@ void prepare_nic_thread(nic_t *nic)
 		LOG_INFO("Created nic thread: %s", nic->log_name);
 	}
 
-	pthread_mutex_unlock(&nic->nic_mutex);
 
 error:
+	pthread_mutex_unlock(&nic->nic_mutex);
 	return;
 }
 
