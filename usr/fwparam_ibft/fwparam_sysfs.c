@@ -60,8 +60,10 @@ static int file_exist(const char *file)
 /*
  * Finds the etherrnetX and targetX under the sysfs directory.
  */
-static int find_sysfs_dirs(const char *fpath, const struct stat *sb,
-			   int tflag, struct FTW *ftw)
+static int find_sysfs_dirs(const char *fpath,
+			   __attribute__((unused))const struct stat *sb,
+			   int tflag,
+			   struct FTW *ftw)
 {
 	if (tflag == FTW_D && (strstr(fpath + ftw->base, "target"))) {
 		if (tgt_cnt == ISCSI_BOOT_MAX) {
