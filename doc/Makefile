@@ -24,20 +24,18 @@ MANPAGES_SOURCES	= iscsi_discovery.8 \
 			  iscsi_fw_login.8 \
 			  iscsi-iname.8 \
 			  iscsistart.8
-MANPAGES_SOURCES_ISCSIUIO = $(TOPDIR)/iscsiuio/docs/iscsiuio.8 
 MANPAGES_TEMPLATES	= iscsid.8.template \
 			  iscsiadm.8.template \
 			  iscsi-gen-initiatorname.8
 MANPAGES_GENERATED	= $(MANPAGES_TEMPLATES:.template=)
 MANPAGES_DEST		= $(addprefix $(MAN8DIR)/,$(MANPAGES_GENERATED)) \
 			  $(addprefix $(MAN8DIR)/,$(MANPAGES_SOURCES))
-MANPAGES_DEST_ISCSIUIO	= $(addprefix $(MAN8DIR)/,$(notdir $(MANPAGES_SOURCES_ISCSIUIO)))
 
 all: $(MANPAGES_GENERATED)
 
 install: install_doc
 
-install_doc: $(MAN8DIR) $(MANPAGES_DEST) $(MANPAGES_DEST_ISCSIUIO)
+install_doc: $(MAN8DIR) $(MANPAGES_DEST)
 
 $(MANPAGES_GENERATED): %.8: %.8.template
 	$(SED) -e 's:@HOMEDIR@:$(HOMEDIR):' -e 's:@DBROOT@:$(DBROOT):' $? > $@
@@ -45,8 +43,6 @@ $(MANPAGES_GENERATED): %.8: %.8.template
 $(MANPAGES_DEST): $(MAN8DIR)/%: %
 	$(INSTALL) -m 644 $? $@
 
-$(MANPAGES_DEST_ISCSIUIO): $(MAN8DIR)/%: $(TOPDIR)/iscsiuio/docs/%
-	$(INSTALL) -m 644 $? $@
 
 $(MAN8DIR):
 	[ -d $@ ] || $(INSTALL) -d $@
