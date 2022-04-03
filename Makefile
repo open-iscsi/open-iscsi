@@ -9,7 +9,7 @@ DESTDIR ?=
 prefix = /usr
 exec_prefix =
 mandir = $(prefix)/share/man
-etcdir = $(DESTDIR)/etc
+etcdir = /etc
 
 SBINDIR = $(exec_prefix)/sbin
 HOMEDIR = $(etcdir)/iscsi
