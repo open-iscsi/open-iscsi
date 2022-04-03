@@ -49,14 +49,18 @@ static int nic_count;
 static int debug;
 static int dev_count;
 
-static void cp_param(char *dest, const char *name, struct ofw_dev *dev,
+static void cp_param(char *dest,
+		     __attribute__((unused))const char *name,
+		     struct ofw_dev *dev,
 		     enum obp_param item, int len)
 {
 	if (dev->param[item])
 		strlcpy(dest, dev->param[item]->val, len);
 }
 
-static void cp_int_param(int *dest, const char *name, struct ofw_dev *dev,
+static void cp_int_param(int *dest,
+			 __attribute__((unused))const char *name,
+			 struct ofw_dev *dev,
 			 enum obp_param item)
 {
 	if (dev->param[item])
@@ -247,7 +251,8 @@ void obp_parm_str(struct ofw_dev *ofwdev, const char *parm, const char *str)
 		printf("%s: %s UNKNOWN <%s>\n", __func__, parm, str);
 }
 
-void yyerror(struct ofw_dev *ofwdev, const char *msg)
+void yyerror(struct ofw_dev *ofwdev,
+	     __attribute__((unused))const char *msg)
 {
 	fprintf(stderr, "%s: error in <%s> at l%d.c%d\n", "fwparam_ppc",
 		ofwdev->prop_path, yylloc.last_line, yylloc.last_column);
@@ -309,7 +314,9 @@ static int find_file(const char *filename)
 	return 1;
 }
 
-static int find_nics(const char *fpath, const struct stat *sb, int tflag,
+static int find_nics(const char *fpath,
+		     __attribute__((unused))const struct stat *sb,
+		     int tflag,
 		     struct FTW *ftw)
 {
 	if (tflag == FTW_D &&
@@ -328,7 +335,9 @@ static int nic_cmp(const void *a, const void *b)
 	return strcmp(a, b);
 }
 
-static int find_initiator(const char *fpath, const struct stat *sb, int tflag,
+static int find_initiator(const char *fpath,
+			  __attribute__((unused))const struct stat *sb,
+			  int tflag,
 			  struct FTW *ftw)
 {
 	struct ofw_dev *dev;
