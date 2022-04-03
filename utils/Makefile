@@ -74,6 +74,6 @@ clean:
 	$(RM) .depend
 
 depend:
-	gcc $(CFLAGS) -M `ls *.c` > .depend
+	$(CC) $(CFLAGS) -M `ls *.c` > .depend
 
 -include .depend

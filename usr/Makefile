@@ -120,7 +120,7 @@ clean:
 	$(MAKE) $(MFLAGS) -C $(FW_BOOT_DIR) clean
 
 depend:
-	gcc $(CFLAGS) -M `ls *.c` > .depend
+	$(CC) $(CFLAGS) -M `ls *.c` > .depend
 	$(MAKE) $(MFLAGS) -C $(FW_BOOT_DIR) depend
 
 -include .depend

@@ -42,11 +42,11 @@ LDFLAGS += -L$(TOPDIR)/libopeniscsiusr -liscsiusr
 all: $(OBJS)
 
 clean:
-	rm -f $(CLEANFILES) .depend
+	$(RM) $(CLEANFILES) .depend
 
 $(OBJS): prom_parse.tab.h prom_parse.h
 
 depend:
-	gcc $(CFLAGS) -M `ls *.c` > .depend
+	$(CC) $(CFLAGS) -M `ls *.c` > .depend
 
 -include .depend

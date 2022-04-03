@@ -108,7 +108,7 @@ docs/man/$(EXTRA_MAN_FILES).gz: $(HEADERS)
 	    perl docs/doc-preclean.pl > "$(TEMPFILE)"
 	perl docs/kernel-doc -man "$(TEMPFILE)" | \
 	    perl docs/split-man.pl docs/man
-	-rm -f "$(TEMPFILE)"
+	-$(RM) "$(TEMPFILE)"
 	@for file in docs/man/*.3; do \
 		gzip -f $$file; \
 	done
