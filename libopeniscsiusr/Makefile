@@ -26,6 +26,7 @@ endif
 
 INCLUDE_DIR ?= $(prefix)/include
 PKGCONF_DIR ?= $(LIB_DIR)/pkgconfig
+MAN_DIR = $(prefix)/share/man
 
 PKG_CONFIG = /usr/bin/pkg-config
 SED = /usr/bin/sed
@@ -81,13 +82,21 @@ check: $(LIBS) $(TESTS)
 	sudo env LD_LIBRARY_PATH=$(LIBISCSI_USR_DIR) TESTS="$(TESTS)" \
 		tests/runtest.sh || exit 1;
 
-install: $(LIBS) $(LIBS_MAJOR)
+install: install_libs install_docs install_pkg_files
+
+install_libs: $(LIBS) $(LIBS_MAJOR)
 	$(INSTALL) -d $(DESTDIR)/$(LIB_DIR)/
 	$(INSTALL) -d $(DESTDIR)/$(INCLUDE_DIR)/
 	$(INSTALL) $(LIBS) $(DESTDIR)$(LIB_DIR)/
 	ln -sf $(LIBS) $(DESTDIR)/$(LIB_DIR)/$(DEVLIB)
 	ln -sf $(LIBS) $(DESTDIR)/$(LIB_DIR)/$(LIBS_MAJOR)
 	$(INSTALL) $(HEADERS) $(DESTDIR)$(INCLUDE_DIR)/
+
+install_docs: doc
+	$(INSTALL) -d $(DESTDIR)$(MAN_DIR)/man3
+	$(INSTALL) -m 644 docs/man/*.gz $(DESTDIR)$(MAN_DIR)/man3/
+
+install_pkg_files:
 	$(INSTALL) -m 644 -D $(PKGFILE).in $(DESTDIR)$(PKGCONF_DIR)/$(PKGFILE)
 	perl -i -pe 's|__VERSION__|$(LIBNVME_VERSION)|g' \
 		$(DESTDIR)$(PKGCONF_DIR)/$(PKGFILE)
