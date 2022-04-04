@@ -12,7 +12,7 @@ DESTDIR ?=
 prefix ?= /usr
 INSTALL ?= install
 exec_prefix =
-etcdir = $(DESTDIR)/etc
+etcdir = /etc
 SBINDIR ?= $(exec_prefix)/sbin
 DBROOT ?= $(etcdir)/iscsi
 
@@ -84,12 +84,12 @@ check: $(LIBS) $(TESTS)
 install: install_libs install_docs install_pkg_files
 
 install_libs: $(LIBS) $(LIBS_MAJOR)
-	$(INSTALL) -d $(DESTDIR)/$(LIB_DIR)/
-	$(INSTALL) -d $(DESTDIR)/$(INCLUDE_DIR)/
+	$(INSTALL) -d $(DESTDIR)$(LIB_DIR)/
+	$(INSTALL) -d $(DESTDIR)$(INCLUDE_DIR)/
 	$(INSTALL) $(LIBS) $(DESTDIR)$(LIB_DIR)/
-	ln -sf $(LIBS) $(DESTDIR)/$(LIB_DIR)/$(DEVLIB)
-	ln -sf $(LIBS) $(DESTDIR)/$(LIB_DIR)/$(LIBS_MAJOR)
-	$(INSTALL) $(HEADERS) $(DESTDIR)$(INCLUDE_DIR)/
+	ln -sf $(LIBS) $(DESTDIR)$(LIB_DIR)/$(DEVLIB)
+	ln -sf $(LIBS) $(DESTDIR)$(LIB_DIR)/$(LIBS_MAJOR)
+	$(INSTALL) -m 644 $(HEADERS) $(DESTDIR)$(INCLUDE_DIR)/
 
 install_docs: doc
 	$(INSTALL) -d $(DESTDIR)$(MAN_DIR)/man3
