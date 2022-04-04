@@ -63,7 +63,6 @@ LIBADD =
 all: $(LIBS) $(LIBS_MAJOR) $(TESTS) doc
 
 $(LIBS): $(OBJS)
-	@echo CFLAGS= $(CFLAGS)
 	$(CC) $(CFLAGS) -shared -Wl,-soname=$@ -o $@ $(OBJS) $(LDFLAGS) $(LIBADD)
 	ln -sf $@ $(DEVLIB)
 
