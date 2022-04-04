@@ -457,6 +457,30 @@ kdestroy_session(uint64_t transport_handle, uint32_t sid)
 }
 
 static int
+kdestroy_session_async(uint64_t transport_handle, uint32_t sid)
+{
+	int rc;
+	struct iscsi_uevent ev;
+	struct iovec iov[2];
+
+	log_debug(7, "in %s", __FUNCTION__);
+
+	memset(&ev, 0, sizeof(struct iscsi_uevent));
+
+	ev.type = ISCSI_UEVENT_DESTROY_SESSION_ASYNC;
+	ev.transport_handle = transport_handle;
+	ev.u.d_session.sid = sid;
+
+	iov[1].iov_base = &ev;
+	iov[1].iov_len = sizeof(ev);
+	rc = __kipc_call(iov, 2);
+	if (rc < 0)
+		return rc;
+
+	return 0;
+}
+
+static int
 kunbind_session(uint64_t transport_handle, uint32_t sid)
 {
 	int rc;
@@ -1763,6 +1787,7 @@ struct iscsi_ipc nl_ipc = {
 	.sendtargets		= ksendtargets,
 	.create_session         = kcreate_session,
 	.destroy_session        = kdestroy_session,
+	.destroy_session_async	= kdestroy_session_async,
 	.unbind_session		= kunbind_session,
 	.create_conn            = kcreate_conn,
 	.destroy_conn           = kdestroy_conn,

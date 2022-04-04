@@ -78,6 +78,7 @@ struct iscsi_ipc {
 			       uint32_t *hostno);
 
 	int (*destroy_session) (uint64_t transport_handle, uint32_t sid);
+	int (*destroy_session_async) (uint64_t transport_handle, uint32_t sid);
 
 	int (*unbind_session) (uint64_t transport_handle, uint32_t sid);
 
