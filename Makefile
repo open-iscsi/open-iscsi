@@ -116,9 +116,6 @@ install_etc_all:
 install_doc:
 	$(MAKE) $(MFLAGS) -C doc $@
 
-$(DESTDIR)$(HOMEDIR):
-	[ -d $@ ] || $(INSTALL) -d -m 755 $@
-
 install_libopeniscsiusr:
 	$(MAKE) $(MFLAGS) -C libopeniscsiusr install
 
