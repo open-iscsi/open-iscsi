@@ -29,9 +29,12 @@ SYSTEMD_TEMPLATE_FILES	= iscsi-init.service.template \
 			  iscsi.service.template \
 			  iscsiuio.service.template
 SYSTEMD_TEMPLATES	= $(addprefix systemd/,$(SYSTEMD_TEMPLATE_FILES))
+SYSTEMD_RULES_FILES	= ibft-rule-generator
+SYSTEMD_RULES_SOURCES	= $(addprefix systemd/,$(SYSTEMD_RULES_FILES))
 SYSTEMD_GENERATED_SERVICE_FILES	= $(SYSTEMD_TEMPLATES:.template=)
-SYSTEMD_DEST_FILES	= $(addprefix $(DESTDIR)$(systemddir)/system/,$(SYSTEMD_SOURCE_FILES)) \
+SYSTEMD_DEST_SVC_FILES	= $(addprefix $(DESTDIR)$(systemddir)/system/,$(SYSTEMD_SOURCE_FILES)) \
 			  $(addprefix $(DESTDIR)$(systemddir)/system/,$(notdir $(SYSTEMD_GENERATED_SERVICE_FILES)))
+SYSTEMD_DEST_GEN_FILES	= $(addprefix $(DESTDIR)$(systemddir)/system-generators/,$(notdir $(SYSTEMD_RULES_SOURCES)))
 IFACE_FILES		= iface.example
 IFACE_DEST_FILES	= $(addprefix $(DESTDIR)$(DBROOT)/ifaces/,$(IFACE_FILES))
 ETC_FILES		= iscsid.conf
@@ -71,9 +74,16 @@ install_initd_redhat: $(DESTDIR)$(initddir)/open-iscsi
 install_initd_debian: $(DESTDIR)$(initddir)/open-iscsi
 	$(call install_initd_distro,initd/initd.debian)
 
-install_systemd: $(DESTDIR)$(systemddir)/system $(SYSTEMD_DEST_FILES)
+install_systemd: install_systemd_service_files install_systemd_generator_files
 
-$(SYSTEMD_DEST_FILES): $(DESTDIR)$(systemddir)/system/%: systemd/%
+install_systemd_service_files: $(DESTDIR)$(systemddir)/system $(SYSTEMD_DEST_SVC_FILES)
+
+install_systemd_generator_files: $(DESTDIR)$(systemddir)/system-generators $(SYSTEMD_DEST_GEN_FILES)
+
+$(SYSTEMD_DEST_SVC_FILES): $(DESTDIR)$(systemddir)/system/%: systemd/%
+	$(INSTALL) $? $@
+
+$(SYSTEMD_DEST_GEN_FILES): $(DESTDIR)$(systemddir)/system-generators/%: systemd/%
 	$(INSTALL) $? $@
 
 install_iname: $(DESTDIR)$(HOMEDIR) $(ISCSI_INAME)
@@ -90,7 +100,7 @@ $(ISCSI_INAME):
 	$(MAKE) $(MFLAGS) -c $(TOPDIR)/utils $(notdir $@)
 
 # make needed directories
-$(DESTDIR)$(systemddir)/system $(DESTDIR)$(HOMEDIR) \
+$(DESTDIR)$(systemddir)/system $(DESTDIR)$(systemddir)/system-generators $(DESTDIR)$(HOMEDIR) \
 		$(DESTDIR)$(DBROOT)/ifaces $(DESTDIR)$(initddir)/open-iscsi:
 	[ -d $@ ] || $(INSTALL) -d -m 775 $@
 
