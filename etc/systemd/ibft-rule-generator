@@ -1,0 +1,36 @@
+#!/bin/bash
+#
+# Systemd rule generator for ibft interfaces
+#
+# Copyright (c) 2022 Hannes Reinecke, SUSE Labs
+# This script is licensed under the GPL.
+#
+# When booted with 'ip=ibft' dracut will rename the
+# interface to 'ibft*'. After systemd has started
+# it'll try to rename the interface yet again with
+# a persistent name.
+# But as the ibft interface is already renamed _and_
+# in use, the second renaming will fail and udev
+# will complain.
+# So add a dummy rule which signals udev the correct name
+#
+# Interface renaming happes at 80-net-setup-link.rules,
+# so we need to hook in before that.
+#
+IBFT_RULE_DIR=/run/udev/rules.d
+IBFT_RULES=$(IBFT_RULE_DIR)/79-ibft.rules
+
+# ensure we have a rules directory and no rules file
+if [ -d ${IBFT_RULE_DIR} ] ; then
+    rm -f ${IBFT_RULES} 2> /dev/null
+else
+    mkdir -p ${IBFT_RULE_DIR}
+fi
+
+# create an iBFT udev rule for each iBFT NIC found
+for d in /sys/firmware/ibft/ethernet* ; do
+    [ -d "$d" ] || break
+    num="${d##*/ethernet}"
+    read mac < $d/mac
+    printf 'SUBSYSTEM=="net", KERNEL=="ibft*", ACTION=="add", DRIVERS=="?*", ATTR{address}=="%s", ATTR{type}=="1", NAME="ibft%s"\n' "$mac" "$num" >> $IBFT_RULES
+done
