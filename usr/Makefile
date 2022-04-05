@@ -48,6 +48,7 @@ WARNFLAGS ?= -Wall -Wextra -Werror -Wstrict-prototypes -fno-common
 CFLAGS += $(WARNFLAGS) -I../include -I. -D_GNU_SOURCE \
 	  -I$(TOPDIR)/libopeniscsiusr
 CFLAGS += $(shell $(PKG_CONFIG) --cflags libkmod)
+CFLAGS += $(shell $(PKG_CONFIG) --cflags libsystemd)
 ISCSI_LIB = -L$(TOPDIR)/libopeniscsiusr -lopeniscsiusr
 LDFLAGS += $(shell $(PKG_CONFIG) --libs libkmod)
 ifeq ($(NO_SYSTEMD),)

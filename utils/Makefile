@@ -16,8 +16,7 @@ SBINDIR ?= /sbin
 etcdir = /etc
 HOMEDIR ?= $(etcdir)/iscsi
 
-ETCDIR = /etc
-RULESDIR = $(ETCDIR)/udev/rules.d
+RULESDIR ?= $(etcdir)/udev/rules.d
 
 CFLAGS ?= -O2 -fno-inline -g
 CFLAGS += -Wall -Wextra -Wstrict-prototypes

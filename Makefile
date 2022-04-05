@@ -14,11 +14,12 @@ etcdir = /etc
 SBINDIR = $(exec_prefix)/sbin
 HOMEDIR = $(etcdir)/iscsi
 DBROOT = $(etcdir)/iscsi
+RULESDIR = $(etcdir)/udev/rules.d
 
 INSTALL = /usr/bin/install
 
 # pass these on to sub-Makefiles
-export DESTDIR prefix INSTALL SBINDIR HOMEDIR DBROOT
+export DESTDIR prefix INSTALL SBINDIR HOMEDIR DBROOT RULESDIR
 
 # Compatibility: parse old OPTFLAGS argument
 ifdef OPTFLAGS
@@ -115,9 +116,6 @@ install_etc_all:
 
 install_doc:
 	$(MAKE) $(MFLAGS) -C doc $@
-
-$(DESTDIR)$(HOMEDIR):
-	[ -d $@ ] || $(INSTALL) -d -m 755 $@
 
 install_libopeniscsiusr:
 	$(MAKE) $(MFLAGS) -C libopeniscsiusr install
