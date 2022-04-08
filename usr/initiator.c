@@ -1147,6 +1147,9 @@ static void iscsi_stop(void *data)
 
 	iscsi_ev_context_put(ev_context);
 
+	if (conn->state == ISCSI_CONN_STATE_IN_LOGOUT)
+		return;
+
 	if (!(conn->session->t->caps & CAP_LOGIN_OFFLOAD)) {
 		rc = iscsi_send_logout(conn);
 		if (!rc)
