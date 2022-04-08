@@ -473,7 +473,7 @@ session_conn_shutdown(iscsi_conn_t *conn, queue_task_t *qtask,
 		session->t->template->ep_disconnect(conn);
 
 	if (session->id == INVALID_SESSION_ID)
-		goto cleanup;
+		goto out;
 
 	if (!iscsi_sysfs_session_has_leadconn(session->id))
 		goto cleanup;
@@ -497,16 +497,14 @@ session_conn_shutdown(iscsi_conn_t *conn, queue_task_t *qtask,
 	}
 
 cleanup:
-	if (session->id != INVALID_SESSION_ID) {
-		log_debug(2, "kdestroy session %u", session->id);
-		session->r_stage = R_STAGE_SESSION_DESTOYED;
-		if (ipc->destroy_session(session->t->handle, session->id)) {
-			log_error("can not safely destroy session %d",
-				  session->id);
-			return ISCSI_ERR_INTERNAL;
-		}
+	log_debug(2, "kdestroy session %u", session->id);
+	session->r_stage = R_STAGE_SESSION_DESTOYED;
+	if (ipc->destroy_session(session->t->handle, session->id)) {
+		log_error("can not safely destroy session %d", session->id);
+		return ISCSI_ERR_INTERNAL;
 	}
 
+out:
 	log_warning("Connection%d:%d to [target: %s, portal: %s,%d] "
 		    "through [iface: %s] is shutdown.",
 		    session->id, conn->id, session->nrec.name,
