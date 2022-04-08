@@ -20,6 +20,12 @@ It is an error if both the kernel command-line Initiator Name
 and the iBFT Initiator Name are both set, and they are different.
 it is also an error to try to write over an Initiator Name file
 if it read-only, or to create one if its directory is not writable.
+.P
+You
+.B must
+be
+.I root
+to run this command.
 .SH OPTIONS
 .TP
 .BI [-h]
