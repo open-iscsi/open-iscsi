@@ -1149,6 +1149,18 @@ static void iscsi_stop(void *data)
 
 	iscsi_ev_context_put(ev_context);
 
+	/*
+	 * Once receive ISCSI_KEVENT_UNBIND_SESSION, ctldev_handle() would
+	 * trigger an EV_CONN_STOP event, this event would call iscsi_stop()
+	 * to perform connection stop operations.
+	 * When using async destroy session and older kernels we might
+	 * get more than one session unbind events. If we are already in
+	 * the IN_LOGOUT state then we know we've already got one, so we can
+	 * ignore the session unbind events
+	 */
+	if (conn->state == ISCSI_CONN_STATE_IN_LOGOUT)
+		return;
+
 	if (!(conn->session->t->caps & CAP_LOGIN_OFFLOAD)) {
 		rc = iscsi_send_logout(conn);
 		if (!rc)
