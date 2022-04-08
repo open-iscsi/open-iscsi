@@ -309,6 +309,15 @@ typedef struct iscsi_session {
 	 * is complete
 	 */
 	queue_task_t *notify_qtask;
+
+	/*
+	 * used for async session destroy
+	 * async session destroy do not write response in session_conn_shutdown()
+	 * immediately. It should wait for kernel's ISCSI_KEVENT_DESTROY_SESSION
+	 * and then write response
+	 */
+	queue_task_t *async_qtask;
+	int err;
 } iscsi_session_t;
 
 #define	INVALID_SESSION_ID	(uint32_t)-1

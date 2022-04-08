@@ -465,6 +465,7 @@ static int
 session_conn_shutdown(iscsi_conn_t *conn, queue_task_t *qtask,
 		      int err)
 {
+	int rc = 0;
 	iscsi_session_t *session = conn->session;
 
 	conn_debug(2, conn, "disconnect conn");
@@ -497,12 +498,27 @@ session_conn_shutdown(iscsi_conn_t *conn, queue_task_t *qtask,
 	}
 
 cleanup:
-	log_debug(2, "kdestroy session %u", session->id);
+	log_debug(2, "kdestroy session %u asynchronously", session->id);
 	session->r_stage = R_STAGE_SESSION_DESTOYED;
-	if (ipc->destroy_session(session->t->handle, session->id)) {
-		log_error("can not safely destroy session %d", session->id);
+
+	session->async_qtask = qtask;
+	session->err = err;
+
+	rc = ipc->destroy_session_async(session->t->handle, session->id);
+	if (rc == -ENOSYS) {
+		log_debug(2, "destroy_session_async not supported, try destroy_session");
+		rc = ipc->destroy_session(session->t->handle, session->id);
+		if (rc) {
+			log_error("can not safely destroy session %d", session->id);
+			return ISCSI_ERR_INTERNAL;
+		}
+		return ISCSI_SUCCESS;
+	} else if (rc < 0) {
+		log_error("asynchronously destroy session %d failed", session->id);
 		return ISCSI_ERR_INTERNAL;
 	}
+
+	return ISCSI_SUCCESS;
 
 out:
 	log_warning("Connection%d:%d to [target: %s, portal: %s,%d] "
@@ -2209,7 +2225,27 @@ static void iscsi_async_session_creation(uint32_t host_no, uint32_t sid)
 
 static void iscsi_async_session_destruction(uint32_t host_no, uint32_t sid)
 {
+	iscsi_session_t *session = session_find_by_sid(sid);
+	iscsi_conn_t *conn;
+
+	if (!session) {
+		log_error("BUG: kernel destroyed a inexistent session:%d", sid);
+		return;
+	}
+
+	conn = &session->conn[0];
+
 	log_debug(3, "session destroyed sid %u host no %d", sid, host_no);
+	log_warning("Connection%d:%d to [target: %s, portal: %s,%d] "
+		    "through [iface: %s] is shutdown.",
+		    session->id, conn->id, session->nrec.name,
+		    session->nrec.conn[conn->id].address,
+		    session->nrec.conn[conn->id].port,
+		    session->nrec.iface.name);
+
+	mgmt_ipc_write_rsp(session->async_qtask, session->err);
+	conn_delete_timers(conn);
+	__session_destroy(session);
 }
 
 static struct iscsi_ipc_ev_clbk ipc_clbk = {
