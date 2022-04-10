@@ -1,4 +1,4 @@
-.TH ISCSI_GEN_INITIATORNAME 8 "Dec 2021" "" "Linux Administrator's Manual"
+.TH ISCSI_GEN_INITIATORNAME 8 "APR 2022" "" "Linux Administrator's Manual"
 .SH NAME
 iscsi-gen-initiatorname \- smart iSCSI initiator name generation tool
 .SH SYNOPSIS
@@ -6,11 +6,26 @@ iscsi-gen-initiatorname \- smart iSCSI initiator name generation tool
 [OPTIONS]
 .SH "DESCRIPTION"
 .B iscsi-gen-initiatorname
-generates a unique iSCSI node name on every invocation. If
-iBFT is in use, the iBFT-registered initiator name will be used.
+generates an iSCSI Initiator Name in the
+.I initiatorname.iscsi
+file. It is an error to try to overwrite an existing Initiator Name,
+unless the \fB-f\fP (\fIforce\fR) option is supplied.
 .P
-If there is an existing initiator name, it will not be overwritten
-unless the \fB-f\fP option is supplied.
+The Initiator Name will be taken from the kernel command line,
+if present (from the \fIrd.initiatorname\fR parameter), else from
+the iBFT subsystem (if present in \fIsysfs\fR), else it will be
+generated using the \fBiscsi-iname\fR command.
+.P
+It is an error if both the kernel command-line Initiator Name
+and the iBFT Initiator Name are both set, and they are different.
+it is also an error to try to write over an Initiator Name file
+if it read-only, or to create one if its directory is not writable.
+.P
+You
+.B must
+be
+.I root
+to run this command.
 .SH OPTIONS
 .TP
 .BI [-h]
