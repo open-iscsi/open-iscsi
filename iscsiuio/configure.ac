@@ -72,7 +72,7 @@ AC_ARG_WITH([systemd],
      *)   AC_MSG_ERROR([bad value $withval for --with-systemd]) ;;
      esac],[with_libsystemd=auto])
 AS_IF([test "$with_libsystemd" != no],[
-    PKG_CHECK_MODULES([LIBSYSTEMD],[libsystemd],[LDFLAGS=$LIBSYSTEMD_LIBS],[
+    PKG_CHECK_MODULES([LIBSYSTEMD],[libsystemd],[LIBS="${LIBS} $LIBSYSTEMD_LIBS"],[
         if test "$with_libsystemd" = yes; then
             AC_MSG_ERROR([could not find libsystemd using pkg-config])
 	else

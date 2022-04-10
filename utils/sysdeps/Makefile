@@ -8,9 +8,9 @@ SYSDEPS_OBJS=sysdeps.o
 all: $(SYSDEPS_OBJS)
 
 clean:
-	rm -f *.o .depend
+	$(RM) *.o .depend
 
 depend:
-	gcc $(CFLAGS) -M `ls *.c` > .depend
+	$(CC) $(CFLAGS) -M `ls *.c` > .depend
 
 -include .depend

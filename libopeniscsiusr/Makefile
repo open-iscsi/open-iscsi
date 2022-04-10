@@ -28,8 +28,8 @@ INCLUDE_DIR ?= $(prefix)/include
 PKGCONF_DIR ?= $(LIB_DIR)/pkgconfig
 MAN_DIR = $(prefix)/share/man
 
-PKG_CONFIG = /usr/bin/pkg-config
-SED = /usr/bin/sed
+PKG_CONFIG ?= /usr/bin/pkg-config
+SED ?= /usr/bin/sed
 
 LIBISCSI_USR_DIR=$(TOPDIR)/libopeniscsiusr
 
@@ -97,7 +97,7 @@ install_docs: doc
 
 install_pkg_files:
 	$(INSTALL) -m 644 -D $(PKGFILE).in $(DESTDIR)$(PKGCONF_DIR)/$(PKGFILE)
-	perl -i -pe 's|__VERSION__|$(LIBNVME_VERSION)|g' \
+	perl -i -pe 's|__VERSION__|$(LIBISCSI_USR_VERSION)|g' \
 		$(DESTDIR)$(PKGCONF_DIR)/$(PKGFILE)
 	perl -i -pe 's|__LIB_DIR__|$(LIB_DIR)|g' \
 		$(DESTDIR)$(PKGCONF_DIR)/$(PKGFILE)
@@ -116,7 +116,7 @@ docs/man/$(EXTRA_MAN_FILES).gz: $(HEADERS)
 	    perl docs/doc-preclean.pl > "$(TEMPFILE)"
 	perl docs/kernel-doc -man "$(TEMPFILE)" | \
 	    perl docs/split-man.pl docs/man
-	-rm -f "$(TEMPFILE)"
+	-$(RM) "$(TEMPFILE)"
 	@for file in docs/man/*.3; do \
 		gzip -f $$file; \
 	done
