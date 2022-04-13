@@ -13,7 +13,11 @@ tools, but the system of having static
 parsing and lexical analysis has worked for
 so long (and isn't broken), it would be a
 shame to change and break it. So the static
-files remain, for now.
+files remain, for now. If you actually wish
+to rerun either of these tools, the Makefile
+is set up so that you have to first remove the
+generated files (prom_lex.c for lex, prom_parse.tab.c,
+and prom_parse.tab.h for bison).
 
 Note: if you wish to use these object files,
 they have two external requirements: they
