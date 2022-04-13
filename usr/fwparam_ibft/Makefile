@@ -24,6 +24,8 @@ ifeq ($(TOPDIR),)
 	TOPDIR = ../..
 endif
 
+BISON = bison
+
 SBINDIR ?= $(DESTDIR)/sbin
 
 SYSDEPS_OBJS = $(sort $(wildcard ../sysdeps/*.o))
@@ -45,6 +47,22 @@ clean:
 	$(RM) $(CLEANFILES) .depend
 
 $(OBJS): prom_parse.tab.h prom_parse.h
+
+#
+# This directory is set up so that lex and bison should not have
+# to be run to generate C files, since the C files have already
+# been checked in and are present. This eliminates the need to run
+# them on systems where those tools may not be present. If you wish
+# to run either of them to regenerate their output files, remove
+# the output files first. This prevents these tools from being run
+# again if the output files are already present.
+#
+
+prom_lex.c: prom_lex.l
+	@[ -f $@ ] || $(LEX) -t $? > $@
+
+prom_parse.tab.c prom_parse.tab.h: prom_parse.y
+	@[ -f prom_parse.tab.c ] && [ -f prom_parse.tab.h ] || $(BISON) -H $?
 
 depend:
 	$(CC) $(CFLAGS) -M `ls *.c` > .depend
