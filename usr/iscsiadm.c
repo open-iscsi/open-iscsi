@@ -2614,6 +2614,7 @@ static int exec_iface_op(struct iscsi_context *ctx,
 		rc = iface_conf_write(iface);
 		if (rc)
 			goto new_fail;
+		iface_param_update(iface, params);
 		printf("New interface %s added\n", iface->name);
 		break;
 new_fail:
