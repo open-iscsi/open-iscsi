@@ -27,6 +27,7 @@
 #include <pwd.h>
 #include <sys/un.h>
 #include <string.h>
+#include <stdbool.h>
 
 #include "iscsid.h"
 #include "idbm.h"
@@ -379,6 +380,32 @@ mgmt_peeruser(int sock, char *user)
 	return 1;
 }
 
+static bool
+mgmt_authorized_uid(int sock)
+{
+	int authorized = false;
+	struct ucred peercred = {0};
+	socklen_t so_len = sizeof(peercred);
+
+	errno = 0;
+	if (getsockopt(sock, SOL_SOCKET, SO_PEERCRED, &peercred,
+		&so_len) != 0 || so_len != sizeof(peercred)) {
+		/* We didn't get a valid credentials struct. */
+		log_error("Error receiving credentials: %m");
+		goto ret_auth;
+	}
+
+	/* Only UID==0 is authorized */
+	authorized = peercred.uid ? false: true;
+
+	if (!authorized) {
+		log_error("Unauthorized user with UID=%u", peercred.uid);
+	}
+
+ret_auth:
+	return authorized;
+}
+
 static void
 mgmt_ipc_destroy_queue_task(queue_task_t *qtask)
 {
@@ -488,7 +515,7 @@ static mgmt_ipc_fn_t *	mgmt_ipc_functions[__MGMT_IPC_MAX_COMMAND] = {
 [MGMT_IPC_NOTIFY_DEL_PORTAL]	= mgmt_ipc_notify_del_portal,
 };
 
-void mgmt_ipc_handle(int accept_fd)
+static void mgmt_ipc_handle_check_auth(int accept_fd, bool auth_uid_only)
 {
 	unsigned int command;
 	int fd, err;
@@ -508,9 +535,16 @@ void mgmt_ipc_handle(int accept_fd)
 	qtask->allocated = 1;
 	qtask->mgmt_ipc_fd = fd;
 
-	if (!mgmt_peeruser(fd, user) || strncmp(user, "root", PEERUSER_MAX)) {
-		err = ISCSI_ERR_ACCESS;
-		goto err;
+	if (auth_uid_only) {
+		if (!mgmt_authorized_uid(fd)) {
+			err = ISCSI_ERR_ACCESS;
+			goto err;
+		}
+	} else {
+		if (!mgmt_peeruser(fd, user) || strncmp(user, "root", PEERUSER_MAX)) {
+			err = ISCSI_ERR_ACCESS;
+			goto err;
+		}
 	}
 
 	if (mgmt_ipc_read_req(qtask) < 0) {
@@ -541,4 +575,16 @@ err:
 	/* This will send the response, close the
 	 * connection and free the qtask */
 	mgmt_ipc_write_rsp(qtask, err);
+}
+
+void mgmt_ipc_handle(int accept_fd)
+{
+	/* Default behavior. Full auth check. */
+	mgmt_ipc_handle_check_auth(accept_fd, false);
+}
+
+void mgmt_ipc_handle_uid_only(int accept_fd)
+{
+	/* Check only originating UID. */
+	mgmt_ipc_handle_check_auth(accept_fd, true);
 }

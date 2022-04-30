@@ -64,7 +64,7 @@ PROGRAMS_DEST	= $(addprefix $(DESTDIR)$(SBINDIR)/,$(PROGRAMS))
 
 ISCSID_OBJS	= iscsid.o session_mgmt.o discoveryd.o mntcheck.o
 ISCSIADM_OBJS	= iscsiadm.o session_mgmt.o mntcheck.o
-ISCSISTART_OBJS	= iscsistart.o statics.o
+ISCSISTART_OBJS	= iscsistart.o
 
 # libc compat files
 SYSDEPS_DIR = $(TOPDIR)/utils/sysdeps

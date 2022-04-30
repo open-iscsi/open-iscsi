@@ -383,6 +383,7 @@ int main(int argc, char *argv[])
 	char *initiatorname_file = INITIATOR_NAME_FILE;
 	char *pid_file = PID_FILE;
 	char *safe_logout;
+	char *ipc_auth_uid;
 	int ch, longindex;
 	uid_t uid = 0;
 	struct sigaction sa_old;
@@ -582,6 +583,11 @@ int main(int argc, char *argv[])
 	if (safe_logout && !strcmp(safe_logout, "Yes"))
 		daemon_config.safe_logout = 1;
 	free(safe_logout);
+
+	ipc_auth_uid = cfg_get_string_param(config_file, "iscsid.ipc_auth_uid");
+	if (ipc_auth_uid && !strcmp(ipc_auth_uid, "Yes"))
+		ipc->auth_type = ISCSI_IPC_AUTH_UID;
+	free(ipc_auth_uid);
 
 	/* see if we have any stale sessions to recover */
 	sessions_to_recover = iscsi_sysfs_count_sessions();

@@ -195,8 +195,16 @@ void event_loop(struct iscsi_ipc *ipc, int control_fd, int mgmt_ipc_fd)
 			if (poll_array[POLL_CTRL].revents)
 				ipc->ctldev_handle();
 
-			if (poll_array[POLL_IPC].revents)
-				mgmt_ipc_handle(mgmt_ipc_fd);
+			if (poll_array[POLL_IPC].revents) {
+				switch (ipc->auth_type) {
+				case ISCSI_IPC_AUTH_UID:
+					mgmt_ipc_handle_uid_only(mgmt_ipc_fd);
+					break;
+				default:
+					mgmt_ipc_handle(mgmt_ipc_fd);
+					break;
+				}
+			}
 
 			if (poll_array[POLL_ALARM].revents) {
 				struct signalfd_siginfo si;
