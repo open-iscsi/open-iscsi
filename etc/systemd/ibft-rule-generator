@@ -18,7 +18,7 @@
 # so we need to hook in before that.
 #
 IBFT_RULE_DIR=/run/udev/rules.d
-IBFT_RULES=$(IBFT_RULE_DIR)/79-ibft.rules
+IBFT_RULES=${IBFT_RULE_DIR}/79-ibft.rules
 
 # ensure we have a rules directory and no rules file
 if [ -d ${IBFT_RULE_DIR} ] ; then
