@@ -1,3 +1,76 @@
+-> open-iscsi-2.1.6 - open-iscsi-2.1.7
+
+Lee Duncan (48):
+      Remove HEREIS usage from iscsi-gen-initiatorname
+      Fix iscsi-init.service start time
+      test: Rename README to README.orig
+      test: Add new README, update old README and TODO
+      test: Fix bug/spelling error, cleanup messages
+      test: Fix mispelling of MaxBurst
+      test: fix error with verifying mkfs command
+      test: remove the ".setup" file, used for development
+      test: Cleanup README and TODO
+      test: Track time spent calling subprocesses
+      test: Add suggested test setup info to README
+      test: Add missing verbose print, and track more time values
+      test: Track time spent in sleep() more easily/accurately
+      test: fix message mispelling of "umount"
+      test: add item to TODO list
+      test: further improve test suite time display
+      Remove SUSE init.d startup files
+      Cleanup iscsiadm man page
+      Allow name/value args for firmware logins.
+      Update iscsiadm.8 for firmware name/value pairs
+      General Makefile/README cleanup
+      Clean up Makefile build system.
+      Clean up the usage info for iscsid
+      Remove no-longer-used Makefile target for subdir
+      Make DB and ISCSIHOME directories configurable.
+      Build: Cleanup fwparam_ibft and sysdeps subdirs.
+      Add a README for fwparam_ibft subdirectory.
+      Build: cleanup usr Makefile: remove obj files on "clean"
+      Remove unused fwparam_ibft.[ch] files in fwparam_ibft.
+      Build: upate "depend" target to include sysdeps
+      Fix gcc issues with unused params in fwparam
+      Use DESTDIR correctly for HOMEDIR and DBROOT
+      Be smarter about creating iscsiuio.8 man page
+      Build: remove unused Makefile HOMEDIR creation
+      Build: use upper- vs lower-case variable names correctly
+      Build: libopeniscsiusr install should install docs
+      Remove debug messages from libopeniscsiusr/Makefile
+      Build: cleanup libopeniscsiusr/Makefile
+      Build: add libsystemd CFLAGS for building objects
+      Build: remove redundant definition in utils Makefile
+      Build: add RULESDIR to top-level Makefile
+      Create an systemd iBFT rule generator
+      Build: install systemd generator file with svc files
+      Use kernel initiatorname when setting local iname
+      utils: remove errant spaces in script
+      Check for root in iscsi-gen-initiatorname
+      Make fwparam_ibft build more reliable.
+      Fix ibft-rule-generator shell error
+
+Sam James (5):
+      iscsiuio: don't clobber LDFLAGS in configure.ac
+      iscsiuio: respect LDFLAGS fully
+      Makefiles: respect $(CC) fully (don't hardcode GCC); use $(RM)
+      Makefiles: don't hardcode sed, pkg-config
+      libopeniscsiusr: fix version in installed pkgconfig (.pc) file
+
+Wenchao Hao (5):
+      Add conn_xxx() macros to print connection info in more details
+      Make session and connect log readable and helpful to locate problem
+      mgmt: print connection info when write qtask response failed
+      initiator: return ENOMEM if failed to get ev_context in iscsi_send_logout()
+      initiator:print failure reason of iscsi_send_logout() if failed
+
+ryancaicse (1):
+      Fix a missing-unlocking bug
+
+scaleoutSean (1):
+      Fix minor error string typos
+
+
 -> open-iscsi-2.1.5 - open-iscsi-2.1.6
 
 Chris Leech (1):
