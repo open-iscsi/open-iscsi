@@ -61,11 +61,13 @@ static LIST_HEAD(targets);
 static LIST_HEAD(user_params);
 
 static char program_name[] = "iscsistart";
+static char config_file[TARGET_NAME_MAXLEN];
 
 /* used by initiator */
 extern struct iscsi_ipc *ipc;
 
 static struct option const long_options[] = {
+	{"config", required_argument, NULL, 'c'},
 	{"initiatorname", required_argument, NULL, 'i'},
 	{"targetname", required_argument, NULL, 't'},
 	{"tgpt", required_argument, NULL, 'g'},
@@ -94,6 +96,7 @@ static void usage(int status)
 		printf("Usage: %s [OPTION]\n", program_name);
 		printf("\
 Open-iSCSI initiator.\n\
+  -c, --config=[path]      set config file (default " CONFIG_FILE ").\n\
   -i, --initiatorname=name set InitiatorName to name (Required)\n\
   -t, --targetname=name    set TargetName to name (Required)\n\
   -g, --tgpt=N             set target portal group tag to N (Required)\n\
@@ -270,6 +273,11 @@ static int login_session(struct node_rec *rec)
 	return rc;
 }
 
+static char *get_config_file(void)
+{
+	return config_file;
+}
+
 static int setup_session(void)
 {
 	struct boot_context *context;
@@ -277,6 +285,13 @@ static int setup_session(void)
 
 	if (list_empty(&targets))
 		return login_session(&config_rec);
+
+	increase_max_files();
+	if (idbm_init(get_config_file)) {
+		log_warning("exiting due to idbm configuration error");
+		rc = ISCSI_ERR_IDBM;
+		goto out;
+	}
 
 	list_for_each_entry(context, &targets, list) {
 		struct node_rec *rec;
@@ -297,6 +312,7 @@ static int setup_session(void)
 		free(rec);
 	}
 	fw_free_targets(&targets);
+out:
 	return rc;
 }
 
@@ -357,6 +373,7 @@ int main(int argc, char *argv[])
 	int control_fd, mgmt_ipc_fd, err;
 	pid_t pid;
 
+	strcpy(config_file, CONFIG_FILE);
 	idbm_node_setup_defaults(&config_rec);
 	config_rec.name[0] = '\0';
 	config_rec.conn[0].address[0] = '\0';
@@ -373,9 +390,13 @@ int main(int argc, char *argv[])
 
 	sysfs_init();
 
-	while ((ch = getopt_long(argc, argv, "P:i:t:g:a:p:d:u:w:U:W:bNfvh",
+	while ((ch = getopt_long(argc, argv, "c:P:i:t:g:a:p:d:u:w:U:W:bNfvh",
 				 long_options, &longindex)) >= 0) {
 		switch (ch) {
+		case 'c':
+			strncpy(config_file, optarg, TARGET_NAME_MAXLEN);
+			config_file[TARGET_NAME_MAXLEN-1] = 0;
+			break;
 		case 'i':
 			initiatorname = optarg;
 			break;

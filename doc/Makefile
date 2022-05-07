@@ -22,11 +22,11 @@ MAN8DIR = $(DESTDIR)$(mandir)/man8
 
 MANPAGES_SOURCES	= iscsi_discovery.8 \
 			  iscsi_fw_login.8 \
-			  iscsi-iname.8 \
-			  iscsistart.8
+			  iscsi-iname.8
 MANPAGES_TEMPLATES	= iscsid.8.template \
 			  iscsiadm.8.template \
-			  iscsi-gen-initiatorname.8
+			  iscsi-gen-initiatorname.8 \
+			  iscsistart.8.template
 MANPAGES_GENERATED	= $(MANPAGES_TEMPLATES:.template=)
 MANPAGES_DEST		= $(addprefix $(MAN8DIR)/,$(MANPAGES_GENERATED)) \
 			  $(addprefix $(MAN8DIR)/,$(MANPAGES_SOURCES))

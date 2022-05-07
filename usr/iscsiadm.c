@@ -3864,11 +3864,6 @@ main(int argc, char **argv)
 	if (mode < 0)
 		usage(ISCSI_ERR_INVAL);
 
-	if (mode == MODE_FW) {
-		rc = exec_fw_op(NULL, NULL, info_level, do_login, op, wait, &params);
-		goto out;
-	}
-
 	increase_max_files();
 	if (idbm_init(get_config_file)) {
 		log_warning("exiting due to idbm configuration error");
@@ -3877,6 +3872,9 @@ main(int argc, char **argv)
 	}
 
 	switch (mode) {
+	case MODE_FW:
+		rc = exec_fw_op(NULL, NULL, info_level, do_login, op, wait, &params);
+		break;
 	case MODE_HOST:
 		if (sub_mode != -1) {
 			switch (sub_mode) {

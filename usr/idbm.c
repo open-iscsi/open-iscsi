@@ -3055,6 +3055,32 @@ void idbm_terminate(void)
 		free(db);
 }
 
+static bool idbm_populate_rec(struct node_rec *rec,
+			      char *targetname, int tpgt, char *ip,
+			      int port, struct iface_rec *iface,
+			      int verbose)
+{
+	if (targetname)
+		strlcpy(rec->name, targetname, TARGET_NAME_MAXLEN);
+	rec->tpgt = tpgt;
+	rec->conn[0].port = port;
+	if (ip)
+		strlcpy(rec->conn[0].address, ip, NI_MAXHOST);
+	memset(&rec->iface, 0, sizeof(struct iface_rec));
+	if (iface) {
+		iface_copy(&rec->iface, iface);
+		if (strlen(iface->name)) {
+			if (iface_conf_read(&rec->iface)) {
+				if (verbose)
+					log_error("Could not read iface info "
+						  "for %s.", iface->name);
+				return false;
+			}
+		}
+	}
+	return true;
+}
+
 /**
  * idbm_create_rec - allocate and setup a node record
  * @targetname: target name
@@ -3081,23 +3107,9 @@ struct node_rec *idbm_create_rec(char *targetname, int tpgt, char *ip,
 	}
 
 	idbm_node_setup_defaults(rec);
-	if (targetname)
-		strlcpy(rec->name, targetname, TARGET_NAME_MAXLEN);
-	rec->tpgt = tpgt;
-	rec->conn[0].port = port;
-	if (ip)
-		strlcpy(rec->conn[0].address, ip, NI_MAXHOST);
-	memset(&rec->iface, 0, sizeof(struct iface_rec));
-	if (iface) {
-		iface_copy(&rec->iface, iface);
-		if (strlen(iface->name)) {
-			if (iface_conf_read(&rec->iface)) {
-				if (verbose)
-					log_error("Could not read iface info "
-						  "for %s.", iface->name);
-				goto free_rec;
-			}
-		}
+
+	if (!idbm_populate_rec(rec, targetname, tpgt, ip, port, iface, verbose)) {
+		goto free_rec;
 	}
 	return rec;
 free_rec:
@@ -3107,14 +3119,23 @@ free_rec:
 
 struct node_rec *idbm_create_rec_from_boot_context(struct boot_context *context)
 {
-	struct node_rec *rec;
+	node_rec_t *rec;
+
+	rec = malloc(sizeof(*rec));
+	if (!rec) {
+		log_error("Could not not allocate memory to create node "
+			  "record.");
+		return NULL;
+	}
+
+	idbm_node_setup_from_conf(rec);
 
 	/* tpgt hard coded to 1 ??? */
-	rec = idbm_create_rec(context->targetname, 1,
-			      context->target_ipaddr, context->target_port,
-			      NULL, 1);
-	if (!rec) {
+	if (!idbm_populate_rec(rec, context->targetname, 1,
+			       context->target_ipaddr, context->target_port,
+			       NULL, 1)) {
 		log_error("Could not setup rec for fw discovery login.");
+		free(rec);
 		return NULL;
 	}
 
