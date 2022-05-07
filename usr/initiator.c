@@ -1153,8 +1153,9 @@ static void iscsi_stop(void *data)
 		rc = iscsi_send_logout(conn);
 		if (!rc)
 			return;
-		conn_error(conn, "Could not send logout pdu(%s) from iscsi_stop."
-			"Dropping session", strerror(rc));
+
+		conn_error(conn, "Could not send logout pdu(%s) from iscsi_stop. Dropping session",
+			   strerror(rc));
 	}
 
 	rc = session_conn_shutdown(conn, conn->logout_qtask, ISCSI_SUCCESS);
@@ -1239,8 +1240,8 @@ static void iscsi_recv_async_msg(iscsi_conn_t *conn, struct iscsi_hdr *hdr)
 		 */
 		rc = iscsi_send_logout(conn);
 		if (rc)
-			conn_error(conn, "Could not send logout in response to"
-				 "logout request aen:%s", strerror(rc));
+			conn_error(conn, "Could not send logout in response to logout request aen:%s",
+				   strerror(rc));
 		break;
 	case ISCSI_ASYNC_MSG_DROPPING_CONNECTION:
 		conn_warn(conn, "Target dropping %u, reconnect min %u max %u", ntohs(async_hdr->param1),
@@ -2146,12 +2147,12 @@ invalid_state:
 		if (!(session->t->caps & CAP_LOGIN_OFFLOAD)) {
 			/* unbind is not supported so just do old logout */
 			rc = iscsi_send_logout(conn);
-			if (rc)
+			if (!rc)
 				return ISCSI_SUCCESS;
 		}
 
-		conn_error(conn, "Could not send logout pdu(%s) from session_logout_task."
-			"Dropping session", strerror(rc));
+		conn_error(conn, "Could not send logout pdu(%s) from session_logout_task. Dropping session",
+			   strerror(rc));
 		/* fallthrough */
 	default:
 		rc = session_conn_shutdown(conn, qtask, ISCSI_SUCCESS);
