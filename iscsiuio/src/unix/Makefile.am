@@ -28,15 +28,15 @@ iscsiuio_CFLAGS = 	$(AM_CFLAGS)		\
 			-DBYTE_ORDER=@ENDIAN@
 
 iscsiuio_LIBS = 	$(AM_LIBS)		\
-			-ldl			\
 			-rdynamic		\
-			$(LIBNL_LIBS)		\
-			-lpthread
+			$(LIBNL_LIBS)
 
 iscsiuio_LDADD  = 	$(AM_LDADD) \
 			${top_srcdir}/src/uip/lib_iscsi_uip.a	\
 			${top_srcdir}/src/apps/dhcpc/lib_apps_dhcpc.a\
 			${top_srcdir}/src/apps/brcm-iscsi/lib_apps_brcm_iscsi.a \
-			${top_srcdir}/src/unix/libs/lib_iscsiuio_hw_cnic.a
+			${top_srcdir}/src/unix/libs/lib_iscsiuio_hw_cnic.a \
+			-lpthread \
+			-ldl
 
 iscsiuio_YFLAGS = -d
