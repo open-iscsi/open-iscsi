@@ -68,9 +68,13 @@ $(DESTDIR)$(SBINDIR) $(DESTDIR)$(RULESDIR):
 clean:
 	$(RM) $(OBJS)
 	$(RM) $(PROGRAMS)
+	$(RM) .depend
+
+distclean:
 	$(RM) $(SCRIPTS_GENERATED)
 	$(RM) $(RULESFILES_GENERATED)
-	$(RM) .depend
+
+.PHONY: all install clean distclean depend install_udev_rules
 
 depend:
 	$(CC) $(CFLAGS) -M `ls *.c` > .depend

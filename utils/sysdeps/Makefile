@@ -10,6 +10,10 @@ all: $(SYSDEPS_OBJS)
 clean:
 	$(RM) *.o .depend
 
+distclean: ;
+
+.PHONY: all clean distclean depend
+
 depend:
 	$(CC) $(CFLAGS) -M `ls *.c` > .depend
 

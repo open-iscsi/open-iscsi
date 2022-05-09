@@ -120,6 +120,10 @@ clean:
 		$(PROGRAMS) .depend
 	$(MAKE) $(MFLAGS) -C $(FW_BOOT_DIR) clean
 
+distclean: ;
+
+.PHONY: all install clean distclean depend
+
 depend:
 	$(CC) $(CFLAGS) -M `ls *.c` > .depend
 	$(MAKE) $(MFLAGS) -C $(FW_BOOT_DIR) depend

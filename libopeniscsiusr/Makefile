@@ -73,6 +73,8 @@ clean:
 	$(RM) vgcore* core *.a *.o *.gz *.so *.so.* $(TESTS)
 	$(RM) -r docs/man
 
+distclean: ;
+
 $(TESTS): $(LIBS)
 $(TESTS): CFLAGS += -I$(TOPDIR)/libopeniscsiusr -g
 $(TESTS): LDFLAGS += $(LIBADD) -L$(TOPDIR)/libopeniscsiusr -lopeniscsiusr
@@ -121,3 +123,6 @@ docs/man/$(EXTRA_MAN_FILES).gz: $(HEADERS)
 		gzip -f $$file; \
 	done
 	find docs/man -type f -name \*[0-9].gz
+
+.PHONY: all install clean distclean doc install_pkg_files install_docs \
+	install_libs check

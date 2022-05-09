@@ -104,8 +104,12 @@ $(DESTDIR)$(systemddir)/system $(DESTDIR)$(systemddir)/system-generators $(DESTD
 		$(DESTDIR)$(DBROOT)/ifaces $(DESTDIR)$(initddir)/open-iscsi:
 	[ -d $@ ] || $(INSTALL) -d -m 775 $@
 
-clean:
+clean: ;
+
+distclean:
 	$(RM) $(SYSTEMD_GENERATED_SERVICE_FILES)
 
 .PHONY: all clean install install_iface install_initd install_initd_redhat \
-	install_initd_debian install_systemd
+	install_initd_debian install_systemd distclean install_iname \
+	install_systemd_generator_files install_systemd_service_files \
+	install_initd_distro install_etc
