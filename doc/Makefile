@@ -47,5 +47,9 @@ $(MANPAGES_DEST): $(MAN8DIR)/%: %
 $(MAN8DIR):
 	[ -d $@ ] || $(INSTALL) -d $@
 
-clean:
+clean: ;
+
+distclean:
 	$(RM) $(MANPAGES_GENERATED)
+
+.PHONY: all install install_doc clean distclean

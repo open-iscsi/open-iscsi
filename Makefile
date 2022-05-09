@@ -76,14 +76,14 @@ iscsiuio/configure: iscsiuio/configure.ac iscsiuio/Makefile.am
 
 force: ;
 
-clean:
-	$(MAKE) $(MFLAGS) -C utils/sysdeps clean
-	$(MAKE) $(MFLAGS) -C utils clean
-	$(MAKE) $(MFLAGS) -C usr clean
-	$(MAKE) $(MFLAGS) -C etc clean
-	$(MAKE) $(MFLAGS) -C libopeniscsiusr clean
-	[ ! -f iscsiuio/Makefile ] || $(MAKE) $(MFLAGS) -C iscsiuio clean
-	[ ! -f iscsiuio/Makefile ] || $(MAKE) $(MFLAGS) -C iscsiuio distclean
+clean distclean:
+	$(MAKE) $(MFLAGS) -C utils/sysdeps $@
+	$(MAKE) $(MFLAGS) -C utils $@
+	$(MAKE) $(MFLAGS) -C usr $@
+	$(MAKE) $(MFLAGS) -C etc $@
+	$(MAKE) $(MFLAGS) -C libopeniscsiusr $@
+	$(MAKE) $(MFLAGS) -C doc $@
+	[ ! -f iscsiuio/Makefile ] || $(MAKE) $(MFLAGS) -C iscsiuio $@
 
 # this is for safety
 # now -jXXX will still be safe
@@ -127,4 +127,6 @@ depend:
 
 .PHONY: all user install force clean install_user install_udev_rules install_systemd \
 	install_programs install_initrd install_initrd_redhat install_initrd_debian \
-	install_doc install_iname install_libopeniscsiusr install_etc install_ec_all
+	install_doc install_iname install_libopeniscsiusr install_etc install_etc_all \
+	distclean depend install_initd install_initd_redhat install_initd_debian \
+	install_iscsiuio
