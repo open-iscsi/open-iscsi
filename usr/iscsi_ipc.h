@@ -52,6 +52,17 @@ struct iscsi_ipc_ev_clbk {
 
 extern void ipc_register_ev_callback(struct iscsi_ipc_ev_clbk *ipc_ev_clbk);
 
+enum iscsi_ipc_auth_type {
+	/* UID must have valid entry in user db */
+	ISCSI_IPC_AUTH_DEFAULT = 0,
+
+	/* Check only that UID==0 */
+	ISCSI_IPC_AUTH_UID,
+
+	/* Must be last */
+	ISCSI_IPC_AUTH_MAX,
+};
+
 /**
  * struct iscsi_ipc - Open-iSCSI Interface for Kernel IPC
  *
@@ -62,6 +73,8 @@ struct iscsi_ipc {
 	char *name;
 
 	int ctldev_bufmax;
+
+	enum iscsi_ipc_auth_type auth_type;
 
 	int (*ctldev_open) (void);
 

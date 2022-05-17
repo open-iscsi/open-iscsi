@@ -527,6 +527,8 @@ int main(int argc, char *argv[])
 	log_debug(1, "TPGT=%d", config_rec.tpgt);
 	log_debug(1, "IP Address=%s", config_rec.conn[0].address);
 
+	ipc->auth_type = ISCSI_IPC_AUTH_UID;
+
 	/* log the version, so that we can tell if the daemon and kernel module
 	 * match based on what shows up in the syslog.  Tarballs releases
 	 * always install both, but Linux distributors may put the kernel module

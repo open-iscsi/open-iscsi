@@ -115,5 +115,6 @@ int mgmt_ipc_listen(void);
 int mgmt_ipc_systemd(void);
 void mgmt_ipc_close(int fd);
 void mgmt_ipc_handle(int accept_fd);
+void mgmt_ipc_handle_uid_only(int accept_fd);
 
 #endif /* MGMT_IPC_H */
