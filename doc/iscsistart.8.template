@@ -12,6 +12,10 @@ not be run to manage sessions. Its primary use is to start
 sessions used for iSCSI root boot.
 .SH OPTIONS
 .TP
+.BI [-c|--config=]\fIconfig\-file\fP
+Read configuration from \fIconfig\-file\fR rather than the default
+\fI@HOMEDIR@/iscsid.conf\fR file.
+.TP
 .BI [-i|--initiatorname=]\fIname\fP
 Set InitiatorName to name (Required if not using iBFT or OF)
 .TP
