@@ -4,7 +4,7 @@
 
 =================================================================
 
-                                                   Mar 30, 2022
+                                                   Jun 6, 2022
 Contents
 ========
 
@@ -1431,11 +1431,11 @@ queued if all paths are failed in the multipath layer.
 =================================
 To quickly detect problems in the network, the iSCSI layer will send iSCSI
 pings (iSCSI NOP-Out requests) to the target. If a NOP-Out times out, the
-iSCSI layer will respond by failing running commands and asking the SCSI
-layer to requeue them if possible (SCSI disk commands get 5 retries if not
-using multipath). If dm-multipath is being used the SCSI layer will fail
-the command to the multipath layer instead of retrying. The multipath layer
-will then retry the command on another path.
+iSCSI layer will respond by failing the connection and starting the
+replacement_timeout. It will then tell the SCSI layer to stop the device queues
+so no new IO will be sent to the iSCSI layer and to requeue and retry the
+commands that were running if possible (see the next section on retrying
+commands and the replacement_timeout).
 
 To control how often a NOP-Out is sent, the following value can be set:
 	node.conn[0].timeo.noop_out_interval = X
@@ -1451,40 +1451,177 @@ Normally for these values you can use:
 	node.conn[0].timeo.noop_out_interval = 5
 	node.conn[0].timeo.noop_out_timeout = 10
 
-If there are a lot of IO error messages, then the above values may be too
-aggressive and you may need to increase the values for your network conditions
-and workload, or you may need to check your network for possible problems.
+If there are a lot of IO error messages like
+
+detected conn error (22)
+
+in the kernel log then the above values may be too aggressive. You may need to
+increase the values for your network conditions and workload, or you may need
+to check your network for possible problems.
+
+8.1.2 SCSI command retries
+==========================
+
+SCSI disk commands get 5 retries by default. In newer kernels this can be
+controlled via the sysfs file:
+
+/sys/block/$sdX/device/scsi_disk/$host:$bus:$target:LUN/max_retries
+
+by writing a integer lower than 5 to reduce retries or setting to -1 for
+infinite retries.
+
+The number of actual retries a command gets may be less than 5 or what is
+requested in max_retries if the replacement timeout expires. When that timer
+expires it tells the SCSI layer to fail all new and queued commands.
 
 
-8.1.2 replacement_timeout
+8.1.3 replacement_timeout
 =========================
 
-The next iSCSI timer that will need to be tweaked is:
+The iSCSI layer timer:
 
 node.session.timeo.replacement_timeout = X
 
-Here X is in seconds.
+controls how long to wait for session re-establishment before failing all SCSI
+commands:
 
-replacement_timeout will control how long to wait for session re-establishment
-before failing pending SCSI commands and commands that are being operated on by
-the SCSI layer's error handler up to a higher level like multipath or to
-an application if multipath is not being used.
+1. commands that have been requeued and awaiting a retry
+2. commands that are being operated on by the SCSI layer's error handler
+3. all new commands that are queued to the device
+
+up to a higher level like multipath, filesystem layer, or to the application.
+
+The setting is in seconds. zero means to fail immediately. -1 means an infinite
+timeout which will wait until iscsid does a relogin, the user runs the iscsiadm
+logout command or until the node.session.reopen_max limit is hit.
+
+When this timer is started, the iSCSI layer will stop new IO from executing
+and requeue running commands to the Block/SCSI layer. The new and requeued
+commands will then sit in the Block/SCSI layer queue until the timeout has
+expired, there is userspace intervention like a iscsiadm logout command, or
+there is a successful relogin. If the command has run out of retries, the
+command will be failed instead of being requeued.
+
+After this timer has expired iscsid can continue to try to relogin. By default
+iscsid will continue to try to relogin until there is a successful relogin or
+until the user runs the iscsiadm logout command. The number of relogin retries
+is controlled by the open-iscsi setting node.session.reopen_max. If that is set
+too low, iscsid may give up and forcefully logout the session (equivalent to
+running the iscsiadm logout command on a failed session) before replacement
+timeout seconds. This will result in all commands being failed at that time.
+The user would then have to manually relogin.
+
+This timer starts when you see the connection error messsage:
+
+detected conn error (%d)
+
+in the kernel log. The %d will be a integer with the following mappings
+and meanings:
+
+Int     Kernel define           Description
+value
+------------------------------------------------------------------------------
+1	ISCSI_ERR_DATASN	Low level iSCSI protocol error where a data
+				sequence value did not match the expected value.
+2	ISCSI_ERR_DATA_OFFSET	There was an error where we were asked to
+				read/write past a buffer's length.
+3	ISCSI_ERR_MAX_CMDSN	Low level iSCSI protocol error where we got an
+				invalid MaxCmdSN value.
+4	ISCSI_ERR_EXP_CMDSN	Low level iSCSI protocol error where the
+				ExpCmdSN from the target didn't match the
+				expected value.
+5	ISCSI_ERR_BAD_OPCODE	The iSCSI Target has sent an invalid or unknown
+				opcode.
+6	ISCSI_ERR_DATALEN	The iSCSI target has send a PDU with a data
+				length that is invalid.
+7	ISCSI_ERR_AHSLEN	The iSCSI target has sent a PDU with an invalid
+				Additional Header Length.
+8	ISCSI_ERR_PROTO		The iSCSI target has performed an operation that
+				violated the iSCSI RFC.
+9	ISCSI_ERR_LUN		The iSCSI target has requested an invalid LUN.
+10	ISCSI_ERR_BAD_ITT       The iSCSI target has sent an invalid Initiator
+				Task Tag.
+11	ISCSI_ERR_CONN_FAILED   Generic error that can indicate the transmission
+				of a PDU, like a SCSI cmd or task management
+				function, has timed out. Or, we are not able to
+				transmit a PDU because the network layer has
+				returned an error, or we have detected a
+				network error like a link down. It can
+				sometimes be an error that does not fit the
+				other error codes like a kernel function has
+				returned a failure and there no other way to
+				recovery from it except to try and kill the
+				existing session and relogin.
+12	ISCSI_ERR_R2TSN		Low level iSCSI protocol error where the R2T
+				sequence numbers to not match.
+13	ISCSI_ERR_SESSION_FAILED
+				Unused.
+14	ISCSI_ERR_HDR_DGST	iSCSI Header Digest error.
+15	ISCSI_ERR_DATA_DGST	iSCSI Data Digest error.
+16	ISCSI_ERR_PARAM_NOT_FOUND
+				Userspace has passed the kernel an unknown
+				setting.
+17	ISCSI_ERR_NO_SCSI_CMD	The iSCSI target has sent a ITT for an unknown
+				task.
+18	ISCSI_ERR_INVALID_HOST	The iSCSI Host is no longer present or being
+				removed.
+19	ISCSI_ERR_XMIT_FAILED	The software iSCSI initiator or cxgb was not
+				able to transmit a PDU becuase of a network
+				layer error.
+20	ISCSI_ERR_TCP_CONN_CLOSE
+				The iSCSI target has closed the connection.
+21	ISCSI_ERR_SCSI_EH_SESSION_RST
+				The SCSI layer's Error Handler has timed out
+				the SCSI cmd, tried to abort it and possibly
+				tried to send a LUN RESET, and it's now
+				going to drop the session.
+22	ISCSI_ERR_NOP_TIMEDOUT	An iSCSI Nop as a ping has timed out.
 
 
-8.1.2.1 Running Commands, the SCSI Error Handler, and replacement_timeout
-=========================================================================
+8.1.4 Running Commands, the SCSI Error Handler, and replacement_timeout
+=======================================================================
 
-Remember from the Nop-out discussion that if a network problem is detected,
-the running commands are failed immediately. There is one exception to this,
-and that is when the SCSI layer's error handler is running. To check if
-the SCSI error handler is running, iscsiadm can be run as:
+Each SCSI command has a timer controlled by
+
+/sys/block/sdX/device/timeout
+
+The value is in seconds and the default ranges from 30 - 60 seconds
+depending on the distro's udev scripts.
+
+When a command is sent to the iSCSI layer the timer is started, and when it's
+returned to the SCSI layer the timer is stopped. This could be for successful
+completion or due to a retry/requeue due to a conn error like described
+previously. If a command is retried the timer is reset.
+
+When the command timer fires, the SCSI layer will ask the iSCSI layer to abort
+the command by sending an ABORT_TASK task management request. If the abort
+is successful the SCSI layer retries the command if it has enough retries left.
+If the abort times out, the iSCSI layer will report failure to the SCSI layer
+and will fire a ISCSI_ERR_SCSI_EH_SESSION_RST error. In the logs you will see
+a:
+
+detected conn error (21)
+
+The ISCSI_ERR_SCSI_EH_SESSION_RST will cause the connection/session to be
+dropped and the iSCSI layer will start the replacement_timeout operations
+described in that section.
+
+The SCSI layer will then eventually call the iSCSI layer's target/session reset
+callout which will wait for the replacement timeout to expire, a successful
+relogin to occur, or for userspace to logout the session.
+
+- If the replacement timeout fires, then commands will be failed upwards as
+described in the replacement timeout section. The SCSI devices will be put
+into an offline state until iscsid performs a relogin.
+
+- If a relogin occurs before the timer fires, commands will be retried if
+possible.
+
+To check if the SCSI error handler is running, iscsiadm can be run as:
 	iscsiadm -m session -P 3
 
-You will then see:
+and you will see:
 	Host Number: X State: Recovery
-
-When the SCSI EH is running, commands will not be failed until
-node.session.timeo.replacement_timeout seconds.
 
 To modify the timer that starts the SCSI EH, you can either write
 directly to the device's sysfs file:
@@ -1506,26 +1643,7 @@ is not being used. If udev is used the default is the above value which
 is normally 60 seconds.
 
 
-8.1.2.2 Pending Commands and replacement_timeout
-================================================
-
-Commonly, the SCSI/BLOCK layer will queue 256 commands, but the path can
-only take 32. When a network problem is detected, the 32 commands
-in flight will be sent back to the SCSI layer immediately and because
-multipath is being used, this will cause the commands to be sent to the multipath
-layer for execution on another path. However, the other 96 commands that were
-still in the SCSI/BLOCK queue will remain there until the session is
-re-established or until node.session.timeo.replacement_timeout seconds has
-gone by. After replacement_timeout seconds, the pending commands will be
-failed to the multipath layer, and all new incoming commands will be
-immediately failed back to the multipath layer. If a session is later
-re-established, then new commands will be queued and executed. Normally,
-multipathd's path tester mechanism will detect that the session has been
-re-established and the path is accessible again, and it will inform
-dm-multipath.
-
-
-8.1.3 Optimal replacement_timeout Value
+8.1.4 Optimal replacement_timeout Value
 =======================================
 
 The default value for replacement_timeout is 120 seconds, but because
