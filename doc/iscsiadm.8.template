@@ -694,6 +694,14 @@ List node records:
 Display all data for a given node record:
 .IP
 \fBsh#\fR iscsiadm \-\-mode node \-\-targetname iqn.2001-05.com.doe:test \-\-portal 192.168.1.1:3260
+.PP
+List all sessions:
+.IP
+\fBsh#\fR iscsiadm \-\-mode session
+.PP
+List all sessions in tree format:
+.IP
+\fBsh#\fR iscsiadm \-\-mode session  \-\-print
 .SH FILES
 .TP
 @HOMEDIR@/iscsid.conf
