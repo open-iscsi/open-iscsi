@@ -53,6 +53,9 @@
 #define ISCSI_CONN_ERR_REOPEN_DELAY	3
 #define ISCSI_INTERNAL_ERR_REOPEN_DELAY	5
 
+#define ISCSI_SESSION_NEED_REOPEN	0
+#define ISCSI_SESSION_DESTROYED		1
+
 #define PROC_DIR "/proc"
 
 struct login_task_retry_info {
@@ -2034,6 +2037,42 @@ sync_conn(iscsi_session_t *session, uint32_t cid)
 	return 0;
 }
 
+/*
+ * check if session is in an valid state and cleanup invalid session
+ *
+ * RETURN VALUE:
+ * 	ISCSI_SESSION_NEED_REOPEN: session is valid and ready to reopen
+ * 	ISCSI_SESSION_DESTROYED: session is kind of broken which has been destroyed
+ */
+static int check_and_cleanup_session(iscsi_session_t *session)
+{
+	int rc = 0;
+
+	/*
+	 * A session might has no leadconn in next scenario:
+	 *
+	 * - iscsid died after destroy_conn() is called during logout
+	 *   now the session state could be LOGED_IN or FREE
+	 * - iscsid died after create_session() is called during login
+	 *   now the session state would be FREE
+	 *
+	 * It's an invalid session which should be destroyed.
+	 */
+	if (!iscsi_sysfs_session_has_leadconn(session->id)) {
+		log_warning("destroying session%d with no connection", session->id);
+		goto destroy_session;
+	}
+
+	return ISCSI_SESSION_NEED_REOPEN;
+
+destroy_session:
+	rc = ipc->destroy_session(session->t->handle, session->id);
+	if (rc)
+		log_error("BUG:clean session%d failed %s", session->id, strerror(-rc));
+
+	return ISCSI_SESSION_DESTROYED;
+}
+
 int
 iscsi_sync_session(node_rec_t *rec, queue_task_t *qtask, uint32_t sid)
 {
@@ -2054,6 +2093,22 @@ iscsi_sync_session(node_rec_t *rec, queue_task_t *qtask, uint32_t sid)
 		return ISCSI_ERR_LOGIN;
 
 	session->id = sid;
+
+	err = sync_conn(session, 0);
+	if (err)
+		goto destroy_session;
+
+	/*
+	 * A session might in the middle of logout or login when previous
+	 * iscsid died, so we must figure out the invalid session and
+	 * destroy it before reopen.
+	 */
+	err = check_and_cleanup_session(session);
+	if (err == ISCSI_SESSION_DESTROYED) {
+		err = ISCSI_ERR_SESSION_NOT_CONNECTED;
+		goto destroy_session;
+	}
+
 	session->hostno = iscsi_sysfs_get_host_no_from_sid(sid, &err);
 	if (err) {
 		log_error("Could not get hostno for session %d", sid);
@@ -2061,11 +2116,6 @@ iscsi_sync_session(node_rec_t *rec, queue_task_t *qtask, uint32_t sid)
 	}
 
 	session->r_stage = R_STAGE_SESSION_REOPEN;
-
-	err = sync_conn(session, 0);
-	if (err)
-		goto destroy_session;
-
 	qtask->rsp.command = MGMT_IPC_SESSION_SYNC;
 
 	log_debug(3, "Started sync iSCSI session %d", session->id);
