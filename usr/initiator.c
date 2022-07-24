@@ -2046,6 +2046,8 @@ sync_conn(iscsi_session_t *session, uint32_t cid)
  */
 static int check_and_cleanup_session(iscsi_session_t *session)
 {
+	char id[NAME_SIZE];
+	char state[10];
 	int rc = 0;
 
 	/*
@@ -2063,7 +2065,26 @@ static int check_and_cleanup_session(iscsi_session_t *session)
 		goto destroy_session;
 	}
 
+	snprintf(id, sizeof(id), "connection%d:0", session->id);
+	sysfs_get_str(id, "iscsi_connection", "state", state, 10);
+
+	/*
+	 * A connection would be in down state in next scenario:
+	 *
+	 * - iscsid died after stop_conn() is called during logout
+	 * - iscsid died after create_conn() is called during login
+	 */
+	if (strcmp(state, "down") == 0) {
+		log_warning("destroying session%d with down connection", session->id);
+		goto destroy_conn;
+	}
+
 	return ISCSI_SESSION_NEED_REOPEN;
+
+destroy_conn:
+	rc = ipc->destroy_conn(session->t->handle, session->id, 0);
+	if (rc)
+		log_error("BUG: clean connection%d:0 failed %s", session->id, strerror(-rc));
 
 destroy_session:
 	rc = ipc->destroy_session(session->t->handle, session->id);
