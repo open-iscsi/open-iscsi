@@ -1013,9 +1013,11 @@ static bool ipaddr_is_ipv6(char *ipaddr)
 			    (second_colon != first_colon))
 				res = true;
 		}
-	}
-	log_debug(8, "%s(%s) -> %u",
-		__FUNCTION__, ipaddr, res);
+		log_debug(8, "%s(%s) -> %u",
+			__FUNCTION__, ipaddr, res);
+	} else
+		log_debug(8, "%s(nil) -> %u",
+			__FUNCTION__, res);
 	return res;
 }
 
