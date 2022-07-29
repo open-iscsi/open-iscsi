@@ -29,7 +29,7 @@ PKGCONF_DIR ?= $(LIB_DIR)/pkgconfig
 MAN_DIR = $(prefix)/share/man
 
 PKG_CONFIG ?= /usr/bin/pkg-config
-SED ?= /usr/bin/sed
+SED ?= sed
 
 LIBISCSI_USR_DIR=$(TOPDIR)/libopeniscsiusr
 

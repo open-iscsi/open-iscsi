@@ -7,7 +7,7 @@
 # from the top-level make file.
 #
 
-SED = /usr/bin/sed
+SED ?= sed
 INSTALL = install
 CHMOD = chmod
 

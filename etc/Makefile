@@ -19,7 +19,7 @@ initddir ?= $(etcdir)/init.d
 
 HOMEDIR ?= $(etcdir)/iscsi
 
-SED = /usr/bin/sed
+SED ?= sed
 INSTALL = install
 
 SYSTEMD_SOURCE_FILES	= iscsid.socket iscsiuio.socket
