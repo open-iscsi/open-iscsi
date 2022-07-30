@@ -7,7 +7,7 @@ ifeq ($(TOPDIR),)
 	TOPDIR = ..
 endif
 
-SED = /usr/bin/sed
+SED ?= sed
 INSTALL = install
 
 DESTDIR ?=
