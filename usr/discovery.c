@@ -1032,9 +1032,6 @@ static void iscsi_destroy_session(struct iscsi_session *session)
 		goto done;
 	}
 
-	log_debug(2, "%s ep disconnect", __FUNCTION__);
-	t->template->ep_disconnect(conn);
-
 	log_debug(2, "stop conn");
 	rc = ipc->stop_conn(session->t->handle, session->id,
 			   conn->id, STOP_CONN_TERM);
@@ -1043,6 +1040,9 @@ static void iscsi_destroy_session(struct iscsi_session *session)
 			  session->id, conn->id, rc);
 		goto done;
         }
+
+	log_debug(2, "%s ep disconnect", __FUNCTION__);
+	t->template->ep_disconnect(conn);
 
 	log_debug(2, "%s destroy conn", __FUNCTION__);
         rc = ipc->destroy_conn(session->t->handle, session->id, conn->id);

@@ -467,11 +467,6 @@ session_conn_shutdown(iscsi_conn_t *conn, queue_task_t *qtask,
 {
 	iscsi_session_t *session = conn->session;
 
-	conn_debug(2, conn, "disconnect conn");
-	/* this will check for a valid interconnect connection */
-	if (session->t->template->ep_disconnect)
-		session->t->template->ep_disconnect(conn);
-
 	if (session->id == INVALID_SESSION_ID)
 		goto cleanup;
 
@@ -488,6 +483,11 @@ session_conn_shutdown(iscsi_conn_t *conn, queue_task_t *qtask,
 			return ISCSI_ERR_INTERNAL;
 		}
 	}
+
+	conn_debug(2, conn, "disconnect conn");
+	/* this will check for a valid interconnect connection */
+	if (session->t->template->ep_disconnect)
+		session->t->template->ep_disconnect(conn);
 
 	conn_debug(2, conn, "kdestroy conn");
 	if (ipc->destroy_conn(session->t->handle, session->id,
@@ -587,7 +587,6 @@ __session_conn_reopen(iscsi_conn_t *conn, queue_task_t *qtask, int do_stop,
 	conn_delete_timers(conn);
 	conn->state = ISCSI_CONN_STATE_XPT_WAIT;
 
-	conn->session->t->template->ep_disconnect(conn);
 	if (do_stop) {
 		/* state: ISCSI_CONN_STATE_CLEANUP_WAIT */
 		if (ipc->stop_conn(session->t->handle, session->id,
@@ -600,6 +599,8 @@ __session_conn_reopen(iscsi_conn_t *conn, queue_task_t *qtask, int do_stop,
 		log_debug(3, "connection %d:%d is stopped for recovery",
 			  session->id, conn->id);
 	}
+
+	conn->session->t->template->ep_disconnect(conn);
 
 	if (!redirected) {
 		delay = session->def_time2wait;
