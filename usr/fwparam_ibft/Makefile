@@ -39,8 +39,6 @@ CFLAGS += -fPIC $(WARNFLAGS) -I$(TOPDIR)/include -I$(TOPDIR)/usr -D_GNU_SOURCE \
 	  -I$(TOPDIR)/libopeniscsiusr
 CFLAGS += -DSBINDIR=\"$(SBINDIR)\"
 
-LDFLAGS += -L$(TOPDIR)/libopeniscsiusr -liscsiusr
-
 all: $(OBJS)
 
 clean:
