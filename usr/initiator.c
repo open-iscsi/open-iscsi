@@ -55,6 +55,7 @@
 
 #define ISCSI_SESSION_NEED_REOPEN	0
 #define ISCSI_SESSION_DESTROYED		1
+#define ISCSI_SESSION_WAIT_UNBIND_EVENT	2
 
 #define PROC_DIR "/proc"
 
@@ -1069,7 +1070,16 @@ setup_full_feature_phase(iscsi_conn_t *conn)
 			    session->nrec.conn[conn->id].port,
 			    session->nrec.iface.name);
 	} else {
+		char state[12];
+		char id[NAME_SIZE];
+		int err;
+
 		session->notify_qtask = NULL;
+
+		snprintf(id, sizeof(id), "session%d", session->id);
+		err = sysfs_get_str(id, "iscsi_session", "target_state", state, 12);
+		if (!err && !strncmp(state, "ALLOCATED", 9))
+			session_scan_host(session, session->hostno, NULL);
 
 		session_online_devs(session->hostno, session->id);
 		mgmt_ipc_write_rsp(c->qtask, ISCSI_SUCCESS);
@@ -2043,6 +2053,7 @@ sync_conn(iscsi_session_t *session, uint32_t cid)
  * RETURN VALUE:
  * 	ISCSI_SESSION_NEED_REOPEN: session is valid and ready to reopen
  * 	ISCSI_SESSION_DESTROYED: session is kind of broken which has been destroyed
+ * 	ISCSI_SESSION_WAIT_UNBIND_EVENT: waiting for kernel's unbind event
  */
 static int check_and_cleanup_session(iscsi_session_t *session)
 {
@@ -2079,7 +2090,24 @@ static int check_and_cleanup_session(iscsi_session_t *session)
 		goto destroy_conn;
 	}
 
+	snprintf(id, sizeof(id), "session%d", session->id);
+	sysfs_get_str(id, "iscsi_session", "target_state", state, 12);
+
+	if (!strncmp(state, "UNBINDING", 9)) {
+		log_warning("Donot sync UNBINDING session%d", session->id);
+		return ISCSI_SESSION_WAIT_UNBIND_EVENT;
+	}
+
+	if (!strncmp(state, "UNBOUND", 7)) {
+		log_warning("Shutdown UNBOUND session%d", session->id);
+		goto stop_conn;
+	}
 	return ISCSI_SESSION_NEED_REOPEN;
+
+stop_conn:
+	rc = ipc->stop_conn(session->t->handle, session->id, 0, STOP_CONN_TERM);
+	if (rc)
+		log_error("BUG: stop connection%d:0 failed %s", session->id, strerror(-rc));
 
 destroy_conn:
 	rc = ipc->destroy_conn(session->t->handle, session->id, 0);
@@ -2128,6 +2156,8 @@ iscsi_sync_session(node_rec_t *rec, queue_task_t *qtask, uint32_t sid)
 	if (err == ISCSI_SESSION_DESTROYED) {
 		err = ISCSI_ERR_SESSION_NOT_CONNECTED;
 		goto destroy_session;
+	} else if (err == ISCSI_SESSION_WAIT_UNBIND_EVENT) {
+		return ISCSI_ERR_SESSION_NOT_CONNECTED;
 	}
 
 	session->hostno = iscsi_sysfs_get_host_no_from_sid(sid, &err);
