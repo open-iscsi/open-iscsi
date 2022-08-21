@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/sh
 #
 # Open-iSCSI Regression Test Utility
 # Copyright (C) 2004 Dmitry Yusupov
@@ -24,56 +24,54 @@ DEFAULTMOUNTOPTS='-o _netdev'
 # to avoid mount looking for fstype
 MOUNTOPTIONS="${MOUNTOPTIONS} -t ${FSTYPE}"
 MKFSCMD="${MKFSCMD:-mkfs.${FSTYPE}} ${MKFSOPTS}"
-PARTITIONSUFFIX="1"
 BONNIEPARAMS="${BONNIEPARAMS:--r0 -n10:0:0 -s16 -uroot -f -q}"
 
 trap regress_signal INT QUIT TERM
 regress_signal() {
-    printf "\nterminating, restore defaults: "
+    printf '\nterminating, restore defaults: '
 	# use the other function to clean up
 	imm_data_en="Yes"
 	initial_r2t_en="No"
 	hdrdgst_en="None,CRC32C"
 	datdgst_en="None,CRC32C"
-	c="${iscsiadm} -m node -T $target -p $ipnr -o update"
 	first_burst="$((256*1024))"
 	max_burst="$((16*1024*1024-1024))"
 	max_recv_dlength="$((128*1024))"
 	max_r2t="1"
 	update_cfg
-	${iscsiadm} -m node -T $target -p $ipnr --logout 2>/dev/null >/dev/null
-    printf "done\n"
+	"${iscsiadm}" -m node -T "$target" -p "$ipnr" --logout 2>/dev/null >/dev/null
+    echo 'done'
     exit 0
 }
 
-function update_cfg() {
-	c="${iscsiadm} -m node -T $target -p $ipnr -o update"
-	$c -n node.session.iscsi.ImmediateData -v $imm_data_en
-	$c -n node.session.iscsi.InitialR2T -v $initial_r2t_en
-	$c -n node.conn[0].iscsi.HeaderDigest -v $hdrdgst_en
-	$c -n node.conn[0].iscsi.DataDigest -v $datdgst_en
-	$c -n node.session.iscsi.FirstBurstLength -v $first_burst
-	$c -n node.session.iscsi.MaxBurstLength -v $max_burst
-	$c -n node.conn[0].iscsi.MaxRecvDataSegmentLength -v $max_recv_dlength
-	$c -n node.session.iscsi.MaxOutstandingR2T -v $max_r2t
+update_cfg() {
+	c() { "${iscsiadm}" -m node -T "$target" -p "$ipnr" -o update "$@"; }
+	c -n node.session.iscsi.ImmediateData -v $imm_data_en
+	c -n node.session.iscsi.InitialR2T -v $initial_r2t_en
+	c -n node.conn[0].iscsi.HeaderDigest -v $hdrdgst_en
+	c -n node.conn[0].iscsi.DataDigest -v $datdgst_en
+	c -n node.session.iscsi.FirstBurstLength -v $first_burst
+	c -n node.session.iscsi.MaxBurstLength -v $max_burst
+	c -n node.conn[0].iscsi.MaxRecvDataSegmentLength -v $max_recv_dlength
+	c -n node.session.iscsi.MaxOutstandingR2T -v $max_r2t
 }
 
-function disktest_run() {
+disktest_run() {
 	bsizes="512 1024 2048 4096 8192 16384 32768 65536 131072 1000000"
-	test "x$bsize" != x && bsizes=$bsize
-	test "x$bsize" = xbonnie && return 0;
+	[ -z "$bsize" ] && bsizes=$bsize
+	[ "$bsize" = "bonnie" ] && return 0;
 	for bs in $bsizes; do
-		echo -n "disktest -T2 -K8 -B$bs -r -ID $device: "
-		#if ! ${disktest} -T2 -K8 -B$bs -r -ID $device >/dev/null; then
-		if ! ${disktest} -T2 -K8 -B$bs -r -ID $device; then
+		printf '%s' "disktest -T2 -K8 -B$bs -r -ID $device: "
+		#if ! "${disktest}" -T2 -K8 -B$bs -r -ID $device >/dev/null; then
+		if ! "${disktest}" -T2 -K8 -B"$bs" -r -ID "$device"; then
 			echo "FAILED"
 			return 1;
 		fi
 		echo "PASSED"
-		#echo -n "disktest -T2 -K8 -B$bs -E16 -w -ID $device: "
-		#if ! ${disktest} -T2 -K8 -B$bs -E16 -w -ID $device >/dev/null;then
-		echo -n "disktest -T2 -K8 -B$bs -E16 -ID $device: "
-		if ! ${disktest} -T2 -K8 -B$bs -E16 -ID $device; then
+		#printf '%s' "disktest -T2 -K8 -B$bs -E16 -w -ID $device: "
+		#if ! "${disktest}" -T2 -K8 -B$bs -E16 -w -ID $device >/dev/null;then
+		printf '%s' "disktest -T2 -K8 -B$bs -E16 -ID $device: "
+		if ! "${disktest}" -T2 -K8 -B"$bs" -E16 -ID "$device"; then
 			echo "FAILED"
 			return 1;
 		fi
@@ -82,14 +80,45 @@ function disktest_run() {
 	return 0;
 }
 
-function fdisk_run() {
-	echo -n "sfdisk -qf $device: "
-	#sfdisk -Lqf $device >/dev/null 2>/dev/null <<-EOF
-	sfdisk -Lqf $device <<-EOF
-	,
-	quit
-	EOF
+fdisk_run() {
+	printf '%s' "sfdisk -qf $device: "
+	#if ! printf '%s\n' . quit | sfdisk -Lqf "$device" >/dev/null 2>/dev/null; then
+	if ! printf '%s\n' . quit | sfdisk -Lqf "$device"; then
+		echo "FAILED"
+		return 1;
+	fi
+	echo "PASSED"
+	return 0;
+}
+
+mkfs_run() {
+	printf '%s' "${MKFSCMD} $device_partition: "
+	#if ! ${MKFSCMD} "$device_partition" 2>/dev/null >/dev/null; then
+	if ! ${MKFSCMD} "$device_partition" ; then
+		echo "FAILED"
+		return 1;
+	fi
+	echo "PASSED"
+	return 0;
+}
+
+bonnie_run() {
+	dir="$(mktemp -t /tmp/iscsi.bonnie.regression.XXXXXXXX)"
+	umount "$dir" 2>/dev/null >/dev/null
+	rm -rf "$dir"; mkdir "$dir"
+	printf '%s' "mount $dir: "
+	# shellcheck disable=SC2086
+	if ! mount ${MOUNTOPTIONS} "$device_partition" "$dir"; then
+		echo "FAILED"
+		return 1;
+	fi
+	echo "PASSED"
+	printf '%s' "bonnie++ ${BONNIEPARAMS}: "
+	# shellcheck disable=SC2086
+	(cd "$dir" && "${bonnie}" ${BONNIEPARAMS} 2>/dev/null >/dev/null)
 	rc=$?
+	umount "$dir" 2>/dev/null >/dev/null
+	rmdir "$dir"
 	if [ $rc -ne 0 ]; then
 		echo "FAILED"
 		return 1;
@@ -98,43 +127,7 @@ function fdisk_run() {
 	return 0;
 }
 
-function mkfs_run() {
-	echo -n "${MKFSCMD} $device_partition: "
-	#if ! ${MKFSCMD} $device_partition 2>/dev/null >/dev/null; then
-	if ! ${MKFSCMD} $device_partition ; then
-		echo "FAILED"
-		return 1;
-	fi
-	echo "PASSED"
-	return 0;
-}
-
-function bonnie_run() {
-	dir="/tmp/iscsi.bonnie.regression.$record.$RANDOM"
-	umount $dir 2>/dev/null >/dev/null
-	rm -rf $dir; mkdir $dir
-	echo -n "mount $dir: "
-	if ! mount ${MOUNTOPTIONS} $device_partition $dir; then
-		echo "FAILED"
-		return 1;
-	fi
-	echo "PASSED"
-	echo -n "bonnie++ ${BONNIEPARAMS}: "
-	pushd $dir >/dev/null
-	${bonnie} ${BONNIEPARAMS} 2>/dev/null >/dev/null
-	rc=$?
-	popd >/dev/null
-	umount $dir 2>/dev/null >/dev/null
-	rmdir ${dir}
-	if [ $rc -ne 0 ]; then
-		echo "FAILED"
-		return 1;
-	fi
-	echo "PASSED"
-	return 0;
-}
-
-function fatal() {
+fatal() {
 	echo "regression.sh: $1"
 	echo "Usage: regression.sh [-f | <targetname> <ipnumber#> ] <device> [test#[:#]] [bsize]"
 	exit 1
@@ -142,29 +135,29 @@ function fatal() {
 
 ############################ main ###################################
 
-disktest=`which disktest`
-iscsiadm=`which iscsiadm`
-bonnie=`which bonnie++`
-datfile=`dirname $0`"/regression.dat"
-test ! -e ${datfile} && fatal "can not find regression.dat"
-test ! -e ${disktest} && fatal "can not find disktest"
-test ! -e ${iscsiadm} && fatal "can not find iscsiadm"
-test ! -e ${bonnie} && fatal "can not find bonnie++"
+disktest="$(command -v disktest)"
+iscsiadm="$(command -v iscsiadm)"
+bonnie="$(command -v bonnie++)"
+datfile="$(dirname "$0")/regression.dat"
+[ -e "${datfile}"  ] || fatal "can not find regression.dat"
+[ -e "${disktest}" ] || fatal "can not find disktest"
+[ -e "${iscsiadm}" ] || fatal "can not find iscsiadm"
+[ -e "${bonnie}"   ] || fatal "can not find bonnie++"
 
-if test x$1 = "x-f" -o x$1 = "x--format"; then
-	test x$2 = x && fatal "SCSI device parameter error"
+if [ "$1" = "-f" ] || [ "$1" = "--format" ]; then
+	[ -n "$2" ] || fatal "SCSI device parameter error"
 	device=$2
 else
-	test x$1 = x && fatal "target name parameter error"
-	test x$2 = x && fatal "ipnumber parameter error"
-	test x$3 = x && fatal "SCSI device parameter error"
+	[ -n "$1" ] || fatal "target name parameter error"
+	[ -n "$2" ] || fatal "ipnumber parameter error"
+	[ -n "$3" ] || fatal "SCSI device parameter error"
 
 	target="$1"
 	ipnr="$2"
 	device=$3
 fi
 
-device_dir="$(dirname ${device})"
+device_dir="$(dirname "${device}")"
 device_partition=''
 case "${device_dir}" in
 	# /dev/sdaX
@@ -176,7 +169,7 @@ case "${device_dir}" in
 	/dev/iscsi/*) device_partition="${device}-part1" ;;
 esac
 
-if test x$1 = "x-f" -o x$1 = "x--format"; then
+if [ "$1" = "-f" ] || [ "$1" = "--format" ]; then
 	mkfs_run
 	exit
 fi
@@ -186,60 +179,57 @@ if [ -z "${device_partition}" ]; then
 	exit 1
 fi
 
-test "x$4" != x && begin="$4"
-test "x$5" != x && bsize="$5"
+[ -n "$4" ] && begin="$4"
+[ -n "$5" ] && bsize="$5"
 
-if test "x$begin" != "x"; then
-	end="${begin/*:}"
-	begin="${begin/:*}"
+if [ -n "$begin" ]; then
+	end="${begin##*:}"
+	begin="${begin%%:*}"
 fi
 
 # don't say we didn't warn you
 if [ -z "${SKIP_WARNING}" ]; then
 	cat <<-EOF
 	BIG FAT WARNING!
-	
+
 	Open-iSCSI Regression Test Suite is about to start. It is going
 	to use "$device" for its testing. iSCSI session could be re-opened
 	during the tests several times and as the result device name could
 	not match provided device name if some other SCSI activity happened
 	during the test.
-	
-	Are you sure you want to continue? [y/n]:
+
+	Are you sure you want to continue? [Y/n]:
 	EOF
-	read line
-	if test x$line = xn -o x$line = xN -o x$line = xno -o x$line = xNO; then
-		echo "aborting..."
-		exit
-	fi
+	read -r line
+	case "$line" in
+		[nN0]*)
+			echo "aborting..."
+			exit
+			;;
+	esac
 fi
 
 i=0
-cat ${datfile} | while read line; do
-	if echo $line | grep "^#" >/dev/null; then continue; fi
-	if echo $line | grep "^$" >/dev/null; then continue; fi
-	if test x$begin != x; then
-		if test x$begin != x$i -a x$end = x; then
-			let i=i+1
+while read -r imm_data_en initial_r2t_en hdrdgst_en datdgst_en first_burst max_burst max_recv_dlength max_r2t; do
+	[ -z "${line}" ] && continue
+	[ "${line#'#'}" != "$line" ] && continue
+	if [ -n "$begin" ]; then
+		if [ "$begin" != "$i" ] && [ -z "$end" ]; then
+			i=$(( i + 1 ))
 			continue
-		elif test x$begin != x -a x$end != x; then
-			if test $i -lt $begin -o $i -gt $end; then
-				let i=i+1
+		elif [ -n "$end" ]; then
+			if [ "$i" -lt "$begin" ] || [ "$i" -gt "$end" ]; then
+				i=$(( i + 1 ))
 				continue
 			fi
 		fi
 	fi
-	imm_data_en=`echo $line | awk '/^[YesNo]+/ {print $1}'`
-	if test x$imm_data_en = x; then continue; fi
-	initial_r2t_en=`echo $line | awk '{print $2}'`
-	hdrdgst_en=`echo $line | awk '{print $3}'`
-	datdgst_en=`echo $line | awk '{print $4}'`
-	first_burst=`echo $line | awk '{print $5}'`
-	max_burst=`echo $line | awk '{print $6}'`
-	max_recv_dlength=`echo $line | awk '{print $7}'`
-	max_r2t=`echo $line | awk '{print $8}'`
+	case "$imm_data_en" in
+		[YesNo][YesNo]*) ;;
+		*) continue ;;
+	esac
 	# ensure we are logged out
-	${iscsiadm} -m node -T $target -p $ipnr --logout 2>/dev/null >/dev/null
+	"${iscsiadm}" -m node -T "$target" -p "$ipnr" --logout 2>/dev/null >/dev/null
 	# set parameters for next run
 	update_cfg
 	echo "================== TEST #$i BEGIN ===================="
@@ -253,14 +243,14 @@ cat ${datfile} | while read line; do
 	echo "MaxOutstandingR2T = $max_r2t"
 	# login for new test
 	# catch errors on this
-	if ! ${iscsiadm} -m node -T $target -p $ipnr --login; then break; fi
-	while [ ! -e $device ] ; do sleep 1 ; done
-	if ! disktest_run; then break; fi
-	if ! fdisk_run; then break; fi
-	if ! mkfs_run; then break; fi
-	if ! bonnie_run; then break; fi
-	let i=i+1
-done
+	"${iscsiadm}" -m node -T "$target" -p "$ipnr" --login || break
+	while [ ! -e "$device" ]; do sleep 1; done
+	disktest_run || break
+	fdisk_run || break
+	mkfs_run || break
+	bonnie_run || break
+	i=$(( i + 1 ))
+done < "${datfile}"
 regress_signal
 echo
 echo "===================== THE END ========================"
