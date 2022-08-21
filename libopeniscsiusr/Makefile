@@ -80,8 +80,8 @@ $(TESTS): CFLAGS += -I$(TOPDIR)/libopeniscsiusr -g
 $(TESTS): LDFLAGS += $(LIBADD) -L$(TOPDIR)/libopeniscsiusr -lopeniscsiusr
 
 check: $(LIBS) $(TESTS)
-	sudo env LD_LIBRARY_PATH=$(LIBISCSI_USR_DIR) TESTS="$(TESTS)" \
-		tests/runtest.sh || exit 1;
+	sudo env LD_LIBRARY_PATH=$(LIBISCSI_USR_DIR) \
+		tests/runtest.sh $(TESTS) || exit 1;
 
 install: install_libs install_docs install_pkg_files
 
