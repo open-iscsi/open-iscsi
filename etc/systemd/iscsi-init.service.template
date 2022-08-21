@@ -16,4 +16,4 @@ WantedBy=systemd-remount-fs.service
 [Service]
 Type=oneshot
 RemainAfterExit=no
-ExecStart=/usr/bin/sh -c 'echo "InitiatorName=`@SBINDIR@/iscsi-iname`" > /etc/iscsi/initiatorname.iscsi'
+ExecStart=/bin/sh -c 'echo "InitiatorName=`@SBINDIR@/iscsi-iname`" > /etc/iscsi/initiatorname.iscsi'
