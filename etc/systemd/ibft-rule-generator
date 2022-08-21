@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/sh
 #
 # Systemd rule generator for ibft interfaces
 #
@@ -31,6 +31,6 @@ fi
 for d in /sys/firmware/ibft/ethernet* ; do
     [ -d "$d" ] || break
     num="${d##*/ethernet}"
-    read mac < $d/mac
+    read -r mac < "$d/mac"
     printf 'SUBSYSTEM=="net", KERNEL=="ibft*", ACTION=="add", DRIVERS=="?*", ATTR{address}=="%s", ATTR{type}=="1", NAME="ibft%s"\n' "$mac" "$num" >> $IBFT_RULES
 done
