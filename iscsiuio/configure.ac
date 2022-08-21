@@ -18,7 +18,6 @@ AC_INIT([iscsiuio], [0.7.8.6], [QLogic-Storage-Upstream@cavium.com])
 
 AM_INIT_AUTOMAKE
 AC_CONFIG_HEADER(config.h)
-AC_PATH_PROGS(BASH, bash)
 
 AC_PROG_CC
 AM_PROG_CC_C_O
