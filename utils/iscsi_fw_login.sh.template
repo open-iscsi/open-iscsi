@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/sh
 #
 # iscsi_fw_login -- login to iscsi firmware targets, if any
 #
@@ -6,7 +6,4 @@
 # firmware target
 #
 
-ARGS="-m fw -l"
-ISCSIADM="@SBINDIR@/iscsiadm"
-
-$ISCSIADM $ARGS
+exec "@SBINDIR@/iscsiadm" -m fw -l
