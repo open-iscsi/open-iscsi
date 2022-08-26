@@ -329,7 +329,7 @@ __DLL_EXPORT const char *iscsi_session_address_get
 __DLL_EXPORT int32_t iscsi_session_port_get(struct iscsi_session *se);
 
 /**
- * iscsi_session_address_get() - Retrieve iSCSI interface information of
+ * iscsi_session_iface_get() - Retrieve iSCSI interface information of
  * specified session
  *
  * Retrieve the iSCSI interface information of specified iSCSI session.

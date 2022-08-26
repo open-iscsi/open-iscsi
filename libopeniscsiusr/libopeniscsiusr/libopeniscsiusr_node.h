@@ -44,7 +44,7 @@ __DLL_EXPORT const char *iscsi_node_dump_config(struct iscsi_node *node,
 						bool show_secret);
 
 /**
- * iscsi_node_dump_config() - Print all configurations of specified iSCSI
+ * iscsi_node_print_config() - Print all configurations of specified iSCSI
  * node to STDOUT.
  *
  * Print all configurations of specified iSCSI node.
