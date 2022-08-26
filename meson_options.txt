@@ -1,0 +1,5 @@
+# options for meson build system
+option('homedir', type: 'string', value: '/etc/iscsi')
+option('dbroot', type: 'string', value: '/var/lib/iscsi')
+option('rulesdir', type: 'string', value: '/etc/udev/rules.d')
+option('systemddir', type: 'string', value: '/usr/lib/systemd')
