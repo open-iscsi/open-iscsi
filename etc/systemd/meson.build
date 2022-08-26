@@ -17,4 +17,4 @@ foreach u: iscsi_etc_systemd_socket_units
 endforeach
 
 # systemd generator file
-iscsi_etc_systemd_generator_arr = {'ibft-rule-geneator': files('ibft-rule-generator')}
+iscsi_etc_systemd_generator_arr = {'ibft-rule-generator': files('ibft-rule-generator')}
