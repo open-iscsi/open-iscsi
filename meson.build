@@ -16,15 +16,16 @@ project('open-iscsi', 'c',
 #  3 times
 #
 
+no_systemd = get_option('no_systemd')
 home_dir_absolute = get_option('homedir')
 db_root_absolute = get_option('dbroot')
 sbin_dir_absolute = get_option('sbindir')
 rules_dir_absolute = get_option('rulesdir')
-systemd_dir_absolute = get_option('systemddir')
-
-# systemd unit dir
-unit_dir_absolute = join_paths(systemd_dir_absolute, 'system')
-generator_dir_absolute = join_paths(systemd_dir_absolute, 'system-generators')
+if not no_systemd
+  systemd_dir_absolute = get_option('systemddir')
+  unit_dir_absolute = join_paths(systemd_dir_absolute, 'system')
+  generator_dir_absolute = join_paths(systemd_dir_absolute, 'system-generators')
+endif
 
 #
 # get list of sources from subdirs
@@ -42,13 +43,19 @@ conf.set('SBINDIR', sbin_dir_absolute)
 conf.set('HOMEDIR', home_dir_absolute)
 conf.set('DBROOT', db_root_absolute)
 
+# set up our C preprocessor flags for home dir and db dir
 home_dir_template = '-DLOCK_DIR="@0@"'
 home_dir_str = home_dir_template.format(home_dir_absolute)
 db_root_template = '-DISCSI_DB_ROOT="@0@"'
 db_root_str = db_root_template.format(db_root_absolute)
 
-# sett up general C args
+# set up general C args
 genl_cargs = ['-D_GNU_SOURCE', '-DOFFLOAD_BOOT_SUPPORTED', home_dir_str, db_root_str]
+
+# set up no-system flag, if needed
+if no_systemd
+  genl_cargs += '-DNO_SYSTEMD'
+endif
 
 #
 # set up include directories
@@ -62,7 +69,9 @@ usr_inc = include_directories('usr')
 kmod_dep = dependency('libkmod')
 crypto_dep = dependency('libcrypto')
 mount_dep = dependency('mount')
-sysd_dep = dependency('libsystemd')
+if not no_systemd
+  systemd_dep = dependency('libsystemd')
+endif
 
 #
 # build two static libs that programs in 'usr' will need, which
@@ -151,10 +160,13 @@ foreach a,v: test_arr
 endforeach
 
 # set up usr dependences and link args
-usr_deps = [kmod_dep, crypto_dep, mount_dep, sysd_dep, sysdeps_dep, fwparam_dep, libiscsi_usr_dep]
-usr_largs = []
+usr_deps = [kmod_dep, crypto_dep, mount_dep, sysdeps_dep, fwparam_dep, libiscsi_usr_dep]
+if not no_systemd
+  usr_deps += systemd_dep
+endif
 
 # handle two libs that may not be found with "dependency()"
+usr_largs = []
 libs_needed = ['rt', 'isns']
 cc = meson.get_compiler('c')
 foreach l: libs_needed
@@ -229,40 +241,43 @@ foreach k,v: iscsi_util_other_template_arr
     install_mode: 'rw-r--r--')
 endforeach
 
-#
-# handle stuff (systemd, config files, ...) from 'etc'
-#
 
-# handle templated service files
-foreach k,v: iscsi_etc_systemd_service_units_arr
-  configure_file(
-    input: v,
-    output: k,
-    configuration: conf,
-    install: true,
-    install_dir: unit_dir_absolute)
-endforeach
+if not no_systemd
+  #
+  # handle stuff (systemd, config files, ...) from 'etc'
+  #
 
-# handle socket service files (not templated)
-foreach k,v: iscsi_etc_systemd_socket_units_arr
-  configure_file(
-    input: v,
-    output: k,
-    copy: true,
-    install: true,
-    install_dir: unit_dir_absolute)
-endforeach
+  # handle templated service files
+  foreach k,v: iscsi_etc_systemd_service_units_arr
+    configure_file(
+      input: v,
+      output: k,
+      configuration: conf,
+      install: true,
+      install_dir: unit_dir_absolute)
+  endforeach
 
-# the systemd generator file
-foreach k,v: iscsi_etc_systemd_generator_arr
-  configure_file(
-    input: v,
-    output: k,
-    copy: true,
-    install: true,
-    install_dir: generator_dir_absolute,
-    install_mode: 'rwxr-xr-x')
-endforeach
+  # handle socket service files (not templated)
+  foreach k,v: iscsi_etc_systemd_socket_units_arr
+    configure_file(
+      input: v,
+      output: k,
+      copy: true,
+      install: true,
+      install_dir: unit_dir_absolute)
+  endforeach
+
+  # the systemd generator file
+  foreach k,v: iscsi_etc_systemd_generator_arr
+    configure_file(
+      input: v,
+      output: k,
+      copy: true,
+      install: true,
+      install_dir: generator_dir_absolute,
+      install_mode: 'rwxr-xr-x')
+  endforeach
+endif
 
 # the iface.example file
 foreach k,v: iscsi_etc_iface_file_arr
