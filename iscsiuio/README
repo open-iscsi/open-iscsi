@@ -47,12 +47,7 @@ Directory Structure of this Package:
 Compiling / Installing
 =======================================
 
-1.  Please untar the tarball.
-2.  Run the configure script.  This will create the Makefiles and proper
-    header files needed for the build.
-3.  Run 'make'.  This will create the binary, 'iscsiuio'
-4.  Run 'make install' to place the binaries in their installed location.
-    (The default location is '/sbin')
+This gets built as part of open-iscsi, using meson
 
 iscsid IFACE Configuration File:
 =======================================
