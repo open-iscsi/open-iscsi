@@ -1,19 +1,12 @@
-*.o
+# cscope files
 cscope.files
 cscope.out
 cscope.in.out
 cscope.po.out
+# other usefile files to ignore
 GPATH
 GRTAGS
 GTAGS
 TAGS
 tags
 *.swp
-*.so
-*.so.*
-libopeniscsiusr/docs/man/
-# ^ This folder is used for kernel-doc generated manpages.
-libopeniscsiusr/tests/test_context
-libopeniscsiusr/tests/test_session
-libopeniscsiusr/tests/test_iface
-libopeniscsiusr/tests/test_node
