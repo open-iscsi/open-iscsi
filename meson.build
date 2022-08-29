@@ -1,5 +1,9 @@
+#
+# master meson.build file for open-iscsi project
+#
+
 project('open-iscsi', 'c',
-  meson_version: '>= 0.53.0',
+  meson_version: '>= 0.63.0',
   version: '2.1.7',
   license: 'LGPL-2.1-or-later',
   default_options: [
@@ -26,9 +30,10 @@ if not no_systemd
   unit_dir_absolute = join_paths(systemd_dir_absolute, 'system')
   generator_dir_absolute = join_paths(systemd_dir_absolute, 'system-generators')
 endif
+c_args = get_option('c_args')
 
 #
-# get list of sources from subdirs
+# get list of sources from subdirs (iscsiuio included at bottom)
 #
 subdir('sysdeps')
 subdir('usr')
@@ -36,7 +41,6 @@ subdir('libopeniscsiusr')
 subdir('utils')
 subdir('etc')
 subdir('doc')
-#subdir('iscsiuio')
 
 conf = configuration_data()
 conf.set('SBINDIR', sbin_dir_absolute)
@@ -50,7 +54,7 @@ db_root_template = '-DISCSI_DB_ROOT="@0@"'
 db_root_str = db_root_template.format(db_root_absolute)
 
 # set up general C args
-genl_cargs = ['-D_GNU_SOURCE', '-DOFFLOAD_BOOT_SUPPORTED', home_dir_str, db_root_str]
+genl_cargs = ['-D_GNU_SOURCE', '-DOFFLOAD_BOOT_SUPPORTED', home_dir_str, db_root_str, c_args]
 
 # set up no-system flag, if needed
 if no_systemd
@@ -155,7 +159,6 @@ foreach a,v: test_arr
     include_directories: [lib_inc],
     dependencies: libiscsi_usr_dep,
     c_args: genl_cargs)
-#    install: true)
   test('test ' + a, e)
 endforeach
 
@@ -324,3 +327,9 @@ foreach k,v: iscsi_doc_man_pages_static_arr
     install: true,
     install_dir: 'share/man/man8')
 endforeach
+
+#
+# lastly, build iscsiuio, which does not rely on anything outside itself -- all
+#   the work is done in the meson.build file there
+#
+subdir('iscsiuio')
