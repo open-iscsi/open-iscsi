@@ -213,7 +213,7 @@ endforeach
 #
 
 # build the one binary from utils
-executable('iscsi-iname',
+iname_cmd = executable('iscsi-iname',
   sources: iscsi_iname_src_files,
   c_args: genl_cargs,
   install: true,
@@ -314,13 +314,22 @@ foreach k,v: iscsi_etc_config_file_arr
     install_dir: home_dir_absolute)
 endforeach
 
+# create a *unique* initiatorname file
+  custom_target(
+    'initiatorname_file',
+    output: 'initiatorname.iscsi',
+    capture: true,
+    command: iname_cmd,
+    install: true,
+    install_dir: home_dir_absolute,
+    install_mode: 'rwxr-xr-x')
+
 #
 # handle documentation from 'doc'
 #
 
 # handle template files
 foreach k,v: iscsi_doc_man_pages_template_arr
-# message('building: ' + k)
   configure_file(
     input: v,
     output: k,
@@ -331,7 +340,6 @@ endforeach
 
 # handle regular files
 foreach k,v: iscsi_doc_man_pages_static_arr
-# message('building: ' + k)
   configure_file(
     input: v,
     output: k,
