@@ -6,9 +6,9 @@
 
    Warning: THIS IS AN ESTIMATION :)
 
-   * 22 files / 797 lines added, Mostly meson.build, but also 2 scripts
-   * 49 files / 45,145 lines removed (from autobuild, Makefiles, and .gitignore)
-   * 8 files / 53 lines changed, (about 1/4 new, 3/4 bug fix)
+   * added: 22 files / 797 lines, Mostly meson.build, but also 2 scripts
+   * removed: 52 files / 45,242 lines (from autobuild, Makefiles, and .gitignore)
+   * changed: 8 files / 53 lines (about 1/4 new, 3/4 bug fix)
 
    => So more than 25 less files, and more than 45,000 less lines
       (mostly from iscsiuio)
@@ -51,7 +51,7 @@ TODO: Update top-level README file, w/r/t make vs meson
 
 2. Files removed (NOTE: may be overblown?)
 
-   - Total removed: 50 files, 45,175 lines
+   - Total removed: 52 files, 45,242 lines
 
       - Makefile-s: 6 files, 579 lines
 
@@ -60,6 +60,9 @@ TODO: Update top-level README file, w/r/t make vs meson
       - The .gitignore files:  7 files, 47 lines
 
       - One iscsi version file (libopeniscsiusr/version.h): 1 file, 30 lines
+
+      - two perl file in libopeniscsiusr/docs used to generate man pages
+        (now subsumed into kernel-doc): 2 files, 67 lines
 
 
 3. Files changes:
