@@ -1,0 +1,53 @@
+
+
+		A summary of changes for meson
+
+0. Executive Summary
+
+   * 22 files / 797 lines added, Mostly meson.build, but also 2 scripts
+   * 49 files / 45,145 lines removed (from autobuild, Makefiles, and .gitignore)
+   * 8 files / 53 lines changed, (about 1/4 new, 3/4 bug fix)
+
+   => So more than 25 less files, and more than 45,000 less lines
+      (mostly from iscsiuio)
+
+
+1. Files added:
+
+   - Total added: 22 files, 797 lines
+
+      - The meson build files added: 20 files, 735 lilnes
+
+      - list-man-pages.sh script: 1 file, 21 lines
+
+      - build_date.sh -- to build build_date.c and build_date.h (was in
+	autoconf): 1 file, 41 lines
+
+
+2. Files removed (NOTE: may be overblown?)
+
+   - Total removed: 49 files, 45,145 lines
+
+      - Makefile-s: 6 files, 579 lines
+
+      - The iscsiuio autoconf files: 24 files, 45,089 lines
+
+      - The .gitignore files:  7 files, 47 lines
+
+
+3. Files changes:
+
+   - Total: 8 files, 53 lines
+
+      - libopeniscsiur header file kernel-doc errors fixed: 3 files, 27 lines
+	(these shouldn't count)
+
+      - libopeniscsiusr/docs kernel-doc updated: 3 files, 8 lines
+      
+      - iscsiuio README: 1 file, 7 lines
+
+      - .gitignore: 1 file, 11 lines
+
+4. Files moved:
+
+   - moved utils/sysdeps/ to sysdeps (no longer under utils)
