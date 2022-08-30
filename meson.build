@@ -3,16 +3,26 @@
 #
 
 project('open-iscsi', 'c',
-  meson_version: '>= 0.63.0',
+  meson_version: '>= 0.54.0',
   version: '2.1.7',
   license: 'LGPL-2.1-or-later',
   default_options: [
     'c_std=gnu99',
     'warning_level=1',
     'buildtype=release',
-    'prefix=/usr',
-    'sbindir=/sbin']
+    'prefix=/usr']
   )
+# can't set sbindir=/sbin (vs /usr/sbin) here, since that only
+# works on newer version of meson (>0.63.0)
+
+# find out if we have a newer or older version of meson, so
+# we know which features we can use
+current_meson_version = meson.version()
+if current_meson_version.version_compare('>= 0.63.0')
+  newer_meson_version = true
+else
+  newer_meson_version = false
+endif
 
 #
 # TODO: figure out how to use version from here
@@ -31,6 +41,7 @@ if not no_systemd
   generator_dir_absolute = join_paths(systemd_dir_absolute, 'system-generators')
 endif
 c_args = get_option('c_args')
+man_dir = 'share/man'
 
 #
 # get list of sources from subdirs (iscsiuio included at bottom)
@@ -47,14 +58,15 @@ conf.set('SBINDIR', sbin_dir_absolute)
 conf.set('HOMEDIR', home_dir_absolute)
 conf.set('DBROOT', db_root_absolute)
 
-# set up our C preprocessor flags for home dir and db dir
-home_dir_template = '-DLOCK_DIR="@0@"'
-home_dir_str = home_dir_template.format(home_dir_absolute)
-db_root_template = '-DISCSI_DB_ROOT="@0@"'
-db_root_str = db_root_template.format(db_root_absolute)
 
 # set up general C args
-genl_cargs = ['-D_GNU_SOURCE', '-DOFFLOAD_BOOT_SUPPORTED', home_dir_str, db_root_str, c_args]
+genl_cargs = [
+  '-D_GNU_SOURCE',
+  '-DOFFLOAD_BOOT_SUPPORTED',
+  '-DISCSI_DB_ROOT="@0@"'.format(db_root_absolute),
+  '-DLOCK_DIR="@0@"'.format(home_dir_absolute),
+  '-DISCSI_VERSION_STR="@0@"'.format(meson.project_version()),
+  c_args]
 
 # set up no-system flag, if needed
 if no_systemd
@@ -117,12 +129,12 @@ foreach api_file: libiscsi_usr_doc_headers
         '-function', page,
         api_file],
       install: true,
-      install_dir: 'share/man/man3')
+      install_dir: man_dir + '/man3')
   endforeach
 endforeach
 
 # install our static man page(s)
-install_man(libiscsi_usr_docs, install_dir: 'share/man/man3')
+install_man(libiscsi_usr_docs, install_dir: man_dir + '/man3')
 
 # build the shared library
 libiscsi_usr = shared_library('openiscsiusr',
@@ -314,7 +326,7 @@ foreach k,v: iscsi_doc_man_pages_template_arr
     output: k,
     configuration: conf,
     install: true,
-    install_dir: 'share/man/man8')
+    install_dir: man_dir + '/man8')
 endforeach
 
 # handle regular files
@@ -325,7 +337,7 @@ foreach k,v: iscsi_doc_man_pages_static_arr
     output: k,
     copy: true,
     install: true,
-    install_dir: 'share/man/man8')
+    install_dir: man_dir + '/man8')
 endforeach
 
 #
