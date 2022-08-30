@@ -4,12 +4,37 @@
 
 0. Executive Summary
 
+   Warning: THIS IS AN ESTIMATION :)
+
    * 22 files / 797 lines added, Mostly meson.build, but also 2 scripts
    * 49 files / 45,145 lines removed (from autobuild, Makefiles, and .gitignore)
    * 8 files / 53 lines changed, (about 1/4 new, 3/4 bug fix)
 
    => So more than 25 less files, and more than 45,000 less lines
       (mostly from iscsiuio)
+
+TODO: Update top-level README file, w/r/t make vs meson
+
+0.5. High-level Changes
+
+  Good:
+  - Remove the two version files from usr and libopeniscsiusr
+  - Remove all the autoconf files
+  - Remove all the make files
+  - Remove almost all the .gitignore files, since we don't
+    build where the sources live
+  - About 25% faster? (GET NUMBERS!)
+  - Not as fragile, i.e. finds dependencies and needed programs
+  - NO FUNCTIONAL CHANGES
+
+  Bad:
+  - can't build in each directory now
+  - Older systems don't create brcm-iscsiuio symlink to iscsiuio
+  - libopeniscsiusr and iscsiuio man pages no longer build gzipped
+    (but RPM install can handle that)
+  - Older systems can't specify "sbindir", so binaries end up in 
+    /usr/sbin (I _think_ I can work around this)
+  - Users will need meson, and know how to use it (new README?)
 
 
 1. Files added:
@@ -26,13 +51,15 @@
 
 2. Files removed (NOTE: may be overblown?)
 
-   - Total removed: 49 files, 45,145 lines
+   - Total removed: 50 files, 45,175 lines
 
       - Makefile-s: 6 files, 579 lines
 
       - The iscsiuio autoconf files: 24 files, 45,089 lines
 
       - The .gitignore files:  7 files, 47 lines
+
+      - One iscsi version file (libopeniscsiusr/version.h): 1 file, 30 lines
 
 
 3. Files changes:
