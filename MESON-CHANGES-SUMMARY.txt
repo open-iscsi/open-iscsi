@@ -10,6 +10,9 @@
    * removed: 52 files / 45,242 lines (from autobuild, Makefiles, and .gitignore)
    * changed: 8 files / 53 lines (about 1/4 new, 3/4 bug fix)
 
+   * wc -l of both clean directory tree when done
+    (minus .git): 93014 (old) vs 93272 (new)		<== So new is slightly bigger
+
    => So more than 25 less files, and more than 45,000 less lines
       (mostly from iscsiuio)
 
