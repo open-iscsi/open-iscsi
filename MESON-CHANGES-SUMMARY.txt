@@ -26,6 +26,7 @@ TODO: Update top-level README file, w/r/t make vs meson
   - About 25% faster? (GET NUMBERS!)
   - Not as fragile, i.e. finds dependencies and needed programs
   - NO FUNCTIONAL CHANGES
+  - speed: 5 seconds vs 30 seconds elapsed time!?
 
   Bad:
   - can't build in each directory now
@@ -81,3 +82,12 @@ TODO: Update top-level README file, w/r/t make vs meson
 4. Files moved:
 
    - moved utils/sysdeps/ to sysdeps (no longer under utils)
+
+5. Timing of full build
+
+   - Using old make/autoconf: 24.77 user 3.73 system 0:29.98 elapsed 95% CPU
+
+   - Using new meson: config:  0.80 user 0.20 system 0:01.02 elapsed 98% CPU
+                      build:  25.92 user 3.25 system 0:04.88 elapsed 597% CPU ???
+		      ----------------------------------------------
+		      total:  26.72 user 3.45 system 0:05.90 elapsed
