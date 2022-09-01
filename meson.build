@@ -30,18 +30,29 @@ endif
 #  3 times
 #
 
+fs = import('fs')
+
 no_systemd = get_option('no_systemd')
-home_dir_absolute = get_option('homedir')
-db_root_absolute = get_option('dbroot')
-sbin_dir_absolute = get_option('sbindir')
-rules_dir_absolute = get_option('rulesdir')
+home_dir = get_option('homedir')
+sbin_dir = get_option('sbindir')
+if not fs.is_absolute(home_dir)
+  home_dir = join_paths(get_option('sysconfdir'), home_dir)
+endif
+db_root = get_option('dbroot')
+if not fs.is_absolute(db_root)
+  db_root = join_paths(get_option('sysconfdir'), db_root)
+endif
+rules_dir = get_option('rulesdir')
+if not fs.is_absolute(rules_dir)
+  rules_dir = join_paths(get_option('sysconfdir'), rules_dir)
+endif
 if not no_systemd
-  systemd_dir_absolute = get_option('systemddir')
-  unit_dir_absolute = join_paths(systemd_dir_absolute, 'system')
-  generator_dir_absolute = join_paths(systemd_dir_absolute, 'system-generators')
+  systemd_dir = get_option('systemddir')
+  unit_dir = join_paths(systemd_dir, 'system')
+  generator_dir = join_paths(systemd_dir, 'system-generators')
 endif
 c_args = get_option('c_args')
-man_dir = 'share/man'
+man_dir = get_option('mandir')
 
 #
 # get list of sources from subdirs (iscsiuio included at bottom)
@@ -54,17 +65,17 @@ subdir('etc')
 subdir('doc')
 
 conf = configuration_data()
-conf.set('SBINDIR', sbin_dir_absolute)
-conf.set('HOMEDIR', home_dir_absolute)
-conf.set('DBROOT', db_root_absolute)
+conf.set('SBINDIR', sbin_dir)
+conf.set('HOMEDIR', home_dir)
+conf.set('DBROOT', db_root)
 
 
 # set up general C args
 genl_cargs = [
   '-D_GNU_SOURCE',
   '-DOFFLOAD_BOOT_SUPPORTED',
-  '-DISCSI_DB_ROOT="@0@"'.format(db_root_absolute),
-  '-DLOCK_DIR="@0@"'.format(home_dir_absolute),
+  '-DISCSI_DB_ROOT="@0@"'.format(db_root),
+  '-DLOCK_DIR="@0@"'.format(home_dir),
   '-DISCSI_VERSION_STR="@0@"'.format(meson.project_version()),
   c_args]
 
@@ -116,7 +127,6 @@ foreach api_file: libiscsi_usr_doc_headers
   man_pages = c.stdout().split()
   # process each page, one at a time, generating dependencies
   foreach page: man_pages
-#   message('DEBUG: generating man page: ' + page + ' from ' + '@0@'.format(api_file))
     custom_target(
       page.underscorify() + '_man',
       input: api_file,
@@ -129,12 +139,13 @@ foreach api_file: libiscsi_usr_doc_headers
         '-function', page,
         api_file],
       install: true,
-      install_dir: man_dir + '/man3')
+      install_dir: join_paths(man_dir,  'man3'))
   endforeach
 endforeach
 
 # install our static man page(s)
-install_man(libiscsi_usr_docs, install_dir: man_dir + '/man3')
+install_man(libiscsi_usr_docs,
+  install_dir: join_paths(man_dir, 'man3'))
 
 # build the shared library
 libiscsi_usr = shared_library('openiscsiusr',
@@ -205,7 +216,7 @@ foreach k,v: iscsi_usr_arr
     link_args: usr_largs,
     c_args: genl_cargs,
     install: true,
-    install_dir: sbin_dir_absolute)
+    install_dir: sbin_dir)
 endforeach
 
 #
@@ -217,31 +228,24 @@ iname_cmd = executable('iscsi-iname',
   sources: iscsi_iname_src_files,
   c_args: genl_cargs,
   install: true,
-  install_dir: sbin_dir_absolute)
+  install_dir: sbin_dir)
 
 # process shell templates (2 steps)
 foreach k,v: iscsi_util_sh_template_arr
   subst = configure_file(
     input: v,
-    output: k + '.sh',
-    configuration: conf)
-  configure_file(
-    input: subst,
     output: k,
-    copy: true,
+    configuration: conf,
     install: true,
-    install_dir: sbin_dir_absolute,
+    install_dir: sbin_dir,
     install_mode: 'rwxr-xr-x')
 endforeach
 
 # process shell scripts
 foreach k,v: iscsi_util_sh_arr
-  configure_file(
-    input: v,
-    output: k,
-    copy: true,
-    install: true,
-    install_dir: sbin_dir_absolute,
+  install_data(v,
+    rename: k,
+    install_dir: sbin_dir,
     install_mode: 'rwxr-xr-x')
 endforeach
 
@@ -252,8 +256,7 @@ foreach k,v: iscsi_util_other_template_arr
     output: k,
     configuration: conf,
     install: true,
-    install_dir: rules_dir_absolute,
-    install_mode: 'rw-r--r--')
+    install_dir: rules_dir)
 endforeach
 
 
@@ -269,49 +272,30 @@ if not no_systemd
       output: k,
       configuration: conf,
       install: true,
-      install_dir: unit_dir_absolute)
+      install_dir: unit_dir)
   endforeach
 
   # handle socket service files (not templated)
   foreach k,v: iscsi_etc_systemd_socket_units_arr
-    configure_file(
-      input: v,
-      output: k,
-      copy: true,
-      install: true,
-      install_dir: unit_dir_absolute)
+    install_data(v, install_dir: unit_dir)
   endforeach
 
   # the systemd generator file
   foreach k,v: iscsi_etc_systemd_generator_arr
-    configure_file(
-      input: v,
-      output: k,
-      copy: true,
-      install: true,
-      install_dir: generator_dir_absolute,
+    install_data(v,
+      install_dir: generator_dir,
       install_mode: 'rwxr-xr-x')
   endforeach
 endif
 
 # the iface.example file
 foreach k,v: iscsi_etc_iface_file_arr
-  configure_file(
-    input: v,
-    output: k,
-    copy: true,
-    install: true,
-    install_dir: join_paths(home_dir_absolute, 'ifaces'))
+  install_data(v, install_dir: join_paths(home_dir, 'ifaces'))
 endforeach
 
 # the iscsid.conf config file
 foreach k,v: iscsi_etc_config_file_arr
-  configure_file(
-    input: v,
-    output: k,
-    copy: true,
-    install: true,
-    install_dir: home_dir_absolute)
+  install_data(v, install_dir: home_dir)
 endforeach
 
 # create a *unique* initiatorname file
@@ -321,31 +305,27 @@ endforeach
     capture: true,
     command: iname_cmd,
     install: true,
-    install_dir: home_dir_absolute,
-    install_mode: 'rwxr-xr-x')
+    install_dir: home_dir,
+    install_mode: 'rw-r--r--')
 
 #
 # handle documentation from 'doc'
 #
 
 # handle template files
+man_dir_8 = join_paths(man_dir, 'man8')
 foreach k,v: iscsi_doc_man_pages_template_arr
   configure_file(
     input: v,
     output: k,
     configuration: conf,
     install: true,
-    install_dir: man_dir + '/man8')
+    install_dir: man_dir_8)
 endforeach
 
 # handle regular files
 foreach k,v: iscsi_doc_man_pages_static_arr
-  configure_file(
-    input: v,
-    output: k,
-    copy: true,
-    install: true,
-    install_dir: man_dir + '/man8')
+  install_data(v, install_dir: man_dir_8)
 endforeach
 
 #

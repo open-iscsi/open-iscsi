@@ -12,6 +12,8 @@
 subdir('src')
 subdir('docs')
 
+log_rotate_dir = join_paths(get_option('sysconfdir'), 'logrotate.d')
+
 #
 # our VERSION
 #
@@ -35,6 +37,9 @@ open_iscsi_usr_inc = usr_inc
 # C arguments
 #
 iscsiuio_c_args = [release_str, c_args]
+if no_systemd
+  iscsiuio_c_args += '-DNO_SYSTEMD'
+endif
 
 #
 # build the all the static libs that we will need
@@ -72,16 +77,18 @@ dhcpc_dep = declare_dependency(link_with: lib_apps_dhcpc)
 brcm_dep = declare_dependency(link_with: lib_apps_brcm_iscsi)
 iscsi_uip_dep = declare_dependency(link_with: lib_iscsi_uip)
 iscsiuio_hw_cnic_dep = declare_dependency(link_with: lib_iscsiuio_hw_cnic)
-iscsiuio_largs = []
-pthread_dep = dependency('libpthread', required: false)
-if not pthread_dep.found()
-  pthread_dep = cc.find_library('pthread', required: false)
-endif
-iscsiuio_deps = [dhcpc_dep, brcm_dep, systemd_dep, iscsi_uip_dep, iscsiuio_hw_cnic_dep, sysdeps_dep]
-if pthread_dep.found()
-  iscsiuio_deps += pthread_dep
-else
-  iscsiuio_largs += '-lpthread'
+pthread_dep = dependency('threads')
+
+iscsiuio_deps = [
+  dhcpc_dep,
+  brcm_dep,
+  iscsi_uip_dep,
+  iscsiuio_hw_cnic_dep,
+  sysdeps_dep,
+  pthread_dep]
+
+if not no_systemd
+  iscsiuio_deps += systemd_dep
 endif
 
 # build the binary itself
@@ -97,31 +104,18 @@ iscsiuio = executable('iscsiuio',
     src_unix_libs_inc,
     src_apps_brcm_iscsi_inc],
   c_args: iscsiuio_c_args,
-  link_args: iscsiuio_largs,
   install: true,
-  install_dir: sbin_dir_absolute)
+  install_dir: sbin_dir)
 
 # now make a symlink (only works on newer meson versions)
 if newer_meson_version
   install_symlink('brcm_iscsiuio',
-    install_dir: sbin_dir_absolute,
+    install_dir: sbin_dir,
     pointing_to: 'iscsiuio')
 endif
 
 # install uiolog
-configure_file(
-  input: files('iscsiuiolog'),
-  output: 'iscsiuiolog',
-  copy: true,
-  install: true,
-  install_dir: '/etc/logrotate.d',
-  install_mode: 'rw-r--r--')
+install_data(files('iscsiuiolog'), install_dir: log_rotate_dir)
 
 # install man page
-configure_file(
-  input: iscsiuio_doc_man_page_src,
-  output: iscsiuio_doc_man_page_name,
-  copy: true,
-  install: true,
-  install_dir: man_dir + '/man8',
-  install_mode: 'rw-r--r--')
+install_data(iscsiuio_doc_man_page_src, install_dir: man_dir_8)

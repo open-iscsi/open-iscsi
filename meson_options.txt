@@ -1,7 +1,8 @@
 # options for meson build system
-option('homedir', type: 'string', value: '/etc/iscsi')
-option('dbroot', type: 'string', value: '/var/lib/iscsi')
-option('rulesdir', type: 'string', value: '/etc/udev/rules.d')
 option('systemddir', type: 'string', value: '/usr/lib/systemd')
 option('no_systemd', type: 'boolean', value: false)
 option('src_date_epic', type: 'string', value: 'NONE')
+# these are in the 'sysconfigdir' (/etc by default) unless overridden
+option('homedir', type: 'string', value: 'iscsi')
+option('dbroot', type: 'string', value: 'iscsi')
+option('rulesdir', type: 'string', value: 'udev/rules.d')
