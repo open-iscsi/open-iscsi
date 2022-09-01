@@ -10,11 +10,7 @@ foreach u: iscsi_etc_systemd_service_units
 endforeach
 
 # socket files
-iscsi_etc_systemd_socket_units = ['iscsid', 'iscsiuio']
-iscsi_etc_systemd_socket_units_arr = {}
-foreach u: iscsi_etc_systemd_socket_units
-  iscsi_etc_systemd_socket_units_arr += {u + '.socket': files(u + '.socket')}
-endforeach
+iscsi_etc_systemd_socket_units = files(['iscsid.socket', 'iscsiuio.socket'])
 
 # systemd generator file
-iscsi_etc_systemd_generator_arr = {'ibft-rule-generator': files('ibft-rule-generator')}
+iscsi_etc_systemd_generator_src = files('ibft-rule-generator')

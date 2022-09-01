@@ -17,39 +17,30 @@ project('open-iscsi', 'c',
 
 # find out if we have a newer or older version of meson, so
 # we know which features we can use
-current_meson_version = meson.version()
-if current_meson_version.version_compare('>= 0.63.0')
-  newer_meson_version = true
-else
-  newer_meson_version = false
-endif
+newer_meson_version = meson.version().version_compare('>= 0.63.0')
 
-#
-# TODO: figure out how to use version from here
-#  in a config file, so it doesn't have to be defined
-#  3 times
-#
-
+# needed for path checking
 fs = import('fs')
 
+# handle options
 no_systemd = get_option('no_systemd')
 home_dir = get_option('homedir')
 sbin_dir = get_option('sbindir')
 if not fs.is_absolute(home_dir)
-  home_dir = join_paths(get_option('sysconfdir'), home_dir)
+  home_dir = get_option('sysconfdir') / home_dir
 endif
 db_root = get_option('dbroot')
 if not fs.is_absolute(db_root)
-  db_root = join_paths(get_option('sysconfdir'), db_root)
+  db_root = get_option('sysconfdir') / db_root
 endif
 rules_dir = get_option('rulesdir')
 if not fs.is_absolute(rules_dir)
-  rules_dir = join_paths(get_option('sysconfdir'), rules_dir)
+  rules_dir = get_option('sysconfdir') / rules_dir
 endif
 if not no_systemd
   systemd_dir = get_option('systemddir')
-  unit_dir = join_paths(systemd_dir, 'system')
-  generator_dir = join_paths(systemd_dir, 'system-generators')
+  unit_dir = systemd_dir / 'system'
+  generator_dir = systemd_dir /'system-generators'
 endif
 c_args = get_option('c_args')
 man_dir = get_option('mandir')
@@ -76,8 +67,7 @@ genl_cargs = [
   '-DOFFLOAD_BOOT_SUPPORTED',
   '-DISCSI_DB_ROOT="@0@"'.format(db_root),
   '-DLOCK_DIR="@0@"'.format(home_dir),
-  '-DISCSI_VERSION_STR="@0@"'.format(meson.project_version()),
-  c_args]
+  '-DISCSI_VERSION_STR="@0@"'.format(meson.project_version())]
 
 # set up no-system flag, if needed
 if no_systemd
@@ -139,13 +129,13 @@ foreach api_file: libiscsi_usr_doc_headers
         '-function', page,
         api_file],
       install: true,
-      install_dir: join_paths(man_dir,  'man3'))
+      install_dir: man_dir / 'man3')
   endforeach
 endforeach
 
 # install our static man page(s)
 install_man(libiscsi_usr_docs,
-  install_dir: join_paths(man_dir, 'man3'))
+  install_dir: man_dir / 'man3')
 
 # build the shared library
 libiscsi_usr = shared_library('openiscsiusr',
@@ -276,27 +266,20 @@ if not no_systemd
   endforeach
 
   # handle socket service files (not templated)
-  foreach k,v: iscsi_etc_systemd_socket_units_arr
-    install_data(v, install_dir: unit_dir)
-  endforeach
+  install_data(iscsi_etc_systemd_socket_units,
+    install_dir: unit_dir)
 
   # the systemd generator file
-  foreach k,v: iscsi_etc_systemd_generator_arr
-    install_data(v,
-      install_dir: generator_dir,
-      install_mode: 'rwxr-xr-x')
-  endforeach
+  install_data(iscsi_etc_systemd_generator_src,
+    install_dir: generator_dir,
+    install_mode: 'rwxr-xr-x')
 endif
 
 # the iface.example file
-foreach k,v: iscsi_etc_iface_file_arr
-  install_data(v, install_dir: join_paths(home_dir, 'ifaces'))
-endforeach
+install_data(iscsi_etc_iface_file_src, install_dir: home_dir / 'ifaces')
 
 # the iscsid.conf config file
-foreach k,v: iscsi_etc_config_file_arr
-  install_data(v, install_dir: home_dir)
-endforeach
+install_data(iscsi_etc_config_file_src, install_dir: home_dir)
 
 # create a *unique* initiatorname file
   custom_target(
@@ -313,7 +296,7 @@ endforeach
 #
 
 # handle template files
-man_dir_8 = join_paths(man_dir, 'man8')
+man_dir_8 = man_dir / 'man8'
 foreach k,v: iscsi_doc_man_pages_template_arr
   configure_file(
     input: v,
@@ -323,10 +306,9 @@ foreach k,v: iscsi_doc_man_pages_template_arr
     install_dir: man_dir_8)
 endforeach
 
-# handle regular files
-foreach k,v: iscsi_doc_man_pages_static_arr
-  install_data(v, install_dir: man_dir_8)
-endforeach
+# handle regular/static man pages
+install_man(iscsi_doc_man_pages_static,
+  install_dir: man_dir_8)
 
 #
 # lastly, build iscsiuio, which does not rely on anything outside itself -- all

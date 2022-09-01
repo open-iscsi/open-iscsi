@@ -12,7 +12,7 @@
 subdir('src')
 subdir('docs')
 
-log_rotate_dir = join_paths(get_option('sysconfdir'), 'logrotate.d')
+log_rotate_dir = get_option('sysconfdir') / 'logrotate.d'
 
 #
 # our VERSION
@@ -118,4 +118,4 @@ endif
 install_data(files('iscsiuiolog'), install_dir: log_rotate_dir)
 
 # install man page
-install_data(iscsiuio_doc_man_page_src, install_dir: man_dir_8)
+install_man(iscsiuio_doc_man_page_src, install_dir: man_dir_8)

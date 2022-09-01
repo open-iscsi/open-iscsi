@@ -1,14 +1,10 @@
 # doc subdirectory meson file list
 
 # static man pages
-iscsi_doc_man_pages_static = [
-  'iscsi_discovery',
-  'iscsi_fw_login',
-  'iscsi-iname']
-iscsi_doc_man_pages_static_arr = {}
-foreach p: iscsi_doc_man_pages_static
-  iscsi_doc_man_pages_static_arr += {p + '.8': files(p + '.8')}
-endforeach
+iscsi_doc_man_pages_static = files([
+  'iscsi_discovery.8',
+  'iscsi_fw_login.8',
+  'iscsi-iname.8'])
 
 # template man pages
 iscsi_doc_man_pages_templates = [
