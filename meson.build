@@ -17,7 +17,7 @@ project('open-iscsi', 'c',
 
 # find out if we have a newer or older version of meson, so
 # we know which features we can use
-newer_meson_version = meson.version().version_compare('>= 0.63.0')
+newer_meson_version = meson.version().version_compare('>= 0.61.0')
 
 # needed for path checking
 fs = import('fs')
