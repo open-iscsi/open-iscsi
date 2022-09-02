@@ -86,7 +86,7 @@
 #define DEBUG_ON	0x2
 
 #define INVALID_FD	-1
-#define INVALID_THREAD	-1
+#define INVALID_THREAD	(pthread_t)-1
 #define INVALID_HOST_NO	-1
 
 struct options {
