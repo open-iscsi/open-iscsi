@@ -181,21 +181,10 @@ if not no_systemd
   usr_deps += systemd_dep
 endif
 
-# handle two libs that may not be found with "dependency()"
-usr_largs = []
-libs_needed = ['rt', 'isns']
+# handle two libs that won't be found with "dependency()"
 cc = meson.get_compiler('c')
-foreach l: libs_needed
-  l_dep = dependency('lib' + l, required: false)
-  if not l_dep.found()
-    l_dep = cc.find_library(l, required: false)
-  endif
-  if l_dep.found()
-    usr_deps += l_dep
-  else
-    usr_largs += '-l' + l
-  endif
-endforeach
+usr_deps += cc.find_library('rt')
+usr_deps += cc.find_library('isns')
 
 # build iscsid, iscsiadm, and iscsistart
 foreach k,v: iscsi_usr_arr
@@ -203,7 +192,6 @@ foreach k,v: iscsi_usr_arr
     sources: v,
     include_directories: [usr_inc, main_inc, lib_inc],
     dependencies: usr_deps,
-    link_args: usr_largs,
     c_args: genl_cargs,
     install: true,
     install_dir: sbin_dir)
