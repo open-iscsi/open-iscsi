@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/sh
 #
 # iscsi-gen-initiatorname
 #
@@ -71,14 +71,12 @@ IBFT_SYSFS_DIR=/sys/firmware/ibft/initiator
 #
 usage_and_exit()
 {
-    xit_val=$1
-
     echo "Usage: $NAME [OPTIONS] -- generate an iSCSI initiatorname"
     echo "Where OPTIONS are from:"
     echo "   -h          print usage and exit"
     echo "   -f          overwrite existing InitiatorName, if any"
     echo "   -p IQN-PRE  set prefix for generated IQN (default ${DEFAULT_IQN_PREFIX})"
-    exit $xit_val
+    exit "$1"
 }
 
 #
@@ -88,13 +86,8 @@ usage_and_exit()
 #
 kernel_supplied_initiatorname()
 {
-    kcl="$(</proc/cmdline)"
-    if [[ "$kcl" =~ rd.initiatorname ]] ; then
-	kcl=${kcl##*rd.initiatorname=}
-	echo ${kcl%% *}
-    else
-	echo ""
-    fi
+    kcl="$(grep -o 'rd\.initiatorname=[^ ]*' /proc/cmdline)"
+    echo "${kcl#rd.initiatorname=}"
 }
 
 #
@@ -109,32 +102,32 @@ while getopts "hfp:" o ; do
 	?) usage_and_exit 1 ;;
     esac
 done
-shift $(($OPTIND-1))
+shift $(( OPTIND - 1 ))
 
 if [ "$#" -gt 0 ] ; then
     echo "Error: Invalid argument(s): $*" 1>&2
     usage_and_exit 1
 fi
 
-if [ "$EUID" -ne 0 ] ; then
+if [ "$(id -u)" -ne 0 ] ; then
     echo "Error: You must be root to run this command" 1>&2
     usage_and_exit 1
 fi
 
 # use prefix passed in, if any, else our default
-: ${IQN_PREFIX:=${DEFAULT_IQN_PREFIX}}
+: "${IQN_PREFIX:="${DEFAULT_IQN_PREFIX}"}"
 
 # get kernel command-line-supplied initiator name, if any
 KERNEL_INAME="$(kernel_supplied_initiatorname)"
 
 # get the iBFT initiator name, if present
-[ -d $IBFT_SYSFS_DIR ] && read IBFT_INAME < $IBFT_SYSFS_DIR/initiator-name
+[ -d "$IBFT_SYSFS_DIR" ] && read -r IBFT_INAME < "$IBFT_SYSFS_DIR/initiator-name"
 
 # get the systemd-supplied initiator name, if present (as InitiatorName)
 [ -r "$INAME_FILE" ] && . "$INAME_FILE"
 
 # if we have a local initiator name and "force" is not set end it now
-if [ "$InitiatorName" -a -z "$FORCE" ] ; then
+if [ -n "$InitiatorName" ] && [ -z "$FORCE" ] ; then
     echo "Error: you cannot overwrite the current InitiatorName unless 'force' is set." 1>&2
     usage_and_exit 1
 fi
@@ -155,7 +148,7 @@ fi
 
 # if we have both iBFT and kernel command line initiator names that
 # do not match end it now
-if [ "$IBFT_INAME" -a "$KERNEL_INAME" -a "$IBFT_INAME" != "$KERNEL_INAME" ] ; then
+if [ -n "$IBFT_INAME" ] && [ -n "$KERNEL_INAME" ] && [ "$IBFT_INAME" != "$KERNEL_INAME" ] ; then
     echo "Error: Kernel cmdline Initiator Name: $KERNEL_INAME" 1>&2
     echo "  does not match iBFT Initiator Name: $IBFT_INAME" 1>&2
     echo "Please ensure they both match, or remove the kernel parameter, then" 1>&2
@@ -170,19 +163,19 @@ fi
 echo "##" > $INAME_FILE || exit 1
 
 if [ "$KERNEL_INAME" ] ; then
-    echo "## $INAME_FILE" >> $INAME_FILE
-    echo "$KERNEL_COMMENTS" >> $INAME_FILE
-    echo "InitiatorName=$KERNEL_INAME" >> $INAME_FILE
+    echo "## $INAME_FILE"
+    echo "$KERNEL_COMMENTS"
+    echo "InitiatorName=$KERNEL_INAME"
 elif [ "$IBFT_INAME" ] ; then
-    echo "## $INAME_FILE" >> $INAME_FILE
-    echo "$IBFT_COMMENTS" >> $INAME_FILE
-    echo "InitiatorName=$IBFT_INAME" >> $INAME_FILE
+    echo "## $INAME_FILE"
+    echo "$IBFT_COMMENTS"
+    echo "InitiatorName=$IBFT_INAME"
 else
-    echo "## $INAME_FILE" >> $INAME_FILE
-    echo "$NORMAL_COMMENTS" >> $INAME_FILE
+    echo "## $INAME_FILE"
+    echo "$NORMAL_COMMENTS"
     # create a unique initiator name using iscsi-iname
-    INAME=$(@SBINDIR@/iscsi-iname -p "$IQN_PREFIX")
-    echo "InitiatorName=$INAME" >> $INAME_FILE
-fi
+    printf "InitiatorName="
+    "@SBINDIR@/iscsi-iname" -p "$IQN_PREFIX"
+fi >> $INAME_FILE
 
 chmod 0600 $INAME_FILE

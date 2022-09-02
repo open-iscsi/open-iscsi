@@ -1,4 +1,4 @@
-#! /bin/sh
+#!/bin/sh
 ### BEGIN INIT INFO
 # Provides:
 # Required-Start:
@@ -21,8 +21,6 @@ if [ ! -d /sys/class/ ]; then
   log_failure_msg "iSCSI requires a mounted sysfs, not started."
   exit 1
 fi
-
-nodestartup_re='s/^node\.conn\[0]\.startup[ 	]*=[ 	]*//p'
 
 RETVAL=0
 
@@ -62,13 +60,9 @@ stop() {
 	rm -f $PIDFILE
 	status=0
 	modprobe -r ib_iser 2>/dev/null
-	if [ "$?" -ne "0" -a "$?" -ne "1" ]; then
-		status=1
-	fi
+	case $? in [01]) ;; *) status=1;; esac
 	modprobe -r iscsi_tcp 2>/dev/null
-	if [ "$?" -ne "0" -a "$?" -ne "1" ]; then
-		status=1
-	fi
+	case $? in [01]) ;; *) status=1;; esac
 	log_end_msg $status
 }
 
