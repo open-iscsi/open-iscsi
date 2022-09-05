@@ -161,7 +161,7 @@ __DLL_EXPORT const char *iscsi_iface_port_state_get(struct iscsi_iface *iface);
 __DLL_EXPORT const char *iscsi_iface_port_speed_get(struct iscsi_iface *iface);
 
 /**
- * iscsi_iface_port_speed_get() - Retrieve name of specified iSCSI interface
+ * iscsi_iface_name_get() - Retrieve name of specified iSCSI interface
  *
  * Retrieve the name of specified iSCSI interface.
  *
@@ -195,7 +195,7 @@ __DLL_EXPORT const char *iscsi_iface_name_get(struct iscsi_iface *iface);
 __DLL_EXPORT const char *iscsi_iface_dump_config(struct iscsi_iface *iface);
 
 /**
- * iscsi_iface_dump_config() - Print all configurations of specified iSCSI
+ * iscsi_iface_print_config() - Print all configurations of specified iSCSI
  * interface to STDOUT.
  *
  * Print all configurations of specified iSCSI interface.
