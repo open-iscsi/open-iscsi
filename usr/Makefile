@@ -67,7 +67,7 @@ ISCSIADM_OBJS	= iscsiadm.o session_mgmt.o mntcheck.o
 ISCSISTART_OBJS	= iscsistart.o
 
 # libc compat files
-SYSDEPS_DIR = $(TOPDIR)/utils/sysdeps
+SYSDEPS_DIR = $(TOPDIR)/sysdeps
 SYSDEPS_OBJS = $(SYSDEPS_DIR)/sysdeps.o
 # sources shared between iscsid, iscsiadm and iscsistart
 ISCSI_LIB_OBJS = iscsi_util.o io.o auth.o iscsi_timer.o login.o log.o \
