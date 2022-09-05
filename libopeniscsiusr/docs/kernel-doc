@@ -1134,12 +1134,12 @@ sub output_function_xml(%) {
     print "<refentry id=\"$id\">\n";
     print "<refentryinfo>\n";
     print " <title>LINUX</title>\n";
-    print " <productname>Kernel Hackers Manual</productname>\n";
+    print " <productname>API Manual</productname>\n";
     print " <date>$man_date</date>\n";
     print "</refentryinfo>\n";
     print "<refmeta>\n";
     print " <refentrytitle><phrase>" . $args{'function'} . "</phrase></refentrytitle>\n";
-    print " <manvolnum>9</manvolnum>\n";
+    print " <manvolnum>3</manvolnum>\n";
     print " <refmiscinfo class=\"version\">" . $kernelversion . "</refmiscinfo>\n";
     print "</refmeta>\n";
     print "<refnamediv>\n";
@@ -1212,12 +1212,12 @@ sub output_struct_xml(%) {
     print "<refentry id=\"$id\">\n";
     print "<refentryinfo>\n";
     print " <title>LINUX</title>\n";
-    print " <productname>Kernel Hackers Manual</productname>\n";
+    print " <productname>API Manual</productname>\n";
     print " <date>$man_date</date>\n";
     print "</refentryinfo>\n";
     print "<refmeta>\n";
     print " <refentrytitle><phrase>" . $args{'type'} . " " . $args{'struct'} . "</phrase></refentrytitle>\n";
-    print " <manvolnum>9</manvolnum>\n";
+    print " <manvolnum>3</manvolnum>\n";
     print " <refmiscinfo class=\"version\">" . $kernelversion . "</refmiscinfo>\n";
     print "</refmeta>\n";
     print "<refnamediv>\n";
@@ -1307,12 +1307,12 @@ sub output_enum_xml(%) {
     print "<refentry id=\"$id\">\n";
     print "<refentryinfo>\n";
     print " <title>LINUX</title>\n";
-    print " <productname>Kernel Hackers Manual</productname>\n";
+    print " <productname>API Manual</productname>\n";
     print " <date>$man_date</date>\n";
     print "</refentryinfo>\n";
     print "<refmeta>\n";
     print " <refentrytitle><phrase>enum " . $args{'enum'} . "</phrase></refentrytitle>\n";
-    print " <manvolnum>9</manvolnum>\n";
+    print " <manvolnum>3</manvolnum>\n";
     print " <refmiscinfo class=\"version\">" . $kernelversion . "</refmiscinfo>\n";
     print "</refmeta>\n";
     print "<refnamediv>\n";
@@ -1374,12 +1374,12 @@ sub output_typedef_xml(%) {
     print "<refentry id=\"$id\">\n";
     print "<refentryinfo>\n";
     print " <title>LINUX</title>\n";
-    print " <productname>Kernel Hackers Manual</productname>\n";
+    print " <productname>API Manual</productname>\n";
     print " <date>$man_date</date>\n";
     print "</refentryinfo>\n";
     print "<refmeta>\n";
     print " <refentrytitle><phrase>typedef " . $args{'typedef'} . "</phrase></refentrytitle>\n";
-    print " <manvolnum>9</manvolnum>\n";
+    print " <manvolnum>3</manvolnum>\n";
     print "</refmeta>\n";
     print "<refnamediv>\n";
     print " <refname>typedef " . $args{'typedef'} . "</refname>\n";
@@ -1521,13 +1521,14 @@ sub output_function_man(%) {
     my ($parameter, $section);
     my $count;
 
-    print ".TH \"$args{'function'}\" 9 \"$args{'function'}\" \"$man_date\" \"Kernel Hacker's Manual\" LINUX\n";
+    print ".TH \"$args{'function'}\" 3 \"$args{'function'}\" \"$man_date\" \"API Manual\" LINUX\n";
 
     print ".SH NAME\n";
     print $args{'function'} . " \\- " . $args{'purpose'} . "\n";
 
     print ".SH SYNOPSIS\n";
     if ($args{'functiontype'} ne "") {
+	$args{'functiontype'} =~ s/__DLL_EXPORT\s*//g;
 	print ".B \"" . $args{'functiontype'} . "\" " . $args{'function'} . "\n";
     } else {
 	print ".B \"" . $args{'function'} . "\n";
@@ -1572,7 +1573,7 @@ sub output_enum_man(%) {
     my ($parameter, $section);
     my $count;
 
-    print ".TH \"$args{'module'}\" 9 \"enum $args{'enum'}\" \"$man_date\" \"API Manual\" LINUX\n";
+    print ".TH \"$args{'module'}\" 3 \"enum $args{'enum'}\" \"$man_date\" \"API Manual\" LINUX\n";
 
     print ".SH NAME\n";
     print "enum " . $args{'enum'} . " \\- " . $args{'purpose'} . "\n";
@@ -1612,7 +1613,7 @@ sub output_struct_man(%) {
     my %args = %{$_[0]};
     my ($parameter, $section);
 
-    print ".TH \"$args{'module'}\" 9 \"" . $args{'type'} . " " . $args{'struct'} . "\" \"$man_date\" \"API Manual\" LINUX\n";
+    print ".TH \"$args{'module'}\" 3 \"" . $args{'type'} . " " . $args{'struct'} . "\" \"$man_date\" \"API Manual\" LINUX\n";
 
     print ".SH NAME\n";
     print $args{'type'} . " " . $args{'struct'} . " \\- " . $args{'purpose'} . "\n";
@@ -1667,7 +1668,7 @@ sub output_typedef_man(%) {
     my %args = %{$_[0]};
     my ($parameter, $section);
 
-    print ".TH \"$args{'module'}\" 9 \"$args{'typedef'}\" \"$man_date\" \"API Manual\" LINUX\n";
+    print ".TH \"$args{'module'}\" 3 \"$args{'typedef'}\" \"$man_date\" \"API Manual\" LINUX\n";
 
     print ".SH NAME\n";
     print "typedef " . $args{'typedef'} . " \\- " . $args{'purpose'} . "\n";
@@ -1683,7 +1684,7 @@ sub output_blockhead_man(%) {
     my ($parameter, $section);
     my $count;
 
-    print ".TH \"$args{'module'}\" 9 \"$args{'module'}\" \"$man_date\" \"API Manual\" LINUX\n";
+    print ".TH \"$args{'module'}\" 3 \"$args{'module'}\" \"$man_date\" \"API Manual\" LINUX\n";
 
     foreach $section (@{$args{'sectionlist'}}) {
 	print ".SH \"$section\"\n";

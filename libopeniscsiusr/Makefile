@@ -29,7 +29,6 @@ PKGCONF_DIR ?= $(LIB_DIR)/pkgconfig
 MAN_DIR = $(prefix)/share/man
 
 PKG_CONFIG ?= /usr/bin/pkg-config
-SED ?= sed
 
 LIBISCSI_USR_DIR=$(TOPDIR)/libopeniscsiusr
 
@@ -46,7 +45,7 @@ HEADERS = libopeniscsiusr/libopeniscsiusr.h \
 	  libopeniscsiusr/libopeniscsiusr_iface.h \
 	  libopeniscsiusr/libopeniscsiusr_node.h
 TESTS = tests/test_context tests/test_session tests/test_iface tests/test_node
-EXTRA_MAN_FILES = libopeniscsiusr.h.3
+EXTRA_MAN_FILE = libopeniscsiusr.h.3
 
 OBJS = context.o misc.o session.o sysfs.o iface.o idbm.o node.o default.o
 
@@ -106,23 +105,20 @@ install_pkg_files:
 	perl -i -pe 's|__INCLUDE_DIR__|$(INCLUDE_DIR)|g' \
 		$(DESTDIR)$(PKGCONF_DIR)/$(PKGFILE)
 
-doc: docs/man/$(EXTRA_MAN_FILES).gz
+doc: docs/man/$(EXTRA_MAN_FILE)
 
-TEMPFILE := $(shell mktemp)
-
-docs/man/$(EXTRA_MAN_FILES).gz: $(HEADERS)
-	@for file in $(EXTRA_MAN_FILES); do \
-		$(INSTALL) -v -m 644 -D docs/$$file docs/man/$$file; \
+# install the static man page, and generate lots of lib man pages
+# note: the last line just prints out the man page names
+docs/man/$(EXTRA_MAN_FILE): $(HEADERS)
+	$(INSTALL) -v -m 644 -D docs/$(EXTRA_MAN_FILE) $@
+	@echo generating library man pages ...
+	@for h in $(HEADERS); do \
+	    for f in `docs/list-man-pages.sh $$h`; do \
+		docs/kernel-doc -module libopeniscsiusr \
+			-man -function $$f $$h >docs/man/$$f.3 ; \
+	    done; \
 	done
-	cat $(HEADERS) | \
-	    perl docs/doc-preclean.pl > "$(TEMPFILE)"
-	perl docs/kernel-doc -man "$(TEMPFILE)" | \
-	    perl docs/split-man.pl docs/man
-	-$(RM) "$(TEMPFILE)"
-	@for file in docs/man/*.3; do \
-		gzip -f $$file; \
-	done
-	find docs/man -type f -name \*[0-9].gz
+	find docs/man -type f -name \*[0-9]
 
 .PHONY: all install clean distclean doc install_pkg_files install_docs \
 	install_libs check
