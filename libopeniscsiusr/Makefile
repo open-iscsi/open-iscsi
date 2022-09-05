@@ -70,7 +70,7 @@ $(LIBS_MAJOR): $(LIBS)
 	ln -sf $(LIBS) $@
 
 clean:
-	$(RM) vgcore* core *.a *.o *.gz *.so *.so.* $(TESTS)
+	$(RM) vgcore* core *.a *.o *.so *.so.* $(TESTS)
 	$(RM) -r docs/man
 
 distclean: ;
@@ -95,7 +95,7 @@ install_libs: $(LIBS) $(LIBS_MAJOR)
 
 install_docs: doc
 	$(INSTALL) -d $(DESTDIR)$(MAN_DIR)/man3
-	$(INSTALL) -m 644 docs/man/*.gz $(DESTDIR)$(MAN_DIR)/man3/
+	$(INSTALL) -m 644 docs/man/*.3 $(DESTDIR)$(MAN_DIR)/man3/
 
 install_pkg_files:
 	$(INSTALL) -m 644 -D $(PKGFILE).in $(DESTDIR)$(PKGCONF_DIR)/$(PKGFILE)
