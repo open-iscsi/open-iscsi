@@ -54,6 +54,7 @@ CFLAGS += -Wall -Werror -Wextra -fvisibility=hidden -fPIC
 CFLAGS += $(shell $(PKG_CONFIG) --cflags libkmod)
 CFLAGS += -DSBINDIR=\"$(SBINDIR)\"
 CFLAGS += -DISCSI_DB_ROOT=\"$(DBROOT)\"
+CFLAGS += -DISCSI_VERSION_STR=\"$(ISCSI_VERSION_STR)\"
 
 LDFLAGS += $(shell $(PKG_CONFIG) --libs libkmod)
 

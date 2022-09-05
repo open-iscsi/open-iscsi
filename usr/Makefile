@@ -46,7 +46,8 @@ PKG_CONFIG ?= /usr/bin/pkg-config
 CFLAGS ?= -O2 -g
 WARNFLAGS ?= -Wall -Wextra -Werror -Wstrict-prototypes -fno-common
 CFLAGS += $(WARNFLAGS) -I../include -I. -D_GNU_SOURCE \
-	  -I$(TOPDIR)/libopeniscsiusr
+	  -I$(TOPDIR)/libopeniscsiusr \
+	  -DISCSI_VERSION_STR=\"$(ISCSI_VERSION_STR)\"
 CFLAGS += $(shell $(PKG_CONFIG) --cflags libkmod)
 CFLAGS += $(shell $(PKG_CONFIG) --cflags libsystemd)
 ISCSI_LIB = -L$(TOPDIR)/libopeniscsiusr -lopeniscsiusr

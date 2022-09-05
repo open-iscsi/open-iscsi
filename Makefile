@@ -6,6 +6,9 @@
 # that you want everything installed into.
 DESTDIR ?=
 
+# our VERSION String
+ISCSI_VERSION_STR ?= 2.1.7
+
 prefix = /usr
 exec_prefix =
 mandir = $(prefix)/share/man
@@ -19,7 +22,7 @@ RULESDIR = $(etcdir)/udev/rules.d
 INSTALL = /usr/bin/install
 
 # pass these on to sub-Makefiles
-export DESTDIR prefix INSTALL SBINDIR HOMEDIR DBROOT RULESDIR
+export DESTDIR prefix INSTALL SBINDIR HOMEDIR DBROOT RULESDIR ISCSI_VERSION_STR
 
 # Compatibility: parse old OPTFLAGS argument
 ifdef OPTFLAGS

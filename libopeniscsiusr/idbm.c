@@ -61,7 +61,6 @@
 #include "misc.h"
 #include "idbm_fields.h"
 #include "iface.h"
-#include "version.h"
 #include "node.h"
 #include "default.h"
 
