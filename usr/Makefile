@@ -46,7 +46,8 @@ PKG_CONFIG ?= /usr/bin/pkg-config
 CFLAGS ?= -O2 -g
 WARNFLAGS ?= -Wall -Wextra -Werror -Wstrict-prototypes -fno-common
 CFLAGS += $(WARNFLAGS) -I../include -I. -D_GNU_SOURCE \
-	  -I$(TOPDIR)/libopeniscsiusr
+	  -I$(TOPDIR)/libopeniscsiusr \
+	  -DISCSI_VERSION_STR=\"$(ISCSI_VERSION_STR)\"
 CFLAGS += $(shell $(PKG_CONFIG) --cflags libkmod)
 CFLAGS += $(shell $(PKG_CONFIG) --cflags libsystemd)
 ISCSI_LIB = -L$(TOPDIR)/libopeniscsiusr -lopeniscsiusr
@@ -67,7 +68,7 @@ ISCSIADM_OBJS	= iscsiadm.o session_mgmt.o mntcheck.o
 ISCSISTART_OBJS	= iscsistart.o
 
 # libc compat files
-SYSDEPS_DIR = $(TOPDIR)/utils/sysdeps
+SYSDEPS_DIR = $(TOPDIR)/sysdeps
 SYSDEPS_OBJS = $(SYSDEPS_DIR)/sysdeps.o
 # sources shared between iscsid, iscsiadm and iscsistart
 ISCSI_LIB_OBJS = iscsi_util.o io.o auth.o iscsi_timer.o login.o log.o \

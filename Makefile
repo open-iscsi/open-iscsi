@@ -6,6 +6,9 @@
 # that you want everything installed into.
 DESTDIR ?=
 
+# our VERSION String
+ISCSI_VERSION_STR ?= 2.1.7
+
 prefix = /usr
 exec_prefix =
 mandir = $(prefix)/share/man
@@ -19,7 +22,7 @@ RULESDIR = $(etcdir)/udev/rules.d
 INSTALL = /usr/bin/install
 
 # pass these on to sub-Makefiles
-export DESTDIR prefix INSTALL SBINDIR HOMEDIR DBROOT RULESDIR
+export DESTDIR prefix INSTALL SBINDIR HOMEDIR DBROOT RULESDIR ISCSI_VERSION_STR
 
 # Compatibility: parse old OPTFLAGS argument
 ifdef OPTFLAGS
@@ -51,7 +54,7 @@ make_utils:
 
 user: iscsiuio/Makefile
 	$(MAKE) $(MFLAGS) -C libopeniscsiusr
-	$(MAKE) $(MFLAGS) -C utils/sysdeps
+	$(MAKE) $(MFLAGS) -C sysdeps
 	$(MAKE) $(MFLAGS) -C usr
 	$(MAKE) $(MFLAGS) -C utils
 	$(MAKE) $(MFLAGS) -C etc
@@ -77,7 +80,7 @@ iscsiuio/configure: iscsiuio/configure.ac iscsiuio/Makefile.am
 force: ;
 
 clean distclean:
-	$(MAKE) $(MFLAGS) -C utils/sysdeps $@
+	$(MAKE) $(MFLAGS) -C sysdeps $@
 	$(MAKE) $(MFLAGS) -C utils $@
 	$(MAKE) $(MFLAGS) -C usr $@
 	$(MAKE) $(MFLAGS) -C etc $@
@@ -121,7 +124,7 @@ install_libopeniscsiusr:
 	$(MAKE) $(MFLAGS) -C libopeniscsiusr install
 
 depend:
-	for dir in usr utils utils/fwparam_ibft utils/sysdeps; do \
+	for dir in usr utils utils/fwparam_ibft sysdeps; do \
 		$(MAKE) $(MFLAGS) -C $$dir $@; \
 	done
 

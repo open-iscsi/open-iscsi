@@ -21,7 +21,7 @@ iscsiuio_SOURCES =	build_date.c		\
 			packet.c		\
 			iscsid_ipc.c		\
 			ping.c			\
-			${top_srcdir}/../utils/sysdeps/sysdeps.c
+			${top_srcdir}/../sysdeps/sysdeps.c
 
 iscsiuio_CFLAGS = 	$(AM_CFLAGS)		\
 			$(LIBNL_CFLAGS)		\

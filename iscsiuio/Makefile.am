@@ -17,12 +17,9 @@ logdir = /etc/logrotate.d
 install-am: all-am
 	@$(MAKE) $(AM_MAKEFLAGS) install-exec-am install-data-am install-man install-log install-brcm
 
-install-man: $(DESTDIR)$(mandir)/man8/iscsiuio.8.gz
+install-man: $(DESTDIR)$(mandir)/man8/iscsiuio.8
 
-iscsiuio.8.gz: docs/iscsiuio.8
-	gzip $(GZIP_ENV) -c < $? > $@
-
-$(DESTDIR)$(mandir)/man8/iscsiuio.8.gz: iscsiuio.8.gz
+$(DESTDIR)$(mandir)/man8/iscsiuio.8: docs/iscsiuio.8
 	$(INSTALL) -d $(DESTDIR)$(mandir)/man8/
 	$(INSTALL_DATA) $? $(DESTDIR)$(mandir)/man8/
 
