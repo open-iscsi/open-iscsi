@@ -270,7 +270,7 @@ install_data(iscsi_etc_config_file_src, install_dir: home_dir)
     'initiatorname_file',
     output: 'initiatorname.iscsi',
     capture: true,
-    command: iname_cmd,
+    command: [iname_cmd, '-g'],
     install: true,
     install_dir: home_dir,
     install_mode: 'rw-r--r--')
