@@ -131,8 +131,7 @@ foreach api_file: libiscsi_usr_doc_headers
 endforeach
 
 # install our static man page(s)
-install_man(libiscsi_usr_docs,
-  install_dir: man_dir / 'man3')
+install_man(libiscsi_usr_docs)
 
 # build the shared library
 libiscsi_usr = shared_library('openiscsiusr',
@@ -291,8 +290,7 @@ foreach k,v: iscsi_doc_man_pages_template_arr
 endforeach
 
 # handle regular/static man pages
-install_man(iscsi_doc_man_pages_static,
-  install_dir: man_dir_8)
+install_man(iscsi_doc_man_pages_static)
 
 #
 # lastly, build iscsiuio, which does not rely on anything outside itself -- all
