@@ -10,8 +10,7 @@ project('open-iscsi', 'c',
     'c_std=gnu99',
     'warning_level=1',
     'buildtype=release',
-    'prefix=/usr',
-    'libdir=/usr/lib64']
+    'prefix=/usr']
   )
 # can't set sbindir=/sbin (vs /usr/sbin) here, since that only
 # works on newer version of meson (>0.63.0)
