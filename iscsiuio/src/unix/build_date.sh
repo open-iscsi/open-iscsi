@@ -5,8 +5,7 @@
 # (bash required for getopts)
 #
 
-THIS_CMD="build_date"
-SOURCE_DATE_EPOCH=""
+THIS_CMD=${0##*/}
 
 usage()
 {
@@ -22,10 +21,8 @@ generate_source_file()
 {
     outfile="$1"
     if [ -n "$SOURCE_DATE_EPOCH" ] ; then
-	echo "SOURCE_DATE_EPOCH set!" 1>&2
 	echo 'char *build_date = "'`LC_ALL=C.UTF-8 date --date=@$SOURCE_DATE_EPOCH -u`'";' >"$outfile"
     else
-	echo "SOURCE_DATE_EPOCH not set :(" 1>&2
 	echo 'char *build_date = "'`date`'";' >"$outfile"
     fi
 }
@@ -39,14 +36,13 @@ generate_include_file()
 do_source=
 do_include=
 
-while getopts :c:i:s:h opt; do
+while getopts :c:i:S:h opt; do
     case "$opt" in
     c) do_source="$OPTARG" ;;
     i) do_include="$OPTARG" ;;
-    s) SOURCE_DATE_EPOCH="$OPTARG" ;;
+    S) SOURCE_DATE_EPOCH="$OPTARG" ;;
     h) usage; exit 0 ;;
-    ?) echo "unknown option: $opt" 1>&2; usage; exit 1 ;; 
-    *) echo "huh???"
+    ?) echo "unknown option" 1>&2; usage; exit 1 ;; 
     esac
 done
 
