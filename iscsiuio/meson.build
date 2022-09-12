@@ -112,6 +112,8 @@ if meson.version().version_compare('>= 0.61.0')
   install_symlink('brcm_iscsiuio',
     install_dir: iscsi_sbindir,
     pointing_to: 'iscsiuio')
+else
+  warning('You must create the brcm_iscsiuio->iscsiuio symlink yourself in this version of meson.')
 endif
 
 # install uiolog
