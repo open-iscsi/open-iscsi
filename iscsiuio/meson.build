@@ -36,7 +36,7 @@ open_iscsi_usr_inc = usr_inc
 #
 # C arguments
 #
-iscsiuio_c_args = [release_str, c_args]
+iscsiuio_c_args = [release_str]
 if no_systemd
   iscsiuio_c_args += '-DNO_SYSTEMD'
 endif
