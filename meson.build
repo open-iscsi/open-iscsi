@@ -264,6 +264,7 @@ install_data(iscsi_etc_iface_file_src, install_dir: home_dir / 'ifaces')
 install_data(iscsi_etc_config_file_src, install_dir: home_dir)
 
 # create a *unique* initiatorname file
+if not meson.is_cross_build()
   custom_target(
     'initiatorname_file',
     output: 'initiatorname.iscsi',
@@ -272,6 +273,7 @@ install_data(iscsi_etc_config_file_src, install_dir: home_dir)
     install: true,
     install_dir: home_dir,
     install_mode: 'rw-r--r--')
+endif
 
 #
 # handle documentation from 'doc'
