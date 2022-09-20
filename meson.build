@@ -260,7 +260,7 @@ if not no_systemd
 endif
 
 # the iface.example file
-install_data(iscsi_etc_iface_file_src, install_dir: home_dir / 'ifaces')
+install_data(iscsi_etc_iface_file_src, install_dir: db_root / 'ifaces')
 
 # the iscsid.conf config file
 install_data(iscsi_etc_config_file_src, install_dir: home_dir)
