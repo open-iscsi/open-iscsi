@@ -28,6 +28,7 @@ db_root = get_option('dbroot')
 if not fs.is_absolute(db_root)
   db_root = get_option('sysconfdir') / db_root
 endif
+lock_dir = get_option('lockdir')
 rules_dir = get_option('rulesdir')
 if not fs.is_absolute(rules_dir)
   rules_dir = get_option('sysconfdir') / rules_dir
@@ -63,7 +64,7 @@ genl_cargs = [
   '-DOFFLOAD_BOOT_SUPPORTED',
   '-DISCSI_CONFIG_ROOT="@0@"'.format(home_dir),
   '-DISCSI_DB_ROOT="@0@"'.format(db_root),
-  '-DLOCK_DIR="@0@"'.format(home_dir), # FIXME
+  '-DLOCK_DIR="@0@"'.format(lock_dir),
   '-DISCSI_VERSION_STR="@0@"'.format(meson.project_version())]
 
 # set up no-system flag, if needed
