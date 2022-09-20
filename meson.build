@@ -61,8 +61,9 @@ conf.set('DBROOT', db_root)
 genl_cargs = [
   '-D_GNU_SOURCE',
   '-DOFFLOAD_BOOT_SUPPORTED',
+  '-DISCSI_CONFIG_ROOT="@0@"'.format(home_dir),
   '-DISCSI_DB_ROOT="@0@"'.format(db_root),
-  '-DLOCK_DIR="@0@"'.format(home_dir),
+  '-DLOCK_DIR="@0@"'.format(home_dir), # FIXME
   '-DISCSI_VERSION_STR="@0@"'.format(meson.project_version())]
 
 # set up no-system flag, if needed
