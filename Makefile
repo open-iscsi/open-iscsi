@@ -52,7 +52,13 @@ all: user
 make_utils:
 	$(MAKE) $(MFLAGS) -C utils
 
-user: iscsiuio/Makefile
+deprecation_msg:
+	@echo "***"
+	@echo "*** Warning: using 'make' is being deprecated, in favor of 'meson'"
+	@echo "***    Please see the README file for more information."
+	@echo "***"
+
+user: deprecation_msg iscsiuio/Makefile
 	$(MAKE) $(MFLAGS) -C libopeniscsiusr
 	$(MAKE) $(MFLAGS) -C sysdeps
 	$(MAKE) $(MFLAGS) -C usr
