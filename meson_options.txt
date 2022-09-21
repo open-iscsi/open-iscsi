@@ -10,6 +10,8 @@ option('homedir', type: 'string', value: 'iscsi',
   description: 'Set the HOME directory [/etc/iscsi]')
 option('dbroot', type: 'string', value: 'iscsi',
   description: 'Set the DATABASE root directory [/etc/iscsi]')
+option('lockdir', type: 'string', value: '/run/lock/iscsi',
+  description: 'Set the LOCK_DIR directory [/run/lock/iscsi]')
 option('rulesdir', type: 'string', value: 'udev/rules.d',
   description: 'Set the directory where udev rules go [/etc/udev/rules.d]')
 # to be able to put binaries in /sbin or /usr/sbin, since

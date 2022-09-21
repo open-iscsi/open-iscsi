@@ -28,6 +28,7 @@ db_root = get_option('dbroot')
 if not fs.is_absolute(db_root)
   db_root = get_option('sysconfdir') / db_root
 endif
+lock_dir = get_option('lockdir')
 rules_dir = get_option('rulesdir')
 if not fs.is_absolute(rules_dir)
   rules_dir = get_option('sysconfdir') / rules_dir
@@ -61,8 +62,9 @@ conf.set('DBROOT', db_root)
 genl_cargs = [
   '-D_GNU_SOURCE',
   '-DOFFLOAD_BOOT_SUPPORTED',
+  '-DISCSI_CONFIG_ROOT="@0@"'.format(home_dir),
   '-DISCSI_DB_ROOT="@0@"'.format(db_root),
-  '-DLOCK_DIR="@0@"'.format(home_dir),
+  '-DLOCK_DIR="@0@"'.format(lock_dir),
   '-DISCSI_VERSION_STR="@0@"'.format(meson.project_version())]
 
 # set up no-system flag, if needed
@@ -258,7 +260,7 @@ if not no_systemd
 endif
 
 # the iface.example file
-install_data(iscsi_etc_iface_file_src, install_dir: home_dir / 'ifaces')
+install_data(iscsi_etc_iface_file_src, install_dir: db_root / 'ifaces')
 
 # the iscsid.conf config file
 install_data(iscsi_etc_config_file_src, install_dir: home_dir)
