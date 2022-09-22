@@ -291,7 +291,11 @@ int iscsi_sessions_get(struct iscsi_context *ctx,
 	}
 	/* reset session count and sessions array length to what we were able to read from sysfs */
 	*session_count = j;
-	*sessions = reallocarray(*sessions, *session_count, sizeof(struct iscsi_session *));
+	/* XXX: asserts that there is no integer overflow */
+	assert(!(sizeof(struct iscsi_session *) &&
+		 *session_count > UINT_MAX / sizeof(struct iscsi_session *)));
+	*sessions =
+	    realloc(*sessions, *session_count * sizeof(struct iscsi_session *));
 
 out:
 	free(sids);
