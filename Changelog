@@ -1,3 +1,45 @@
+-> open-iscsi-2.1.7 - open-iscsi-2.1.8
+
+Chris Hofstaedtler (1):
+      make: avoid hard-coding path to sed (#357)
+
+Christian Hesse (1):
+      etc: install system unit with without executable bit (#354)
+
+Eric Mackay (2):
+      Add ability for MGMT IPC to check UID only
+      Use config for iscsistart and iscsiadm fw login
+
+Khem Raj (1):
+      iscsiuio: Use pthread_t for INVALID_THREAD (#363)
+
+Lee Duncan (5):
+      Add a 'distclean' Makefile top-level target
+      Cleanup fwparam makefile (#360)
+      Small bug fixes (#364)
+      Use meson as the main build system (#365)
+      libopeniscsiusr: cleanup recent reallocarray->realloc change (#369)
+
+Max Cheng (1):
+      Added examples in man file for iscsiadm session commands.
+
+Mike Christie (2):
+      iscsid: fix logout pdu send failure handling
+      Update README's error handler/timeout section
+
+Sam James (1):
+      iscsiuio: fix LDADD
+
+TIAN Yuanhao (1):
+      libopeniscsiusr: use realloc instead of reallocarray (#368)
+
+Wenchao Hao (1):
+      iscsiadm: enable specify iface name-value parameters when creating iface
+
+shugaley (1):
+      Fix a possible passing null pointer in usr/iface.c (#356)
+
+
 -> open-iscsi-2.1.6 - open-iscsi-2.1.7
 
 Lee Duncan (48):
