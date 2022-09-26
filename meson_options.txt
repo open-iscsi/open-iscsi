@@ -3,8 +3,6 @@ option('systemddir', type: 'string', value: '/usr/lib/systemd',
   description: 'Systemd directory [/usr/lib/systemd], if systemd used')
 option('no_systemd', type: 'boolean', value: false,
   description: 'Do not use systemd')
-option('source_date_epoch', type: 'string', value: 'NONE',
-  description: 'Set the Build Source Date (for iscsiuio), for repeatable builds')
 # these are in the 'sysconfigdir' (/etc by default) unless overridden
 option('homedir', type: 'string', value: 'iscsi',
   description: 'Set the HOME directory [/etc/iscsi]')
