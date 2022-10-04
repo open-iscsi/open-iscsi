@@ -90,8 +90,8 @@ int oom_adjust(void)
 	if (write(fd, "-16", 3) < 0) /* for 2.6.11 */
 		log_debug(1, "Could not set oom score to -16: %s",
 			  strerror(errno));
-	if (write(fd, "-17", 3) < 0) /* for Andrea's patch */
-		log_debug(1, "Could not set oom score to -17: %s",
+	if (write(fd, "-1000", 3) < 0) /* for Andrea's patch */
+		log_debug(1, "Could not set oom score adj to -1000: %s",
 			  strerror(errno));
 	close(fd);
 	return 0;
