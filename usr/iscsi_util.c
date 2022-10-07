@@ -67,35 +67,70 @@ void daemon_init(void)
 
 #define ISCSI_OOM_PATH_LEN 48
 
-int oom_adjust(void)
+char path[ISCSI_OOM_PATH_LEN];
+
+int get_score_path() 
 {
-	int fd;
-	char path[ISCSI_OOM_PATH_LEN];
+	int pid;
 	struct stat statb;
+    
+	/* fs/proc/self.c seems to have been introduced > 3.8.rc-1 */
+	
+	pid = getpid();
+	snprintf(path, ISCSI_OOM_PATH_LEN, "/proc/%d/oom_score_adj", pid);
+	if (stat(path, &statb) == 0)
+	    return -1000;
+	else {
 
-	errno = 0;
-	if (nice(-10) == -1 && errno != 0)
-		log_debug(1, "Could not increase process priority: %s",
-			  strerror(errno));
-
-	snprintf(path, ISCSI_OOM_PATH_LEN, "/proc/%d/oom_score_adj", getpid());
-	if (stat(path, &statb)) {
-		/* older kernel so use old oom_adj file */
-		snprintf(path, ISCSI_OOM_PATH_LEN, "/proc/%d/oom_adj",
-			 getpid());
+		/* for kernels older than 2.6.36-rc1*/
+		
+	    snprintf(path, ISCSI_OOM_PATH_LEN, "/proc/%d/oom_adj", pid);
+        if (stat(path, &statb) == 0) {
+		    return -17;
+		}
+		else
+		    LOG_DEBUG("Could not find oom score adjustment file in /proc: %s", strerror(errno));
 	}
-	fd = open(path, O_WRONLY);
-	if (fd < 0)
-		return -1;
-	if (write(fd, "-16", 3) < 0) /* for 2.6.11 */
-		log_debug(1, "Could not set oom score to -16: %s",
-			  strerror(errno));
-	if (write(fd, "-1000", 3) < 0) /* for Andrea's patch */
-		log_debug(1, "Could not set oom score adj to -1000: %s",
-			  strerror(errno));
-	close(fd);
 	return 0;
 }
+
+int write_oom_score() 
+{
+    int fd;
+	int score_path;
+    char score[12];
+
+    score_path = get_score_path();
+    if (score_path < 0) {
+		snprintf(score, 12, "%d", score_path);
+		fd = open(path, O_WRONLY);
+		if (fd < 0) {
+		    LOG_DEBUG("Could not open %s for writing: %s", path, strerror(errno))
+		    return -1;
+		}
+		else if (write(fd, score, 3) < 0) {
+			LOG_DEBUG("Could not write score to %s: %s", path, strerror(errno))
+			close(fd);
+			return -1;
+		}
+		else
+		    close(fd);
+	}
+	return 0;
+}
+
+int oom_adjust(void)
+{
+	if (nice(-10) < 0)
+		LOG_DEBUG("Could not increase process priority: %s",
+			  strerror(errno));
+
+    if (write_oom_score() < 0)
+	    LOG_DEBUG("Could not adjust oom score.");
+
+	return 0;
+}
+
 
 char*
 str_to_ipport(char *str, int *port, int *tpgt)
