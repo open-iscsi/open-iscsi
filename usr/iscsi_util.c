@@ -97,18 +97,19 @@ int get_score_path()
 int write_oom_score() 
 {
     int fd;
-	int score_path;
+	int score_path,len;
     char score[12];
 
     score_path = get_score_path();
     if (score_path < 0) {
 		snprintf(score, 12, "%d", score_path);
+		len = strlen(score);
 		fd = open(path, O_WRONLY);
 		if (fd < 0) {
 		    LOG_DEBUG("Could not open %s for writing: %s", path, strerror(errno))
 		    return -1;
 		}
-		else if (write(fd, score, 3) < 0) {
+		else if (write(fd, score, len) < 0) {
 			LOG_DEBUG("Could not write score to %s: %s", path, strerror(errno))
 			close(fd);
 			return -1;
