@@ -65,36 +65,43 @@ void daemon_init(void)
 	close(fd);
 }
 
-#define ISCSI_OOM_PATH_LEN 48
-
+/*
+ * make a best effort at ajusting our nice
+ * score and our OOM score, but it's not considered
+ * fatal if either adjustment fails
+ *
+ * return 0 on success of OOM adjustment
+ */
 int oom_adjust(void)
 {
 	int fd;
-	char path[ISCSI_OOM_PATH_LEN];
-	struct stat statb;
+	int res = 0;
 
 	errno = 0;
 	if (nice(-10) == -1 && errno != 0)
-		log_debug(1, "Could not increase process priority: %s",
+		log_warning("Could not increase process priority: %s",
 			  strerror(errno));
 
-	snprintf(path, ISCSI_OOM_PATH_LEN, "/proc/%d/oom_score_adj", getpid());
-	if (stat(path, &statb)) {
-		/* older kernel so use old oom_adj file */
-		snprintf(path, ISCSI_OOM_PATH_LEN, "/proc/%d/oom_adj",
-			 getpid());
-	}
-	fd = open(path, O_WRONLY);
-	if (fd < 0)
+	/*
+	 * try the modern method of adjusting our OOM score,
+	 * then try the old one, if that fails
+	 */
+	if ((fd = open("/proc/self/oom_score_adj", O_WRONLY)) >= 0) {
+		if ((res = write(fd, "-1000", 5)) < 0)
+			log_warning("Could not set /proc/self/oom_score_adj to -1000: %s",
+				strerror(errno));
+	} else if ((fd = open("/proc/self/oom_adj", O_WRONLY)) >= 0) {
+		if ((res = write(fd, "-16", 3)) < 0)
+			log_warning("Could not set /proc/self/oom_adj to -16: %s",
+				strerror(errno));
+	} else
 		return -1;
-	if (write(fd, "-16", 3) < 0) /* for 2.6.11 */
-		log_debug(1, "Could not set oom score to -16: %s",
-			  strerror(errno));
-	if (write(fd, "-17", 3) < 0) /* for Andrea's patch */
-		log_debug(1, "Could not set oom score to -17: %s",
-			  strerror(errno));
+
 	close(fd);
-	return 0;
+	if (res < 0)
+		return res;
+	else
+		return 0;
 }
 
 char*

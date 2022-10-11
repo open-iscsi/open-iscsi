@@ -621,7 +621,7 @@ int main(int argc, char *argv[])
 
 	/* oom-killer will not kill us at the night... */
 	if (oom_adjust())
-		log_debug(1, "can not adjust oom-killer's pardon");
+		log_warning("Cannot adjust oom-killer's pardon");
 
 	/* we don't want our active sessions to be paged out... */
 	if (mlockall(MCL_CURRENT | MCL_FUTURE)) {
