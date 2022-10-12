@@ -227,7 +227,7 @@ int oom_adjust(void)
 			LOG_DEBUG("Could not set /proc/self/oom_score_adj to -1000: %s",
 				strerror(errno));
 	} else if ((fd = open("/proc/self/oom_adj", O_WRONLY)) >= 0) {
-		if ((res = write(fd, "-16", 3)) < 0)
+		if ((res = write(fd, "-17", 3)) < 0)
 			LOG_DEBUG("Could not set /proc/self/oom_adj to -16: %s",
 				strerror(errno));
 	} else
