@@ -10,6 +10,7 @@ Requires=iscsi-init.service
 [Service]
 Type=notify
 NotifyAccess=main
+ExecStartPre=/bin/sh -c 'if ! test -e @HOMEDIR@/initiatorname.iscsi; then exec @SBINDIR@/iscsi-gen-initiatorname; fi'
 ExecStart=@SBINDIR@/iscsid -f
 KillMode=mixed
 Restart=on-failure
