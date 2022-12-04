@@ -40,6 +40,7 @@
 #include "host.h"
 #include "iscsi_err.h"
 #include "flashnode.h"
+#include "iscsi_util.h"
 
 /*
  * TODO: remove the _DIR defines and search for subsys dirs like
@@ -1993,6 +1994,12 @@ pid_t iscsi_sysfs_scan_host(int hostno, int async, int autoscan)
 	} else if (pid == 0) {
 		/* child */
 		log_debug(4, "scanning host%d", hostno);
+
+		/*
+		 * The return value of init_thread_io_flusher would not
+		 * affect the scan flow, so just ignore it.
+		 */
+		set_thread_io_flusher(0);
 
 		snprintf(id, sizeof(id), ISCSI_HOST_ID, hostno);
 		sysfs_set_param(id, SCSI_HOST_SUBSYS, "scan", write_buf,

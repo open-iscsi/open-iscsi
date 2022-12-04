@@ -20,6 +20,7 @@ extern int __iscsi_match_session(struct node_rec *rec, char *targetname,
 				 char *address, int port,
 				 struct iface_rec *iface,
 				 unsigned sid);
+extern int set_thread_io_flusher(int val);
 
 #define MATCH_ANY_SID 0
 

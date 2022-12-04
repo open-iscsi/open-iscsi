@@ -30,6 +30,7 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <sys/resource.h>
+#include <sys/prctl.h>
 
 #include "sysdeps.h"
 #include "log.h"
@@ -37,6 +38,10 @@
 #include "iface.h"
 #include "session_info.h"
 #include "iscsi_util.h"
+
+#ifndef PR_SET_IO_FLUSHER
+#define PR_SET_IO_FLUSHER 57
+#endif
 
 int setup_abstract_addr(struct sockaddr_un *addr, char *unix_sock_name)
 {
@@ -391,4 +396,26 @@ int iscsi_match_target(void *data, struct session_info *info)
 				     info->persistent_address,
 				     info->persistent_port, NULL,
 				     MATCH_ANY_SID);
+}
+
+/*
+ * set thread's PR_SET_IO_FLUSHER flag
+ *
+ * val: 1 to set to set thread's PR_SET_IO_FLUSHER flag
+ *      0 to clear thread's PR_SET_IO_FLUSHER flag
+ *
+ * return: return 0 on success, else error number is returned
+ */
+int set_thread_io_flusher(int val)
+{
+	if (prctl(PR_SET_IO_FLUSHER, val, 0, 0, 0) == 0)
+		return 0;
+
+	/*
+	 * prctl would return EINVAL if the kernel do not support PR_SET_IO_FLUSHER
+	 * so donot print error log if errorno is EINVAL to avoid unnecessary errorlog
+	 */
+	if (errno != EINVAL)
+		log_error("prctl could not %s thread's PR_SET_IO_FLUSHER flag due to error %s\n", val ? "set" : "clear", strerror(errno));
+	return errno;
 }
