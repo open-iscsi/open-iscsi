@@ -167,6 +167,7 @@ foreach a,v: test_arr
   e = executable('test_' + a,
     sources: v,
     include_directories: [lib_inc],
+    link_with: libiscsi_usr,
     dependencies: libiscsi_usr_dep,
     c_args: genl_cargs)
   test('test ' + a, e)
@@ -190,6 +191,7 @@ foreach k,v: iscsi_usr_arr
     include_directories: [usr_inc, main_inc, lib_inc],
     dependencies: usr_deps,
     c_args: genl_cargs,
+    link_with: libiscsi_usr,
     install: true,
     install_dir: iscsi_sbindir)
 endforeach

@@ -1,6 +1,6 @@
 subdir('fwparam_ibft')
 
-iscsi_lib_srcs = [
+iscsi_usr_srcs = [
   'iscsi_util.c',
   'io.c',
   'auth.c',
@@ -46,9 +46,9 @@ iscsiadm_srcs = [
 iscsistart_srcs = [
   'iscsistart.c']
 
-iscsid_src_files = files([iscsi_lib_srcs, initiator_srcs, discovery_srcs, iscsid_srcs])
-iscsiadm_src_files = files([iscsi_lib_srcs, discovery_srcs, iscsiadm_srcs])
-iscsistart_src_files = files([iscsi_lib_srcs, initiator_srcs, iscsistart_srcs])
+iscsid_src_files = files([initiator_srcs, discovery_srcs, iscsid_srcs, iscsi_usr_srcs])
+iscsiadm_src_files = files([discovery_srcs, iscsiadm_srcs, iscsi_usr_srcs])
+iscsistart_src_files = files([initiator_srcs, iscsistart_srcs, iscsi_usr_srcs])
 
 iscsi_usr_arr = {
   'iscsid': iscsid_src_files,
