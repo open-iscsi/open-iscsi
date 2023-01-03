@@ -735,8 +735,13 @@ static void iscsi_login_eh(struct iscsi_conn *conn, struct queue_task *qtask,
 				session_conn_shutdown(conn, qtask, err);
 				break;
 			}
-			/* timeout during reopen connect. try again */
-			session_conn_reopen(conn, qtask, 0);
+			/*
+			 * stop connection for recovery if error is not
+			 * timeout
+			 */
+			if (err != ISCSI_ERR_TRANS_TIMEOUT)
+				stop_flag = STOP_CONN_RECOVER;
+			session_conn_reopen(conn, qtask, stop_flag);
 			break;
 		case R_STAGE_SESSION_CLEANUP:
 			session_conn_shutdown(conn, qtask, err);
