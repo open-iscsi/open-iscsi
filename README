@@ -542,7 +542,7 @@ Mode "host"
   -m host --host=hostno|MAC -C flashnode --index=[flashnode_index] \
 			--op=[UPDATE] --name=[name] --value=[value]
 
-			  Update the params of the speficied flash node.
+			  Update the params of the specified flash node.
 			  The [name] and [value] pairs must be provided for the
 			  params that need to be updated. Multiple params can
 			  be updated using a single command.
