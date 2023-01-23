@@ -75,9 +75,10 @@ struct iscsi_ping_event {
 	int active;
 };
 
-struct iscsi_ping_event ping_event;
+static struct iscsi_ping_event ping_event;
 
-struct nlattr *iscsi_nla_alloc(uint16_t type, uint16_t len)
+struct nlattr *
+iscsi_nla_alloc(uint16_t type, uint16_t len)
 {
 	struct nlattr *attr;
 
@@ -102,7 +103,7 @@ kread(char *data, int count)
 }
 
 static int
-nl_read(int ctrl_fd, char *data, int size, int flags)
+nl_read(int cfd, char *data, int size, int flags)
 {
 	int rc;
 	struct iovec iov;
@@ -119,13 +120,13 @@ nl_read(int ctrl_fd, char *data, int size, int flags)
 	msg.msg_iov = &iov;
 	msg.msg_iovlen = 1;
 
-	rc = recvmsg(ctrl_fd, &msg, flags);
+	rc = recvmsg(cfd, &msg, flags);
 
 	return rc;
 }
 
 static int
-nlpayload_read(int ctrl_fd, char *data, int count, int flags)
+nlpayload_read(int cfd, char *data, int count, int flags)
 {
 	int rc;
 	struct iovec iov;
@@ -174,7 +175,7 @@ nlpayload_read(int ctrl_fd, char *data, int count, int flags)
 	 *  FIXME: if "Note2" than interface should generate iSCSI error
 	 *        level 0 on its own. Interface must always succeed on this.
 	 */
-	rc = recvmsg(ctrl_fd, &msg, flags);
+	rc = recvmsg(cfd, &msg, flags);
 
 	if (data)
 		memcpy(data, NLMSG_DATA(iov.iov_base), count);
@@ -1025,7 +1026,8 @@ kset_net_config(uint64_t transport_handle, uint32_t host_no,
 	return 0;
 }
 
-static int krecv_conn_state(struct iscsi_conn *conn, uint32_t *state)
+static int
+krecv_conn_state(struct iscsi_conn *conn, uint32_t *state)
 {
 	int rc;
 
@@ -1094,9 +1096,10 @@ ksend_ping(uint64_t transport_handle, uint32_t host_no, struct sockaddr *addr,
 	return 0;
 }
 
-static int kexec_ping(uint64_t transport_handle, uint32_t host_no,
-		      struct sockaddr *addr, uint32_t iface_num,
-		      uint32_t iface_type, uint32_t size, uint32_t *status)
+static int
+kexec_ping(uint64_t transport_handle, uint32_t host_no,
+	   struct sockaddr *addr, uint32_t iface_num,
+	   uint32_t iface_type, uint32_t size, uint32_t *status)
 {
 	struct pollfd pfd;
 	struct timeval ping_timer;
@@ -1194,9 +1197,10 @@ close_nl:
 	return rc;
 }
 
-static int kget_chap(uint64_t transport_handle, uint32_t host_no,
-		     uint16_t chap_tbl_idx, uint32_t num_entries,
-		     char *chap_buf, uint32_t *valid_chap_entries)
+static int
+kget_chap(uint64_t transport_handle, uint32_t host_no,
+	  uint16_t chap_tbl_idx, uint32_t num_entries,
+	  char *chap_buf, uint32_t *valid_chap_entries)
 {
 	int rc = 0;
 	int ev_size;
@@ -1239,8 +1243,9 @@ static int kget_chap(uint64_t transport_handle, uint32_t host_no,
 	return rc;
 }
 
-static int kset_chap(uint64_t transport_handle, uint32_t host_no,
-			struct iovec *iovs, uint32_t param_count)
+static int
+kset_chap(uint64_t transport_handle, uint32_t host_no,
+	  struct iovec *iovs, uint32_t param_count)
 {
 	int rc;
 	struct iscsi_uevent ev;
@@ -1262,8 +1267,9 @@ static int kset_chap(uint64_t transport_handle, uint32_t host_no,
 	return 0;
 }
 
-static int kdelete_chap(uint64_t transport_handle, uint32_t host_no,
-			uint16_t chap_tbl_idx)
+static int
+kdelete_chap(uint64_t transport_handle, uint32_t host_no,
+	     uint16_t chap_tbl_idx)
 {
 	int rc = 0;
 	struct iscsi_uevent ev;
@@ -1449,8 +1455,9 @@ klogout_flashnode_sid(uint64_t transport_handle, uint32_t host_no,
 	return 0;
 }
 
-static int kget_host_stats(uint64_t transport_handle, uint32_t host_no,
-		     char *host_stats)
+static int
+kget_host_stats(uint64_t transport_handle, uint32_t host_no,
+		char *host_stats)
 {
 	int rc = 0;
 	int ev_size;
@@ -1490,8 +1497,8 @@ static int kget_host_stats(uint64_t transport_handle, uint32_t host_no,
 	return rc;
 }
 
-
-static void drop_data(struct nlmsghdr *nlh)
+static void
+drop_data(struct nlmsghdr *nlh)
 {
 	int ev_size;
 
@@ -1499,7 +1506,8 @@ static void drop_data(struct nlmsghdr *nlh)
 	nlpayload_read(ctrl_fd, NULL, ev_size, 0);
 }
 
-static int ctldev_handle(void)
+static int
+ctldev_handle(void)
 {
 	int rc, ev_size;
 	struct iscsi_uevent *ev;
@@ -1702,7 +1710,7 @@ ctldev_open(void)
 		goto free_pdu_sendbuf;
 	}
 
-	ctrl_fd = socket(PF_NETLINK, SOCK_RAW, NETLINK_ISCSI);
+	ctrl_fd = socket(AF_NETLINK, SOCK_RAW, NETLINK_ISCSI);
 	if (ctrl_fd < 0) {
 		log_error("can not create NETLINK_ISCSI socket [%s]",
 		          strerror(errno));
@@ -1754,7 +1762,7 @@ ctldev_close(void)
 	free(nlm_sendbuf);
 }
 
-struct iscsi_ipc nl_ipc = {
+static struct iscsi_ipc nl_ipc = {
 	.name                   = "Open-iSCSI Kernel IPC/NETLINK v.1",
 	.ctldev_bufmax		= NLM_BUF_DEFAULT_MAX,
 	.ctldev_open		= ctldev_open,
