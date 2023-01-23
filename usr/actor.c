@@ -290,7 +290,7 @@ actor_poll(void)
 		log_debug(7, "exec thread %p:%s",
 			  thread, thread->name);
 		thread->callback(thread->data);
-		log_debug(7, "thread %p:%s done", thread, thread->name);
+		log_debug(7, "thread %p done", thread);
 	}
 	poll_in_progress = 0;
 }
