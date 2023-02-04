@@ -27,6 +27,7 @@ SYSTEMD_SOURCES		= $(addprefix systemd/,$(SYSTEMD_SOURCE_FILES))
 SYSTEMD_TEMPLATE_FILES	= iscsi-init.service.template \
 			  iscsid.service.template \
 			  iscsi.service.template \
+			  iscsi-starter.service.template \
 			  iscsiuio.service.template
 SYSTEMD_TEMPLATES	= $(addprefix systemd/,$(SYSTEMD_TEMPLATE_FILES))
 SYSTEMD_RULES_FILES	= ibft-rule-generator
