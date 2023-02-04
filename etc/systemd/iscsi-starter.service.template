@@ -1,8 +1,8 @@
 [Unit]
 DefaultDependencies=no
 Before=sysinit.target iscsi.service
-RequiresMountsFor=/var/lib/iscsi/nodes
-ConditionDirectoryNotEmpty=/var/lib/iscsi/nodes
+RequiresMountsFor=@DBROOT@/nodes
+ConditionDirectoryNotEmpty=@DBROOT@/nodes
 
 [Service]
 Type=oneshot
