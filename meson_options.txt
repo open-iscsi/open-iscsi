@@ -6,8 +6,8 @@ option('no_systemd', type: 'boolean', value: false,
 # these are in the 'sysconfigdir' (/etc by default) unless overridden
 option('homedir', type: 'string', value: 'iscsi',
   description: 'Set the HOME directory [/etc/iscsi]')
-option('dbroot', type: 'string', value: 'iscsi',
-  description: 'Set the DATABASE root directory [/etc/iscsi]')
+option('dbroot', type: 'string', value: '/var/lib/iscsi',
+  description: 'Set the DATABASE root directory [/var/lib/iscsi]')
 option('lockdir', type: 'string', value: '/run/lock/iscsi',
   description: 'Set the LOCK_DIR directory [/run/lock/iscsi]')
 option('rulesdir', type: 'string', value: 'udev/rules.d',
