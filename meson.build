@@ -88,6 +88,12 @@ if not no_systemd
   systemd_dep = dependency('libsystemd')
 endif
 
+# libressl doesn't support SHA3
+cc = meson.get_compiler('c')
+if cc.has_function('EVP_sha3_256', dependencies: crypto_dep)
+  genl_cargs += '-DSHA3_256_SUPPORTED'
+endif
+
 #
 # build two static libs that programs in 'usr' will need, which
 # do not depend on anything local
@@ -179,7 +185,6 @@ if not no_systemd
 endif
 
 # handle two libs that won't be found with "dependency()"
-cc = meson.get_compiler('c')
 usr_deps += cc.find_library('rt')
 usr_deps += cc.find_library('isns')
 

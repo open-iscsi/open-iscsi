@@ -977,7 +977,9 @@ static struct int_list_tbl chap_algs[] = {
 	{ "MD5", ISCSI_AUTH_CHAP_ALG_MD5 },
 	{ "SHA1", ISCSI_AUTH_CHAP_ALG_SHA1 },
 	{ "SHA256", ISCSI_AUTH_CHAP_ALG_SHA256 },
+#ifdef SHA3_256_SUPPORTED
 	{ "SHA3-256", ISCSI_AUTH_CHAP_ALG_SHA3_256 },
+#endif
 };
 
 static void _idbm_node_rec_link(struct iscsi_node *node, struct idbm_rec *recs, const char *iface_name)
