@@ -200,7 +200,9 @@ static struct int_list_tbl {
 	{ "MD5", AUTH_CHAP_ALG_MD5 },
 	{ "SHA1", AUTH_CHAP_ALG_SHA1 },
 	{ "SHA256", AUTH_CHAP_ALG_SHA256 },
+#ifdef SHA3_256_SUPPORTED
 	{ "SHA3-256", AUTH_CHAP_ALG_SHA3_256 },
+#endif
 };
 
 static void

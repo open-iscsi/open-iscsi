@@ -181,9 +181,11 @@ static int auth_hash_init(EVP_MD_CTX **context, int chap_alg) {
 	case AUTH_CHAP_ALG_SHA256:
 		digest = EVP_sha256();
 		break;
+#ifdef SHA3_256_SUPPORTED
 	case AUTH_CHAP_ALG_SHA3_256:
 		digest = EVP_sha3_256();
 		break;
+#endif
 	}
 
 	if (*context == NULL)
@@ -298,7 +300,9 @@ static int
 acl_chk_chap_alg_optn(int chap_algorithm)
 {
 	if (chap_algorithm == AUTH_OPTION_NONE ||
+#ifdef SHA3_256_SUPPORTED
 	    chap_algorithm == AUTH_CHAP_ALG_SHA3_256 ||
+#endif
 	    chap_algorithm == AUTH_CHAP_ALG_SHA256 ||
 	    chap_algorithm == AUTH_CHAP_ALG_SHA1 ||
 	    chap_algorithm == AUTH_CHAP_ALG_MD5)
@@ -711,9 +715,11 @@ acl_chk_chap_alg_key(struct iscsi_acl *client)
 				case AUTH_CHAP_ALG_SHA256:
 					client->chap_challenge_len = AUTH_CHAP_SHA256_RSP_LEN;
 					break;
+#ifdef SHA3_256_SUPPORTED
 				case AUTH_CHAP_ALG_SHA3_256:
 					client->chap_challenge_len = AUTH_CHAP_SHA3_256_RSP_LEN;
 					break;
+#endif
 				}
 				return;
 			}
@@ -862,7 +868,10 @@ acl_local_auth(struct iscsi_acl *client)
 			client->local_state = AUTH_LOCAL_STATE_ERROR;
 			client->dbg_status = AUTH_DBG_STATUS_CHAP_ALG_REJECT;
 			break;
-		} else if ((client->negotiated_chap_alg != AUTH_CHAP_ALG_SHA3_256) &&
+		} else if (
+#ifdef SHA3_256_SUPPORTED
+			   (client->negotiated_chap_alg != AUTH_CHAP_ALG_SHA3_256) &&
+#endif
 			   (client->negotiated_chap_alg != AUTH_CHAP_ALG_SHA256) &&
 			   (client->negotiated_chap_alg != AUTH_CHAP_ALG_SHA1) &&
 			   (client->negotiated_chap_alg != AUTH_CHAP_ALG_MD5)) {
@@ -1824,6 +1833,7 @@ acl_init_chap_digests(int *value_list, unsigned *chap_algs, int conf_count) {
 				            "SHA256 due to crypto lib configuration");
 			}
 			break;
+#ifdef SHA3_256_SUPPORTED
 		case AUTH_CHAP_ALG_SHA3_256:
 			if (EVP_DigestInit_ex(context, EVP_sha3_256(), NULL)) {
 				value_list[i++] = AUTH_CHAP_ALG_SHA3_256;
@@ -1832,6 +1842,7 @@ acl_init_chap_digests(int *value_list, unsigned *chap_algs, int conf_count) {
 				            "SHA3-256 due to crypto lib configuration");
 			}
 			break;
+#endif
 		case ~0:
 			/* unset value in array, just ignore */
 			break;
