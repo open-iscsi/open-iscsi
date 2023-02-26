@@ -54,10 +54,6 @@
 #include <libisns/paths.h>
 #include <libisns/message.h>
 
-#ifdef SLP_ENABLE
-#include "iscsi-slp-discovery.h"
-#endif
-
 #define DISCOVERY_NEED_RECONNECT 0xdead0001
 
 static char initiator_name[TARGET_NAME_MAXLEN + 1];
@@ -143,7 +139,7 @@ int discovery_isns_query(struct discovery_rec *drec, const char *iname,
 	if (!source)
 		return ISCSI_ERR_NOMEM;
 
-	clnt = isns_create_client(NULL, iname); 
+	clnt = isns_create_client(NULL, iname);
 	if (!clnt) {
 		rc = ISCSI_ERR_NOMEM;
 		goto free_src;
@@ -192,8 +188,8 @@ int discovery_isns_query(struct discovery_rec *drec, const char *iname,
 
 	status = isns_query_response_get_objects(qry, &objects);
 	if (status) {
-		log_error("Unable to extract object list from query "
-			  "response: %s", isns_strerror(status));
+		log_error("Unable to extract object list from query response: %s",
+			  isns_strerror(status));
 		rc = ISCSI_ERR;
 		goto free_query;
 	}
@@ -298,7 +294,7 @@ static int discovery_isns_reg_node(const char *iname, int op_reg)
 	if (!source)
 		return ISCSI_ERR_NOMEM;
 
-	clnt = isns_create_client(NULL, iname); 
+	clnt = isns_create_client(NULL, iname);
 	if (!clnt) {
 		rc = ISCSI_ERR_NOMEM;
 		goto free_src;
@@ -346,12 +342,10 @@ int discovery_isns(void *data, struct iface_rec *iface,
 	else {
 		rc = request_initiator_name(drec->iscsid_req_tmo);
 		if (rc) {
-			log_error("Cannot perform discovery. Initiatorname "
-				  "required.");
+			log_error("Cannot perform discovery. Initiatorname required.");
 			return rc;
 		} else if (initiator_name[0] == '\0') {
-			log_error("Cannot perform discovery. Invalid "
-				  "Initiatorname.");
+			log_error("Cannot perform discovery. Invalid Initiatorname.");
 			return ISCSI_ERR_INVAL;
 		}
 
@@ -391,8 +385,8 @@ int discovery_fw(void *data,
 	INIT_LIST_HEAD(&targets);
 	rc = fw_get_targets(&targets);
 	if (rc) {
-		log_error("Could not get list of targets from firmware. "
-			  "(err %d)", rc);
+		log_error("Could not get list of targets from firmware. (err %d)",
+			  rc);
 		return rc;
 	}
 	if (list_empty(&targets))
@@ -406,8 +400,7 @@ int discovery_fw(void *data,
 	list_for_each_entry(bcontext, &targets, list) {
 		rec = idbm_create_rec_from_boot_context(bcontext);
 		if (!rec) {
-			log_error("Could not convert firmware info to "
-				  "node record.");
+			log_error("Could not convert firmware info to node record.");
 			rc = ISCSI_ERR_NOMEM;
 			goto free_targets;
 		}
@@ -511,7 +504,7 @@ request_targets(iscsi_session_t *session)
 	text.flags = ISCSI_FLAG_CMD_FINAL;
 
 	if (!iscsi_io_send_pdu(&session->conn[0], hdr, ISCSI_DIGEST_NONE, data,
-		    ISCSI_DIGEST_NONE, session->conn[0].active_timeout)) {
+			       ISCSI_DIGEST_NONE, session->conn[0].active_timeout)) {
 		log_error("failed to send SendTargets PDU");
 		return 0;
 	}
@@ -539,7 +532,7 @@ iterate_targets(iscsi_session_t *session, uint32_t ttt)
 	text.flags = ISCSI_FLAG_CMD_FINAL;
 
 	if (!iscsi_io_send_pdu(&session->conn[0], pdu, ISCSI_DIGEST_NONE, data,
-		    ISCSI_DIGEST_NONE, session->conn[0].active_timeout)) {
+			       ISCSI_DIGEST_NONE, session->conn[0].active_timeout)) {
 		log_error("failed to send empty text PDU");
 		return 0;
 	}
@@ -633,8 +626,8 @@ add_target_record(char *name, char *end, discovery_rec_t *drec,
 			sprintf(default_port, "%d", drec->port);
 			if (!add_portal(rec_list, drec, name, drec->address,
 				        default_port, NULL)) {
-				log_error("failed to add default portal, "
-					  "ignoring target %s", name);
+				log_error("failed to add default portal, ignoring target %s",
+					  name);
 				return 0;
 			}
 		}
@@ -672,13 +665,13 @@ add_target_record(char *name, char *end, discovery_rec_t *drec,
 
 			if (!add_portal(rec_list, drec, name, address, port,
 					tag)) {
-				log_error("failed to add default portal, "
-					 "ignoring target %s", name);
+				log_error("failed to add default portal, ignoring target %s",
+					  name);
 				return 0;
 			}
 		} else
-			log_error("unexpected SendTargets data: %s",
-			       text);
+			log_error("unexpected SendTargets data: %s", text);
+
 		text = next;
 	}
 
@@ -740,8 +733,7 @@ process_sendtargets_response(struct str_buffer *sendtargets,
 				 */
 				if (!add_target_record(record + 11, text,
 							drec, rec_list)) {
-					log_error(
-					       "failed to add target record");
+					log_error("failed to add target record");
 					str_truncate_buffer(sendtargets, 0);
 					goto done;
 				}
@@ -763,11 +755,10 @@ process_sendtargets_response(struct str_buffer *sendtargets,
 			 * it also ends a target record
 			 */
 			log_debug(7,
-				 "processing final sendtargets record %p, "
-				 "line %s",
+				 "processing final sendtargets record %p, line %s",
 				 record, record);
-			if (add_target_record (record + 11, text,
-					       drec, rec_list)) {
+			if (add_target_record(record + 11, text,
+					      drec, rec_list)) {
 				num_targets++;
 				record = NULL;
 				str_truncate_buffer(sendtargets, 0);
@@ -782,8 +773,7 @@ process_sendtargets_response(struct str_buffer *sendtargets,
 			 * beginning of the buffer.
 			 */
 			log_debug(7,
-				 "processed %d bytes of sendtargets data, "
-				 "%d remaining",
+				 "processed %d bytes of sendtargets data, %d remaining",
 				 (int)(record - str_buffer_data(sendtargets)),
 				 (int)(str_buffer_data(sendtargets) +
 				 str_data_length(sendtargets) - record));
@@ -792,7 +782,7 @@ process_sendtargets_response(struct str_buffer *sendtargets,
 		}
 	}
 
-      done:
+done:
 
 	return 1;
 }
@@ -819,8 +809,8 @@ iscsi_alloc_session(struct iscsi_sendtargets_config *config,
 
 	session->t = iscsi_sysfs_get_transport_by_name(iface->transport_name);
 	if (!session->t) {
-		log_error("iSCSI driver %s is not loaded. Load the module "
-			  "then retry the command.", iface->transport_name);
+		log_error("iSCSI driver %s is not loaded. Load the module then retry the command.",
+			  iface->transport_name);
 		*rc = ISCSI_ERR_TRANS_NOT_FOUND;
 		goto fail;
 	}
@@ -853,12 +843,10 @@ iscsi_alloc_session(struct iscsi_sendtargets_config *config,
 	} else {
 		*rc = request_initiator_name(tmo);
 		if (*rc) {
-			log_error("Cannot perform discovery. Initiatorname "
-				  "required.");
+			log_error("Cannot perform discovery. Initiatorname required.");
 			goto fail;
 		} else if (initiator_name[0] == '\0') {
-			log_error("Cannot perform discovery. Invalid "
-				  "Initiatorname.");
+			log_error("Cannot perform discovery. Invalid Initiatorname.");
 			*rc = ISCSI_ERR_INVAL;
 			goto fail;
 		}
@@ -906,22 +894,20 @@ process_recvd_pdu(struct iscsi_hdr *pdu,
 				(text_response-> ttt == ISCSI_RESERVED_TAG);
 			size_t curr_data_length;
 
-			log_debug(4, "discovery session to %s:%d received text"
-				 " response, %d data bytes, ttt 0x%x, "
-				 "final 0x%x",
-				 drec->address,
-				 drec->port,
-				 dlength,
-				 ntohl(text_response->ttt),
-				 text_response->flags & ISCSI_FLAG_CMD_FINAL);
+			log_debug(4,
+				  "discovery session to %s:%d received text response, %d data bytes, ttt 0x%x, final 0x%x",
+				  drec->address,
+				  drec->port,
+				  dlength,
+				  ntohl(text_response->ttt),
+				  text_response->flags & ISCSI_FLAG_CMD_FINAL);
 
 			/* mark how much more data in the sendtargets
 			 * buffer is now valid
 			 */
 			curr_data_length = str_data_length(sendtargets);
 			if (str_enlarge_data(sendtargets, dlength)) {
-				log_error("Could not allocate memory to "
-					  "process SendTargets response.");
+				log_error("Could not allocate memory to process SendTargets response.");
 				rc = 0;
 				goto done;
 			}
@@ -955,8 +941,7 @@ process_recvd_pdu(struct iscsi_hdr *pdu,
 		}
 		default:
 			log_warning(
-			       "discovery session to %s:%d received "
-			       "unexpected opcode 0x%x",
+			       "discovery session to %s:%d received unexpected opcode 0x%x",
 			       drec->address, drec->port, pdu->opcode);
 			rc = DISCOVERY_NEED_RECONNECT;
 			goto done;
@@ -964,59 +949,6 @@ process_recvd_pdu(struct iscsi_hdr *pdu,
  done:
 	return(rc);
 }
-
-#if 0 /* Unused */
-/*
- * Make a best effort to logout the session.
- */
-static void iscsi_logout(iscsi_session_t * session)
-{
-	struct iscsi_logout logout_req;
-	struct iscsi_logout_rsp logout_resp;
-	int rc;
-
-	/*
-	 * Build logout request header
-	 */
-	memset(&logout_req, 0, sizeof (logout_req));
-	logout_req.opcode = ISCSI_OP_LOGOUT | ISCSI_OP_IMMEDIATE;
-	logout_req.flags = ISCSI_FLAG_CMD_FINAL |
-		(ISCSI_LOGOUT_REASON_CLOSE_SESSION &
-				ISCSI_FLAG_LOGOUT_REASON_MASK);
-	logout_req.itt = htonl(session->itt);
-	if (++session->itt == ISCSI_RESERVED_TAG)
-		session->itt = 1;
-	logout_req.cmdsn = htonl(session->cmdsn);
-	logout_req.exp_statsn = htonl(++session->conn[0].exp_statsn);
-
-	/*
-	 * Send the logout request
-	 */
-	rc = iscsi_io_send_pdu(&session->conn[0],(struct iscsi_hdr *)&logout_req,
-			    ISCSI_DIGEST_NONE, NULL, ISCSI_DIGEST_NONE, 3);
-	if (!rc) {
-		log_error(
-		       "iscsid: iscsi_logout - failed to send logout PDU.");
-		return;
-	}
-
-	/*
-	 * Read the logout response
-	 */
-	memset(&logout_resp, 0, sizeof(logout_resp));
-	rc = iscsi_io_recv_pdu(&session->conn[0],
-		(struct iscsi_hdr *)&logout_resp, ISCSI_DIGEST_NONE, NULL,
-		0, ISCSI_DIGEST_NONE, 1);
-	if (rc < 0) {
-		log_error("iscsid: logout - failed to receive logout resp");
-		return;
-	}
-	if (logout_resp.response != ISCSI_LOGOUT_SUCCESS) {
-		log_error("iscsid: logout failed - response = 0x%x",
-		       logout_resp.response);
-	}
-}
-#endif /* Unused */
 
 static void iscsi_destroy_session(struct iscsi_session *session)
 {
@@ -1042,10 +974,10 @@ static void iscsi_destroy_session(struct iscsi_session *session)
 		log_error("Could not stop conn %d:%d cleanly (err %d)",
 			  session->id, conn->id, rc);
 		goto done;
-        }
+	}
 
 	log_debug(2, "%s destroy conn", __FUNCTION__);
-        rc = ipc->destroy_conn(session->t->handle, session->id, conn->id);
+	rc = ipc->destroy_conn(session->t->handle, session->id, conn->id);
 	if (rc) {
 		log_error("Could not safely destroy conn %d:%d (err %d)",
 			  session->id, conn->id, rc);
@@ -1059,8 +991,8 @@ static void iscsi_destroy_session(struct iscsi_session *session)
 			  session->id, rc);
 done:
 	if (session->target_alias) {
-	    free(session->target_alias);
-	    session->target_alias = NULL;
+		free(session->target_alias);
+		session->target_alias = NULL;
 	}
 
 	if (conn->socket_fd >= 0) {
@@ -1150,7 +1082,7 @@ static int iscsi_create_leading_conn(struct iscsi_session *session)
 
 	log_debug(2, "%s discovery create session", __FUNCTION__);
 	/* create kernel structs */
-        rc = ipc->create_session(session->t->handle,
+	rc = ipc->create_session(session->t->handle,
 				 conn->transport_ep_handle, 1, 32, 1,
 				 &session->id, &host_no);
 	if (rc) {
@@ -1174,11 +1106,9 @@ static int iscsi_create_leading_conn(struct iscsi_session *session)
 
 	log_debug(2, "%s discovery bind conn", __FUNCTION__);
 	if (ipc->bind_conn(t->handle, session->id, conn->id,
-			   conn->transport_ep_handle, (conn->id == 0), &rc) ||
-	    rc) {
-		log_error("Could not bind conn %d:%d to session %d, "
-			  "(err %d)", session->id, conn->id,
-			  session->id, rc);
+			   conn->transport_ep_handle, (conn->id == 0), &rc) || rc) {
+		log_error("Could not bind conn %d:%d to session %d, (err %d)",
+			  session->id, conn->id, session->id, rc);
 		rc = ISCSI_ERR_INTERNAL;
 		goto disconnect;
 	}
@@ -1192,7 +1122,7 @@ disconnect:
 	if (session->id != INVALID_SESSION_ID &&
 	    iscsi_sysfs_session_has_leadconn(session->id)) {
 		if (ipc->destroy_conn(session->t->handle, session->id,
-				       conn->id))
+				      conn->id))
 			log_error("Could not safely destroy connection %d:%d",
 				  session->id, conn->id);
 	}
@@ -1249,9 +1179,9 @@ static int iscsi_sched_ev_context(struct iscsi_ev_context *ev_context,
 }
 
 static struct iscsi_ipc_ev_clbk ipc_clbk = {
-        .get_ev_context         = iscsi_ev_context_get,
-        .put_ev_context         = iscsi_ev_context_put,
-        .sched_ev_context       = iscsi_sched_ev_context,
+	.get_ev_context		= iscsi_ev_context_get,
+	.put_ev_context		= iscsi_ev_context_put,
+	.sched_ev_context	= iscsi_sched_ev_context,
 };
 
 static int iscsi_wait_for_login(struct iscsi_conn *conn)
@@ -1277,8 +1207,8 @@ static int iscsi_wait_for_login(struct iscsi_conn *conn)
 	timeout = iscsi_timer_msecs_until(&connection_timer);
 
 login_repoll:
-	log_debug(4, "discovery login process polling fd %d, "
-		 "timeout in %f seconds", pfd.fd, timeout / 1000.0);
+	log_debug(4, "discovery login process polling fd %d, timeout in %f seconds",
+		  pfd.fd, timeout / 1000.0);
 
 	pfd.revents = 0;
 	rc = poll(&pfd, 1, timeout);
@@ -1310,8 +1240,7 @@ login_repoll:
 		}
 
 		if (pfd.revents & POLLHUP) {
-			log_warning("discovery session"
-				    "terminating after hangup");
+			log_warning("discovery sessionterminating after hangup");
 			 rc = ISCSI_ERR_TRANS;
 			 goto done;
 		}
@@ -1394,9 +1323,9 @@ redirect_reconnect:
 		    NI_NUMERICHOST|NI_NUMERICSERV);
 
 	if (login_delay) {
-		log_debug(4, "discovery session to %s:%s sleeping for %d "
-			 "seconds before next login attempt",
-			 conn->host, serv, login_delay);
+		log_debug(4,
+			  "discovery session to %s:%s sleeping for %d seconds before next login attempt",
+			  conn->host, serv, login_delay);
 		sleep(login_delay);
 	}
 	rc = iscsi_create_leading_conn(session);
@@ -1421,8 +1350,8 @@ redirect_reconnect:
 		log_debug(2, "%s discovery set params", __FUNCTION__);
 		rc = iscsi_session_set_params(conn);
 		if (rc) {
-			log_error("Could not set iscsi params for conn %d:%d "
-				  "(err %d)", session->id, conn->id, rc);
+			log_error("Could not set iscsi params for conn %d:%d (err %d)",
+				  session->id, conn->id, rc);
 			rc = ISCSI_ERR_INTERNAL;
 			goto login_failed;
 		}
@@ -1477,13 +1406,13 @@ redirect_reconnect:
 			 */
 		case ISCSI_LOGIN_STATUS_TGT_MOVED_TEMP:
 			log_warning(
-				"discovery login temporarily redirected to "
-				"%s port %s", conn->host, serv);
+				"discovery login temporarily redirected to %s port %s",
+				conn->host, serv);
 			goto redirect_reconnect;
 		case ISCSI_LOGIN_STATUS_TGT_MOVED_PERM:
 			log_warning(
-				"discovery login permanently redirected to "
-				"%s port %s", conn->host, serv);
+				"discovery login permanently redirected to %s port %s",
+				conn->host, serv);
 			/* make the new address permanent */
 			memset(&conn->failback_saddr, 0,
 				sizeof(struct sockaddr_storage));
@@ -1491,8 +1420,7 @@ redirect_reconnect:
 			goto redirect_reconnect;
 		default:
 			log_error(
-			       "discovery login rejected: redirection type "
-			       "0x%x not supported",
+			       "discovery login rejected: redirection type 0x%x not supported",
 			       status_detail);
 			goto set_address;
 		}
@@ -1501,29 +1429,25 @@ redirect_reconnect:
 		switch (status_detail) {
 		case ISCSI_LOGIN_STATUS_AUTH_FAILED:
 		case ISCSI_LOGIN_STATUS_TGT_FORBIDDEN:
-			log_error("discovery login to %s rejected: "
-				  "initiator failed authorization",
-				 conn->host);
+			log_error("discovery login to %s rejected: initiator failed authorization",
+				  conn->host);
 			rc = ISCSI_ERR_LOGIN_AUTH_FAILED;
 			goto login_failed;
 		default:
-			log_error("discovery login to %s rejected: initiator "
-				  "error (%02x/%02x), non-retryable, giving up",
+			log_error("discovery login to %s rejected: initiator error (%02x/%02x), non-retryable, giving up",
 				  conn->host, status_class, status_detail);
 			rc = ISCSI_ERR_FATAL_LOGIN;
 		}
 		goto login_failed;
 	case ISCSI_STATUS_CLS_TARGET_ERR:
 		log_error(
-			"discovery login to %s rejected: "
-			"target error (%02x/%02x)",
+			"discovery login to %s rejected: target error (%02x/%02x)",
 			conn->host, status_class, status_detail);
 		login_failures++;
 		goto reconnect;
 	default:
 		log_error(
-			"discovery login to %s failed, response "
-			"with unknown status class 0x%x, detail 0x%x",
+			"discovery login to %s failed, response with unknown status class 0x%x, detail 0x%x",
 			conn->host,
 			status_class, status_detail);
 		login_failures++;
@@ -1537,8 +1461,8 @@ start_conn:
 	log_debug(2, "%s discovery set neg params", __FUNCTION__);
 	rc = iscsi_session_set_neg_params(conn);
 	if (rc) {
-		log_error("Could not set iscsi params for conn %d:%d (err "
-			  "%d)", session->id, conn->id, rc);
+		log_error("Could not set iscsi params for conn %d:%d (err %d)",
+			  session->id, conn->id, rc);
 		rc = ISCSI_ERR_INTERNAL;
 		goto login_failed;
 	}
@@ -1591,8 +1515,7 @@ int discovery_sendtargets(void *fndata, struct iface_rec *iface,
 	ipc_ev_context.conn = &session->conn[0];
 	ipc_register_ev_callback(&ipc_clbk);
 
-	log_debug(4, "sendtargets discovery to %s:%d using "
-		 "isid 0x%02x%02x%02x%02x%02x%02x",
+	log_debug(4, "sendtargets discovery to %s:%d using isid 0x%02x%02x%02x%02x%02x%02x",
 		 drec->address, drec->port, session->isid[0],
 		 session->isid[1], session->isid[2], session->isid[3],
 		 session->isid[4], session->isid[5]);
@@ -1648,8 +1571,7 @@ repoll:
 	 * or a timeout
 	 */
 	log_debug(4,
-		 "discovery process  %s:%d polling fd %d, "
-		 "timeout in %f seconds",
+		 "discovery process  %s:%d polling fd %d, timeout in %f seconds",
 		 drec->address, drec->port, pfd.fd,
 		 timeout / 1000.0);
 
@@ -1672,17 +1594,15 @@ repoll:
 			timeout = iscsi_timer_msecs_until(&connection_timer);
 
 			rc = iscsi_io_recv_pdu(&session->conn[0],
-					        pdu, ISCSI_DIGEST_NONE, data,
-					        data_len, ISCSI_DIGEST_NONE,
-					        timeout);
+					       pdu, ISCSI_DIGEST_NONE, data,
+					       data_len, ISCSI_DIGEST_NONE,
+					       timeout);
 			if (rc == -EAGAIN)
 				goto repoll;
 			else if (rc < 0) {
-				log_debug(1, "discovery session to "
-					  "%s:%d failed to recv a PDU "
-					  "response, terminating",
-					   drec->address,
-					   drec->port);
+				log_debug(1,
+					  "discovery session to %s:%d failed to recv a PDU response, terminating",
+					  drec->address, drec->port);
 				rc = ISCSI_ERR_PDU_TIMEOUT;
 				goto free_sendtargets;
 			}
@@ -1699,14 +1619,13 @@ repoll:
 			/* reset timers after receiving a PDU */
 			if (active) {
 				iscsi_timer_set(&connection_timer,
-				       session->conn[0].active_timeout);
+						session->conn[0].active_timeout);
 				goto repoll;
 			}
 		}
 
 		if (pfd.revents & POLLHUP) {
-			log_warning("discovery session to %s:%d "
-				    "terminating after hangup",
+			log_warning("discovery session to %s:%d terminating after hangup",
 				     drec->address, drec->port);
 			rc = ISCSI_ERR_TRANS;
 			goto free_sendtargets;
@@ -1741,50 +1660,3 @@ free_session:
 	iscsi_free_session(session);
 	return rc;
 }
-
-#ifdef SLP_ENABLE
-int
-slp_discovery(struct iscsi_slp_config *config)
-{
-	struct sigaction action;
-	char *pl;
-	unsigned short flag = 0;
-
-	memset(&action, 0, sizeof (struct sigaction));
-	action.sa_sigaction = NULL;
-	action.sa_flags = 0;
-	action.sa_handler = SIG_DFL;
-	sigaction(SIGTERM, &action, NULL);
-	sigaction(SIGINT, &action, NULL);
-	sigaction(SIGPIPE, &action, NULL);
-
-	action.sa_handler = sighup_handler;
-	sigaction(SIGHUP, &action, NULL);
-
-	if (iscsi_process_should_exit()) {
-		log_debug(1, "slp discovery process %p exiting", discovery);
-		exit(0);
-	}
-
-	discovery->pid = getpid();
-
-	pl = generate_predicate_list(discovery, &flag);
-
-	while (1) {
-		if (flag == SLP_MULTICAST_ENABLED) {
-			discovery->flag = SLP_MULTICAST_ENABLED;
-			slp_multicast_srv_query(discovery, pl, GENERIC_QUERY);
-		}
-
-		if (flag == SLP_UNICAST_ENABLED) {
-			discovery->flag = SLP_UNICAST_ENABLED;
-			slp_unicast_srv_query(discovery, pl, GENERIC_QUERY);
-		}
-
-		sleep(config->poll_interval);
-	}
-
-	exit(0);
-}
-
-#endif
