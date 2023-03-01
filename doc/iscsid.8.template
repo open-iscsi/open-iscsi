@@ -11,6 +11,12 @@ implements the control path of iSCSI protocol, plus some management
 facilities. For example, the daemon could be configured to automatically 
 re-start discovery at startup, based on the contents of persistent 
 iSCSI database.
+.PP
+The
+.B iscsid
+daemon can be started manually, but in many distributions it can be
+started by \fBsystemd\fR(1),
+if systemd support was enabled at build time.
 .SH OPTIONS
 .TP
 .BI [-c|--config=]\fIconfig\-file\fP

@@ -179,6 +179,11 @@ session is setup.
 Many of the node and discovery operations require that the iSCSI
 daemon (iscsid) be running. If running on a system that uses systemd,
 the daemon may start up automatically, if enabled, when needed.
+Otherwise, ensure you've manually started the daemon.
+.PP
+Some features in open-iscsi are optional, depending on how the package
+was compiled. This includes discovery via iSNS, discovery via SLP,
+and systemd support.
 .PP
 Open-iscsi has two groups of files it needs to store or get access to,
 while running: the \fBHOMEDIR\fR and the \fBDBROOT\fR. The following
@@ -495,6 +500,11 @@ Specify the \fIindex\fR of the entity to operate on.
 This option is only valid for \fIchap\fR and \fIflashnode\fR submodes of \fIhost\fR mode.
 .SH DISCOVERY TYPES
 iSCSI defines 3 discovery types: \fISendTargets\fR, \fISLP\fR, and \fIiSNS\fR.
+As mentioned earlier, the
+.I SLP
+and
+.I iSNS
+discovery support is optional, depending on how the package was compiled.
 .PP
 A special discovery type called
 .I fw
@@ -508,16 +518,21 @@ target to send a list of available targets to the initiator.
 .TP
 .B
 SLP
-Optionally an iSCSI target can use the Service Location Protocol (SLP)
-to announce the available targets. The initiator can either implement
+Optionally, an iSCSI target can use the Service Location Protocol (SLP)
+to announce the available targets if such support was compiled into
+the package. The initiator can either implement
 SLP queries directly or can use a separate tool to acquire the
 information about available targets.
+This code is considered experimental and not fully implemented.
 .TP
 .B
 iSNS
-iSNS (Internet Storage Name Service) records information about storage
-volumes within a larger network. To utilize iSNS, pass the address and
-optionally the port of the iSNS server to do discovery to.
+The iSNS (Internet Storage Name Service) protocol records information
+bout storage
+volumes within a larger network. To utilize \fIiSNS\fR,
+pass the address and optionally the port of the
+.I iSNS
+server to perform discovery to.
 .TP
 .B
 fw
