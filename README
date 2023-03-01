@@ -81,7 +81,7 @@ As of today, the Open-iSCSI Initiator requires a host running the
 Linux operating system with kernel.
 
 The userspace components iscsid, iscsiadm and iscsistart require the
-open-isns library.
+open-isns library, if iSNS support has been chosen at build ttime.
 
 If this package is not available for your distribution, you can download
 and install it yourself.  To install the open-isns headers and library
@@ -205,8 +205,8 @@ options discussed earlier).
 Configuration is contained in directories for:
 
 	- nodes
-	- slp
-	- isns
+	- slp (if supported)
+	- isns (if supported)
 	- static
 	- fw
 	- send_targets
@@ -1254,7 +1254,8 @@ or discovered through the discover daemon iscsid.conf params
 (discussed in 7.1.2).
 
 If your distro does not have systemd units for iSCSI, then you will have
-to start the daemon and log into the targets manually.
+to start the daemon and log into the targets manually. You can also
+compile open-iscsi without systemd support, if you wish.
 
 
 7.1.1 iSCSI startup using the init script
@@ -1383,7 +1384,7 @@ SendTarget with:
 Here, "ip" is the address of the portal and "port" is the port.
 
 To use iSNS you can run the discovery command with the type as "isns"
-and pass in the ip:port:
+and pass in the ip:port (if iSNS support is compiled in):
 
 	iscsiadm -m discoverydb -t isns -p ip:port --discover
 
@@ -1475,6 +1476,8 @@ no longer returned. In this mode, when iscsid starts it will check the
 discovery db for iSNS records with:
 
 	discovery.isns.use_discoveryd = Yes
+
+NOTE: this requires iSNS support to be compiled into open-iscsi.
 
 This tells iscsi to check for SendTargets discovery records that have the
 setting:
