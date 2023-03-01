@@ -52,7 +52,9 @@
 #include "idbm_fields.h"
 #include "session_mgmt.h"
 #include "iscsid_req.h"
+#ifdef ISNS_SUPPORTED
 #include <libisns/isns-proto.h>
+#endif
 #include "iscsi_err.h"
 #include "iscsi_ipc.h"
 #include "iscsi_timer.h"
@@ -257,10 +259,14 @@ str_to_type(char *str)
 	if (!strcmp("sendtargets", str) ||
 	    !strcmp("st", str))
 		type = DISCOVERY_TYPE_SENDTARGETS;
+#ifdef SLP_SUPPORTED
 	else if (!strcmp("slp", str))
 		type = DISCOVERY_TYPE_SLP;
+#endif
+#ifdef ISNS_SUPPORTED
 	else if (!strcmp("isns", str))
 		type = DISCOVERY_TYPE_ISNS;
+#endif
 	else if (!strcmp("fw", str))
 		type = DISCOVERY_TYPE_FW;
 	else
@@ -1240,6 +1246,7 @@ do_software_sendtargets(discovery_rec_t *drec, struct list_head *ifaces,
 	return rc;
 }
 
+#ifdef ISNS_SUPPORTED
 static int do_isns(discovery_rec_t *drec, struct list_head *ifaces,
 		   int info_level, int do_login, int op)
 {
@@ -1275,6 +1282,7 @@ static int do_isns(discovery_rec_t *drec, struct list_head *ifaces,
 
 	return rc;
 }
+#endif
 
 static int
 do_target_discovery(discovery_rec_t *drec, struct list_head *ifaces,
@@ -1337,8 +1345,10 @@ sw_discovery:
 	case DISCOVERY_TYPE_SENDTARGETS:
 		return do_software_sendtargets(drec, ifaces, info_level,
 						do_login, op, sync_drec);
+#ifdef ISNS_SUPPORTED
 	case DISCOVERY_TYPE_ISNS:
 		return do_isns(drec, ifaces, info_level, do_login, op);
+#endif
 	default:
 		log_debug(1, "Unknown Discovery Type : %d", drec->type);
 		return ISCSI_ERR_UNKNOWN_DISCOVERY_TYPE;
@@ -3122,9 +3132,11 @@ static void setup_drec_defaults(int type, char *ip, int port,
 				struct discovery_rec *drec)
 {
 	switch (type) {
+#ifdef ISNS_SUPPORTED
 	case DISCOVERY_TYPE_ISNS:
 		idbm_isns_defaults(&drec->u.isns);
 		break;
+#endif
 	case DISCOVERY_TYPE_SENDTARGETS:
 		idbm_sendtargets_defaults(&drec->u.sendtargets);
 		break;
@@ -3208,7 +3220,9 @@ static int exec_discover(int disc_type, char *ip, int port,
 	rc = 0;
 	switch (disc_type) {
 	case DISCOVERY_TYPE_SENDTARGETS:
+#ifdef ISNS_SUPPORTED
 	case DISCOVERY_TYPE_ISNS:
+#endif
 		rc = do_target_discovery(drec, ifaces, info_level, do_login, op,
 				    0);
 		break;
@@ -3244,10 +3258,15 @@ static int exec_disc2_op(int disc_type, char *ip, int port,
 			goto do_db_op;
 		goto done;
 	case DISCOVERY_TYPE_SLP:
+#ifdef SLP_SUPPORTED
 		log_error("SLP discovery is not fully implemented yet.");
+#else
+		log_error("SLP discovery is not supported in this build.");
+#endif
 		rc = ISCSI_ERR_INVAL;
 		goto done;
 	case DISCOVERY_TYPE_ISNS:
+#ifdef ISNS_SUPPORTED
 		if (port < 0)
 			port = ISNS_DEFAULT_PORT;
 
@@ -3255,6 +3274,10 @@ static int exec_disc2_op(int disc_type, char *ip, int port,
 				   do_login, do_discover, op, &drec);
 		if (rc < 0)
 			goto do_db_op;
+#else
+		log_error("iSNS discovery is not supported in this build.");
+		rc = ISCSI_ERR_INVAL;
+#endif
 		goto done;
 	case DISCOVERY_TYPE_FW:
 		if (!do_discover) {
@@ -3358,10 +3381,15 @@ static int exec_disc_op(int disc_type,
 			goto done;
 		break;
 	case DISCOVERY_TYPE_SLP:
+#ifdef SLP_SUPPORTED
 		log_error("SLP discovery is not fully implemented yet.");
+#else
+		log_error("SLP discovery is not supported in this build.");
+#endif
 		rc = ISCSI_ERR_INVAL;
 		break;
 	case DISCOVERY_TYPE_ISNS:
+#ifdef ISNS_SUPPORTED
 		if (!ip) {
 			log_error("Please specify portal as "
 				  "<ipaddr>:[<ipport>]");
@@ -3378,6 +3406,10 @@ static int exec_disc_op(int disc_type,
 		drec.type = DISCOVERY_TYPE_ISNS;
 		rc = do_target_discovery(&drec, ifaces, info_level,
 					do_login, op, 0);
+#else
+		log_error("iSNS discovery is not supported in this build.");
+		rc = ISCSI_ERR_INVAL;
+#endif
 		if (rc)
 			goto done;
 		break;

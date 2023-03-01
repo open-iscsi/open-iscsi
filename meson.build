@@ -41,6 +41,8 @@ endif
 c_args = get_option('c_args')
 man_dir = get_option('mandir')
 iscsi_sbindir = get_option('iscsi_sbindir')
+isns_supported = get_option('isns_supported')
+slp_supported = get_option('slp_supported')
 
 #
 # get list of sources from subdirs (iscsiuio included at bottom)
@@ -183,10 +185,18 @@ usr_deps = [kmod_dep, crypto_dep, mount_dep, sysdeps_dep, fwparam_dep, libiscsi_
 if not no_systemd
   usr_deps += systemd_dep
 endif
+if isns_supported
+  genl_cargs += '-DISNS_SUPPORTED'
+endif
+if slp_supported
+  genl_cargs += '-DSLP_SUPPORTED'
+endif
 
 # handle two libs that won't be found with "dependency()"
 usr_deps += cc.find_library('rt')
-usr_deps += cc.find_library('isns')
+if isns_supported
+  usr_deps += cc.find_library('isns')
+endif
 
 # build iscsid, iscsiadm, and iscsistart
 foreach k,v: iscsi_usr_arr

@@ -31,14 +31,20 @@
 #include "flashnode.h"
 
 #define NODE_CONFIG_DIR		ISCSI_DB_ROOT"/nodes"
+#ifdef SLP_SUPPORTED
 #define SLP_CONFIG_DIR		ISCSI_DB_ROOT"/slp"
+#endif
+#ifdef ISNS_SUPPORTED
 #define ISNS_CONFIG_DIR		ISCSI_DB_ROOT"/isns"
+#endif
 #define STATIC_CONFIG_DIR	ISCSI_DB_ROOT"/static"
 #define FW_CONFIG_DIR		ISCSI_DB_ROOT"/fw"
 #define ST_CONFIG_DIR		ISCSI_DB_ROOT"/send_targets"
 
 #define ST_CONFIG_NAME		"st_config"
+#ifdef ISNS_SUPPORTED
 #define ISNS_CONFIG_NAME	"isns_config"
+#endif
 
 #define TYPE_INT	0
 #define TYPE_INT_O	1
@@ -81,6 +87,12 @@ typedef struct idbm {
 	recinfo_t	ninfo[MAX_KEYS];
 	discovery_rec_t	drec_st;
 	recinfo_t	dinfo_st[MAX_KEYS];
+	/*
+	 * the SLP and iSNS fields are only used if
+	 * support for them is compiled in, but we will
+	 * leave the fields here, even if not supported,
+	 * so that our DB records will be compatable
+	 */
 	discovery_rec_t	drec_slp;
 	recinfo_t	dinfo_slp[MAX_KEYS];
 	discovery_rec_t	drec_isns;
@@ -115,7 +127,9 @@ extern int idbm_for_each_rec(int *found, void *data,
 
 typedef int (idbm_drec_op_fn)(void *data, discovery_rec_t *drec);
 extern int idbm_for_each_st_drec(void *data, idbm_drec_op_fn *fn);
+#ifdef ISNS_SUPPORTED
 extern int idbm_for_each_isns_drec(void *data, idbm_drec_op_fn *fn);
+#endif
 
 extern int idbm_init(idbm_get_config_file_fn *fn);
 
@@ -141,8 +155,9 @@ extern int idbm_bind_ifaces_to_nodes(idbm_disc_nodes_fn *disc_node_fn,
 				     struct list_head *bound_recs);
 extern int idbm_add_discovery(discovery_rec_t *newrec);
 extern void idbm_sendtargets_defaults(struct iscsi_sendtargets_config *cfg);
+#ifdef ISNS_SUPPORTED
 extern void idbm_isns_defaults(struct iscsi_isns_config *cfg);
-extern void idbm_slp_defaults(struct iscsi_slp_config *cfg);
+#endif
 extern int idbm_session_autoscan(struct iscsi_session *session);
 extern int idbm_discovery_read(discovery_rec_t *rec, int type, char *addr,
 				int port);

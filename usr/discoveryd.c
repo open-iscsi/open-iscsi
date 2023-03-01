@@ -41,16 +41,19 @@
 #include "session_mgmt.h"
 #include "session_info.h"
 #include "iscsi_err.h"
+#ifdef ISNS_SUPPORTED
 #include <libisns/isns-proto.h>
 #include <libisns/isns.h>
 #include <libisns/paths.h>
 #include <libisns/message.h>
+#endif
 
 #define DISC_DEF_POLL_INVL	30
 
 static LIST_HEAD(iscsi_targets);
 static int stop_discoveryd;
 
+#ifdef ISNS_SUPPORTED
 static LIST_HEAD(isns_initiators);
 static LIST_HEAD(isns_refresh_list);
 static char *isns_entity_id = NULL;
@@ -58,6 +61,7 @@ static uint32_t isns_refresh_interval;
 static int isns_register_nodes = 1;
 
 static void isns_reg_refresh_by_eid_qry(void *data);
+#endif
 
 typedef void (do_disc_and_login_fn)(const char *def_iname,
 				    struct discovery_rec *drec, int poll_inval);
@@ -158,8 +162,10 @@ static void update_sessions(struct list_head *new_rec_list,
 			if (strlen(rec->iface.iname) &&
 			    strcmp(rec->iface.iname, iname))
 				continue;
+#ifdef ISNS_SUPPORTED
 			else if (strcmp(iname, isns_config.ic_source_name))
 				continue;
+#endif
 		}
 
 		log_debug(5, "Matched %s %s, checking if in new targets.",
@@ -220,6 +226,7 @@ static void fork_disc(const char *def_iname, struct discovery_rec *drec,
 	}
 }
 
+#ifdef ISNS_SUPPORTED
 struct isns_node_list {
 	isns_source_t *source;
 	struct list_head list;
@@ -1018,6 +1025,7 @@ static void start_isns(const char *def_iname, struct discovery_rec *drec,
 	log_debug(1, "start isns done %d.", rc);
 	discoveryd_stop();
 }
+#endif	/* ISNS_SUPPORTED */
 
 /* SendTargets */
 static void __do_st_disc_and_login(struct discovery_rec *drec)
@@ -1087,6 +1095,7 @@ static void discoveryd_st_start(void)
 	idbm_for_each_st_drec(NULL, st_start);
 }
 
+#ifdef ISNS_SUPPORTED
 static int isns_start(void *data, struct discovery_rec *drec)
 {
 	log_debug(1, "isns_start %s:%d %d", drec->address, drec->port,
@@ -1102,9 +1111,12 @@ static void discoveryd_isns_start(const char *def_iname)
 {
 	idbm_for_each_isns_drec((void *)def_iname, isns_start);
 }
+#endif	/* ISNS_SUPPORTED */
 
 void discoveryd_start(const char *def_iname)
 {
+#ifdef ISNS_SUPPORTED
 	discoveryd_isns_start(def_iname);
+#endif
 	discoveryd_st_start();
 }

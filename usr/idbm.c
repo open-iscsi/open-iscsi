@@ -263,6 +263,7 @@ idbm_recinfo_discovery(discovery_rec_t *r, recinfo_t *ri)
 			      u.sendtargets.conn_conf.MaxRecvDataSegmentLength,
 			      IDBM_SHOW, num, 1);
 		break;
+#ifdef ISNS_SUPPORTED
 	case DISCOVERY_TYPE_ISNS:
 		__recinfo_str(DISC_ISNS_ADDR, ri, r,
 			address, IDBM_SHOW, num, 0);
@@ -275,6 +276,7 @@ idbm_recinfo_discovery(discovery_rec_t *r, recinfo_t *ri)
 			u.isns.discoveryd_poll_inval,
 			IDBM_SHOW, num, 1);
 		break;
+#endif
 	default:
 		break;
 	}
@@ -992,6 +994,7 @@ idbm_discovery_setup_defaults(discovery_rec_t *rec, discovery_type_e type)
 		rec->u.sendtargets.conn_conf.MaxRecvDataSegmentLength =
 						DEF_INI_DISC_MAX_RECV_SEG_LEN;
 		break;
+#ifdef SLP_SUPPORTED
 	case DISCOVERY_TYPE_SLP:
 		rec->u.slp.interfaces = NULL;
 		rec->u.slp.scopes = NULL;
@@ -1001,10 +1004,13 @@ idbm_discovery_setup_defaults(discovery_rec_t *rec, discovery_type_e type)
 		rec->u.slp.auth.password_in_length = 0;
 		rec->u.slp.auth.password_in_length = 0;
 		break;
+#endif
+#ifdef ISNS_SUPPORTED
 	case DISCOVERY_TYPE_ISNS:
 		rec->u.isns.use_discoveryd = 0;
 		rec->u.isns.discoveryd_poll_inval = -1;
 		break;
+#endif
 	default:
 		break;
 	}
@@ -1175,8 +1181,10 @@ updated:
 	check_password_param(node.session.auth.password_in);
 	check_password_param(discovery.sendtargets.auth.password);
 	check_password_param(discovery.sendtargets.auth.password_in);
+#ifdef SLP_SUPPORTED
 	check_password_param(discovery.slp.auth.password);
 	check_password_param(discovery.slp.auth.password_in);
+#endif
 	check_password_param(host.auth.password);
 	check_password_param(host.auth.password_in);
 
@@ -1329,12 +1337,14 @@ static void idbm_sync_config(void)
 	if (*db->drec_st.u.sendtargets.auth.password_in)
 		db->drec_st.u.sendtargets.auth.password_in_length =
 		     strlen((char*)db->drec_st.u.sendtargets.auth.password_in);
+#ifdef SLP_SUPPORTED
 	if (*db->drec_slp.u.slp.auth.password)
 		db->drec_slp.u.slp.auth.password_length =
 			strlen((char*)db->drec_slp.u.slp.auth.password);
 	if (*db->drec_slp.u.slp.auth.password_in)
 		db->drec_slp.u.slp.auth.password_in_length =
 			strlen((char*)db->drec_slp.u.slp.auth.password_in);
+#endif
 	if (*db->nrec.session.auth.password)
 		db->nrec.session.auth.password_length =
 			strlen((char*)db->nrec.session.auth.password);
@@ -1728,11 +1738,13 @@ int idbm_for_each_st_drec(void *data, idbm_drec_op_fn *fn)
 				  data, fn);
 }
 
+#ifdef ISNS_SUPPORTED
 int idbm_for_each_isns_drec(void *data, idbm_drec_op_fn *fn)
 {
 	return idbm_for_each_drec(DISCOVERY_TYPE_ISNS, ISNS_CONFIG_DIR,
 				  data, fn);
 }
+#endif
 
 static int __idbm_print_all_by_drec(void *data, struct discovery_rec *drec)
 {
@@ -1745,7 +1757,7 @@ static int __idbm_print_all_by_drec(void *data, struct discovery_rec *drec)
 	} else
 		printf("%s:%d via %s\n", drec->address, drec->port,
 		       drec->type == DISCOVERY_TYPE_ISNS ?
-		       "isns" : "sendtargets");
+		           "isns" : "sendtargets");
 	return 0;
 }
 
@@ -1759,6 +1771,7 @@ static int idbm_print_all_st(int info_level)
 	return rc;
 }
 
+#ifdef ISNS_SUPPORTED
 static int idbm_print_all_isns(int info_level)
 {
 	int rc;
@@ -1768,6 +1781,7 @@ static int idbm_print_all_isns(int info_level)
 		return 0;
 	return rc;
 }
+#endif
 
 int idbm_print_all_discovery(int info_level)
 {
@@ -1776,7 +1790,9 @@ int idbm_print_all_discovery(int info_level)
 
 	if (info_level < 1) {
 		found = idbm_print_all_st(info_level);
+#ifdef ISNS_SUPPORTED
 		found += idbm_print_all_isns(info_level);
+#endif
 		return found;
 	}
 
@@ -1792,6 +1808,7 @@ int idbm_print_all_discovery(int info_level)
 	found += tmp;
 	tmp = 0;
 
+#ifdef ISNS_SUPPORTED
 	printf("iSNS:\n");
 	tmp = idbm_print_all_isns(info_level);
 	if (!tmp) {
@@ -1806,6 +1823,7 @@ int idbm_print_all_discovery(int info_level)
 	}
 	found += tmp;
 	tmp = 0;
+#endif
 
 	printf("STATIC:\n");
 	drec->type = DISCOVERY_TYPE_STATIC;
@@ -2051,7 +2069,9 @@ static struct {
 	char *config_name;
 } disc_type_to_config_vals[] = {
 	{ ST_CONFIG_DIR, ST_CONFIG_NAME },
+#ifdef ISNS_SUPPORTED
 	{ ISNS_CONFIG_DIR, ISNS_CONFIG_NAME },
+#endif
 };
 
 int
@@ -2341,7 +2361,6 @@ int idbm_add_discovery(discovery_rec_t *newrec)
 
 static int setup_disc_to_node_link(char *disc_portal, node_rec_t *rec)
 {
-	struct stat statb;
 	int rc = 0;
 
 	switch (rec->disc_type) {
@@ -2381,7 +2400,10 @@ static int setup_disc_to_node_link(char *disc_portal, node_rec_t *rec)
 			 rec->conn[0].address, rec->conn[0].port, rec->tpgt,
 			 rec->iface.name);
 		break;
-	case DISCOVERY_TYPE_ISNS:
+#ifdef ISNS_SUPPORTED
+	case DISCOVERY_TYPE_ISNS: {
+		struct stat statb;
+
 		if (access(ISNS_CONFIG_DIR, F_OK) != 0) {
 			if (mkdir(ISNS_CONFIG_DIR, 0770) != 0) {
 				log_error("Could not make %s: %s",
@@ -2431,7 +2453,11 @@ static int setup_disc_to_node_link(char *disc_portal, node_rec_t *rec)
 			 ISNS_CONFIG_DIR, rec->name, rec->conn[0].address,
 			 rec->conn[0].port, rec->tpgt, rec->iface.name);
 		break;
+	}
+#endif
+#ifdef SLP_SUPPORTED
 	case DISCOVERY_TYPE_SLP:
+#endif
 	default:
 		rc = ISCSI_ERR_INVAL;
 	}
@@ -2883,6 +2909,7 @@ idbm_sendtargets_defaults(struct iscsi_sendtargets_config *cfg)
 	       sizeof(struct iscsi_sendtargets_config));
 }
 
+#ifdef ISNS_SUPPORTED
 void
 idbm_isns_defaults(struct iscsi_isns_config *cfg)
 {
@@ -2890,13 +2917,7 @@ idbm_isns_defaults(struct iscsi_isns_config *cfg)
 	memcpy(cfg, &db->drec_isns.u.isns,
 	       sizeof(struct iscsi_isns_config));
 }
-
-void
-idbm_slp_defaults(struct iscsi_slp_config *cfg)
-{
-	memcpy(cfg, &db->drec_slp.u.slp,
-	       sizeof(struct iscsi_slp_config));
-}
+#endif
 
 int
 idbm_session_autoscan(struct iscsi_session *session)

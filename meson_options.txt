@@ -3,6 +3,10 @@
 # various subsystems that can be supported or not
 option('no_systemd', type: 'boolean', value: false,
   description: 'Do not use systemd [false]')
+option('isns_supported', type: 'boolean', value: true,
+  description: 'Is iSNS discovery supported? [true]')
+option('slp_supported', type: 'boolean', value: true,
+  description: 'Is SLP discovery supported? [true]')
 
 # where systemd units go (if supporting systemd)
 option('systemddir', type: 'string', value: '/usr/lib/systemd',
@@ -17,6 +21,7 @@ option('lockdir', type: 'string', value: '/run/lock/iscsi',
   description: 'Set the LOCK_DIR directory [/run/lock/iscsi]')
 option('rulesdir', type: 'string', value: 'udev/rules.d',
   description: 'Set the directory where udev rules go [/etc/udev/rules.d]')
+
 # to be able to put binaries in /sbin or /usr/sbin, since
 # older version of meson do not allow overriding sbindir
 option('iscsi_sbindir', type: 'string', value: '/usr/sbin',

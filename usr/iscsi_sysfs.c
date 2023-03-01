@@ -909,9 +909,11 @@ static int iscsi_sysfs_read_iface(struct iface_rec *iface, int host_no,
 			      iface->dhcp_vendor_id,
 			      sizeof(iface->dhcp_vendor_id));
 
+#ifdef SLP_SUPPORTED
 		sysfs_get_str(iface_kern_id, ISCSI_IFACE_SUBSYS,
 			      "dhcp_slp_da_info_en",
 			      iface->dhcp_slp_da, sizeof(iface->dhcp_slp_da));
+#endif
 
 		sysfs_get_str(iface_kern_id, ISCSI_IFACE_SUBSYS,
 			      "fragment_disable",
