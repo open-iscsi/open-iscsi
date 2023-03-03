@@ -1,8 +1,13 @@
 # options for meson build system
+
+# various subsystems that can be supported or not
+option('no_systemd', type: 'boolean', value: false,
+  description: 'Do not use systemd [false]')
+
+# where systemd units go (if supporting systemd)
 option('systemddir', type: 'string', value: '/usr/lib/systemd',
   description: 'Systemd directory [/usr/lib/systemd], if systemd used')
-option('no_systemd', type: 'boolean', value: false,
-  description: 'Do not use systemd')
+
 # these are in the 'sysconfigdir' (/etc by default) unless overridden
 option('homedir', type: 'string', value: 'iscsi',
   description: 'Set the HOME directory [/etc/iscsi]')
