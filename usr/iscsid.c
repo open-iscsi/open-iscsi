@@ -579,9 +579,11 @@ int main(int argc, char *argv[])
 		daemon_config.safe_logout = 1;
 	free(safe_logout);
 
+	/* This is now the default, but still setting it explicitly for clarity */
+	ipc->auth_type = ISCSI_IPC_AUTH_UID;
 	ipc_auth_uid = cfg_get_string_param(config_file, "iscsid.ipc_auth_uid");
-	if (ipc_auth_uid && !strcmp(ipc_auth_uid, "Yes"))
-		ipc->auth_type = ISCSI_IPC_AUTH_UID;
+	if (ipc_auth_uid && !strcmp(ipc_auth_uid, "No"))
+		ipc->auth_type = ISCSI_IPC_AUTH_LEGACY;
 	free(ipc_auth_uid);
 
 	/* see if we have any stale sessions to recover */

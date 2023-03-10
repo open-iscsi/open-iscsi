@@ -515,7 +515,7 @@ static mgmt_ipc_fn_t *	mgmt_ipc_functions[__MGMT_IPC_MAX_COMMAND] = {
 [MGMT_IPC_NOTIFY_DEL_PORTAL]	= mgmt_ipc_notify_del_portal,
 };
 
-static void mgmt_ipc_handle_check_auth(int accept_fd, bool auth_uid_only)
+static void mgmt_ipc_handle_check_auth(int accept_fd, bool auth_legacy)
 {
 	unsigned int command;
 	int fd, err;
@@ -535,13 +535,13 @@ static void mgmt_ipc_handle_check_auth(int accept_fd, bool auth_uid_only)
 	qtask->allocated = 1;
 	qtask->mgmt_ipc_fd = fd;
 
-	if (auth_uid_only) {
-		if (!mgmt_authorized_uid(fd)) {
+	if (auth_legacy) {
+		if (!mgmt_peeruser(fd, user) || strncmp(user, "root", PEERUSER_MAX)) {
 			err = ISCSI_ERR_ACCESS;
 			goto err;
 		}
 	} else {
-		if (!mgmt_peeruser(fd, user) || strncmp(user, "root", PEERUSER_MAX)) {
+		if (!mgmt_authorized_uid(fd)) {
 			err = ISCSI_ERR_ACCESS;
 			goto err;
 		}
@@ -579,12 +579,12 @@ err:
 
 void mgmt_ipc_handle(int accept_fd)
 {
-	/* Default behavior. Full auth check. */
+	/* Default behavior. Check originating UID. */
 	mgmt_ipc_handle_check_auth(accept_fd, false);
 }
 
-void mgmt_ipc_handle_uid_only(int accept_fd)
+void mgmt_ipc_handle_legacy(int accept_fd)
 {
-	/* Check only originating UID. */
+	/* Legacy behavior. Check UID and username. */
 	mgmt_ipc_handle_check_auth(accept_fd, true);
 }
