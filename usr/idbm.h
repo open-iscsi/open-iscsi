@@ -31,7 +31,6 @@
 #include "flashnode.h"
 
 #define NODE_CONFIG_DIR		ISCSI_DB_ROOT"/nodes"
-#define SLP_CONFIG_DIR		ISCSI_DB_ROOT"/slp"
 #define ISNS_CONFIG_DIR		ISCSI_DB_ROOT"/isns"
 #define STATIC_CONFIG_DIR	ISCSI_DB_ROOT"/static"
 #define FW_CONFIG_DIR		ISCSI_DB_ROOT"/fw"
@@ -81,8 +80,6 @@ typedef struct idbm {
 	recinfo_t	ninfo[MAX_KEYS];
 	discovery_rec_t	drec_st;
 	recinfo_t	dinfo_st[MAX_KEYS];
-	discovery_rec_t	drec_slp;
-	recinfo_t	dinfo_slp[MAX_KEYS];
 	discovery_rec_t	drec_isns;
 	recinfo_t	dinfo_isns[MAX_KEYS];
 } idbm_t;
@@ -142,7 +139,6 @@ extern int idbm_bind_ifaces_to_nodes(idbm_disc_nodes_fn *disc_node_fn,
 extern int idbm_add_discovery(discovery_rec_t *newrec);
 extern void idbm_sendtargets_defaults(struct iscsi_sendtargets_config *cfg);
 extern void idbm_isns_defaults(struct iscsi_isns_config *cfg);
-extern void idbm_slp_defaults(struct iscsi_slp_config *cfg);
 extern int idbm_session_autoscan(struct iscsi_session *session);
 extern int idbm_discovery_read(discovery_rec_t *rec, int type, char *addr,
 				int port);

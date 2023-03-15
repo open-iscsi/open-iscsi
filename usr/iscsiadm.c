@@ -257,8 +257,6 @@ str_to_type(char *str)
 	if (!strcmp("sendtargets", str) ||
 	    !strcmp("st", str))
 		type = DISCOVERY_TYPE_SENDTARGETS;
-	else if (!strcmp("slp", str))
-		type = DISCOVERY_TYPE_SLP;
 	else if (!strcmp("isns", str))
 		type = DISCOVERY_TYPE_ISNS;
 	else if (!strcmp("fw", str))
@@ -3243,10 +3241,6 @@ static int exec_disc2_op(int disc_type, char *ip, int port,
 		if (rc < 0)
 			goto do_db_op;
 		goto done;
-	case DISCOVERY_TYPE_SLP:
-		log_error("SLP discovery is not fully implemented yet.");
-		rc = ISCSI_ERR_INVAL;
-		goto done;
 	case DISCOVERY_TYPE_ISNS:
 		if (port < 0)
 			port = ISNS_DEFAULT_PORT;
@@ -3357,10 +3351,6 @@ static int exec_disc_op(int disc_type,
 		if (rc)
 			goto done;
 		break;
-	case DISCOVERY_TYPE_SLP:
-		log_error("SLP discovery is not fully implemented yet.");
-		rc = ISCSI_ERR_INVAL;
-		break;
 	case DISCOVERY_TYPE_ISNS:
 		if (!ip) {
 			log_error("Please specify portal as "
@@ -3392,8 +3382,7 @@ static int exec_disc_op(int disc_type,
 			 * mode, so we can hardcode the port check to the
 			 * iscsi default here.
 			 *
-			 * For isns or slp recs then discovery db mode
-			 * must be used.
+			 * For isns recs discovery db mode must be used.
 			 */
 			if (port < 0)
 				port = ISCSI_LISTEN_PORT;

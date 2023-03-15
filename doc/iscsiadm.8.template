@@ -464,8 +464,7 @@ This option is only valid for \fInode\fR and \fIsession\fR mode.
 .TP
 \fB\-t\fR, \fB\-\-type=\fItype\fR
 \fItype\fR must be \fIsendtargets\fR (or abbreviated as \fIst\fR),
-\fIslp\fR, \fIisns\fR or \fIfw\fR. Currently only \fIsendtargets\fR, \fIfw\fR, and
-\fIiSNS\fR are supported, see the \fBDISCOVERY TYPES\fR section.
+\fIisns\fR, or \fIfw\fR. See the \fBDISCOVERY TYPES\fR section.
 .IP
 This option is only valid for \fIdiscovery\fR mode.
 .TP
@@ -495,6 +494,7 @@ Specify the \fIindex\fR of the entity to operate on.
 This option is only valid for \fIchap\fR and \fIflashnode\fR submodes of \fIhost\fR mode.
 .SH DISCOVERY TYPES
 iSCSI defines 3 discovery types: \fISendTargets\fR, \fISLP\fR, and \fIiSNS\fR.
+\fISLP\fR is not widely supported, and not supported by this pacakge.
 .PP
 A special discovery type called
 .I fw
@@ -505,13 +505,6 @@ and populating the interface database in the process.
 SendTargets
 A native iSCSI protocol which allows each iSCSI
 target to send a list of available targets to the initiator.
-.TP
-.B
-SLP
-Optionally an iSCSI target can use the Service Location Protocol (SLP)
-to announce the available targets. The initiator can either implement
-SLP queries directly or can use a separate tool to acquire the
-information about available targets.
 .TP
 .B
 iSNS
@@ -531,9 +524,6 @@ resource.
 Performing \fIfw\fR discovery will print the portals, like with other discovery
 methods. To see other settings like CHAP values and initiator settings,
 like you would in \fInode\fR mode, run \fIiscsiadm \-m fw\fR.
-.P
-Note that the \fISLP\fR implementation is under development and currently
-is not supported.
 .SH EXIT STATUS
 On success 0 is returned. On error one of the return codes below will
 be returned.
