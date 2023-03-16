@@ -53,11 +53,11 @@ struct iscsi_ipc_ev_clbk {
 extern void ipc_register_ev_callback(struct iscsi_ipc_ev_clbk *ipc_ev_clbk);
 
 enum iscsi_ipc_auth_type {
-	/* UID must have valid entry in user db */
-	ISCSI_IPC_AUTH_DEFAULT = 0,
-
 	/* Check only that UID==0 */
-	ISCSI_IPC_AUTH_UID,
+	ISCSI_IPC_AUTH_UID = 0,
+
+	/* Check UID, and check user db entries for matching username. Legacy mode. */
+	ISCSI_IPC_AUTH_LEGACY = 1,
 
 	/* Must be last */
 	ISCSI_IPC_AUTH_MAX,

@@ -548,6 +548,7 @@ int main(int argc, char *argv[])
 	log_debug(1, "TPGT=%d", config_rec.tpgt);
 	log_debug(1, "IP Address=%s", config_rec.conn[0].address);
 
+	/* This is now the default, but still setting it explicitly for clarity */
 	ipc->auth_type = ISCSI_IPC_AUTH_UID;
 
 	/* log the version, so that we can tell if the daemon and kernel module
