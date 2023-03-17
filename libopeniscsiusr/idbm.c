@@ -776,8 +776,6 @@ updated:
 	check_password_param(node.session.auth.password_in);
 	check_password_param(discovery.sendtargets.auth.password);
 	check_password_param(discovery.sendtargets.auth.password_in);
-	check_password_param(discovery.slp.auth.password);
-	check_password_param(discovery.slp.auth.password_in);
 	check_password_param(host.auth.password);
 	check_password_param(host.auth.password_in);
 
@@ -1016,8 +1014,8 @@ static void _idbm_node_rec_link(struct iscsi_node *node, struct idbm_rec *recs, 
 		 _CANNOT_MODIFY);
 	_rec_int32(NODE_DISC_PORT, recs, node, disc_port, IDBM_SHOW, num,
 		   _CANNOT_MODIFY);
-	_rec_int_o6(NODE_DISC_TYPE, recs, node, disc_type, IDBM_SHOW,
-		    "send_targets", "isns", "offload_send_targets", "slp",
+	_rec_int_o5(NODE_DISC_TYPE, recs, node, disc_type, IDBM_SHOW,
+		    "send_targets", "isns", "offload_send_targets",
 		    "static", "fw", num, _CANNOT_MODIFY);
 
 	_rec_uint32(SESSION_INIT_CMDSN, recs, node, session.initial_cmdsn,

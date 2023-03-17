@@ -151,14 +151,6 @@ struct iscsi_isns_config {
 	int discoveryd_poll_inval;
 };
 
-struct iscsi_slp_config {
-	char *scopes;
-	char *interfaces;	/* for multicast, list of interfaces names,
-				 * "all", or "none" */
-	int poll_interval;
-	struct iscsi_auth_config auth;
-};
-
 typedef enum iscsi_startup {
 	ISCSI_STARTUP_MANUAL,
 	ISCSI_STARTUP_AUTOMATIC,
@@ -169,7 +161,8 @@ typedef enum discovery_type {
 	DISCOVERY_TYPE_SENDTARGETS,
 	DISCOVERY_TYPE_ISNS,
 	DISCOVERY_TYPE_OFFLOAD_SENDTARGETS,
-	DISCOVERY_TYPE_SLP,
+	/* SLP is Not Used --  kept as place holder */
+	DISCOVERY_TYPE_SLP_NOT_IMPLEMENTED,
 	DISCOVERY_TYPE_STATIC,
 	DISCOVERY_TYPE_FW,
 } discovery_type_e;
@@ -321,7 +314,6 @@ typedef struct discovery_rec {
 	int			iscsid_req_tmo;
 	union {
 		struct iscsi_sendtargets_config	sendtargets;
-		struct iscsi_slp_config		slp;
 		struct iscsi_isns_config	isns;
 	} u;
 } discovery_rec_t;

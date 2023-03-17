@@ -205,7 +205,6 @@ options discussed earlier).
 Configuration is contained in directories for:
 
 	- nodes
-	- slp
 	- isns
 	- static
 	- fw

@@ -212,8 +212,8 @@ idbm_recinfo_discovery(discovery_rec_t *r, recinfo_t *ri)
 
 	__recinfo_int_o2(DISC_STARTUP, ri, r, startup, IDBM_SHOW,
 			"manual", "automatic", num, 1);
-	__recinfo_int_o6(DISC_TYPE, ri, r, type, IDBM_SHOW,
-			"sendtargets", "isns", "offload_send_targets", "slp",
+	__recinfo_int_o5(DISC_TYPE, ri, r, type, IDBM_SHOW,
+			"sendtargets", "isns", "offload_send_targets",
 			"static", "fw", num, 0);
 	switch (r->type) {
 	case DISCOVERY_TYPE_SENDTARGETS:
@@ -444,8 +444,8 @@ idbm_recinfo_node(node_rec_t *r, recinfo_t *ri)
 		      num, 0);
 	__recinfo_int(NODE_DISC_PORT, ri, r, disc_port, IDBM_SHOW,
 		      num, 0);
-	__recinfo_int_o6(NODE_DISC_TYPE, ri, r, disc_type, IDBM_SHOW,
-			 "send_targets", "isns", "offload_send_targets", "slp",
+	__recinfo_int_o5(NODE_DISC_TYPE, ri, r, disc_type, IDBM_SHOW,
+			 "send_targets", "isns", "offload_send_targets",
 			 "static", "fw", num, 0);
 	__recinfo_int(SESSION_INIT_CMDSN, ri, r,
 		      session.initial_cmdsn, IDBM_SHOW, num, 1);
@@ -992,15 +992,6 @@ idbm_discovery_setup_defaults(discovery_rec_t *rec, discovery_type_e type)
 		rec->u.sendtargets.conn_conf.MaxRecvDataSegmentLength =
 						DEF_INI_DISC_MAX_RECV_SEG_LEN;
 		break;
-	case DISCOVERY_TYPE_SLP:
-		rec->u.slp.interfaces = NULL;
-		rec->u.slp.scopes = NULL;
-		rec->u.slp.poll_interval = 5 * 60;	/* 5 minutes */
-		rec->u.slp.auth.authmethod = 0;
-		rec->u.slp.auth.password_length = 0;
-		rec->u.slp.auth.password_in_length = 0;
-		rec->u.slp.auth.password_in_length = 0;
-		break;
 	case DISCOVERY_TYPE_ISNS:
 		rec->u.isns.use_discoveryd = 0;
 		rec->u.isns.discoveryd_poll_inval = -1;
@@ -1175,8 +1166,6 @@ updated:
 	check_password_param(node.session.auth.password_in);
 	check_password_param(discovery.sendtargets.auth.password);
 	check_password_param(discovery.sendtargets.auth.password_in);
-	check_password_param(discovery.slp.auth.password);
-	check_password_param(discovery.slp.auth.password_in);
 	check_password_param(host.auth.password);
 	check_password_param(host.auth.password_in);
 
@@ -1288,11 +1277,9 @@ static void idbm_sync_config(void)
 	 * from hard-coded default values */
 	idbm_node_setup_defaults(&db->nrec);
 	idbm_discovery_setup_defaults(&db->drec_st, DISCOVERY_TYPE_SENDTARGETS);
-	idbm_discovery_setup_defaults(&db->drec_slp, DISCOVERY_TYPE_SLP);
 	idbm_discovery_setup_defaults(&db->drec_isns, DISCOVERY_TYPE_ISNS);
 
 	idbm_recinfo_discovery(&db->drec_st, db->dinfo_st);
-	idbm_recinfo_discovery(&db->drec_slp, db->dinfo_slp);
 	idbm_recinfo_discovery(&db->drec_isns, db->dinfo_isns);
 	idbm_recinfo_node(&db->nrec, db->ninfo);
 
@@ -1317,7 +1304,6 @@ static void idbm_sync_config(void)
 	log_debug(5, "updating defaults from '%s'", config_file);
 
 	idbm_recinfo_config(db->dinfo_st, f);
-	idbm_recinfo_config(db->dinfo_slp, f);
 	idbm_recinfo_config(db->dinfo_isns, f);
 	idbm_recinfo_config(db->ninfo, f);
 	fclose(f);
@@ -1329,12 +1315,6 @@ static void idbm_sync_config(void)
 	if (*db->drec_st.u.sendtargets.auth.password_in)
 		db->drec_st.u.sendtargets.auth.password_in_length =
 		     strlen((char*)db->drec_st.u.sendtargets.auth.password_in);
-	if (*db->drec_slp.u.slp.auth.password)
-		db->drec_slp.u.slp.auth.password_length =
-			strlen((char*)db->drec_slp.u.slp.auth.password);
-	if (*db->drec_slp.u.slp.auth.password_in)
-		db->drec_slp.u.slp.auth.password_in_length =
-			strlen((char*)db->drec_slp.u.slp.auth.password_in);
 	if (*db->nrec.session.auth.password)
 		db->nrec.session.auth.password_length =
 			strlen((char*)db->nrec.session.auth.password);
@@ -2431,7 +2411,6 @@ static int setup_disc_to_node_link(char *disc_portal, node_rec_t *rec)
 			 ISNS_CONFIG_DIR, rec->name, rec->conn[0].address,
 			 rec->conn[0].port, rec->tpgt, rec->iface.name);
 		break;
-	case DISCOVERY_TYPE_SLP:
 	default:
 		rc = ISCSI_ERR_INVAL;
 	}
@@ -2732,7 +2711,7 @@ free_portal:
 }
 
 /*
- * Backwards Compat or SLP:
+ * Backwards Compat:
  * if there is no link then this is pre svn 780 version where
  * we did not link the disc source and node
  */
@@ -2889,13 +2868,6 @@ idbm_isns_defaults(struct iscsi_isns_config *cfg)
 	idbm_sync_config();
 	memcpy(cfg, &db->drec_isns.u.isns,
 	       sizeof(struct iscsi_isns_config));
-}
-
-void
-idbm_slp_defaults(struct iscsi_slp_config *cfg)
-{
-	memcpy(cfg, &db->drec_slp.u.slp,
-	       sizeof(struct iscsi_slp_config));
 }
 
 int
