@@ -38,8 +38,6 @@
 
 #define RANDOM_NUM_GENERATOR	"/dev/urandom"
 
-#define DEFAULT_PREFIX		"iqn.2016-04.com.open-iscsi"
-
 /* iSCSI names have a maximum length of 223 characters, we reserve 13 to append
  * a seperator and 12 characters (6 random bytes in hex representation) */
 #define PREFIX_MAX_LEN 210
@@ -49,7 +47,7 @@ static void usage(void)
 	fprintf(stderr, "Usage: iscsi-iname [OPTIONS]\n");
 	fprintf(stderr, "Where OPTIONS are from:\n");
 	fprintf(stderr, "    -p/--prefix <prefix>          -- set IQN prefix [%s]\n",
-			DEFAULT_PREFIX);
+			ISCSI_NAME_PREFIX);
 	fprintf(stderr, "    -g/--generate-iname-prefix    -- generate the InitiatorName= prefix\n");
 	fprintf(stderr, "where <prefix> has max length of %d\n",
 		PREFIX_MAX_LEN);
@@ -67,7 +65,7 @@ main(int argc, char *argv[])
 	unsigned char entropy[16];
 	int e;
 	int fd;
-	char *prefix = DEFAULT_PREFIX;
+	char *prefix = ISCSI_NAME_PREFIX;
 	int c;
 	char *short_options = "p:gh";
 	struct option const long_options[] = {
