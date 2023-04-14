@@ -48,6 +48,13 @@ You can also raise an issue on the github page.
 - multiple sessions
 
 
+1.2  Licensing
+==============
+
+The daemon and other top-level commands are licensed as GPLv3, while the
+libopeniscsiusr library used by some of those commmands is licensed as LGPLv3.
+
+
 2. Introduction
 ===============
 
