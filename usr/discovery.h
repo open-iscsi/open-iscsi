@@ -27,6 +27,7 @@ struct iface_rec;
 struct node_rec;
 struct boot_context;
 
+#ifdef ISNS_SUPPORTED
 extern int discovery_isns_query(struct discovery_rec *drec, const char *iname,
 				const char *targetname,
 				struct list_head *rec_list);
@@ -34,6 +35,7 @@ extern void discovery_isns_free_servername(void);
 extern int discovery_isns_set_servername(char *address, int port);
 extern int discovery_isns(void *data, struct iface_rec *iface,
 			  struct list_head *rec_list);
+#endif
 extern int discovery_fw(void *data, struct iface_rec *iface,
 			struct list_head *rec_list);
 extern int discovery_sendtargets(void *data, struct iface_rec *iface,

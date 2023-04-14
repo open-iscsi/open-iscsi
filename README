@@ -88,7 +88,8 @@ As of today, the Open-iSCSI Initiator requires a host running the
 Linux operating system with kernel.
 
 The userspace components iscsid, iscsiadm and iscsistart require the
-open-isns library.
+open-isns library, unless open-isns use is diabled when building (see
+below).
 
 If this package is not available for your distribution, you can download
 and install it yourself.  To install the open-isns headers and library
@@ -142,24 +143,29 @@ MESON-OPTIONS:
 --------------
 One can override several default values when building with meson:
 
-- Library files are installed in /lib64 by default, but this
-  can be overridden by passing '--libdir=<LIBDIR>' to meson.
 
-- Extra flags can be passed to the C compiler using '-Dc_flags="<C-FLAGS>"'.
+Option			Description
+=====================	=====================================================
 
-- In newer version of meson (>=0.63) you can override location where binaries
-  are installed, which by default is "/usr/sbin", using the '--sbindir=<DIR>'
-  option to meson.
+--libdir=<LIBDIR>	Where library files go [/lib64]
+--sbindir=<DIR>		Meson 0.63 or newer: Where binaries go [/usr/sbin]
+-Dc_flags="<C-FLAGS>"	Add in addition flags to the C compiler
+-Dno_systemd=<BOOL>	Enables systemd usage [false]
+			(set to "true" to disable systemd)
+-Dsystemddir=<DIR>	Set systemd unit directory [/usr/lib/systemd]
+-Dhomedir=<DIR>		Set config file directory [/etc/iscsi]
+-Ddbroot=<DIR>		Set Database directory [/etciscsi]
+-Dlockdir=<DIR>		Set Lock directory [/run/lock/iscsi]
+-Drulesdir=<DIR>	Set udev rules directory [/usr/lib/udev/rules.d]
+-Discsi_sbindir=<DIR>	Where binaries go [/usr/sbin]
+			(for use when sbindir can't be set, in older versions
+			 of meson)
+-Disns_supported=<BOOL>	Enable/disable iSNS support [true]
+			(set to "false" to disable use of open-isns)
 
-- The default "home" directory is "/etc/iscsi", but this can be overridden
-  using '-Dhomedir=<SOMEDIR>'. This is where the configuration files are kept
 
-- The default "database" directory is also "/etc/iscsi", but can be
-  overridden using '-Ddbroot=<SOMEDIR>'
-
-
-Building open-iscsi/iscsiuio using make/autoconf
-------------------------------------------------
+Building open-iscsi/iscsiuio using make/autoconf (Deprecated)
+-------------------------------------------------------------
 If you wish to build using the older deprecated system, you can
 simply run:
 

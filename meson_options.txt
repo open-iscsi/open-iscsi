@@ -8,6 +8,10 @@ option('no_systemd', type: 'boolean', value: false,
 option('systemddir', type: 'string', value: '/usr/lib/systemd',
   description: 'Systemd directory [/usr/lib/systemd], if systemd used')
 
+# is open-isns supporte?
+option('isns', type: 'feature', value: 'enabled',
+  description: 'Use open-isns to allow target discovery via iSNS')
+
 # these are in the 'sysconfigdir' (/etc by default) unless overridden
 option('homedir', type: 'string', value: 'iscsi',
   description: 'Set the HOME directory [/etc/iscsi]')
@@ -21,3 +25,4 @@ option('rulesdir', type: 'string', value: 'udev/rules.d',
 # older version of meson do not allow overriding sbindir
 option('iscsi_sbindir', type: 'string', value: '/usr/sbin',
   description: 'Set the directory where our binaries go [/usr/sbin]')
+
