@@ -61,7 +61,6 @@ conf.set('DBROOT', db_root)
 # set up general C args
 genl_cargs = [
   '-D_GNU_SOURCE',
-  '-DOFFLOAD_BOOT_SUPPORTED',
   '-DISCSI_CONFIG_ROOT="@0@"'.format(home_dir),
   '-DISCSI_DB_ROOT="@0@"'.format(db_root),
   '-DLOCK_DIR="@0@"'.format(lock_dir),
