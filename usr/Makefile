@@ -50,6 +50,7 @@ CFLAGS += $(WARNFLAGS) -I../include -I. -D_GNU_SOURCE \
 	  -DISCSI_VERSION_STR=\"$(ISCSI_VERSION_STR)\"
 CFLAGS += $(shell $(PKG_CONFIG) --cflags libkmod)
 CFLAGS += $(shell $(PKG_CONFIG) --cflags libsystemd)
+CFLAGS += -DISNS_SUPPORTED
 ISCSI_LIB = -L$(TOPDIR)/libopeniscsiusr -lopeniscsiusr
 LDFLAGS += $(shell $(PKG_CONFIG) --libs libkmod)
 ifeq ($(NO_SYSTEMD),)
