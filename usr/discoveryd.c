@@ -372,7 +372,7 @@ static int isns_disc_new_portals(const char *targetname, const char *iname)
 				       &rec_list);
 	if (rc) {
 		log_error("Could not perform iSNS DevAttrQuery for node %s.",
-			  targetname);
+			  targetname ? targetname : "(null)");
 		goto free_ifaces;
 	}
 	update_sessions(&rec_list, targetname, iname);
