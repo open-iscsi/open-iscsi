@@ -21,3 +21,7 @@ option('rulesdir', type: 'string', value: 'udev/rules.d',
 # older version of meson do not allow overriding sbindir
 option('iscsi_sbindir', type: 'string', value: '/usr/sbin',
   description: 'Set the directory where our binaries go [/usr/sbin]')
+
+# default iqn prefix use for iscsi-iname
+option('iqn_prefix', type: 'string', value: 'iqn.2016-04.com.open-iscsi',
+  description: 'Set the prefix used by iscsi-iname to generate iSCSI names')
