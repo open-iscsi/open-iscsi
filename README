@@ -1824,7 +1824,7 @@ iSCSI timers should be set so that iSCSI layer has several chances to try to
 re-establish a session and so that commands are not quickly requeued to
 the SCSI layer. Basically you want the opposite of when using dm-multipath.
 
-For this setup, you can turn off iSCSI pings by setting:
+For this setup, you can turn off iSCSI pings (NOPs) by setting:
 
 	node.conn[0].timeo.noop_out_interval = 0
 	node.conn[0].timeo.noop_out_timeout = 0
@@ -1832,6 +1832,15 @@ For this setup, you can turn off iSCSI pings by setting:
 And you can turn the replacement_timer to a very long value:
 
 	node.session.timeo.replacement_timeout = 86400
+
+
+8.3 iSCSI settings for iSCSI tape
+=================================
+
+It is possible to use open-iscsi to connect to a remote tape drive,
+making available locally. In such a case, you need to disable NOPs out,
+since tape drives don't handle those well at all. See above (section 8.2)
+for how to disable these NOPs.
 
 
 9. iSCSI System Info
