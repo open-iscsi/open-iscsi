@@ -190,10 +190,7 @@ endif
 usr_deps += cc.find_library('rt')
 usr_deps += cc.find_library('isns', required: get_option('isns'))
 
-# Do we want to support iSNS?
-# NOTE: we could just use "get_option('isns').enabled() here,
-# but checking to see if the library was indeed found
-# seems better
+# is the isns library present?
 if cc.find_library('isns', required: get_option('isns')).found()
   genl_cargs += '-DISNS_SUPPORTED'
 endif
