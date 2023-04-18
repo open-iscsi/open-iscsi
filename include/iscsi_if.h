@@ -22,12 +22,11 @@
 #define ISCSI_IF_H
 
 #ifdef __KERNEL__
+#include <scsi/iscsi_proto.h>
 #include <linux/in.h>
 #include <linux/in6.h>
 #else
 #include <netinet/in.h>
-#endif
-
 #include "iscsi_proto.h"
 
 /*
@@ -35,6 +34,7 @@
  * of the same name. In particular, iscsi_param and iscsi_err need
  * to be in sync.
  */
+#endif
 
 #define ISCSI_NL_GRP_ISCSID	1
 #define ISCSI_NL_GRP_UIP	2
@@ -82,7 +82,9 @@ enum iscsi_uevent_e {
 	ISCSI_UEVENT_LOGOUT_FLASHNODE_SID	= UEVENT_BASE + 30,
 	ISCSI_UEVENT_SET_CHAP		= UEVENT_BASE + 31,
 	ISCSI_UEVENT_GET_HOST_STATS	= UEVENT_BASE + 32,
-	ISCSI_UEVENT_MAX		= ISCSI_UEVENT_GET_HOST_STATS,
+	ISCSI_UEVENT_DESTROY_SESSION_ASYNC	= UEVENT_BASE + 33,
+
+	ISCSI_UEVENT_MAX		= ISCSI_UEVENT_DESTROY_SESSION_ASYNC,
 
 	/* up events */
 	ISCSI_KEVENT_RECV_PDU		= KEVENT_BASE + 1,
@@ -213,10 +215,10 @@ struct iscsi_uevent {
 			uint32_t	count;
 		} set_iface_params;
 		struct msg_iscsi_ping {
-			uint32_t	host_no;
-			uint32_t	iface_num;
-			uint32_t	iface_type;
-			uint32_t	payload_size;
+			uint32_t        host_no;
+			uint32_t        iface_num;
+			uint32_t        iface_type;
+			uint32_t        payload_size;
 			uint32_t	pid;	/* unique ping id associated
 						   with each ping request */
 		} iscsi_ping;
@@ -229,8 +231,8 @@ struct iscsi_uevent {
 			uint16_t	chap_tbl_idx;
 		} get_chap;
 		struct msg_delete_chap {
-			uint32_t	host_no;
-			uint16_t	chap_tbl_idx;
+		       uint32_t        host_no;
+		       uint16_t        chap_tbl_idx;
 		} delete_chap;
 		struct msg_set_flashnode_param {
 			uint32_t	host_no;
@@ -258,9 +260,8 @@ struct iscsi_uevent {
 			uint32_t	sid;
 		} logout_flashnode_sid;
 		struct msg_get_host_stats {
-			uint32_t	host_no;
+			uint32_t host_no;
 		} get_host_stats;
-
 	} u;
 	union {
 		/* messages k -> u */
@@ -283,9 +284,9 @@ struct iscsi_uevent {
 			uint64_t	recv_handle;
 		} recv_req;
 		struct msg_conn_login {
-			uint32_t	sid;
-			uint32_t	cid;
-			uint32_t	state; /* enum iscsi_conn_state */
+			uint32_t        sid;
+			uint32_t        cid;
+			uint32_t        state; /* enum iscsi_conn_state */
 		} conn_login;
 		struct msg_conn_error {
 			uint32_t	sid;
@@ -311,12 +312,12 @@ struct iscsi_uevent {
 			enum iscsi_host_event_code code;
 		} host_event;
 		struct msg_ping_comp {
-			uint32_t	host_no;
-			uint32_t	status; /* enum
+			uint32_t        host_no;
+			uint32_t        status; /* enum
 						 * iscsi_ping_status_code */
 			uint32_t	pid;	/* unique ping id associated
 						   with each ping request */
-			uint32_t	data_size;
+			uint32_t        data_size;
 		} ping_comp;
 		struct msg_new_flashnode_ret {
 			uint32_t	flashnode_idx;
@@ -337,7 +338,7 @@ enum iscsi_param_type {
 struct iscsi_param_info {
 	uint32_t len;		/* Actual length of the param value */
 	uint16_t param;		/* iscsi param */
-	uint8_t value[0];	/* length sized value follows */
+	uint8_t value[];	/* length sized value follows */
 } __attribute__((__packed__));
 
 struct iscsi_iface_param_info {
@@ -346,7 +347,7 @@ struct iscsi_iface_param_info {
 	uint16_t param;		/* iscsi param value */
 	uint8_t iface_type;	/* IPv4 or IPv6 */
 	uint8_t param_type;	/* iscsi_param_type */
-	uint8_t value[0];	/* length sized value follows */
+	uint8_t value[];	/* length sized value follows */
 } __attribute__((__packed__));
 
 /*
@@ -726,7 +727,7 @@ enum iscsi_flashnode_param {
 struct iscsi_flashnode_param_info {
 	uint32_t len;		/* Actual length of the param */
 	uint16_t param;		/* iscsi param value */
-	uint8_t value[0];	/* length sized value follows */
+	uint8_t value[];	/* length sized value follows */
 } __attribute__((__packed__));
 
 enum iscsi_discovery_parent_type {
@@ -871,8 +872,8 @@ struct iscsi_chap_rec {
 	uint8_t password_length;
 };
 
-#define ISCSI_HOST_STATS_CUSTOM_MAX		32
-#define ISCSI_HOST_STATS_CUSTOM_DESC_MAX	64
+#define ISCSI_HOST_STATS_CUSTOM_MAX             32
+#define ISCSI_HOST_STATS_CUSTOM_DESC_MAX        64
 struct iscsi_host_stats_custom {
 	char desc[ISCSI_HOST_STATS_CUSTOM_DESC_MAX];
 	uint64_t value;
