@@ -18,8 +18,11 @@ HOMEDIR ?= $(etcdir)/iscsi
 
 RULESDIR ?= $(etcdir)/udev/rules.d
 
+IQN_PREFIX ?= "iqn.2016-04.com.open-iscsi"
+
 CFLAGS ?= -O2 -fno-inline -g
 CFLAGS += -Wall -Wextra -Wstrict-prototypes
+CFLAGS += -DISCSI_NAME_PREFIX=\"$(IQN_PREFIX)\"
 
 PROGRAMS	= iscsi-iname
 PROGRAMS_DEST	= $(addprefix $(DESTDIR)$(SBINDIR)/,$(PROGRAMS))

@@ -41,6 +41,7 @@ endif
 c_args = get_option('c_args')
 man_dir = get_option('mandir')
 iscsi_sbindir = get_option('iscsi_sbindir')
+iqn_prefix = get_option('iqn_prefix')
 
 #
 # get list of sources from subdirs (iscsiuio included at bottom)
@@ -56,6 +57,7 @@ conf = configuration_data()
 conf.set('SBINDIR', iscsi_sbindir)
 conf.set('HOMEDIR', home_dir)
 conf.set('DBROOT', db_root)
+conf.set('IQN_PREFIX', iqn_prefix)
 
 
 # set up general C args
@@ -65,7 +67,8 @@ genl_cargs = [
   '-DISCSI_CONFIG_ROOT="@0@"'.format(home_dir),
   '-DISCSI_DB_ROOT="@0@"'.format(db_root),
   '-DLOCK_DIR="@0@"'.format(lock_dir),
-  '-DISCSI_VERSION_STR="@0@"'.format(meson.project_version())]
+  '-DISCSI_VERSION_STR="@0@"'.format(meson.project_version()),
+  '-DISCSI_NAME_PREFIX="@0@"'.format(iqn_prefix)]
 
 # set up no-system flag, if needed
 if no_systemd
