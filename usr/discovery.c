@@ -49,10 +49,12 @@
 #include "iface.h"
 #include "iscsi_timer.h"
 #include "iscsi_err.h"
+#if ISNS_SUPPORTED
 /* libisns includes */
 #include <libisns/isns.h>
 #include <libisns/paths.h>
 #include <libisns/message.h>
+#endif
 
 #define DISCOVERY_NEED_RECONNECT 0xdead0001
 
@@ -94,6 +96,7 @@ static int request_initiator_name(int tmo)
 	return 0;
 }
 
+#ifdef ISNS_SUPPORTED
 void discovery_isns_free_servername(void)
 {
 	if (isns_config.ic_server_name)
@@ -371,6 +374,7 @@ retry:
 	discovery_isns_free_servername();
 	return rc;
 }
+#endif	/* ISNS_SUPPORTED */
 
 int discovery_fw(void *data,
 		 __attribute__((unused))struct iface_rec *iface,

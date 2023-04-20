@@ -464,7 +464,7 @@ This option is only valid for \fInode\fR and \fIsession\fR mode.
 .TP
 \fB\-t\fR, \fB\-\-type=\fItype\fR
 \fItype\fR must be \fIsendtargets\fR (or abbreviated as \fIst\fR),
-\fIisns\fR, or \fIfw\fR. See the \fBDISCOVERY TYPES\fR section.
+\fIisns\fR (if enabled), or \fIfw\fR. See the \fBDISCOVERY TYPES\fR section.
 .IP
 This option is only valid for \fIdiscovery\fR mode.
 .TP
@@ -495,6 +495,7 @@ This option is only valid for \fIchap\fR and \fIflashnode\fR submodes of \fIhost
 .SH DISCOVERY TYPES
 iSCSI defines 3 discovery types: \fISendTargets\fR, \fISLP\fR, and \fIiSNS\fR.
 \fISLP\fR is not widely supported, and not supported by this pacakge.
+\fiSNS\fR supported depends on build options, but is enabled by default.
 .PP
 A special discovery type called
 .I fw

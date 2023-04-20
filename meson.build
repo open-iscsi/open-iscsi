@@ -186,10 +186,14 @@ usr_deps = [kmod_dep, crypto_dep, mount_dep, sysdeps_dep, fwparam_dep, libiscsi_
 if not no_systemd
   usr_deps += systemd_dep
 endif
-
 # handle two libs that won't be found with "dependency()"
 usr_deps += cc.find_library('rt')
-usr_deps += cc.find_library('isns')
+usr_deps += cc.find_library('isns', required: get_option('isns'))
+
+# is the isns library present?
+if cc.find_library('isns', required: get_option('isns')).found()
+  genl_cargs += '-DISNS_SUPPORTED'
+endif
 
 # build iscsid, iscsiadm, and iscsistart
 foreach k,v: iscsi_usr_arr

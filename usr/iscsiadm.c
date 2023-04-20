@@ -52,7 +52,9 @@
 #include "idbm_fields.h"
 #include "session_mgmt.h"
 #include "iscsid_req.h"
+#ifdef ISNS_SUPPORTED
 #include <libisns/isns-proto.h>
+#endif
 #include "iscsi_err.h"
 #include "iscsi_ipc.h"
 #include "iscsi_timer.h"
@@ -257,8 +259,10 @@ str_to_type(char *str)
 	if (!strcmp("sendtargets", str) ||
 	    !strcmp("st", str))
 		type = DISCOVERY_TYPE_SENDTARGETS;
+#ifdef ISNS_SUPPORTED
 	else if (!strcmp("isns", str))
 		type = DISCOVERY_TYPE_ISNS;
+#endif
 	else if (!strcmp("fw", str))
 		type = DISCOVERY_TYPE_FW;
 	else
@@ -1238,6 +1242,7 @@ do_software_sendtargets(discovery_rec_t *drec, struct list_head *ifaces,
 	return rc;
 }
 
+#ifdef ISNS_SUPPORTED
 static int do_isns(discovery_rec_t *drec, struct list_head *ifaces,
 		   int info_level, int do_login, int op)
 {
@@ -1273,6 +1278,7 @@ static int do_isns(discovery_rec_t *drec, struct list_head *ifaces,
 
 	return rc;
 }
+#endif	/* ISNS_SUPPORTED */
 
 static int
 do_target_discovery(discovery_rec_t *drec, struct list_head *ifaces,
@@ -1335,8 +1341,10 @@ sw_discovery:
 	case DISCOVERY_TYPE_SENDTARGETS:
 		return do_software_sendtargets(drec, ifaces, info_level,
 						do_login, op, sync_drec);
+#ifdef ISNS_SUPPORTED
 	case DISCOVERY_TYPE_ISNS:
 		return do_isns(drec, ifaces, info_level, do_login, op);
+#endif
 	default:
 		log_debug(1, "Unknown Discovery Type : %d", drec->type);
 		return ISCSI_ERR_UNKNOWN_DISCOVERY_TYPE;
@@ -3241,6 +3249,7 @@ static int exec_disc2_op(int disc_type, char *ip, int port,
 		if (rc < 0)
 			goto do_db_op;
 		goto done;
+#ifdef ISNS_SUPPORTED
 	case DISCOVERY_TYPE_ISNS:
 		if (port < 0)
 			port = ISNS_DEFAULT_PORT;
@@ -3250,6 +3259,7 @@ static int exec_disc2_op(int disc_type, char *ip, int port,
 		if (rc < 0)
 			goto do_db_op;
 		goto done;
+#endif
 	case DISCOVERY_TYPE_FW:
 		if (!do_discover) {
 			log_error("Invalid command. Possibly missing "
@@ -3351,6 +3361,7 @@ static int exec_disc_op(int disc_type,
 		if (rc)
 			goto done;
 		break;
+#ifdef ISNS_SUPPORTED
 	case DISCOVERY_TYPE_ISNS:
 		if (!ip) {
 			log_error("Please specify portal as "
@@ -3371,6 +3382,7 @@ static int exec_disc_op(int disc_type,
 		if (rc)
 			goto done;
 		break;
+#endif
 	case DISCOVERY_TYPE_FW:
 		drec.type = DISCOVERY_TYPE_FW;
 		rc = exec_fw_op(&drec, ifaces, info_level, do_login, op, wait, NULL);
