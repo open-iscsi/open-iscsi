@@ -4,7 +4,6 @@ Documentation=man:iscsiuio(8)
 DefaultDependencies=no
 Conflicts=shutdown.target
 Requires=iscsid.service
-BindTo=iscsid.service
 After=network.target
 Before=remote-fs-pre.target iscsid.service
 Wants=remote-fs-pre.target
