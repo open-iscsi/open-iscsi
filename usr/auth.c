@@ -1813,7 +1813,7 @@ acl_init_chap_digests(int *value_list, unsigned *chap_algs, int conf_count) {
 			if (EVP_DigestInit_ex(context, EVP_md5(), NULL)) {
 				value_list[i++] = AUTH_CHAP_ALG_MD5;
 			} else {
-				log_warning("Ignoring CHAP algorthm request for "
+				log_warning("Ignoring CHAP algorithm request for "
 				            "MD5 due to crypto lib configuration");
 			}
 			break;
@@ -1821,7 +1821,7 @@ acl_init_chap_digests(int *value_list, unsigned *chap_algs, int conf_count) {
 			if (EVP_DigestInit_ex(context, EVP_sha1(), NULL)) {
 				value_list[i++] = AUTH_CHAP_ALG_SHA1;
 			} else {
-				log_warning("Ignoring CHAP algorthm request for "
+				log_warning("Ignoring CHAP algorithm request for "
 				            "SHA1 due to crypto lib configuration");
 			}
 			break;
@@ -1829,7 +1829,7 @@ acl_init_chap_digests(int *value_list, unsigned *chap_algs, int conf_count) {
 			if (EVP_DigestInit_ex(context, EVP_sha256(), NULL)) {
 				value_list[i++] = AUTH_CHAP_ALG_SHA256;
 			} else {
-				log_warning("Ignoring CHAP algorthm request for "
+				log_warning("Ignoring CHAP algorithm request for "
 				            "SHA256 due to crypto lib configuration");
 			}
 			break;
@@ -1838,7 +1838,7 @@ acl_init_chap_digests(int *value_list, unsigned *chap_algs, int conf_count) {
 			if (EVP_DigestInit_ex(context, EVP_sha3_256(), NULL)) {
 				value_list[i++] = AUTH_CHAP_ALG_SHA3_256;
 			} else {
-				log_warning("Ignoring CHAP algorthm request for "
+				log_warning("Ignoring CHAP algorithm request for "
 				            "SHA3-256 due to crypto lib configuration");
 			}
 			break;
