@@ -1183,19 +1183,19 @@ void nic_close_all()
 
 void nic_remove_all()
 {
-	nic_t *nic, *nic_next;
+	nic_t *nic;
 
 	pthread_mutex_lock(&nic_list_mutex);
 
 	/*  Start the shutdown process */
 	nic = nic_list;
 	while (nic != NULL) {
-		nic_next = nic->next;
+		nic_list = nic_list->next;
 		pthread_mutex_lock(&nic->nic_mutex);
 		nic_close(nic, 1, FREE_ALL_STRINGS);
 		pthread_mutex_unlock(&nic->nic_mutex);
 		nic_remove(nic);
-		nic = nic_next;
+		nic = nic_list;
 	}
 	pthread_mutex_unlock(&nic_list_mutex);
 
