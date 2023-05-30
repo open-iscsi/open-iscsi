@@ -1016,6 +1016,10 @@ static int qedi_read(nic_t *nic, packet_t *pkt)
 	}
 
 	bp = (qedi_t *)nic->priv;
+	if (!bp) {
+		LOG_WARN(PFX "There is no associated qedi");
+		return -EIO;
+	}
 	msync(bp->uctrl_map, sizeof(struct qedi_uio_ctrl), MS_SYNC);
 	msync(bp->rx_comp_ring, nic->page_size, MS_SYNC);
 	uctrl = (struct qedi_uio_ctrl *)bp->uctrl_map;
