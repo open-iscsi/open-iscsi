@@ -1,7 +1,7 @@
                               Release Notes
                         QLogic uIP Linux Driver
-                            Version 0.7.8.6
-                               06/27/2019
+                            Version 0.7.8.7
+                               06/13/2023
 
                           QLogic Corporation
                         26650 Aliso Viejo Pkwy,
@@ -10,6 +10,21 @@
                Copyright (c) 2004 - 2013 Broadcom Corporation
                    Copyright (c) 2014, QLogic Corporation
                            All rights reserved
+
+uIP v0.7.8.7 (Jun 13, 2023)
+=======================================================
+    Fixes:
+    -------
+      1. Problem: OS intermittently fails to boot with iscsiuio
+		  coredump upon service restart in a iSCSI
+		  MPIO config.
+         Change: 1. While processing the read packets, validate if
+		    the nic interface has been freed or still
+		    associated with the qedi.
+		 2. Fix corrupted unsorted chunks while freeing
+		    memory by correcting the deletion of nic
+		    from nic_list while removing all nics.
+         Impact: All
 
 uIP v0.7.8.6 (Jun 27, 2019)
 =======================================================
