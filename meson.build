@@ -4,7 +4,7 @@
 
 project('open-iscsi', 'c',
   meson_version: '>= 0.54.0',
-  version: '2.1.8',
+  version: '2.1.9',
   license: 'LGPL-2.1-or-later',
   default_options: [
     'c_std=gnu99',
