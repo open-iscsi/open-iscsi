@@ -1,3 +1,51 @@
+-> open-iscsi-2.1.8 - open-iscsi-2.1.9
+
+Chris Leech (5):
+      discoveryd: fix format overflow warning (#413)
+      sync iscsi_if.h with kernel (#411)
+      When writing DB record without a tpgt, take tpgt from existing record (#409)
+      iscsi-iname: make default IQN prefix configurable (#410)
+      remove OFFLOAD_BOOT_SUPPORTED ifdef (#412)
+
+Eric Mackay (1):
+      Make UID the default auth type for IPCs (#404)
+
+Fabrice Fontaine (1):
+      SHA3 is not supported by libressl (#396)
+
+Lee Duncan (12):
+      Preparing for version 2.1.8. (#370)
+      meson: remove unused 'source_date_epoch' option (#372)
+      iscsid/iscsiuio: fix OOM adjustment (#377)
+      Small netlink fixes, and one debug print fix (#391)
+      iscsid.conf: remove incorrect comment about location (#392)
+      Build: change meson default for DB home (#395)
+      Small cleanup (#399)
+      Remove unused SLP discovery code (#401)
+      Fix libopeniscsiusr licensing (#403)
+      README: add info about disabling NOPs for tape. (#414)
+      Build: make open-isns usage optional. (#407)
+      Remove incorrect "BindTo" line in iscsiuio.service (#415)
+
+Nilesh Javali (3):
+      iscsiuio: validate nic interface associated with qedi
+      iscsiuio: fix corrupted unsorted chunks while freeing memory
+      iscsiuio: update version to 0.7.8.7
+
+Tomas Bzatek (1):
+      Spelling fixes
+
+Wenchao Hao (2):
+      iscsid: clear scanning thread's PR_SET_IO_FLUSHER flag (#382)
+      iscsid: stop connection for recovery if error is not timeout in iscsi_login_eh (#388)
+
+baker915 (1):
+      Fix a typo error in iscsiuio/src/uip/lc-switch.h (#386)
+
+lilinjie (1):
+      fix typo (#389)
+
+
 -> open-iscsi-2.1.7 - open-iscsi-2.1.8
 
 Chris Hofstaedtler (1):
