@@ -142,9 +142,6 @@ signal_wait:
 	rc = sigwait(&set, &signal);
 
 	switch (signal) {
-	case SIGINT:
-		LOG_INFO("Caught SIGINT signal");
-		break;
 	case SIGUSR1:
 		LOG_INFO("Caught SIGUSR1 signal, rotate log");
 		fini_logger(SHUTDOWN_LOGGER);
@@ -154,6 +151,7 @@ signal_wait:
 			       "signal!\n");
 		goto signal_wait;
 	default:
+		LOG_INFO("Caught %s signal", strsignal(signal));
 		break;
 	}
 	event_loop_stop = 1;
