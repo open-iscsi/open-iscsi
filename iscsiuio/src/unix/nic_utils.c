@@ -773,7 +773,7 @@ int from_phys_name_find_assoicated_uio_device(nic_t *nic)
 								 sizeof(eth_name));
 		}
 		if (rc != 0) {
-			LOG_WARN("uio minor: %d not valid [%D]", uio_minor, rc);
+			LOG_WARN("uio minor: %d not valid [%d]", uio_minor, rc);
 			continue;
 		}
 
