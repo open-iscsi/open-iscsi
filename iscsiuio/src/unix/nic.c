@@ -518,6 +518,9 @@ int nic_remove(nic_t *nic)
 			LOG_DEBUG(PFX "%s: Couldn't send cancel to nic nl "
 				  "thread", nic->log_name);
 
+		/* release any threads waiting */
+		pthread_cond_signal(&nic->nl_process_cond);
+
 		nic->nl_process_thread = INVALID_THREAD;
 		LOG_DEBUG(PFX "%s: nic nl thread cleaned", nic->log_name);
 	} else {
