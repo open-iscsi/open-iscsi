@@ -54,6 +54,7 @@
 #include <sys/types.h>
 #include <sys/user.h>
 #include <sys/socket.h>
+#include <sys/time.h>
 
 #include "uip_arp.h"
 #include "logger.h"
@@ -214,12 +215,14 @@ static int pull_from_nl(char **buf)
 		     NLMSG_SPACE(sizeof(struct iscsi_uevent)),
 		     MSG_PEEK | MSG_WAITALL);
 	if (rc <= 0) {
-		LOG_ERR("can not read nlm_ev, error %s[%d]",
-			strerror(errno), rc);
 		if (rc == 0)
 			return -EIO;
-		else
-			return errno;
+		else {
+			if (errno != EAGAIN)
+				LOG_ERR("can not read nlm_ev, error %s[%d]",
+					strerror(errno), rc);
+		}
+		return errno;
 	}
 	nlh = (struct nlmsghdr *)nlm_ev;
 
@@ -486,9 +489,9 @@ void *nl_process_handle_thread(void *arg)
 		pthread_mutex_lock(&nic->nl_process_mutex);
 		rc = pthread_cond_wait(&nic->nl_process_cond,
 				       &nic->nl_process_mutex);
-		if (rc != 0) {
+		if (rc != 0 || event_loop_stop) {
 			pthread_mutex_unlock(&nic->nl_process_mutex);
-			LOG_ERR("Fatal error in NL processing thread "
+			LOG_ERR("Fatal error or exit signal in NL processing thread "
 				"during wait[%s]", strerror(rc));
 			break;
 		}
@@ -536,6 +539,7 @@ int nic_nl_open()
 {
 	int rc = 0;
 	char *msg_type_str;
+	struct timeval socktimeout;
 
 	/* Prepare the thread to issue the ARP's */
 	nl_sock = socket(PF_NETLINK, SOCK_RAW, NETLINK_ISCSI);
@@ -545,6 +549,10 @@ int nic_nl_open()
 		rc = -ENOMEM;
 		goto error;
 	}
+
+	socktimeout.tv_sec = 1;
+	socktimeout.tv_usec = 0;
+	setsockopt(nl_sock, SOL_SOCKET, SO_RCVTIMEO, &socktimeout, sizeof(struct timeval));
 
 	memset(&src_addr, 0, sizeof(src_addr));
 	src_addr.nl_family = AF_NETLINK;
