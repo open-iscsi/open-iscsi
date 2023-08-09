@@ -376,7 +376,7 @@ ping_done:
 
 static int parse_iface(void *arg, int do_ping)
 {
-	int rc, i;
+	int rc, i, oldcancelstate;
 	nic_t *nic = NULL;
 	nic_interface_t *nic_iface;
 	char *transport_name;
@@ -411,6 +411,12 @@ static int parse_iface(void *arg, int do_ping)
 	}
 	if (rc && !ird.ip_type) {
 		LOG_ERR(PFX "iface err: rc=%d, ip_type=%d", rc, ird.ip_type);
+		goto early_exit;
+	}
+
+	/* don't allow thread to be canceled while holding nic_list_mutex */
+	if (pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, &oldcancelstate)) {
+		LOG_ERR(PFX "Could not set thread to CANCEL_DISABLE");
 		goto early_exit;
 	}
 
@@ -889,6 +895,8 @@ eagain:
 
 done:
 	pthread_mutex_unlock(&nic_list_mutex);
+	if (pthread_setcancelstate(oldcancelstate, NULL))
+		LOG_ERR(PFX "Could not set thread to CANCEL_DISABLE");
 
 early_exit:
 	return rc;
