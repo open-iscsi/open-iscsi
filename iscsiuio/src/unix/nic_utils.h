@@ -55,7 +55,7 @@ int from_netdev_name_find_nic(char *interface_name, nic_t **nic);
 
 int from_host_no_find_associated_eth_device(int host_no, nic_t **nic);
 
-int from_phys_name_find_assoicated_uio_device(nic_t *nic);
+int from_phys_name_find_associated_uio_device(nic_t *nic);
 
 int nic_queue_tx_packet(nic_t *nic,
 			nic_interface_t *nic_iface, packet_t *pkt);

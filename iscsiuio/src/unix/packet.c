@@ -47,7 +47,7 @@
 /**
  * alloc_packet() - Function used to allocate memory for a packet
  * @param max_buf_size - max packet size
- * @param priv_size    - size of the assoicated private data
+ * @param priv_size    - size of the associated private data
  * @return NULL if failed, on success return a pointer to the packet
  */
 struct packet *alloc_packet(size_t max_buf_size, size_t priv_size)

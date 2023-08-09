@@ -724,9 +724,9 @@ static int qedi_uio_close_resources(nic_t *nic, NIC_SHUTDOWN_T graceful)
 	qedi_t *bp = (qedi_t *)nic->priv;
 	int rc = 0;
 
-	/*  Check if there is an assoicated qedi device */
+	/*  Check if there is an associated qedi device */
 	if (!bp) {
-		LOG_WARN(PFX "%s: when closing resources there is no assoicated qedi",
+		LOG_WARN(PFX "%s: when closing resources there is no associated qedi",
 			 nic->log_name);
 		return -EIO;
 	}

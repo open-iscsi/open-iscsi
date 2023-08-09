@@ -1178,10 +1178,10 @@ static int bnx2x_uio_close_resources(nic_t *nic, NIC_SHUTDOWN_T graceful)
 	bnx2x_t *bp = (bnx2x_t *) nic->priv;
 	int rc = 0;
 
-	/*  Check if there is an assoicated bnx2x device */
+	/*  Check if there is an associated bnx2x device */
 	if (bp == NULL) {
-		LOG_WARN(PFX "%s: when closing resources there is "
-			 "no assoicated bnx2x", nic->log_name);
+		LOG_WARN(PFX "%s: when closing resources there is no associated bnx2x",
+			 nic->log_name);
 		return -EIO;
 	}
 

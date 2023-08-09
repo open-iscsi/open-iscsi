@@ -407,7 +407,7 @@ static char *extract_none(struct dirent **files)
 
 /**
  *  from_host_no_find_nic() - Given the host number
- *      this function will try to find the assoicated nic interface
+ *      this function will try to find the associated nic interface
  *  Must be called with nic_list_mutex lock
  *  @param host_no - minor number of the UIO device
  *  @param nic - pointer to the NIC will set if successful
@@ -460,7 +460,7 @@ error:
  ******************************************************************************/
 /**
  *  from_uio_find_associated_eth_device() - Given the uio minor number
- *      this function will try to find the assoicated phyisical network
+ *      this function will try to find the associated phyisical network
  *      interface
  *  @param uio_minor - minor number of the UIO device
  *  @param name - char buffer which will be filled if successful
@@ -562,7 +562,7 @@ error:
 
 /**
  *  from_uio_find_associated_host() - Given the uio minor number
- *      this function will try to find the assoicated iscsi host
+ *      this function will try to find the associated iscsi host
  *  @param uio_minor - minor number of the UIO device
  *  @param name - char buffer which will be filled if successful
  *  @param name_size - size of the name buffer
@@ -706,13 +706,13 @@ int from_netdev_name_find_nic(char *interface_name, nic_t **nic)
 }
 
 /**
- *  from_phys_name_find_assoicated_uio_device() - This is used to find the
+ *  from_phys_name_find_associated_uio_device() - This is used to find the
  *						  uio minor
  *      when given a network interface name
  *  @param interface_name - network interface name to search for
  *  @return >0 minor number <0 an error
  */
-int from_phys_name_find_assoicated_uio_device(nic_t *nic)
+int from_phys_name_find_associated_uio_device(nic_t *nic)
 {
 	char *path = NULL;
 	int count;
@@ -789,7 +789,7 @@ int from_phys_name_find_assoicated_uio_device(nic_t *nic)
 		}
 	}
 
-	LOG_WARN("Could not find assoicate uio device with %s", interface_name);
+	LOG_WARN("Could not find associate uio device with %s", interface_name);
 
 	rc = -EINVAL;
 done:
@@ -905,7 +905,7 @@ int nic_fill_name(nic_t *nic)
 
 		nic->uio_device_name = nic->config_device_name;
 
-		/*  Determine the assoicated physical network interface */
+		/*  Determine the associated physical network interface */
 		rc = from_uio_find_associated_eth_device(nic,
 							 nic->uio_minor,
 							 eth_name,
@@ -925,7 +925,7 @@ int nic_fill_name(nic_t *nic)
 		LOG_INFO(PFX "looking for uio device for %s",
 			 nic->config_device_name);
 
-		rc = from_phys_name_find_assoicated_uio_device(nic);
+		rc = from_phys_name_find_associated_uio_device(nic);
 		if (rc < 0) {
 			LOG_ERR(PFX "Could not determine UIO name for %s",
 				nic->config_device_name);
@@ -973,7 +973,7 @@ void prepare_library(nic_t *nic)
 
 	nic_fill_name(nic);
 
-	/* No assoicated library, we can skip it */
+	/* No associated library, we can skip it */
 	if (nic->library_name != NULL) {
 		/*  Check that we have the proper NIC library loaded */
 		exist = does_nic_library_exist(nic->library_name, &handle);

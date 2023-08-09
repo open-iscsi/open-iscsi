@@ -570,7 +570,7 @@ int nic_remove(nic_t *nic)
  *                     before proceeding to close()
  *                     FORCE_SHUTDOWN will force the nic to close()
  *                     reguardless of the state
- *  @param clean    -  this will free the proper strings assoicated
+ *  @param clean    -  this will free the proper strings associated
  *                     with the NIC
  *
  */
@@ -581,7 +581,7 @@ void nic_close(nic_t *nic, NIC_SHUTDOWN_T graceful, int clean)
 	struct stat file_stat;
 
 	/*  The NIC could be configured by the uIP config file
-	 *  but not assoicated with a hardware library just yet
+	 *  but not associated with a hardware library just yet
 	 *  we will need to check for this */
 	if (nic->ops == NULL) {
 		LOG_WARN(PFX "%s: when closing nic->ops == NULL",

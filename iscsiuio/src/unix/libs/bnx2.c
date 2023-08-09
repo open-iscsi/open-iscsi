@@ -738,10 +738,10 @@ static int bnx2_uio_close_resources(nic_t *nic, NIC_SHUTDOWN_T graceful)
 	    (graceful == ALLOW_GRACEFUL_SHUTDOWN))
 		disable_multicast(nic);
 
-	/*  Check if there is an assoicated bnx2 device */
+	/*  Check if there is an associated bnx2 device */
 	if (bp == NULL) {
-		LOG_WARN(PFX "%s: when closing resources there is "
-			 "no assoicated bnx2", nic->log_name);
+		LOG_WARN(PFX "%s: when closing resources there is no associated bnx2",
+			 nic->log_name);
 		return -EIO;
 	}
 
