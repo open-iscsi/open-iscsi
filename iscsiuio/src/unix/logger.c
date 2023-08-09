@@ -79,6 +79,10 @@ void log_uip(char *level_str, char *fmt, ...)
 {
 	char time_buf[32];
 	va_list ap, ap2;
+	int oldcancelstate = -1;
+
+	/* try to stop cancellations while holding mutex, else fail quietly */
+	pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, &oldcancelstate);
 
 	pthread_mutex_lock(&main_log.lock);
 	va_start(ap, fmt);
@@ -113,6 +117,9 @@ end:
 	va_end(ap2);
 	va_end(ap);
 	pthread_mutex_unlock(&main_log.lock);
+	/* try to restore previous cancel state if saved, else fail quietly */
+	if (oldcancelstate != -1)
+		pthread_setcancelstate(oldcancelstate, NULL);
 }
 
 /******************************************************************************
@@ -126,6 +133,10 @@ end:
 int init_logger(char *filename)
 {
 	int rc = 0;
+	int oldcancelstate = -1;
+
+	/* try to stop cancellations while holding mutex, else fail quietly */
+	pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, &oldcancelstate);
 
 	pthread_mutex_lock(&main_log.lock);
 
@@ -147,6 +158,10 @@ disable:
 
 	pthread_mutex_unlock(&main_log.lock);
 
+	/* try to restore previous cancel state if saved, else fail quietly */
+	if (oldcancelstate != -1)
+		pthread_setcancelstate(oldcancelstate, NULL);
+
 	if (!rc)
 		LOG_INFO("Initialize logger using log file: %s", filename);
 
@@ -155,6 +170,11 @@ disable:
 
 void fini_logger(int type)
 {
+	int oldcancelstate = -1;
+
+	/* try to stop cancellations while holding mutex, else fail quietly */
+	pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, &oldcancelstate);
+
 	pthread_mutex_lock(&main_log.lock);
 
 	if (main_log.fp != NULL) {
@@ -178,4 +198,8 @@ void fini_logger(int type)
 	main_log.enabled = LOGGER_DISABLED;
 
 	pthread_mutex_unlock(&main_log.lock);
+
+	/* try to restore previous cancel state if saved, else fail quietly */
+	if (oldcancelstate != -1)
+		pthread_setcancelstate(oldcancelstate, NULL);
 }
