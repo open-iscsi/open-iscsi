@@ -153,8 +153,8 @@ static void update_sessions(struct list_head *new_rec_list,
  	 */
 	list_for_each_entry_safe(rec, tmp_rec, &iscsi_targets, list) {
 		log_debug(7, "Trying to match %s %s to %s %s %s",
-	 		   targetname, iname, rec->name, rec->conn[0].address,
-			    rec->iface.name);
+	 		   targetname ? targetname : "(null)", iname ? iname : "(null)",
+			    rec->name, rec->conn[0].address, rec->iface.name);
 		if (targetname && strcmp(rec->name, targetname))
 			continue;
 
@@ -169,7 +169,7 @@ static void update_sessions(struct list_head *new_rec_list,
 		}
 
 		log_debug(5, "Matched %s %s, checking if in new targets.",
-			  targetname, iname);
+			  targetname ? targetname : "(null)",  iname ? iname : "(null)");
 		if (!idbm_find_rec_in_list(new_rec_list, rec->name,
 					   rec->conn[0].address,
 					   rec->conn[0].port, &rec->iface)) {
