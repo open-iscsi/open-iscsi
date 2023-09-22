@@ -56,15 +56,6 @@ struct logger main_log = {
 	.log_file = (char *)default_logger_filename,
 	.level = LOG_LEVEL_INFO,
 	.lock = PTHREAD_MUTEX_INITIALIZER,
-
-	.stats = {
-		  .debug = 0,
-		  .info = 0,
-		  .warn = 0,
-		  .error = 0,
-
-		  .last_log_time = 0,
-		  },
 };
 
 /******************************************************************************
@@ -80,6 +71,7 @@ void log_uip(char *level_str, char *fmt, ...)
 	char time_buf[32];
 	va_list ap, ap2;
 	int oldcancelstate = -1;
+	time_t t;
 
 	/* try to stop cancellations while holding mutex, else fail quietly */
 	pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, &oldcancelstate);
@@ -90,9 +82,8 @@ void log_uip(char *level_str, char *fmt, ...)
 	if (main_log.fp == NULL)
 		goto end;
 
-	main_log.stats.last_log_time = time(NULL);
-	strftime(time_buf, 26, "%a %b %d %T %Y",
-		 localtime(&main_log.stats.last_log_time));
+	time(&t);
+	strftime(time_buf, 26, "%a %b %d %T %Y", localtime(&t));
 	va_copy(ap2, ap);
 
 	if (main_log.enabled == LOGGER_ENABLED) {

@@ -89,18 +89,6 @@
 				} }
 
 /*******************************************************************************
- * Logging Statistics
- ******************************************************************************/
-struct logger_stats {
-	uint64_t debug;
-	uint64_t info;
-	uint64_t warn;
-	uint64_t error;
-
-	time_t last_log_time;
-};
-
-/*******************************************************************************
  * Logger Structure
  ******************************************************************************/
 struct logger {
@@ -113,8 +101,6 @@ struct logger {
 	int8_t enabled;
 
 	pthread_mutex_t lock;
-
-	struct logger_stats stats;
 };
 
 extern struct logger main_log;
