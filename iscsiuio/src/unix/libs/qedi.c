@@ -306,9 +306,9 @@ static int qedi_get_mac_addr(qedi_t *bp)
 	       (uint32_t *)&nic->mac_addr[0], (uint32_t *)&nic->mac_addr[1],
 	       (uint32_t *)&nic->mac_addr[2], (uint32_t *)&nic->mac_addr[3],
 	       (uint32_t *)&nic->mac_addr[4], (uint32_t *)&nic->mac_addr[5]);
-	if (rc != 1) {
-		LOG_WARN(PFX "%s: Could not parse mac_addr",
-			nic->log_name);
+	if (rc != 6) {
+		LOG_WARN(PFX "%s: Could not parse mac_addr from: %s (%d)",
+			nic->log_name, raw, rc);
 		rc = -ENODEV;
 		goto error;
 	}
