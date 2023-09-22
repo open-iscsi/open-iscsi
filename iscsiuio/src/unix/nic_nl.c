@@ -529,6 +529,19 @@ static void flush_nic_nl_process_ring(nic_t *nic)
 	LOG_DEBUG(PFX "%s: Flushed NIC NL ring", nic->log_name);
 }
 
+static void close_nl_socket(int fd)
+{
+	struct linger so_linger = { .l_onoff = 1, .l_linger = 0 };
+
+	if (fd >= 0) {
+		LOG_DEBUG(PFX "close_nl_socket: disconnecting fd %d", fd);
+
+		setsockopt(fd, SOL_SOCKET, SO_LINGER, &so_linger,
+			       	sizeof(so_linger));
+		close(fd);
+	}
+}
+
 /**
  *  nic_nl_open() - This is called when opening/creating the Netlink listening
  *                   thread
@@ -679,6 +692,9 @@ int nic_nl_open()
 
 		LOG_DEBUG(PFX "Pulled nl event");
 	}
+
+	/* close the netlink socket */
+	close_nl_socket(nl_sock);
 
 	LOG_INFO(PFX "Netlink thread exit'ing");
 	rc = 0;
