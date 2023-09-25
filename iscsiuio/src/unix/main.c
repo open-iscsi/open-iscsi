@@ -75,6 +75,8 @@
 #include "iscsid_ipc.h"
 #include "brcm_iscsi.h"
 
+static bool foreground = false;	/* daemon running in foreground or background? */
+
 /*******************************************************************************
  *  Constants
  ******************************************************************************/
@@ -118,7 +120,7 @@ static void cleanup()
 
 	ILOG_INFO("Done waiting for cnic's/stacks to gracefully close");
 
-	fini_logger(SHUTDOWN_LOGGER);
+	fini_logger();
 }
 
 /**
@@ -140,15 +142,16 @@ static void *signal_handle_thread(void *arg)
 
 signal_wait:
 	rc = sigwait(&set, &signal);
+	if (rc) {
+		ILOG_ERR("Cannot wait for signals: %d", rc);
+		exit(EXIT_FAILURE);
+	}
 
 	switch (signal) {
 	case SIGUSR1:
 		ILOG_INFO("Caught SIGUSR1 signal, rotate log");
-		fini_logger(SHUTDOWN_LOGGER);
-		rc = init_logger(main_log.log_file);
-		if (rc != 0)
-			fprintf(stderr, "WARN: Could not initialize the logger in "
-			       "signal!\n");
+		fini_logger();
+		init_logger(foreground);
 		goto signal_wait;
 	default:
 		ILOG_INFO("Caught %s signal", strsignal(signal));
@@ -248,7 +251,7 @@ int main(int argc, char *argv[])
 	sigset_t set;
 	const char *pid_file = default_pid_filepath;
 	int fd;
-	int foreground = 0;
+	bool foreground = false;
 	pid_t pid;
 	pthread_attr_t attr;
 	int pipefds[2];
@@ -269,7 +272,7 @@ int main(int argc, char *argv[])
 		switch (c) {
 
 		case 'f':
-			foreground = 1;
+			foreground = true;
 			break;
 
 			/* Enable debugging mode */
@@ -290,12 +293,7 @@ int main(int argc, char *argv[])
 		}
 	}
 
-	if (main_log.enabled == LOGGER_ENABLED) {
-		/*  initialize the logger */
-		rc = init_logger(main_log.log_file);
-		if (rc != 0 && opt.debug == DEBUG_ON)
-			fprintf(stderr, "WARN: Could not initialize the logger\n");
-	}
+	init_logger(foreground);
 
 	ILOG_INFO("Started iSCSI uio stack: Ver " PACKAGE_VERSION);
 	ILOG_INFO("Build date: %s", build_date);
