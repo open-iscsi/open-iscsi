@@ -102,24 +102,24 @@ int manually_trigger_uio_event(nic_t *nic, int uio_minor)
 
 	rc = sprintf(uio_uevent_path, uio_uevent_path_template, uio_minor);
 	if (rc < 0) {
-		LOG_ERR(PFX "%s: Could not build uio uevent path",
+		ILOG_ERR(PFX "%s: Could not build uio uevent path",
 			nic->log_name);
 		return -EIO;
 	}
 
-	LOG_DEBUG(PFX "%s: triggering UIO uevent path: %s",
+	ILOG_DEBUG(PFX "%s: triggering UIO uevent path: %s",
 		  nic->log_name, uio_uevent_path);
 
 	fd = open(uio_uevent_path, O_WRONLY);
 	if (fd == -1) {
-		LOG_ERR(PFX "%s: Could not open uio uevent path: %s [%s]",
+		ILOG_ERR(PFX "%s: Could not open uio uevent path: %s [%s]",
 			nic->log_name, uio_uevent_path, strerror(errno));
 		return -EIO;
 	}
 
 	bytes_wrote = write(fd, enable_str, sizeof(enable_str));
 	if (bytes_wrote != sizeof(enable_str)) {
-		LOG_ERR(PFX "%s: Could write to uio uevent path: %s [%s]",
+		ILOG_ERR(PFX "%s: Could write to uio uevent path: %s [%s]",
 			nic->log_name, uio_uevent_path, strerror(errno));
 		rc = -EIO;
 	} else
@@ -143,8 +143,8 @@ static int wait_for_file_node_timed(nic_t *nic, char *filepath, int seconds)
 	wait_time.tv_usec = 0;
 
 	if (gettimeofday(&start_time, NULL)) {
-		LOG_ERR(PFX "%s: Couldn't gettimeofday() during watch file: %s"
-			"[%s]", nic->log_name, filepath, strerror(errno));
+		ILOG_ERR(PFX "%s: Couldn't gettimeofday() during watch file: %s[%s]",
+			 nic->log_name, filepath, strerror(errno));
 		return -EIO;
 	}
 
@@ -159,15 +159,14 @@ static int wait_for_file_node_timed(nic_t *nic, char *filepath, int seconds)
 			return 0;
 
 		if (gettimeofday(&current_time, NULL)) {
-			LOG_ERR(PFX "%s: Couldn't get current time for "
-				"watching file: %s [%s]",
+			ILOG_ERR(PFX "%s: Couldn't get current time for watching file: %s [%s]",
 				nic->log_name, filepath, strerror(errno));
 			return -EIO;
 		}
 
 		/*  Timeout has excceded return -ETIME */
 		if (timercmp(&total_time, &current_time, <)) {
-			LOG_ERR(PFX "%s: timeout waiting %d secs for file: %s",
+			ILOG_ERR(PFX "%s: timeout waiting %d secs for file: %s",
 				nic->log_name, seconds, filepath);
 			return -ETIME;
 		}
@@ -204,7 +203,7 @@ int nic_discover_iscsi_hosts()
 		break;
 
 	case -1:
-		LOG_WARN(PFX "Error when scanning path: %s[%s]",
+		ILOG_WARN(PFX "Error when scanning path: %s[%s]",
 			 base_iscsi_host_name, strerror(errno));
 		rc = -EINVAL;
 		break;
@@ -221,7 +220,7 @@ int nic_discover_iscsi_hosts()
 			rc = sscanf(files[i]->d_name, host_template, &host_no);
 			nic_t *nic;
 
-			LOG_INFO(PFX "Found host[%d]: %s",
+			ILOG_INFO(PFX "Found host[%d]: %s",
 				 host_no, files[i]->d_name);
 
 			/*  Build the path to determine netdev name */
@@ -241,9 +240,8 @@ int nic_discover_iscsi_hosts()
 
 				nic = nic_init();
 				if (nic == NULL) {
-					LOG_ERR(PFX "Couldn't allocate "
-						"space for NIC %s "
-						"during scan", raw);
+					ILOG_ERR(PFX "Couldn't allocate space for NIC %s during scan",
+						 raw);
 
 					free(raw);
 					rc = -ENOMEM;
@@ -264,11 +262,10 @@ int nic_discover_iscsi_hosts()
 
 				nic_add(nic);
 
-				LOG_INFO(PFX "NIC not found creating an "
-					 "instance for host_no: %d %s",
+				ILOG_INFO(PFX "NIC not found creating an instance for host_no: %d %s",
 					 host_no, nic->eth_device_name);
 			} else
-				LOG_INFO(PFX "%s: NIC found host_no: %d",
+				ILOG_INFO(PFX "%s: NIC found host_no: %d",
 					 nic->log_name, host_no);
 
 			free(raw);
@@ -311,8 +308,7 @@ static int nic_util_enable_disable_multicast(nic_t *nic, uint32_t cmd)
 
 	fd = socket(AF_INET, SOCK_DGRAM, 0);
 	if (fd < 0) {
-		LOG_ERR(PFX "%s: Couldn't create socket to %s "
-			"multicast address: %s",
+		ILOG_ERR(PFX "%s: Couldn't create socket to %s multicast address: %s",
 			nic->log_name,
 			cmd == SIOCADDMULTI ? "added" : "delete",
 			strerror(errno));
@@ -321,13 +317,12 @@ static int nic_util_enable_disable_multicast(nic_t *nic, uint32_t cmd)
 
 	rc = fcntl(fd, F_SETFL, O_NONBLOCK);
 	if (rc != 0) {
-		LOG_WARN("%s: Couldn't set to ethtool IOCTL to "
-			 "non-blocking [%s]", nic->log_name, strerror(errno));
+		ILOG_WARN("%s: Couldn't set to ethtool IOCTL to non-blocking [%s]",
+			  nic->log_name, strerror(errno));
 	}
 
 	if (ioctl(fd, cmd, (char *)&ifr) != 0) {
-		LOG_ERR("%s: Couldn't issue ioctl socket to %s "
-			"multicast address: %s",
+		ILOG_ERR("%s: Couldn't issue ioctl socket to %s multicast address: %s",
 			nic->log_name,
 			cmd == SIOCADDMULTI ? "add" : "delete",
 			strerror(errno));
@@ -335,8 +330,7 @@ static int nic_util_enable_disable_multicast(nic_t *nic, uint32_t cmd)
 		goto error;
 	}
 
-	LOG_INFO(PFX "%s: %s address %02x:%02x:%02x:%02x:%02x:%02x "
-		 "to multicast list",
+	ILOG_INFO(PFX "%s: %s address %02x:%02x:%02x:%02x:%02x:%02x to multicast list",
 		 nic->log_name,
 		 cmd == SIOCADDMULTI ? "Added" : "Deleted",
 		 multicast_addr.addr[0], multicast_addr.addr[1],
@@ -490,7 +484,7 @@ static int from_uio_find_associated_eth_device(nic_t *nic,
 
 	path = malloc(PATH_MAX);
 	if (path == NULL) {
-		LOG_ERR(PFX "Could not allocate memory for path");
+		ILOG_ERR(PFX "Could not allocate memory for path");
 		rc = -ENOMEM;
 		goto error;
 	}
@@ -510,7 +504,7 @@ static int from_uio_find_associated_eth_device(nic_t *nic,
 		case 1:
 			parsed_name = (*extract_name[path_iterator]) (files);
 			if (parsed_name == NULL) {
-				LOG_WARN(PFX "Couldn't find delimiter in: %s",
+				ILOG_WARN(PFX "Couldn't find delimiter in: %s",
 					 files[0]->d_name);
 
 				break;
@@ -531,13 +525,13 @@ static int from_uio_find_associated_eth_device(nic_t *nic,
 			break;
 
 		case -1:
-			LOG_WARN(PFX "Error when scanning path: %s[%s]",
+			ILOG_WARN(PFX "Error when scanning path: %s[%s]",
 				 path, strerror(errno));
 			rc = -EINVAL;
 			break;
 
 		default:
-			LOG_WARN(PFX
+			ILOG_WARN(PFX
 				 "Too many entries when looking for device: %s",
 				 path);
 
@@ -586,7 +580,7 @@ static int from_uio_find_associated_host(nic_t *nic, int uio_minor,
 
 	path = malloc(PATH_MAX);
 	if (!path) {
-		LOG_ERR(PFX "Could not allocate memory for path");
+		ILOG_ERR(PFX "Could not allocate memory for path");
 		rc = -ENOMEM;
 		goto error;
 	}
@@ -609,7 +603,7 @@ static int from_uio_find_associated_host(nic_t *nic, int uio_minor,
 
 			parsed_name = (*extract_name[path_iterator]) (files);
 			if (!parsed_name) {
-				LOG_WARN(PFX "Couldn't find delimiter in: %s",
+				ILOG_WARN(PFX "Couldn't find delimiter in: %s",
 					 files[0]->d_name);
 
 				break;
@@ -618,7 +612,7 @@ static int from_uio_find_associated_host(nic_t *nic, int uio_minor,
 			parsed_src = parsed_name + extract_name_offset[path_iterator];
 			parsed_size = strlen(parsed_src);
 			if (parsed_size >= name_size) {
-				LOG_WARN(PFX "uio device name too long: %s (max %d)",
+				ILOG_WARN(PFX "uio device name too long: %s (max %d)",
 					parsed_src, (int)name_size - 1);
 				rc = -EINVAL;
 			} else {
@@ -637,13 +631,13 @@ static int from_uio_find_associated_host(nic_t *nic, int uio_minor,
 			break;
 
 		case -1:
-			LOG_WARN(PFX "Error when scanning path: %s[%s]",
+			ILOG_WARN(PFX "Error when scanning path: %s[%s]",
 				 path, strerror(errno));
 			rc = -EINVAL;
 			break;
 
 		default:
-			LOG_WARN(PFX
+			ILOG_WARN(PFX
 				 "Too many entries when looking for device: %s",
 				 path);
 
@@ -734,19 +728,19 @@ int from_phys_name_find_associated_uio_device(nic_t *nic)
 
 	switch (count) {
 	case 0:
-		LOG_WARN(PFX "Couldn't find %s to determine uio minor",
+		ILOG_WARN(PFX "Couldn't find %s to determine uio minor",
 			 interface_name);
 		return -EINVAL;
 
 	case -1:
-		LOG_WARN(PFX "Error when scanning for %s in path: %s [%s]",
+		ILOG_WARN(PFX "Error when scanning for %s in path: %s [%s]",
 			 interface_name, base_uio_sysfs_name, strerror(errno));
 		return -EINVAL;
 	}
 
 	path = malloc(PATH_MAX);
 	if (path == NULL) {
-		LOG_ERR(PFX "Could not allocate memory for path");
+		ILOG_ERR(PFX "Could not allocate memory for path");
 		return -ENOMEM;
 	}
 
@@ -758,7 +752,7 @@ int from_phys_name_find_associated_uio_device(nic_t *nic)
 
 		rc = sscanf(files[i]->d_name, "uio%d", &uio_minor);
 		if (rc != 1) {
-			LOG_WARN("Could not parse: %s", files[i]->d_name);
+			ILOG_WARN("Could not parse: %s", files[i]->d_name);
 			continue;
 		}
 
@@ -773,7 +767,7 @@ int from_phys_name_find_associated_uio_device(nic_t *nic)
 								 sizeof(eth_name));
 		}
 		if (rc != 0) {
-			LOG_WARN("uio minor: %d not valid [%d]", uio_minor, rc);
+			ILOG_WARN("uio minor: %d not valid [%d]", uio_minor, rc);
 			continue;
 		}
 
@@ -781,7 +775,7 @@ int from_phys_name_find_associated_uio_device(nic_t *nic)
 			memcpy(nic->eth_device_name,
 			       eth_name, sizeof(nic->eth_device_name));
 
-			LOG_INFO(PFX "%s associated with uio%d",
+			ILOG_INFO(PFX "%s associated with uio%d",
 				 nic->eth_device_name, uio_minor);
 
 			rc = uio_minor;
@@ -789,7 +783,7 @@ int from_phys_name_find_associated_uio_device(nic_t *nic)
 		}
 	}
 
-	LOG_WARN("Could not find associate uio device with %s", interface_name);
+	ILOG_WARN("Could not find associate uio device with %s", interface_name);
 
 	rc = -EINVAL;
 done:
@@ -841,7 +835,7 @@ int nic_verify_uio_sysfs_name(nic_t *nic)
 
 		exist = does_nic_uio_name_exist(raw, &handle);
 		if (exist == NIC_LIBRARY_DOESNT_EXIST) {
-			LOG_ERR(PFX "%s: could not find library for uio name: %s",
+			ILOG_ERR(PFX "%s: could not find library for uio name: %s",
 				nic->log_name, raw);
 			rc = -EINVAL;
 			goto error;
@@ -857,15 +851,14 @@ int nic_verify_uio_sysfs_name(nic_t *nic)
 		(*nic->ops->lib_ops.get_uio_name) (&raw_tmp, &name_size);
 
 		if (strncmp(raw, raw_tmp, name_size) != 0) {
-			LOG_ERR(PFX "%s: uio names not equal: "
-				"expecting %s got %s from %s",
+			ILOG_ERR(PFX "%s: uio names not equal: expecting %s got %s from %s",
 				nic->log_name, raw, raw_tmp, temp_path);
 			rc = -EINVAL;
 			goto error;
 		}
 	}
 
-	LOG_INFO(PFX "%s: Verified uio name %s with library %s",
+	ILOG_INFO(PFX "%s: Verified uio name %s with library %s",
 		 nic->log_name, raw, nic->library_name);
 
 error:
@@ -897,7 +890,7 @@ int nic_fill_name(nic_t *nic)
 		rc = sscanf(nic->config_device_name, uio_udev_path_template,
 			    &uio_minor);
 		if (rc != 1) {
-			LOG_WARN(PFX "%s: Could not parse for minor number",
+			ILOG_WARN(PFX "%s: Could not parse for minor number",
 				 nic->uio_device_name);
 			return -EINVAL;
 		} else
@@ -911,23 +904,23 @@ int nic_fill_name(nic_t *nic)
 							 eth_name,
 							 sizeof(eth_name));
 		if (rc != 0) {
-			LOG_WARN(PFX "%s: Couldn't find associated eth device",
+			ILOG_WARN(PFX "%s: Couldn't find associated eth device",
 				 nic->uio_device_name);
 		} else {
 			memcpy(nic->eth_device_name,
 			       eth_name, sizeof(eth_name));
 		}
 
-		LOG_INFO(PFX "%s: configured for uio device for %s",
+		ILOG_INFO(PFX "%s: configured for uio device for %s",
 			 nic->log_name, nic->uio_device_name);
 
 	} else {
-		LOG_INFO(PFX "looking for uio device for %s",
+		ILOG_INFO(PFX "looking for uio device for %s",
 			 nic->config_device_name);
 
 		rc = from_phys_name_find_associated_uio_device(nic);
 		if (rc < 0) {
-			LOG_ERR(PFX "Could not determine UIO name for %s",
+			ILOG_ERR(PFX "Could not determine UIO name for %s",
 				nic->config_device_name);
 
 			return -rc;
@@ -941,7 +934,7 @@ int nic_fill_name(nic_t *nic)
 		nic->uio_device_name =
 		    malloc(sizeof(uio_udev_path_template) + 8);
 		if (nic->uio_device_name == NULL) {
-			LOG_INFO(PFX "%s: Couldn't malloc space for uio name",
+			ILOG_INFO(PFX "%s: Couldn't malloc space for uio name",
 				 nic->log_name);
 			return -ENOMEM;
 		}
@@ -978,12 +971,12 @@ void prepare_library(nic_t *nic)
 		/*  Check that we have the proper NIC library loaded */
 		exist = does_nic_library_exist(nic->library_name, &handle);
 		if (exist == NIC_LIBRARY_DOESNT_EXIST) {
-			LOG_ERR(PFX "NIC library doesn't exists: %s",
+			ILOG_ERR(PFX "NIC library doesn't exists: %s",
 				nic->library_name);
 			goto error;
 		} else if (handle && (nic->nic_library == handle) &&
 			  (nic->ops == handle->ops)) {
-			LOG_INFO("%s: Have NIC library '%s'",
+			ILOG_INFO("%s: Have NIC library '%s'",
 				 nic->log_name, nic->library_name);
 		}
 	}
@@ -994,14 +987,14 @@ void prepare_library(nic_t *nic)
 		/*  Determine the NIC library to use based on the PCI Id */
 		rc = find_set_nic_lib(nic);
 		if (rc != 0) {
-			LOG_ERR(PFX "%s: Couldn't find NIC library",
+			ILOG_ERR(PFX "%s: Couldn't find NIC library",
 				nic->log_name);
 			goto error;
 		}
 
 	}
 
-	LOG_INFO("%s: found NIC with library '%s'",
+	ILOG_INFO("%s: found NIC with library '%s'",
 		 nic->log_name, nic->library_name);
 error:
 	return;
@@ -1017,14 +1010,14 @@ void prepare_nic_thread(nic_t *nic)
 		struct timespec ts;
 		struct timeval tp;
 
-		LOG_INFO(PFX "%s: spinning up thread for nic", nic->log_name);
+		ILOG_INFO(PFX "%s: spinning up thread for nic", nic->log_name);
 
 		/*  Try to spin up the nic thread */
 		pthread_attr_init(&attr);
 		pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED);
 		rc = pthread_create(&nic->thread, &attr, nic_loop, nic);
 		if (rc != 0) {
-			LOG_ERR(PFX "%s: Couldn't create thread for nic",
+			ILOG_ERR(PFX "%s: Couldn't create thread for nic",
 				nic->log_name);
 			goto error;
 		}
@@ -1039,7 +1032,7 @@ void prepare_nic_thread(nic_t *nic)
 		rc = pthread_cond_timedwait(&nic->nic_loop_started_cond,
 					    &nic->nic_mutex, &ts);
 
-		LOG_INFO("Created nic thread: %s", nic->log_name);
+		ILOG_INFO("Created nic thread: %s", nic->log_name);
 	}
 
 
@@ -1059,8 +1052,7 @@ error:
 int nic_enable(nic_t *nic)
 {
 	if (nic->flags & NIC_GOING_DOWN) {
-		LOG_INFO(PFX "%s: NIC device is going down, "
-			 "flag: 0x%x state: 0x%x",
+		ILOG_INFO(PFX "%s: NIC device is going down, flag: 0x%x state: 0x%x",
 			 nic->log_name, nic->flags, nic->state);
 		return -EINVAL;
 	}
@@ -1087,21 +1079,20 @@ int nic_enable(nic_t *nic)
 		rc = pthread_cond_timedwait(&nic->enable_done_cond,
 					    &nic->nic_mutex, &ts);
 		if (rc == 0 && nic->flags & NIC_ENABLED) {
-			LOG_DEBUG(PFX "%s: device enabled", nic->log_name);
+			ILOG_DEBUG(PFX "%s: device enabled", nic->log_name);
 		} else {
 			nic->flags &= ~NIC_ENABLED;
 			nic->flags |= NIC_DISABLED;
 			nic->flags &= ~NIC_ENABLED_PENDING;
 
-			LOG_ERR(PFX "%s: waiting to finish nic_enable err: %s",
+			ILOG_ERR(PFX "%s: waiting to finish nic_enable err: %s",
 				nic->log_name, strerror(rc));
 		}
 		pthread_mutex_unlock(&nic->nic_mutex);
 
 		return rc;
 	} else {
-		LOG_INFO(PFX "%s: device already enabled: "
-			 "flag: 0x%x state: 0x%x",
+		ILOG_INFO(PFX "%s: device already enabled: flag: 0x%x state: 0x%x",
 			 nic->log_name, nic->flags, nic->state);
 		return -EALREADY;
 	}
@@ -1134,7 +1125,7 @@ void nic_disable(nic_t *nic, int going_down)
 		/* Convert from timeval to timespec */
 		rc = gettimeofday(&tp, NULL);
 		if (rc) {
-			LOG_ERR("gettimeofday failed, should never happen: %d\n", errno);
+			ILOG_ERR("gettimeofday failed, should never happen: %d", errno);
 			pthread_mutex_unlock(&nic->nic_mutex);
 			return;
 		}
@@ -1147,16 +1138,15 @@ void nic_disable(nic_t *nic, int going_down)
 		rc = pthread_cond_timedwait(&nic->disable_wait_cond,
 					    &nic->nic_mutex, &ts);
 		if (rc) {
-			LOG_ERR("cond_timedwait failed, should never happen: %d\n", errno);
+			ILOG_ERR("cond_timedwait failed, should never happen: %d", errno);
 		}
 
 		pthread_mutex_unlock(&nic->nic_mutex);
 
-		LOG_DEBUG(PFX "%s: device disabled", nic->log_name);
+		ILOG_DEBUG(PFX "%s: device disabled", nic->log_name);
 
 	} else {
-		LOG_WARN(PFX "%s: device already disabled: "
-			 "flag: 0x%x state: 0x%x",
+		ILOG_WARN(PFX "%s: device already disabled: flag: 0x%x state: 0x%x",
 			 nic->log_name, nic->flags, nic->state);
 	}
 }
@@ -1178,7 +1168,7 @@ void nic_close_all()
 	}
 	pthread_mutex_unlock(&nic_list_mutex);
 
-	LOG_INFO(PFX "All NICs closed");
+	ILOG_INFO(PFX "All NICs closed");
 }
 
 void nic_remove_all()
@@ -1199,7 +1189,7 @@ void nic_remove_all()
 	}
 	pthread_mutex_unlock(&nic_list_mutex);
 
-	LOG_INFO(PFX "All NICs removed");
+	ILOG_INFO(PFX "All NICs removed");
 }
 
 
@@ -1232,7 +1222,7 @@ int detemine_initial_uio_events(nic_t *nic, uint32_t *num_of_events)
 
 	elements_read = sscanf(raw, "%d", num_of_events);
 	if (elements_read != 1) {
-		LOG_ERR(PFX "%s: Couldn't parse UIO events size from %s",
+		ILOG_ERR(PFX "%s: Couldn't parse UIO events size from %s",
 			nic->log_name, temp_path);
 		rc = -EIO;
 		goto error;
@@ -1264,7 +1254,7 @@ int get_iscsi_transport_handle(nic_t *nic, uint64_t *handle)
 
 	elements_read = sscanf(raw, "%" PRIu64, handle);
 	if (elements_read != 1) {
-		LOG_ERR(PFX "%s: Couldn't parse transport handle from %s",
+		ILOG_ERR(PFX "%s: Couldn't parse transport handle from %s",
 			nic->log_name, temp_path);
 		rc = -EIO;
 		goto error;
@@ -1325,7 +1315,7 @@ static packet_t *nic_alloc_packet_buffer(nic_t *nic,
 
 	pkt = malloc(sizeof(*pkt) + buf_size);
 	if (pkt == NULL) {
-		LOG_ERR(PFX "%s: Couldn't allocate space for packet buffer",
+		ILOG_ERR(PFX "%s: Couldn't allocate space for packet buffer",
 			nic->log_name);
 		return NULL;
 	}
@@ -1354,7 +1344,7 @@ int nic_queue_tx_packet(nic_t *nic,
 	queued_pkt = nic_alloc_packet_buffer(nic, nic_iface,
 					     pkt->buf, pkt->buf_size);
 	if (queued_pkt == NULL) {
-		LOG_ERR(PFX "%s: Couldn't allocate tx packet to queue",
+		ILOG_ERR(PFX "%s: Couldn't allocate tx packet to queue",
 			nic->log_name);
 		return -ENOMEM;
 	}
@@ -1371,7 +1361,7 @@ int nic_queue_tx_packet(nic_t *nic,
 		current_pkt->next = queued_pkt;
 	}
 
-	LOG_DEBUG(PFX "%s: tx packet queued", nic->log_name);
+	ILOG_DEBUG(PFX "%s: tx packet queued", nic->log_name);
 
 	return 0;
 }
@@ -1444,9 +1434,9 @@ nic_interface_t *nic_find_nic_iface(nic_t *nic,
 	nic_interface_t *current_vlan = NULL;
 
 	while (current != NULL) {
-		LOG_DEBUG(PFX "%s: incoming protocol: %d, vlan_id:%d iface_num: %d, request_type: %d",
+		ILOG_DEBUG(PFX "%s: incoming protocol: %d, vlan_id:%d iface_num: %d, request_type: %d",
 			  nic->log_name, protocol, vlan_id, iface_num,  request_type);
-		LOG_DEBUG(PFX "%s: host:%d iface_num: 0x%x VLAN: %d protocol: %d",
+		ILOG_DEBUG(PFX "%s: host:%d iface_num: 0x%x VLAN: %d protocol: %d",
 			  nic->log_name, nic->host_no, current->iface_num, current->vlan_id, current->protocol);
 		if (current->protocol != protocol)
 			goto next;
@@ -1672,7 +1662,7 @@ uint32_t calculate_default_netmask(uint32_t ip_addr)
 	else if (IN_CLASSC(ntohl(ip_addr)))
 		netmask = htonl(IN_CLASSC_NET);
 	else {
-		LOG_ERR("Unable to guess netmask for address %x\n", &ip_addr);
+		ILOG_ERR("Unable to guess netmask for address %x", &ip_addr);
 		return -1;
 	}
 
@@ -1689,12 +1679,12 @@ void dump_packet_to_log(struct nic_interface *iface,
 
 	file = fmemopen(str, sizeof(str), "w+");
 	if (file == NULL) {
-		LOG_ERR(PFX "Could not create logging file stream for packet "
-			"logging: [%d: %s]", errno, strerror(errno));
+		ILOG_ERR(PFX "Could not create logging file stream for packet logging: [%d: %s]",
+			 errno, strerror(errno));
 		return;
 	}
 
-	LOG_PACKET(PFX "%s: Start packet dump len: %d", iface->parent->log_name,
+	ILOG_PACKET(PFX "%s: Start packet dump len: %d", iface->parent->log_name,
 		   buf_len);
 
 	for (i = 0; i < buf_len; i++) {
@@ -1705,10 +1695,10 @@ void dump_packet_to_log(struct nic_interface *iface,
 			fprintf(file, " %02x", buf[i]);
 		fflush(file);
 
-		LOG_PACKET(PFX "%s: %s", iface->parent->log_name, str);
+		ILOG_PACKET(PFX "%s: %s", iface->parent->log_name, str);
 	}
 
-	LOG_PACKET(PFX "%s: end packet dump", iface->parent->log_name);
+	ILOG_PACKET(PFX "%s: end packet dump", iface->parent->log_name);
 
 	fclose(file);
 }
@@ -1733,7 +1723,7 @@ int determine_file_size_read(const char *filepath)
 
 	fd = open(filepath, O_RDONLY);
 	if (fd == -1) {
-		LOG_ERR("Could not open file: %s [%s]",
+		ILOG_ERR("Could not open file: %s [%s]",
 			filepath, strerror(errno));
 		return -1;
 	}
@@ -1745,7 +1735,7 @@ int determine_file_size_read(const char *filepath)
 		case 0:
 			break;
 		case -1:
-			LOG_ERR("Error reading file: %s [%s]",
+			ILOG_ERR("Error reading file: %s [%s]",
 				filepath, strerror(errno));
 			total_size = -1;
 			break;
@@ -1777,26 +1767,26 @@ int capture_file(char **raw, uint32_t *raw_size, const char *path)
 
 	file_size = determine_file_size_read(path);
 	if (file_size < 0) {
-		LOG_ERR("Could not determine size %s", path);
+		ILOG_ERR("Could not determine size %s", path);
 		return -EIO;
 	}
 
 	fp = fopen(path, "r");
 	if (fp == NULL) {
-		LOG_ERR("Could not open path %s [%s]", path, strerror(errno));
+		ILOG_ERR("Could not open path %s [%s]", path, strerror(errno));
 		return -EIO;
 	}
 
 	*raw = malloc(file_size);
 	if (*raw == NULL) {
-		LOG_ERR("Could not malloc space for capture %s", path);
+		ILOG_ERR("Could not malloc space for capture %s", path);
 		rc = -ENOMEM;
 		goto error;
 	}
 
 	read_size = fread(*raw, file_size, 1, fp);
 	if (!read_size) {
-		LOG_ERR("Could not read capture, path: %s len: %d [%s]",
+		ILOG_ERR("Could not read capture, path: %s len: %d [%s]",
 			path, file_size, strerror(ferror(fp)));
 		free(*raw);
 		*raw = NULL;
@@ -1807,7 +1797,7 @@ int capture_file(char **raw, uint32_t *raw_size, const char *path)
 error:
 	fclose(fp);
 
-	LOG_INFO("Done capturing %s", path);
+	ILOG_INFO("Done capturing %s", path);
 
 	return rc;
 }

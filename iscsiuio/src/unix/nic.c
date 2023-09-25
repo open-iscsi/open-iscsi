@@ -99,7 +99,7 @@ static nic_lib_handle_t *alloc_nic_library_handle()
 
 	handle = malloc(sizeof(*handle));
 	if (handle == NULL) {
-		LOG_ERR("Could not allocate memory for library handle");
+		ILOG_ERR("Could not allocate memory for library handle");
 		return NULL;
 	}
 
@@ -139,12 +139,11 @@ static int load_nic_library(nic_lib_handle_t *handle)
 	    (handle->ops->read) == NULL ||
 	    (handle->ops->write) == NULL ||
 	    (handle->ops->clear_tx_intr == NULL)) {
-		LOG_ERR("Invalid NIC ops table: open: 0x%x, close: 0x%x,"
-			"read: 0x%x, write: 0x%x clear_tx_intr: 0x%x "
-			"lib_ops: 0x%x",
-			handle->ops->open, handle->ops->close,
-			handle->ops->read, handle->ops->write,
-			handle->ops->clear_tx_intr, handle->ops->lib_ops);
+		ILOG_ERR(
+		    "Invalid NIC ops table: open: 0x%x, close: 0x%x,read: 0x%x, write: 0x%x clear_tx_intr: 0x%x lib_ops: 0x%x",
+		    handle->ops->open, handle->ops->close,
+		    handle->ops->read, handle->ops->write,
+		    handle->ops->clear_tx_intr, handle->ops->lib_ops);
 		rc = -EINVAL;
 		handle->ops = NULL;
 		goto error;
@@ -167,7 +166,7 @@ static int load_nic_library(nic_lib_handle_t *handle)
 	(*handle->ops->lib_ops.get_build_date) (&build_date_str,
 						&build_date_str_size);
 
-	LOG_DEBUG("Loaded nic library '%s' Version: '%s' build on %s'",
+	ILOG_DEBUG("Loaded nic library '%s' Version: '%s' build on %s'",
 		  library_name, library_version, build_date_str);
 
 	pthread_mutex_unlock(&handle->mutex);
@@ -192,7 +191,7 @@ int load_all_nic_libraries()
 		/*  Add the CNIC library */
 		handle = alloc_nic_library_handle();
 		if (handle == NULL) {
-			LOG_ERR("Could not allocate memory for CNIC nic lib");
+			ILOG_ERR("Could not allocate memory for CNIC nic lib");
 			return -ENOMEM;
 		}
 
@@ -220,7 +219,7 @@ int load_all_nic_libraries()
 		}
 		pthread_mutex_unlock(&nic_lib_list_mutex);
 
-		LOG_DEBUG("Added '%s' nic library", handle->ops->description);
+		ILOG_DEBUG("Added '%s' nic library", handle->ops->description);
 	}
 
 	return rc;
@@ -351,15 +350,13 @@ int find_nic_lib_using_pci_id(uint32_t vendor, uint32_t device,
 		/*  Sanity check the the pci table coming from the
 		 *  hardware library */
 		if (entries > MAX_PCI_DEVICE_ENTRIES) {
-			LOG_WARN(PFX "Too many pci_table entries(%d) skipping",
+			ILOG_WARN(PFX "Too many pci_table entries(%d) skipping",
 				 entries);
 			continue;
 		}
 
 		for (i = 0; i < entries; i++) {
-			LOG_DEBUG(PFX "Checking against: "
-				  "vendor: 0x%x device:0x%x "
-				  "subvendor:0x%x subdevice:0x%x",
+			ILOG_DEBUG(PFX "Checking against: vendor: 0x%x device:0x%x subvendor:0x%x subdevice:0x%x",
 				  pci_table[i].vendor, pci_table[i].device,
 				  pci_table[i].subvendor,
 				  pci_table[i].subdevice);
@@ -398,7 +395,7 @@ nic_t *nic_init()
 
 	nic = malloc(sizeof(*nic));
 	if (nic == NULL) {
-		LOG_ERR("Couldn't malloc space for nic");
+		ILOG_ERR("Couldn't malloc space for nic");
 		return NULL;
 	}
 
@@ -482,49 +479,49 @@ int nic_remove(nic_t *nic)
 	nic->state = NIC_EXIT;
 
 	if (nic->enable_thread != INVALID_THREAD) {
-		LOG_DEBUG(PFX "%s: Canceling nic enable thread", nic->log_name);
+		ILOG_DEBUG(PFX "%s: Canceling nic enable thread", nic->log_name);
 
 		rc = pthread_cancel(nic->enable_thread);
 		if (rc != 0)
-			LOG_DEBUG(PFX "%s: Couldn't send cancel to nic enable "
-				  "thread", nic->log_name);
+			ILOG_DEBUG(PFX "%s: Couldn't send cancel to nic enable thread",
+				   nic->log_name);
 
 		nic->enable_thread = INVALID_THREAD;
-		LOG_DEBUG(PFX "%s: nic enable thread cleaned", nic->log_name);
+		ILOG_DEBUG(PFX "%s: nic enable thread cleaned", nic->log_name);
 	} else {
-		LOG_DEBUG(PFX "%s: NIC enable thread already canceled",
+		ILOG_DEBUG(PFX "%s: NIC enable thread already canceled",
 			  nic->log_name);
 	}
 
 	if (nic->thread != INVALID_THREAD) {
-		LOG_DEBUG(PFX "%s: Canceling nic thread", nic->log_name);
+		ILOG_DEBUG(PFX "%s: Canceling nic thread", nic->log_name);
 
 		rc = pthread_cancel(nic->thread);
 		if (rc != 0)
-			LOG_DEBUG(PFX "%s: Couldn't send cancel to nic",
+			ILOG_DEBUG(PFX "%s: Couldn't send cancel to nic",
 				  nic->log_name);
 
 		nic->thread = INVALID_THREAD;
-		LOG_DEBUG(PFX "%s: nic thread cleaned", nic->log_name);
+		ILOG_DEBUG(PFX "%s: nic thread cleaned", nic->log_name);
 	} else {
-		LOG_DEBUG(PFX "%s: NIC thread already canceled", nic->log_name);
+		ILOG_DEBUG(PFX "%s: NIC thread already canceled", nic->log_name);
 	}
 
 	if (nic->nl_process_thread != INVALID_THREAD) {
-		LOG_DEBUG(PFX "%s: Canceling nic nl thread", nic->log_name);
+		ILOG_DEBUG(PFX "%s: Canceling nic nl thread", nic->log_name);
 
 		rc = pthread_cancel(nic->nl_process_thread);
 		if (rc != 0)
-			LOG_DEBUG(PFX "%s: Couldn't send cancel to nic nl "
-				  "thread", nic->log_name);
+			ILOG_DEBUG(PFX "%s: Couldn't send cancel to nic nl thread",
+				   nic->log_name);
 
 		/* release any threads waiting */
 		pthread_cond_signal(&nic->nl_process_cond);
 
 		nic->nl_process_thread = INVALID_THREAD;
-		LOG_DEBUG(PFX "%s: nic nl thread cleaned", nic->log_name);
+		ILOG_DEBUG(PFX "%s: nic nl thread cleaned", nic->log_name);
 	} else {
-		LOG_DEBUG(PFX "%s: NIC nl thread already canceled",
+		ILOG_DEBUG(PFX "%s: NIC nl thread already canceled",
 			  nic->log_name);
 	}
 
@@ -559,7 +556,7 @@ int nic_remove(nic_t *nic)
 		}
 		free(nic);
 	} else {
-		LOG_ERR(PFX "%s: Couldn't find nic to remove", nic->log_name);
+		ILOG_ERR(PFX "%s: Couldn't find nic to remove", nic->log_name);
 	}
 
 	return 0;
@@ -587,7 +584,7 @@ void nic_close(nic_t *nic, NIC_SHUTDOWN_T graceful, int clean)
 	 *  but not associated with a hardware library just yet
 	 *  we will need to check for this */
 	if (nic->ops == NULL) {
-		LOG_WARN(PFX "%s: when closing nic->ops == NULL",
+		ILOG_WARN(PFX "%s: when closing nic->ops == NULL",
 			 nic->log_name);
 		goto error;
 	}
@@ -597,7 +594,7 @@ void nic_close(nic_t *nic, NIC_SHUTDOWN_T graceful, int clean)
 	if ((rc == 0) && (nic->ops))
 		rc = (*nic->ops->close) (nic, graceful);
 	if (rc != 0) {
-		LOG_ERR(PFX "%s: Could not close nic", nic->log_name);
+		ILOG_ERR(PFX "%s: Could not close nic", nic->log_name);
 	} else {
 		nic->state = NIC_STOPPED;
 		nic->flags &= ~NIC_ENABLED;
@@ -642,7 +639,7 @@ void nic_close(nic_t *nic, NIC_SHUTDOWN_T graceful, int clean)
 		}
 	}
 
-	LOG_ERR(PFX "%s: nic closed", nic->log_name);
+	ILOG_ERR(PFX "%s: nic closed", nic->log_name);
 error:
 	return;
 }
@@ -656,7 +653,7 @@ nic_interface_t *nic_iface_init()
 {
 	nic_interface_t *nic_iface = malloc(sizeof(*nic_iface));
 	if (nic_iface == NULL) {
-		LOG_ERR("Could not allocate space for nic iface");
+		ILOG_ERR("Could not allocate space for nic iface");
 		return NULL;
 	}
 
@@ -686,9 +683,9 @@ int nic_add_nic_iface(nic_t *nic, nic_interface_t *nic_iface)
 				     nic_iface->vlan_id, nic_iface->iface_num,
 				     nic_iface->request_type);
 	if (current) {
-		LOG_DEBUG(PFX "%s: nic interface for VLAN: %d, protocol: %d"
-			  " already exist", nic->log_name, nic_iface->vlan_id,
-			  nic_iface->protocol);
+		ILOG_DEBUG(PFX "%s: nic interface for VLAN: %d, protocol: %d already exist",
+			   nic->log_name, nic_iface->vlan_id,
+			   nic_iface->protocol);
 		return 0;
 	}
 
@@ -717,7 +714,7 @@ done:
 	memcpy(&nic_iface->ustack.uip_ethaddr.addr, nic->mac_addr, ETH_ALEN);
 	nic->num_of_nic_iface++;
 
-	LOG_INFO(PFX "%s: Added nic interface for VLAN: %d, protocol: %d",
+	ILOG_INFO(PFX "%s: Added nic interface for VLAN: %d, protocol: %d",
 		 nic->log_name, nic_iface->vlan_id, nic_iface->protocol);
 
 	return 0;
@@ -740,13 +737,13 @@ int nic_process_intr(nic_t *nic, int discard_check)
 
 	/*  Simple sanity checks */
 	if (discard_check != 1 && nic->state != NIC_RUNNING) {
-		LOG_ERR(PFX "%s: Couldn't process interrupt NIC not running",
+		ILOG_ERR(PFX "%s: Couldn't process interrupt NIC not running",
 			nic->log_name);
 		return -EBUSY;
 	}
 
 	if (discard_check != 1 && nic->fd == INVALID_FD) {
-		LOG_ERR(PFX "%s: NIC fd not valid", nic->log_name);
+		ILOG_ERR(PFX "%s: NIC fd not valid", nic->log_name);
 		return -EIO;
 	}
 
@@ -771,11 +768,11 @@ int nic_process_intr(nic_t *nic, int discard_check)
 	case 0:
 		return ret;
 	case -1:
-		LOG_ERR(PFX "%s: error waiting for interrupt: %s",
+		ILOG_ERR(PFX "%s: error waiting for interrupt: %s",
 			nic->log_name, strerror(errno));
 		return 0;
 	default:
-		LOG_ERR(PFX "%s: unknown number of FD's, ignoring: %d ret",
+		ILOG_ERR(PFX "%s: unknown number of FD's, ignoring: %d ret",
 			nic->log_name, ret);
 		return 0;
 	}
@@ -784,26 +781,26 @@ int nic_process_intr(nic_t *nic, int discard_check)
 	pthread_mutex_lock(&nic->nic_mutex);
 	if (ret > 0) {
 		nic->stats.interrupts++;
-		LOG_PACKET(PFX "%s: interrupt count: %d prev: %d",
+		ILOG_PACKET(PFX "%s: interrupt count: %d prev: %d",
 			   nic->log_name, count, nic->intr_count);
 
 		if (count == nic->intr_count) {
-			LOG_PACKET(PFX "%s: got interrupt but count still the "
-				   "same", nic->log_name, count);
+			ILOG_PACKET(PFX "%s: got interrupt but count still the same",
+				    nic->log_name, count);
 		}
 
 		/*  Check if we missed an interrupt.  With UIO,
 		 *  the count should be incremental */
 		if (count != nic->intr_count + 1) {
 			nic->stats.missed_interrupts++;
-			LOG_PACKET(PFX "%s: Missed interrupt! on %d not %d",
+			ILOG_PACKET(PFX "%s: Missed interrupt! on %d not %d",
 				   nic->log_name, count, nic->intr_count);
 		}
 
 		nic->intr_count = count;
 
 		if (strcmp(nic->ops->description, "qedi")) {
-			LOG_DEBUG(PFX "%s: host:%d - calling clear_tx_intr from process_intr",
+			ILOG_DEBUG(PFX "%s: host:%d - calling clear_tx_intr from process_intr",
 			          nic->log_name, nic->host_no);
 			(*nic->ops->clear_tx_intr) (nic);
 		}
@@ -850,13 +847,13 @@ void prepare_ipv4_packet(nic_t *nic,
 	case NOT_IN_ARP_TABLE:
 		queue_rc = nic_queue_tx_packet(nic, nic_iface, pkt);
 		if (queue_rc) {
-			LOG_ERR("could not queue TX packet: %d", queue_rc);
+			ILOG_ERR("could not queue TX packet: %d", queue_rc);
 		} else {
 			uip_build_arp_request(ustack, ipaddr);
 		}
 		break;
 	default:
-		LOG_ERR("Unknown arp state");
+		ILOG_ERR("Unknown arp state");
 		break;
 	}
 }
@@ -1006,7 +1003,7 @@ int process_packets(nic_t *nic,
 
 	pkt = get_next_free_packet(nic);
 	if (pkt == NULL) {
-		LOG_DEBUG(PFX "%s: Couldn't get buffer for processing packet",
+		ILOG_DEBUG(PFX "%s: Couldn't get buffer for processing packet",
 			  nic->log_name);
 		return -ENOMEM;
 	}
@@ -1044,11 +1041,11 @@ int process_packets(nic_t *nic,
 		case UIP_ETHTYPE_IPv4:
 		case UIP_ETHTYPE_ARP:
 			af_type = AF_INET;
-			LOG_DEBUG(PFX "%s: ARP or IPv4 vlan:0x%x ethertype:0x%x",
+			ILOG_DEBUG(PFX "%s: ARP or IPv4 vlan:0x%x ethertype:0x%x",
 				   nic->log_name, vlan_id, type);
 			break;
 		default:
-			LOG_DEBUG(PFX "%s: Ignoring vlan:0x%x ethertype:0x%x",
+			ILOG_DEBUG(PFX "%s: Ignoring vlan:0x%x ethertype:0x%x",
 				   nic->log_name, vlan_id, type);
 			goto done;
 		}
@@ -1074,15 +1071,14 @@ int process_packets(nic_t *nic,
 		if (nic_iface == NULL) {
 			/* Matching nic_iface not found */
 			pthread_mutex_unlock(&nic->nic_mutex);
-			LOG_DEBUG(PFX "%s: Couldn't find interface for "
-				   "VLAN: %d af_type %d",
+			ILOG_DEBUG(PFX "%s: Couldn't find interface for VLAN: %d af_type %d",
 				nic->log_name, vlan_id, af_type);
 			rc = EINVAL;  /* Return the +error code */
 			goto done;
 		}
 nic_iface_present:
 		pkt->nic_iface = nic_iface;
-		LOG_DEBUG(PFX "%s: found nic iface, type=0x%x, bufsize=%d",
+		ILOG_DEBUG(PFX "%s: found nic iface, type=0x%x, bufsize=%d",
 			  nic->log_name, type, pkt->buf_size);
 
 		ustack = &nic_iface->ustack;
@@ -1129,7 +1125,7 @@ nic_iface_present:
 				prepare_ipv4_packet(nic, nic_iface,
 						    ustack, pkt);
 
-				LOG_DEBUG(PFX "%s: write called after arp_ipin, uip_len=%d",
+				ILOG_DEBUG(PFX "%s: write called after arp_ipin, uip_len=%d",
 					  nic->log_name, ustack->uip_len);
 				(*nic->ops->write) (nic, nic_iface, pkt);
 			}
@@ -1144,7 +1140,7 @@ nic_iface_present:
 			 * is set to a value > 0. */
 			if (pkt->buf_size > 0) {
 				pkt->buf_size = ustack->uip_len;
-				LOG_DEBUG(PFX "%s: write called after arp_arpin, bufsize=%d",
+				ILOG_DEBUG(PFX "%s: write called after arp_arpin, bufsize=%d",
 					   nic->log_name, pkt->buf_size);
 				(*nic->ops->write) (nic, nic_iface, pkt);
 			}
@@ -1193,7 +1189,7 @@ static int process_dhcp_loop(nic_t *nic,
 	n = nic_iface->ustack.ndpc;
 
 	if (gettimeofday(&start_time, NULL)) {
-		LOG_ERR(PFX "%s: Couldn't get time of day to start DHCP timer",
+		ILOG_ERR(PFX "%s: Couldn't get time of day to start DHCP timer",
 			nic->log_name);
 		return -EIO;
 	}
@@ -1228,13 +1224,13 @@ static int process_dhcp_loop(nic_t *nic,
 		}
 
 		if (gettimeofday(&current_time, NULL)) {
-			LOG_ERR(PFX "%s: Couldn't get current time for "
-				"DHCP start", nic->log_name);
+			ILOG_ERR(PFX "%s: Couldn't get current time for DHCP start",
+				 nic->log_name);
 			return -EIO;
 		}
 
 		if (timercmp(&total_time, &current_time, <)) {
-			LOG_ERR(PFX "%s: timeout waiting for DHCP/NDP",
+			ILOG_ERR(PFX "%s: timeout waiting for DHCP/NDP",
 				nic->log_name);
 			if (nic_iface->ustack.ip_config == IPV6_CONFIG_DHCP ||
 			    nic_iface->ustack.ip_config == IPV6_CONFIG_STATIC)
@@ -1264,10 +1260,10 @@ static int do_acquisition(nic_t *nic, nic_interface_t *nic_iface,
 	uip_init(&nic_iface->ustack, nic->flags & NIC_IPv6_ENABLED);
 	memcpy(&nic_iface->ustack.uip_ethaddr.addr, nic->mac_addr, ETH_ALEN);
 
-	LOG_INFO(PFX "%s: Initialized ip stack: VLAN: %d",
+	ILOG_INFO(PFX "%s: Initialized ip stack: VLAN: %d",
 		 nic->log_name, nic_iface->vlan_id);
 
-	LOG_INFO(PFX "%s: mac: %02x:%02x:%02x:%02x:%02x:%02x",
+	ILOG_INFO(PFX "%s: mac: %02x:%02x:%02x:%02x:%02x:%02x",
 		 nic->log_name,
 		 nic_iface->mac_addr[0],
 		 nic_iface->mac_addr[1],
@@ -1281,13 +1277,13 @@ static int do_acquisition(nic_t *nic, nic_interface_t *nic_iface,
 		memcpy(&addr.s_addr, nic_iface->ustack.hostaddr,
 		       sizeof(addr.s_addr));
 
-		LOG_INFO(PFX "%s: Using IP address: %s",
+		ILOG_INFO(PFX "%s: Using IP address: %s",
 			 nic->log_name, inet_ntoa(addr));
 
 		memcpy(&addr.s_addr, nic_iface->ustack.netmask,
 		       sizeof(addr.s_addr));
 
-		LOG_INFO(PFX "%s: Using netmask: %s",
+		ILOG_INFO(PFX "%s: Using netmask: %s",
 			 nic->log_name, inet_ntoa(addr));
 
 		set_uip_stack(&nic_iface->ustack,
@@ -1302,12 +1298,12 @@ static int do_acquisition(nic_t *nic, nic_interface_t *nic_iface,
 		if (dhcpc_init(nic, &nic_iface->ustack,
 			       nic_iface->mac_addr, ETH_ALEN)) {
 			if (nic_iface->ustack.dhcpc) {
-				LOG_DEBUG(PFX "%s: DHCPv4 engine already "
-					  "initialized!", nic->log_name);
+				ILOG_DEBUG(PFX "%s: DHCPv4 engine already initialized!",
+					   nic->log_name);
 				goto skip;
 			} else {
-				LOG_DEBUG(PFX "%s: DHCPv4 engine failed "
-					  "initialization!", nic->log_name);
+				ILOG_DEBUG(PFX "%s: DHCPv4 engine failed initialization!",
+					   nic->log_name);
 				goto error;
 			}
 		}
@@ -1317,7 +1313,7 @@ static int do_acquisition(nic_t *nic, nic_interface_t *nic_iface,
 		pthread_mutex_lock(&nic->nic_mutex);
 
 		if (rc) {
-			LOG_ERR(PFX "%s: DHCP failed", nic->log_name);
+			ILOG_ERR(PFX "%s: DHCP failed", nic->log_name);
 			/* For DHCPv4 failure, the ustack must be cleaned so
 			   it can re-acquire on the next iscsid request */
 			uip_reset(&nic_iface->ustack);
@@ -1329,14 +1325,14 @@ static int do_acquisition(nic_t *nic, nic_interface_t *nic_iface,
 			break;
 		}
 
-		LOG_INFO(PFX "%s: Initialized dhcp client", nic->log_name);
+		ILOG_INFO(PFX "%s: Initialized dhcp client", nic->log_name);
 		break;
 
 	case IPV6_CONFIG_DHCP:
 	case IPV6_CONFIG_STATIC:
 		if (ndpc_init(nic, &nic_iface->ustack, nic_iface->mac_addr,
 			      ETH_ALEN)) {
-			LOG_DEBUG(PFX "%s: IPv6 engine already initialized!",
+			ILOG_DEBUG(PFX "%s: IPv6 engine already initialized!",
 				  nic->log_name);
 			goto skip;
 		}
@@ -1346,29 +1342,29 @@ static int do_acquisition(nic_t *nic, nic_interface_t *nic_iface,
 		pthread_mutex_lock(&nic->nic_mutex);
 		if (rc) {
 			/* Don't reset and allow to use RA and LL */
-			LOG_ERR(PFX "%s: IPv6 DHCP/NDP failed", nic->log_name);
+			ILOG_ERR(PFX "%s: IPv6 DHCP/NDP failed", nic->log_name);
 		}
 		if (nic_iface->ustack.ip_config == IPV6_CONFIG_STATIC) {
 			memcpy(&addr6.s6_addr, nic_iface->ustack.hostaddr6,
 			       sizeof(addr6.s6_addr));
 			inet_ntop(AF_INET6, addr6.s6_addr, buf, sizeof(buf));
-			LOG_INFO(PFX "%s: hostaddr IP: %s", nic->log_name, buf);
+			ILOG_INFO(PFX "%s: hostaddr IP: %s", nic->log_name, buf);
 			memcpy(&addr6.s6_addr, nic_iface->ustack.netmask6,
 			       sizeof(addr6.s6_addr));
 			inet_ntop(AF_INET6, addr6.s6_addr, buf, sizeof(buf));
-			LOG_INFO(PFX "%s: netmask IP: %s", nic->log_name, buf);
+			ILOG_INFO(PFX "%s: netmask IP: %s", nic->log_name, buf);
 		}
 		break;
 
 	default:
-		LOG_INFO(PFX "%s: ipconfig = %d?", nic->log_name,
+		ILOG_INFO(PFX "%s: ipconfig = %d?", nic->log_name,
 			 nic_iface->ustack.ip_config);
 	}
 skip:
 	/* Mark acquisition done for this nic iface */
 	nic_iface->flags &= ~NIC_IFACE_ACQUIRE;
 
-	LOG_INFO(PFX "%s: enabled vlan %d protocol: %d", nic->log_name,
+	ILOG_INFO(PFX "%s: enabled vlan %d protocol: %d", nic->log_name,
 		 nic_iface->vlan_id, nic_iface->protocol);
 	return 0;
 
@@ -1389,7 +1385,7 @@ void *nic_loop(void *arg)
 	if (rc != 0) {
 		/* TODO: determine if we need to exit this thread if we fail
 		 * to set the signal mask */
-		LOG_ERR(PFX "%s: Couldn't set signal mask", nic->log_name);
+		ILOG_ERR(PFX "%s: Couldn't set signal mask", nic->log_name);
 	}
 
 	/*  Signal the device to enable itself */
@@ -1403,7 +1399,7 @@ void *nic_loop(void *arg)
 		nic_interface_t *nic_iface, *vlan_iface;
 
 		if (nic->flags & NIC_DISABLED) {
-			LOG_DEBUG(PFX "%s: Waiting to be enabled",
+			ILOG_DEBUG(PFX "%s: Waiting to be enabled",
 				  nic->log_name);
 
 			/*  Wait for the device to be enabled */
@@ -1415,12 +1411,12 @@ void *nic_loop(void *arg)
 				pthread_mutex_unlock(&nic->nic_mutex);
 				pthread_exit(NULL);
 			}
-			LOG_DEBUG(PFX "%s: is now enabled", nic->log_name);
+			ILOG_DEBUG(PFX "%s: is now enabled", nic->log_name);
 		}
 		/*  initialize the device to send/rec data */
 		rc = (*nic->ops->open) (nic);
 		if (rc != 0) {
-			LOG_ERR(PFX "%s: Could not initialize CNIC UIO device",
+			ILOG_ERR(PFX "%s: Could not initialize CNIC UIO device",
 				nic->log_name);
 
 			if (rc == -ENOTSUP)
@@ -1439,11 +1435,11 @@ void *nic_loop(void *arg)
 		rc = alloc_free_queue(nic, 5);
 		if (rc != 5) {
 			if (rc != 0) {
-				LOG_WARN(PFX "%s: Allocated %d packets "
-					 "instead of %d", nic->log_name, rc, 5);
+				ILOG_WARN(PFX "%s: Allocated %d packets instead of %d",
+					  nic->log_name, rc, 5);
 			} else {
-				LOG_ERR(PFX "%s: No packets allocated "
-					"instead of %d", nic->log_name, 5);
+				ILOG_ERR(PFX "%s: No packets allocated instead of %d",
+					 nic->log_name, 5);
 				/*  Signal that the device enable is done */
 				pthread_cond_broadcast(&nic->enable_done_cond);
 				goto dev_close;
@@ -1480,8 +1476,7 @@ void *nic_loop(void *arg)
 			nic_iface = nic_iface->next;
 		}
 		if (nic->flags & NIC_DISABLED) {
-			LOG_WARN(PFX "%s: nic was disabled during nic loop, "
-				 "closing flag 0x%x",
+			ILOG_WARN(PFX "%s: nic was disabled during nic loop, closing flag 0x%x",
 				 nic->log_name, nic->flags);
 			/*  Signal that the device enable is done */
 			pthread_cond_broadcast(&nic->enable_done_cond);
@@ -1498,7 +1493,7 @@ void *nic_loop(void *arg)
 		/*  Signal that the device enable is done */
 		pthread_cond_broadcast(&nic->enable_done_cond);
 
-		LOG_INFO(PFX "%s: entering main nic loop", nic->log_name);
+		ILOG_INFO(PFX "%s: entering main nic loop", nic->log_name);
 
 		while ((nic->state == NIC_RUNNING) &&
 		       (event_loop_stop == 0) &&
@@ -1517,7 +1512,7 @@ void *nic_loop(void *arg)
 			pthread_mutex_lock(&nic->nic_mutex);
 		}
 
-		LOG_INFO(PFX "%s: exited main processing loop", nic->log_name);
+		ILOG_INFO(PFX "%s: exited main processing loop", nic->log_name);
 
 dev_close_free:
 		free_free_queue(nic);
@@ -1543,7 +1538,7 @@ dev_close:
 
 	pthread_mutex_unlock(&nic->nic_mutex);
 
-	LOG_INFO(PFX "%s: nic loop thread exited", nic->log_name);
+	ILOG_INFO(PFX "%s: nic loop thread exited", nic->log_name);
 
 	nic->thread = INVALID_THREAD;
 

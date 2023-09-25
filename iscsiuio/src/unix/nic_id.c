@@ -82,7 +82,7 @@ static int get_id(nic_t *nic,
 	path_size = sysfs_template_size + 4;
 	path = malloc(path_size);
 	if (path == NULL) {
-		LOG_ERR("Could not allocate memory for %s", sysfs_template);
+		ILOG_ERR("Could not allocate memory for %s", sysfs_template);
 		return -ENOMEM;
 	}
 
@@ -90,7 +90,7 @@ static int get_id(nic_t *nic,
 
 	fp = fopen(path, "r");
 	if (fp == NULL) {
-		LOG_ERR(PFX "%s: Could not open path: %s [%s]",
+		ILOG_ERR(PFX "%s: Could not open path: %s [%s]",
 			nic->log_name, path, strerror(errno));
 		rc = -EIO;
 		goto error_fopen;
@@ -98,7 +98,7 @@ static int get_id(nic_t *nic,
 
 	chars_read = fread(buf, sizeof(buf), 1, fp);
 	if (chars_read != 1) {
-		LOG_ERR(PFX "%s: Could not read from: %s [%s]",
+		ILOG_ERR(PFX "%s: Could not read from: %s [%s]",
 			nic->log_name, path, strerror(ferror(fp)));
 		rc = -EIO;
 		goto error;
@@ -106,7 +106,7 @@ static int get_id(nic_t *nic,
 
 	chars_read = sscanf(buf, "%x", id);
 	if (chars_read != 1) {
-		LOG_ERR(PFX "%s: Could interpret value: %s from: %s [%s]",
+		ILOG_ERR(PFX "%s: Could interpret value: %s from: %s [%s]",
 			nic->log_name, buf, path, strerror(errno));
 		rc = -EIO;
 		goto error;
@@ -164,7 +164,7 @@ int get_bus_slot_func_num(nic_t *nic,
 	path_size = sizeof(uio_device_symlink_template) + 4;
 	path = malloc(path_size);
 	if (path == NULL) {
-		LOG_ERR(PFX "%s: Could not allocate path memory for %s",
+		ILOG_ERR(PFX "%s: Could not allocate path memory for %s",
 			nic->log_name, uio_device_symlink_template);
 		rc = -ENOMEM;
 		goto error_alloc_path;
@@ -172,7 +172,7 @@ int get_bus_slot_func_num(nic_t *nic,
 
 	read_pci_bus_slot_func_str = malloc(128);
 	if (read_pci_bus_slot_func_str == NULL) {
-		LOG_ERR(PFX "%s: Could not allocate read pci bus memory for %s",
+		ILOG_ERR(PFX "%s: Could not allocate read pci bus memory for %s",
 			nic->log_name, uio_device_symlink_template);
 		rc = -ENOMEM;
 		goto error_alloc_read_pci_bus;
@@ -182,7 +182,7 @@ int get_bus_slot_func_num(nic_t *nic,
 
 	size = readlink(path, read_pci_bus_slot_func_str, 128);
 	if (size == -1) {
-		LOG_ERR(PFX "%s: Error with %s: %s",
+		ILOG_ERR(PFX "%s: Error with %s: %s",
 			nic->log_name, path, strerror(errno));
 		rc = errno;
 		goto error;
@@ -190,8 +190,7 @@ int get_bus_slot_func_num(nic_t *nic,
 
 	if (size > ((128) - 1)) {
 		read_pci_bus_slot_func_str[128 - 1] = '\0';
-		LOG_ERR(PFX "%s: not enough space (%d) for reading PCI "
-			"slot:bus.func %s: %s",
+		ILOG_ERR(PFX "%s: not enough space (%d) for reading PCI slot:bus.func %s: %s",
 			nic->log_name, size, path, strerror(errno));
 		rc = -EIO;
 		goto error;
@@ -209,7 +208,7 @@ int get_bus_slot_func_num(nic_t *nic,
 
 	size = readlink(path, read_pci_bus_slot_func_str, 128);
 	if (size == -1) {
-		LOG_ERR(PFX "%s: Error with %s: %s",
+		ILOG_ERR(PFX "%s: Error with %s: %s",
 			nic->log_name, path, strerror(errno));
 		rc = errno;
 		goto error;
@@ -217,8 +216,7 @@ int get_bus_slot_func_num(nic_t *nic,
 
 	if (size > ((128) - 1)) {
 		read_pci_bus_slot_func_str[128 - 1] = '\0';
-		LOG_ERR(PFX "%s: not enough space for reading PCI "
-			"slot:bus.func %s: %s",
+		ILOG_ERR(PFX "%s: not enough space for reading PCI slot:bus.func %s: %s",
 			nic->log_name, path, strerror(errno));
 		rc = -EIO;
 		goto error;
@@ -234,7 +232,7 @@ int get_bus_slot_func_num(nic_t *nic,
 
 	tok = strtok_r(pci_bus_slot_func_str, ":", &saveptr);
 	if (tok == NULL) {
-		LOG_ERR(PFX "%s: Error with slot string: %s",
+		ILOG_ERR(PFX "%s: Error with slot string: %s",
 			nic->log_name, pci_bus_slot_func_str);
 		rc = -EIO;
 		goto error;
@@ -242,7 +240,7 @@ int get_bus_slot_func_num(nic_t *nic,
 
 	tok = strtok_r(NULL, ":", &saveptr);
 	if (tok == NULL) {
-		LOG_ERR(PFX "%s: Error parsing slot: %s",
+		ILOG_ERR(PFX "%s: Error parsing slot: %s",
 			nic->log_name, pci_bus_slot_func_str);
 		rc = -EIO;
 		goto error;
@@ -253,7 +251,7 @@ int get_bus_slot_func_num(nic_t *nic,
 	/*  Need to extract the next token "xx.x" */
 	tok = strtok_r(NULL, ":", &saveptr);
 	if (tok == NULL) {
-		LOG_ERR(PFX "%s: Error extracing bus.func: %s",
+		ILOG_ERR(PFX "%s: Error extracing bus.func: %s",
 			nic->log_name, pci_bus_slot_func_str);
 		rc = -EIO;
 		goto error;
@@ -261,7 +259,7 @@ int get_bus_slot_func_num(nic_t *nic,
 
 	tok2 = strtok_r(tok, ".", &saveptr);
 	if (tok2 == NULL) {
-		LOG_ERR(PFX "%s: Error parsing bus: %s",
+		ILOG_ERR(PFX "%s: Error parsing bus: %s",
 			nic->log_name, pci_bus_slot_func_str);
 		rc = -EIO;
 		goto error;
@@ -271,14 +269,14 @@ int get_bus_slot_func_num(nic_t *nic,
 
 	tok2 = strtok_r(NULL, ".", &saveptr);
 	if (tok2 == NULL) {
-		LOG_ERR(PFX "%s: Error parsing func: %s",
+		ILOG_ERR(PFX "%s: Error parsing func: %s",
 			nic->log_name, pci_bus_slot_func_str);
 		rc = -EIO;
 		goto error;
 	}
 
 	sscanf(tok2, "%x", func);
-	LOG_INFO(PFX "%s: is found at %02x:%02x.%02x", nic->log_name,
+	ILOG_INFO(PFX "%s: is found at %02x:%02x.%02x", nic->log_name,
 		 *bus, *slot, *func);
 	rc = 0;
 error:
@@ -312,43 +310,42 @@ int find_set_nic_lib(nic_t *nic)
 
 	rc = get_vendor(nic, &vendor);
 	if (rc != 0) {
-		LOG_ERR(PFX "%s: Could not get vendor id [0x%x]",
+		ILOG_ERR(PFX "%s: Could not get vendor id [0x%x]",
 			nic->log_name, rc);
 		return rc;
 	}
 
 	rc = get_subvendor(nic, &subvendor);
 	if (rc != 0) {
-		LOG_ERR(PFX "%s: Could not get subvendor id [0x%x]",
+		ILOG_ERR(PFX "%s: Could not get subvendor id [0x%x]",
 			nic->log_name, rc);
 		return rc;
 	}
 
 	rc = get_device(nic, &device);
 	if (rc != 0) {
-		LOG_ERR(PFX "%s: Could not get device id [0x%x]",
+		ILOG_ERR(PFX "%s: Could not get device id [0x%x]",
 			nic->log_name, rc);
 		return rc;
 	}
 
 	rc = get_subdevice(nic, &subdevice);
 	if (rc != 0) {
-		LOG_ERR(PFX "%s: Could not get subdevice id [0x%x]",
+		ILOG_ERR(PFX "%s: Could not get subdevice id [0x%x]",
 			nic->log_name, rc);
 		return rc;
 	}
 
 	get_bus_slot_func_num(nic, &pci_bus, &pci_slot, &pci_func);
 
-	LOG_DEBUG(PFX "%s: Looking for device vendor: "
-		  "0x%x subvendor: 0x%x device: 0x%x subdevice: 0x%x",
+	ILOG_DEBUG(PFX "%s: Looking for device vendor: 0x%x subvendor: 0x%x device: 0x%x subdevice: 0x%x",
 		  nic->log_name, vendor, subvendor, device, subdevice);
 
 	rc = find_nic_lib_using_pci_id(vendor, device, subvendor, subdevice,
 				       &handle, &pci_entry);
 
 	if (rc != 0) {
-		LOG_WARN(PFX "%s: Couldn't find proper NIC library",
+		ILOG_WARN(PFX "%s: Couldn't find proper NIC library",
 			 nic->log_name);
 		return rc;
 	}

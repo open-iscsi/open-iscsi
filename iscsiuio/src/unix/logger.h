@@ -65,25 +65,25 @@
 /*******************************************************************************
  * Logging Macro's
  ******************************************************************************/
-#define LOG_PACKET(fmt, args...) { if (LOG_LEVEL_PACKET <= \
+#define ILOG_PACKET(fmt, args...) { if (LOG_LEVEL_PACKET <= \
 				       main_log.level) { \
 					log_uip(LOG_LEVEL_PACKET_STR, fmt,\
 						##args);\
 				} }
-#define LOG_DEBUG(fmt, args...) { if (LOG_LEVEL_DEBUG <= main_log.level) { \
+#define ILOG_DEBUG(fmt, args...) { if (LOG_LEVEL_DEBUG <= main_log.level) { \
 					log_uip(LOG_LEVEL_DEBUG_STR, fmt,\
 						##args);\
 				} }
 
-#define LOG_INFO(fmt, args...)  { if (LOG_LEVEL_INFO <= main_log.level) { \
+#define ILOG_INFO(fmt, args...)  { if (LOG_LEVEL_INFO <= main_log.level) { \
 					log_uip(LOG_LEVEL_INFO_STR, fmt,\
 						##args); \
 				} }
-#define LOG_WARN(fmt, args...)  { if (LOG_LEVEL_WARN <= main_log.level) { \
+#define ILOG_WARN(fmt, args...)  { if (LOG_LEVEL_WARN <= main_log.level) { \
 					log_uip(LOG_LEVEL_WARN_STR, fmt,\
 						##args); \
 				} }
-#define LOG_ERR(fmt, args...)   { if (LOG_LEVEL_ERR <= main_log.level) { \
+#define ILOG_ERR(fmt, args...)   { if (LOG_LEVEL_ERR <= main_log.level) { \
 					log_uip(LOG_LEVEL_ERR_STR, fmt,\
 						##args); \
 				} }

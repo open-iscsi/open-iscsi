@@ -140,7 +140,7 @@ disable:
 		pthread_setcancelstate(oldcancelstate, NULL);
 
 	if (!rc)
-		LOG_INFO("Initialize logger using log file: %s", filename);
+		ILOG_INFO("Initialize logger using log file: %s", filename);
 
 	return rc;
 }

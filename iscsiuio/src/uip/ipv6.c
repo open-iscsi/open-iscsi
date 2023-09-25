@@ -81,7 +81,7 @@ static void ipv6_udp_rx(struct ipv6_context *context);
 
 int iscsiL2Send(struct ipv6_context *context, int pkt_len)
 {
-	LOG_DEBUG("IPv6: iscsiL2Send");
+	ILOG_DEBUG("IPv6: iscsiL2Send");
 	uip_send(context->ustack,
 		 (void *)context->ustack->data_link_layer, pkt_len);
 
@@ -107,8 +107,7 @@ int iscsiL2AddMcAddr(struct ipv6_context *context,
 		    (char *)&all_zeroes_mc, sizeof(struct mac_address))) {
 			memcpy((char *)mc_addr,
 			       (char *)new_mc_addr, sizeof(struct mac_address));
-			LOG_DEBUG("IPv6: mc_addr added "
-				  "%02x:%02x:%02x:%02x:%02x:%02x",
+			ILOG_DEBUG("IPv6: mc_addr added %02x:%02x:%02x:%02x:%02x:%02x",
 				  *(u8_t *)new_mc_addr,
 				  *((u8_t *)new_mc_addr + 1),
 				  *((u8_t *)new_mc_addr + 2),
@@ -145,7 +144,7 @@ void ipv6_init(struct ndpc_state *ndp, int cfg)
 	struct mac_address mc_addr;
 
 	if (context == NULL) {
-		LOG_ERR("IPV6: INIT ipv6_context is NULL");
+		ILOG_ERR("IPV6: INIT ipv6_context is NULL");
 		return;
 	}
 
@@ -302,7 +301,7 @@ int ipv6_add_prefix_entry(struct ipv6_context *context,
 	inet_ntop(AF_INET6, &prefix_entry->ip_addr.addr8, addr_str,
 		  sizeof(addr_str));
 
-	LOG_DEBUG("IPv6: add prefix IP addr %s", addr_str);
+	ILOG_DEBUG("IPv6: add prefix IP addr %s", addr_str);
 
 	/* Put it on the list on head of the list. */
 	if (context->addr_list != NULL)
@@ -321,7 +320,7 @@ void ipv6_rx_packet(struct ipv6_context *context, u16_t len)
 	u16_t protocol;
 
 	if (!context->ustack) {
-		LOG_WARN("ipv6 rx pkt ipv6_context = %p ustack = %p", context,
+		ILOG_WARN("ipv6 rx pkt ipv6_context = %p ustack = %p", context,
 			 context->ustack);
 		return;
 	}
@@ -329,7 +328,7 @@ void ipv6_rx_packet(struct ipv6_context *context, u16_t len)
 	/* Make sure it's an IPv6 packet */
 	if ((ipv6->ipv6_version_fc & 0xf0) != IPV6_VERSION) {
 		/* It's not an IPv6 packet. Drop it. */
-		LOG_WARN("IPv6 version 0x%x not IPv6", ipv6->ipv6_version_fc);
+		ILOG_WARN("IPv6 version 0x%x not IPv6", ipv6->ipv6_version_fc);
 		return;
 	}
 	protocol = ipv6_process_rx(ipv6);
@@ -421,7 +420,7 @@ int ipv6_discover_address(struct ipv6_context *context)
 	       sizeof(struct ipv6_addr));
 
 	icmp->icmpv6_cksum = 0;
-	LOG_DEBUG("IPv6: Send rtr sol");
+	ILOG_DEBUG("IPv6: Send rtr sol");
 	ipv6_send(context, (u8_t *) icmp - (u8_t *) eth +
 		  sizeof(struct icmpv6_hdr) +
 		  sizeof(struct icmpv6_opt_link_addr));
@@ -661,7 +660,7 @@ static void ipv6_update_arp_table(struct ipv6_context *context,
 	int i;
 	struct ipv6_arp_entry *ipv6_arp_table = context->ipv6_arp_table;
 
-	LOG_DEBUG("IPv6: Neighbor update");
+	ILOG_DEBUG("IPv6: Neighbor update");
 	/*
 	 * Walk through the ARP mapping table and try to find an entry to
 	 * update. If none is found, the IP -> MAC address mapping is
@@ -731,7 +730,7 @@ int ipv6_send_nd_solicited_packet(struct ipv6_context *context,
 	/* Use Link-local as source address */
 	if (ipv6_is_it_our_link_local_address(context, &ipv6->ipv6_dst) ==
 	    TRUE) {
-		LOG_DEBUG("IPv6: NS using link local");
+		ILOG_DEBUG("IPv6: NS using link local");
 		memcpy((char *)&ipv6->ipv6_src,
 		       (char *)&context->link_local_addr,
 		       sizeof(struct ipv6_addr));
@@ -739,12 +738,12 @@ int ipv6_send_nd_solicited_packet(struct ipv6_context *context,
 		longest_match_addr =
 		    ipv6_find_longest_match(context, &ipv6->ipv6_dst);
 		if (longest_match_addr) {
-			LOG_DEBUG("IPv6: NS using longest match addr");
+			ILOG_DEBUG("IPv6: NS using longest match addr");
 			memcpy((char *)&ipv6->ipv6_src,
 			       (char *)longest_match_addr,
 			       sizeof(struct ipv6_addr));
 		} else {
-			LOG_DEBUG("IPv6: NS using link local instead");
+			ILOG_DEBUG("IPv6: NS using link local instead");
 			memcpy((char *)&ipv6->ipv6_src,
 			       (char *)&context->link_local_addr,
 			       sizeof(struct ipv6_addr));
@@ -753,7 +752,7 @@ int ipv6_send_nd_solicited_packet(struct ipv6_context *context,
 	icmp = (struct icmpv6_hdr *)((u8_t *)ipv6 + sizeof(struct ipv6_hdr));
 
 	inet_ntop(AF_INET6, &ipv6->ipv6_src.addr8, addr_str, sizeof(addr_str));
-	LOG_DEBUG("IPv6: NS host IP addr: %s", addr_str);
+	ILOG_DEBUG("IPv6: NS host IP addr: %s", addr_str);
 	/*
 	 * Destination IP address to be resolved is after the ICMPv6
 	 * header.
@@ -884,7 +883,7 @@ static void ipv6_icmp_handle_router_adv(struct ipv6_context *context)
 	}
 
 	if (context->flags & IPV6_FLAGS_ROUTER_ADV_RECEIVED) {
-		LOG_DEBUG("IPv6: RTR ADV nd_ra_flags = 0x%x",
+		ILOG_DEBUG("IPv6: RTR ADV nd_ra_flags = 0x%x",
 			  icmp->nd_ra_flags_reserved);
 		if (icmp->nd_ra_curhoplimit > 0)
 			context->hop_limit = icmp->nd_ra_curhoplimit;
@@ -905,7 +904,7 @@ static void ipv6_icmp_handle_router_adv(struct ipv6_context *context)
 				       sizeof(struct ipv6_addr));
 			inet_ntop(AF_INET6, &context->default_router,
 				  addr_str, sizeof(addr_str));
-			LOG_DEBUG("IPv6: Got default router IP addr: %s",
+			ILOG_DEBUG("IPv6: Got default router IP addr: %s",
 				  addr_str);
 		}
 	}
@@ -932,7 +931,7 @@ static void ipv6_icmp_process_prefix(struct ipv6_context *context,
 		memcpy((char *)&addr.addr8[8],
 		       &context->link_local_addr.addr8[8], 8);
 		inet_ntop(AF_INET6, &addr, addr_str, sizeof(addr_str));
-		LOG_DEBUG("IPv6: Got RA ICMP option IP addr: %s", addr_str);
+		ILOG_DEBUG("IPv6: Got RA ICMP option IP addr: %s", addr_str);
 		ipv6_add_prefix_entry(context, &addr, 64);
 	}
 }
@@ -954,7 +953,7 @@ static void ipv6_icmp_handle_nd_adv(struct ipv6_context *context)
 	/* Added the multicast check for ARP table update */
 	/* Should we qualify for only our host's multicast and our
 	   link_local_multicast?? */
-	LOG_DEBUG("IPv6: Handle nd adv");
+	ILOG_DEBUG("IPv6: Handle nd adv");
 	if ((ipv6_is_it_our_address(context, &ipv6->ipv6_dst) == TRUE) ||
 	    (memcmp((char *)&context->link_local_multi,
 		    (char *)&ipv6->ipv6_dst, sizeof(struct ipv6_addr)) == 0) ||
@@ -972,14 +971,13 @@ static void ipv6_icmp_handle_nd_adv(struct ipv6_context *context)
 		if (link_opt->hdr.type == IPV6_ICMP_OPTION_TAR_ADDR) {
 			tar_addr6 = (struct ipv6_addr *)((u8_t *)icmp +
 				    sizeof(struct icmpv6_hdr));
-			LOG_DEBUG("IPV6: Target MAC "
-				  "%02x:%02x:%02x:%02x:%02x:%02x",
+			ILOG_DEBUG("IPV6: Target MAC %02x:%02x:%02x:%02x:%02x:%02x",
 				link_opt->link_addr[0], link_opt->link_addr[1],
 				link_opt->link_addr[2], link_opt->link_addr[3],
 				link_opt->link_addr[4], link_opt->link_addr[5]);
 			inet_ntop(AF_INET6, &tar_addr6->addr8, addr_str,
 				  sizeof(addr_str));
-			LOG_DEBUG("IPv6: Target IP addr %s", addr_str);
+			ILOG_DEBUG("IPv6: Target IP addr %s", addr_str);
 			ipv6_update_arp_table(context, tar_addr6,
 			      (struct mac_address *)link_opt->link_addr);
 		}
@@ -1002,15 +1000,14 @@ static void ipv6_icmp_handle_nd_sol(struct ipv6_context *context)
 	struct ipv6_addr tmp;
 	struct ipv6_addr *longest_match_addr, *tar_addr6;
 
-	LOG_DEBUG("IPv6: Handle nd sol");
+	ILOG_DEBUG("IPv6: Handle nd sol");
 
 	if ((memcmp((char *)&context->mac_addr,
 		    (char *)&eth->dest_mac, sizeof(struct mac_address)) != 0) &&
 	    (iscsiL2IsOurMcAddr(context, (struct mac_address *)&eth->dest_mac)
 	     == FALSE)) {
 		/* This packet is not for us to handle */
-		LOG_DEBUG("IPv6: MAC not addressed to us "
-			  "%02x:%02x:%02x:%02x:%02x:%02x",
+		ILOG_DEBUG("IPv6: MAC not addressed to us %02x:%02x:%02x:%02x:%02x:%02x",
 			  eth->dest_mac.addr[0], eth->dest_mac.addr[1],
 			  eth->dest_mac.addr[2], eth->dest_mac.addr[3],
 			  eth->dest_mac.addr[4], eth->dest_mac.addr[5]);
@@ -1023,7 +1020,7 @@ static void ipv6_icmp_handle_nd_sol(struct ipv6_context *context)
 						  sizeof(struct icmpv6_hdr)))
 	    == FALSE) {
 		/* This packet is not for us to handle */
-		LOG_DEBUG("IPv6: IP not addressed to us");
+		ILOG_DEBUG("IPv6: IP not addressed to us");
 		return;
 	}
 
@@ -1045,7 +1042,7 @@ static void ipv6_icmp_handle_nd_sol(struct ipv6_context *context)
 						 sizeof(struct icmpv6_hdr));
 		if (ipv6_is_it_our_link_local_address(context, tar_addr6)
 		    == TRUE) {
-			LOG_DEBUG("IPv6: NA using link local");
+			ILOG_DEBUG("IPv6: NA using link local");
 			memcpy((char *)&ipv6->ipv6_src,
 			       (char *)&context->link_local_addr,
 			       sizeof(struct ipv6_addr));
@@ -1053,12 +1050,12 @@ static void ipv6_icmp_handle_nd_sol(struct ipv6_context *context)
 			longest_match_addr =
 			      ipv6_find_longest_match(context, tar_addr6);
 			if (longest_match_addr) {
-				LOG_DEBUG("IPv6: NA using longest match addr");
+				ILOG_DEBUG("IPv6: NA using longest match addr");
 				memcpy((char *)&ipv6->ipv6_src,
 				       (char *)longest_match_addr,
 				       sizeof(struct ipv6_addr));
 			} else {
-				LOG_DEBUG("IPv6: NA using link local instead");
+				ILOG_DEBUG("IPv6: NA using link local instead");
 				memcpy((char *)&ipv6->ipv6_src,
 				(char *)&context->link_local_addr,
 				       sizeof(struct ipv6_addr));
@@ -1066,7 +1063,7 @@ static void ipv6_icmp_handle_nd_sol(struct ipv6_context *context)
 		}
 	} else {
 		/* No target link address, just use whatever it sent to us */
-		LOG_DEBUG("IPv6: NA use dst addr");
+		ILOG_DEBUG("IPv6: NA use dst addr");
 		memcpy((char *)&ipv6->ipv6_src,
 		       (char *)&tmp,
 		       sizeof(struct ipv6_addr));
@@ -1091,7 +1088,7 @@ static void ipv6_icmp_handle_nd_sol(struct ipv6_context *context)
 	icmpv6_opt_len = sizeof(struct icmpv6_opt_link_addr);
 	ipv6->ipv6_plen = HOST_TO_NET16((sizeof(struct icmpv6_hdr) +
 				 icmpv6_opt_len + sizeof(struct ipv6_addr)));
-	LOG_DEBUG("IPv6: Send nd adv");
+	ILOG_DEBUG("IPv6: Send nd adv");
 	ipv6_send(context,
 		  (u8_t *) icmp - (u8_t *) eth +
 		  sizeof(struct icmpv6_hdr) +
@@ -1128,7 +1125,7 @@ static void ipv6_icmp_handle_echo_request(struct ipv6_context *context)
 	icmp->icmpv6_type = ICMPV6_ECHO_REPLY;
 	icmp->icmpv6_code = 0;
 	icmp->icmpv6_cksum = 0;
-	LOG_DEBUG("IPv6: Send echo reply");
+	ILOG_DEBUG("IPv6: Send echo reply");
 	ipv6_send(context, (u8_t *) icmp - (u8_t *) eth +
 		  sizeof(struct ipv6_hdr) + HOST_TO_NET16(ipv6->ipv6_plen));
 	return;
@@ -1255,7 +1252,7 @@ u16_t ipv6_do_stateful_dhcpv6(struct ipv6_context *context, u32_t flags)
 	    (IPV6_FLAGS_MANAGED_ADDR_CONFIG | IPV6_FLAGS_OTHER_STATEFUL_CONFIG);
 
 	if (!(context->flags & IPV6_FLAGS_ROUTER_ADV_RECEIVED)) {
-		LOG_DEBUG("IPv6: There is no IPv6 router on the network");
+		ILOG_DEBUG("IPv6: There is no IPv6 router on the network");
 		ra_flags |=
 		    (IPV6_FLAGS_MANAGED_ADDR_CONFIG |
 		     IPV6_FLAGS_OTHER_STATEFUL_CONFIG);
@@ -1269,7 +1266,7 @@ u16_t ipv6_do_stateful_dhcpv6(struct ipv6_context *context, u32_t flags)
 	    (ra_flags & IPV6_FLAGS_OTHER_STATEFUL_CONFIG))
 		task |= DHCPV6_TASK_GET_OTHER_PARAMS;
 
-	LOG_DEBUG("IPv6: Stateful flags = 0x%x, ra_flags = 0x%x, task = 0x%x",
+	ILOG_DEBUG("IPv6: Stateful flags = 0x%x, ra_flags = 0x%x, task = 0x%x",
 		  flags, ra_flags, task);
 
 	return task;

@@ -96,7 +96,7 @@ static int dhcpv6_send_solicit_packet(struct dhcpv6_context *context)
 {
 	u16_t packet_len;
 
-	LOG_DEBUG("DHCPV6: Send solicit");
+	ILOG_DEBUG("DHCPV6: Send solicit");
 	packet_len = dhcpv6_init_packet(context, DHCPV6_SOLICIT);
 	context->dhcpv6_state = DHCPV6_STATE_SOLICIT_SENT;
 	ipv6_send_udp_packet(context->ipv6_context, packet_len);
@@ -108,7 +108,7 @@ static int dhcpv6_send_request_packet(struct dhcpv6_context *context)
 {
 	u16_t packet_len;
 
-	LOG_DEBUG("DHCPV6: Send request");
+	ILOG_DEBUG("DHCPV6: Send request");
 	packet_len = dhcpv6_init_packet(context, DHCPV6_REQUEST);
 
 	context->dhcpv6_state = DHCPV6_STATE_REQ_SENT;
@@ -267,7 +267,7 @@ void ipv6_udp_handle_dhcp(struct dhcpv6_context *context)
 
 	if (dhcpv6->dhcpv6_trans_id !=
 	    HOST_TO_NET16(context->dhcpv6_transaction_id)) {
-		LOG_ERR("DHCPv6 transaction-id error, sent %x, received %x",
+		ILOG_ERR("DHCPv6 transaction-id error, sent %x, received %x",
 			HOST_TO_NET16(context->dhcpv6_transaction_id),
 			dhcpv6->dhcpv6_trans_id);
 		return;
@@ -310,7 +310,7 @@ static void dhcpv6_handle_advertise(struct dhcpv6_context *context,
 	if (context->dhcpv6_state != DHCPV6_STATE_SOLICIT_SENT)
 		return;
 
-	LOG_DEBUG("DHCPV6: handle advertise");
+	ILOG_DEBUG("DHCPV6: handle advertise");
 	context->dhcpv6_state = DHCPV6_STATE_ADV_RCVD;
 
 	i = 0;
@@ -427,7 +427,7 @@ static int dhcpv6_process_opt_ia_na(struct dhcpv6_context *context,
 						break;
 				}
 			}
-			LOG_INFO("DHCPv6: Got IP Addr");
+			ILOG_INFO("DHCPv6: Got IP Addr");
 			/* Status is OK, let's add this addr to our address
 			   list */
 			ipv6_add_prefix_entry(context->ipv6_context,
