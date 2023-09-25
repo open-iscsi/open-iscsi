@@ -561,7 +561,7 @@ int cnic_handle_ipv6_iscsi_path_req(nic_t *nic, int fd,
 		inet_ntop(AF_INET6, &dst_addr.s6_addr16,
 			  addr_dst_str, sizeof(addr_dst_str));
 		ILOG_DEBUG(PFX "%s: Preparing to send IPv6 neighbor solicitation to dst: '%s'",
-	       		   nic->log_name, addr_dst_str);
+			   nic->log_name, addr_dst_str);
 		while ((neighbor_retry < MAX_ARP_RETRY)
 		       && (event_loop_stop == 0)) {
 			int count;

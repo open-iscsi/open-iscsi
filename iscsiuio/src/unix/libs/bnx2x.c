@@ -1462,8 +1462,8 @@ static int bnx2x_read(nic_t *nic, packet_t *pkt)
 
 	/* Sanity Check: validate the parameters */
 	if (nic == NULL || pkt == NULL) {
-		ILOG_ERR(PFX "%s: bnx2x_read() nic == 0x%p ||  pkt == 0x%x",
-		       	 nic, pkt);
+		ILOG_ERR(PFX "%s: bnx2x_read() nic == 0x%p || pkt == 0x%x",
+			 nic, pkt);
 		return -EINVAL;
 	}
 	bp = (bnx2x_t *) nic->priv;
