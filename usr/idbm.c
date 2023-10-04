@@ -45,6 +45,11 @@
 #include "fw_context.h"
 #include "iscsi_err.h"
 
+// GLOB_ONLYDIR is not defined under musl
+#ifndef GLOB_ONLYDIR
+#define GLOB_ONLYDIR	0x100
+#endif
+
 #define IDBM_HIDE	0    /* Hide parameter when print. */
 #define IDBM_SHOW	1    /* Show parameter when print. */
 #define IDBM_MASKED	2    /* Show "stars" instead of real value when print */
