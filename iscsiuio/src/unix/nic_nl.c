@@ -530,6 +530,10 @@ static void close_nl_socket(int fd)
 	if (fd >= 0) {
 		ILOG_DEBUG(PFX "close_nl_socket: disconnecting fd %d", fd);
 
+		/*
+		 * turning off SO_LINGER may not have an effect on netlink
+		 * sockets, but it can't hurt
+		 */
 		setsockopt(fd, SOL_SOCKET, SO_LINGER, &so_linger,
 			       	sizeof(so_linger));
 		close(fd);
