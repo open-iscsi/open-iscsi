@@ -70,7 +70,7 @@ static PT_THREAD(handle_ndp(struct uip_stack *ustack, int force))
 
 	s = ustack->ndpc;
 	if (s == NULL) {
-		LOG_DEBUG("NDP: Could not find ndpc state");
+		ILOG_DEBUG("NDP: Could not find ndpc state");
 		return PT_ENDED;
 	}
 
@@ -98,13 +98,13 @@ static PT_THREAD(handle_ndp(struct uip_stack *ustack, int force))
 	do {
 		/* Perform router solicitation and wait for
 		   router advertisement */
-		LOG_DEBUG("%s: ndpc_handle send rtr sol", s->nic->log_name);
+		ILOG_DEBUG("%s: ndpc_handle send rtr sol", s->nic->log_name);
 		ipv6_autoconfig(s->ipv6_context);
 
 		timer_set(&s->timer, s->ticks);
 wait_rtr:
 		s->ustack->uip_flags &= ~UIP_NEWDATA;
-		LOG_DEBUG("%s: ndpc_handle wait for rtr adv flags=0x%x",
+		ILOG_DEBUG("%s: ndpc_handle wait for rtr adv flags=0x%x",
 			  s->nic->log_name, ipv6c->flags);
 		PT_WAIT_UNTIL(&s->pt, uip_newdata(s->ustack)
 			      || timer_expired(&s->timer) || force);
@@ -114,7 +114,7 @@ wait_rtr:
 			   Note that the uip_len is init from nic loop */
 			ipv6_rx_packet(ipv6c, (u16_t) uip_datalen(s->ustack));
 			if (ipv6c->flags & IPV6_FLAGS_ROUTER_ADV_RECEIVED) {
-				LOG_INFO("%s: ROUTER_ADV_RECEIVED",
+				ILOG_INFO("%s: ROUTER_ADV_RECEIVED",
 					 s->nic->log_name);
 				/* Success */
 				break;
@@ -133,7 +133,7 @@ wait_rtr:
 
 	} while (!(ipv6c->flags & IPV6_FLAGS_ROUTER_ADV_RECEIVED));
 
-	LOG_DEBUG("%s: ndpc_handle got rtr adv", s->nic->log_name);
+	ILOG_DEBUG("%s: ndpc_handle got rtr adv", s->nic->log_name);
 	s->retry_count = 0;
 
 no_rtr_adv:
@@ -158,8 +158,8 @@ rtr_adv:
 			/* Do dhcpv6 */
 			dhcpv6c->timeout = dhcpv6_retry_timeout[s->retry_count];
 			s->ticks = CLOCK_SECOND * dhcpv6c->timeout;
-			LOG_DEBUG("%s: ndpc_handle send dhcpv6 sol retry "
-				  "cnt=%d", s->nic->log_name, s->retry_count);
+			ILOG_DEBUG("%s: ndpc_handle send dhcpv6 sol retry cnt=%d",
+				   s->nic->log_name, s->retry_count);
 			dhcpv6_do_discovery(dhcpv6c);
 
 			timer_set(&s->timer, s->ticks);
@@ -187,7 +187,7 @@ wait_dhcp:
 			if (s->retry_count < DHCPV6_NUM_OF_RETRY) {
 				dhcpv6c->seconds += dhcpv6c->timeout;
 			} else {
-				LOG_DEBUG("%s: ndpc_handle DHCP failed",
+				ILOG_DEBUG("%s: ndpc_handle DHCP failed",
 					  s->nic->log_name);
 				/* Allow to goto background loop */
 				goto ipv6_loop;
@@ -195,7 +195,7 @@ wait_dhcp:
 		} while (dhcpv6c->dhcpv6_done == FALSE);
 		s->state = NDPC_STATE_DHCPV6_DONE;
 
-		LOG_DEBUG("%s: ndpc_handle got dhcpv6", s->nic->log_name);
+		ILOG_DEBUG("%s: ndpc_handle got dhcpv6", s->nic->log_name);
 
 		/* End of DHCPv6 engine */
 	} else {
@@ -203,7 +203,7 @@ wait_dhcp:
 		if (ustack->ip_config == IPV6_CONFIG_DHCP) {
 			s->retry_count++;
 			if (s->retry_count > DHCPV6_NUM_OF_RETRY) {
-				LOG_DEBUG("%s: ndpc_handle DHCP failed",
+				ILOG_DEBUG("%s: ndpc_handle DHCP failed",
 					  s->nic->log_name);
 			} else {
 				PT_RESTART(&s->pt);
@@ -218,7 +218,7 @@ staticv6:
 		       &ipv6c->default_router, sizeof(struct ipv6_addr));
 	inet_ntop(AF_INET6, &ustack->default_route_addr6,
 		  buf, sizeof(buf));
-	LOG_INFO("%s: Default router IP: %s", s->nic->log_name,
+	ILOG_INFO("%s: Default router IP: %s", s->nic->log_name,
 		 buf);
 
 	if (ustack->linklocal_autocfg != IPV6_LL_AUTOCFG_OFF)
@@ -226,12 +226,12 @@ staticv6:
 		       sizeof(struct ipv6_addr));
 	inet_ntop(AF_INET6, &ustack->linklocal6,
 		  buf, sizeof(buf));
-	LOG_INFO("%s: Linklocal IP: %s", s->nic->log_name,
+	ILOG_INFO("%s: Linklocal IP: %s", s->nic->log_name,
 		 buf);
 
 ipv6_loop:
 	s->state = NDPC_STATE_BACKGROUND_LOOP;
-	LOG_DEBUG("%s: Loop", s->nic->log_name);
+	ILOG_DEBUG("%s: Loop", s->nic->log_name);
 	/* Background IPv6 loop */
 	while (1) {
 		/* Handle all neightbor solicitation/advertisement here */
@@ -261,38 +261,38 @@ int ndpc_init(nic_t *nic, struct uip_stack *ustack,
 	char buf[INET6_ADDRSTRLEN];
 
 	if (s) {
-		LOG_DEBUG("NDP: NDP context already allocated");
+		ILOG_DEBUG("NDP: NDP context already allocated");
 		/* Already allocated, skip*/
 		return -EALREADY;
 	}
 	s = malloc(sizeof(*s));
 	if (s == NULL) {
-		LOG_ERR("%s: Couldn't allocate size for ndpc info",
+		ILOG_ERR("%s: Couldn't allocate size for ndpc info",
 			nic->log_name);
 		goto error;
 	}
 	memset(s, 0, sizeof(*s));
 
 	if (s->ipv6_context) {
-		LOG_DEBUG("NDP: IPv6 context already allocated");
+		ILOG_DEBUG("NDP: IPv6 context already allocated");
 		ipv6c = s->ipv6_context;
 		goto init1;
 	}
 	ipv6c = malloc(sizeof(struct ipv6_context));
 	if (ipv6c == NULL) {
-		LOG_ERR("%s: Couldn't allocate mem for IPv6 context info",
+		ILOG_ERR("%s: Couldn't allocate mem for IPv6 context info",
 		nic->log_name);
 		goto error1;
 	}
 init1:
 	if (s->dhcpv6_context) {
-		LOG_DEBUG("NDP: DHCPv6 context already allocated");
+		ILOG_DEBUG("NDP: DHCPv6 context already allocated");
 		dhcpv6c = s->dhcpv6_context;
 		goto init2;
 	}
 	dhcpv6c = malloc(sizeof(struct dhcpv6_context));
 	if (dhcpv6c == NULL) {
-		LOG_ERR("%s: Couldn't allocate mem for DHCPv6 context info",
+		ILOG_ERR("%s: Couldn't allocate mem for DHCPv6 context info",
 		nic->log_name);
 		goto error2;
 	}
@@ -333,7 +333,7 @@ init2:
 		ipv6_add_solit_node_address(ipv6c, &src);
 
 		inet_ntop(AF_INET6, &src.addr8, buf, sizeof(buf));
-		LOG_INFO("%s: Static hostaddr IP: %s", s->nic->log_name,
+		ILOG_INFO("%s: Static hostaddr IP: %s", s->nic->log_name,
 			 buf);
 	}
 	/* Copy out the default_router_addr6 and ll */
@@ -370,7 +370,7 @@ void ndpc_call(struct uip_stack *ustack)
 
 void ndpc_exit(struct ndpc_state *ndp)
 {
-	LOG_DEBUG("NDP - Exit ndpc_state = %p", ndp);
+	ILOG_DEBUG("NDP - Exit ndpc_state = %p", ndp);
 	if (!ndp)
 		return;
 	if (ndp->ipv6_context)
@@ -387,18 +387,18 @@ int ndpc_request(struct uip_stack *ustack, void *in, void *out, int request)
 	int ret = 0;
 
 	if (!ustack) {
-		LOG_DEBUG("NDP: ustack == NULL");
+		ILOG_DEBUG("NDP: ustack == NULL");
 		return -EINVAL;
 	}
 	s = ustack->ndpc;
 	if (s == NULL) {
-		LOG_DEBUG("NDP: Could not find ndpc state for request %d",
+		ILOG_DEBUG("NDP: Could not find ndpc state for request %d",
 			  request);
 		return -EINVAL;
 	}
 	while (s->state != NDPC_STATE_BACKGROUND_LOOP) {
-		LOG_DEBUG("%s: ndpc state not in background loop, run handler "
-			  "request = %d", s->nic->log_name, request);
+		ILOG_DEBUG("%s: ndpc state not in background loop, run handler request = %d",
+			   s->nic->log_name, request);
 		handle_ndp(ustack, 1);
 	}
 

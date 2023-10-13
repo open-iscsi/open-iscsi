@@ -54,6 +54,7 @@
 #include <sys/types.h>
 #include <sys/user.h>
 #include <sys/socket.h>
+#include <sys/time.h>
 
 #include "uip_arp.h"
 #include "logger.h"
@@ -147,10 +148,10 @@ kwritev(int fd, enum iscsi_uevent_e type, struct iovec *iovp, int count)
 	do {
 		rc = sendmsg(fd, &msg, 0);
 		if (rc == -ENOMEM) {
-			LOG_ERR(PFX "sendmsg: alloc_skb() failed");
+			ILOG_ERR(PFX "sendmsg: alloc_skb() failed");
 			sleep(1);
 		} else if (rc < 0) {
-			LOG_ERR(PFX "sendmsg: bug?: on %d %s[0x%x]",
+			ILOG_ERR(PFX "sendmsg: bug?: on %d %s[0x%x]",
 				fd, strerror(errno), errno);
 			sleep(1);
 		}
@@ -214,20 +215,21 @@ static int pull_from_nl(char **buf)
 		     NLMSG_SPACE(sizeof(struct iscsi_uevent)),
 		     MSG_PEEK | MSG_WAITALL);
 	if (rc <= 0) {
-		LOG_ERR("can not read nlm_ev, error %s[%d]",
-			strerror(errno), rc);
 		if (rc == 0)
 			return -EIO;
-		else
-			return errno;
+		else {
+			if (errno != EAGAIN)
+				ILOG_ERR("can not read nlm_ev, error %s[%d]",
+					strerror(errno), rc);
+		}
+		return errno;
 	}
 	nlh = (struct nlmsghdr *)nlm_ev;
 
 	if (unlikely(nlh->nlmsg_len < NLMSG_ALIGN(sizeof(struct nlmsghdr)))) {
-		LOG_ERR(PFX "Invalid nlh->nlmsg_len length: "
-			"nlh->nlmsg_len(%d) < "
-			"NLMSG_ALIGN(sizeof(struct nlmsghdr))(%d)",
-			nlh->nlmsg_len, NLMSG_ALIGN(sizeof(struct nlmsghdr)));
+		ILOG_ERR(
+		    PFX "Invalid nlh->nlmsg_len length: nlh->nlmsg_len(%d) < NLMSG_ALIGN(sizeof(struct nlmsghdr))(%d)",
+		    nlh->nlmsg_len, NLMSG_ALIGN(sizeof(struct nlmsghdr)));
 		return -EINVAL;
 	}
 
@@ -245,15 +247,15 @@ static int pull_from_nl(char **buf)
 	}
 	data = (char *)malloc(alloc_size);
 	if (unlikely(data == NULL)) {
-		LOG_ERR(PFX "Couldn't allocate %d bytes for Netlink "
-			"iSCSI message", alloc_size);
+		ILOG_ERR(PFX "Couldn't allocate %d bytes for Netlink iSCSI message",
+			 alloc_size);
 		return -ENOMEM;
 	}
 
 	memset(data, 0, alloc_size);
 	rc = nl_read(nl_sock, data, (int)nlh->nlmsg_len, MSG_WAITALL);
 	if (rc <= 0) {
-		LOG_ERR("can not read nlm_ev, error %s[%d]",
+		ILOG_ERR("can not read nlm_ev, error %s[%d]",
 			strerror(errno), rc);
 		if (rc == 0)
 			rc = -EIO;
@@ -293,13 +295,13 @@ static int ctldev_handle(char *data, nic_t *nic)
 		break;
 	default:
 		/*  We don't care about other iSCSI Netlink messages */
-		LOG_DEBUG(PFX "Received ev->type: 0x%x", ev->type);
+		ILOG_DEBUG(PFX "Received ev->type: 0x%x", ev->type);
 		rc = 0;
 		goto error;
 	}
 
 	/*  This is a message that drivers should be interested in */
-	LOG_INFO(PFX "%s: Processing '%s'", nic->log_name, msg_type_str);
+	ILOG_INFO(PFX "%s: Processing '%s'", nic->log_name, msg_type_str);
 
 	payload = (uint8_t *) ((uint8_t *) ev) + sizeof(*ev);
 	path = (struct iscsi_path *)payload;
@@ -325,7 +327,7 @@ static int ctldev_handle(char *data, nic_t *nic)
 #endif
 		vlan_id = path->vlan_id ? path->vlan_id : NO_VLAN;
 
-		LOG_DEBUG(PFX "%s: PATH_REQ with iface_num %d VLAN %d",
+		ILOG_DEBUG(PFX "%s: PATH_REQ with iface_num %d VLAN %d",
 			  nic->log_name, iface_num, vlan_id);
 
 		pthread_mutex_lock(&nic->nic_mutex);
@@ -339,9 +341,7 @@ static int ctldev_handle(char *data, nic_t *nic)
 						       IP_CONFIG_OFF);
 			if (nic_iface == NULL) {
 				pthread_mutex_unlock(&nic->nic_mutex);
-				LOG_ERR(PFX "%s: Couldn't find nic iface parent"
-					" vlan: %d ip_type: %d "
-					"ip_addr_len: %d to clone",
+				ILOG_ERR(PFX "%s: Couldn't find nic iface parent vlan: %d ip_type: %d ip_addr_len: %d to clone",
 					nic->log_name, path->vlan_id, ip_type,
 					path->ip_addr_len);
 				goto error;
@@ -368,16 +368,13 @@ static int ctldev_handle(char *data, nic_t *nic)
 			   This newly created nic_iface must inherit the
 			   network parameters from the parent nic_iface
 			*/
-			LOG_DEBUG(PFX "%s: Created the nic_iface for vlan: %d "
-				  "ip_type: %d", nic->log_name, path->vlan_id,
-				  ip_type);
+			ILOG_DEBUG(PFX "%s: Created the nic_iface for vlan: %d ip_type: %d",
+				   nic->log_name, path->vlan_id, ip_type);
 			vlan_iface = nic_iface_init();
 			if (vlan_iface == NULL) {
 				pthread_mutex_unlock(&nic->nic_mutex);
-				LOG_ERR(PFX "%s: Couldn't allocate "
-					"space for vlan: %d ip_type: "
-					"%d", nic->log_name, path->vlan_id,
-					ip_type);
+				ILOG_ERR(PFX "%s: Couldn't allocate space for vlan: %d ip_type: %d",
+					 nic->log_name, path->vlan_id, ip_type);
 				goto error;
 			}
 			vlan_iface->protocol = ip_type;
@@ -430,8 +427,8 @@ nic_iface_done:
 		}
 
 		if (rc != 0) {
-			LOG_WARN(PFX "%s[vlan: %d protocol: %d]: not running, "
-				 "cmd: 0x%x nic state: 0x%x flags: 0x%x",
+			ILOG_WARN(
+			    PFX "%s[vlan: %d protocol: %d]: not running, cmd: 0x%x nic state: 0x%x flags: 0x%x",
 				 nic->log_name,
 				 nic_iface->vlan_id, nic_iface->protocol,
 				 ev->type, nic->state, nic->flags);
@@ -455,7 +452,7 @@ nic_iface_done:
 			pthread_mutex_lock(&nic->nic_mutex);
 			nic->flags &= ~NIC_PATHREQ_WAIT;
 			pthread_mutex_unlock(&nic->nic_mutex);
-			LOG_INFO(PFX "%s: 'path_req' operation finished",
+			ILOG_INFO(PFX "%s: 'path_req' operation finished",
 				 nic->log_name);
 
 			rc = 0;
@@ -486,10 +483,10 @@ void *nl_process_handle_thread(void *arg)
 		pthread_mutex_lock(&nic->nl_process_mutex);
 		rc = pthread_cond_wait(&nic->nl_process_cond,
 				       &nic->nl_process_mutex);
-		if (rc != 0) {
+		if (rc != 0 || event_loop_stop) {
 			pthread_mutex_unlock(&nic->nl_process_mutex);
-			LOG_ERR("Fatal error in NL processing thread "
-				"during wait[%s]", strerror(rc));
+			ILOG_ERR("Fatal error or exit signal in NL processing thread during wait[%s]",
+				 strerror(rc));
 			break;
 		}
 
@@ -523,7 +520,24 @@ static void flush_nic_nl_process_ring(nic_t *nic)
 	nic->nl_process_head = 0;
 	nic->nl_process_tail = 0;
 
-	LOG_DEBUG(PFX "%s: Flushed NIC NL ring", nic->log_name);
+	ILOG_DEBUG(PFX "%s: Flushed NIC NL ring", nic->log_name);
+}
+
+static void close_nl_socket(int fd)
+{
+	struct linger so_linger = { .l_onoff = 1, .l_linger = 0 };
+
+	if (fd >= 0) {
+		ILOG_DEBUG(PFX "close_nl_socket: disconnecting fd %d", fd);
+
+		/*
+		 * turning off SO_LINGER may not have an effect on netlink
+		 * sockets, but it can't hurt
+		 */
+		setsockopt(fd, SOL_SOCKET, SO_LINGER, &so_linger,
+			       	sizeof(so_linger));
+		close(fd);
+	}
 }
 
 /**
@@ -536,15 +550,20 @@ int nic_nl_open()
 {
 	int rc = 0;
 	char *msg_type_str;
+	struct timeval socktimeout;
 
 	/* Prepare the thread to issue the ARP's */
 	nl_sock = socket(PF_NETLINK, SOCK_RAW, NETLINK_ISCSI);
 	if (nl_sock < 0) {
-		LOG_ERR(PFX "can not create NETLINK_ISCSI socket [%s]",
+		ILOG_ERR(PFX "can not create NETLINK_ISCSI socket [%s]",
 			strerror(errno));
 		rc = -ENOMEM;
 		goto error;
 	}
+
+	socktimeout.tv_sec = 1;
+	socktimeout.tv_usec = 0;
+	setsockopt(nl_sock, SOL_SOCKET, SO_RCVTIMEO, &socktimeout, sizeof(struct timeval));
 
 	memset(&src_addr, 0, sizeof(src_addr));
 	src_addr.nl_family = AF_NETLINK;
@@ -557,7 +576,7 @@ int nic_nl_open()
 		if (rc == 0)
 			break;
 
-		LOG_ERR(PFX "waiting binding to NETLINK_ISCSI socket");
+		ILOG_ERR(PFX "waiting binding to NETLINK_ISCSI socket");
 
 		sleep(1);
 	}
@@ -567,7 +586,7 @@ int nic_nl_open()
 		goto error;
 	}
 
-	LOG_INFO(PFX "Netlink to CNIC on pid %d is ready", src_addr.nl_pid);
+	ILOG_INFO(PFX "Netlink to CNIC on pid %d is ready", src_addr.nl_pid);
 
 	while (!event_loop_stop) {
 		struct iscsi_uevent *ev;
@@ -594,7 +613,7 @@ int nic_nl_open()
 			/*  We don't care about other iSCSI Netlink messages */
 			continue;
 		}
-		LOG_INFO(PFX "Received %s for host %d", msg_type_str, host_no);
+		ILOG_INFO(PFX "Received %s for host %d", msg_type_str, host_no);
 
 		/* Make sure the nic list doesn't get yanked */
 		pthread_mutex_lock(&nic_list_mutex);
@@ -602,8 +621,8 @@ int nic_nl_open()
 		rc = from_host_no_find_associated_eth_device(host_no, &nic);
 		if (rc != 0) {
 			pthread_mutex_unlock(&nic_list_mutex);
-			LOG_ERR(PFX "Dropping msg, couldn't find nic with host "
-				"no: %d", host_no);
+			ILOG_ERR(PFX "Dropping msg, couldn't find nic with host no: %d",
+				 host_no);
 			continue;
 		}
 
@@ -611,8 +630,8 @@ int nic_nl_open()
 		if (nic->nl_process_thread == INVALID_THREAD) {
 			/* If thread is not valid, just drop it */
 			pthread_mutex_unlock(&nic_list_mutex);
-			LOG_ERR(PFX "Dropping msg, nic nl process thread "
-				"not ready for host no: %d", host_no);
+			ILOG_ERR(PFX "Dropping msg, nic nl process thread not ready for host no: %d",
+				 host_no);
 			continue;
 		}
 
@@ -643,7 +662,7 @@ int nic_nl_open()
 			nic_remove(nic);
 			pthread_mutex_unlock(&nic_list_mutex);
 
-			LOG_INFO(PFX "%s: 'if_down' operation finished",
+			ILOG_INFO(PFX "%s: 'if_down' operation finished",
 				 eth_device_name);
 			continue;
 		}
@@ -655,7 +674,7 @@ int nic_nl_open()
 		     nic->nl_process_head == NIC_NL_PROCESS_LAST_ENTRY)) {
 			pthread_mutex_unlock(&nic->nl_process_mutex);
 			pthread_mutex_unlock(&nic_list_mutex);
-			LOG_WARN(PFX "%s: No space on Netlink ring",
+			ILOG_WARN(PFX "%s: No space on Netlink ring",
 				 nic->log_name);
 			continue;
 		}
@@ -669,10 +688,13 @@ int nic_nl_open()
 
 		pthread_mutex_unlock(&nic_list_mutex);
 
-		LOG_DEBUG(PFX "Pulled nl event");
+		ILOG_DEBUG(PFX "Pulled nl event");
 	}
 
-	LOG_INFO(PFX "Netlink thread exit'ing");
+	/* close the netlink socket */
+	close_nl_socket(nl_sock);
+
+	ILOG_INFO(PFX "Netlink thread exit'ing");
 	rc = 0;
 
 error:

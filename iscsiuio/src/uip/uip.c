@@ -1037,7 +1037,7 @@ void uip_process(struct uip_stack *ustack, u8_t flag)
 
 	/*  Drop invalid packets */
 	if (ustack->uip_buf == NULL) {
-		LOG_ERR(PFX "ustack->uip_buf == NULL.");
+		ILOG_ERR(PFX "ustack->uip_buf == NULL.");
 		return;
 	}
 
@@ -1261,7 +1261,7 @@ void uip_process(struct uip_stack *ustack, u8_t flag)
 		if (version != 0x6) {	/* IP version and header length. */
 			++ustack->stats.ip.drop;
 			++ustack->stats.ip.vhlerr;
-			LOG_DEBUG(PFX "ipv6: invalid version(0x%x).", version);
+			ILOG_DEBUG(PFX "ipv6: invalid version(0x%x).", version);
 			goto drop;
 		}
 	} else {
@@ -1270,9 +1270,7 @@ void uip_process(struct uip_stack *ustack, u8_t flag)
 			/* IP version and header length. */
 			++ustack->stats.ip.drop;
 			++ustack->stats.ip.vhlerr;
-			LOG_DEBUG(PFX
-				  "ipv4: invalid version or header length: "
-				  "0x%x.",
+			ILOG_DEBUG(PFX "ipv4: invalid version or header length: 0x%x.",
 				  tcp_ipv4_hdr->vhl);
 			goto drop;
 		}
@@ -1288,10 +1286,9 @@ void uip_process(struct uip_stack *ustack, u8_t flag)
 	if (is_ipv6(ustack)) {
 		u16_t len = ntohs(ipv6_hdr->ip6_plen);
 		if (len > ustack->uip_len) {
-			LOG_DEBUG(PFX
-				 "ip: packet shorter than reported in IP header"
-				 ":IPv6_BUF(ustack)->len: %d ustack->uip_len: "
-				 "%d", len, ustack->uip_len);
+			ILOG_DEBUG(
+			    PFX "ip: packet shorter than reported in IP header:IPv6_BUF(ustack)->len: %d ustack->uip_len: %d",
+			    len, ustack->uip_len);
 			goto drop;
 		}
 	} else {
@@ -1300,11 +1297,10 @@ void uip_process(struct uip_stack *ustack, u8_t flag)
 			ustack->uip_len = (tcp_ipv4_hdr->len[0] << 8) +
 			    tcp_ipv4_hdr->len[1];
 		} else {
-			LOG_DEBUG(PFX
-				 "ip: packet shorter than reported in IP header"
-				 ":tcp_ipv4_hdr->len: %d ustack->uip_len:%d.",
-				 (tcp_ipv4_hdr->len[0] << 8) +
-				 tcp_ipv4_hdr->len[1], ustack->uip_len);
+			ILOG_DEBUG(
+			    PFX "ip: packet shorter than reported in IP header:tcp_ipv4_hdr->len: %d ustack->uip_len:%d.",
+			    (tcp_ipv4_hdr->len[0] << 8) + tcp_ipv4_hdr->len[1],
+			    ustack->uip_len);
 			goto drop;
 		}
 	}
@@ -1320,7 +1316,7 @@ void uip_process(struct uip_stack *ustack, u8_t flag)
 #else /* UIP_REASSEMBLY */
 			++ustack->stats.ip.drop;
 			++ustack->stats.ip.fragerr;
-			LOG_WARN(PFX "ip: fragment dropped.");
+			ILOG_WARN(PFX "ip: fragment dropped.");
 			goto drop;
 #endif /* UIP_REASSEMBLY */
 		}
@@ -1334,14 +1330,10 @@ void uip_process(struct uip_stack *ustack, u8_t flag)
 			   address yet, we accept all ICMP packets. */
 #if UIP_PINGADDRCONF && !UIP_CONF_IPV6
 			if (tcp_ipv4_hdr->proto == UIP_PROTO_ICMP) {
-				LOG_WARN(PFX
-					 "ip: possible ping config packet "
-					 "received.");
+				ILOG_WARN(PFX "ip: possible ping config packet received.");
 				goto icmp_input;
 			} else {
-				LOG_WARN(PFX
-					 "ip: packet dropped since no "
-					 "address assigned.");
+				ILOG_WARN(PFX "ip: packet dropped since no address assigned.");
 				goto drop;
 			}
 #endif /* UIP_PINGADDRCONF */
@@ -1371,7 +1363,7 @@ void uip_process(struct uip_stack *ustack, u8_t flag)
 			/* Compute and check the IP header checksum. */
 			++ustack->stats.ip.drop;
 			++ustack->stats.ip.chkerr;
-			LOG_ERR(PFX "ip: bad checksum.");
+			ILOG_ERR(PFX "ip: bad checksum.");
 			goto drop;
 		}
 	}  /* End of ipv4 */
@@ -1426,7 +1418,7 @@ ndp_send:
 			/* We only allow ICMP packets from here. */
 			++ustack->stats.ip.drop;
 			++ustack->stats.ip.protoerr;
-			LOG_DEBUG(PFX "ip: neither tcp nor icmp.");
+			ILOG_DEBUG(PFX "ip: neither tcp nor icmp.");
 			goto drop;
 		}
 #if UIP_PINGADDRCONF
@@ -1445,7 +1437,7 @@ icmp_input:
 		if (icmpv4_hdr->type != ICMP_ECHO) {
 			++ustack->stats.icmp.drop;
 			++ustack->stats.icmp.typeerr;
-			LOG_DEBUG(PFX "icmp: not icmp echo.");
+			ILOG_DEBUG(PFX "icmp: not icmp echo.");
 			goto drop;
 		}
 
@@ -1492,7 +1484,7 @@ udp_input:
 	if (UDPBUF(ustack)->udpchksum != 0 && uip_udpchksum(ustack) != 0xffff) {
 		++ustack->stats.udp.drop;
 		++ustack->stats.udp.chkerr;
-		LOG_DEBUG(PFX "udp: bad checksum.");
+		ILOG_DEBUG(PFX "udp: bad checksum.");
 		goto drop;
 	}
 #else /* UIP_UDP_CHECKSUMS */
@@ -1528,9 +1520,8 @@ udp_input:
 			goto udp_found;
 		}
 	}
-	LOG_DEBUG(PFX
-		  "udp: no matching connection found: dest port: %d src port: "
-		  "%d", udp_hdr->destport, udp_hdr->srcport);
+	ILOG_DEBUG(PFX "udp: no matching connection found: dest port: %d src port: %d",
+		   udp_hdr->destport, udp_hdr->srcport);
 	goto drop;
 
 udp_found:
@@ -1571,7 +1562,7 @@ udp_send:
 	ustack->uip_appdata = ustack->network_layer + uip_ip_tcph_len;
 
 	if (ustack->uip_buf == NULL) {
-		LOG_WARN(PFX "uip_buf == NULL on udp send");
+		ILOG_WARN(PFX "uip_buf == NULL on udp send");
 		goto drop;
 	}
 #if UIP_UDP_CHECKSUMS
@@ -1594,7 +1585,7 @@ tcp_input:
 						   checksum. */
 		++ustack->stats.tcp.drop;
 		++ustack->stats.tcp.chkerr;
-		LOG_WARN(PFX "tcp: bad checksum.");
+		ILOG_WARN(PFX "tcp: bad checksum.");
 		goto drop;
 	}
 
@@ -1732,7 +1723,7 @@ found_listen:
 		   that the remote end will retransmit the packet at a time when
 		   we have more spare connections. */
 		++ustack->stats.tcp.syndrop;
-		LOG_WARN(PFX "tcp: found no unused connections.");
+		ILOG_WARN(PFX "tcp: found no unused connections.");
 		goto drop;
 	}
 	ustack->uip_conn = uip_connr;
@@ -1843,7 +1834,7 @@ found:
 	   before we accept the reset. */
 	if (tcp_hdr->flags & TCP_RST) {
 		uip_connr->tcpstateflags = UIP_CLOSED;
-		LOG_WARN(PFX "tcp: got reset, aborting connection.");
+		ILOG_WARN(PFX "tcp: got reset, aborting connection.");
 		ustack->uip_flags = UIP_ABORT;
 		UIP_APPCALL(ustack);
 		goto drop;
@@ -2390,10 +2381,10 @@ ip_send_nolen:
 	++ustack->stats.tcp.sent;
 send:
 	if (is_ipv6(ustack)) {
-		LOG_DEBUG(PFX "Sending packet with length %d (%d)",
+		ILOG_DEBUG(PFX "Sending packet with length %d (%d)",
 			  ustack->uip_len, ipv6_hdr ? ipv6_hdr->ip6_plen : 0);
 	} else {
-		LOG_DEBUG(PFX "Sending packet with length %d (%d)",
+		ILOG_DEBUG(PFX "Sending packet with length %d (%d)",
 			  ustack->uip_len,
 			  (tcp_ipv4_hdr->len[0] << 8) | tcp_ipv4_hdr->len[1]);
 	}

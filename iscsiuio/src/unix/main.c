@@ -75,6 +75,8 @@
 #include "iscsid_ipc.h"
 #include "brcm_iscsi.h"
 
+static bool foreground = false;	/* daemon running in foreground or background? */
+
 /*******************************************************************************
  *  Constants
  ******************************************************************************/
@@ -116,9 +118,9 @@ static void cleanup()
 
 	unload_all_nic_libraries();
 
-	LOG_INFO("Done waiting for cnic's/stacks to gracefully close");
+	ILOG_INFO("Done waiting for cnic's/stacks to gracefully close");
 
-	fini_logger(SHUTDOWN_LOGGER);
+	fini_logger();
 }
 
 /**
@@ -136,29 +138,28 @@ static void *signal_handle_thread(void *arg)
 
 	sigfillset(&set);
 
-	LOG_INFO("signal handling thread ready");
+	ILOG_INFO("signal handling thread ready");
 
 signal_wait:
 	rc = sigwait(&set, &signal);
+	if (rc) {
+		ILOG_ERR("Cannot wait for signals: %d", rc);
+		exit(EXIT_FAILURE);
+	}
 
 	switch (signal) {
-	case SIGINT:
-		LOG_INFO("Caught SIGINT signal");
-		break;
 	case SIGUSR1:
-		LOG_INFO("Caught SIGUSR1 signal, rotate log");
-		fini_logger(SHUTDOWN_LOGGER);
-		rc = init_logger(main_log.log_file);
-		if (rc != 0)
-			fprintf(stderr, "WARN: Could not initialize the logger in "
-			       "signal!\n");
+		ILOG_INFO("Caught SIGUSR1 signal, rotate log");
+		fini_logger();
+		init_logger(foreground);
 		goto signal_wait;
 	default:
+		ILOG_INFO("Caught %s signal", strsignal(signal));
 		break;
 	}
 	event_loop_stop = 1;
 
-	LOG_INFO("terminating...");
+	ILOG_INFO("terminating...");
 
 	cleanup();
 	exit(EXIT_SUCCESS);
@@ -215,7 +216,7 @@ int oom_adjust(void)
 
 	errno = 0;
 	if (nice(-10) == -1 && errno != 0)
-		LOG_DEBUG("Could not increase process priority: %s",
+		ILOG_DEBUG("Could not increase process priority: %s",
 			  strerror(errno));
 
 	/*
@@ -224,11 +225,11 @@ int oom_adjust(void)
 	 */
 	if ((fd = open("/proc/self/oom_score_adj", O_WRONLY)) >= 0) {
 		if ((res = write(fd, "-1000", 5)) < 0)
-			LOG_DEBUG("Could not set /proc/self/oom_score_adj to -1000: %s",
+			ILOG_DEBUG("Could not set /proc/self/oom_score_adj to -1000: %s",
 				strerror(errno));
 	} else if ((fd = open("/proc/self/oom_adj", O_WRONLY)) >= 0) {
 		if ((res = write(fd, "-17", 3)) < 0)
-			LOG_DEBUG("Could not set /proc/self/oom_adj to -16: %s",
+			ILOG_DEBUG("Could not set /proc/self/oom_adj to -16: %s",
 				strerror(errno));
 	} else
 		return -1;
@@ -250,7 +251,7 @@ int main(int argc, char *argv[])
 	sigset_t set;
 	const char *pid_file = default_pid_filepath;
 	int fd;
-	int foreground = 0;
+	bool foreground = false;
 	pid_t pid;
 	pthread_attr_t attr;
 	int pipefds[2];
@@ -271,7 +272,7 @@ int main(int argc, char *argv[])
 		switch (c) {
 
 		case 'f':
-			foreground = 1;
+			foreground = true;
 			break;
 
 			/* Enable debugging mode */
@@ -292,18 +293,13 @@ int main(int argc, char *argv[])
 		}
 	}
 
-	if (main_log.enabled == LOGGER_ENABLED) {
-		/*  initialize the logger */
-		rc = init_logger(main_log.log_file);
-		if (rc != 0 && opt.debug == DEBUG_ON)
-			fprintf(stderr, "WARN: Could not initialize the logger\n");
-	}
+	init_logger(foreground);
 
-	LOG_INFO("Started iSCSI uio stack: Ver " PACKAGE_VERSION);
-	LOG_INFO("Build date: %s", build_date);
+	ILOG_INFO("Started iSCSI uio stack: Ver " PACKAGE_VERSION);
+	ILOG_INFO("Build date: %s", build_date);
 
 	if (opt.debug == DEBUG_ON)
-		LOG_INFO("Debug mode enabled");
+		ILOG_INFO("Debug mode enabled");
 
 	event_loop_stop = 0;
 	nic_list = NULL;
@@ -313,12 +309,11 @@ int main(int argc, char *argv[])
 
 	rc = uname(&cur_utsname);
 	if (rc == 0) {
-		LOG_INFO("Running on sysname: '%s', release: '%s', "
-			 "version '%s' machine: '%s'",
+		ILOG_INFO("Running on sysname: '%s', release: '%s', version '%s' machine: '%s'",
 			 cur_utsname.sysname, cur_utsname.release,
 			 cur_utsname.version, cur_utsname.machine);
 	} else
-		LOG_WARN("Could not determine kernel version");
+		ILOG_WARN("Could not determine kernel version");
 
 	/*  Initialze the iscsid listener */
 	rc = iscsid_init();
@@ -405,18 +400,18 @@ int main(int argc, char *argv[])
 	pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED);
 	rc = pthread_create(&signal_thread, &attr, signal_handle_thread, NULL);
 	if (rc != 0)
-		LOG_ERR("Could not create signal handling thread");
+		ILOG_ERR("Could not create signal handling thread");
 
 	/* Using sysfs to discover iSCSI hosts */
 	nic_discover_iscsi_hosts();
 
 	/* oom-killer will not kill us at the night... */
 	if (oom_adjust())
-		LOG_DEBUG("Can not adjust oom-killer's pardon");
+		ILOG_DEBUG("Can not adjust oom-killer's pardon");
 
 	/* we don't want our active sessions to be paged out... */
 	if (mlockall(MCL_CURRENT | MCL_FUTURE)) {
-		LOG_ERR("failed to mlockall, exiting...");
+		ILOG_ERR("failed to mlockall, exiting...");
 		goto error;
 	}
 
@@ -443,6 +438,7 @@ int main(int argc, char *argv[])
 	/*  NetLink connection to listen to NETLINK_ISCSI private messages */
 	if (nic_nl_open() != 0)
 		goto error;
+	exit(0);
 
 error:
 	cleanup();

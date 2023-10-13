@@ -76,7 +76,7 @@ int init_vlan_found_handle(struct vlan_found_handle *found_handle,
 	found_handle->entries = malloc(found_handle->num_of_entries *
 				       sizeof(struct vlan_found_entry));
 	if (found_handle->entries == NULL) {
-		LOG_ERR("Could not allocate space for found entries");
+		ILOG_ERR("Could not allocate space for found entries");
 		return -ENOMEM;
 	}
 
@@ -152,33 +152,31 @@ int parse_vlan_table(struct vlan_handle *handle, char *raw, uint32_t raw_size)
 	 *  This lines need to be skipped with counting */
 	handle->num_of_entries -= 2;
 
-	LOG_INFO("Number of vlan entries: %d", handle->num_of_entries);
+	ILOG_INFO("Number of vlan entries: %d", handle->num_of_entries);
 
 	size = handle->num_of_entries * sizeof(struct vlan_entry);
 	handle->entries = malloc(size);
 	if (handle->entries == NULL) {
-		LOG_ERR
-		    ("Couldn't malloc space to parse vlan table. entires: %d "
-		     "size: %d",
+		ILOG_ERR("Couldn't malloc space to parse vlan table. entires: %d size: %d",
 		     handle->num_of_entries, size);
 		return -ENOMEM;
 	}
 
 	fp = fmemopen(raw, raw_size, "r");
 	if (fp == NULL) {
-		LOG_ERR("Could not open raw dump of vlan table");
+		ILOG_ERR("Could not open raw dump of vlan table");
 		rc = errno;
 		goto fmemopen_error;
 	}
 
 	if (fscanf(fp, "%*[^\n]\n") < 0) {	/* Skip the first line. */
-		LOG_ERR("Empty or missing line, or read error");
+		ILOG_ERR("Empty or missing line, or read error");
 		rc = -EIO;
 		goto error;
 	}
 
 	if (fscanf(fp, "%*[^\n]\n") < 0) {	/* Skip the second line. */
-		LOG_ERR("Empty or missing line, or read error");
+		ILOG_ERR("Empty or missing line, or read error");
 		rc = -EIO;
 		goto error;
 	}
@@ -197,13 +195,13 @@ int parse_vlan_table(struct vlan_handle *handle, char *raw, uint32_t raw_size)
 				break;
 			}
 
-			LOG_WARN("Parsing error: parsed %d elements", r);
+			ILOG_WARN("Parsing error: parsed %d elements", r);
 			break;
 		}
 
 		i++;
 
-		LOG_DEBUG("Vlan %d: vlan iface:%s vlan id:%d phys iface:%s",
+		ILOG_DEBUG("Vlan %d: vlan iface:%s vlan id:%d phys iface:%s",
 			  i,
 			  entry->vlan_iface_name,
 			  entry->vlan_id, entry->phy_iface_name);

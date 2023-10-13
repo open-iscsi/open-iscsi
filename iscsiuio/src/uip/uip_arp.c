@@ -273,7 +273,7 @@ uip_arp_arpin(nic_interface_t *nic_iface,
 		uip_arp_update(arp->sipaddr, &arp->shwaddr);
 		break;
 	default:
-		LOG_WARN("Unknown ARP opcode: %d", ntohs(arp->opcode));
+		ILOG_WARN("Unknown ARP opcode: %d", ntohs(arp->opcode));
 		break;
 	}
 
@@ -460,7 +460,7 @@ int uip_lookup_arp_entry(uint32_t ip_addr, uint8_t *mac_addr)
 
 			memcpy(mac_addr, entry->ethaddr.addr, 6);
 
-			LOG_INFO("Found %s at %02x:%02x:%02x:%02x:%02x:%02x",
+			ILOG_INFO("Found %s at %02x:%02x:%02x:%02x:%02x:%02x",
 				 addr_str,
 				 mac_addr[0], mac_addr[1], mac_addr[2],
 				 mac_addr[3], mac_addr[4], mac_addr[5]);

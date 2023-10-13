@@ -107,8 +107,7 @@ void uip_neighbor_add(struct uip_stack *ustack,
 	memcpy(&ustack->neighbor_entries[oldest].mac_addr, addr,
 	       sizeof(struct uip_eth_addr));
 
-	LOG_DEBUG("Adding neighbor %s with "
-		  "mac address %02x:%02x:%02x:%02x:%02x:%02x at %d",
+	ILOG_DEBUG("Adding neighbor %s with mac address %02x:%02x:%02x:%02x:%02x:%02x at %d",
 		  buf, addr->addr[0], addr->addr[1], addr->addr[2],
 		  addr->addr[3], addr->addr[4], addr->addr[5], oldest);
 
@@ -163,7 +162,7 @@ int uip_neighbor_lookup(struct uip_stack *ustack,
 			  sizeof(addr6_str));
 		entry_mac_addr = (uint8_t *)&e->mac_addr.addr;
 
-		LOG_DEBUG(PFX
+		ILOG_DEBUG(PFX
 			  "Found %s at %02x:%02x:%02x:%02x:%02x:%02x",
 			  addr6_str,
 			  entry_mac_addr[0], entry_mac_addr[1],

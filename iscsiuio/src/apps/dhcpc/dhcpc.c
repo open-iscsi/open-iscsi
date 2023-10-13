@@ -258,7 +258,7 @@ static PT_THREAD(handle_dhcp(struct uip_stack *ustack))
 	s = ustack->dhcpc;
 
 	if (s == NULL) {
-		LOG_WARN("Could not find dhcpc state");
+		ILOG_WARN("Could not find dhcpc state");
 		return PT_ENDED;
 	}
 
@@ -305,22 +305,22 @@ static PT_THREAD(handle_dhcp(struct uip_stack *ustack))
 			PT_RESTART(&s->pt);
 	} while (s->state != STATE_CONFIG_RECEIVED);
 
-	LOG_INFO("Got IP address %d.%d.%d.%d",
+	ILOG_INFO("Got IP address %d.%d.%d.%d",
 		 uip_ipaddr1(s->ipaddr), uip_ipaddr2(s->ipaddr),
 		 uip_ipaddr3(s->ipaddr), uip_ipaddr4(s->ipaddr));
-	LOG_INFO("Got netmask %d.%d.%d.%d",
+	ILOG_INFO("Got netmask %d.%d.%d.%d",
 		 uip_ipaddr1(s->netmask), uip_ipaddr2(s->netmask),
 		 uip_ipaddr3(s->netmask), uip_ipaddr4(s->netmask));
-	LOG_INFO("Got DNS server %d.%d.%d.%d",
+	ILOG_INFO("Got DNS server %d.%d.%d.%d",
 		 uip_ipaddr1(s->dnsaddr), uip_ipaddr2(s->dnsaddr),
 		 uip_ipaddr3(s->dnsaddr), uip_ipaddr4(s->dnsaddr));
-	LOG_INFO("Got default router %d.%d.%d.%d",
+	ILOG_INFO("Got default router %d.%d.%d.%d",
 		 uip_ipaddr1(s->default_router), uip_ipaddr2(s->default_router),
 		 uip_ipaddr3(s->default_router),
 		 uip_ipaddr4(s->default_router));
 	s->lease_time_nl32 =
 	    ntohs(s->lease_time[0]) * 65536ul + ntohs(s->lease_time[1]);
-	LOG_INFO("Lease expires in %ld seconds", s->lease_time_nl32);
+	ILOG_INFO("Lease expires in %ld seconds", s->lease_time_nl32);
 
 	s->last_update = time(NULL);
 
@@ -339,7 +339,7 @@ static PT_THREAD(handle_dhcp(struct uip_stack *ustack))
 	s->ticks = CLOCK_SECOND * s->lease_time_nl32;
 	timer_set(&s->timer, s->ticks);
 	PT_WAIT_UNTIL(&s->pt, timer_expired(&s->timer));
-	LOG_INFO("Lease expired, re-acquire IP address");
+	ILOG_INFO("Lease expired, re-acquire IP address");
 	s->nic->flags &= ~NIC_LONG_SLEEP;
 	PT_RESTART(&s->pt);
 
@@ -362,12 +362,12 @@ int dhcpc_init(nic_t *nic, struct uip_stack *ustack,
 	struct dhcpc_state *s = ustack->dhcpc;
 
 	if (s) {
-		LOG_DEBUG("DHCP: DHCP context already allocated");
+		ILOG_DEBUG("DHCP: DHCP context already allocated");
 		return -EALREADY;
 	}
 	s = malloc(sizeof(*s));
 	if (s == NULL) {
-		LOG_ERR("Couldn't allocate size for dhcpc info");
+		ILOG_ERR("Couldn't allocate size for dhcpc info");
 		return -ENOMEM;
 	}
 

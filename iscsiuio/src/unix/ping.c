@@ -107,13 +107,13 @@ static int prepare_icmpv4_req_pkt(struct ping_conf *png_c, struct packet *pkt,
 	uip_ip4addr_copy(ipv4_hdr->srcipaddr, ustack->hostaddr);
 	uip_ip4addr_copy(ipv4_hdr->destipaddr, dst_addr);
 
-	LOG_INFO(PFX "src ipaddr: %d.%d.%d.%d",
+	ILOG_INFO(PFX "src ipaddr: %d.%d.%d.%d",
 		 uip_ipaddr1(ipv4_hdr->srcipaddr),
 		 uip_ipaddr2(ipv4_hdr->srcipaddr),
 		 uip_ipaddr3(ipv4_hdr->srcipaddr),
 		 uip_ipaddr4(ipv4_hdr->srcipaddr));
 
-	LOG_INFO(PFX "dest ipaddr: %d.%d.%d.%d",
+	ILOG_INFO(PFX "dest ipaddr: %d.%d.%d.%d",
 		 uip_ipaddr1(ipv4_hdr->destipaddr),
 		 uip_ipaddr2(ipv4_hdr->destipaddr),
 		 uip_ipaddr3(ipv4_hdr->destipaddr),
@@ -138,7 +138,7 @@ static int prepare_icmpv4_req_pkt(struct ping_conf *png_c, struct packet *pkt,
 		ustack->uip_slen = png_c->datalen;
 	} else {
 		png_c->state = ISCSI_PING_OVERSIZE_PACKET;
-		LOG_ERR(PFX "MTU=%d, payload=%d\n",
+		ILOG_ERR(PFX "MTU=%d, payload=%d",
 			mtu, png_c->datalen);
 		rc = -EINVAL;
 		goto done;
@@ -206,11 +206,11 @@ static void prepare_icmpv6_req_pkt(struct ping_conf *png_c, struct packet *pkt,
 
 	memset(ipbuf, 0, sizeof(ipbuf));
 	if (inet_ntop(AF_INET6, &ipv6_hdr->srcipaddr, ipbuf, INET6_ADDRSTRLEN))
-		LOG_INFO(PFX "src ipaddr=%s", ipbuf);
+		ILOG_INFO(PFX "src ipaddr=%s", ipbuf);
 
 	memset(ipbuf, 0, sizeof(ipbuf));
 	if (inet_ntop(AF_INET6, &ipv6_hdr->destipaddr, ipbuf, INET6_ADDRSTRLEN))
-		LOG_INFO(PFX "dest ipaddr=%s", ipbuf);
+		ILOG_INFO(PFX "dest ipaddr=%s", ipbuf);
 
 	/* fill ICMP header */
 	icmp_echo_hdr->type = ICMPV6_ECHO_REQ;
@@ -281,14 +281,14 @@ static int fill_icmpv6_eth_hdr(struct uip_stack *ustack,
 
 	ret = ndpc_request(ustack, &req_ptr, &rc, CHECK_ARP_TABLE);
 	if (ret) {
-		LOG_DEBUG(PFX "ndpc request failed");
+		ILOG_DEBUG(PFX "ndpc request failed");
 		rc = ret;
 	} else if (rc) {
 		memcpy(eth->dest.addr, mac_addr, sizeof(eth->dest.addr));
-		LOG_DEBUG(PFX "ipv6 arp entry present");
+		ILOG_DEBUG(PFX "ipv6 arp entry present");
 		rc = 0;
 	} else {
-		LOG_DEBUG(PFX "ipv6 arp entry not present");
+		ILOG_DEBUG(PFX "ipv6 arp entry not present");
 		rc = -EAGAIN;
 	}
 
@@ -312,28 +312,28 @@ static int determine_src_ipv6_addr(nic_interface_t *nic_iface,
 	ret = ndpc_request(&nic_iface->ustack, dst_addr6,
 			 &rc, CHECK_LINK_LOCAL_ADDR);
 	if (ret) {
-		LOG_DEBUG(PFX "Check LL failed");
+		ILOG_DEBUG(PFX "Check LL failed");
 		rc = ret;
 		goto done;
 	}
 
 	if (rc) {
-		LOG_DEBUG(PFX "Use LL");
+		ILOG_DEBUG(PFX "Use LL");
 		/* Get link local IPv6 address */
 		addr = (struct in6_addr *)&nic_iface->ustack.linklocal6;
 		rc = 0;
 	} else {
-		LOG_DEBUG(PFX "Use Best matched");
+		ILOG_DEBUG(PFX "Use Best matched");
 		ret = ndpc_request(&nic_iface->ustack,
 				 dst_addr6,
 				 &addr, GET_HOST_ADDR);
 		if (ret) {
-			LOG_DEBUG(PFX "Use Best matched failed");
+			ILOG_DEBUG(PFX "Use Best matched failed");
 			rc = ret;
 			goto done;
 		}
 		if (addr == NULL) {
-			LOG_DEBUG(PFX "No Best matched found");
+			ILOG_DEBUG(PFX "No Best matched found");
 			rc = -EINVAL;
 			goto done;
 		}
@@ -380,14 +380,14 @@ int do_ping_from_nic_iface(struct ping_conf *png_c)
 
 	if (rc && (nic_iface->protocol == AF_INET)) {
 		png_c->state = ISCSI_PING_NO_ARP_RECEIVED;
-		LOG_ERR(PFX "ARP failure for IPv4 dest addr");
+		ILOG_ERR(PFX "ARP failure for IPv4 dest addr");
 		goto done;
 	} else if ((rc < 1) && (nic_iface->protocol == AF_INET6)) {
 		png_c->state = ISCSI_PING_NO_ARP_RECEIVED;
-		LOG_ERR(PFX "ARP failure for IPv6 dest addr");
+		ILOG_ERR(PFX "ARP failure for IPv6 dest addr");
 		goto done;
 	} else if (rc < 0) {
-		LOG_ERR(PFX "ARP failure");
+		ILOG_ERR(PFX "ARP failure");
 		goto done;
 	}
 
@@ -395,7 +395,7 @@ int do_ping_from_nic_iface(struct ping_conf *png_c)
 	pkt = get_next_free_packet(nic);
 	if (pkt == NULL) {
 		pthread_mutex_unlock(&nic->nic_mutex);
-		LOG_ERR(PFX "Unable to get a free packet buffer");
+		ILOG_ERR(PFX "Unable to get a free packet buffer");
 		rc = -EIO;
 		goto done;
 	}
@@ -416,7 +416,7 @@ int do_ping_from_nic_iface(struct ping_conf *png_c)
 
 			prepare_ipv4_packet(nic, nic_iface, ustack, pkt);
 
-			LOG_DEBUG(PFX "Send ICMP echo request");
+			ILOG_DEBUG(PFX "Send ICMP echo request");
 			(*nic->ops->write) (nic, nic_iface, pkt);
 			ustack->uip_len = 0;
 		}
@@ -441,7 +441,7 @@ int do_ping_from_nic_iface(struct ping_conf *png_c)
 				goto put_pkt;
 			}
 
-			LOG_DEBUG(PFX "Send ICMPv6 echo request");
+			ILOG_DEBUG(PFX "Send ICMPv6 echo request");
 			(*nic->ops->write) (nic, nic_iface, pkt);
 			ustack->uip_len = 0;
 		}
@@ -452,7 +452,7 @@ put_pkt:
 	pthread_mutex_unlock(&nic->nic_mutex);
 
 	if (rc) {
-		LOG_DEBUG(PFX "Ping request not transmitted");
+		ILOG_DEBUG(PFX "Ping request not transmitted");
 		goto done;
 	}
 
@@ -468,13 +468,13 @@ put_pkt:
 		}
 
 		if (!rc && (png_c->state == ISCSI_PING_SUCCESS)) {
-			LOG_INFO(PFX "PING successful!");
+			ILOG_INFO(PFX "PING successful!");
 			break;
 		}
 
 		if (timer_expired(&ping_timer)) {
 			png_c->state = ISCSI_PING_TIMEOUT;
-			LOG_ERR(PFX "PING timeout");
+			ILOG_ERR(PFX "PING timeout");
 			rc = -EIO;
 			break;
 		}
@@ -490,7 +490,7 @@ int process_icmp_packet(uip_icmp_echo_hdr_t *icmp_hdr,
 	struct ping_conf *png_c = (struct ping_conf *)ustack->ping_conf;
 	int rc = 0;
 
-	LOG_INFO(PFX "Verify ICMP echo reply");
+	ILOG_INFO(PFX "Verify ICMP echo reply");
 
 	if ((icmp_hdr->type == ICMPV6_ECHO_REPLY &&
 	     png_c->proto == AF_INET6) ||
@@ -509,9 +509,9 @@ int process_icmp_packet(uip_icmp_echo_hdr_t *icmp_hdr,
 	}
 
 	if (rc) {
-		LOG_INFO(PFX "ICMP echo reply verification failed!");
+		ILOG_INFO(PFX "ICMP echo reply verification failed!");
 	} else {
-		LOG_INFO(PFX "ICMP echo reply OK");
+		ILOG_INFO(PFX "ICMP echo reply OK");
 	}
 
 	return rc;

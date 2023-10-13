@@ -47,7 +47,7 @@
 /**
  * alloc_packet() - Function used to allocate memory for a packet
  * @param max_buf_size - max packet size
- * @param priv_size    - size of the assoicated private data
+ * @param priv_size    - size of the associated private data
  * @return NULL if failed, on success return a pointer to the packet
  */
 struct packet *alloc_packet(size_t max_buf_size, size_t priv_size)
@@ -57,14 +57,14 @@ struct packet *alloc_packet(size_t max_buf_size, size_t priv_size)
 
 	pkt = malloc(max_buf_size + sizeof(struct packet));
 	if (pkt == NULL) {
-		LOG_ERR("Could not allocate any memory for packet");
+		ILOG_ERR("Could not allocate any memory for packet");
 		return NULL;
 	}
 	memset(pkt, 0, max_buf_size + sizeof(struct packet));
 
 	priv = malloc(priv_size);
 	if (priv == NULL) {
-		LOG_ERR("Could not allocate any memory for private structure");
+		ILOG_ERR("Could not allocate any memory for private structure");
 		goto free_pkt;
 	}
 	memset(priv, 0, priv_size);

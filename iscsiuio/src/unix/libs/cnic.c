@@ -103,17 +103,17 @@ static int cnic_arp_send(nic_t *nic, nic_interface_t *nic_iface, int fd,
 	static const uint8_t multicast_mac[] = {
 				0xff, 0xff, 0xff, 0xff, 0xff, 0xff };
 
-	LOG_DEBUG(PFX "%s: host:%d - try getting xmit mutex cnic arp send",
+	ILOG_DEBUG(PFX "%s: host:%d - try getting xmit mutex cnic arp send",
 		  nic->log_name, nic->host_no);
 	rc = pthread_mutex_trylock(&nic->xmit_mutex);
 	if (rc != 0) {
-		LOG_DEBUG(PFX "%s: could not get xmit_mutex", nic->log_name);
+		ILOG_DEBUG(PFX "%s: could not get xmit_mutex", nic->log_name);
 		return -EAGAIN;
 	}
 
 	eth = (*nic->ops->get_tx_pkt) (nic);
 	if (eth == NULL) {
-		LOG_WARN(PFX "%s: couldn't get tx packet", nic->log_name);
+		ILOG_WARN(PFX "%s: couldn't get tx packet", nic->log_name);
 		pthread_mutex_unlock(&nic->xmit_mutex);
 		return -EAGAIN;
 	}
@@ -139,7 +139,7 @@ static int cnic_arp_send(nic_t *nic, nic_interface_t *nic_iface, int fd,
 					      nic_iface->vlan_id);
 
 	memcpy(&addr.s_addr, &dst_ip, sizeof(addr.s_addr));
-	LOG_DEBUG(PFX "%s: Sent cnic arp request for IP: %s",
+	ILOG_DEBUG(PFX "%s: Sent cnic arp request for IP: %s",
 		  nic->log_name, addr_str);
 	pthread_mutex_unlock(&nic->xmit_mutex);
 
@@ -160,14 +160,14 @@ static int cnic_neigh_soliciation_send(nic_t *nic,
 
 	rc = pthread_mutex_trylock(&nic->xmit_mutex);
 	if (rc != 0) {
-		LOG_WARN(PFX "%s: could not get xmit_mutex", nic->log_name);
+		ILOG_WARN(PFX "%s: could not get xmit_mutex", nic->log_name);
 		return -EAGAIN;
 	}
 
 	/*  Build the ethernet header */
 	eth = (*nic->ops->get_tx_pkt) (nic);
 	if (eth == NULL) {
-		LOG_WARN(PFX "%s: couldn't get tx packet", nic->log_name);
+		ILOG_WARN(PFX "%s: couldn't get tx packet", nic->log_name);
 		return -EAGAIN;
 	}
 
@@ -188,13 +188,12 @@ static int cnic_neigh_soliciation_send(nic_t *nic,
 
 	/* Debug to print out the pkt context */
 	inet_ntop(AF_INET6, ipv6_hdr->ip6_dst.s6_addr, buf, sizeof(buf));
-	LOG_DEBUG(PFX "%s: ipv6 dst addr: %s", nic->log_name, buf);
-	LOG_DEBUG(PFX "neighbor sol content "
-		  "dst mac %02x:%02x:%02x:%02x:%02x:%02x",
+	ILOG_DEBUG(PFX "%s: ipv6 dst addr: %s", nic->log_name, buf);
+	ILOG_DEBUG(PFX "neighbor sol content dst mac %02x:%02x:%02x:%02x:%02x:%02x",
 		  eth->ether_dhost[0], eth->ether_dhost[1],
 		  eth->ether_dhost[2], eth->ether_dhost[3],
 		  eth->ether_dhost[4], eth->ether_dhost[5]);
-	LOG_DEBUG(PFX "src mac %02x:%02x:%02x:%02x:%02x:%02x",
+	ILOG_DEBUG(PFX "src mac %02x:%02x:%02x:%02x:%02x:%02x",
 		  eth->ether_shost[0], eth->ether_shost[1],
 		  eth->ether_shost[2], eth->ether_shost[3],
 		  eth->ether_shost[4], eth->ether_shost[5]);
@@ -202,7 +201,7 @@ static int cnic_neigh_soliciation_send(nic_t *nic,
 					      (nic_iface->vlan_priority << 12) |
 					      nic_iface->vlan_id);
 
-	LOG_DEBUG(PFX "%s: Sent cnic ICMPv6 neighbor request %s",
+	ILOG_DEBUG(PFX "%s: Sent cnic ICMPv6 neighbor request %s",
 		  nic->log_name, addr_str);
 
 	pthread_mutex_unlock(&nic->xmit_mutex);
@@ -230,7 +229,7 @@ static int cnic_nl_neigh_rsp(nic_t *nic, int fd,
 
 	ret_buf = calloc(1, NLMSG_SPACE(sizeof(struct iscsi_uevent) + 256));
 	if (ret_buf == NULL) {
-		LOG_ERR(PFX "Could not allocate memory for path req resposne");
+		ILOG_ERR(PFX "Could not allocate memory for path req resposne");
 		return -ENOMEM;
 	}
 
@@ -262,7 +261,7 @@ static int cnic_nl_neigh_rsp(nic_t *nic, int fd,
 		if (ndpc_request(&nic_iface->ustack, &path_req->dst.v6_addr,
 				 &ret, CHECK_LINK_LOCAL_ADDR)) {
 			src_ipv6 = (u8_t *)all_zeroes_addr6;
-			LOG_DEBUG(PFX "RSP Check LL failed");
+			ILOG_DEBUG(PFX "RSP Check LL failed");
 			goto src_done;
 		}
 		if (ret) {
@@ -273,11 +272,11 @@ static int cnic_nl_neigh_rsp(nic_t *nic, int fd,
 					 &path_req->dst.v6_addr,
 					 &src_ipv6, GET_HOST_ADDR)) {
 				src_ipv6 = (u8_t *)all_zeroes_addr6;
-				LOG_DEBUG(PFX "RSP Get host addr failed");
+				ILOG_DEBUG(PFX "RSP Get host addr failed");
 			}
 			if (src_ipv6 == NULL) {
 				src_ipv6 = (u8_t *)all_zeroes_addr6;
-				LOG_DEBUG(PFX "RSP no Best matched addr found");
+				ILOG_DEBUG(PFX "RSP no Best matched addr found");
 			}
 		}
 src_done:
@@ -295,15 +294,15 @@ src_done:
 
 	rc = __kipc_call(fd, ret_ev, sizeof(*ret_ev) + sizeof(*path_rsp));
 	if (rc > 0) {
-		LOG_DEBUG(PFX "neighbor reply sent back to kernel "
-			  "%s at %02x:%02x:%02x:%02x:%02x:%02x with vlan %d",
-			  addr_dst_str,
-			  mac_addr[0], mac_addr[1],
-			  mac_addr[2], mac_addr[3], mac_addr[4], mac_addr[5],
-			  nic_iface->vlan_id);
+		ILOG_DEBUG(
+		    PFX "neighbor reply sent back to kernel %s at %02x:%02x:%02x:%02x:%02x:%02x with vlan %d",
+		    addr_dst_str,
+		    mac_addr[0], mac_addr[1],
+		    mac_addr[2], mac_addr[3], mac_addr[4], mac_addr[5],
+		    nic_iface->vlan_id);
 
 	} else {
-		LOG_ERR(PFX "send neighbor reply failed: %d", rc);
+		ILOG_ERR(PFX "send neighbor reply failed: %d", rc);
 	}
 
 	free(ret_buf);
@@ -350,9 +349,9 @@ int cnic_handle_ipv4_iscsi_path_req(nic_t *nic, int fd,
 	src_matching_addr.s_addr = src_addr.s_addr & netmask.s_addr;
 	dst_matching_addr.s_addr = dst_addr.s_addr & netmask.s_addr;
 
-	LOG_DEBUG(PFX "%s: src=%s", nic->log_name, inet_ntoa(src_addr));
-	LOG_DEBUG(PFX "%s: dst=%s", nic->log_name, inet_ntoa(dst_addr));
-	LOG_DEBUG(PFX "%s: nm=%s", nic->log_name, inet_ntoa(netmask));
+	ILOG_DEBUG(PFX "%s: src=%s", nic->log_name, inet_ntoa(src_addr));
+	ILOG_DEBUG(PFX "%s: dst=%s", nic->log_name, inet_ntoa(dst_addr));
+	ILOG_DEBUG(PFX "%s: nm=%s", nic->log_name, inet_ntoa(netmask));
 	if (src_matching_addr.s_addr != dst_matching_addr.s_addr) {
 		/*  If there is an assigned gateway address then use it
 		 *  if the source address doesn't match */
@@ -362,7 +361,7 @@ int cnic_handle_ipv4_iscsi_path_req(nic_t *nic, int fd,
 			       &nic_iface->ustack.default_route_addr,
 			       sizeof(dst_addr));
 		} else {
-			LOG_DEBUG(PFX "%s: no default route address",
+			ILOG_DEBUG(PFX "%s: no default route address",
 				  nic->log_name);
 		}
 	}
@@ -379,7 +378,7 @@ int cnic_handle_ipv4_iscsi_path_req(nic_t *nic, int fd,
 
 			dst_addr_str = inet_ntoa(dst_addr);
 
-			LOG_INFO(PFX "%s: Didn't find IPv4: '%s' in ARP table",
+			ILOG_INFO(PFX "%s: Didn't find IPv4: '%s' in ARP table",
 				 nic->log_name, dst_addr_str);
 			rc = cnic_arp_send(nic, nic_iface, fd,
 					   mac_addr,
@@ -478,25 +477,25 @@ int cnic_handle_ipv6_iscsi_path_req(nic_t *nic, int fd,
 	if (ndpc_request(&nic_iface->ustack, &dst_addr,
 			 &rc, CHECK_LINK_LOCAL_ADDR)) {
 		neighbor_retry = MAX_ARP_RETRY;
-		LOG_DEBUG(PFX "Check LL failed");
+		ILOG_DEBUG(PFX "Check LL failed");
 		goto done;
 	}
 	if (rc) {
-		LOG_DEBUG(PFX "Use LL");
+		ILOG_DEBUG(PFX "Use LL");
 		/* Get link local IPv6 address */
 		addr = (struct in6_addr *)&nic_iface->ustack.linklocal6;
 	} else {
-		LOG_DEBUG(PFX "Use Best matched");
+		ILOG_DEBUG(PFX "Use Best matched");
 		if (ndpc_request(&nic_iface->ustack,
 				 &dst_addr,
 				 &addr, GET_HOST_ADDR)) {
 			neighbor_retry = MAX_ARP_RETRY;
-			LOG_DEBUG(PFX "Use Best matched failed");
+			ILOG_DEBUG(PFX "Use Best matched failed");
 			goto done;
 		}
 		if (addr == NULL) {
 			neighbor_retry = MAX_ARP_RETRY;
-			LOG_DEBUG(PFX "No Best matched found");
+			ILOG_DEBUG(PFX "No Best matched found");
 			goto done;
 		}
 	}
@@ -515,13 +514,13 @@ int cnic_handle_ipv6_iscsi_path_req(nic_t *nic, int fd,
 
 	inet_ntop(AF_INET6, &src_addr.s6_addr16, addr_dst_str,
 		  sizeof(addr_dst_str));
-	LOG_DEBUG(PFX "src IP addr %s", addr_dst_str);
+	ILOG_DEBUG(PFX "src IP addr %s", addr_dst_str);
 	inet_ntop(AF_INET6, &dst_addr.s6_addr16, addr_dst_str,
 		  sizeof(addr_dst_str));
-	LOG_DEBUG(PFX "dst IP addr %s", addr_dst_str);
+	ILOG_DEBUG(PFX "dst IP addr %s", addr_dst_str);
 	inet_ntop(AF_INET6, &netmask.s6_addr16, addr_dst_str,
 		  sizeof(addr_dst_str));
-	LOG_DEBUG(PFX "prefix mask %s", addr_dst_str);
+	ILOG_DEBUG(PFX "prefix mask %s", addr_dst_str);
 
 	for (i = 0; i < 4; i++) {
 		src_matching_addr.s6_addr32[i] = src_addr.s6_addr32[i] &
@@ -538,7 +537,7 @@ int cnic_handle_ipv6_iscsi_path_req(nic_t *nic, int fd,
 				       sizeof(dst_addr));
 				inet_ntop(AF_INET6, &dst_addr.s6_addr16,
 					  addr_dst_str, sizeof(addr_dst_str));
-				LOG_DEBUG(PFX "Use default router IP addr %s",
+				ILOG_DEBUG(PFX "Use default router IP addr %s",
 					  addr_dst_str);
 				break;
 			} else {
@@ -561,9 +560,8 @@ int cnic_handle_ipv6_iscsi_path_req(nic_t *nic, int fd,
 	if (!rc) {
 		inet_ntop(AF_INET6, &dst_addr.s6_addr16,
 			  addr_dst_str, sizeof(addr_dst_str));
-		LOG_DEBUG(PFX
-			  "%s: Preparing to send IPv6 neighbor solicitation "
-			  "to dst: '%s'", nic->log_name, addr_dst_str);
+		ILOG_DEBUG(PFX "%s: Preparing to send IPv6 neighbor solicitation to dst: '%s'",
+			   nic->log_name, addr_dst_str);
 		while ((neighbor_retry < MAX_ARP_RETRY)
 		       && (event_loop_stop == 0)) {
 			int count;
@@ -571,7 +569,7 @@ int cnic_handle_ipv6_iscsi_path_req(nic_t *nic, int fd,
 			struct timeval tp;
 			struct timeval tp_abs;
 
-			LOG_INFO(PFX "%s: Didn't find IPv6: '%s'\n",
+			ILOG_INFO(PFX "%s: Didn't find IPv6: '%s'",
 				 nic->log_name, addr_dst_str);
 
 			rc = cnic_neigh_soliciation_send(nic, nic_iface, fd,
@@ -652,9 +650,9 @@ int cnic_handle_iscsi_path_req(nic_t *nic, int fd, struct iscsi_uevent *ev,
 			       nic_interface_t *nic_iface)
 {
 
-	LOG_DEBUG(PFX "%s: Netlink message with VLAN ID: %d, path MTU: %d "
-		  "minor: %d ip_addr_len: %d",
-		  nic->log_name, path->vlan_id, path->pmtu, 0 /* TODO FIX */ ,
+	ILOG_DEBUG(PFX "%s: Netlink message with VLAN ID: %d, path MTU: %d minor: %d ip_addr_len: %d",
+		  nic->log_name, path->vlan_id, path->pmtu,
+		  0 /* TODO FIX (fix 'minor') */ ,
 		  path->ip_addr_len);
 
 	if (path->ip_addr_len == 4)
@@ -664,7 +662,7 @@ int cnic_handle_iscsi_path_req(nic_t *nic, int fd, struct iscsi_uevent *ev,
 		return cnic_handle_ipv6_iscsi_path_req(nic, fd, ev, path,
 						       nic_iface);
 	else {
-		LOG_DEBUG(PFX "%s: unknown ip_addr_len: %d size dropping ",
+		ILOG_DEBUG(PFX "%s: unknown ip_addr_len: %d size dropping ",
 			  nic->log_name, path->ip_addr_len);
 		return -EIO;
 	}

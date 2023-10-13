@@ -41,6 +41,7 @@
 #include <time.h>
 #include <stdarg.h>
 #include <stdlib.h>
+#include <syslog.h>
 
 #include "options.h"
 #include "logger.h"
@@ -48,71 +49,35 @@
 /******************************************************************************
  * Default logger values
  ******************************************************************************/
-static const char default_logger_filename[] = "/var/log/iscsiuio.log";
-
 struct logger main_log = {
-	.enabled = LOGGER_ENABLED,
-	.fp = NULL,
-	.log_file = (char *)default_logger_filename,
 	.level = LOG_LEVEL_INFO,
-	.lock = PTHREAD_MUTEX_INITIALIZER,
-
-	.stats = {
-		  .debug = 0,
-		  .info = 0,
-		  .warn = 0,
-		  .error = 0,
-
-		  .last_log_time = 0,
-		  },
 };
+static bool using_syslog = false;
 
 /******************************************************************************
  * Logger Functions
  ******************************************************************************/
 /**
  *  log_uip() - Main logging function
- *  @param level_str - log level string
- *  @param fmt - log format
+ *  @param log_prio - log priority level
+ *  @param fmt - log format (followed by args, if any)
  */
-void log_uip(char *level_str, char *fmt, ...)
+void log_uip(int log_prio, char *fmt, ...)
 {
-	char time_buf[32];
-	va_list ap, ap2;
+	va_list ap;
 
-	pthread_mutex_lock(&main_log.lock);
 	va_start(ap, fmt);
+	if (using_syslog)
+		vsyslog(log_prio, fmt, ap);
+	else {
+		FILE *dest = stdout;
 
-	if (main_log.fp == NULL)
-		goto end;
-
-	main_log.stats.last_log_time = time(NULL);
-	strftime(time_buf, 26, "%a %b %d %T %Y",
-		 localtime(&main_log.stats.last_log_time));
-	va_copy(ap2, ap);
-
-	if (main_log.enabled == LOGGER_ENABLED) {
-		fprintf(main_log.fp, "%s [%s]", level_str, time_buf);
-		vfprintf(main_log.fp, fmt, ap);
-		fprintf(main_log.fp, "\n");
+		if (log_prio == LOG_ERR)
+			dest = stderr;
+		vfprintf(dest, fmt, ap);
+		fprintf(dest, "\n");
 	}
-
-	if (opt.debug == DEBUG_ON) {
-		fprintf(stdout, "%s [%s]", level_str, time_buf);
-		vfprintf(stdout, fmt, ap2);
-		fprintf(stdout, "\n");
-
-		/* Force the printing of the log file */
-		fflush(main_log.fp);
-
-		/* Force the printing of the log out to standard output */
-		fflush(stdout);
-	}
-
-end:
-	va_end(ap2);
 	va_end(ap);
-	pthread_mutex_unlock(&main_log.lock);
 }
 
 /******************************************************************************
@@ -120,62 +85,25 @@ end:
  ******************************************************************************/
 /**
  *  init_logger() - Prepare the logger
- *  @param filename - path to where the log will be written to
- *  @return 0 on success, <0 on failure
+ *  @param foreground_mode - whether we are running in fg or bg
  */
-int init_logger(char *filename)
+void init_logger(bool foreground_mode)
 {
-	int rc = 0;
-
-	pthread_mutex_lock(&main_log.lock);
-
-	if (opt.debug != DEBUG_ON) {
-		rc = -EIO;
-		goto disable;
+	if (!foreground_mode) {
+		using_syslog = true;
+		openlog(APP_NAME, 0, LOG_DAEMON);
+		setlogmask(LOG_UPTO(LOG_DEBUG));
 	}
-	main_log.fp = fopen(filename, "a");
-	if (main_log.fp == NULL) {
-		fprintf(stderr, "WARN: Could not create log file: %s <%s>\n",
-		       filename, strerror(errno));
-		rc = -EIO;
-	}
-disable:
-	if (rc)
-		main_log.enabled = LOGGER_DISABLED;
-	else
-		main_log.enabled = LOGGER_ENABLED;
-
-	pthread_mutex_unlock(&main_log.lock);
-
-	if (!rc)
-		LOG_INFO("Initialize logger using log file: %s", filename);
-
-	return rc;
 }
 
-void fini_logger(int type)
+/**
+ *  fini_logger() - stop using the logger
+ */
+void fini_logger(void)
 {
-	pthread_mutex_lock(&main_log.lock);
-
-	if (main_log.fp != NULL) {
-		fclose(main_log.fp);
-		main_log.fp = NULL;
-
-		if (opt.debug == DEBUG_ON) {
-			printf("Closed logger\n");
-			fflush(stdout);
-		}
-	}
-
-	if (type == SHUTDOWN_LOGGER) {
-		if ((main_log.log_file != NULL) &&
-		    (main_log.log_file != default_logger_filename)) {
-			free(main_log.log_file);
-			main_log.log_file = NULL;
-		}
-	}
-
-	main_log.enabled = LOGGER_DISABLED;
-
-	pthread_mutex_unlock(&main_log.lock);
+	if (using_syslog) {
+		syslog(LOG_DEBUG, "Closing logger");
+		closelog();
+	} else
+		fprintf(stderr, "Closing logger\n");
 }

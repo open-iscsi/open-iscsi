@@ -44,6 +44,8 @@
 #include <time.h>
 #include <stdint.h>
 #include <sys/types.h>
+#include <syslog.h>
+#include <stdbool.h>
 
 /*******************************************************************************
  * Logger Levels
@@ -65,65 +67,45 @@
 /*******************************************************************************
  * Logging Macro's
  ******************************************************************************/
-#define LOG_PACKET(fmt, args...) { if (LOG_LEVEL_PACKET <= \
+#define ILOG_PACKET(fmt, args...) { if (LOG_LEVEL_PACKET <= \
 				       main_log.level) { \
-					log_uip(LOG_LEVEL_PACKET_STR, fmt,\
+					log_uip(LOG_INFO,\
+						LOG_LEVEL_PACKET_STR fmt,\
 						##args);\
 				} }
-#define LOG_DEBUG(fmt, args...) { if (LOG_LEVEL_DEBUG <= main_log.level) { \
-					log_uip(LOG_LEVEL_DEBUG_STR, fmt,\
+#define ILOG_DEBUG(fmt, args...) { if (LOG_LEVEL_DEBUG <= main_log.level) { \
+					log_uip(LOG_DEBUG,\
+						LOG_LEVEL_DEBUG_STR fmt,\
 						##args);\
 				} }
 
-#define LOG_INFO(fmt, args...)  { if (LOG_LEVEL_INFO <= main_log.level) { \
-					log_uip(LOG_LEVEL_INFO_STR, fmt,\
+#define ILOG_INFO(fmt, args...)  { if (LOG_LEVEL_INFO <= main_log.level) { \
+					log_uip(LOG_INFO,\
+						LOG_LEVEL_INFO_STR fmt,\
 						##args); \
 				} }
-#define LOG_WARN(fmt, args...)  { if (LOG_LEVEL_WARN <= main_log.level) { \
-					log_uip(LOG_LEVEL_WARN_STR, fmt,\
+#define ILOG_WARN(fmt, args...)  { if (LOG_LEVEL_WARN <= main_log.level) { \
+					log_uip(LOG_NOTICE,\
+						LOG_LEVEL_WARN_STR fmt,\
 						##args); \
 				} }
-#define LOG_ERR(fmt, args...)   { if (LOG_LEVEL_ERR <= main_log.level) { \
-					log_uip(LOG_LEVEL_ERR_STR, fmt,\
+#define ILOG_ERR(fmt, args...)   { if (LOG_LEVEL_ERR <= main_log.level) { \
+					log_uip(LOG_ERR,\
+						LOG_LEVEL_ERR_STR fmt,\
 						##args); \
 				} }
-
-/*******************************************************************************
- * Logging Statistics
- ******************************************************************************/
-struct logger_stats {
-	uint64_t debug;
-	uint64_t info;
-	uint64_t warn;
-	uint64_t error;
-
-	time_t last_log_time;
-};
 
 /*******************************************************************************
  * Logger Structure
  ******************************************************************************/
 struct logger {
-	FILE *fp;
-	char *log_file;
 	int8_t level;
-
-#define LOGGER_ENABLED	0x01
-#define LOGGER_DISABLED	0x02
-	int8_t enabled;
-
-	pthread_mutex_t lock;
-
-	struct logger_stats stats;
 };
 
 extern struct logger main_log;
 
-int init_logger(char *);
-void log_uip(char *level_str, char *fmt, ...);
-void fini_logger(int);
-
-#define CLOSE_LOGGER    0x01
-#define SHUTDOWN_LOGGER 0x02
+void init_logger(bool foreground_mode);
+void log_uip(int log_prio, char *fmt, ...);
+void fini_logger(void);
 
 #endif

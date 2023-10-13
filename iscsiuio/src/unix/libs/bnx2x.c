@@ -376,8 +376,8 @@ static int bnx2x_get_drv_version(bnx2x_t *bp)
 	/* Open control socket. */
 	fd = socket(AF_INET, SOCK_DGRAM, 0);
 	if (fd < 0) {
-		LOG_ERR(PFX "%s: Cannot get socket to determine version "
-			"[0x%x %s]", nic->log_name, errno, strerror(errno));
+		ILOG_ERR(PFX "%s: Cannot get socket to determine version [0x%x %s]",
+			 nic->log_name, errno, strerror(errno));
 		return -EIO;
 	}
 
@@ -386,7 +386,7 @@ static int bnx2x_get_drv_version(bnx2x_t *bp)
 	ifr.ifr_data = (caddr_t) &drvinfo;
 	rc = ioctl(fd, SIOCETHTOOL, &ifr);
 	if (rc < 0) {
-		LOG_ERR(PFX "%s: call to ethool IOCTL failed [0x%x %s]",
+		ILOG_ERR(PFX "%s: call to ethool IOCTL failed [0x%x %s]",
 			nic->log_name, errno, strerror(errno));
 		goto error;
 	}
@@ -412,7 +412,7 @@ static int bnx2x_get_drv_version(bnx2x_t *bp)
 	}
 	bp->version.sub_minor = atoi(tok);
 
-	LOG_INFO(PFX "%s: interface version %d.%d.%d", nic->log_name,
+	ILOG_INFO(PFX "%s: interface version %d.%d.%d", nic->log_name,
 		 bp->version.major, bp->version.minor, bp->version.sub_minor);
 
 	close(fd);
@@ -423,7 +423,7 @@ error:
 	close(fd);
 	bnx2x_set_drv_version_unknown(bp);
 
-	LOG_ERR(PFX "%s: error parsing driver string: '%s'",
+	ILOG_ERR(PFX "%s: error parsing driver string: '%s'",
 		nic->log_name, drvinfo.version);
 
 	return rc;
@@ -550,15 +550,14 @@ static int bnx2x_uio_verify(nic_t *nic)
 
 	if (strncmp(raw, bnx2x_uio_sysfs_name,
 		    sizeof(bnx2x_uio_sysfs_name)) != 0) {
-		LOG_ERR(PFX "%s: uio names not equal: "
-			"expecting %s got %s from %s",
+		ILOG_ERR(PFX "%s: uio names not equal: expecting %s got %s from %s",
 			nic->log_name, bnx2x_uio_sysfs_name, raw, temp_path);
 		rc = -EIO;
 	}
 
 	free(raw);
 
-	LOG_INFO(PFX "%s: Verified is a cnic_uio device", nic->log_name);
+	ILOG_INFO(PFX "%s: Verified is a cnic_uio device", nic->log_name);
 
 error:
 	return rc;
@@ -657,7 +656,7 @@ static bnx2x_t *bnx2x_alloc(nic_t *nic)
 	bnx2x_t *bp = malloc(sizeof(*bp));
 
 	if (bp == NULL) {
-		LOG_ERR(PFX "%s: Could not allocate BNX2X space",
+		ILOG_ERR(PFX "%s: Could not allocate BNX2X space",
 			nic->log_name);
 		return NULL;
 	}
@@ -699,7 +698,7 @@ static int bnx2x_open(nic_t *nic)
 
 	/*  Sanity Check: validate the parameters */
 	if (nic == NULL) {
-		LOG_ERR(PFX "nic == NULL");
+		ILOG_ERR(PFX "nic == NULL");
 		return -EINVAL;
 	}
 
@@ -720,7 +719,7 @@ static int bnx2x_open(nic_t *nic)
 		else if (!(bnx2x_is_ver60_plus(bp) || bnx2x_is_ver52(bp)))
 			bnx2x_set_drv_version_default(bp);
 
-		LOG_INFO(PFX "%s: bnx2x Use baseline version %d.%d.%d",
+		ILOG_INFO(PFX "%s: bnx2x Use baseline version %d.%d.%d",
 			 nic->log_name,
 			 bp->version.major, bp->version.minor,
 			 bp->version.sub_minor);
@@ -740,8 +739,7 @@ static int bnx2x_open(nic_t *nic)
 
 		nic->fd = open(nic->uio_device_name, O_RDWR | O_NONBLOCK);
 		if (nic->fd != INVALID_FD) {
-			LOG_ERR(PFX "%s: uio device has been brought up "
-				"via pid: %d on fd: %d",
+			ILOG_ERR(PFX "%s: uio device has been brought up via pid: %d on fd: %d",
 				nic->uio_device_name, getpid(), nic->fd);
 
 			rc = bnx2x_uio_verify(nic);
@@ -750,7 +748,7 @@ static int bnx2x_open(nic_t *nic)
 
 			break;
 		} else {
-			LOG_WARN(PFX "%s: Could not open device: %s, [%s]",
+			ILOG_WARN(PFX "%s: Could not open device: %s, [%s]",
 				 nic->log_name, nic->uio_device_name,
 				 strerror(errno));
 
@@ -765,14 +763,14 @@ static int bnx2x_open(nic_t *nic)
 		}
 	}
 	if (nic->fd == INVALID_FD) {
-		LOG_ERR(PFX "%s: Could not open device: %s, [%s]",
+		ILOG_ERR(PFX "%s: Could not open device: %s, [%s]",
 			nic->log_name, nic->uio_device_name,
 			strerror(errno));
 		rc = errno;
 		goto open_error;
 	}
 	if (fstat(nic->fd, &uio_stat) < 0) {
-		LOG_ERR(PFX "%s: Could not fstat device", nic->log_name);
+		ILOG_ERR(PFX "%s: Could not fstat device", nic->log_name);
 		rc = -ENODEV;
 		goto open_error;
 	}
@@ -781,7 +779,7 @@ static int bnx2x_open(nic_t *nic)
 	cnic_get_sysfs_pci_resource_path(nic, 0, sysfs_resc_path, 80);
 	bp->bar0_fd = open(sysfs_resc_path, O_RDWR | O_SYNC);
 	if (bp->bar0_fd < 0) {
-		LOG_ERR(PFX "%s: Could not open %s", nic->log_name,
+		ILOG_ERR(PFX "%s: Could not open %s", nic->log_name,
 			sysfs_resc_path);
 		rc = -ENODEV;
 		goto open_error;
@@ -791,7 +789,7 @@ static int bnx2x_open(nic_t *nic)
 			MAP_SHARED, bp->bar0_fd, (off_t) 0);
 
 	if (bp->reg == MAP_FAILED) {
-		LOG_INFO(PFX "%s: Couldn't mmap BAR registers: %s",
+		ILOG_INFO(PFX "%s: Couldn't mmap BAR registers: %s",
 			 nic->log_name, strerror(errno));
 		bp->reg = NULL;
 		rc = errno;
@@ -803,7 +801,7 @@ static int bnx2x_open(nic_t *nic)
 	cnic_get_sysfs_pci_resource_path(nic, 2, sysfs_resc_path, 80);
 	bp->bar2_fd = open(sysfs_resc_path, O_RDWR | O_SYNC);
 	if (bp->bar2_fd < 0) {
-		LOG_ERR(PFX "%s: Could not open %s", nic->log_name,
+		ILOG_ERR(PFX "%s: Could not open %s", nic->log_name,
 			sysfs_resc_path);
 		rc = -ENODEV;
 		goto open_error;
@@ -813,7 +811,7 @@ static int bnx2x_open(nic_t *nic)
 			MAP_SHARED, bp->bar2_fd, (off_t) 0);
 
 	if (bp->reg2 == MAP_FAILED) {
-		LOG_INFO(PFX "%s: Couldn't mmap BAR2 registers: %s",
+		ILOG_INFO(PFX "%s: Couldn't mmap BAR2 registers: %s",
 			 nic->log_name, strerror(errno));
 		bp->reg2 = NULL;
 		rc = errno;
@@ -824,20 +822,20 @@ static int bnx2x_open(nic_t *nic)
 	bp->rx_ring_size = 15;
 	bp->rx_buffer_size = 0x400;
 
-	LOG_DEBUG(PFX "%s: using rx ring size: %d, rx buffer size: %d",
+	ILOG_DEBUG(PFX "%s: using rx ring size: %d, rx buffer size: %d",
 		  nic->log_name, bp->rx_ring_size, bp->rx_buffer_size);
 
 	/*  Determine the number of UIO events that have already occured */
 	rc = detemine_initial_uio_events(nic, &nic->intr_count);
 	if (rc != 0) {
-		LOG_ERR("Could not determine the number ofinitial UIO events");
+		ILOG_ERR("Could not determine the number ofinitial UIO events");
 		nic->intr_count = 0;
 	}
 
 	/*  Allocate space for rx pkt ring */
 	bp->rx_pkt_ring = malloc(sizeof(void *) * bp->rx_ring_size);
 	if (bp->rx_pkt_ring == NULL) {
-		LOG_ERR(PFX "%s: Could not allocate space for rx_pkt_ring",
+		ILOG_ERR(PFX "%s: Could not allocate space for rx_pkt_ring",
 			nic->log_name);
 		rc = errno;
 		goto open_error;
@@ -848,7 +846,7 @@ static int bnx2x_open(nic_t *nic)
 	else if (bnx2x_is_ver52(bp))
 		bp->status_blk_size = sizeof(struct host_def_status_block);
 	else {
-		LOG_INFO(PFX "%s: Unsupported bnx2x driver [%d.%d]",
+		ILOG_INFO(PFX "%s: Unsupported bnx2x driver [%d.%d]",
 			 nic->log_name, bp->version.major, bp->version.minor);
 
 		rc = -ENOTSUP;
@@ -859,7 +857,7 @@ static int bnx2x_open(nic_t *nic)
 				  PROT_READ | PROT_WRITE, MAP_SHARED,
 				  nic->fd, (off_t) nic->page_size);
 	if (bp->status_blk.def == MAP_FAILED) {
-		LOG_INFO(PFX "%s: Could not mmap status block: %s",
+		ILOG_INFO(PFX "%s: Could not mmap status block: %s",
 			 nic->log_name, strerror(errno));
 		bp->status_blk.def = NULL;
 		rc = errno;
@@ -871,7 +869,7 @@ static int bnx2x_open(nic_t *nic)
 			   MAP_SHARED | MAP_LOCKED,
 			   nic->fd, (off_t) 2 * nic->page_size);
 	if (bp->tx_ring == MAP_FAILED) {
-		LOG_INFO(PFX "%s: Could not mmap tx ring: %s",
+		ILOG_INFO(PFX "%s: Could not mmap tx ring: %s",
 			 nic->log_name, strerror(errno));
 		bp->tx_ring = NULL;
 		rc = errno;
@@ -886,7 +884,7 @@ static int bnx2x_open(nic_t *nic)
 			MAP_SHARED | MAP_LOCKED,
 			nic->fd, (off_t) 3 * nic->page_size);
 	if (bp->bufs == MAP_FAILED) {
-		LOG_INFO(PFX "%s: Could not mmap buffers: %s",
+		ILOG_INFO(PFX "%s: Could not mmap buffers: %s",
 			 nic->log_name, strerror(errno));
 		bp->bufs = NULL;
 		rc = errno;
@@ -894,11 +892,11 @@ static int bnx2x_open(nic_t *nic)
 	}
 
 	bp->chip_id = bnx2x_get_chip_id(bp);
-	LOG_DEBUG(PFX "Chip ID: %x", bp->chip_id);
+	ILOG_DEBUG(PFX "Chip ID: %x", bp->chip_id);
 
 	rc = get_bus_slot_func_num(nic, &bus, &slot, &func);
 	if (rc != 0) {
-		LOG_INFO(PFX "%s: Couldn't determine bus:slot.func",
+		ILOG_INFO(PFX "%s: Couldn't determine bus:slot.func",
 			 nic->log_name);
 		goto open_error;
 	}
@@ -944,12 +942,12 @@ static int bnx2x_open(nic_t *nic)
 		if (bp->version.minor >= 78 && bp->version.sub_minor >= 55 &&
 		    data->uid.cid_override_key == UIO_USE_TX_DOORBELL) {
 			bp->tx_doorbell = data->uid.tx_db_off;
-			LOG_INFO(PFX "%s: tx doorbell override offset = 0x%x",
+			ILOG_INFO(PFX "%s: tx doorbell override offset = 0x%x",
 				 nic->log_name, bp->tx_doorbell);
 		}
 	}
 
-	LOG_INFO(PFX "%s: func 0x%x, pfid 0x%x, client_id 0x%x, cid 0x%x",
+	ILOG_INFO(PFX "%s: func 0x%x, pfid 0x%x, client_id 0x%x, cid 0x%x",
 		 nic->log_name, bp->func, bp->pfid, bp->client_id, bp->cid);
 
 	if (CHIP_IS_E1(bp))
@@ -1042,7 +1040,7 @@ static int bnx2x_open(nic_t *nic)
 		/* shared_feat_cfg.config */
 		mode = bnx2x_rd32(bp, bp->shmem_base + 0x354);
 		mode &= 0x700;
-		LOG_DEBUG(PFX "%s: mode = 0x%x", nic->log_name, mode);
+		ILOG_DEBUG(PFX "%s: mode = 0x%x", nic->log_name, mode);
 		switch (mode) {
 		case 0x300: /* SI mode */
 			mac_offset = 0xe4 + (bp->func * 0x28) + 4;
@@ -1059,8 +1057,7 @@ static int bnx2x_open(nic_t *nic)
 			if (mac[0] != 0xff) {
 				memcpy(nic->mac_addr, mac, 6);
 			} else if (bp->func > 1) {
-				LOG_INFO(PFX "%s:  Invalid mac address: "
-					 "%02x:%02x:%02x:%02x:%02x:%02x, abort",
+				ILOG_INFO(PFX "%s:  Invalid mac address: %02x:%02x:%02x:%02x:%02x:%02x, abort",
 					 nic->log_name,
 					 mac[0], mac[1], mac[2],
 					 mac[3], mac[4], mac[5]);
@@ -1080,8 +1077,7 @@ static int bnx2x_open(nic_t *nic)
 			val &= 0xffff;
 			/* SD mode, check for valid outer VLAN */
 			if (val == 0xffff) {
-				LOG_ERR(PFX "%s: Invalid OV detected for SD, "
-					" fallback to SF mode!\n",
+				ILOG_ERR(PFX "%s: Invalid OV detected for SD, fallback to SF mode!",
 					nic->log_name);
 				goto SF;
 			}
@@ -1105,7 +1101,7 @@ static int bnx2x_open(nic_t *nic)
 		}
 	}
 SF:
-	LOG_INFO(PFX "%s:  Using mac address: %02x:%02x:%02x:%02x:%02x:%02x",
+	ILOG_INFO(PFX "%s:  Using mac address: %02x:%02x:%02x:%02x:%02x:%02x",
 		 nic->log_name,
 		 nic->mac_addr[0], nic->mac_addr[1], nic->mac_addr[2],
 		 nic->mac_addr[3], nic->mac_addr[4], nic->mac_addr[5]);
@@ -1116,7 +1112,7 @@ SF:
 
 	msync(bp->reg, BNX2X_BAR_SIZE, MS_SYNC);
 
-	LOG_INFO("%s: bnx2x initialized", nic->log_name);
+	ILOG_INFO("%s: bnx2x initialized", nic->log_name);
 
 	bnx2x_update_rx_prod(bp);
 	bp->flags |= BNX2X_OPENED;
@@ -1178,10 +1174,10 @@ static int bnx2x_uio_close_resources(nic_t *nic, NIC_SHUTDOWN_T graceful)
 	bnx2x_t *bp = (bnx2x_t *) nic->priv;
 	int rc = 0;
 
-	/*  Check if there is an assoicated bnx2x device */
+	/*  Check if there is an associated bnx2x device */
 	if (bp == NULL) {
-		LOG_WARN(PFX "%s: when closing resources there is "
-			 "no assoicated bnx2x", nic->log_name);
+		ILOG_WARN(PFX "%s: when closing resources there is no associated bnx2x",
+			 nic->log_name);
 		return -EIO;
 	}
 
@@ -1197,14 +1193,14 @@ static int bnx2x_uio_close_resources(nic_t *nic, NIC_SHUTDOWN_T graceful)
 		rc = munmap(bp->bufs,
 			    (bp->rx_ring_size + 1) * bp->rx_buffer_size);
 		if (rc != 0)
-			LOG_WARN(PFX "%s: Couldn't unmap bufs", nic->log_name);
+			ILOG_WARN(PFX "%s: Couldn't unmap bufs", nic->log_name);
 		bp->bufs = NULL;
 	}
 
 	if (bp->tx_ring != NULL) {
 		rc = munmap(bp->tx_ring, 4 * nic->page_size);
 		if (rc != 0)
-			LOG_WARN(PFX "%s: Couldn't unmap tx_rings",
+			ILOG_WARN(PFX "%s: Couldn't unmap tx_rings",
 				 nic->log_name);
 		bp->tx_ring = NULL;
 	}
@@ -1212,7 +1208,7 @@ static int bnx2x_uio_close_resources(nic_t *nic, NIC_SHUTDOWN_T graceful)
 	if (bp->status_blk.def != NULL) {
 		rc = munmap(bp->status_blk.def, bp->status_blk_size);
 		if (rc != 0)
-			LOG_WARN(PFX "%s: Couldn't unmap status block",
+			ILOG_WARN(PFX "%s: Couldn't unmap status block",
 				 nic->log_name);
 		bp->status_blk.def = NULL;
 	}
@@ -1220,14 +1216,14 @@ static int bnx2x_uio_close_resources(nic_t *nic, NIC_SHUTDOWN_T graceful)
 	if (bp->reg != NULL) {
 		rc = munmap(bp->reg, BNX2X_BAR_SIZE);
 		if (rc != 0)
-			LOG_WARN(PFX "%s: Couldn't unmap regs", nic->log_name);
+			ILOG_WARN(PFX "%s: Couldn't unmap regs", nic->log_name);
 		bp->reg = NULL;
 	}
 
 	if (bp->reg2 != NULL) {
 		rc = munmap(bp->reg2, BNX2X_BAR2_SIZE);
 		if (rc != 0)
-			LOG_WARN(PFX "%s: Couldn't unmap regs", nic->log_name);
+			ILOG_WARN(PFX "%s: Couldn't unmap regs", nic->log_name);
 		bp->reg2 = NULL;
 	}
 
@@ -1244,23 +1240,22 @@ static int bnx2x_uio_close_resources(nic_t *nic, NIC_SHUTDOWN_T graceful)
 	if (nic->fd != INVALID_FD) {
 		rc = close(nic->fd);
 		if (rc != 0) {
-			LOG_WARN(PFX
-				 "%s: Couldn't close uio file descriptor: %d",
+			ILOG_WARN(PFX "%s: Couldn't close uio file descriptor: %d",
 				 nic->log_name, nic->fd);
 		} else {
-			LOG_DEBUG(PFX "%s: Closed uio file descriptor: %d",
+			ILOG_DEBUG(PFX "%s: Closed uio file descriptor: %d",
 				  nic->log_name, nic->fd);
 		}
 
 		nic->fd = INVALID_FD;
 	} else {
-		LOG_WARN(PFX "%s: Invalid uio file descriptor: %d",
+		ILOG_WARN(PFX "%s: Invalid uio file descriptor: %d",
 			 nic->log_name, nic->fd);
 	}
 
 	bnx2x_set_drv_version_unknown(bp);
 
-	LOG_INFO(PFX "%s: Closed all resources", nic->log_name);
+	ILOG_INFO(PFX "%s: Closed all resources", nic->log_name);
 
 	return 0;
 }
@@ -1275,15 +1270,15 @@ static int bnx2x_close(nic_t *nic, NIC_SHUTDOWN_T graceful)
 {
 	/*  Sanity Check: validate the parameters */
 	if (nic == NULL) {
-		LOG_ERR(PFX "bnx2x_close(): nic == NULL");
+		ILOG_ERR(PFX "bnx2x_close(): nic == NULL");
 		return -EINVAL;
 	}
 	if (nic->priv == NULL) {
-		LOG_ERR(PFX "bnx2x_close(): nic->priv == NULL");
+		ILOG_ERR(PFX "bnx2x_close(): nic->priv == NULL");
 		return -EINVAL;
 	}
 
-	LOG_INFO(PFX "Closing NIC device: %s", nic->log_name);
+	ILOG_INFO(PFX "Closing NIC device: %s", nic->log_name);
 
 	bnx2x_uio_close_resources(nic, graceful);
 	bnx2x_free(nic);
@@ -1339,7 +1334,7 @@ void bnx2x_start_xmit(nic_t *nic, size_t len, u16_t vlan_id)
 	rx_bd = (struct eth_rx_bd *)(((__u8 *) bp->tx_ring) + nic->page_size);
 
 	if ((rx_bd->addr_hi == 0) && (rx_bd->addr_lo == 0)) {
-		LOG_PACKET(PFX "%s: trying to transmit when device is closed",
+		ILOG_PACKET(PFX "%s: trying to transmit when device is closed",
 			   nic->log_name);
 		return;
 	}
@@ -1367,10 +1362,10 @@ void bnx2x_start_xmit(nic_t *nic, size_t len, u16_t vlan_id)
 			       (bp->tx_bd_prod << 16));
 		bnx2x_flush_doorbell(bp, bp->tx_doorbell);
 	} else {
-		LOG_ERR(PFX "Pkt transmission failed.");
+		ILOG_ERR(PFX "Pkt transmission failed.");
 	}
 
-	LOG_PACKET(PFX "%s: sent %d bytes using bp->tx_prod: %d",
+	ILOG_PACKET(PFX "%s: sent %d bytes using bp->tx_prod: %d",
 		   nic->log_name, len, bp->tx_prod);
 }
 
@@ -1388,16 +1383,15 @@ int bnx2x_write(nic_t *nic, nic_interface_t *nic_iface, packet_t *pkt)
 
 	/* Sanity Check: validate the parameters */
 	if (nic == NULL || nic_iface == NULL || pkt == NULL) {
-		LOG_ERR(PFX "%s: bnx2x_write() nic == 0x%p || "
-			" nic_iface == 0x%p || "
-			" pkt == 0x%x", nic, nic_iface, pkt);
+		ILOG_ERR(PFX "%s: bnx2x_write() nic == 0x%p || nic_iface == 0x%p || pkt == 0x%x",
+			 nic, nic_iface, pkt);
 		return -EINVAL;
 	}
 	bp = (bnx2x_t *) nic->priv;
 	uip = &nic_iface->ustack;
 
 	if (pkt->buf_size == 0) {
-		LOG_ERR(PFX "%s: Trying to transmitted 0 sized packet",
+		ILOG_ERR(PFX "%s: Trying to transmitted 0 sized packet",
 			nic->log_name);
 		return -EINVAL;
 	}
@@ -1414,7 +1408,7 @@ int bnx2x_write(nic_t *nic, nic_interface_t *nic_iface, packet_t *pkt)
 	}
 
 	if (pthread_mutex_trylock(&nic->xmit_mutex) != 0) {
-		LOG_PACKET(PFX "%s: Dropped previous transmitted packet",
+		ILOG_PACKET(PFX "%s: Dropped previous transmitted packet",
 			   nic->log_name);
 		return -EINVAL;
 	}
@@ -1428,10 +1422,10 @@ int bnx2x_write(nic_t *nic, nic_interface_t *nic_iface, packet_t *pkt)
 	nic->stats.tx.packets++;
 	nic->stats.tx.bytes += uip->uip_len;
 
-	LOG_PACKET(PFX "%s: transmitted %d bytes "
-		   "dev->tx_cons: %d, dev->tx_prod: %d, dev->tx_bd_prod:%d",
-		   nic->log_name, pkt->buf_size,
-		   bp->tx_cons, bp->tx_prod, bp->tx_bd_prod);
+	ILOG_PACKET(
+	    PFX "%s: transmitted %d bytes dev->tx_cons: %d, dev->tx_prod: %d, dev->tx_bd_prod:%d",
+	    nic->log_name, pkt->buf_size,
+	    bp->tx_cons, bp->tx_prod, bp->tx_bd_prod);
 
 	pthread_mutex_unlock(&nic->xmit_mutex);
 
@@ -1468,8 +1462,8 @@ static int bnx2x_read(nic_t *nic, packet_t *pkt)
 
 	/* Sanity Check: validate the parameters */
 	if (nic == NULL || pkt == NULL) {
-		LOG_ERR(PFX "%s: bnx2x_read() nic == 0x%p || "
-			" pkt == 0x%x", nic, pkt);
+		ILOG_ERR(PFX "%s: bnx2x_read() nic == 0x%p || pkt == 0x%x",
+			 nic, pkt);
 		return -EINVAL;
 	}
 	bp = (bnx2x_t *) nic->priv;
@@ -1498,7 +1492,7 @@ static int bnx2x_read(nic_t *nic, packet_t *pkt)
 		}
 		cqe_fp_flags = cqe->fast_path_cqe.type_error_flags;
 
-		LOG_PACKET(PFX "%s: clearing rx interrupt: %d %d",
+		ILOG_PACKET(PFX "%s: clearing rx interrupt: %d %d",
 			   nic->log_name, sw_cons, hw_cons);
 
 		msync(cqe, cqe_size, MS_SYNC);
@@ -1514,7 +1508,7 @@ static int bnx2x_read(nic_t *nic, packet_t *pkt)
 			max_len = pkt->max_buf_size < bp->rx_buffer_size ?
 				  pkt->max_buf_size : bp->rx_buffer_size;
 			if (len + pad > max_len) {
-				LOG_DEBUG(PFX "%s: bad BD length: %d",
+				ILOG_DEBUG(PFX "%s: bad BD length: %d",
 					  nic->log_name, len);
 				len = max_len - pad;
 			}
@@ -1534,8 +1528,7 @@ static int bnx2x_read(nic_t *nic, packet_t *pkt)
 					pkt->vlan_tag = 0;
 				}
 
-				LOG_PACKET(PFX
-					   "%s: processing packet length: %d",
+				ILOG_PACKET(PFX "%s: processing packet length: %d",
 					   nic->log_name, len);
 
 				/*  bump the cnic dev recv statistics */
@@ -1576,7 +1569,7 @@ static int bnx2x_clear_tx_intr(nic_t *nic)
 
 	/* Sanity check: ensure the parameters passed in are valid */
 	if (unlikely(nic == NULL)) {
-		LOG_ERR(PFX "bnx2x_read() nic == NULL");
+		ILOG_ERR(PFX "bnx2x_read() nic == NULL");
 		return -EINVAL;
 	}
 	bp = (bnx2x_t *) nic->priv;
@@ -1589,11 +1582,11 @@ static int bnx2x_clear_tx_intr(nic_t *nic)
 	}
 
 	if (pthread_mutex_trylock(&nic->xmit_mutex)) {
-		LOG_ERR(PFX "%s: unable to get xmit_mutex.", nic->log_name);
+		ILOG_ERR(PFX "%s: unable to get xmit_mutex.", nic->log_name);
 		return -EINVAL;
 	}
 
-	LOG_PACKET(PFX "%s: clearing tx interrupt [%d %d]",
+	ILOG_PACKET(PFX "%s: clearing tx interrupt [%d %d]",
 		   nic->log_name, bp->tx_cons, hw_cons);
 	bp->tx_cons = hw_cons;
 
@@ -1604,7 +1597,7 @@ static int bnx2x_clear_tx_intr(nic_t *nic)
 		packet_t *pkt;
 		int i;
 
-		LOG_PACKET(PFX "%s: sending queued tx packet", nic->log_name);
+		ILOG_PACKET(PFX "%s: sending queued tx packet", nic->log_name);
 		pkt = nic_dequeue_tx_packet(nic);
 
 		/*  Got a TX packet buffer of the TX queue and put it onto
@@ -1616,11 +1609,10 @@ static int bnx2x_clear_tx_intr(nic_t *nic)
 					 (pkt->nic_iface->vlan_priority << 12) |
 					 pkt->nic_iface->vlan_id);
 
-			LOG_PACKET(PFX "%s: transmitted queued packet %d bytes "
-				   "dev->tx_cons: %d, dev->tx_prod: %d, "
-				   "dev->tx_bd_prod:%d",
-				   nic->log_name, pkt->buf_size,
-				   bp->tx_cons, bp->tx_prod, bp->tx_bd_prod);
+			ILOG_PACKET(
+			    PFX "%s: transmitted queued packet %d bytes dev->tx_cons: %d, dev->tx_prod: %d, dev->tx_bd_prod:%d",
+			    nic->log_name, pkt->buf_size,
+			    bp->tx_cons, bp->tx_prod, bp->tx_bd_prod);
 
 			pthread_mutex_unlock(&nic->xmit_mutex);
 			return 0;
@@ -1634,8 +1626,7 @@ static int bnx2x_clear_tx_intr(nic_t *nic)
 
 			hw_cons = bp->get_tx_cons(bp);
 			if (bp->tx_cons != hw_cons) {
-				LOG_PACKET(PFX
-					   "%s: clearing tx interrupt [%d %d]",
+				ILOG_PACKET(PFX "%s: clearing tx interrupt [%d %d]",
 					   nic->log_name, bp->tx_cons, hw_cons);
 				bp->tx_cons = hw_cons;
 
