@@ -145,6 +145,7 @@ kwritev(int fd, enum iscsi_uevent_e type, struct iovec *iovp, int count)
 	msg.msg_iov = &iov;
 	msg.msg_iovlen = 1;
 
+	event_loop_observer_add();
 	do {
 		rc = sendmsg(fd, &msg, 0);
 		if (rc == -ENOMEM) {
@@ -156,6 +157,7 @@ kwritev(int fd, enum iscsi_uevent_e type, struct iovec *iovp, int count)
 			sleep(1);
 		}
 	} while ((rc < 0) && (event_loop_stop == 0));
+	event_loop_observer_remove();
 
 	return rc;
 }
@@ -477,6 +479,7 @@ void *nl_process_handle_thread(void *arg)
 	if (nic == NULL)
 		goto error;
 
+	event_loop_observer_add();
 	while (!event_loop_stop) {
 		char *data = NULL;
 
@@ -502,6 +505,7 @@ void *nl_process_handle_thread(void *arg)
 			free(data);
 		}
 	}
+	event_loop_observer_remove();
 error:
 	return NULL;
 }
@@ -570,6 +574,7 @@ int nic_nl_open()
 	src_addr.nl_pid = getpid();
 	src_addr.nl_groups = ISCSI_NL_GRP_UIP;
 
+	event_loop_observer_add();
 	while ((!event_loop_stop)) {
 		rc = bind(nl_sock,
 			  (struct sockaddr *)&src_addr, sizeof(src_addr));
@@ -698,5 +703,6 @@ int nic_nl_open()
 	rc = 0;
 
 error:
+	event_loop_observer_remove();
 	return rc;
 }

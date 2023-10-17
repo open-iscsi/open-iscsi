@@ -101,11 +101,42 @@ struct options opt = {
 };
 
 int event_loop_stop;
+/*
+ * The number of threads currently using event_loop_stop for synchronization purposes
+ * Each should lock/increment/unlock before starting is processing loop
+ * As each observes the stop flag being set it should lock/decrement/unlock
+ * This will allow the cleanup routine to not issue cancels to active threads
+ */
+static int event_loop_observers;
+static pthread_mutex_t event_loop_observers_mutex;
+
 extern nic_t *nic_list;
 
 struct utsname cur_utsname;
 
-/**
+/*
+ * event_loop_observer_add() - Increment the number of areas of code currently 
+ * observing event_loop_stop as an exit/shutdown mechanism
+ */
+void event_loop_observer_add(void)
+{
+	pthread_mutex_lock(&event_loop_observers_mutex);
+	event_loop_observers++;
+	pthread_mutex_unlock(&event_loop_observers_mutex);
+}
+
+/*
+ * event_loop_observer_add() - decrement the number of areas of code currently 
+ * observing event_loop_stop as an exit/shutdown mechanism
+ */
+void event_loop_observer_remove(void)
+{
+	pthread_mutex_lock(&event_loop_observers_mutex);
+	event_loop_observers--;
+	pthread_mutex_unlock(&event_loop_observers_mutex);
+}
+
+/*
  *  cleanup() - This function is called when this program is to be closed
  *              This function will clean up all the cnic uio interfaces and
  *              flush/close the logger
@@ -123,7 +154,7 @@ static void cleanup()
 	fini_logger();
 }
 
-/**
+/*
  *  signal_handle_thread() - This is the signal handling thread of this program
  *                           This is the only thread which will handle signals.
  *                           All signals are routed here and handled here to
@@ -133,7 +164,8 @@ static pthread_t signal_thread;
 static void *signal_handle_thread(void *arg)
 {
 	sigset_t set;
-	int rc;
+#define	WAITCOUNT_MAX 10
+	int rc, waitcount;
 	int signal;
 
 	sigfillset(&set);
@@ -160,6 +192,28 @@ signal_wait:
 	event_loop_stop = 1;
 
 	ILOG_INFO("terminating...");
+
+	/*
+	 * for debugging shutdown issues, let's wait 10 seconds, max,
+	 * to ensure all of our threads shutdown, since we have seen
+	 * issues where they may not do so.
+	 */
+	waitcount = WAITCOUNT_MAX;
+	while (waitcount--) {
+		sleep(1);
+		if (!event_loop_observers)
+			break;	/* success! */
+		if (event_loop_observers < 0) {
+			ILOG_INFO("Invalid observer count: %d",
+				  event_loop_observers);
+			break;
+		}
+		ILOG_INFO("%d threads still polling event_loop_stop flag after %d seconds",
+			  event_loop_observers, WAITCOUNT_MAX - waitcount);
+	}
+	if (event_loop_observers > 0)
+		ILOG_ERR("%d unresponsive observers will be cancelled: %d",
+			 event_loop_observers);
 
 	cleanup();
 	exit(EXIT_SUCCESS);
@@ -302,6 +356,13 @@ int main(int argc, char *argv[])
 		ILOG_INFO("Debug mode enabled");
 
 	event_loop_stop = 0;
+	event_loop_observers = 0;
+	rc = pthread_mutex_init(&event_loop_observers_mutex, NULL);
+	if (rc) {
+		ILOG_ERR("Failed to create observer mutex: %d", rc);
+		goto error;
+	}
+
 	nic_list = NULL;
 
 	/*  Determine the current kernel version */

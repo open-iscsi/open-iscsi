@@ -1199,6 +1199,7 @@ static int process_dhcp_loop(nic_t *nic,
 	periodic_timer->start = periodic_timer->start -
 	    periodic_timer->interval;
 
+	event_loop_observer_add();
 	while ((event_loop_stop == 0) &&
 	       (nic->flags & NIC_ENABLED) && !(nic->flags & NIC_GOING_DOWN)) {
 
@@ -1238,6 +1239,7 @@ static int process_dhcp_loop(nic_t *nic,
 			return -EIO;
 		}
 	}
+	event_loop_observer_remove();
 
 	if (nic->flags & NIC_GOING_DOWN)
 		return -EIO;
@@ -1393,6 +1395,7 @@ void *nic_loop(void *arg)
 	pthread_cond_signal(&nic->nic_loop_started_cond);
 
 	/* nic_mutex must be locked */
+	event_loop_observer_add();
 	while ((event_loop_stop == 0) &&
 	       !(nic->flags & NIC_EXIT_MAIN_LOOP) &&
 	       !(nic->flags & NIC_GOING_DOWN)) {
@@ -1542,5 +1545,6 @@ dev_close:
 
 	nic->thread = INVALID_THREAD;
 
+	event_loop_observer_remove();
 	pthread_exit(NULL);
 }
