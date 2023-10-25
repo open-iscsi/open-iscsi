@@ -369,6 +369,7 @@ int cnic_handle_ipv4_iscsi_path_req(nic_t *nic, int fd,
 
 	rc = uip_lookup_arp_entry(dst_addr.s_addr, mac_addr);
 	if (rc != 0) {
+		event_loop_observer_add();
 		while ((arp_retry < MAX_ARP_RETRY) && (event_loop_stop == 0)) {
 			char *dst_addr_str;
 			int count;
@@ -425,6 +426,7 @@ int cnic_handle_ipv4_iscsi_path_req(nic_t *nic, int fd,
 
 			arp_retry++;
 		}
+		event_loop_observer_remove();
 	}
 
 done:
@@ -562,6 +564,7 @@ int cnic_handle_ipv6_iscsi_path_req(nic_t *nic, int fd,
 			  addr_dst_str, sizeof(addr_dst_str));
 		ILOG_DEBUG(PFX "%s: Preparing to send IPv6 neighbor solicitation to dst: '%s'",
 			   nic->log_name, addr_dst_str);
+		event_loop_observer_add();
 		while ((neighbor_retry < MAX_ARP_RETRY)
 		       && (event_loop_stop == 0)) {
 			int count;
@@ -621,6 +624,7 @@ int cnic_handle_ipv6_iscsi_path_req(nic_t *nic, int fd,
 			}
 			neighbor_retry++;
 		}
+		event_loop_observer_remove();
 	}
 
 done:

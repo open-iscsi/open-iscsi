@@ -458,6 +458,7 @@ put_pkt:
 
 	timer_set(&ping_timer, CLOCK_SECOND * 10);
 
+	event_loop_observer_add();
 	while ((event_loop_stop == 0) &&
 	       (nic->flags & NIC_ENABLED) && !(nic->flags & NIC_GOING_DOWN)) {
 
@@ -481,6 +482,7 @@ put_pkt:
 	}
 
 done:
+	event_loop_observer_remove();
 	return rc;
 }
 

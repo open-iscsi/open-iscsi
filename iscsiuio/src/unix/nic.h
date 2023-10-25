@@ -70,6 +70,8 @@ extern pthread_mutex_t nic_list_mutex;
 extern struct nic *nic_list;
 
 extern void *nl_process_handle_thread(void *arg);
+extern void event_loop_observer_add(void);
+extern void event_loop_observer_remove(void);
 
 /*******************************************************************************
  *  Constants
