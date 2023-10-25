@@ -1,7 +1,7 @@
                               Release Notes
                         QLogic uIP Linux Driver
-                            Version 0.7.8.7
-                               06/13/2023
+                            Version 0.7.8.8
+                               10/25/2023
 
                           QLogic Corporation
                         26650 Aliso Viejo Pkwy,
@@ -10,6 +10,47 @@
                Copyright (c) 2004 - 2013 Broadcom Corporation
                    Copyright (c) 2014, QLogic Corporation
                            All rights reserved
+
+uIP v0.7.8.8 (Oct 25, 2023)
+=======================================================
+    Fixes:
+    -------
+      1. Problem: iscsiuio can hang sometimes, at
+		  startup, or at shutdown, due to
+		  threads owning a mutex then going
+		  away. If this happens at shutdown,
+		  then the daemon may not start up
+		  correctly next time.
+	 Change: 1. Use syslog() for thread-safe
+		    logging instead of trying to roll
+		    our own. This required changing
+		    all of the internal LOG macros, so
+		    they did not clash with syslog. Also
+		    remomved were the unused logging
+		    statistics. Also, outout is no
+		    longer sent to both stdout and the
+		    log file for debug mode. All logging
+		    goes to stdout/stderr if in foreground,
+		    else all goes to syslog().
+		 2. Added the ability to track the
+		    number of "event loops" (i.e.
+		    threads doing work), so that at
+		    shutdown we can wait for all of
+		    them (maximum 10 seconds) to finish.
+		 3. The netlink socket is has SO_LINGER
+		    turned off when shutting down, just
+		    in case this helps if we immediately
+		    try to restart the daemon (and it
+		    can't hurt).
+		 4. The netlink soocket thread, which used
+		    to wait on a recvmsg(), now sets a one
+		    second timeout when reading from the
+		    socket. In this way, the thread can
+		    detect a shutdown request in, at most,
+		    one second (it used to hang).
+      2. Problem: iscsiuio consistently mispelled "associated"
+		 1. Fix the spelling in comments and in some
+		    function names.
 
 uIP v0.7.8.7 (Jun 13, 2023)
 =======================================================

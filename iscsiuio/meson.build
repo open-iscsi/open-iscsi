@@ -17,7 +17,7 @@ log_rotate_dir = get_option('sysconfdir') / 'logrotate.d'
 #
 # our VERSION
 #
-iscsiuio_version = '0.7.8.7'
+iscsiuio_version = '0.7.8.8'
 release_template = '-DPACKAGE_VERSION="@0@"'
 release_str = release_template.format(iscsiuio_version)
 
