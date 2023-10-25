@@ -199,22 +199,18 @@ signal_wait:
 	 * issues where they may not do so.
 	 */
 	waitcount = WAITCOUNT_MAX;
-	while (waitcount--) {
+	while ((event_loop_observers > 0) && waitcount--) {
 		sleep(1);
-		if (!event_loop_observers)
-			break;	/* success! */
-		if (event_loop_observers < 0) {
-			ILOG_INFO("Invalid observer count: %d",
-				  event_loop_observers);
-			break;
-		}
+		if (event_loop_observers <= 0)
+			break;	/* they finished while we were sleeping */
 		ILOG_INFO("%d threads still polling event_loop_stop flag after %d seconds",
 			  event_loop_observers, WAITCOUNT_MAX - waitcount);
 	}
-	if (event_loop_observers > 0)
+	if (event_loop_observers < 0)
+		ILOG_DEBUG("Invalid observer count: %d", event_loop_observers);
+	else if (event_loop_observers > 0)
 		ILOG_ERR("%d unresponsive observers will be cancelled: %d",
 			 event_loop_observers);
-
 	cleanup();
 	exit(EXIT_SUCCESS);
 }
