@@ -12,9 +12,9 @@ dnl             Benjamin Li  (benli@broadcom.com)
 dnl
 
 PACKAGE=iscsiuio
-VERSION=0.7.8.7
+VERSION=0.7.8.8
 
-AC_INIT([iscsiuio], [0.7.8.7], [QLogic-Storage-Upstream@marvell.com])
+AC_INIT([iscsiuio], [0.7.8.8], [QLogic-Storage-Upstream@marvell.com])
 
 AM_INIT_AUTOMAKE
 AC_CONFIG_HEADER(config.h)

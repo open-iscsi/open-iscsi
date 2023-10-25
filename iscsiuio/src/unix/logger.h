@@ -65,35 +65,39 @@
 #define LOG_LEVEL_UNKNOWN_STR	"?    "
 
 /*******************************************************************************
- * Logging Macro's
+ * Logging Macros
  ******************************************************************************/
-#define ILOG_PACKET(fmt, args...) { if (LOG_LEVEL_PACKET <= \
-				       main_log.level) { \
-					log_uip(LOG_INFO,\
-						LOG_LEVEL_PACKET_STR fmt,\
-						##args);\
-				} }
-#define ILOG_DEBUG(fmt, args...) { if (LOG_LEVEL_DEBUG <= main_log.level) { \
-					log_uip(LOG_DEBUG,\
-						LOG_LEVEL_DEBUG_STR fmt,\
-						##args);\
-				} }
 
-#define ILOG_INFO(fmt, args...)  { if (LOG_LEVEL_INFO <= main_log.level) { \
-					log_uip(LOG_INFO,\
-						LOG_LEVEL_INFO_STR fmt,\
-						##args); \
-				} }
-#define ILOG_WARN(fmt, args...)  { if (LOG_LEVEL_WARN <= main_log.level) { \
-					log_uip(LOG_NOTICE,\
-						LOG_LEVEL_WARN_STR fmt,\
-						##args); \
-				} }
-#define ILOG_ERR(fmt, args...)   { if (LOG_LEVEL_ERR <= main_log.level) { \
-					log_uip(LOG_ERR,\
-						LOG_LEVEL_ERR_STR fmt,\
-						##args); \
-				} }
+#define ILOG_PACKET(fmt, args...) \
+	do {if (LOG_LEVEL_PACKET <= main_log.level) {\
+		log_uip(LOG_INFO,\
+			LOG_LEVEL_PACKET_STR fmt,\
+			##args);\
+	} } while (0)
+#define ILOG_DEBUG(fmt, args...) \
+	do {if (LOG_LEVEL_DEBUG <= main_log.level) {\
+		log_uip(LOG_DEBUG,\
+			LOG_LEVEL_DEBUG_STR fmt,\
+			##args);\
+	} } while (0)
+#define ILOG_INFO(fmt, args...) \
+	do {if (LOG_LEVEL_INFO <= main_log.level) {\
+		log_uip(LOG_INFO,\
+			LOG_LEVEL_INFO_STR fmt,\
+			##args);\
+	} } while (0)
+#define ILOG_WARN(fmt, args...) \
+	do {if (LOG_LEVEL_WARN <= main_log.level) {\
+		log_uip(LOG_NOTICE,\
+			LOG_LEVEL_WARN_STR fmt,\
+			##args);\
+	} } while (0)
+#define ILOG_ERR(fmt, args...) \
+	do {if (LOG_LEVEL_ERR <= main_log.level) {\
+		log_uip(LOG_ERR,\
+			LOG_LEVEL_ERR_STR fmt,\
+			##args);\
+	} } while (0)
 
 /*******************************************************************************
  * Logger Structure

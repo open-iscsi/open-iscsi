@@ -124,7 +124,7 @@ static void *enable_nic_thread(void *data)
 
 	prepare_nic_thread(nic);
 	ILOG_INFO(PFX "%s: started NIC enable thread state: 0x%x",
-		 nic->log_name, nic->state)
+		 nic->log_name, nic->state);
 
 	/*  Enable the NIC */
 	nic_enable(nic);
