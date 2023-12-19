@@ -453,15 +453,15 @@ int uip_lookup_arp_entry(uint32_t ip_addr, uint8_t *mac_addr)
 		if (((entry->ipaddr[1] << 16) == (ip_addr & 0xffff0000)) &&
 		    ((entry->ipaddr[0]) == (ip_addr & 0x0000ffff))) {
 			struct in_addr addr;
-			char *addr_str;
+			char addr_buf[INET_ADDRSTRLEN];
 
 			addr.s_addr = ip_addr;
-			addr_str = inet_ntoa(addr);
+			inet_ntop(AF_INET, &addr, addr_buf, sizeof(addr_buf));
 
 			memcpy(mac_addr, entry->ethaddr.addr, 6);
 
 			ILOG_INFO("Found %s at %02x:%02x:%02x:%02x:%02x:%02x",
-				 addr_str,
+				 addr_buf,
 				 mac_addr[0], mac_addr[1], mac_addr[2],
 				 mac_addr[3], mac_addr[4], mac_addr[5]);
 			rc = 0;

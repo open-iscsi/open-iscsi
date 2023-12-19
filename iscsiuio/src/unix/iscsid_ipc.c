@@ -139,7 +139,8 @@ static int decode_cidr(char *in_ipaddr_str, struct iface_rec_decode *ird)
 	int rc = 0, i;
 	char *tmp, *tok;
 	char ipaddr_str[NI_MAXHOST];
-	char str[INET6_ADDRSTRLEN];
+	char str_ipv6[INET6_ADDRSTRLEN];
+	char str_ipv4[INET_ADDRSTRLEN];
 	unsigned long keepbits = 0;
 	struct in_addr ia;
 	struct in6_addr ia6;
@@ -195,8 +196,8 @@ static int decode_cidr(char *in_ipaddr_str, struct iface_rec_decode *ird)
 			keepbits -= 32;
 		}
 		ird->ipv6_subnet_mask = ia6;
-		if (inet_ntop(AF_INET6, &ia6, str, sizeof(str)))
-			ILOG_INFO(PFX "Using netmask: %s", str);
+		if (inet_ntop(AF_INET6, &ia6, str_ipv6, sizeof(str_ipv6)))
+			ILOG_INFO(PFX "Using netmask: %s", str_ipv6);
 	} else {
 		ird->ip_type = AF_INET;
 		rc = inet_pton(AF_INET, ipaddr_str, &ird->ipv4_addr);
@@ -209,7 +210,8 @@ static int decode_cidr(char *in_ipaddr_str, struct iface_rec_decode *ird)
 		ia.s_addr = keepbits > 0 ? 0x00 - (1 << (32 - keepbits)) : 0;
 		ird->ipv4_subnet_mask.s_addr = htonl(ia.s_addr);
 		ILOG_INFO(PFX "Using netmask: %s",
-			 inet_ntoa(ird->ipv4_subnet_mask));
+			 inet_ntop(AF_INET, &ird->ipv4_subnet_mask,
+				 str_ipv4, sizeof(str_ipv4)));
 	}
 out:
 	return rc;
@@ -383,7 +385,9 @@ static int parse_iface(void *arg, int do_ping)
 	size_t transport_name_size;
 	nic_lib_handle_t *handle;
 	iscsid_uip_broadcast_t *data;
-	char ipv6_buf_str[INET6_ADDRSTRLEN];
+	char ipv6_addr_buf_str[INET6_ADDRSTRLEN];
+	char ipv4_addr_buf_str[INET_ADDRSTRLEN];
+	char ipv4_subnet_buf_str[INET_ADDRSTRLEN];
 	int request_type = 0;
 	struct iface_rec *rec;
 	struct iface_rec_decode ird;
@@ -685,14 +689,14 @@ static int parse_iface(void *arg, int do_ping)
 				goto reacquire;
 			else
 				inet_ntop(AF_INET6, &ird.ipv6_addr,
-					  ipv6_buf_str,
-					  sizeof(ipv6_buf_str));
+					  ipv6_addr_buf_str,
+					  sizeof(ipv6_addr_buf_str));
 		}
 		ILOG_INFO(PFX "%s: IP configuration didn't change using 0x%x",
 			 nic->log_name, nic_iface->ustack.ip_config);
 		/* No need to acquire the IP address */
-		inet_ntop(AF_INET6, &ird.ipv6_addr, ipv6_buf_str,
-			  sizeof(ipv6_buf_str));
+		inet_ntop(AF_INET6, &ird.ipv6_addr, ipv6_addr_buf_str,
+			  sizeof(ipv6_addr_buf_str));
 
 		goto enable_nic;
 	}
@@ -723,12 +727,16 @@ reacquire:
 		memcpy(nic_iface->ustack.hostaddr, &ird.ipv4_addr,
 		       sizeof(struct in_addr));
 		ILOG_INFO(PFX "%s: configuring using static IP IPv4 address :%s ",
-			 nic->log_name, inet_ntoa(ird.ipv4_addr));
+			 nic->log_name,
+			 inet_ntop(AF_INET, &ird.ipv4_addr, ipv4_addr_buf_str,
+				sizeof(ipv4_addr_buf_str)));
 
 		if (ird.ipv4_subnet_mask.s_addr)
 			memcpy(nic_iface->ustack.netmask,
 			       &ird.ipv4_subnet_mask, sizeof(struct in_addr));
-		ILOG_INFO(PFX " netmask: %s", inet_ntoa(ird.ipv4_subnet_mask));
+		ILOG_INFO(PFX " netmask: %s",
+			inet_ntop(AF_INET, &ird.ipv4_subnet_mask, ipv4_subnet_buf_str,
+				sizeof(ipv4_subnet_buf_str)));
 
 		/* Default route */
 		if (ird.ipv4_gateway.s_addr) {
@@ -763,10 +771,10 @@ reacquire:
 		if (ird.router_autocfg == IPV6_RTR_AUTOCFG_OFF)
 			memcpy(nic_iface->ustack.default_route_addr6,
 			       &ird.ipv6_router, sizeof(struct in6_addr));
-		inet_ntop(AF_INET6, &ird.ipv6_addr, ipv6_buf_str,
-			  sizeof(ipv6_buf_str));
-		ILOG_INFO(PFX "%s: configuring using DHCPv6",
-			 nic->log_name);
+		inet_ntop(AF_INET6, &ird.ipv6_addr, ipv6_addr_buf_str,
+			  sizeof(ipv6_addr_buf_str));
+		ILOG_INFO(PFX "%s: configuring using DHCPv6 Address: %s",
+			 nic->log_name, ipv6_addr_buf_str);
 		nic_iface->ustack.ip_config = IPV6_CONFIG_DHCP;
 		break;
 
@@ -789,10 +797,10 @@ reacquire:
 			memcpy(nic_iface->ustack.default_route_addr6,
 			       &ird.ipv6_router, sizeof(struct in6_addr));
 
-		inet_ntop(AF_INET6, &ird.ipv6_addr, ipv6_buf_str,
-			  sizeof(ipv6_buf_str));
+		inet_ntop(AF_INET6, &ird.ipv6_addr, ipv6_addr_buf_str,
+			  sizeof(ipv6_addr_buf_str));
 		ILOG_INFO(PFX "%s: configuring using static IP IPv6 address: '%s'",
-			  nic->log_name, ipv6_buf_str);
+			  nic->log_name, ipv6_addr_buf_str);
 
 		nic_iface->ustack.ip_config = IPV6_CONFIG_STATIC;
 		break;
@@ -840,7 +848,7 @@ eagain:
 	ILOG_INFO(
 	    PFX "ISCSID_UIP_IPC_GET_IFACE: command: %x name: %s, netdev: %s ipaddr: %s vlan: %d transport_name:%s",
 	    data->header.command, rec->name, rec->netdev,
-	    (ird.ip_type == AF_INET) ? inet_ntoa(ird.ipv4_addr) : ipv6_buf_str,
+	    (ird.ip_type == AF_INET) ? ipv4_addr_buf_str : ipv6_addr_buf_str,
 	    ird.vlan_id, rec->transport_name);
 
 	if (do_ping) {

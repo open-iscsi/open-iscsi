@@ -1255,7 +1255,8 @@ static int do_acquisition(nic_t *nic, nic_interface_t *nic_iface,
 {
 	struct in_addr addr;
 	struct in6_addr addr6;
-	char buf[INET6_ADDRSTRLEN];
+	char buf_ipv6[INET6_ADDRSTRLEN];
+	char buf_ipv4[INET_ADDRSTRLEN];
 	int rc = -1;
 
 	/* New acquisition */
@@ -1280,13 +1281,15 @@ static int do_acquisition(nic_t *nic, nic_interface_t *nic_iface,
 		       sizeof(addr.s_addr));
 
 		ILOG_INFO(PFX "%s: Using IP address: %s",
-			 nic->log_name, inet_ntoa(addr));
+			 nic->log_name,
+			 inet_ntop(AF_INET, &addr, buf_ipv4, sizeof(buf_ipv4)));
 
 		memcpy(&addr.s_addr, nic_iface->ustack.netmask,
 		       sizeof(addr.s_addr));
 
 		ILOG_INFO(PFX "%s: Using netmask: %s",
-			 nic->log_name, inet_ntoa(addr));
+			 nic->log_name,
+			 inet_ntop(AF_INET, &addr, buf_ipv4, sizeof(buf_ipv4)));
 
 		set_uip_stack(&nic_iface->ustack,
 			      NULL, NULL, NULL,
@@ -1349,12 +1352,12 @@ static int do_acquisition(nic_t *nic, nic_interface_t *nic_iface,
 		if (nic_iface->ustack.ip_config == IPV6_CONFIG_STATIC) {
 			memcpy(&addr6.s6_addr, nic_iface->ustack.hostaddr6,
 			       sizeof(addr6.s6_addr));
-			inet_ntop(AF_INET6, addr6.s6_addr, buf, sizeof(buf));
-			ILOG_INFO(PFX "%s: hostaddr IP: %s", nic->log_name, buf);
+			inet_ntop(AF_INET6, addr6.s6_addr, buf_ipv6, sizeof(buf_ipv6));
+			ILOG_INFO(PFX "%s: hostaddr IP: %s", nic->log_name, buf_ipv6);
 			memcpy(&addr6.s6_addr, nic_iface->ustack.netmask6,
 			       sizeof(addr6.s6_addr));
-			inet_ntop(AF_INET6, addr6.s6_addr, buf, sizeof(buf));
-			ILOG_INFO(PFX "%s: netmask IP: %s", nic->log_name, buf);
+			inet_ntop(AF_INET6, addr6.s6_addr, buf_ipv6, sizeof(buf_ipv6));
+			ILOG_INFO(PFX "%s: netmask IP: %s", nic->log_name, buf_ipv6);
 		}
 		break;
 

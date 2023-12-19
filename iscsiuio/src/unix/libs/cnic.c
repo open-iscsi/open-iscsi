@@ -334,6 +334,8 @@ int cnic_handle_ipv4_iscsi_path_req(nic_t *nic, int fd,
 	int rc;
 	uint16_t arp_retry;
 	int status = 0;
+	char addr_str[INET_ADDRSTRLEN];
+
 #define MAX_ARP_RETRY 4
 
 	memset(mac_addr, 0, sizeof(mac_addr));
@@ -349,9 +351,12 @@ int cnic_handle_ipv4_iscsi_path_req(nic_t *nic, int fd,
 	src_matching_addr.s_addr = src_addr.s_addr & netmask.s_addr;
 	dst_matching_addr.s_addr = dst_addr.s_addr & netmask.s_addr;
 
-	ILOG_DEBUG(PFX "%s: src=%s", nic->log_name, inet_ntoa(src_addr));
-	ILOG_DEBUG(PFX "%s: dst=%s", nic->log_name, inet_ntoa(dst_addr));
-	ILOG_DEBUG(PFX "%s: nm=%s", nic->log_name, inet_ntoa(netmask));
+	ILOG_DEBUG(PFX "%s: src=%s", nic->log_name,
+		inet_ntop(AF_INET, &src_addr, addr_str, sizeof(addr_str)));
+	ILOG_DEBUG(PFX "%s: dst=%s", nic->log_name,
+		inet_ntop(AF_INET, &dst_addr, addr_str, sizeof(addr_str)));
+	ILOG_DEBUG(PFX "%s: nm=%s", nic->log_name,
+		inet_ntop(AF_INET, &netmask, addr_str, sizeof(addr_str)));
 	if (src_matching_addr.s_addr != dst_matching_addr.s_addr) {
 		/*  If there is an assigned gateway address then use it
 		 *  if the source address doesn't match */
@@ -371,19 +376,19 @@ int cnic_handle_ipv4_iscsi_path_req(nic_t *nic, int fd,
 	if (rc != 0) {
 		event_loop_observer_add();
 		while ((arp_retry < MAX_ARP_RETRY) && (event_loop_stop == 0)) {
-			char *dst_addr_str;
 			int count;
 			struct timespec ts;
 			struct timeval tp;
 			struct timeval tp_abs;
 
-			dst_addr_str = inet_ntoa(dst_addr);
+			inet_ntop(AF_INET, &dst_addr,
+				addr_str, sizeof(addr_str));
 
 			ILOG_INFO(PFX "%s: Didn't find IPv4: '%s' in ARP table",
-				 nic->log_name, dst_addr_str);
+				 nic->log_name, addr_str);
 			rc = cnic_arp_send(nic, nic_iface, fd,
 					   mac_addr,
-					   dst_addr.s_addr, dst_addr_str);
+					   dst_addr.s_addr, addr_str);
 			if (rc != 0) {
 				status = -EIO;
 				goto done;
