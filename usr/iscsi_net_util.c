@@ -290,21 +290,21 @@ int net_setup_netdev(char *netdev, char *local_ip, char *mask, char *gateway,
 	/* Bring up NIC with correct address  - unless it
 	 * has already been handled (2 targets in IBFT may share one NIC)
 	 */
-	if (!inet_aton(local_ip, &sk_ipaddr.sin_addr)) {
+	if (!inet_pton(AF_INET, local_ip, &sk_ipaddr.sin_addr)) {
 		log_error("Invalid or missing ipaddr in fw entry");
 		ret = EINVAL;
 		goto done;
 	}
 
-	if (!inet_aton(mask, &sk_netmask.sin_addr)) {
+	if (!inet_pton(AF_INET, mask, &sk_netmask.sin_addr)) {
 		log_error("Invalid or missing netmask in fw entry");
 		ret = EINVAL;
 		goto done;
 	}
 
-	inet_aton("255.255.255.255", &sk_hostmask.sin_addr);
+	inet_pton(AF_INET, "255.255.255.255", &sk_hostmask.sin_addr);
 
-	if (!inet_aton(remote_ip, &sk_tgt_ipaddr.sin_addr)) {
+	if (!inet_pton(AF_INET, remote_ip, &sk_tgt_ipaddr.sin_addr)) {
 		log_error("Invalid or missing target ipaddr in fw entry");
 		ret = EINVAL;
 		goto done;
@@ -381,7 +381,7 @@ int net_setup_netdev(char *netdev, char *local_ip, char *mask, char *gateway,
 	} else {
 		/* Different subnet.  Use gateway */
 		rt.rt_flags |= RTF_GATEWAY;
-		if (!inet_aton(gateway, &sk_gateway.sin_addr)) {
+		if (!inet_pton(AF_INET, gateway, &sk_gateway.sin_addr)) {
 			log_error("Invalid or missing gateway for %s "
 				  "(err %d - %s)",
 				  netdev, errno, strerror(errno));
