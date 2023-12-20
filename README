@@ -486,7 +486,8 @@ Mode "session"
 			  but in session mode targetname and portal info
 			  is not passed in.
 
-			  Print level can be 0 to 2.
+			  Print level can be 0 to 3.
+			  0 = Print the running sessions.
 			  1 = Print basic session info like node we are
 			  connected to and whether we are connected.
 			  2 = Print iSCSI params used.
