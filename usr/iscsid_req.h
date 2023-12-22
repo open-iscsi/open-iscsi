@@ -19,7 +19,7 @@
  */
 
 #ifndef ISCSID_REQ_H_
-#define ISCSID_REQ_H
+#define ISCSID_REQ_H_
 
 #define ISCSID_REQ_TIMEOUT 1000
 
