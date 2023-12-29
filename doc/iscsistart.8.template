@@ -14,7 +14,7 @@ sessions used for iSCSI root boot.
 .TP
 .BI [-c|--config=]\fIconfig\-file\fP
 Read configuration from \fIconfig\-file\fR rather than the default
-\fI@HOMEDIR@/iscsid.conf\fR file.
+\fI@HOMEDIR@/iscsid.conf\fR file or \fI<vendordir>/iscsi/iscsid.conf\fR if it is not available.
 .TP
 .BI [-i|--initiatorname=]\fIname\fP
 Set InitiatorName to name (Required if not using iBFT or OF)
