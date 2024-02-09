@@ -182,9 +182,9 @@ Where MAKE-OPTIONS are from:
 ====================
 
 The iscsid daemon implements control path of iSCSI protocol, plus some
-anagement facilities. For example, the daemon could be configured to
-utomatically re-start discovery at startup, based on the contents of
-ersistent iSCSI database (see next section).
+management facilities. For example, the daemon could be configured to
+automatically re-start discovery at startup, based on the contents of
+persistent iSCSI database (see next section).
 
 For help, run:
 
