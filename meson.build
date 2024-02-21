@@ -42,6 +42,7 @@ c_args = get_option('c_args')
 man_dir = get_option('mandir')
 iscsi_sbindir = get_option('iscsi_sbindir')
 iqn_prefix = get_option('iqn_prefix')
+vendordir = get_option('vendordir')
 
 #
 # get list of sources from subdirs (iscsiuio included at bottom)
@@ -59,7 +60,6 @@ conf.set('HOMEDIR', home_dir)
 conf.set('DBROOT', db_root)
 conf.set('IQN_PREFIX', iqn_prefix)
 
-
 # set up general C args
 genl_cargs = [
   '-D_GNU_SOURCE',
@@ -72,6 +72,10 @@ genl_cargs = [
 # set up no-system flag, if needed
 if no_systemd
   genl_cargs += '-DNO_SYSTEMD'
+endif
+
+if vendordir != ''
+  genl_cargs += '-DVENDORDIR="@0@"'.format(vendordir)
 endif
 
 #
@@ -88,6 +92,14 @@ crypto_dep = dependency('libcrypto')
 mount_dep = dependency('mount')
 if not no_systemd
   systemd_dep = dependency('libsystemd')
+endif
+
+lib_econf = dependency(
+  'libeconf',
+  required : false)
+
+if vendordir != '' and not lib_econf.found()
+  error('Need libeconf if vendordir is defined.')
 endif
 
 # libressl doesn't support SHA3
@@ -185,6 +197,10 @@ usr_deps = [kmod_dep, crypto_dep, mount_dep, sysdeps_dep, fwparam_dep, libiscsi_
 if not no_systemd
   usr_deps += systemd_dep
 endif
+if vendordir != ''
+  usr_deps += lib_econf
+endif
+
 # handle two libs that won't be found with "dependency()"
 usr_deps += cc.find_library('rt')
 usr_deps += cc.find_library('isns', required: get_option('isns'))
@@ -274,7 +290,11 @@ endif
 install_data(iscsi_etc_iface_file_src, install_dir: db_root / 'ifaces')
 
 # the iscsid.conf config file
-install_data(iscsi_etc_config_file_src, install_dir: home_dir)
+if vendordir != ''
+  install_data(iscsi_config_file_src, install_dir: vendordir / 'iscsi')
+else
+  install_data(iscsi_config_file_src, install_dir: home_dir)
+endif
 
 # create a *unique* initiatorname file
 if not meson.is_cross_build()

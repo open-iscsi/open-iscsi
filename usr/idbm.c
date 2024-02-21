@@ -45,6 +45,10 @@
 #include "fw_context.h"
 #include "iscsi_err.h"
 
+#ifdef VENDORDIR
+#include <libeconf.h>
+#endif
+
 // GLOB_ONLYDIR is not defined under musl
 #ifndef GLOB_ONLYDIR
 #define GLOB_ONLYDIR	0x100
@@ -1205,6 +1209,35 @@ int idbm_verify_param(recinfo_t *info, char *name)
 	return ISCSI_ERR_INVAL;
 }
 
+#ifdef VENDORDIR
+void idbm_recinfo_config_econf(recinfo_t *info, econf_file *file)
+{
+	econf_err error;
+	size_t counter = 0;
+	char **keys;
+
+	error =  econf_getKeys (file, NULL, &counter , &keys);
+	if (error && error != ECONF_NOKEY) {
+		log_error("econf_getKeys error:%s", econf_errString(error));
+		return;
+	}
+	for (size_t i = 0; i < counter; i++) {
+		char *value;
+		error = econf_getStringValue(file, NULL, keys[i], &value);
+		if (error) {
+			log_error("couldn't fetch %s correctly: %s",
+				  keys[i],
+				  econf_errString(error));
+		} else {
+			idbm_rec_update_param(info, keys[i], value, 0);
+			free (value);
+		}
+	}
+
+	econf_freeArray (keys);
+}
+#endif
+
 void idbm_recinfo_config(recinfo_t *info, FILE *f)
 {
 	char name[NAME_MAXVAL];
@@ -1278,7 +1311,6 @@ void idbm_recinfo_config(recinfo_t *info, FILE *f)
 static void idbm_sync_config(void)
 {
 	char *config_file;
-	FILE *f;
 
 	/* in case of no configuration file found we just
 	 * initialize default node and default discovery records
@@ -1302,6 +1334,32 @@ static void idbm_sync_config(void)
 		return;
 	}
 
+#ifdef VENDORDIR
+	econf_file *file = NULL;
+	econf_err error;
+
+	if ( strcmp(config_file, CONFIG_FILE) == 0) {
+		/* Standard configuration file iscsid.conf. So we are reading vendor entries too */
+		error = econf_readConfig( &file,
+					  ISCSI,
+					  VENDORDIR,
+					  "iscsid", "conf", "= \t", "#");
+	} else {
+		/* All other configuration files */
+		error = econf_readFile(&file, config_file, "= \t", "#");
+	}
+
+	if (error) {
+		log_error("parse error:%s", econf_errString(error));
+	} else {
+		idbm_recinfo_config_econf(db->dinfo_st, file);
+		idbm_recinfo_config_econf(db->dinfo_isns, file);
+		idbm_recinfo_config_econf(db->ninfo, file);
+		econf_freeFile( file );
+	}
+#else
+	FILE *f;
+
 	f = fopen(config_file, "r");
 	if (!f) {
 		log_debug(1, "cannot open configuration file %s. "
@@ -1315,6 +1373,7 @@ static void idbm_sync_config(void)
 	idbm_recinfo_config(db->dinfo_isns, f);
 	idbm_recinfo_config(db->ninfo, f);
 	fclose(f);
+#endif
 
 	/* update password lengths */
 	if (*db->drec_st.u.sendtargets.auth.password)
