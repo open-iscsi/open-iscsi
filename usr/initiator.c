@@ -1389,85 +1389,64 @@ static void session_conn_recv_pdu(void *data)
 
 static void session_increase_wq_priority(struct iscsi_session *session)
 {
-	DIR *proc_dir;
-	struct dirent *proc_dent;
+	char nice_pathname[PATH_SIZE];
 	struct stat statb;
-	char stat_file[PATH_SIZE];
-	char sbuf[1024];	/* got this from ps */
-	int pid, stat_fd, num_read;
-	char *proc_name, *proc_name_end;
-	uint32_t host_no;
+	int nice_fd;
+	char nice_value_buf[10];	/* large enough for "-20" */
+	int buflen;
+
+	log_debug(5, "Trying to increase workqueue priority: sid %u host no %u",
+		  session->id, session->hostno);
 
 	/* drivers like bnx2i and qla4xxx do not have a write wq */
-	if (session->t->caps & CAP_DATA_PATH_OFFLOAD)
+	if (session->t->caps & CAP_DATA_PATH_OFFLOAD) {
+		log_debug(5, "Offload host detected: no workqueue");
 		return;
-
-	proc_dir = opendir(PROC_DIR);
-	if (!proc_dir)
-		goto fail;
-
-	while ((proc_dent = readdir(proc_dir))) {
-		if (!strcmp(proc_dent->d_name, ".") ||
-		    !strcmp(proc_dent->d_name, ".."))
-			continue;
-		if (sscanf(proc_dent->d_name, "%d", &pid) != 1)
-			continue;
-
-		memset(stat_file, 0, sizeof(stat_file));
-		sprintf(stat_file, PROC_DIR"/%d/stat", pid);
-		if (stat(stat_file, &statb))
-			continue;
-
-		if (!S_ISREG( statb.st_mode))
-			continue;
-
-		stat_fd = open(stat_file, O_RDONLY);
-		if (stat_fd == -1)
-			continue;
-
-		memset(sbuf, 0, sizeof(sbuf));
-		num_read = read(stat_fd, sbuf, sizeof(sbuf));
-		close(stat_fd);
-		if (num_read == -1)
-			continue;
-		if (num_read == sizeof(sbuf))
-			sbuf[num_read - 1] = '\0';
-		else
-			sbuf[num_read] = '\0';
-
-		/*
-		 * Finally match proc name to iscsi thread name.
-		 * In newer kernels the name is iscsi_wq_%HOST_NO.
-		 * In older kernels before 2.6.30, it was scsi_wq_%HOST_NO.
-		 *
-		 * We only support newer kernels.
-		 */
-		proc_name = strchr(sbuf, '(') + 1;
-		if (!proc_name)
-			continue;
-
-		proc_name_end = strchr(proc_name, ')');
-		if (!proc_name_end)
-			continue;
-
-		*proc_name_end = '\0';
-
-		if (sscanf(proc_name, "iscsi_q_%u\n", &host_no) == 1) {
-			if (host_no == session->hostno) {
-				if (!setpriority(PRIO_PROCESS, pid,
-					session->nrec.session.xmit_thread_priority)) {
-					closedir(proc_dir);
-					return;
-				} else
-					break;
-			}
-		}
 	}
-	closedir(proc_dir);
+
+	snprintf(nice_pathname, sizeof(nice_pathname),
+		 "/sys/bus/workqueue/devices/iscsi_q_%u/nice",
+		 session->hostno);
+
+	if (stat(nice_pathname, &statb)) {
+		log_debug(5, "Cannot stat %s: %s", nice_pathname,
+			  strerror(errno));
+		goto fail;
+	}
+
+	if ((statb.st_mode & S_IWUSR) == 0) {
+		log_debug(5, "Cannot write to %s: Invalid permissions",
+			  nice_pathname);
+		goto fail;
+	}
+
+	if (!S_ISREG(statb.st_mode)) {
+		log_debug(5, "Not a regular file: %s", nice_pathname);
+		goto fail;
+	}
+
+	nice_fd = open(nice_pathname, O_RDWR);
+	if (nice_fd < 0) {
+		log_debug(5, "Cannot open: %s: %s", nice_pathname,
+			  strerror(errno));
+		goto fail;
+	}
+
+	buflen = snprintf(nice_value_buf, sizeof(nice_value_buf), "%d",
+			  session->nrec.session.xmit_thread_priority);
+	if (write(nice_fd, nice_value_buf, buflen) < 0) {
+		log_debug(5, "Cannot write \"%s\" to %s: %s", nice_value_buf,
+			  nice_pathname, strerror(errno));
+		close(nice_fd);
+		goto fail;
+	}
+	close(nice_fd);
+	return;
+
 fail:
-	log_error("Could not set session%d priority. "
-		  "READ/WRITE throughout and latency could be "
-		  "affected.", session->id);
+	log_error("Could not set session%u priority host %u. "
+		  "READ/WRITE throughout and latency could be effected.",
+		  session->id, session->hostno);
 }
 
 static int session_ipc_create(struct iscsi_session *session)
