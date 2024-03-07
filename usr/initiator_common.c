@@ -68,9 +68,15 @@ int iscsi_setup_authentication(struct iscsi_session *session,
 	 * future, we should return an error here.
 	 */
 	if ((auth_cfg->authmethod == ISCSI_AUTH_METHOD_NONE) &&
-	    (auth_cfg->password_length || auth_cfg->password_in_length))
+	    (auth_cfg->password_length || auth_cfg->password_in_length)) {
+		/*
+		 * FIXME: if authmethod=None we should really not be using
+		 * CHAP, but fixing this may break some configurations, so
+		 * just warn the user, for now
+		 */
 		log_warning("Warning: DEPRECATED: Using CHAP even though 'authmethod' is set to None. "
 			    "In the future 'authmethod=None' will be honored.");
+	}
 
 	/* if we have any incoming credentials, we insist on authenticating
 	 * the target or not logging in at all
