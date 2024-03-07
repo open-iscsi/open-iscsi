@@ -395,7 +395,18 @@ __session_create(node_rec_t *rec, struct iscsi_transport *t, int *rc)
 	session->isid[5] = 0;
 
 	/* setup authentication variables for the session*/
-	iscsi_setup_authentication(session, &rec->session.auth);
+	if (iscsi_setup_authentication(session, &rec->session.auth)) {
+		/*
+		 * FIXME: The return value used to be ignored here. It
+		 * would be nice to start paying attention to it, but
+		 * that may break a few corner-case login scenarios,
+		 * and in the case of a root-iSCSI setup, may break it
+		 * badly. So, for now, just print a warning that
+		 * ignoring such errors is being deprecated.
+		 */
+		log_warning("Warning: DEPRECATED: Ignoring Authorization setup failure. "
+			    "This will be considered a login error in the future.");
+	}
 
 	iscsi_session_init_params(session);
 
