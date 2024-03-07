@@ -38,6 +38,7 @@
 #include "sysdeps.h"
 #include "iscsi_err.h"
 #include "iscsi_net_util.h"
+#include "idbm.h"
 
 struct iscsi_session *session_find_by_sid(uint32_t sid)
 {
@@ -61,6 +62,16 @@ static unsigned int align_32_down(unsigned int param)
 int iscsi_setup_authentication(struct iscsi_session *session,
 			       struct iscsi_auth_config *auth_cfg)
 {
+	/*
+	 * check for authmethod being set correctly,
+	 * and for now just warn user this isn't correct. In the
+	 * future, we should return an error here.
+	 */
+	if ((auth_cfg->authmethod == ISCSI_AUTH_METHOD_NONE) &&
+	    (auth_cfg->password_length || auth_cfg->password_in_length))
+		log_warning("Warning: DEPRECATED: Using CHAP even though 'authmethod' is set to None. "
+			    "In the future 'authmethod=None' will be honored.");
+
 	/* if we have any incoming credentials, we insist on authenticating
 	 * the target or not logging in at all
 	 */
