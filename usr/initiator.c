@@ -405,7 +405,7 @@ __session_create(node_rec_t *rec, struct iscsi_transport *t, int *rc)
 		 * ignoring such errors is being deprecated.
 		 */
 		log_warning("Warning: DEPRECATED: Ignoring Authorization setup failure. "
-			    "This will be considered a login error in the future.");
+			    "This will be considered a login authorization error in the future.");
 	}
 
 	iscsi_session_init_params(session);
