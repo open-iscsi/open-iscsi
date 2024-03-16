@@ -874,7 +874,7 @@ static int rescan_portal(void *data, struct session_info *info)
 	iscsi_sysfs_for_each_device(NULL, host_no, info->sid,
 				    iscsi_sysfs_rescan_device);
 	/* now scan for new devices */
-	iscsi_sysfs_scan_host(host_no, 0, 1);
+	iscsi_sysfs_scan_host(host_no, info->sid, 0, false);
 	return 0;
 }
 

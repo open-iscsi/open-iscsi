@@ -221,7 +221,9 @@ static int sync_session(__attribute__((unused))void *data,
 				  iscsi_err_to_str(err));
 			return 0;
 		}
-		iscsi_sysfs_scan_host(host_no, 0, idbm_session_autoscan(NULL));
+
+		if (idbm_session_autoscan(NULL))
+			iscsi_sysfs_scan_host(host_no, info->sid, 0, false);
 		return 0;
 	}
 

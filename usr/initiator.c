@@ -1008,11 +1008,14 @@ void free_initiator(void)
 }
 
 static void session_scan_host(struct iscsi_session *session, int hostno,
-			      queue_task_t *qtask)
+			      queue_task_t *qtask, bool rescan)
 {
 	pid_t pid;
 
-	pid = iscsi_sysfs_scan_host(hostno, 1, idbm_session_autoscan(session));
+	if (!rescan && !idbm_session_autoscan(session))
+		return;
+
+	pid = iscsi_sysfs_scan_host(hostno, session->id, 1, rescan);
 	if (pid == 0) {
 		mgmt_ipc_write_rsp(qtask, ISCSI_SUCCESS);
 
@@ -1062,7 +1065,8 @@ setup_full_feature_phase(iscsi_conn_t *conn)
 		 * don't want to re-scan it on recovery.
 		 */
 		if (conn->id == 0)
-			session_scan_host(session, session->hostno, c->qtask);
+			session_scan_host(session, session->hostno, c->qtask,
+					   false);
 
 		log_warning("Connection%d:%d to [target: %s, portal: %s,%d] "
 			    "through [iface: %s] is operational now",
@@ -1073,7 +1077,7 @@ setup_full_feature_phase(iscsi_conn_t *conn)
 	} else {
 		session->notify_qtask = NULL;
 
-		session_online_devs(session->hostno, session->id);
+		session_scan_host(session, session->hostno, NULL, true);
 		mgmt_ipc_write_rsp(c->qtask, ISCSI_SUCCESS);
 		log_warning("connection%d:%d is operational after recovery "
 			    "(%d attempts)", session->id, conn->id,
@@ -1226,7 +1230,7 @@ static void iscsi_recv_async_msg(iscsi_conn_t *conn, struct iscsi_hdr *hdr)
 
 		if (sshdr.asc == 0x3f && sshdr.ascq == 0x0e
 		    && idbm_session_autoscan(session))
-			session_scan_host(session, session->hostno, NULL);
+			session_scan_host(session, session->hostno, NULL, true);
 		break;
 	case ISCSI_ASYNC_MSG_REQUEST_LOGOUT:
 		conn_warn(conn, "Target requests logout within %u seconds" , ntohs(async_hdr->param3));
@@ -1700,8 +1704,7 @@ static void session_conn_process_login(void *data)
 		 * scan host is one-time deal. We
 		 * don't want to re-scan it on recovery.
 		 */
-		session_scan_host(session, session->hostno,
-				 c->qtask);
+		session_scan_host(session, session->hostno, c->qtask, false);
 		session->notify_qtask = NULL;
 
 		log_warning("Connection%d:%d to [target: %s, portal: %s,%d] "
@@ -1711,6 +1714,7 @@ static void session_conn_process_login(void *data)
 			    session->nrec.conn[conn->id].port,
 			    session->nrec.iface.name);
 	} else {
+		session_scan_host(session, session->hostno, NULL, true);
 		session->notify_qtask = NULL;
 		mgmt_ipc_write_rsp(c->qtask, ISCSI_SUCCESS);
 	}
@@ -2209,7 +2213,7 @@ static void iscsi_async_session_creation(uint32_t host_no, uint32_t sid)
 
 	log_debug(3, "session created sid %u host no %d", sid, host_no);
 	session_online_devs(host_no, sid);
-	session_scan_host(NULL, host_no, NULL);
+	session_scan_host(NULL, host_no, NULL, false);
 }
 
 static void iscsi_async_session_destruction(uint32_t host_no, uint32_t sid)
