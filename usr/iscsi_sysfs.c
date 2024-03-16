@@ -1979,7 +1979,7 @@ void iscsi_sysfs_rescan_device(__attribute__((unused))void *data,
 			strlen(write_buf));
 }
 
-pid_t iscsi_sysfs_scan_host(int hostno, int async, int autoscan)
+pid_t iscsi_sysfs_scan_host(int hostno, int sid, int async, bool rescan)
 {
 	char id[NAME_SIZE];
 	char *write_buf = "- - -";
@@ -1988,10 +1988,7 @@ pid_t iscsi_sysfs_scan_host(int hostno, int async, int autoscan)
 	if (async)
 		pid = fork();
 
-	if (pid >= 0 && !autoscan) {
-		if (pid)
-			log_debug(4, "host%d in manual scan mode, skipping scan", hostno);
-	} else if (pid == 0) {
+	if (pid == 0) {
 		/* child */
 		log_debug(4, "scanning host%d", hostno);
 
@@ -2001,9 +1998,18 @@ pid_t iscsi_sysfs_scan_host(int hostno, int async, int autoscan)
 		 */
 		set_thread_io_flusher(0);
 
-		snprintf(id, sizeof(id), ISCSI_HOST_ID, hostno);
-		sysfs_set_param(id, SCSI_HOST_SUBSYS, "scan", write_buf,
-				strlen(write_buf));
+		if (rescan) {
+			iscsi_sysfs_for_each_device(NULL, hostno, sid,
+					iscsi_sysfs_set_device_online);
+
+			/* rescan each device to pick up size changes */
+		        iscsi_sysfs_for_each_device(NULL, hostno, sid,
+						    iscsi_sysfs_rescan_device);
+		} else {
+			snprintf(id, sizeof(id), ISCSI_HOST_ID, hostno);
+			sysfs_set_param(id, SCSI_HOST_SUBSYS, "scan", write_buf,
+					strlen(write_buf));
+		}
 		log_debug(4, "scanning host%d completed", hostno);
 	} else if (pid > 0) {
 		log_debug(4, "scanning host%d from pid %d", hostno, pid);

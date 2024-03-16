@@ -17,6 +17,7 @@
 #ifndef ISCSI_SYSFS_H
 #define ISCSI_SYSFS_H
 
+#include <stdbool.h>
 #include <sys/types.h>
 
 #include "sysfs.h"
@@ -89,7 +90,7 @@ extern void iscsi_sysfs_get_negotiated_session_conf(int sid,
 				struct iscsi_session_operational_config *conf);
 extern void iscsi_sysfs_get_negotiated_conn_conf(int sid,
 				struct iscsi_conn_operational_config *conf);
-extern pid_t iscsi_sysfs_scan_host(int hostno, int async, int autoscan);
+extern pid_t iscsi_sysfs_scan_host(int hostno, int sid, int async, bool rescan);
 extern int iscsi_sysfs_get_session_state(char *state, int sid);
 extern int iscsi_sysfs_get_host_state(char *state, int host_no);
 extern int iscsi_sysfs_get_device_state(char *state, int host_no, int target,
