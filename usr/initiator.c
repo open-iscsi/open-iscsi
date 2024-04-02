@@ -1399,8 +1399,23 @@ static void session_increase_wq_priority(struct iscsi_session *session)
 	uint32_t host_no;
 
 	/* drivers like bnx2i and qla4xxx do not have a write wq */
-	if (session->t->caps & CAP_DATA_PATH_OFFLOAD)
+	if (session->t->caps & CAP_DATA_PATH_OFFLOAD) {
+		log_debug(5, "Skipping setting xmit thread priority: Not needed for offload");
 		return;
+	}
+
+	/*
+	 * optimization: if the priority to be set is zero, just
+	 * return now, saving the trouble of scanning the proc table
+	 *
+	 * TODO: this function should be removed some day "soon", since
+	 * it ony seems to be needed in older (5.4) kernels. But for now
+	 * the optimization should be enough
+	 */
+	if (session->nrec.session.xmit_thread_priority == 0) {
+		log_debug(5, "Skipping setting xmit thread priority to zero: not needed");
+		return;
+	}
 
 	proc_dir = opendir(PROC_DIR);
 	if (!proc_dir)
@@ -1457,6 +1472,9 @@ static void session_increase_wq_priority(struct iscsi_session *session)
 				if (!setpriority(PRIO_PROCESS, pid,
 					session->nrec.session.xmit_thread_priority)) {
 					closedir(proc_dir);
+					log_debug(5, "Set priority for pid=%u to \"%d\"",
+						  pid,
+						  session->nrec.session.xmit_thread_priority);
 					return;
 				} else
 					break;
@@ -1465,9 +1483,9 @@ static void session_increase_wq_priority(struct iscsi_session *session)
 	}
 	closedir(proc_dir);
 fail:
-	log_error("Could not set session%d priority. "
-		  "READ/WRITE throughout and latency could be "
-		  "affected.", session->id);
+	log_warning("Could not set session%d priority. "
+		    "READ/WRITE throughout and latency could be affected.",
+		    session->id);
 }
 
 static int session_ipc_create(struct iscsi_session *session)

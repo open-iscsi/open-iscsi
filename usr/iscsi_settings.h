@@ -21,8 +21,8 @@
 #define CMDS_MAX	128
 #define QUEUE_DEPTH	32
 
-/* system */
-#define XMIT_THREAD_PRIORITY	-20
+/* system -- default used for setpriority() of the xmit workqueue process */
+#define DEFAULT_XMIT_THREAD_PRIORITY	0
 
 /* interface */
 #define UNKNOWN_VALUE		"<empty>"
