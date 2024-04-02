@@ -167,6 +167,12 @@ extern int idbm_rec_update_param(recinfo_t *info, char *name, char *value,
 				 int line_number);
 extern void idbm_recinfo_node(node_rec_t *r, recinfo_t *ri);
 
+/* from libopeniscsiusr/idbm.h */
+enum iscsi_auth_method {
+	ISCSI_AUTH_METHOD_NONE,
+	ISCSI_AUTH_METHOD_CHAP,
+};
+
 enum {
 	IDBM_PRINT_TYPE_DISCOVERY,
 	IDBM_PRINT_TYPE_NODE,

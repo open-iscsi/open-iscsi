@@ -395,26 +395,37 @@ __session_create(node_rec_t *rec, struct iscsi_transport *t, int *rc)
 	session->isid[5] = 0;
 
 	/* setup authentication variables for the session*/
-	iscsi_setup_authentication(session, &rec->session.auth);
+	if (iscsi_setup_authentication(session, &rec->session.auth)) {
+		/*
+		 * FIXME: The return value used to be ignored here. It
+		 * would be nice to start paying attention to it, but
+		 * that may break a few corner-case login scenarios,
+		 * and in the case of a root-iSCSI setup, may break it
+		 * badly. So, for now, just print a warning that
+		 * ignoring such errors is being deprecated.
+		 */
+		log_warning("Warning: DEPRECATED: Ignoring Authorization setup failure. "
+			    "This will be considered a login authorization error in the future.");
+	}
 
 	iscsi_session_init_params(session);
 
-        if (t->template->bind_ep_required) {
-                hostno = iscsi_sysfs_get_host_no_from_hwinfo(&rec->iface, rc);
-                if (!*rc) {
-                        /*
-                         * if the netdev or mac was set, then we are going to want
-                         * to want to bind the all the conns/eps to a specific host
-                         * if offload is used.
-                         */
-                        session->conn[0].bind_ep = 1;
-                        session->hostno = hostno;
-                } else if (*rc == ISCSI_ERR_HOST_NOT_FOUND) {
-                        goto free_session;	
-                } else {
-                         *rc = 0;
-                }
-        }
+	if (t->template->bind_ep_required) {
+		hostno = iscsi_sysfs_get_host_no_from_hwinfo(&rec->iface, rc);
+		if (!*rc) {
+			/*
+			 * if the netdev or mac was set, then we are going to want
+			 * to want to bind the all the conns/eps to a specific host
+			 * if offload is used.
+			 */
+			session->conn[0].bind_ep = 1;
+			session->hostno = hostno;
+		} else if (*rc == ISCSI_ERR_HOST_NOT_FOUND) {
+			goto free_session;
+		} else {
+			 *rc = 0;
+		}
+	}
 
 	/* reset session reopen count */
 	session->reopen_cnt = 0;
