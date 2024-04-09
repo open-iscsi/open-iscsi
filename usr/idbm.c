@@ -3231,7 +3231,7 @@ void idbm_node_setup_defaults(node_rec_t *rec)
 	rec->disc_type = DISCOVERY_TYPE_STATIC;
 	rec->leading_login = 0;
 	rec->session.cmds_max = CMDS_MAX;
-	rec->session.xmit_thread_priority = XMIT_THREAD_PRIORITY;
+	rec->session.xmit_thread_priority = DEFAULT_XMIT_THREAD_PRIORITY;
 	rec->session.initial_cmdsn = 0;
 	rec->session.queue_depth = QUEUE_DEPTH;
 	rec->session.nr_sessions = 1;
