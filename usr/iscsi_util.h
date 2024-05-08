@@ -30,4 +30,6 @@ extern char *cfg_get_string_param(char *pathname, const char *key);
 struct sockaddr_un;
 extern int setup_abstract_addr(struct sockaddr_un *addr, char *unix_sock_name);
 
+extern int iscsi_addr_match(char *address1, char *address2);
+
 #endif

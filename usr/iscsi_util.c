@@ -279,7 +279,7 @@ char *cfg_get_string_param(char *pathname, const char *key)
  *
  * If address1 is blank then it matches any string passed in.
  */
-static int iscsi_addr_match(char *address1, char *address2)
+int iscsi_addr_match(char *address1, char *address2)
 {
 	struct addrinfo hints1, hints2, *res1, *res2;
 	int rc;
