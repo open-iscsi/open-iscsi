@@ -787,7 +787,7 @@ static int print_nodes_config(struct iscsi_context *ctx, bool show_secret,
 			      const char *target_name, const char *address,
 			      int32_t port, const char *iface_name)
 {
-	int rc = 0;
+	int rc = ISCSI_SUCCESS;
 	struct iscsi_node **nodes = NULL;
 	struct iscsi_node *node = NULL;
 	uint32_t node_count = 0;
@@ -799,29 +799,38 @@ static int print_nodes_config(struct iscsi_context *ctx, bool show_secret,
 	if (rc != LIBISCSI_OK)
 		return rc;
 
+	log_debug(7, "%s(target_name=%s, address=%s): found %d node(s) to scan ...",
+		  __FUNCTION__, target_name, address, node_count);
+
 	for (i = 0; i < node_count; ++i) {
 		node = nodes[i];
-		match = true;
+		/*
+		 * node matches *unless* one of the following conditions
+		 * is true
+		 */
 		if ((target_name != NULL) &&
 		    (strlen(target_name) != 0) &&
 		    (strcmp(target_name,
 			    iscsi_node_target_name_get(node)) != 0))
-			match = false;
+			continue;	/* target name mismatch */
+
 		if ((address != NULL) &&
 		    (strlen(address) != 0) &&
-		    (strcmp(address, iscsi_node_conn_address_get(node)) != 0))
-			match = false;
-		if ((port != -1) && (port != (int32_t)iscsi_node_conn_port_get(node)))
-			match = false;
+		    (iscsi_addr_match(address,
+				      iscsi_node_conn_address_get(node)) != 1))
+			continue;	/* address/name mismatch */
+
+		if ((port != -1) &&
+		    (port != (int32_t)iscsi_node_conn_port_get(node)))
+			continue;	/* port number mismatch */
+
 		if ((iface_name != NULL) &&
 		    (strlen(iface_name) != 0) &&
 		    (strcmp(iface_name, iscsi_node_iface_name_get(node)) != 0))
-			match = false;
+			continue;	/* iface mismatch */
 
-		if (match == true) {
-			iscsi_node_print_config(node, show_secret);
-			has_match = true;
-		}
+		iscsi_node_print_config(node, show_secret);
+		has_match = true;
 	}
 
 	iscsi_nodes_free(nodes, node_count);
