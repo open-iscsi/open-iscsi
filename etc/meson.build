@@ -6,4 +6,4 @@ subdir('systemd')
 iscsi_etc_iface_file_src = files('iface.example')
 
 # for our config file
-iscsi_etc_config_file_src = files('iscsid.conf')
+iscsi_config_file_src = files('iscsid.conf')
