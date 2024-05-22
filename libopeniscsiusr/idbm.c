@@ -315,27 +315,41 @@ int _idbm_lock(struct iscsi_context *ctx)
 
 	db = ctx->db;
 
+	/* if DB is already being used just increment count and return */
 	if (db->refs > 0) {
 		db->refs++;
 		return 0;
 	}
 
+	/* DB is not being used -- ensure there is a lock dir */
 	if (access(LOCK_DIR, F_OK) != 0) {
-		if (mkdir(LOCK_DIR, 0770) != 0) {
-			_error(ctx, "Could not open %s: %d %s", LOCK_DIR, errno,
-				_strerror(errno, strerr_buff));
+		if ((mkdir(LOCK_DIR, 0770) != 0) && (errno != EEXIST)) {
+			_error(ctx, "Could not open %s: %d: %s", LOCK_DIR,
+			       errno, _strerror(errno, strerr_buff));
 			return LIBISCSI_ERR_IDBM;
 		}
 	}
 
+	/* create the lock file, if needed */
 	fd = open(LOCK_FILE, O_RDWR | O_CREAT, 0666);
-	if (fd >= 0)
-		close(fd);
+	if (fd < 0) {
+		_error(ctx, "Could not open/create lock file: %s", LOCK_FILE);
+		return LIBISCSI_ERR_IDBM;
+	}
+	close(fd);
 
-	for (i = 0; i < 3000; i++) {
+	/*
+	 * try to create a link from the lock file to the
+	 * lock "write" file, retrying everying 10 seconds
+	 * for up to 500 minutes!
+	 *
+	 * XXX: very long -- should be configurable?
+	 */
+	for (i = 0; i < DB_LOCK_RETRIES; i++) {
 		ret = link(LOCK_FILE, LOCK_WRITE_FILE);
 		if (ret == 0)
-			break;
+			break;		/* success */
+
 		errno_save = errno;
 
 		if (errno != EEXIST) {
@@ -344,20 +358,27 @@ int _idbm_lock(struct iscsi_context *ctx)
 			       LOCK_WRITE_FILE, errno_save,
 			       _strerror(errno_save, strerr_buff));
 			return LIBISCSI_ERR_IDBM;
-		} else if (i == 0)
+		}
+
+		/* print info the first time through this loop */
+		if (i == 0)
 			_debug(ctx, "Waiting for discovery DB lock on %s",
 			       LOCK_WRITE_FILE);
 
-		usleep(10000);
+		usleep(DB_LOCK_USECS_WAIT);
 	}
 
 	if (ret != 0) {
-		_error(ctx, "Timeout on acquiring lock on DB: %s, errno: %d %s",
+		_error(ctx, "Timeout on acquiring lock on DB: %s, %d: %s",
 		       LOCK_WRITE_FILE, errno_save,
 		       _strerror(errno_save, strerr_buff));
 		return LIBISCSI_ERR_IDBM;
 	}
 
+	/*
+	 * if we get here, we were able to "own" the DB by creating
+	 * a link, so we are now the only DB user
+	 */
 	db->refs = 1;
 	return 0;
 }

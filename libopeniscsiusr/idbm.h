@@ -40,6 +40,12 @@
 #define BOOT_NAME_MAXLEN	256
 #define IDBM_DUMP_SIZE		8192
 
+/*
+ * wait up to DB_LOCK_USECS_WAIT * DB_LOCK_RETRIES to a cquire
+ * the DB lock, before giving up
+ */
+#define DB_LOCK_USECS_WAIT		10000	/* per-loop waiting for lock */
+#define	DB_LOCK_RETRIES			3000	/* number of retries */
 
 struct __DLL_LOCAL idbm;
 
