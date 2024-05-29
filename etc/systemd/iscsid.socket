@@ -1,6 +1,7 @@
 [Unit]
 Description=Open-iSCSI iscsid Socket
 Documentation=man:iscsid(8) man:iscsiadm(8)
+ConditionVirtualization=!container
 
 [Socket]
 ListenStream=@ISCSIADM_ABSTRACT_NAMESPACE

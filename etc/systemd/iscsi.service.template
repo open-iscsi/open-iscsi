@@ -5,6 +5,7 @@ Before=remote-fs.target
 After=network-online.target iscsid.service
 Requires=iscsid.socket iscsi-init.service
 Wants=network-online.target
+ConditionVirtualization=!container
 
 [Service]
 Type=oneshot

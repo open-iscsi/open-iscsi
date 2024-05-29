@@ -6,6 +6,7 @@ After=network-online.target iscsiuio.service iscsi-init.service
 Before=remote-fs-pre.target
 Wants=remote-fs-pre.target
 Requires=iscsi-init.service
+ConditionVirtualization=!container
 
 [Service]
 Type=notify

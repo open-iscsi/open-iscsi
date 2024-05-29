@@ -1,6 +1,7 @@
 [Unit]
 Description=Open-iSCSI iscsiuio Socket
 Documentation=man:iscsiuio(8)
+ConditionVirtualization=!container
 
 [Socket]
 ListenStream=@ISCSID_UIP_ABSTRACT_NAMESPACE
