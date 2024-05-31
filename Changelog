@@ -1,3 +1,38 @@
+-> open-iscsi-2.1.9 - open-iscsi-2.1.10
+
+Chris Leech (1):
+      remove unicode symbol from iscsid.conf (#423)
+
+Christian Steinert (1):
+      Adds missing characters in README. (#440)
+
+Daniel Moulton (1):
+      Incorrect documentation for `iscsiadm -m session` print level (#432)
+
+Fabrice Fontaine (1):
+      usr/idbm.c: fix musl build (#426)
+
+Graham Inggs (1):
+      discoveryd: fix additional format overflow warnings (#425)
+
+Lee Duncan (9):
+      iscsiuio build: use correct new version (#422)
+      Iscsiuio fixes v2 (#427)
+      iscsiuio: manage threads better at shutdown (#428)
+      iscsiuio: update version to 0.7.8.8 (#429)
+      Stop using deprecated inet_aton and inet_ntoa (#435)
+      Fix authmethod check by printing a warning message when CHAP used and authmethod=None (#443)
+      Modify how workqueue priority is set (#445)
+      iscsiadm: allow hostnames in node-mode commands (#451)
+      Better handle multiple iscsiadm commands (#453)
+
+cooper.wu (1):
+      fix: add usr/iscsid_req.h missinig underline (#431) (#436)
+
+mikechristie (1):
+      iscsid: Rescan devices on relogin (#444)
+
+
 -> open-iscsi-2.1.8 - open-iscsi-2.1.9
 
 Chris Leech (5):
