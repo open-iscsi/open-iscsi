@@ -898,14 +898,17 @@ recinfo_t *idbm_recinfo_alloc(int max_keys)
 	return info;
 }
 
-void idbm_print(int type, void *rec, int show, FILE *f)
+int idbm_print(int type, void *rec, int show, FILE *f)
 {
 	int i;
 	recinfo_t *info;
 
 	info = idbm_recinfo_alloc(MAX_KEYS);
-	if (!info)
-		return;
+	if (!info) {
+		log_error("Out of Memory.");
+		return ISCSI_ERR_NOMEM;
+    }
+
 
 	switch (type) {
 	case IDBM_PRINT_TYPE_DISCOVERY:
@@ -945,6 +948,7 @@ void idbm_print(int type, void *rec, int show, FILE *f)
 	fprintf(f, "%s\n", ISCSI_END_REC);
 
 	free(info);
+	return 0;
 }
 
 static void
@@ -1341,29 +1345,36 @@ void idbm_node_setup_from_conf(node_rec_t *rec)
 
 int idbm_print_discovery_info(discovery_rec_t *rec, int show)
 {
-	idbm_print(IDBM_PRINT_TYPE_DISCOVERY, rec, show, stdout);
-	return 1;
+	int rc;
+
+	rc = idbm_print(IDBM_PRINT_TYPE_DISCOVERY, rec, show, stdout);
+	return !rc;
 }
 
 int idbm_print_node_info(void *data, node_rec_t *rec)
 {
 	int show = *((int *)data);
+	int rc;
 
-	idbm_print(IDBM_PRINT_TYPE_NODE, rec, show, stdout);
-	return 0;
+	rc = idbm_print(IDBM_PRINT_TYPE_NODE, rec, show, stdout);
+	return rc;
 }
 
 int idbm_print_host_chap_info(struct iscsi_chap_rec *chap)
 {
+	int rc;
+
 	/* User only calls this to print chap so always print */
-	idbm_print(IDBM_PRINT_TYPE_HOST_CHAP, chap, 1, stdout);
-	return 0;
+	rc = idbm_print(IDBM_PRINT_TYPE_HOST_CHAP, chap, 1, stdout);
+	return rc;
 }
 
 int idbm_print_flashnode_info(struct flashnode_rec *fnode)
 {
-	idbm_print(IDBM_PRINT_TYPE_FLASHNODE, fnode, 1, stdout);
-	return 0;
+	int rc;
+
+	rc = idbm_print(IDBM_PRINT_TYPE_FLASHNODE, fnode, 1, stdout);
+	return rc;
 }
 
 int idbm_print_node_flat(__attribute__((unused))void *data, node_rec_t *rec)
@@ -2245,7 +2256,7 @@ mkdir_portal:
 		goto free_portal;
 	}
 
-	idbm_print(IDBM_PRINT_TYPE_NODE, rec, 1, f);
+	rc = idbm_print(IDBM_PRINT_TYPE_NODE, rec, 1, f);
 	fclose(f);
 free_portal:
 	free(portal);
@@ -2309,7 +2320,7 @@ static int idbm_rec_write_old(node_rec_t *rec)
 		rc = ISCSI_ERR_IDBM;
 		goto free_portal;
 	}
-	idbm_print(IDBM_PRINT_TYPE_NODE, rec, 1, f);
+	rc = idbm_print(IDBM_PRINT_TYPE_NODE, rec, 1, f);
 	fclose(f);
 free_portal:
 	free(portal);
@@ -2414,7 +2425,7 @@ idbm_discovery_write(discovery_rec_t *rec)
 		goto unlock;
 	}
 
-	idbm_print(IDBM_PRINT_TYPE_DISCOVERY, rec, 1, f);
+	rc = idbm_print(IDBM_PRINT_TYPE_DISCOVERY, rec, 1, f);
 	fclose(f);
 unlock:
 	idbm_unlock();

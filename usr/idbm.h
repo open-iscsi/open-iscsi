@@ -189,7 +189,7 @@ enum {
 	IDBM_PRINT_TYPE_FLASHNODE
 };
 
-extern void idbm_print(int type, void *rec, int show, FILE *f);
+extern int idbm_print(int type, void *rec, int show, FILE *f);
 
 struct boot_context;
 extern struct node_rec *idbm_create_rec(char *targetname, int tpgt,
