@@ -282,7 +282,7 @@ int iface_conf_write(struct iface_rec *iface)
 	if (rc)
 		goto close_f;
 
-	idbm_print(IDBM_PRINT_TYPE_IFACE, iface, 1, f);
+	rc = idbm_print(IDBM_PRINT_TYPE_IFACE, iface, 1, f);
 	idbm_unlock();
 
 close_f:
