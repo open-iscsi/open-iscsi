@@ -1483,8 +1483,8 @@ int idbm_lock(void)
 
 	/*
 	 * try to create a link from the lock file to the
-	 * lock "write" file, retrying everying 10 seconds
-	 * for up to 500 minutes!
+	 * lock "write" file, retrying everying 10 miliseconds
+	 * for up to 30 seconds!
 	 *
 	 * XXX: very long -- should be configurable?
 	 */
@@ -1506,7 +1506,7 @@ int idbm_lock(void)
 		if (i == 0)
 			log_debug(2, "Waiting for discovery DB lock");
 
-		usleep(DB_LOCK_USECS_WAIT);	/* wait 10 secs */
+		usleep(DB_LOCK_USECS_WAIT);	/* wait 10 ms */
 	}
 
 	if (ret != 0) {
