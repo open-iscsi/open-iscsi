@@ -340,8 +340,8 @@ int _idbm_lock(struct iscsi_context *ctx)
 
 	/*
 	 * try to create a link from the lock file to the
-	 * lock "write" file, retrying everying 10 seconds
-	 * for up to 500 minutes!
+	 * lock "write" file, retrying everying 10 miliseconds
+	 * for up to 30 seconds!
 	 *
 	 * XXX: very long -- should be configurable?
 	 */
