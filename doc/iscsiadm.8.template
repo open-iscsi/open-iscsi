@@ -186,12 +186,12 @@ describes them:
 .TP
 .B Home Directory
 The \fIhome directory\fR for open-iscsi is @HOMEDIR@. This is
-where it keeps it's configuration file (\fIiscsid.conf\fR) and it's
+where it keeps its configuration file (\fIiscsid.conf\fR) and its
 initiator name file (\fIinitiatorname.iscsi\fR).
 .TP
 .B Database Root Directory
 The \fIdatabase root directory\fR for open-iscsi is @DBROOT@. This
-is where it keeps its flat database files, such as it's list of \fInode\fRs
+is where it keeps its flat database files, such as its list of \fInode\fRs
 (see below).
 .SH OPTIONS
 .TP
