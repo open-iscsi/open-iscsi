@@ -2035,6 +2035,7 @@ exit_logout:
 static int iscsi_check_session_use_count(uint32_t sid) {
 	char *config_file;
 	char *safe_logout;
+	int rc = 0;
 
 	config_file = get_config_file();
 	if (!config_file) {
@@ -2043,10 +2044,11 @@ static int iscsi_check_session_use_count(uint32_t sid) {
 	}
 
 	safe_logout = cfg_get_string_param(config_file, "iscsid.safe_logout");
-	if (!safe_logout || strcmp(safe_logout, "Yes"))
-		return 0;
+	if (safe_logout && !strcmp(safe_logout, "Yes"))
+		rc = session_in_use(sid);
+	free(safe_logout);
 
-	return session_in_use(sid);
+	return rc;
 }
 
 int iscsi_logout_flashnode_sid(struct iscsi_transport *t, uint32_t host_no,
