@@ -285,14 +285,18 @@ static int iscsi_sysfs_prop_get_ll(struct iscsi_context *ctx,
 		}
 	}
 
-	errno = 0;
-	tmp_val = strtoll((const char *) buff, NULL, 10 /* base */);
-	errno_save = errno;
-	if ((errno_save != 0) && (! ignore_error)) {
-		rc = LIBISCSI_ERR_BUG;
-		_error(ctx, "Sysfs: %s: Error when converting '%s' "
-		       "to number", file_path,  (char *) buff, errno_save);
-		goto out;
+	if (strncmp((const char *) buff, "off", 3) == 0) {
+		tmp_val = -1;
+	} else {
+		errno = 0;
+		tmp_val = strtoll((const char *) buff, NULL, 10 /* base */);
+		errno_save = errno;
+		if ((errno_save != 0) && (! ignore_error)) {
+			rc = LIBISCSI_ERR_BUG;
+			_error(ctx, "Sysfs: %s: Error when converting '%s' "
+			       "to number", file_path,  (char *) buff, errno_save);
+			goto out;
+		}
 	}
 
 	*val = tmp_val;
