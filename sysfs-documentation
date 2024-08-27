@@ -139,7 +139,7 @@ ttl
 ---
 IPv4 Time to Live (TTL)
 
-This attribute contain TTL value sent in IPv4 TCP packets transmitted on
+This attribute contains the TTL value sent in IPv4 TCP packets transmitted on
 iSCSI connections.
 
 Valid range: 8-bit value. [0-255]
@@ -301,7 +301,7 @@ mtu
 ---
 Ethernet MTU Size.
 
-This field specifies the maximum payload length in byte of an
+This field specifies the maximum payload length in bytes of an
 Ethernet frame supported by iSCSI initiator.
 
 Valid values: 576 bytes to 9000 bytes
