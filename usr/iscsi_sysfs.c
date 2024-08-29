@@ -1342,7 +1342,7 @@ int iscsi_sysfs_get_sessioninfo_by_id(struct session_info *info, char *session)
 	if (ret)
 		(info->tmo).lu_reset_tmo = -1;
 
-	sysfs_get_int(session, ISCSI_SESSION_SUBSYS, "abort_tmo",
+	ret = sysfs_get_int(session, ISCSI_SESSION_SUBSYS, "abort_tmo",
 				&((info->tmo).abort_tmo));
 	if (ret)
 		(info->tmo).abort_tmo = -1;
