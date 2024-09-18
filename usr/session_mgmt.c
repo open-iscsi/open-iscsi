@@ -24,11 +24,11 @@
 #include <errno.h>
 #include <unistd.h>
 
+#include "session_info.h"
 #include "idbm.h"
 #include "list.h"
 #include "iscsi_util.h"
 #include "mgmt_ipc.h"
-#include "session_info.h"
 #include "iscsi_sysfs.h"
 #include "log.h"
 #include "iscsid_req.h"
