@@ -30,6 +30,7 @@
 #include <arpa/inet.h>
 #include <sys/uio.h>
 
+#include "iface.h"
 #include "types.h"
 #include "iscsi_proto.h"
 #include "iscsi_settings.h"
@@ -38,7 +39,6 @@
 #include "log.h"
 #include "transport.h"
 #include "idbm.h"
-#include "iface.h"
 #include "sysdeps.h"
 
 #define LOG_CONN_CLOSED(conn) \
