@@ -28,6 +28,7 @@
 #include <sys/types.h>
 #include <sys/wait.h>
 
+#include "iface.h"
 #include "discovery.h"
 #include "idbm.h"
 #include "list.h"
@@ -37,7 +38,6 @@
 #include "session_mgmt.h"
 #include "iscsi_util.h"
 #include "event_poll.h"
-#include "iface.h"
 #include "session_mgmt.h"
 #include "session_info.h"
 #include "iscsi_err.h"
