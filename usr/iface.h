@@ -21,6 +21,7 @@
 #define ISCSI_IFACE_H
 
 #include <libopeniscsiusr/libopeniscsiusr.h>
+#include <sys/uio.h>
 
 #define IFACE_CONFIG_DIR	ISCSI_DB_ROOT"/ifaces"
 
