@@ -20,7 +20,7 @@ def s2dt(s):
     mins = s / 60
     s -= (int(mins) * 60)
     a_str="%02d:%02d:%06.3f" % (hrs, mins, s)
-    dprint("s2dt: %f -> %s" % (s_orig, a_str))
+    util.dprint("s2dt: %f -> %s" % (s_orig, a_str))
     return a_str
 
 
@@ -174,6 +174,11 @@ class TestRegression(unittest.TestCase):
             i += 1
 
     def run_the_rest(self):
+        # Ensure target discovery is completed before attempting login.
+        res = util.run_cmd(['iscsiadm', '-m', 'discovery',
+                            '-t', 'sendtargets',
+                            '-p', Global.ipnr])
+        self.assertEqual(res, 0, 'failed to discover target')
         res = util.run_cmd(['iscsiadm', '-m', 'node',
                             '-T', Global.target,
                             '-p', Global.ipnr,
