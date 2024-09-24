@@ -32,6 +32,7 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 
+#include "iface.h"
 #include "local_strings.h"
 #include "types.h"
 #include "iscsi_proto.h"
@@ -46,7 +47,6 @@
 #include "transport.h"
 #include "iscsi_sysfs.h"
 #include "iscsi_ipc.h"
-#include "iface.h"
 #include "iscsi_timer.h"
 #include "iscsi_err.h"
 #if ISNS_SUPPORTED

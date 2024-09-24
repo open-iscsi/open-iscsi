@@ -31,6 +31,7 @@
 #include <dirent.h>
 #include <fcntl.h>
 
+#include "iface.h"
 #include "initiator.h"
 #include "transport.h"
 #include "iscsid.h"
@@ -44,7 +45,6 @@
 #include "scsi.h"
 #include "iscsi_sysfs.h"
 #include "iscsi_settings.h"
-#include "iface.h"
 #include "host.h"
 #include "sysdeps.h"
 #include "iscsi_err.h"

@@ -38,6 +38,7 @@
 #include <systemd/sd-daemon.h>
 #endif
 
+#include "iface.h"
 #include "iscsid.h"
 #include "mgmt_ipc.h"
 #include "event_poll.h"
@@ -49,7 +50,6 @@
 #include "idbm.h"
 #include "version.h"
 #include "iscsi_sysfs.h"
-#include "iface.h"
 #include "session_info.h"
 #include "sysdeps.h"
 #include "discoveryd.h"

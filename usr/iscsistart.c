@@ -33,6 +33,7 @@
 #include <sys/types.h>
 #include <sys/wait.h>
 
+#include "iface.h"
 #include "initiator.h"
 #include "iscsi_ipc.h"
 #include "event_poll.h"
@@ -45,7 +46,6 @@
 #include "iscsi_sysfs.h"
 #include "iscsi_settings.h"
 #include "fw_context.h"
-#include "iface.h"
 #include "sysdeps.h"
 #include "iscsid_req.h"
 #include "iscsi_err.h"

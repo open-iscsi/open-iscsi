@@ -26,6 +26,7 @@
 #include <sys/stat.h>
 #include <sys/wait.h>
 
+#include "iface.h"
 #include "log.h"
 #include "initiator.h"
 #include "transport.h"
@@ -35,7 +36,6 @@
 #include "iscsi_sysfs.h"
 #include "sysdeps.h"
 #include "iscsi_settings.h"
-#include "iface.h"
 #include "session_info.h"
 #include "host.h"
 #include "iscsi_err.h"
