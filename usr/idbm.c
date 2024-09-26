@@ -2569,16 +2569,16 @@ int idbm_add_node(node_rec_t *newrec, discovery_rec_t *drec, int overwrite)
 		if (rc)
 			goto unlock;
 
-		if (drec->type == DISCOVERY_TYPE_FW) {
-			log_debug(8, "setting firmware node 'startup' to 'onboot'");
-			newrec->startup = ISCSI_STARTUP_ONBOOT;
-			newrec->conn[0].startup = ISCSI_STARTUP_ONBOOT;
-		}
 		log_debug(7, "overwriting existing record");
 	} else
 		log_debug(7, "adding new DB record");
 
 	if (drec) {
+		if (drec->type == DISCOVERY_TYPE_FW) {
+			log_debug(8, "setting firmware node 'startup' to 'onboot'");
+			newrec->startup = ISCSI_STARTUP_ONBOOT;
+			newrec->conn[0].startup = ISCSI_STARTUP_ONBOOT;
+		}
 		newrec->disc_type = drec->type;
 		newrec->disc_port = drec->port;
 		strcpy(newrec->disc_address, drec->address);
