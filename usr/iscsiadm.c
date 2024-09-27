@@ -792,7 +792,6 @@ static int print_nodes_config(struct iscsi_context *ctx, bool show_secret,
 	struct iscsi_node *node = NULL;
 	uint32_t node_count = 0;
 	uint32_t i = 0;
-	bool match = false;
 	bool has_match = false;
 
 	rc = iscsi_nodes_get(ctx, &nodes, &node_count);
