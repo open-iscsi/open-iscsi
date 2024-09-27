@@ -563,7 +563,12 @@ int sysfs_get_int(const char *id, char *subsys, char *param, int *value)
 	if (!sysfs_value)
 		return EIO;
 
-	*value = atoi(sysfs_value);
+	if (strncmp(sysfs_value, "off", 3) == 0 &&
+            strncmp(subsys, "iscsi_session", 13) == 0) {
+                *value = -1;
+        } else {
+                *value = atoi(sysfs_value);
+        }
 	free(sysfs_value);
 	return 0;
 }
