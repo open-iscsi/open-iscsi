@@ -682,7 +682,7 @@ add_target_record(char *name, char *end, discovery_rec_t *drec,
 	return 1;
 }
 
-static int
+static void
 process_sendtargets_response(struct str_buffer *sendtargets,
 			     int final, discovery_rec_t *drec,
 			     struct list_head *rec_list)
@@ -696,7 +696,7 @@ process_sendtargets_response(struct str_buffer *sendtargets,
 
 	if (start == end) {
 		/* no SendTargets data */
-		goto done;
+		return;
 	}
 
 	/* scan backwards to find the last NUL in the data, to ensure we
@@ -711,7 +711,7 @@ process_sendtargets_response(struct str_buffer *sendtargets,
 		/* couldn't find anything we can process now,
 		 * it's one big partial string
 		 */
-		goto done;
+		return;
 	}
 
 	/* find the boundaries between target records (TargetName or final PDU)
@@ -739,7 +739,7 @@ process_sendtargets_response(struct str_buffer *sendtargets,
 							drec, rec_list)) {
 					log_error("failed to add target record");
 					str_truncate_buffer(sendtargets, 0);
-					goto done;
+					return;
 				}
 				num_targets++;
 			}
@@ -769,7 +769,7 @@ process_sendtargets_response(struct str_buffer *sendtargets,
 			} else {
 				log_error("failed to add target record");
 				str_truncate_buffer(sendtargets, 0);
-				goto done;
+				return;
 			}
 		} else {
 			/* remove the parts of the sendtargets buffer we've
@@ -785,10 +785,6 @@ process_sendtargets_response(struct str_buffer *sendtargets,
 					   record - str_buffer_data(sendtargets));
 		}
 	}
-
-done:
-
-	return 1;
 }
 
 static void iscsi_free_session(struct iscsi_session *session)
