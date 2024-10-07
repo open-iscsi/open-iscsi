@@ -21,6 +21,7 @@
 #include <stdio.h>
 #include <errno.h>
 
+#include "iface.h"
 #include "list.h"
 #include "iscsi_util.h"
 #include "log.h"
@@ -32,7 +33,6 @@
 #include "session_info.h"
 #include "transport.h"
 #include "initiator.h"
-#include "iface.h"
 #include "iscsi_err.h"
 #include "iscsi_netlink.h"
 

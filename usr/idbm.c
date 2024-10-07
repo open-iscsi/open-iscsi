@@ -33,6 +33,7 @@
 #include <sys/file.h>
 #include <inttypes.h>
 
+#include "iface.h"
 #include "idbm.h"
 #include "idbm_fields.h"
 #include "log.h"
@@ -40,7 +41,6 @@
 #include "iscsi_settings.h"
 #include "transport.h"
 #include "iscsi_sysfs.h"
-#include "iface.h"
 #include "sysdeps.h"
 #include "fw_context.h"
 #include "iscsi_err.h"

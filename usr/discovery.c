@@ -32,6 +32,7 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 
+#include "iface.h"
 #include "local_strings.h"
 #include "types.h"
 #include "iscsi_proto.h"
@@ -46,7 +47,6 @@
 #include "transport.h"
 #include "iscsi_sysfs.h"
 #include "iscsi_ipc.h"
-#include "iface.h"
 #include "iscsi_timer.h"
 #include "iscsi_err.h"
 #if ISNS_SUPPORTED
@@ -692,7 +692,6 @@ process_sendtargets_response(struct str_buffer *sendtargets,
 	char *end = text + str_data_length(sendtargets);
 	char *nul = end - 1;
 	char *record = NULL;
-	int num_targets = 0;
 
 	if (start == end) {
 		/* no SendTargets data */
@@ -741,7 +740,6 @@ process_sendtargets_response(struct str_buffer *sendtargets,
 					str_truncate_buffer(sendtargets, 0);
 					return;
 				}
-				num_targets++;
 			}
 			record = text;
 		}
@@ -763,7 +761,6 @@ process_sendtargets_response(struct str_buffer *sendtargets,
 				 record, record);
 			if (add_target_record(record + 11, text,
 					      drec, rec_list)) {
-				num_targets++;
 				record = NULL;
 				str_truncate_buffer(sendtargets, 0);
 			} else {

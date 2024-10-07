@@ -230,7 +230,7 @@ typedef struct queue_task {
 	iscsiadm_req_t req;
 	iscsiadm_rsp_t rsp;
 	int mgmt_ipc_fd;
-	int allocated : 1;
+	unsigned int allocated : 1;
 	/* Newer request types include a
 	 * variable-length payload */
 	void *payload;
