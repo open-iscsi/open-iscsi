@@ -1023,8 +1023,10 @@ static void session_scan_host(struct iscsi_session *session, int hostno,
 {
 	pid_t pid;
 
-	if (!rescan && !idbm_session_autoscan(session))
+	if (!rescan && !idbm_session_autoscan(session)) {
+		mgmt_ipc_write_rsp(qtask, ISCSI_SUCCESS);
 		return;
+	}
 
 	pid = iscsi_sysfs_scan_host(hostno, session->id, 1, rescan);
 	if (pid == 0) {
