@@ -26,7 +26,7 @@ Setting up the tests
   packages or commands to run these tests:
 
   * fio
-  * bonie++
+  * bonnie++
   * mkfs.FSTYPE (e.g. mkfs.ext3)
   * sgdisk
   * dd
