@@ -26,6 +26,7 @@
 #include <dirent.h>
 #include <libmount/libmount.h>
 
+#include "iface.h"
 #include "initiator.h"
 #include "transport.h"
 #include "iscsid.h"
@@ -33,7 +34,6 @@
 #include "log.h"
 #include "iscsi_sysfs.h"
 #include "iscsi_settings.h"
-#include "iface.h"
 #include "host.h"
 #include "sysdeps.h"
 #include "iscsi_err.h"
