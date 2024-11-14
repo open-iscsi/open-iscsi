@@ -134,11 +134,8 @@ Running the tests
 Test Descriptsions
 ------------------
 
-  The "regression" test sequence was laid out in regression.sh (the
-  previous test script, still around for reference). I am not sure
-  why we still call it a regression test, when it does not in fact
-  check for any regression in performance. Instead, it tests
-  functionality.
+  These are just as much functional tests as they are regresssion
+  tests.
 
   Each iscsi test has the following default values
   (called "IscsiData()" in the test suite). These correspond to
