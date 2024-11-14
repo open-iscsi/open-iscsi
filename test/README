@@ -45,8 +45,14 @@ Running the tests
   target, and you will need to know which SCSI disk will show in in
   /dev for this target (e.g. "/dev/sdc", if you already have a "/dev/sda"
   and a "/dev/sdb"). You will need to pass in this information to the
-  python script to test. For example, to run all tests on my test
-  system (as root, of course):
+  python script to test.
+
+  You do not need to run discovery before running the test. The tests will
+  work if the node is already in the DB, and will run discovery itself if
+  the node is not found. The tests will fail if the node is not then
+  present in the database.
+
+  For example, to run all tests on my test system (as root, of course):
 
     # ./test-open-iscsi.py -v -f \
         -t iqn.2003-01.org.linux-iscsi.linux-o2br.x8664:sn.2296be998e2c \

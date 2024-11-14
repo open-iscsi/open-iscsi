@@ -9,9 +9,8 @@
   in a requirement for targetcli-fb and friends, plus we
   would still need a place for a decent-sized (1G?) file.
 
-* have tests do discovery themselves, instead of requiring
-  that to be done already. Either way, we may still need
-  to know the IQN of our target and the host where it lives.
+* when we do discovery we should keep track of the node(s)
+  added, and remove them when we exit?
 
 * Have tests figure out the device path, so it doesn't have
   to be passed in. Passing it in requires the called to
