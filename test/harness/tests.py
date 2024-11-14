@@ -13,19 +13,23 @@ from .iscsi import IscsiData
 
 
 def s2dt(s):
-    # seconds to "HH:MM:SS.sss"
+    """
+    seconds to "HH:MM:SS.sss"
+    """
     s_orig = s
     hrs = s / 3600
     s -= (int(hrs) * 3600)
     mins = s / 60
     s -= (int(mins) * 60)
     a_str="%02d:%02d:%06.3f" % (hrs, mins, s)
-    dprint("s2dt: %f -> %s" % (s_orig, a_str))
+    util.dprint("s2dt: %f -> %s" % (s_orig, a_str))
     return a_str
 
 
 def print_time_values():
-    # print out global exec time values
+    """
+    print out global exec time values
+    """
     util.vprint('')
     util.vprint('Times spent running sub-programs:')
     ttl_time = 0.0
@@ -39,17 +43,43 @@ def print_time_values():
     util.vprint('')
     util.vprint('Total test-run time: %s' % (s2dt(Global.total_time)))
 
+def verify_node_in_db():
+    """
+    Verify that the required IQN has a node in the database
+
+    return (result, reason) (reason only matters if result is false)
+    """
+    util.dprint('verifying that Node is in DB: %s at %s' % 
+                (Global.target, Global.ipnr))
+    # check that our target node exists in the Node DB
+    res = util.run_cmd(['iscsiadm', '-m', 'node',
+                        '-T', Global.target,
+                        '-p', Global.ipnr])
+    if res == 0:
+        return (res, 'success')
+    util.dprint('Node not in the DB ... running discovery')
+    # we need to run discovery, then verify the node is in the DB
+    res = util.run_cmd(['iscsiadm', '-m', 'discovery', '-t', 'st',
+                        '-p', Global.ipnr])
+    if res != 0:
+        return (res, 'Unable to run discovery')
+    # verify node entry got created by our discovery
+    res = util.run_cmd(['iscsiadm', '-m', 'node',
+                        '-T', Global.target,
+                        '-p', Global.ipnr])
+    if res == 0:
+        util.dprint('Success: node now in DB!')
+        return (res, 'success')
+    return (res, 'Discovery failed to create Node DB entry')
 
 class TestRegression(unittest.TestCase):
     """
     Regression testing
     """
-
     @classmethod
     def setUpClass(cls):
         util.verify_needed_commands_exist(['parted', 'fio', Global.MKFSCMD[0], 'bonnie++', 'sgdisk', 'iscsiadm'])
         util.vprint('*** Starting %s' % cls.__name__)
-        # XXX validate that target exists?
         # an array of first burts, max burst, and max recv values, for testing
         cls.param_values = [[4096, 4096, 4096],
                             [8192, 4096, 4096],
@@ -73,6 +103,10 @@ class TestRegression(unittest.TestCase):
         if Global.debug or Global.verbosity > 1:
             # this makes debug printing a little more clean
             print('', file=sys.stderr)
+        # validate that target exists and we have a node in the DB for it
+        (res, reason) = verify_node_in_db()
+        self.assertEqual(res, 0, reason)
+        return True
 
     def iscsi_logout(self):
         res = util.run_cmd(['iscsiadm', '-m', 'node',
