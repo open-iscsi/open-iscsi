@@ -214,7 +214,7 @@ void event_loop(struct iscsi_ipc *ipc, int control_fd, int mgmt_ipc_fd)
 						  "exiting", errno);
 					break;
 				} else {
-					log_debug(1, "Poll was woken by an alarm");
+					log_debug(4, "Poll was woken by an alarm");
 				}
 			}
 		} else if (res < 0) {
