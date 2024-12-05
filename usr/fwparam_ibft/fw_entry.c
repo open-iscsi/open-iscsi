@@ -73,12 +73,22 @@ int fw_setup_nics(void)
 				needs_bringup = 1;
 		}
 		if (net_get_transport_name_from_netdev(context->iface, transport)) {
+			int ip_ver = net_get_ip_version(context->ipaddr);
+
 			/* Setup software NIC, */
 			printf("Setting up software interface %s\n", context->iface);
-			err = net_setup_netdev(context->iface, context->ipaddr,
-								   context->mask, context->gateway,
-								   context->vlan,
-								   context->target_ipaddr, needs_bringup);
+			if (ip_ver == AF_INET)
+				err = net_setup_netdev_ipv4(context->iface, context->ipaddr,
+						context->mask, context->gateway,
+						context->vlan, context->target_ipaddr,
+						needs_bringup);
+			else if (ip_ver == AF_INET6)
+				err = net_setup_netdev_ipv6(context->iface, context->ipaddr,
+						context->prefix, context->gateway,
+						context->vlan, context->target_ipaddr,
+						needs_bringup);
+			else
+				err = ip_ver;
 			if (err) {
 				printf("Setting up software interface %s failed\n",
 						context->iface);

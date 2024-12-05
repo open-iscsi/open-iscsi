@@ -32,6 +32,8 @@
 #include <linux/if_vlan.h>
 #include <net/if_arp.h>
 #include <linux/if_ether.h>
+#include <netdb.h>
+#include <linux/ipv6.h>
 
 #include "sysdeps.h"
 #include "ethtool-copy.h"
@@ -234,8 +236,57 @@ static char *find_vlan_dev(char *netdev, int vlan_id) {
 	return vlan;
 }
 
+int net_get_ip_version(char *ip)
+{
+	struct addrinfo hint;
+	struct addrinfo *res = NULL;
+	int ret;
+
+	memset(&hint, 0, sizeof hint);
+	hint.ai_family = PF_UNSPEC;
+	hint.ai_flags = AI_NUMERICHOST;
+	ret = getaddrinfo(ip, NULL, &hint, &res);
+	if (ret) {
+		log_error("Invalid IP address %s\n", ip);
+		return EINVAL;
+	}
+
+	ret = res->ai_family;
+	freeaddrinfo(res);
+	return ret;
+}
+
+static int net_bringup_netdev(int sock, char *physdev, char *netdev)
+{
+	struct ifreq ifr;
+
+	if (physdev) {
+		/* Bring up interface */
+		memset(&ifr, 0, sizeof(ifr));
+		strlcpy(ifr.ifr_name, physdev, IFNAMSIZ);
+		ifr.ifr_flags = IFF_UP | IFF_RUNNING;
+		if (ioctl(sock, SIOCSIFFLAGS, &ifr) < 0) {
+			log_error("Could not bring up netdev %s (err %d - %s)",
+				  physdev, errno, strerror(errno));
+			return errno;
+		}
+	}
+
+	/* Bring up interface */
+	memset(&ifr, 0, sizeof(ifr));
+	strlcpy(ifr.ifr_name, netdev, IFNAMSIZ);
+	ifr.ifr_flags = IFF_UP | IFF_RUNNING;
+	if (ioctl(sock, SIOCSIFFLAGS, &ifr) < 0) {
+		log_error("Could not bring up netdev %s (err %d - %s)",
+			  netdev, errno, strerror(errno));
+		return errno;
+	}
+
+	return 0;
+}
+
 /**
- * net_setup_netdev - bring up NIC
+ * net_setup_netdev_ipv4 - bring up NIC for IPv4
  * @netdev: network device name
  * @local: ip address for netdev
  * @mask: net mask
@@ -246,8 +297,8 @@ static char *find_vlan_dev(char *netdev, int vlan_id) {
  * Bring up required NIC and use routing
  * to force iSCSI traffic through correct NIC.
  */
-int net_setup_netdev(char *netdev, char *local_ip, char *mask, char *gateway,
-		     char *vlan, char *remote_ip, int needs_bringup)
+int net_setup_netdev_ipv4(char *netdev, char *local_ip, char *mask, char *gateway,
+			  char *vlan, char *remote_ip, int needs_bringup)
 {
 	struct sockaddr_in sk_ipaddr = { .sin_family = AF_INET };
 	struct sockaddr_in sk_netmask = { .sin_family = AF_INET };
@@ -316,30 +367,10 @@ int net_setup_netdev(char *netdev, char *local_ip, char *mask, char *gateway,
 
 	/* Only set IP/NM if this is a new interface */
 	if (needs_bringup) {
-
-		if (physdev) {
-			/* Bring up interface */
-			memset(&ifr, 0, sizeof(ifr));
-			strlcpy(ifr.ifr_name, physdev, IFNAMSIZ);
-			ifr.ifr_flags = IFF_UP | IFF_RUNNING;
-			if (ioctl(sock, SIOCSIFFLAGS, &ifr) < 0) {
-				log_error("Could not bring up netdev %s (err %d - %s)",
-					  physdev, errno, strerror(errno));
-				ret = errno;
-				goto done;
-			}
-		}
-
-		/* Bring up interface */
-		memset(&ifr, 0, sizeof(ifr));
-		strlcpy(ifr.ifr_name, targetdev, IFNAMSIZ);
-		ifr.ifr_flags = IFF_UP | IFF_RUNNING;
-		if (ioctl(sock, SIOCSIFFLAGS, &ifr) < 0) {
-			log_error("Could not bring up netdev %s (err %d - %s)",
-				  targetdev, errno, strerror(errno));
-			ret = errno;
+		ret = net_bringup_netdev(sock, physdev, targetdev);
+		if (ret)
 			goto done;
-		}
+
 		/* Set IP address */
 		memset(&ifr, 0, sizeof(ifr));
 		strlcpy(ifr.ifr_name, targetdev, IFNAMSIZ);
@@ -401,6 +432,131 @@ int net_setup_netdev(char *netdev, char *local_ip, char *mask, char *gateway,
 				ret = errno;
 				goto done;
 			}
+		}
+	}
+	ret = 0;
+
+done:
+	if (sock >= 0)
+		close(sock);
+	if (vlandev)
+		free(vlandev);
+	return ret;
+}
+
+/**
+ * net_setup_netdev_ipv6 - bring up NIC for IPv6
+ * @netdev: network device name
+ * @local: ip address for netdev
+ * @prefix: prefix length
+ * @gateway: gateway
+ * @vlan: vlan ID
+ * @remote_ip: target portal ip
+ * @needs_bringup: bool indicating if the netdev needs to be started
+ *
+ * Bring up required NIC and use routing
+ * to force iSCSI traffic through correct NIC.
+ */
+int net_setup_netdev_ipv6(char *netdev, char *local_ip, int prefix, char *gateway,
+			  char *vlan, char *remote_ip, int needs_bringup)
+{
+	struct sockaddr_in6 sk_ipaddr = { .sin6_family = AF_INET6 };
+	struct sockaddr_in6 sk_gateway = { .sin6_family = AF_INET6 };
+	struct sockaddr_in6 sk_tgt_ipaddr = { .sin6_family = AF_INET6 };
+	struct in6_ifreq ifr6;
+	struct in6_rtmsg rtmsg;
+	char *physdev = NULL;
+	char *vlandev = NULL;
+	char *targetdev;
+	int sock;
+	int ret;
+	int vlan_id;
+	int ifindex;
+
+	if (!strlen(netdev)) {
+		log_error("No netdev name in fw entry.\n");
+		return EINVAL;
+	}
+	targetdev = netdev;
+
+	vlan_id = atoi(vlan);
+	if (vlan_id) {
+		vlandev = find_vlan_dev(physdev, vlan_id);
+		physdev = targetdev;
+		targetdev = vlandev;
+	}
+	if (vlan_id && !vlandev) {
+		log_error("No matching VLAN found for fw entry.\n");
+		return EINVAL;
+	}
+
+	/* Create socket for making networking changes */
+	if ((sock = socket(AF_INET6, SOCK_DGRAM, 0)) == -1) {
+		log_error("Could not open socket to manage network (err %d - %s)\n",
+			  errno, strerror(errno));
+		ret = errno;
+		goto done;
+	}
+
+	/* Bring up NIC with correct address */
+	if (!inet_pton(AF_INET6, local_ip, &sk_ipaddr.sin6_addr)) {
+		log_error("Invalid or missing IPv6 address in fw entry.\n");
+		ret = EINVAL;
+		goto done;
+	}
+
+	if (!inet_pton(AF_INET6, remote_ip, &sk_tgt_ipaddr.sin6_addr)) {
+		log_error("Invalid or missing target ipaddr in fw entry.\n");
+		ret = EINVAL;
+		goto done;
+	}
+
+	if (!inet_pton(AF_INET6, gateway, &sk_gateway.sin6_addr)) {
+		log_error("Invalid or missing gateway in fw entry.\n");
+		ret = EINVAL;
+		goto done;
+	}
+
+	ifindex = if_nametoindex(targetdev);
+	if (!ifindex) {
+		log_error("Could not get index for %s (err %d - %s)\n",
+			  targetdev, errno, strerror(errno));
+		ret = errno;
+		goto done;
+	}
+
+	/* Only set IP if this is a new interface */
+	if (needs_bringup) {
+		ret = net_bringup_netdev(sock, physdev, targetdev);
+		if (ret)
+			goto done;
+
+		/* Set IPv6 address */
+		memset(&ifr6, 0, sizeof(ifr6));
+		memcpy(&ifr6.ifr6_addr, &sk_ipaddr.sin6_addr, sizeof(struct in6_addr));
+		ifr6.ifr6_ifindex = ifindex;
+		ifr6.ifr6_prefixlen = prefix;
+		if (ioctl(sock, SIOCSIFADDR, &ifr6) < 0) {
+			log_error("Could not set IPv6 address for %s (err %d - %s)\n",
+				  targetdev, errno, strerror(errno));
+			ret = errno;
+			goto done;
+		}
+	}
+
+	/* Set static route to target via this interface */
+	memset(&rtmsg, 0, sizeof(rtmsg));
+	memcpy(&rtmsg.rtmsg_dst, &sk_tgt_ipaddr.sin6_addr, sizeof(struct in6_addr));
+	memcpy(&rtmsg.rtmsg_gateway, &sk_gateway.sin6_addr, sizeof(struct in6_addr));
+	rtmsg.rtmsg_dst_len = 128;
+	rtmsg.rtmsg_ifindex = ifindex;
+	rtmsg.rtmsg_flags = RTF_GATEWAY | RTF_UP;
+	if (ioctl(sock, SIOCADDRT, &rtmsg) < 0) {
+		if (errno != EEXIST) {
+			log_error("Could not add IPv6 route for %s (err %d - %s)\n",
+				  targetdev, errno, strerror(errno));
+			ret = errno;
+			goto done;
 		}
 	}
 	ret = 0;
