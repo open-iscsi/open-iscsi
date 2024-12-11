@@ -306,7 +306,9 @@ def run_fio():
     return (0, 'Success')
 
 def wait_for_path(path, present=True, amt=10):
-    """Wait until a path exists or is gone"""
+    """
+    Wait until a path exists or is gone
+    """
     dprint("Looking for path=%s, present=%s" % (path, present))
     for i in range(amt):
         sleep_some(1)
