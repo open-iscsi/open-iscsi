@@ -257,6 +257,8 @@ int net_setup_netdev(char *netdev, char *local_ip, char *mask, char *gateway,
 	struct rtentry rt;
 	struct ifreq ifr;
 	char *physdev = NULL;
+	char *vlandev = NULL;
+	char *targetdev;
 	int sock;
 	int ret;
 	int vlan_id;
@@ -266,14 +268,16 @@ int net_setup_netdev(char *netdev, char *local_ip, char *mask, char *gateway,
 		return EINVAL;
 	}		
 
+	targetdev = netdev;
 	vlan_id = atoi(vlan);
 
 	if (vlan_id != 0) {
-		physdev = netdev;
-		netdev = find_vlan_dev(physdev, vlan_id);
+		vlandev = find_vlan_dev(physdev, vlan_id);
+		physdev = targetdev;
+		targetdev = vlandev;
 	}
 
-	if (vlan_id && !netdev) {
+	if (vlan_id && !vlandev) {
 		/* TODO: create vlan if not found */
 		log_error("No matching vlan found for fw entry.");
 		return EINVAL;
@@ -328,32 +332,32 @@ int net_setup_netdev(char *netdev, char *local_ip, char *mask, char *gateway,
 
 		/* Bring up interface */
 		memset(&ifr, 0, sizeof(ifr));
-		strlcpy(ifr.ifr_name, netdev, IFNAMSIZ);
+		strlcpy(ifr.ifr_name, targetdev, IFNAMSIZ);
 		ifr.ifr_flags = IFF_UP | IFF_RUNNING;
 		if (ioctl(sock, SIOCSIFFLAGS, &ifr) < 0) {
 			log_error("Could not bring up netdev %s (err %d - %s)",
-				  netdev, errno, strerror(errno));
+				  targetdev, errno, strerror(errno));
 			ret = errno;
 			goto done;
 		}
 		/* Set IP address */
 		memset(&ifr, 0, sizeof(ifr));
-		strlcpy(ifr.ifr_name, netdev, IFNAMSIZ);
+		strlcpy(ifr.ifr_name, targetdev, IFNAMSIZ);
 		memcpy(&ifr.ifr_addr, &sk_ipaddr, sizeof(struct sockaddr));
 		if (ioctl(sock, SIOCSIFADDR, &ifr) < 0) {
 			log_error("Could not set ip for %s (err %d - %s)",
-				  netdev, errno, strerror(errno));
+				  targetdev, errno, strerror(errno));
 			ret = errno;
 			goto done;
 		}
 
 		/* Set netmask */
 		memset(&ifr, 0, sizeof(ifr));
-		strlcpy(ifr.ifr_name, netdev, IFNAMSIZ);
+		strlcpy(ifr.ifr_name, targetdev, IFNAMSIZ);
 		memcpy(&ifr.ifr_addr, &sk_netmask, sizeof(struct sockaddr));
 		if (ioctl(sock, SIOCSIFNETMASK, &ifr) < 0) {
 			log_error("Could not set ip for %s (err %d - %s)",
-				  netdev, errno, strerror(errno));
+				  targetdev, errno, strerror(errno));
 			ret = errno;
 			goto done;
 		}
@@ -364,7 +368,7 @@ int net_setup_netdev(char *netdev, char *local_ip, char *mask, char *gateway,
 	memcpy(&rt.rt_dst, &sk_tgt_ipaddr, sizeof(sk_tgt_ipaddr));
 	memcpy(&rt.rt_genmask, &sk_hostmask, sizeof(sk_hostmask));
 	rt.rt_flags = RTF_UP | RTF_HOST;
-	rt.rt_dev = netdev;
+	rt.rt_dev = targetdev;
 
 	if ((sk_tgt_ipaddr.sin_addr.s_addr & sk_netmask.sin_addr.s_addr) == 
 		(sk_ipaddr.sin_addr.s_addr & sk_netmask.sin_addr.s_addr)) {
@@ -372,7 +376,7 @@ int net_setup_netdev(char *netdev, char *local_ip, char *mask, char *gateway,
 		if (ioctl(sock, SIOCADDRT, &rt) < 0) {
 			if (errno != EEXIST) {
 				log_error("Could not set ip for %s "
-					  "(err %d - %s)", netdev,
+					  "(err %d - %s)", targetdev,
 					   errno, strerror(errno));
 				ret = errno;
 				goto done;
@@ -384,7 +388,7 @@ int net_setup_netdev(char *netdev, char *local_ip, char *mask, char *gateway,
 		if (!inet_pton(AF_INET, gateway, &sk_gateway.sin_addr)) {
 			log_error("Invalid or missing gateway for %s "
 				  "(err %d - %s)",
-				  netdev, errno, strerror(errno));
+				  targetdev, errno, strerror(errno));
 			ret = errno;
 			goto done;
 		}
@@ -392,7 +396,7 @@ int net_setup_netdev(char *netdev, char *local_ip, char *mask, char *gateway,
 		if (ioctl(sock, SIOCADDRT, &rt) < 0) {
 			if (errno != EEXIST) {
 				log_error("Could not set gateway for %s "
-					  "(err %d - %s)", netdev,
+					  "(err %d - %s)", targetdev,
 					  errno, strerror(errno));
 				ret = errno;
 				goto done;
@@ -404,8 +408,8 @@ int net_setup_netdev(char *netdev, char *local_ip, char *mask, char *gateway,
 done:
 	if (sock >= 0)
 		close(sock);
-	if (vlan_id)
-		free(netdev);
+	if (vlandev)
+		free(vlandev);
 	return ret;
 }
 
