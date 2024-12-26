@@ -1361,7 +1361,7 @@ sw_discovery:
 
 
 static int
-verify_mode_params(int argc, char **argv, enum iscsiadm_mode mode)
+verify_mode_params(int argc, char **argv, enum iscsiadm_mode mode, const char *mode_str)
 {
 	int ch, longindex;
 	int ret = ISCSI_SUCCESS;
@@ -1370,7 +1370,7 @@ verify_mode_params(int argc, char **argv, enum iscsiadm_mode mode)
 	int tmp = optind;
 
 	if (mode > MODE_FW || mode < MODE_DISCOVERY) {
-		log_error("mode %d is not yet supported", mode);
+		log_error("%s mode is unkonwn/unsupported", mode_str);
 		return ISCSI_ERR_INVAL;
 	}
 
@@ -1384,9 +1384,8 @@ verify_mode_params(int argc, char **argv, enum iscsiadm_mode mode)
 		if (!strchr(allowed, ch)) {
 			if (ch == 'm' && skip_m)
 				continue;
-			log_error("%s mode: option '-%c' is not "
-				  "allowed/supported",
-				  mode_paras[mode].mode, ch);
+			log_error("%s mode: option '-%c' is not allowed/supported",
+				  mode_str, optopt);
 			ret = ISCSI_ERR_INVAL;
 			break;
 		}
@@ -3784,7 +3783,7 @@ main(int argc, char **argv)
 			break;
 		case 'm':
 			mode = str_to_mode(optarg);
-			rc = verify_mode_params(argc, argv, mode);
+			rc = verify_mode_params(argc, argv, mode, optarg);
 			if (ISCSI_SUCCESS != rc)
 				goto out;
 			break;
@@ -3873,8 +3872,10 @@ main(int argc, char **argv)
 		goto out;
 	}
 
-	if (mode < 0)
+	if (mode < 0) {
+		log_error("no mode specified");
 		usage(ISCSI_ERR_INVAL);
+	}
 
 	increase_max_files();
 	if (idbm_init(get_config_file)) {
