@@ -260,6 +260,9 @@ __session_conn_create(iscsi_session_t *session, int cid)
 
 	/* set session reconnection retry max */
 	session->reopen_max = rec->session.reopen_max;
+	session->reopen_log_freq = rec->session.reopen_log_freq;
+	if (session->reopen_log_freq == 0)
+		session->reopen_log_freq = 1;
 
 	conn->state = ISCSI_CONN_STATE_FREE;
 	conn->session = session;
@@ -588,7 +591,7 @@ __session_conn_reopen(iscsi_conn_t *conn, queue_task_t *qtask, int do_stop,
 	iscsi_session_t *session = conn->session;
 	uint32_t delay;
 
-	log_debug(1, "re-opening session %d (reopen_cnt %d)", session->id,
+	log_session_reopen(1, session, "re-opening session %d (reopen_cnt %d)", session->id,
 			session->reopen_cnt);
 
 	qtask->conn = conn;
