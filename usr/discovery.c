@@ -823,7 +823,7 @@ iscsi_alloc_session(struct iscsi_sendtargets_config *config,
 	session->conn[0].noop_out_timeout = 0;
 	session->conn[0].noop_out_interval = 0;
 	session->reopen_cnt = config->reopen_max + 1;
-	session->reopen_log_freq = 1;
+	session->reopen_log_freq = DEF_SESSION_REOPEN_LOG_FREQ;
 	iscsi_copy_operational_params(&session->conn[0], &config->session_conf,
 				      &config->conn_conf);
 

@@ -336,17 +336,18 @@ void log_info(const char *fmt, ...)
 	va_end(ap);
 }
 
-void log_session_reopen(int level, iscsi_session_t *session, const char *fmt, ...)
+void log_debug_rate_limited(int level, iscsi_session_t *session, const char *fmt, ...)
 {
 	int reopen_cnt = session->reopen_cnt;
 	int reopen_log_freq = session->reopen_log_freq;
 
-	if ((log_level >= level) && ((log_level > 2) ||
-		(reopen_cnt % reopen_log_freq) == 0)) {
-			va_list ap;
-			va_start(ap, fmt);
-			log_func(LOG_DEBUG, log_func_priv, fmt, ap);
-			va_end(ap);
+	if ((log_level >= level) &&
+		((log_level > 2) ||
+		 (reopen_cnt % reopen_log_freq == 0))) {
+		va_list ap;
+		va_start(ap, fmt);
+		log_func(LOG_DEBUG, log_func_priv, fmt, ap);
+		va_end(ap);
 	}
 
 }

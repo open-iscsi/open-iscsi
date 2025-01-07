@@ -17,7 +17,7 @@
 /* session reopen max retries */
 #define	DEF_SESSION_REOPEN_MAX	0
 
-/* session reopen log frequency */
+/* session reopen log frequency i.e number of reopens per message */
 #define DEF_SESSION_REOPEN_LOG_FREQ 1
 
 /* q depths */

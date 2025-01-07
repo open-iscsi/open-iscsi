@@ -80,7 +80,7 @@ extern void log_error(const char *fmt, ...)
 	__attribute__ ((format (printf, 1, 2)));
 extern void log_debug(int level, const char *fmt, ...)
 	__attribute__ ((format (printf, 2, 3)));
-extern void log_session_reopen(int level, struct iscsi_session *, const char *fmt, ...)
+extern void log_debug_rate_limited(int level, struct iscsi_session *, const char *fmt, ...)
 	__attribute__ ((format (printf, 3, 4)));
 
 extern void log_do_log_daemon(int prio, void *priv, const char *fmt, va_list ap);

@@ -322,7 +322,7 @@ iscsi_io_tcp_connect(iscsi_conn_t *conn, int non_blocking)
 		    conn->host, sizeof(conn->host), serv, sizeof(serv),
 		    NI_NUMERICHOST|NI_NUMERICSERV);
 
-	log_session_reopen(1, conn->session, "connecting to %s:%s", conn->host, serv);
+	log_debug_rate_limited(1, conn->session, "connecting to %s:%s", conn->host, serv);
 	if (non_blocking)
 		set_non_blocking(conn->socket_fd);
 	rc = connect(conn->socket_fd, (struct sockaddr *) ss, sizeof (*ss));
@@ -367,8 +367,12 @@ iscsi_io_tcp_poll(iscsi_conn_t *conn, int timeout_ms)
 			    conn->host, sizeof(conn->host), serv, sizeof(serv),
 			    NI_NUMERICHOST|NI_NUMERICSERV);
 
-		log_session_reopen(1, conn->session, "connect to %s:%s failed (%s)",
-			  conn->host, serv, strerror(rc));
+		if (conn->session->reopen_log_freq > 1)
+			log_debug_rate_limited(1, conn->session, "connect to %s:%s failed (%s)",
+					       conn->host, serv, strerror(rc));
+		else
+			log_error("connect to %s:%s failed (%s)",
+				  conn->host, serv, strerror(rc));
 		return -rc;
 	}
 
@@ -395,7 +399,7 @@ iscsi_io_tcp_disconnect(iscsi_conn_t *conn)
 	struct linger so_linger = { .l_onoff = 1, .l_linger = 0 };
 
 	if (conn->socket_fd >= 0) {
-		log_session_reopen(1, conn->session, "disconnecting conn %p, fd %d", conn,
+		log_debug_rate_limited(1, conn->session, "disconnecting conn %p, fd %d", conn,
 			 conn->socket_fd);
 
 		/* If the state is not IN_LOGOUT, this isn't a clean shutdown
