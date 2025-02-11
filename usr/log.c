@@ -21,6 +21,7 @@
 
 #include "iscsi_util.h"
 #include "log.h"
+#include "iscsi_settings.h"
 
 #define SEMKEY	0xA7L
 #define LOGDBG 0
@@ -336,14 +337,21 @@ void log_info(const char *fmt, ...)
 	va_end(ap);
 }
 
-void log_debug_rate_limited(int level, iscsi_session_t *session, const char *fmt, ...)
+void conn_log_connect(int level, iscsi_session_t *session, const char *fmt, ...)
 {
-	int reopen_cnt = session->reopen_cnt;
-	int reopen_log_freq = session->reopen_log_freq;
+	int reopen_cnt = 0;
+	int conn_reopen_log_freq = DEF_CONN_REOPEN_LOG_FREQ;
+
+	if (session) {
+		reopen_cnt = session->reopen_cnt;
+		conn_reopen_log_freq = session->conn_reopen_log_freq;
+		if (conn_reopen_log_freq < 1)
+			conn_reopen_log_freq = DEF_CONN_REOPEN_LOG_FREQ;
+	}
 
 	if ((log_level >= level) &&
 		((log_level > 2) ||
-		 (reopen_cnt % reopen_log_freq == 0))) {
+		 (reopen_cnt % conn_reopen_log_freq == 0))) {
 		va_list ap;
 		va_start(ap, fmt);
 		log_func(LOG_DEBUG, log_func_priv, fmt, ap);

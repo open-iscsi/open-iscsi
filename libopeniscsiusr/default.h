@@ -58,7 +58,7 @@
 #define	DEF_SESSION_REOPEN_MAX		0
 
 /* session reopen log frequency i.e number of reopens per message */
-#define DEF_SESSION_REOPEN_LOG_FREQ    1
+#define DEF_CONN_REOPEN_LOG_FREQ    1
 
 /* default window size */
 #define TCP_WINDOW_SIZE			(512 * 1024)

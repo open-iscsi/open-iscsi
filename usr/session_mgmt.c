@@ -110,7 +110,7 @@ __iscsi_login_portal(void *data, struct list_head *list, struct node_rec *rec)
 		rec->session.multiple = pattern_rec->session.multiple;
 	}
 
-	log_info("Logging in to [iface: %s, target: %s, portal: %s,%d]%s",
+	conn_log_connect(1, NULL, "Logging in to [iface: %s, target: %s, portal: %s,%d]%s",
 		 rec->iface.name, rec->name, rec->conn[0].address,
 		 rec->conn[0].port,
 		 (rec->session.multiple ? " (multiple)" : ""));
@@ -118,7 +118,7 @@ __iscsi_login_portal(void *data, struct list_head *list, struct node_rec *rec)
 	if (list) {
 		async_req = calloc(1, sizeof(*async_req));
 		if (!async_req)
-			log_info("Could not allocate memory for async login "
+			conn_log_connect(1, NULL, "Could not allocate memory for async login "
 				 "handling. Using sequential login instead.");
 		else
 			INIT_LIST_HEAD(&async_req->list);
@@ -195,7 +195,7 @@ int iscsi_login_portal(void *data, struct list_head *list, struct node_rec *rec)
 	if (rec->session.nr_sessions > 1)
 		rec->session.multiple = 1;
 	for (i = session_count; i < rec->session.nr_sessions; ++i) {
-		log_debug(1, "%s: Creating session %d/%d", rec->iface.name,
+		conn_log_connect(1, NULL, "%s: Creating session %d/%d", rec->iface.name,
 			  i + 1, rec->session.nr_sessions);
 		int err = __iscsi_login_portal(pattern_rec, list, rec);
 		if (err && !rc)

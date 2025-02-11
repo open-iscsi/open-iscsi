@@ -526,8 +526,8 @@ idbm_recinfo_node(node_rec_t *r, recinfo_t *ri)
 			 num, 1);
 	__recinfo_int(SESSION_REOPEN_MAX, ri, r,
 			session.reopen_max, IDBM_SHOW, num, 1);
-	__recinfo_int(SESSION_REOPEN_LOG_FREQ, ri, r,
-			session.reopen_log_freq, IDBM_SHOW, num, 1);
+	__recinfo_int(CONN_REOPEN_LOG_FREQ, ri, r,
+			session.conn_reopen_log_freq, IDBM_SHOW, num, 1);
 
 	for (i = 0; i < ISCSI_CONN_MAX; i++) {
 		char key[NAME_MAXVAL];
@@ -3288,7 +3288,7 @@ void idbm_node_setup_defaults(node_rec_t *rec)
 	rec->session.nr_sessions = 1;
 	rec->session.initial_login_retry_max = DEF_INITIAL_LOGIN_RETRIES_MAX;
 	rec->session.reopen_max = DEF_SESSION_REOPEN_MAX;
-	rec->session.reopen_log_freq = DEF_SESSION_REOPEN_LOG_FREQ;
+	rec->session.conn_reopen_log_freq = DEF_CONN_REOPEN_LOG_FREQ;
 	rec->session.auth.authmethod = 0;
 	/* TYPE_INT_LIST fields should be initialized to ~0 to indicate unset values */
 	memset(rec->session.auth.chap_algs, ~0, sizeof(rec->session.auth.chap_algs));

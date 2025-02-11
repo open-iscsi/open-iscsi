@@ -18,7 +18,7 @@
 #define	DEF_SESSION_REOPEN_MAX	0
 
 /* session reopen log frequency i.e number of reopens per message */
-#define DEF_SESSION_REOPEN_LOG_FREQ 1
+#define DEF_CONN_REOPEN_LOG_FREQ 1
 
 /* q depths */
 #define CMDS_MAX	128
