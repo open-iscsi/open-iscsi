@@ -67,7 +67,7 @@ actor_delete(actor_t *thread)
 		/* priority: low */
 		/* fallthrough */
 	case ACTOR_SCHEDULED:
-		log_debug(1, "deleting a scheduled/waiting thread %p:%s!",
+		log_debug(4, "deleting a scheduled/waiting thread %p:%s!",
 			 thread, thread->name);
 		list_del_init(&thread->list);
 		if (list_empty(&pend_list)) {
