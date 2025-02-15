@@ -295,6 +295,7 @@ typedef struct iscsi_session {
 	/* connection reopens during recovery */
 	int reopen_cnt;
 	int reopen_max;
+	int conn_reopen_log_freq;
 	queue_task_t reopen_qtask;
 	iscsi_session_r_stage_e r_stage;
 	uint32_t replacement_timeout;

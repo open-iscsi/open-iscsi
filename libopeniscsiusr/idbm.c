@@ -1111,6 +1111,8 @@ static void _idbm_node_rec_link(struct iscsi_node *node, struct idbm_rec *recs, 
 		    "auto", num, _CAN_MODIFY);
 	_rec_int64(SESSION_REOPEN_MAX, recs, node, session.reopen_max, IDBM_SHOW, num,
 		   _CAN_MODIFY);
+	_rec_int64(CONN_REOPEN_LOG_FREQ, recs, node, session.conn_reopen_log_freq, IDBM_SHOW, num,
+		   _CAN_MODIFY);
 
 	_rec_str(CONN_ADDR, recs, node, conn.address, IDBM_SHOW, num,
 		 _CANNOT_MODIFY);

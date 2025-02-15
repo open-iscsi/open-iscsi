@@ -48,6 +48,7 @@
 #define SESSION_ERL		"node.session.iscsi.ERL"
 #define SESSION_SCAN		"node.session.scan"
 #define SESSION_REOPEN_MAX	"node.session.reopen_max"
+#define CONN_REOPEN_LOG_FREQ 	"node.session.conn_reopen_log_freq"
 
 /* connections fields */
 #define CONN_ADDR		"node.conn[%d].address"

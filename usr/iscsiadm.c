@@ -471,7 +471,7 @@ __do_leading_login(void *data, struct list_head *list, struct node_rec *rec)
 	struct iface_rec *pattern_iface = data;
 	int nr_found;
 
-	log_debug(1, "doing leading login using iface: %s", pattern_iface->name);
+	conn_log_connect(1, NULL, "doing leading login using iface: %s", pattern_iface->name);
 
 	/* Skip any records that do not match the pattern iface */
 	if (!iface_match(pattern_iface, &rec->iface))
@@ -482,7 +482,7 @@ __do_leading_login(void *data, struct list_head *list, struct node_rec *rec)
 	 * the leading login is complete.
 	 */
 	if (iscsi_sysfs_for_each_session(rec, &nr_found, iscsi_match_target, 0)) {
-		log_debug(1, "Skipping %s: Already a session for that target",
+		conn_log_connect(1, NULL, "Skipping %s: Already a session for that target",
 			  rec->name);
 		return -1;
 	}
@@ -531,7 +531,7 @@ login_by_startup(char *mode, bool wait)
 	rc = err;
 
 	if (!list_empty(&startup.all_logins)) {
-		log_debug(1, "Logging into normal (non-leading-login) portals");
+		conn_log_connect(1, NULL, "Logging into normal (non-leading-login) portals");
 		/* Login all regular (non-leading-login) portals first */
 		err = iscsi_login_portals(NULL, &nr_found, wait,
 				&startup.all_logins, iscsi_login_portal);
@@ -550,11 +550,11 @@ login_by_startup(char *mode, bool wait)
 		struct node_rec *rec, *tmp_rec;
 		LIST_HEAD(iface_list);
 		int missed_leading_login = 0;
-		log_debug(1, "Logging into leading-login portals");
+		conn_log_connect(1, NULL, "Logging into leading-login portals");
 		iface_link_ifaces(&iface_list);
 		list_for_each_entry_safe(pattern_iface, tmp_iface, &iface_list,
 					 list) {
-			log_debug(1, "Establishing leading-logins via iface %s",
+			conn_log_connect(1, NULL, "Establishing leading-logins via iface %s",
 				  pattern_iface->name);
 			err = iscsi_login_portals_safe(pattern_iface, &nr_found,
 						       1,
@@ -2862,7 +2862,7 @@ static int exec_node_op(struct iscsi_context *ctx, int op, int do_login,
 	int rc = 0;
 
 	if (rec)
-		log_debug(2, "%s: %s:%s node [%s,%s,%d] sid %u", __FUNCTION__,
+		conn_log_connect(2, NULL, "%s: %s:%s node [%s,%s,%d] sid %u", __FUNCTION__,
 			  rec->iface.transport_name, rec->iface.name,
 			  rec->name, rec->conn[0].address, rec->conn[0].port,
 			  rec->session.sid);
