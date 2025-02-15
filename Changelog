@@ -1,3 +1,43 @@
+-> open-iscsi-2.1.10 - open-iscsi-2.1.11 (Feb 2025)
+
+Gulam Mohamed (1):
+      iscsid: Rate limit session reopen log messages (#492)
+
+Lee Duncan (7):
+      Preparing for version 2.1.10 (#455)
+      Fix bug where abort_tmo read failures were ignored. (#467)
+      Fix gcc issues (#480)
+      Change a discovery function to void return type (#481)
+      Fix firmware targets startup to always be "onboot" (#482)
+      More testing cleanup, and fix dprint test usage (#491)
+      Improve iscsiadm command line parsing messages (#494)
+
+Mindy Preston (1):
+      grammar nitpicks (#464)
+
+Zhang Xiang (1):
+      Bugfix read specific sysfs value "off" of session attribute (#466)
+
+guoguojenna (1):
+      Fix a typo in test/README (#486)
+
+ldzhong (2):
+      Make it visible when memory allocation failure (#457)
+      improve the comments in idbm_lock() (#458)
+
+mikechristie (1):
+      iscsid: Fix hang during login with scan=manual (#485)
+
+yanyan2015 (1):
+      Fix memory leak in iscsi_check_session_use_count (#465)
+
+yukariatlas (1):
+      IPv6 support for iBFT iSCSI boot (#493)
+
+yuncang123 (1):
+      fix 4 issues which are finded when building with clang 17 (#478)
+
+
 -> open-iscsi-2.1.9 - open-iscsi-2.1.10
 
 Chris Leech (1):
