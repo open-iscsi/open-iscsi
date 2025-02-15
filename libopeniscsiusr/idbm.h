@@ -220,7 +220,7 @@ struct iscsi_session_idbm {
 	char					boot_root[BOOT_NAME_MAXLEN];
 	char					boot_nic[BOOT_NAME_MAXLEN];
 	char					boot_target[BOOT_NAME_MAXLEN];
-	int64_t                                 conn_reopen_log_freq;
+	int64_t                                 sess_reopen_log_freq;
 
 };
 

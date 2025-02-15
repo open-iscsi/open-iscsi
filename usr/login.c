@@ -283,7 +283,7 @@ get_security_text_keys(iscsi_session_t *session, int cid, char **data,
 		tag = strtoul(value, NULL, 0);
 		if (session->portal_group_tag >= 0) {
 			if (tag != session->portal_group_tag)
-				conn_log_connect(2, session, "Portal group tag "
+				sess_log_connect(2, session, "Portal group tag "
 					  "mismatch, expected %u, "
 					  "received %u. Updating",
 					  session->portal_group_tag, tag);
@@ -356,7 +356,7 @@ get_op_params_text_keys(iscsi_session_t *session, int cid,
 		 */
 		if (session->portal_group_tag >= 0) {
 			if (tag != session->portal_group_tag)
-				conn_log_connect(2, session, "Portal group tag "
+				sess_log_connect(2, session, "Portal group tag "
 					  "mismatch, expected %u, "
 					  "received %u. Updating",
 					  session->portal_group_tag, tag);
@@ -1487,7 +1487,7 @@ iscsi_login_rsp(iscsi_session_t *session, iscsi_login_context_t *c)
 	 */
 	c->status_class = c->login_rsp->status_class;
 	c->status_detail = c->login_rsp->status_detail;
-	conn_log_connect(1, session, "login response status %02d%02d",
+	sess_log_connect(1, session, "login response status %02d%02d",
 			c->status_class, c->status_detail);
 	c->ret = check_status_login_response(session, c->cid,
 		     c->login_rsp, c->data, c->max_data_length,

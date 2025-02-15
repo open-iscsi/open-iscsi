@@ -260,9 +260,9 @@ __session_conn_create(iscsi_session_t *session, int cid)
 
 	/* set session reconnection retry max */
 	session->reopen_max = rec->session.reopen_max;
-	session->conn_reopen_log_freq = rec->session.conn_reopen_log_freq;
-	if (session->conn_reopen_log_freq < 1)
-		session->conn_reopen_log_freq = DEF_CONN_REOPEN_LOG_FREQ;
+	session->sess_reopen_log_freq = rec->session.sess_reopen_log_freq;
+	if (session->sess_reopen_log_freq < 1)
+		session->sess_reopen_log_freq = DEF_SESSION_REOPEN_LOG_FREQ;
 
 	conn->state = ISCSI_CONN_STATE_FREE;
 	conn->session = session;
@@ -346,11 +346,11 @@ __session_create(node_rec_t *rec, struct iscsi_transport *t, int *rc)
 
 	session = calloc(1, sizeof (*session));
 	if (session == NULL) {
-		conn_log_connect(1, NULL, "can not allocate memory for session");
+		sess_log_connect(1, NULL, "can not allocate memory for session");
 		*rc = ISCSI_ERR_NOMEM;
 		return NULL;
 	}
-	conn_log_connect(2, session, "Allocted session %p", session);
+	sess_log_connect(2, session, "Allocted session %p", session);
 
 	INIT_LIST_HEAD(&session->list);
 	session->t = t;
@@ -591,7 +591,7 @@ __session_conn_reopen(iscsi_conn_t *conn, queue_task_t *qtask, int do_stop,
 	iscsi_session_t *session = conn->session;
 	uint32_t delay;
 
-	conn_log_connect(1, session, "re-opening session %d (reopen_cnt %d)", session->id,
+	sess_log_connect(1, session, "re-opening (reopen_cnt %d)",
 			session->reopen_cnt);
 
 	qtask->conn = conn;
@@ -680,7 +680,7 @@ static int iscsi_retry_initial_login(struct iscsi_conn *conn)
 	 * then it is time to give up
 	 */
 	if (timercmp(&now, &fail_time, >)) {
-		conn_log_connect(1, conn->session, "Giving up on initial login attempt after "
+		sess_log_connect(1, conn->session, "Giving up on initial login attempt after "
 			  "%u seconds.",
 			  initial_login_retry_max * conn->login_timeout);
 		return 0;
@@ -744,8 +744,8 @@ static void iscsi_login_eh(struct iscsi_conn *conn, struct queue_task *qtask,
 				  session->reopen_cnt, session->reopen_max);
 			if (session->reopen_max &&
 			    (session->reopen_cnt > session->reopen_max)) {
-				conn_log_connect(1, session, "Giving up on session %d after %d retries",
-						session->id, session->reopen_max);
+				sess_log_connect(1, session, "Giving up after %d retries",
+						session->reopen_max);
 				session_conn_shutdown(conn, qtask, err);
 				break;
 			}
@@ -1299,7 +1299,7 @@ static void iscsi_recv_login_rsp(struct iscsi_conn *conn)
 	int err = ISCSI_ERR_FATAL_LOGIN;
 
 	if (iscsi_login_rsp(session, c)) {
-		conn_log_connect(1, session, "login_rsp ret (%d)", c->ret);
+		sess_log_connect(1, session, "login_rsp ret (%d)", c->ret);
 
 		switch (__login_response_status(conn, c->ret)) {
 		case CONN_LOGIN_FAILED:
@@ -1393,12 +1393,12 @@ static void session_conn_recv_pdu(void *data)
 		break;
 	case ISCSI_CONN_STATE_XPT_WAIT:
 		iscsi_ev_context_put(ev_context);
-		conn_log_connect(1, conn->session, "ignoring incoming PDU in XPT_WAIT. "
+		sess_log_connect(1, conn->session, "ignoring incoming PDU in XPT_WAIT. "
 			  "let connection re-establish or fail");
 		break;
 	case ISCSI_CONN_STATE_CLEANUP_WAIT:
 		iscsi_ev_context_put(ev_context);
-		conn_log_connect(1, conn->session, "ignoring incoming PDU in XPT_WAIT. "
+		sess_log_connect(1, conn->session, "ignoring incoming PDU in XPT_WAIT. "
 			  "let connection cleanup");
 		break;
 	default:
