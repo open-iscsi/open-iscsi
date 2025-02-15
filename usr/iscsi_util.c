@@ -304,7 +304,7 @@ int iscsi_addr_match(const char *address1, const char *address2)
 	 */
 	rc = getaddrinfo(address1, NULL, &hints1, &res1);
 	if (rc) {
-		log_debug(1, "Match error. Could not resolve %s: %s", address1,
+		conn_log_connect(1, NULL, "Match error. Could not resolve %s: %s", address1,
 			  gai_strerror(rc));
 		return 0;
 
@@ -312,7 +312,7 @@ int iscsi_addr_match(const char *address1, const char *address2)
 
 	rc = getaddrinfo(address2, NULL, &hints2, &res2);
 	if (rc) {
-		log_debug(1, "Match error. Could not resolve %s: %s", address2,
+		conn_log_connect(1, NULL, "Match error. Could not resolve %s: %s", address2,
 			  gai_strerror(rc));
 		rc = 0;
 		goto free_res1;

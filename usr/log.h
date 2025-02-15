@@ -29,6 +29,7 @@
 #include <stdarg.h>
 #include <sys/types.h>
 #include "iscsid.h"
+#include "initiator.h"
 
 union semun {
 	int val;
@@ -79,6 +80,8 @@ extern void log_error(const char *fmt, ...)
 	__attribute__ ((format (printf, 1, 2)));
 extern void log_debug(int level, const char *fmt, ...)
 	__attribute__ ((format (printf, 2, 3)));
+extern void conn_log_connect(int level, struct iscsi_session *, const char *fmt, ...)
+	__attribute__ ((format (printf, 3, 4)));
 
 extern void log_do_log_daemon(int prio, void *priv, const char *fmt, va_list ap);
 extern void log_do_log_std(int prio, void *priv, const char *fmt, va_list ap);
