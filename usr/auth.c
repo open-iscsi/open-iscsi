@@ -2095,7 +2095,7 @@ acl_dbg_status_to_text(int dbg_status)
 		"CHAP response bad",
 		"Unexpected key present",
 		"T bit set on response, but not on previous message",
-		"T bit set on response, but authenticaton not complete",
+		"T bit set on response, but authentication not complete",
 		"Message count limit reached on receive",
 		"Same key set more than once on receive",
 		"Key value too long on receive",
