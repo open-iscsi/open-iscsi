@@ -156,7 +156,7 @@ acl_chap_auth_request(struct iscsi_acl *client, char *username, unsigned int id,
 	auth_hash_final(verify_data, context);
 
 	if (memcmp(response_data, verify_data, sizeof(verify_data)) == 0) {
-		conn_log_connect(1,session,  "initiator authenticated target %s",
+		sess_log_connect(1,session,  "initiator authenticated target %s",
 			  session->target_name);
 		return AUTH_STATUS_PASS;
 	}
