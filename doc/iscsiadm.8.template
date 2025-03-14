@@ -434,7 +434,7 @@ use of the word node, does not match the iSCSI RFC's iSCSI Node term.
 .TP
 \fB\-r\fR, \fB\-\-sid=\fIsid | sysfsdir\fR
 Use session ID \fIsid\fR. The session ID of a session can be found from running
-iscsiadm in session mode with the \fI\-\-info\fR argument.
+iscsiadm in session mode.
 .IP
 Instead of a session ID, a sysfs path containing the session can be used.
 For example using one of the following:
