@@ -16,7 +16,7 @@ VERSION=0.7.8.8
 
 AC_INIT([iscsiuio], [0.7.8.8], [QLogic-Storage-Upstream@marvell.com])
 
-AM_INIT_AUTOMAKE
+AM_INIT_AUTOMAKE([subdir-objects])
 AC_CONFIG_HEADER(config.h)
 AC_PATH_PROGS(BASH, bash)
 
