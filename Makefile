@@ -77,7 +77,7 @@ user: deprecation_msg iscsiuio/Makefile
 	@echo
 	@echo "Read README file for detailed information."
 
-iscsiuio/Makefile: iscsiuio/configure iscsiuio/Makefile.in
+iscsiuio/Makefile: iscsiuio/configure
 	cd iscsiuio; ./configure $(WITHOUT_ARG) --sbindir=$(SBINDIR)
 
 iscsiuio/configure: iscsiuio/configure.ac iscsiuio/Makefile.am
