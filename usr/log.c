@@ -337,24 +337,31 @@ void log_info(const char *fmt, ...)
 	va_end(ap);
 }
 
-void conn_log_connect(int level, iscsi_session_t *session, const char *fmt, ...)
+void sess_log_connect(int level, iscsi_session_t *session, const char *fmt, ...)
 {
 	int reopen_cnt = 0;
-	int conn_reopen_log_freq = DEF_CONN_REOPEN_LOG_FREQ;
+	int sess_reopen_log_freq = DEF_SESSION_REOPEN_LOG_FREQ;
+	char message_str[MAX_MSG_SIZE];
 
+	memset(message_str, 0, MAX_MSG_SIZE);
 	if (session) {
 		reopen_cnt = session->reopen_cnt;
-		conn_reopen_log_freq = session->conn_reopen_log_freq;
-		if (conn_reopen_log_freq < 1)
-			conn_reopen_log_freq = DEF_CONN_REOPEN_LOG_FREQ;
+		sess_reopen_log_freq = session->sess_reopen_log_freq;
+		if (sess_reopen_log_freq < 1)
+			sess_reopen_log_freq = DEF_SESSION_REOPEN_LOG_FREQ;
+		if (session->id > 0)
+			sprintf(message_str, "session%d ", session->id);
+		strcat(message_str, fmt);
 	}
+	else
+		strcpy(message_str, fmt);
 
 	if ((log_level >= level) &&
 		((log_level > 2) ||
-		 (reopen_cnt % conn_reopen_log_freq == 0))) {
+		 (reopen_cnt % sess_reopen_log_freq == 0))) {
 		va_list ap;
 		va_start(ap, fmt);
-		log_func(LOG_DEBUG, log_func_priv, fmt, ap);
+		log_func(LOG_DEBUG, log_func_priv, message_str, ap);
 		va_end(ap);
 	}
 

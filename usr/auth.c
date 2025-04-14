@@ -156,7 +156,7 @@ acl_chap_auth_request(struct iscsi_acl *client, char *username, unsigned int id,
 	auth_hash_final(verify_data, context);
 
 	if (memcmp(response_data, verify_data, sizeof(verify_data)) == 0) {
-		conn_log_connect(1,session,  "initiator authenticated target %s",
+		sess_log_connect(1,session,  "initiator authenticated target %s",
 			  session->target_name);
 		return AUTH_STATUS_PASS;
 	}
@@ -2095,7 +2095,7 @@ acl_dbg_status_to_text(int dbg_status)
 		"CHAP response bad",
 		"Unexpected key present",
 		"T bit set on response, but not on previous message",
-		"T bit set on response, but authenticaton not complete",
+		"T bit set on response, but authentication not complete",
 		"Message count limit reached on receive",
 		"Same key set more than once on receive",
 		"Key value too long on receive",

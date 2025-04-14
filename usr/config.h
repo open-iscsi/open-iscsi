@@ -199,7 +199,7 @@ typedef struct session_rec {
 	char					boot_root[BOOT_NAME_MAXLEN];
 	char					boot_nic[BOOT_NAME_MAXLEN];
 	char					boot_target[BOOT_NAME_MAXLEN];
-	int                                     conn_reopen_log_freq;
+	int                                     sess_reopen_log_freq;
 } session_rec_t;
 
 #define ISCSI_TRANSPORT_NAME_MAXLEN 16
