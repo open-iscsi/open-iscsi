@@ -1504,7 +1504,7 @@ static void session_increase_wq_priority(struct iscsi_session *session)
 	closedir(proc_dir);
 fail:
 	log_warning("Could not set session%d priority. "
-		    "READ/WRITE throughout and latency could be affected.",
+		    "READ/WRITE throughput and latency could be affected.",
 		    session->id);
 }
 
