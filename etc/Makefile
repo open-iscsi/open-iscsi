@@ -18,6 +18,7 @@ etcdir = /etc
 initddir ?= $(etcdir)/init.d
 
 HOMEDIR ?= $(etcdir)/iscsi
+VENDORDIR ?=
 
 SED ?= sed
 INSTALL = install
@@ -38,7 +39,11 @@ SYSTEMD_DEST_GEN_FILES	= $(addprefix $(DESTDIR)$(systemddir)/system-generators/,
 IFACE_FILES		= iface.example
 IFACE_DEST_FILES	= $(addprefix $(DESTDIR)$(DBROOT)/ifaces/,$(IFACE_FILES))
 ETC_FILES		= iscsid.conf
+ifneq (,$(VENDORDIR))
+ETC_DEST_FILES		= $(addprefix $(DESTDIR)$(VENDORDIR)/iscsi/,$(ETC_FILES))
+else
 ETC_DEST_FILES		= $(addprefix $(DESTDIR)$(HOMEDIR)/,$(ETC_FILES))
+endif
 
 INAME_DEST_FILE		= $(DESTDIR)$(HOMEDIR)/initiatorname.iscsi
 
@@ -54,10 +59,17 @@ install_iface: $(DESTDIR)$(DBROOT)/ifaces $(IFACE_DEST_FILES)
 $(IFACE_DEST_FILES): $(DESTDIR)$(DBROOT)/ifaces/%: %
 	$(INSTALL) -m 644 $? $@
 
+ifneq (,$(VENDORDIR))
+install_etc: $(DESTDIR)$(VENDORDIR)/iscsi/ $(ETC_DEST_FILES)
+
+$(ETC_DEST_FILES): $(DESTDIR)$(VENDORDIR)/iscsi/%: %
+	$(INSTALL) -m 644 $? $@
+else
 install_etc: $(DESTDIR)$(HOMEDIR) $(ETC_DEST_FILES)
 
 $(ETC_DEST_FILES): $(DESTDIR)$(HOMEDIR)/%: %
 	$(INSTALL) -m 644 $? $@
+endif
 
 install_initd_distro = $(INSTALL) -m 755 $(1) $(DESTDIR)$(initddir)/open-iscsi/
 

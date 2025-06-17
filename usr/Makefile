@@ -40,6 +40,7 @@ endif
 
 DBROOT ?= $(etcdir)/iscsi
 HOMEDIR ?= $(etcdir)/iscsi
+VENDORDIR ?=
 
 PKG_CONFIG ?= /usr/bin/pkg-config
 
@@ -60,6 +61,11 @@ CFLAGS += -DNO_SYSTEMD
 endif
 CFLAGS += -DISCSI_DB_ROOT=\"$(DBROOT)\"
 CFLAGS += -DISCSI_CONFIG_ROOT=\"$(HOMEDIR)\"
+ifneq (,$(VENDORDIR))
+CFLAGS += -DVENDORDIR=\"$(VENDORDIR)\"
+LDFLAGS += $(shell $(PKG_CONFIG) --libs libeconf)
+endif
+
 
 PROGRAMS	= iscsid iscsiadm iscsistart
 PROGRAMS_DEST	= $(addprefix $(DESTDIR)$(SBINDIR)/,$(PROGRAMS))
