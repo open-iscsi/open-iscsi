@@ -346,7 +346,7 @@ static int find_initiator(const char *fpath,
 				      "/aliases/iscsi-disk"))) {
 
 		if (dev_count < OFWDEV_MAX) {
-			dev = calloc(sizeof(struct ofw_dev), 1);
+			dev = calloc(1, sizeof(struct ofw_dev));
 			if (!dev)
 				return -ENOMEM;
 
