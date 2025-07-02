@@ -447,6 +447,9 @@ int iface_get_by_net_binding(struct iface_rec *pattern,
 
 /*
  * detect IPv4 vs IPv4 IP address
+ *
+ * address type is guessed based on some simple heuristics: it defaults
+ * to IPv4 unless we detect something IPv6-ish
  */
 enum iscsi_iface_type iface_get_iptype(struct iface_rec *iface)
 {
@@ -454,7 +457,8 @@ enum iscsi_iface_type iface_get_iptype(struct iface_rec *iface)
 
 	/* address might not be set if user config with another tool */
 	if (!strlen(iface->ipaddress) ||
-	    !strcmp(UNKNOWN_VALUE, iface->ipaddress)) {
+	    !strcmp(UNKNOWN_VALUE, iface->ipaddress) ||
+	    !strcmp(DEFAULT_IPADDRESS, iface->ipaddress)) {
 		/* unknown or empty IP address: try to figure out by name */
 		if (strstr(iface->name, "ipv6"))
 			res = ISCSI_IFACE_TYPE_IPV6;
