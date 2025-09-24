@@ -29,6 +29,8 @@
 #include <netinet/tcp.h>
 #include <arpa/inet.h>
 #include <sys/uio.h>
+#include <ifaddrs.h>
+#include <netinet/in.h>
 
 #include "iface.h"
 #include "types.h"
@@ -199,6 +201,62 @@ static int bind_src_by_address(int sockfd, char *address)
 }
 #endif
 
+/*
+ * Check if the interface for this connection has a valid IP.
+ * return 0: if the interface is not found or has no usable IPv4/IPv6 address.
+ * return 1: if the interface has a valid IP.
+ */
+static bool
+iscsi_conn_iface_has_ip(char *iface_name)
+{
+	struct ifaddrs *ifaddr = NULL, *ifa;
+	int family, status = 0;
+
+	/*
+	 * if getifaddrs() fails, something went wrong, requeue the request.
+	 */
+	if (getifaddrs(&ifaddr) == -1) {
+		log_error("getifaddrs() failed to retrieve local interface list. (%s)\n",
+				strerror(errno));
+		return 0;
+	}
+
+	for (ifa = ifaddr; ifa != NULL; ifa = ifa->ifa_next) {
+		if (strcmp(ifa->ifa_name, iface_name) != 0 ||
+			ifa->ifa_addr == NULL ||
+			(ifa->ifa_addr->sa_family != AF_INET &&
+			ifa->ifa_addr->sa_family != AF_INET6)) {
+			continue;
+		}
+
+		family = ifa->ifa_addr->sa_family;
+		if (family == AF_INET) {
+			struct sockaddr_in *sin = (struct sockaddr_in *)ifa->ifa_addr;
+			/*
+			 * Check for a valid IPv4 address.
+			 */
+			if (sin->sin_addr.s_addr != 0)
+				status = 1;
+			break;
+		} else if (family == AF_INET6) {
+			struct sockaddr_in6 *sin6 = (struct sockaddr_in6 *)ifa->ifa_addr;
+			/*
+			 * Check for a valid IPv6 address.
+			 */
+			if (!IN6_IS_ADDR_UNSPECIFIED(&sin6->sin6_addr))
+				status = 1;
+			break;
+		}
+	}
+
+	freeifaddrs(ifaddr);
+
+	if (!status)
+		log_debug(4, "Interface/IP not found for %s\n", iface_name);
+
+	return status;
+}
+
 static int bind_conn_to_iface(iscsi_conn_t *conn, struct iface_rec *iface)
 {
 	struct iscsi_session *session = conn->session;
@@ -236,6 +294,9 @@ static int bind_conn_to_iface(iscsi_conn_t *conn, struct iface_rec *iface)
 			  session->netdev);
 		memset(&ifr, 0, sizeof(ifr));
 		strlcpy(ifr.ifr_name, session->netdev, IFNAMSIZ);
+
+		if (!iscsi_conn_iface_has_ip(session->netdev))
+			return -1;
 
 		if (setsockopt(conn->socket_fd, SOL_SOCKET, SO_BINDTODEVICE,
 			       session->netdev,
