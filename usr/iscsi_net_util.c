@@ -199,7 +199,6 @@ static char *find_vlan_dev(char *netdev, int vlan_id) {
 		return NULL;
 	}
 
-	strlcpy(if_hwaddr.ifr_name, netdev, IFNAMSIZ);
 	ioctl(sockfd, SIOCGIFHWADDR, &if_hwaddr);
 
 	if (if_hwaddr.ifr_hwaddr.sa_family != ARPHRD_ETHER) {
