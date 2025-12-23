@@ -376,6 +376,27 @@ iscsi_io_tcp_connect(iscsi_conn_t *conn, int non_blocking)
 		}
 	}
 
+	/* optionally set the congestion control algo */
+	if (*conn->tcp_congestion) {
+		char congestion[sizeof(conn->tcp_congestion)];
+		socklen_t arglen = strlen(conn->tcp_congestion);
+
+		if (setsockopt(conn->socket_fd, IPPROTO_TCP, TCP_CONGESTION,
+		               conn->tcp_congestion, arglen) < 0) {
+			log_warning("failed to set TCP congestion control algo "
+				    "to %s", conn->tcp_congestion);
+		} else {
+			arglen = sizeof(congestion) - 1;
+			if (getsockopt(conn->socket_fd, IPPROTO_TCP, TCP_CONGESTION,
+				       congestion, &arglen) >= 0) {
+				congestion[arglen] = '\0';
+				log_debug(4, "set TCP congestion control algo to %s, "
+					  "actually got %s",
+					  conn->tcp_congestion, congestion);
+			}
+		}
+	}
+
 	/*
 	 * Build a TCP connection to the target
 	 */
