@@ -56,6 +56,7 @@
 #define CONN_STARTUP		"node.conn[%d].startup"
 #define CONN_WINDOW_SIZE	"node.conn[%d].tcp.window_size"
 #define CONN_SERVICE_TYPE	"node.conn[%d].tcp.type_of_service"
+#define CONN_CONGESTION		"node.conn[%d].tcp.congestion_control"
 #define CONN_LOGOUT_TMO		"node.conn[%d].timeo.logout_timeout"
 #define CONN_LOGIN_TMO		"node.conn[%d].timeo.login_timeout"
 #define CONN_AUTH_TMO		"node.conn[%d].timeo.auth_timeout"

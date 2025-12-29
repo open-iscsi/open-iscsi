@@ -38,6 +38,8 @@
 #define ISCSI_CONN_MAX		1
 /* max len of interface */
 #define ISCSI_MAX_IFACE_LEN	65
+/* max len of congestion control */
+#define CONGESTION_STR_MAX_LEN	16
 
 /* the following structures store the options set in the config file.
  * a structure is defined for each logically-related group of options.
@@ -100,6 +102,7 @@ struct iscsi_error_timeout_config {
 struct iscsi_tcp_config {
 	int window_size;
 	int type_of_service;	/* try to set IP TOS bits */
+	char congestion_control[CONGESTION_STR_MAX_LEN];
 };
 
 struct iscsi_conn_operational_config {
