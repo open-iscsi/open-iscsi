@@ -385,15 +385,6 @@ iscsi_io_tcp_connect(iscsi_conn_t *conn, int non_blocking)
 		               conn->tcp_congestion, arglen) < 0) {
 			log_warning("failed to set TCP congestion control algo "
 				    "to %s", conn->tcp_congestion);
-		} else {
-			arglen = sizeof(congestion) - 1;
-			if (getsockopt(conn->socket_fd, IPPROTO_TCP, TCP_CONGESTION,
-				       congestion, &arglen) >= 0) {
-				congestion[arglen] = '\0';
-				log_debug(4, "set TCP congestion control algo to %s, "
-					  "actually got %s",
-					  conn->tcp_congestion, congestion);
-			}
 		}
 	}
 
