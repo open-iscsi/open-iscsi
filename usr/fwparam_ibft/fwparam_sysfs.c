@@ -499,6 +499,7 @@ int fwparam_sysfs_get_targets(struct list_head *list)
 
 	/* ibft only has one instance */
 	get_targets(list, IBFT_SYSFS_ROOT, IBFT_SUBSYS);
+
 	/*
 	 * We could have multiple iscsi llds and each lld could have
 	 * multiple targets/ethernet ports

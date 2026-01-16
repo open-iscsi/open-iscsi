@@ -66,11 +66,12 @@ int fw_setup_nics(void)
 	 */
 	list_for_each_entry(context, &targets, list) {
 		if (iface_prev == NULL || strcmp(context->iface, iface_prev)) {
-				/* Note: test above works because there is a
-				 * maximum of two targets in the iBFT
-				 */
-				iface_prev = context->iface;
-				needs_bringup = 1;
+			/*
+			 * Note: test above works because there is a
+			 * maximum of two targets in the iBFT
+			 */
+			iface_prev = context->iface;
+			needs_bringup = 1;
 		}
 		if (net_get_transport_name_from_netdev(context->iface, transport)) {
 			int ip_ver = net_get_ip_version(context->ipaddr);
