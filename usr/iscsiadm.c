@@ -2943,6 +2943,17 @@ out:
 	return rc;
 }
 
+/*
+ * exec_fw_disc_op - execute a firmware discovery operation
+ * @drec: database record to use (required)
+ * @ifaces: list of interfaces specified if any, else an empty list
+ * @info_level: message info print level (only used for discovery)
+ * @do_login: shold we login to discovered targets?
+ * @op: operation passed in (default to "all")
+ *
+ * called for firmware discovery mode ("iscsiadm -m discovery -t fw ...",
+ * or "iscsiadm -m discoverydb -t fw ...")
+ */
 static int exec_fw_disc_op(discovery_rec_t *drec, struct list_head *ifaces,
 			   int info_level, int do_login, int op)
 {
@@ -2995,8 +3006,8 @@ static int exec_fw_disc_op(discovery_rec_t *drec, struct list_head *ifaces,
 	 */
 	rc = fw_get_targets(&targets);
 	if (rc) {
-		log_error("Could not get list of targets from firmware. "
-			  "(err %d)", rc);
+		log_error("Could not get list of targets from firmware. (err %d)",
+			  rc);
 		return rc;
 	}
 	rc = iface_create_ifaces_from_boot_contexts(&new_ifaces, &targets);
@@ -3006,13 +3017,17 @@ static int exec_fw_disc_op(discovery_rec_t *drec, struct list_head *ifaces,
 		ifaces = &new_ifaces;
 
 discover_fw_tgts:
+	/*
+	 * now we have one or more interfaces to use
+	 */
 	rc = idbm_bind_ifaces_to_nodes(discovery_fw, drec,
 				       ifaces, &rec_list);
 	if (rc)
-		log_error("Could not perform fw discovery.");
+		log_error("Could not perform fw discovery. (err %d)",
+			  rc);
 	else
 		rc = exec_disc_op_on_recs(drec, &rec_list, info_level,
-					   do_login, op);
+					  do_login, op);
 
 done:
 	fw_free_targets(&targets);
@@ -3081,6 +3096,24 @@ static int fill_in_default_fw_values(node_rec_t *rec, struct list_head *params)
 	return 0;
 }
 
+/*
+ * exec_fw_op - execute a firmware operation
+ * @drec: database record to use if any
+ * @ifaces: interface list passed in (can be empty)
+ * @info_level: message info print level (used for discovery)
+ * @do_login: should we login to discovered targets?
+ * @op: operation passed in (used for discovery)
+ * @wait: wait for logins (if any) to succeed before returning (used
+ * for non-discovery)
+ * @params: command line params passed in if any (used for
+ * non-discovery)
+ *
+ * called for normal firmware mode ("iscsiadm -m fw ..."), and for
+ * firmware discovry mode ("iscsiadm -m discovery -t fw ...", or
+ * "iscsiadm -m discoverydb -t fw ...")
+ *
+ * when called for discovery, control is passed to exec_fw_disc_op()
+ */
 static int exec_fw_op(discovery_rec_t *drec, struct list_head *ifaces,
 		      int info_level, int do_login, int op, bool wait,
 		      struct list_head *params)
