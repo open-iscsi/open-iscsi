@@ -185,7 +185,7 @@ free_ifni:
 	return 0;
 }
 
-static char *find_vlan_dev(char *netdev, int vlan_id) {
+static char *find_vlan_dev(int vlan_id) {
 	struct ifreq if_hwaddr;
 	struct ifreq vlan_hwaddr;
 	struct vlan_ioctl_args vlanrq = { .cmd = GET_VLAN_VID_CMD, };
@@ -199,7 +199,6 @@ static char *find_vlan_dev(char *netdev, int vlan_id) {
 		return NULL;
 	}
 
-	strlcpy(if_hwaddr.ifr_name, netdev, IFNAMSIZ);
 	ioctl(sockfd, SIOCGIFHWADDR, &if_hwaddr);
 
 	if (if_hwaddr.ifr_hwaddr.sa_family != ARPHRD_ETHER) {
@@ -323,7 +322,7 @@ int net_setup_netdev_ipv4(char *netdev, char *local_ip, char *mask, char *gatewa
 	vlan_id = atoi(vlan);
 
 	if (vlan_id != 0) {
-		vlandev = find_vlan_dev(physdev, vlan_id);
+		vlandev = find_vlan_dev(vlan_id);
 		physdev = targetdev;
 		targetdev = vlandev;
 	}
@@ -481,7 +480,7 @@ int net_setup_netdev_ipv6(char *netdev, char *local_ip, int prefix, char *gatewa
 
 	vlan_id = atoi(vlan);
 	if (vlan_id) {
-		vlandev = find_vlan_dev(physdev, vlan_id);
+		vlandev = find_vlan_dev(vlan_id);
 		physdev = targetdev;
 		targetdev = vlandev;
 	}
