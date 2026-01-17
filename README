@@ -162,6 +162,8 @@ Option			Description
 			 of meson)
 -Disns_supported=<BOOL>	Enable/disable iSNS support [true]
 			(set to "false" to disable use of open-isns)
+-Dvendordir=<DIR>	Directory for distribution provided configuration files
+			(e.g. "/usr/etc")
 
 
 Building open-iscsi/iscsiuio using make/autoconf (Deprecated)
@@ -170,13 +172,13 @@ If you wish to build using the older deprecated system, you can
 simply run:
 
 	make [<MAKE-OPTIONS>]
-	make [DESTDIR=<SOME-DIR>] install
+	make [DESTDIR=<SOME-DIR>|VENDORDIR=<SOME_DIR>] install
 
 Where MAKE-OPTIONS are from:
-	* SBINDIR=<some-dir>  [/usr/bin]   for executables
-	* DBROOT=<some-dir>   [/etc/iscsi] for iscsi database files
-	* HOMEDIR=<some-dir>  [/etc/iscsi] for iscsi config files
-
+	* SBINDIR=<some-dir>	[/usr/bin]   for executables
+	* DBROOT=<some-dir>   	[/etc/iscsi] for iscsi database files
+	* HOMEDIR=<some-dir>  	[/etc/iscsi] for iscsi config files
+	* VENDORDIR=<some-dir>  	     Directory for distribution provided configuration files like iscsid.conf
 
 4. Open-iSCSI daemon
 ====================
@@ -1238,8 +1240,9 @@ Host mode with stats submode
 6. Configuration
 ================
 
-The default configuration file is /etc/iscsi/iscsid.conf, but the
-directory is configurable with the top-level make option "homedir".
+The default configuration file is /etc/iscsi/iscsid.conf or
+<vendordir>/iscsi/iscsid.conf (see 6.1) if it is not available.
+But the directory is configurable with the top-level make option "homedir".
 The remainder of this document will assume the /etc/iscsi directory.
 This file contains only configuration that could be overwritten by iSCSI
 discovery, or manually updated via iscsiadm utility. Its OK if this file
@@ -1251,6 +1254,25 @@ The manual pages for iscsid, iscsiadm are in the doc subdirectory and can be
 installed in the appropriate man page directories and need to be manually
 copied into e.g. /usr/local/share/man8.
 
+6.1 Vendor defined iscsid.conf
+==============================
+/etc/iscsi/iscsid.conf can be changed by the user/admin at any time. The disadvantage
+is that this file is also a part of distribution/vendor packages and could overwrite the
+indivial admin settings while package update again.
+For that reason open-iscsi can be compiled with a defined vendor directory (opion vendordir)
+in which a iscsid.conf is defined and which cannot be changed by the admin. This file will
+be updated while any vendor update process.
+The admin defined settings in /etc/iscsi/iscsid.conf have a higher priority than
+<vendordir>/iscsi/iscsid.conf. So <vendordir>/iscsi/iscsid.conf will be ignored completely if
+/etc/iscsi/iscsid.conf exists.
+It is also possible to change single values of iscsid.conf only and taking the rest from
+<vendordir>/iscsi/iscsid.conf. These single values can be defined in so called "Drop-ins" which
+is quite simple. The mechanism and the corresponding directories have been defined
+by the Linux Userspace API Group and are fully supported:
+https://github.com/uapi-group/specifications/blob/main/specs/configuration_files_specification.md
+
+Remark: It is up to the vendor/distributor to define the <vendordir>. E.g. in openSUSE <vendordir>
+is "/usr/etc".
 
 7. Getting Started
 ==================
