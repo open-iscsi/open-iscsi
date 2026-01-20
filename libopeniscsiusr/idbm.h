@@ -39,6 +39,7 @@
 #define AUTH_STR_MAX_LEN	256
 #define BOOT_NAME_MAXLEN	256
 #define IDBM_DUMP_SIZE		8192
+#define CONGESTION_STR_MAX_LEN	16
 
 /*
  * wait up to DB_LOCK_USECS_WAIT * DB_LOCK_RETRIES to a cquire
@@ -122,6 +123,7 @@ struct iscsi_tcp_config {
 	int64_t					window_size;
 	int64_t					type_of_service;
 	/* ^ try to set IP TOS bits */
+	char					congestion_control[CONGESTION_STR_MAX_LEN];
 };
 
 /* all per-session timeouts go in this structure.
