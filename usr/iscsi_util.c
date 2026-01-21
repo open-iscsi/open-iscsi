@@ -39,6 +39,11 @@
 #include "session_info.h"
 #include "iscsi_util.h"
 
+#ifdef VENDORDIR
+#include <libeconf.h>
+#include "initiator.h"
+#endif
+
 #ifndef PR_SET_IO_FLUSHER
 #define PR_SET_IO_FLUSHER 57
 #endif
@@ -217,14 +222,40 @@ char *strstrip(char *s)
 */
 char *cfg_get_string_param(char *pathname, const char *key)
 {
-	FILE *f = NULL;
-	char *line, buffer[1024];
-	char *value = NULL, *param, *comment;
+	char *value = NULL;
 
 	if (!pathname) {
 		log_error("No pathname to load %s from", key);
 		return NULL;
 	}
+#ifdef VENDORDIR
+	econf_file *file = NULL;
+	econf_err error;
+	if ( strcmp(pathname, CONFIG_FILE) == 0) {
+		/* Standard configuration file iscsid.conf. So we are reading vendor entries too */
+		error = econf_readConfig( &file,
+					  ISCSI,
+					  VENDORDIR,
+					  "iscsid", "conf", "= \t", "#");
+	} else {
+		/* All other configuration files */
+		error = econf_readFile(&file, pathname, "= \t", "#");
+		log_error("can't open %s configuration file %s", key, pathname);
+	}
+
+	if (error) {
+		log_error("parse error:%s", econf_errString(error));
+	} else {
+		if ((error = econf_getStringValue(file, NULL, key, &value)))
+			log_error("couldn't fetch %s correctly: %s",
+				  key,
+				  econf_errString(error));
+		econf_freeFile( file );
+	}
+#else
+	FILE *f = NULL;
+	char *line, buffer[1024];
+	char *param, *comment;
 
 	if ((f = fopen(pathname, "r"))) {
 		while ((line = fgets(buffer, sizeof (buffer), f))) {
@@ -264,11 +295,11 @@ char *cfg_get_string_param(char *pathname, const char *key)
 			break;
 		}
 		fclose(f);
-		if (value)
-			log_debug(5, "%s=%s", key, value);
 	} else
 		log_error("can't open %s configuration file %s", key, pathname);
-
+#endif
+        if (value)
+		log_debug(5, "%s=%s", key, value);
 	return value;
 }
 

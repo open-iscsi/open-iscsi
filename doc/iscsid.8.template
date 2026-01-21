@@ -15,7 +15,7 @@ iSCSI database.
 .TP
 .BI [-c|--config=]\fIconfig\-file\fP
 Read configuration from \fIconfig\-file\fR rather than the default
-\fI@HOMEDIR@/iscsid.conf\fR file.
+\fI@HOMEDIR@/iscsid.conf\fR or \fI<vendordir>/iscsi/iscsid.conf\fR file.
 .TP
 .BI [-i|--initiatorname=]\fIiname\-file\fP
 Read initiator name from \fIiname\-file\fR rather than the default
@@ -55,7 +55,7 @@ display version and exit.
 
 .SH FILES
 .TP
-@HOMEDIR@/iscsid.conf
+@HOMEDIR@/iscsid.conf or <vendordir>/iscsi/iscsid.conf if it is not available
 The configuration file read by
 .B iscsid
 and

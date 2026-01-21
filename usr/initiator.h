@@ -34,8 +34,12 @@
 #include "list.h"
 #include "log.h"
 
+#ifndef ISCSI
+#define ISCSI	"iscsi"
+#endif
+
 #ifndef ISCSI_CONFIG_ROOT
-#define ISCSI_CONFIG_ROOT	"/etc/iscsi/"
+#define ISCSI_CONFIG_ROOT	"/etc/"ISCSI"/"
 #endif
 
 #define CONFIG_FILE		ISCSI_CONFIG_ROOT"/iscsid.conf"

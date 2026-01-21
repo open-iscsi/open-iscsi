@@ -29,3 +29,7 @@ option('iscsi_sbindir', type: 'string', value: '/usr/sbin',
 # default iqn prefix use for iscsi-iname
 option('iqn_prefix', type: 'string', value: 'iqn.2016-04.com.open-iscsi',
   description: 'Set the prefix used by iscsi-iname to generate iSCSI names')
+
+option('vendordir',
+       type: 'string',
+       description : 'Directory for distribution provided configuration files')

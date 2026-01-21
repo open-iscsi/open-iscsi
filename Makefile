@@ -18,11 +18,12 @@ SBINDIR = $(exec_prefix)/sbin
 HOMEDIR = $(etcdir)/iscsi
 DBROOT = $(etcdir)/iscsi
 RULESDIR = $(etcdir)/udev/rules.d
+VENDORDIR ?=
 
 INSTALL = /usr/bin/install
 
 # pass these on to sub-Makefiles
-export DESTDIR prefix INSTALL SBINDIR HOMEDIR DBROOT RULESDIR ISCSI_VERSION_STR
+export DESTDIR prefix INSTALL SBINDIR HOMEDIR DBROOT RULESDIR VENDORDIR ISCSI_VERSION_STR
 
 # Compatibility: parse old OPTFLAGS argument
 ifdef OPTFLAGS
