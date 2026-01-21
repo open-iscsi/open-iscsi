@@ -573,7 +573,29 @@ static int add_portal(struct list_head *rec_list, discovery_rec_t *drec,
 		rec->conn[0].port = atoi(port);
 	else
 		rec->conn[0].port = ISCSI_LISTEN_PORT;
-	strlcpy(rec->conn[0].address, address, NI_MAXHOST);
+
+	/* If the discovery probe returns IPv6 link-local
+	 * addresses, we genernally expect them to lack the required
+	 * interface qualifier because that info is client-dependent.
+	 * If this happens, we try to derive the interface qualifier
+	 * from the discovery address.
+	 *
+	 * Note: in the interest of simplicity, we simply check for the
+	 * prefix fe80: here; we don't fully validate whether the address
+	 * is in the standard fe80::/64 block. This should be good enough
+	 * since fe80::/10 is completely reserved for link-local unicast,
+	 * so we don't expect this to catch any globally routable addresses.
+	 */
+	char *if_qual;
+	if (!strncmp(address, "fe80:", 5)
+			&& !(strrchr(address, '%'))
+			&& !strncmp(drec->address, "fe80:", 5)
+			&& (if_qual = strrchr(drec->address, '%'))) {
+		strlcpy(rec->conn[0].address, address, NI_MAXHOST - IF_NAMESIZE);
+		strlcat(rec->conn[0].address, if_qual, NI_MAXHOST);
+	} else {
+		strlcpy(rec->conn[0].address, address, NI_MAXHOST);
+	}
 
 	list_add_tail(&rec->list, rec_list);
 	return 1;
