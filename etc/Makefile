@@ -27,6 +27,7 @@ SYSTEMD_SOURCES		= $(addprefix systemd/,$(SYSTEMD_SOURCE_FILES))
 SYSTEMD_TEMPLATE_FILES	= iscsi-init.service.template \
 			  iscsid.service.template \
 			  iscsi.service.template \
+			  iscsi-starter.service.template \
 			  iscsiuio.service.template
 SYSTEMD_TEMPLATES	= $(addprefix systemd/,$(SYSTEMD_TEMPLATE_FILES))
 SYSTEMD_RULES_FILES	= ibft-rule-generator
@@ -45,7 +46,7 @@ INAME_DEST_FILE		= $(DESTDIR)$(HOMEDIR)/initiatorname.iscsi
 all: $(SYSTEMD_SOURCES) $(SYSTEMD_GENERATED_SERVICE_FILES)
 
 $(SYSTEMD_GENERATED_SERVICE_FILES): systemd/%.service: systemd/%.service.template
-	$(SED) -e 's:@SBINDIR@:$(SBINDIR):' $? > $@
+	$(SED) -e 's:@SBINDIR@:$(SBINDIR):; s:@DBROOT@:$(DBROOT):' $? > $@
 
 install: install_systemd install_iface install_etc
 
