@@ -378,7 +378,6 @@ iscsi_io_tcp_connect(iscsi_conn_t *conn, int non_blocking)
 
 	/* optionally set the congestion control algo */
 	if (*conn->tcp_congestion) {
-		char congestion[sizeof(conn->tcp_congestion)];
 		socklen_t arglen = strlen(conn->tcp_congestion);
 
 		if (setsockopt(conn->socket_fd, IPPROTO_TCP, TCP_CONGESTION,
