@@ -249,9 +249,9 @@ static int sync_session(__attribute__((unused))void *data,
 		/*
 		 * we have a valid record and iface so lets merge
 		 * the values from them and sysfs to try and get
-		 * the most uptodate values.
+		 * the most up to date values.
 		 *
-		 * Currenlty that means we will use the CHAP, target, portal
+		 * Currently that means we will use the CHAP, target, portal
 		 * and iface values from sysfs and use timer, queue depth,
 		 * and segment length values from the record.
 		 */

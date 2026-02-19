@@ -192,6 +192,7 @@ typedef struct iscsi_conn {
 	struct sockaddr_storage failback_saddr;
 	int tcp_window_size;
 	int type_of_service;
+	char tcp_congestion[CONGESTION_STR_MAX_LEN];
 
 	/* used for the IPC of bind and for connect/poll/disconnect by
          * transports (eg iser) which does these ops from the kernel.
