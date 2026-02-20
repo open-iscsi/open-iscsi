@@ -695,7 +695,7 @@ List all sessions in tree format:
 \fBsh#\fR iscsiadm \-\-mode session  \-\-print
 .SH FILES
 .TP
-@HOMEDIR@/iscsid.conf
+@HOMEDIR@/iscsid.conf or <vendordir>/iscsi/iscsid.conf if it is not available
 The configuration file read by \fBiscsid\fR and \fBiscsiadm\fR on startup.
 .TP
 @HOMEDIR@/initiatorname.iscsi
