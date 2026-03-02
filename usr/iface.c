@@ -918,8 +918,16 @@ int iface_for_each_iface(void *data, int skip_def, int *nr_found,
 		    !strcmp(iface_dent->d_name, ".."))
 			continue;
 
-		if (!strcmp(iface_dent->d_name, "iface.example"))
+		/*
+		 * iface.example is no longer delivered, but may
+		 * be present from an earlier installation,
+		 * so allow it for now, but print a message
+		 */
+		if (!strcmp(iface_dent->d_name, "iface.example")) {
+			log_info("Skipping deprecated \"%s/iface.example\". Please remove it.",
+				 IFACE_CONFIG_DIR);
 			continue;
+		}
 
 		log_debug(5, "iface_for_each_iface found %s",
 			 iface_dent->d_name);
