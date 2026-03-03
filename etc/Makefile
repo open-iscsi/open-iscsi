@@ -35,8 +35,6 @@ SYSTEMD_GENERATED_SERVICE_FILES	= $(SYSTEMD_TEMPLATES:.template=)
 SYSTEMD_DEST_SVC_FILES	= $(addprefix $(DESTDIR)$(systemddir)/system/,$(SYSTEMD_SOURCE_FILES)) \
 			  $(addprefix $(DESTDIR)$(systemddir)/system/,$(notdir $(SYSTEMD_GENERATED_SERVICE_FILES)))
 SYSTEMD_DEST_GEN_FILES	= $(addprefix $(DESTDIR)$(systemddir)/system-generators/,$(notdir $(SYSTEMD_RULES_SOURCES)))
-IFACE_FILES		= iface.example
-IFACE_DEST_FILES	= $(addprefix $(DESTDIR)$(DBROOT)/ifaces/,$(IFACE_FILES))
 ETC_FILES		= iscsid.conf
 ETC_DEST_FILES		= $(addprefix $(DESTDIR)$(HOMEDIR)/,$(ETC_FILES))
 
@@ -46,13 +44,6 @@ all: $(SYSTEMD_SOURCES) $(SYSTEMD_GENERATED_SERVICE_FILES)
 
 $(SYSTEMD_GENERATED_SERVICE_FILES): systemd/%.service: systemd/%.service.template
 	$(SED) -e 's:@SBINDIR@:$(SBINDIR):' $? > $@
-
-install: install_systemd install_iface install_etc
-
-install_iface: $(DESTDIR)$(DBROOT)/ifaces $(IFACE_DEST_FILES)
-
-$(IFACE_DEST_FILES): $(DESTDIR)$(DBROOT)/ifaces/%: %
-	$(INSTALL) -m 644 $? $@
 
 install_etc: $(DESTDIR)$(HOMEDIR) $(ETC_DEST_FILES)
 
@@ -109,7 +100,7 @@ clean: ;
 distclean:
 	$(RM) $(SYSTEMD_GENERATED_SERVICE_FILES)
 
-.PHONY: all clean install install_iface install_initd install_initd_redhat \
+.PHONY: all clean install install_initd install_initd_redhat \
 	install_initd_debian install_systemd distclean install_iname \
 	install_systemd_generator_files install_systemd_service_files \
 	install_initd_distro install_etc

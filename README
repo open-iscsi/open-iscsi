@@ -138,6 +138,11 @@ When you are ready to install:
 This will install the iSCSI tools, configuration files, interfaces, and
 documentation. If you do not set DESTDIR, it defaults to "/".
 
+Note that if you install open-iscsi using meson/ninja, you will also
+need to manually create/set up an initiatorname.iscsi file in ${HOMEDIR}
+(see below for location). There are several tools supplied for
+manually creating an initiator name.
+
 
 MESON-OPTIONS:
 --------------
@@ -154,7 +159,7 @@ Option			Description
 			(set to "true" to disable systemd)
 -Dsystemddir=<DIR>	Set systemd unit directory [/usr/lib/systemd]
 -Dhomedir=<DIR>		Set config file directory [/etc/iscsi]
--Ddbroot=<DIR>		Set Database directory [/etciscsi]
+-Ddbroot=<DIR>		Set Database directory [/var/lib/iscsi]
 -Dlockdir=<DIR>		Set Lock directory [/run/lock/iscsi]
 -Drulesdir=<DIR>	Set udev rules directory [/usr/lib/udev/rules.d]
 -Discsi_sbindir=<DIR>	Where binaries go [/usr/sbin]
@@ -173,9 +178,9 @@ simply run:
 	make [DESTDIR=<SOME-DIR>] install
 
 Where MAKE-OPTIONS are from:
-	* SBINDIR=<some-dir>  [/usr/bin]   for executables
-	* DBROOT=<some-dir>   [/etc/iscsi] for iscsi database files
-	* HOMEDIR=<some-dir>  [/etc/iscsi] for iscsi config files
+	* SBINDIR=<some-dir>  [/usr/bin]       for executables
+	* DBROOT=<some-dir>   [/var/lib/iscsi] for iscsi database files
+	* HOMEDIR=<some-dir>  [/etc/iscsi]     for iscsi config files
 
 
 4. Open-iSCSI daemon
@@ -194,8 +199,8 @@ The output will be similar to the following (assuming a default install):
 
 Usage: iscsid [OPTION]
 
-  -c, --config=[path]     Execute in the config file (/etc/iscsi/iscsid.conf).
-  -i, --initiatorname=[path]     read initiatorname from file (/etc/iscsi/initiatorname.iscsi).
+  -c, --config=[path]     Execute in the config file (${HOMEDIR}/iscsid.conf).
+  -i, --initiatorname=[path]     read initiatorname from file (${HOMEDIR}/initiatorname.iscsi).
   -f, --foreground        run iscsid in the foreground
   -d, --debug debuglevel  print debugging information
   -u, --uid=uid           run as uid, default is current user
@@ -211,11 +216,12 @@ Usage: iscsid [OPTION]
 
 Open-iSCSI persistent configuration is stored in a number of
 directories under a configuration root directory, using a flat-file
-format. This configuration root directory is /etc/iscsi by default,
-but may also commonly be in /var/lib/iscsi (see "dbroot" in the meson
-options discussed earlier).
+format. This configuration (database) root directory is
+/var/lib/iscsi by default, but may also commonly be in /etc/iscsi
+(see "DBROOT" in the meson options discussed earlier).
 
-Configuration is contained in directories for:
+Configuration is contained in directories for (some of which may
+not be present, if they haven't been needed yet):
 
 	- nodes
 	- isns
@@ -621,7 +627,7 @@ a scsi_host per HBA port).
 To manage both types of initiator stacks, iscsiadm uses the interface (iface)
 structure. For each HBA port or for software iSCSI for each network
 device (ethX) or NIC, that you wish to bind sessions to you must create
-a iface config /etc/iscsi/ifaces.
+a iface config ${DBROOT}/ifaces.
 
 Prep
 ----
@@ -655,7 +661,7 @@ The command:
 
 	iscsiadm -m iface
 
-will report iface configurations that are setup in /etc/iscsi/ifaces:
+will report iface configurations that are setup in ${DBROOT}/ifaces:
 
 	iface0 qla4xxx,00:c0:dd:08:63:e8,20.15.0.7,default,iqn.2005-06.com.redhat:madmax
 	iface1 qla4xxx,00:c0:dd:08:63:ea,20.15.0.9,default,iqn.2005-06.com.redhat:madmax
@@ -666,10 +672,12 @@ The format is:
 
 For software iSCSI, you can create the iface configs by hand, but it is
 recommended that you use iscsiadm's iface mode. There is an iface.example in
-/etc/iscsi/ifaces which can be used as a template for the daring.
+the documentation supplied with this package, along with this README file,
+which can be used as a template for the daring. (Note: this used to be
+supplied in ${DBROOT}/ifaces/, but has been removed from there.)
 
 For each network object you wish to bind a session to, you must create
-a separate iface config in /etc/iscsi/ifaces and each iface config file
+a separate iface config in ${DBROOT}/ifaces and each iface config file
 must have a unique name which is less than or equal to 64 characters.
 
 Example
@@ -677,12 +685,12 @@ Example
 
 If you have NIC1 with MAC address 00:0F:1F:92:6B:BF and NIC2 with
 MAC address 00:C0:DD:08:63:E7, and you wanted to do software iSCSI over
-TCP/IP, then in /etc/iscsi/ifaces/iface0 you would enter:
+TCP/IP, then in ${DBROOT}/ifaces/iface0 you would enter:
 
 	iface.transport_name = tcp
 	iface.hwaddress = 00:0F:1F:92:6B:BF
 
-and in /etc/iscsi/ifaces/iface1 you would enter:
+and in ${DBROOT}/ifaces/iface1 you would enter:
 
 	iface.transport_name = tcp
 	iface.hwaddress = 00:C0:DD:08:63:E7
@@ -728,7 +736,7 @@ Running the following command:
 
 	iscsiadm -m iface
 
-will report iface configurations that are setup in /etc/iscsi/ifaces:
+will report iface configurations that are setup in ${DBROOT}/ifaces:
 
 	default tcp,<empty>,<empty>,<empty>,<empty>
 	iser iser,<empty>,<empty>,<empty>,<empty>
@@ -746,7 +754,7 @@ where:	iface_name:		name of iface
 	net_iface_name:		will be <empty> because change between reboots.
 				It is used for software iSCSI's vlan or alias binding.
 	initiatorname:		Initiatorname to be used if you want to override the
-				default one in /etc/iscsi/initiatorname.iscsi.
+				default one in ${HOMEDIR}/initiatorname.iscsi.
 
 To display these values in a more friendly way, run:
 
@@ -815,7 +823,7 @@ need a separate network connection to the target for discovery purposes.
 *This should be fixed in the some future version of Open-iSCSI*
 
 For compatibility reasons, when you run iscsiadm to do discovery, it
-will check for interfaces in /etc/iscsi/iscsi/ifaces that are using
+will check for interfaces in ${DBROOT}/ifaces that are using
 tcp for the iface.transport, and it will bind the portals that are discovered
 so that they will be logged in through those ifaces. This behavior can also
 be overridden by passing in the interfaces you want to use. For the case
@@ -832,7 +840,7 @@ bind a session to an iface, then you can use the special iface "default":
 
 	iscsiadm -m discoverydb -t st -p ip:port -I default --discover -P 1
 
-And if you did not define any interfaces in /etc/iscsi/ifaces and do
+And if you did not define any interfaces in ${DBROOT}/ifaces and do
 not pass anything into iscsiadm, running iscsiadm will do the default
 behavior, allowing the network subsystem to decide which device to use.
 
@@ -873,7 +881,7 @@ Discovery mode
 
 	iscsiadm -m discoverydb -t st -p 192.168.1.1:3260 --discover
 
-  This will search /etc/iscsi/send_targets for a record with the
+  This will search ${DBROOT}/send_targets for a record with the
   ID [portal = 192.168.1.1:3260 and type = sendtargets. If found it
   will perform discovery using the settings stored in the record.
   If a record does not exist, it will be created using the iscsid.conf
@@ -883,7 +891,7 @@ Discovery mode
 
 		iscsiadm -m discoverydb -t st -p somehost --discover
 
-  For the ifaces, iscsiadm will first search /etc/iscsi/ifaces for
+  For the ifaces, iscsiadm will first search ${DBROOT}/ifaces for
   interfaces using software iSCSI. If any are found then nodes found
   during discovery will be setup so that they can logged in through
   those interfaces. To specify a specific iface, pass the
@@ -939,7 +947,7 @@ Discovery mode
 
 - SendTargets iSCSI Discovery with a specific interface.  If you wish
   to only use a subset of the interfaces in
-  /etc/iscsi/ifaces, then you can pass them in during discovery:
+  ${DBROOT}/ifaces, then you can pass them in during discovery:
 
 	iscsiadm -m discoverydb -t sendtargets -p 192.168.1.1:3260 \
 		--interface=iface0 --interface=iface1 --discover
@@ -1238,9 +1246,8 @@ Host mode with stats submode
 6. Configuration
 ================
 
-The default configuration file is /etc/iscsi/iscsid.conf, but the
+The default configuration file is ${HOMEDIR}/iscsid.conf, but the
 directory is configurable with the top-level make option "homedir".
-The remainder of this document will assume the /etc/iscsi directory.
 This file contains only configuration that could be overwritten by iSCSI
 discovery, or manually updated via iscsiadm utility. Its OK if this file
 does not exist, in which case compiled-in default configuration will take place
@@ -1359,8 +1366,8 @@ Here, where targetname is the name of the target and ip_address:port
 is the address and port of the portal. tpgt is the Target Portal Group
 Tag of the portal, and is not used in iscsiadm commands except for static
 record creation. ifacename is the name of the iSCSI interface
-defined in /etc/iscsi/ifaces. If no interface was defined in
-/etc/iscsi/ifaces or passed in, the default behavior is used.
+defined in ${DBROOT}/ifaces. If no interface was defined in
+${DBROOT}/ifaces or passed in, the default behavior is used.
 Default here is iscsi_tcp/tcp to be used over whichever NIC the
 network layer decides is best.
 
@@ -1464,7 +1471,7 @@ interface setup for each protal, the following can be run:
 	iscsiadm -m node -T targetname --op update -n node.startup -v automatic
 
 Or to set the "node.startup" attribute to "automatic" as default for
-all sessions add the following to the /etc/iscsi/iscsid.conf:
+all sessions add the following to the ${HOMEDIR}/iscsid.conf:
 
 	node.startup = automatic
 
@@ -1498,7 +1505,7 @@ If set, iscsid will perform discovery to the address every
 discovery.isns.discoveryd_poll_inval or
 discovery.sendtargets.discoveryd_poll_inval seconds,
 and it will log into any portals found from the discovery source using
-the ifaces in /etc/iscsi/ifaces.
+the ifaces in ${DBROOT}/ifaces.
 
 Note that for iSNS the poll_interval does not have to be set. If not set,
 iscsid will only perform rediscovery when it gets a SCN from the server.
