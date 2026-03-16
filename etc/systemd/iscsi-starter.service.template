@@ -1,0 +1,13 @@
+[Unit]
+DefaultDependencies=no
+Before=sysinit.target iscsi.service
+RequiresMountsFor=@DBROOT@/nodes
+ConditionDirectoryNotEmpty=@DBROOT@/nodes
+
+[Service]
+Type=oneshot
+RemainAfterExit=true
+ExecStart=@SBINDIR@/systemctl start --no-block --job-mode=fail iscsi.service
+
+[Install]
+WantedBy=sysinit.target
