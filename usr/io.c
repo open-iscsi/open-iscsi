@@ -207,10 +207,10 @@ static int bind_src_by_address(int sockfd, char *address)
  * return 1: if the interface has a valid IP.
  */
 static bool
-iscsi_conn_iface_has_ip(char *iface_name)
+iscsi_conn_iface_has_ip(char *iface_name, int expected_family)
 {
 	struct ifaddrs *ifaddr = NULL, *ifa;
-	int family, status = 0;
+	int status = 0;
 
 	/*
 	 * if getifaddrs() fails, something went wrong, requeue the request.
@@ -224,13 +224,11 @@ iscsi_conn_iface_has_ip(char *iface_name)
 	for (ifa = ifaddr; ifa != NULL; ifa = ifa->ifa_next) {
 		if (strcmp(ifa->ifa_name, iface_name) != 0 ||
 			ifa->ifa_addr == NULL ||
-			(ifa->ifa_addr->sa_family != AF_INET &&
-			ifa->ifa_addr->sa_family != AF_INET6)) {
+			(ifa->ifa_addr->sa_family != expected_family)) {
 			continue;
 		}
 
-		family = ifa->ifa_addr->sa_family;
-		if (family == AF_INET) {
+		if (expected_family == AF_INET) {
 			struct sockaddr_in *sin = (struct sockaddr_in *)ifa->ifa_addr;
 			/*
 			 * Check for a valid IPv4 address.
@@ -238,7 +236,7 @@ iscsi_conn_iface_has_ip(char *iface_name)
 			if (sin->sin_addr.s_addr != 0)
 				status = 1;
 			break;
-		} else if (family == AF_INET6) {
+		} else if (expected_family == AF_INET6) {
 			struct sockaddr_in6 *sin6 = (struct sockaddr_in6 *)ifa->ifa_addr;
 			/*
 			 * Check for a valid IPv6 address.
@@ -257,7 +255,7 @@ iscsi_conn_iface_has_ip(char *iface_name)
 	return status;
 }
 
-static int bind_conn_to_iface(iscsi_conn_t *conn, struct iface_rec *iface)
+static int bind_conn_to_iface(iscsi_conn_t *conn, struct iface_rec *iface, int expected_family)
 {
 	struct iscsi_session *session = conn->session;
 
@@ -295,7 +293,7 @@ static int bind_conn_to_iface(iscsi_conn_t *conn, struct iface_rec *iface)
 		memset(&ifr, 0, sizeof(ifr));
 		strlcpy(ifr.ifr_name, session->netdev, IFNAMSIZ);
 
-		if (!iscsi_conn_iface_has_ip(session->netdev))
+		if (!iscsi_conn_iface_has_ip(session->netdev, expected_family))
 			return -1;
 
 		if (setsockopt(conn->socket_fd, SOL_SOCKET, SO_BINDTODEVICE,
@@ -328,7 +326,7 @@ iscsi_io_tcp_connect(iscsi_conn_t *conn, int non_blocking)
 		return -1;
 	}
 
-	if (bind_conn_to_iface(conn, &conn->session->nrec.iface))
+	if (bind_conn_to_iface(conn, &conn->session->nrec.iface, ss->ss_family))
 		return -1;
 
 	onearg = 1;
