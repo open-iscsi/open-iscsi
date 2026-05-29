@@ -1167,8 +1167,10 @@ free_tmp:
 
 updated:
 	strlcpy((char*)info[i].value, value, VALUE_MAXVAL);
-	if (found)
+	if (found) {
 		free(found);
+		found = NULL;
+	}
 
 #define check_password_param(_param) \
 	if (!passwd_done && !strcmp(#_param, name)) { \
