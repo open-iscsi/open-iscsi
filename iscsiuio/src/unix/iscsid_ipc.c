@@ -1120,10 +1120,10 @@ static void *iscsid_loop(void *arg)
 			continue;
 		}
 
-		if (!mgmt_peeruser(iscsid_opts.fd, user) || strncmp(user, "root", PEERUSER_MAX)) {
+		if (!mgmt_peeruser(s2, user) || strncmp(user, "root", PEERUSER_MAX)) {
 			close(s2);
 			ILOG_ERR(PFX "Access error: non-administrative connection rejected");
-			break;
+			continue;
 		}
 
 		/* this closes the file descriptor s2 */
