@@ -323,8 +323,8 @@ int net_setup_netdev_ipv4(char *netdev, char *local_ip, char *mask, char *gatewa
 	vlan_id = atoi(vlan);
 
 	if (vlan_id != 0) {
-		vlandev = find_vlan_dev(physdev, vlan_id);
 		physdev = targetdev;
+		vlandev = find_vlan_dev(physdev, vlan_id);
 		targetdev = vlandev;
 	}
 
@@ -481,8 +481,8 @@ int net_setup_netdev_ipv6(char *netdev, char *local_ip, int prefix, char *gatewa
 
 	vlan_id = atoi(vlan);
 	if (vlan_id) {
-		vlandev = find_vlan_dev(physdev, vlan_id);
 		physdev = targetdev;
+		vlandev = find_vlan_dev(physdev, vlan_id);
 		targetdev = vlandev;
 	}
 	if (vlan_id && !vlandev) {
