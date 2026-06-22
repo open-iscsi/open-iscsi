@@ -16,7 +16,7 @@ INAME_DIR="@HOMEDIR@"
 INAME_FILE="$INAME_DIR/initiatorname.iscsi"
 
 # our default IQN prefix
-DEFAULT_IQN_PREFIX="iqn.1996-04.de.suse:01"
+DEFAULT_IQN_PREFIX="@IQN_PREFIX@"
 
 #
 # set up comments for initiatorname files using variables

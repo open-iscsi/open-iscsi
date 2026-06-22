@@ -18,7 +18,7 @@ HOMEDIR ?= $(etcdir)/iscsi
 
 RULESDIR ?= $(etcdir)/udev/rules.d
 
-IQN_PREFIX ?= "iqn.2016-04.com.open-iscsi"
+IQN_PREFIX ?= iqn.2016-04.com.open-iscsi
 
 CFLAGS ?= -O2 -fno-inline -g
 CFLAGS += -Wall -Wextra -Wstrict-prototypes
@@ -42,7 +42,7 @@ OBJS = iscsi-iname.o md5.o
 all: $(PROGRAMS) $(SCRIPTS_GENERATED) $(RULESFILES_GENERATED)
 
 $(SCRIPTS_GENERATED): %.sh: %.sh.template
-	$(SED) -e 's:@SBINDIR@:$(SBINDIR):' -e 's:@HOMEDIR@:$(HOMEDIR):' $? > $@
+	$(SED) -e 's:@SBINDIR@:$(SBINDIR):' -e 's:@HOMEDIR@:$(HOMEDIR):' -e 's:@IQN_PREFIX@:$(IQN_PREFIX):' $? > $@
 	$(CHMOD) 755 $@
 
 $(RULESFILES_GENERATED): %.rules: %.rules.template
