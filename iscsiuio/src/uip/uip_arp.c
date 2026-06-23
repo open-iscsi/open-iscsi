@@ -119,7 +119,7 @@ void uip_arp_timer(void)
 }
 
 /*----------------------------------------------------------------------------*/
-static void uip_arp_update(u16_t *ipaddr, struct uip_eth_addr *ethaddr)
+static void uip_arp_update(const u8_t *ipaddr, struct uip_eth_addr *ethaddr)
 {
 	u8_t i;
 	struct arp_entry *tabptr;
@@ -136,8 +136,8 @@ static void uip_arp_update(u16_t *ipaddr, struct uip_eth_addr *ethaddr)
 
 			/* Check if the source IP address of the incoming packet
 			   matches the IP address in this ARP table entry. */
-			if (ipaddr[0] == tabptr->ipaddr[0] &&
-			    ipaddr[1] == tabptr->ipaddr[1]) {
+			if (memcmp(ipaddr, tabptr->ipaddr,
+			    sizeof(tabptr->ipaddr)) == 0) {
 
 				tabptr->time = arptime;
 
@@ -216,7 +216,7 @@ void uip_arp_ipin(struct uip_stack *ustack, packet_t *pkt)
 		/* First, we register the one who made the request in our ARP
 		   table, since it is likely that we will do more communication
 		   with this host in the future. */
-		uip_arp_update(ip->srcipaddr, &eth->src);
+		uip_arp_update((const u8_t *)ip->srcipaddr, &eth->src);
 	}
 }
 
@@ -244,7 +244,7 @@ uip_arp_arpin(nic_interface_t *nic_iface,
 			/* First, we register the one who made the request in
 			   our ARP table, since it is likely that we will do
 			   more communication with this host in the future. */
-			uip_arp_update(arp->sipaddr, &arp->shwaddr);
+			uip_arp_update((const u8_t *)arp->sipaddr, &arp->shwaddr);
 
 			/* The reply opcode is 2. */
 			arp->opcode = htons(2);
@@ -270,7 +270,7 @@ uip_arp_arpin(nic_interface_t *nic_iface,
 		}
 		break;
 	case const_htons(ARP_REPLY):
-		uip_arp_update(arp->sipaddr, &arp->shwaddr);
+		uip_arp_update((const u8_t *)arp->sipaddr, &arp->shwaddr);
 		break;
 	default:
 		ILOG_WARN("Unknown ARP opcode: %d", ntohs(arp->opcode));
