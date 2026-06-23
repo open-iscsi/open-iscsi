@@ -24,6 +24,7 @@
 #include <stdlib.h>
 #include <errno.h>
 #include <dirent.h>
+#include <stdbool.h>
 #include <libmount/libmount.h>
 
 #include "iface.h"
@@ -748,4 +749,36 @@ int iscsi_host_set_net_params(struct iface_rec *iface,
 			return rc;
 	}
 	return 0;
+}
+
+/**
+ * @brief iqn_name_valid -- return whether or not the supplied
+ * IQN name valid
+ *
+ * @details Checks for invalid characters, using RFC 3722,
+ * section 6.2, "Currently Prohibited ASCII Characters"
+ *
+ * @param name the IQN name we are checking
+ * @return true iff the whole name (string) has valid
+ * charaters
+ */
+bool
+iqn_name_valid(const char *name)
+{
+	unsigned char *cp;
+
+	/* ensure no invalid characters */
+	for (cp = name; *cp != '\0'; cp++)
+		if ((*cp <= '\x2c') ||
+		    (*cp == '\x2f') ||
+		    ((*cp >= '\x3b') && (*cp <= '\x40')) ||
+		    ((*cp >= '\x5b') && (*cp <= '\x60')) ||
+		    (*cp >= '\x7b')) {
+			log_debug(8, "IQN name is invalid: \"%s\" (char: '%#02x')",
+				  name, *cp);
+			return false;
+		}
+
+	log_debug(8, "IQN name has all valid characters: \"%s\"", name);
+	return true;
 }

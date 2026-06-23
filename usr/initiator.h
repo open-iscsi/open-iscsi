@@ -21,6 +21,7 @@
 #define INITIATOR_H
 
 #include <stdint.h>
+#include <stdbool.h>
 #include <net/if.h>
 #include <sys/time.h>
 
@@ -412,4 +413,6 @@ extern int iscsi_set_net_config(struct iscsi_transport *t,
 extern void iscsi_session_init_params(struct iscsi_session *session);
 
 extern int session_in_use(int sid);
+
+extern bool iqn_name_valid(const char *name);
 #endif /* INITIATOR_H */

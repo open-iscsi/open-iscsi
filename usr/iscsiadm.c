@@ -1165,6 +1165,10 @@ exec_disc_op_on_recs(discovery_rec_t *drec, struct list_head *rec_list,
 	if (op & OP_NEW || op & OP_UPDATE) {
 		/* now add/update records */
 		list_for_each_entry(new_rec, rec_list, list) {
+			if (!iqn_name_valid(new_rec->name)) {
+				log_error("FW discovery Target Name invalid: ignoring it");
+				continue;
+			}
 			rc = idbm_add_node(new_rec, drec, op & OP_UPDATE);
 			if (rc)
 				log_error("Could not add/update "

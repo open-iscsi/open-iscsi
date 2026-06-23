@@ -403,7 +403,10 @@ int main(int argc, char *argv[])
 		case 't':
 			check_str_param_len(optarg, TARGET_NAME_MAXLEN,
 					    "targetname");
-			strlcpy(config_rec.name, optarg, TARGET_NAME_MAXLEN);
+			if (!iqn_name_valid(optarg))
+				log_error("iscsistart Target Name invalid: ignoring");
+			else
+				strlcpy(config_rec.name, optarg, TARGET_NAME_MAXLEN);
 			break;
 		case 'g':
 			config_rec.tpgt = atoi(optarg);

@@ -137,7 +137,9 @@ int discovery_isns_query(struct discovery_rec *drec, const char *iname,
 	uint32_t status;
 	int rc;
 
+
 	isns_config.ic_security = 0;
+
 	source = isns_source_create_iscsi(iname);
 	if (!source)
 		return ISCSI_ERR_NOMEM;
@@ -212,6 +214,11 @@ int discovery_isns_query(struct discovery_rec *drec, const char *iname,
 		if (!isns_object_get_string(obj, ISNS_TAG_PG_ISCSI_NAME,
 					    &pg_tgt)) {
 			log_debug(1, "Missing target name");
+			continue;
+		}
+
+		if (!iqn_name_valid(pg_tgt)) {
+			log_error("iSNS discovery Target Name invalid: ignoring it");
 			continue;
 		}
 
@@ -292,6 +299,11 @@ static int discovery_isns_reg_node(const char *iname, int op_reg)
 
 	log_debug(1, "trying to %s %s with iSNS server.",
 		  op_reg ? "register" : "deregister", iname);
+
+	if (!iqn_name_valid(iname)) {
+		log_error("iSNS initiatorname invalid: ignoring it");
+		return ISCSI_ERR_INVAL;
+	}
 
 	source = isns_source_create_iscsi(iname);
 	if (!source)
@@ -612,6 +624,12 @@ add_target_record(char *name, char *end, discovery_rec_t *drec,
 		log_error("TargetName %s too long, ignoring", name);
 		return 0;
 	}
+
+	if (!iqn_name_valid(name)) {
+		log_error("Discovery TargetName invalid, ignoring");
+		return 0;
+	}
+
 	text = name + length;
 
 	/* skip NULs after the name */
