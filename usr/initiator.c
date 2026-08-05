@@ -623,8 +623,10 @@ __session_conn_reopen(iscsi_conn_t *conn, queue_task_t *qtask, int do_stop,
 			goto queue_reopen;
 	}
 
-	if (!redirected)
+	if (!redirected) {
 		session->reopen_cnt++;
+		session->redirect_count = 0;
+	}
 
 	/* uIP will needs to be re-triggered on the connection re-open */
 	if (iscsi_set_net_config(conn->session->t, conn->session,
@@ -932,11 +934,24 @@ static void iscsi_login_redirect(iscsi_conn_t *conn)
 {
 	iscsi_session_t *session = conn->session;
 	iscsi_login_context_t *c = &conn->login_context;
+	unsigned int max_redirects = session->nrec.session.login_redirect_max;
 
 	conn_debug(3, conn, "login redirect ...");
 
 	if (session->r_stage == R_STAGE_NO_CHANGE)
 		session->r_stage = R_STAGE_SESSION_REDIRECT;
+
+	/*
+	 * Bound redirect retries during initial login.
+	 * Track redirects separately from login retries; redirect_count is
+	 * reset when a login retry occurs.
+	 */
+	if (max_redirects > 0 && ++session->redirect_count > max_redirects) {
+		conn_error(conn, "login redirect retry limit exceeded (%u)",
+			   max_redirects);
+		iscsi_login_eh(conn, c->qtask, ISCSI_ERR_LOGIN);
+		return;
+	}
 
 	__session_conn_reopen(conn, c->qtask, STOP_CONN_RECOVER, 1);
 }

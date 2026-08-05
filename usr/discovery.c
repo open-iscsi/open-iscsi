@@ -1290,6 +1290,7 @@ static int iscsi_create_session(struct iscsi_session *session,
 	int login_status, rc = 0, login_delay = 0;
 	uint8_t status_class = 0, status_detail = 0;
 	unsigned int login_failures = 0;
+	unsigned int max_redirects = config->login_redirect_max;
 	char serv[NI_MAXSERV];
 	struct iscsi_transport *t = session->t;
 
@@ -1308,6 +1309,7 @@ reconnect:
 		rc = ISCSI_ERR_PDU_TIMEOUT;
 		goto login_failed;
 	}
+	session->redirect_count = 0;
 
 redirect_reconnect:
 	session->cmdsn = 1;
@@ -1413,6 +1415,7 @@ redirect_reconnect:
 	case ISCSI_STATUS_CLS_SUCCESS:
 		log_debug(4, "discovery login success to %s", conn->host);
 		login_failures = 0;
+		session->redirect_count = 0;
 		break;
 	case ISCSI_STATUS_CLS_REDIRECT:
 		switch (status_detail) {
@@ -1424,6 +1427,12 @@ redirect_reconnect:
 			log_warning(
 				"discovery login temporarily redirected to %s port %s",
 				conn->host, serv);
+			if (max_redirects > 0 && ++session->redirect_count > max_redirects) {
+				log_error("discovery login exceeded redirect limit (%u)",
+					  max_redirects);
+				login_failures++;
+				goto set_address;
+			}
 			goto redirect_reconnect;
 		case ISCSI_LOGIN_STATUS_TGT_MOVED_PERM:
 			log_warning(
@@ -1433,6 +1442,12 @@ redirect_reconnect:
 			memset(&conn->failback_saddr, 0,
 				sizeof(struct sockaddr_storage));
 			conn->failback_saddr = conn->saddr;
+			if (max_redirects > 0 && ++session->redirect_count > max_redirects) {
+				log_error("discovery login exceeded redirect limit (%u)",
+					  max_redirects);
+				login_failures++;
+				goto set_address;
+			}
 			goto redirect_reconnect;
 		default:
 			log_error(

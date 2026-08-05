@@ -76,6 +76,7 @@ void _default_node(struct iscsi_node *node)
 	node->session.queue_depth = QUEUE_DEPTH;
 	node->session.nr_sessions = 1;
 	node->session.initial_login_retry_max = DEF_INITIAL_LOGIN_RETRIES_MAX;
+	node->session.login_redirect_max = DEF_LOGIN_REDIRECT_MAX;
 	node->session.reopen_max = DEF_SESSION_REOPEN_MAX;
 	node->session.sess_reopen_log_freq = DEF_SESSION_REOPEN_LOG_FREQ;
 	node->session.auth.authmethod = 0;

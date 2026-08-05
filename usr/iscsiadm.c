@@ -3055,6 +3055,7 @@ static int fill_in_default_fw_values(node_rec_t *rec, struct list_head *params)
 
 	/* must init this so we can check if user overrode them */
 	rec->session.initial_login_retry_max = -1;
+	rec->session.login_redirect_max = -1;
 	rec->conn[0].timeo.noop_out_interval = -1;
 	rec->conn[0].timeo.noop_out_timeout = -1;
 	rec->session.scan = -1;
@@ -3086,6 +3087,8 @@ static int fill_in_default_fw_values(node_rec_t *rec, struct list_head *params)
 	 */
 	if (rec->session.initial_login_retry_max == -1)
 		rec->session.initial_login_retry_max = 30;
+	if (rec->session.login_redirect_max == -1)
+		rec->session.login_redirect_max = 30;
 
 	/* firmware logins are usually used for booting, so no NOPs */
 	if (rec->conn[0].timeo.noop_out_interval == -1)

@@ -141,6 +141,7 @@ static int apply_params(struct node_rec *rec)
 
 	/* Must init this so we can check if user overrode them */
 	rec->session.initial_login_retry_max = -1;
+	rec->session.login_redirect_max = -1;
 	rec->conn[0].timeo.noop_out_interval = -1;
 	rec->conn[0].timeo.noop_out_timeout = -1;
 	rec->session.scan = -1;
@@ -182,6 +183,8 @@ static int apply_params(struct node_rec *rec)
 	 */
 	if (rec->session.initial_login_retry_max == -1)
 		rec->session.initial_login_retry_max = 30;
+	if (rec->session.login_redirect_max == -1)
+		rec->session.login_redirect_max = 30;
 	/* we used to not be able to answer so turn off */
 	if (rec->conn[0].timeo.noop_out_interval == -1)
 		rec->conn[0].timeo.noop_out_interval = 0;

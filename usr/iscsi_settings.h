@@ -52,5 +52,8 @@
 /* login retries */
 #define DEF_INITIAL_LOGIN_RETRIES_MAX	4
 
+/* login redirection limit */
+#define DEF_LOGIN_REDIRECT_MAX		8
+
 /* autoscan enabled */
 #define DEF_INITIAL_SCAN	1

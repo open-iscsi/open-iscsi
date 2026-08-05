@@ -261,6 +261,9 @@ idbm_recinfo_discovery(discovery_rec_t *r, recinfo_t *ri)
 		__recinfo_int(DISC_ST_REOPEN_MAX, ri, r,
 			u.sendtargets.reopen_max,
 			IDBM_SHOW, num, 1);
+		__recinfo_int(DISC_ST_LOGIN_REDIRECT_MAX, ri, r,
+			u.sendtargets.login_redirect_max,
+			IDBM_SHOW, num, 1);
 		__recinfo_int(DISC_ST_AUTH_TMO, ri, r,
 			u.sendtargets.conn_timeo.auth_timeout,
 			IDBM_SHOW, num, 1);
@@ -459,6 +462,8 @@ idbm_recinfo_node(node_rec_t *r, recinfo_t *ri)
 		      session.initial_cmdsn, IDBM_SHOW, num, 1);
 	__recinfo_int(SESSION_INIT_LOGIN_RETRY, ri, r,
 		      session.initial_login_retry_max, IDBM_SHOW, num, 1);
+	__recinfo_int(SESSION_LOGIN_REDIRECT_MAX, ri, r,
+		      session.login_redirect_max, IDBM_SHOW, num, 1);
 	__recinfo_int(SESSION_XMIT_THREAD_PRIORITY, ri, r,
 		      session.xmit_thread_priority, IDBM_SHOW, num, 1);
 	__recinfo_int(SESSION_CMDS_MAX, ri, r,
@@ -997,6 +1002,7 @@ idbm_discovery_setup_defaults(discovery_rec_t *rec, discovery_type_e type)
 		rec->u.sendtargets.discoveryd_poll_inval = 30;
 		rec->u.sendtargets.use_discoveryd = 0;
 		rec->u.sendtargets.reopen_max = 5;
+		rec->u.sendtargets.login_redirect_max = DEF_LOGIN_REDIRECT_MAX;
 		rec->u.sendtargets.auth.authmethod = 0;
 		rec->u.sendtargets.auth.password_length = 0;
 		rec->u.sendtargets.auth.password_in_length = 0;
@@ -3305,6 +3311,7 @@ void idbm_node_setup_defaults(node_rec_t *rec)
 	rec->session.queue_depth = QUEUE_DEPTH;
 	rec->session.nr_sessions = 1;
 	rec->session.initial_login_retry_max = DEF_INITIAL_LOGIN_RETRIES_MAX;
+	rec->session.login_redirect_max = DEF_LOGIN_REDIRECT_MAX;
 	rec->session.reopen_max = DEF_SESSION_REOPEN_MAX;
 	rec->session.sess_reopen_log_freq = DEF_SESSION_REOPEN_LOG_FREQ;
 	rec->session.auth.authmethod = 0;
