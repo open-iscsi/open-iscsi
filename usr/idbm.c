@@ -1248,7 +1248,12 @@ void idbm_recinfo_config(recinfo_t *info, FILE *f)
 		/* parse name */
 		i=0; nl = line; *name = 0;
 		while (*nl && !isspace(c = *nl) && *nl != '=') {
-			*(name+i) = *nl; i++; nl++;
+			if (i >= NAME_MAXVAL - 1) {
+				log_warning("Config file line %d key too long.",
+					    line_number);
+				break;
+			}
+			name[i++] = *nl++;
 		}
 		if (!*nl) {
 			log_warning("Config file line %d does not have value",
@@ -1275,7 +1280,12 @@ void idbm_recinfo_config(recinfo_t *info, FILE *f)
 		/* parse value */
 		i=0; *value = 0;
 		while (*nl) {
-			*(value+i) = *nl; i++; nl++;
+			if (i >= VALUE_MAXVAL - 1) {
+				log_warning("Config file line %d value too long.",
+					    line_number);
+				break;
+			}
+			value[i++] = *nl++;
 		}
 		*(value+i) = 0;
 
