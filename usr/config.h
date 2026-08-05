@@ -141,6 +141,7 @@ struct iscsi_session_operational_config {
 
 struct iscsi_sendtargets_config {
 	int reopen_max;
+	int login_redirect_max;
 	int use_discoveryd;
 	int discoveryd_poll_inval;
 	struct iscsi_auth_config auth;
@@ -184,6 +185,7 @@ typedef struct session_rec {
 	int					cmds_max;
 	int					queue_depth;
 	int					initial_login_retry_max;
+	int					login_redirect_max;
 	int					nr_sessions;
 	int					scan;
 	struct iscsi_auth_config		auth;

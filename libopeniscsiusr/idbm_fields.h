@@ -109,6 +109,7 @@
 /* session fields */
 #define SESSION_INIT_CMDSN	"node.session.initial_cmdsn"
 #define SESSION_INIT_LOGIN_RETRY "node.session.initial_login_retry_max"
+#define SESSION_LOGIN_REDIRECT_MAX "node.session.login_redirect_max"
 #define SESSION_CMDS_MAX	"node.session.cmds_max"
 #define SESSION_XMIT_THREAD_PRIORITY "node.session.xmit_thread_priority"
 #define SESSION_QDEPTH		"node.session.queue_depth"

@@ -201,6 +201,7 @@ struct iscsi_session_idbm {
 	uint32_t				initial_cmdsn;
 	int64_t					reopen_max;
 	int64_t					initial_login_retry_max;
+	int64_t					login_redirect_max;
 	int64_t					xmit_thread_priority;
 	uint16_t				cmds_max;
 	uint16_t				queue_depth;

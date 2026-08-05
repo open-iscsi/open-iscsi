@@ -1052,6 +1052,9 @@ static void _idbm_node_rec_link(struct iscsi_node *node, struct idbm_rec *recs, 
 	_rec_int64(SESSION_INIT_LOGIN_RETRY, recs, node,
 		   session.initial_login_retry_max, IDBM_SHOW, num,
 		   _CAN_MODIFY);
+	_rec_int64(SESSION_LOGIN_REDIRECT_MAX, recs, node,
+		   session.login_redirect_max, IDBM_SHOW, num,
+		   _CAN_MODIFY);
 	_rec_int64(SESSION_XMIT_THREAD_PRIORITY, recs, node,
 		   session.xmit_thread_priority, IDBM_SHOW, num, _CAN_MODIFY);
 	_rec_uint16(SESSION_CMDS_MAX, recs, node, session.cmds_max, IDBM_SHOW,
