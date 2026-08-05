@@ -185,16 +185,18 @@ void uip_neighbor_out(struct uip_stack *ustack)
 	    (struct uip_eth_hdr *)ustack->data_link_layer;
 	struct uip_ipv6_hdr *ipv6_hdr =
 	    (struct uip_ipv6_hdr *)ustack->network_layer;
+	struct in6_addr dst_addr6;
 
 	pthread_mutex_lock(&ustack->lock);
 
+	memcpy(&dst_addr6, ipv6_hdr->destipaddr, sizeof(dst_addr6));
 	/* Find the destination IP address in the neighbor table and construct
 	   the Ethernet header. If the destination IP addres isn't on the
 	   local network, we use the default router's IP address instead.
 
 	   If not ARP table entry is found, we overwrite the original IP
 	   packet with an ARP request for the IP address. */
-	e = find_entry(ustack, (struct in6_addr *)ipv6_hdr->destipaddr);
+	e = find_entry(ustack, &dst_addr6);
 	if (e == NULL) {
 		struct uip_eth_addr eth_addr_tmp;
 
