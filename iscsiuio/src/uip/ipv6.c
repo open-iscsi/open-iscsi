@@ -1101,6 +1101,8 @@ static void ipv6_icmp_handle_echo_request(struct ipv6_context *context)
 {
 	struct eth_hdr *eth =
 			(struct eth_hdr *)context->ustack->data_link_layer;
+	u16_t rx_total, rx_payload, hdr_plen, safe_plen;
+	u16_t l2_l3_len = sizeof(struct eth_hdr) + sizeof(struct ipv6_hdr);
 	struct ipv6_hdr *ipv6 =
 			(struct ipv6_hdr *)context->ustack->network_layer;
 	struct icmpv6_hdr *icmp = (struct icmpv6_hdr *)((u8_t *)ipv6 +
@@ -1126,8 +1128,20 @@ static void ipv6_icmp_handle_echo_request(struct ipv6_context *context)
 	icmp->icmpv6_code = 0;
 	icmp->icmpv6_cksum = 0;
 	ILOG_DEBUG("IPv6: Send echo reply");
-	ipv6_send(context, (u8_t *) icmp - (u8_t *) eth +
-		  sizeof(struct ipv6_hdr) + HOST_TO_NET16(ipv6->ipv6_plen));
+
+	rx_total = context->ustack->uip_len;
+	if (rx_total <= l2_l3_len)
+		return;
+
+	rx_payload = rx_total - l2_l3_len;
+	hdr_plen = HOST_TO_NET16(ipv6->ipv6_plen);
+	safe_plen = (hdr_plen <= rx_payload) ? hdr_plen : rx_payload;
+	if (safe_plen < sizeof(struct icmpv6_hdr))
+		return;
+
+	ipv6->ipv6_plen = HOST_TO_NET16(safe_plen);
+	ipv6_send(context, l2_l3_len + safe_plen);
+
 	return;
 }
 
