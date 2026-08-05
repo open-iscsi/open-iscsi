@@ -765,10 +765,10 @@ int iscsi_host_set_net_params(struct iface_rec *iface,
 bool
 iqn_name_valid(const char *name)
 {
-	unsigned char *cp;
+	const unsigned char *cp;
 
 	/* ensure no invalid characters */
-	for (cp = name; *cp != '\0'; cp++)
+	for (cp = (const unsigned char *)name; *cp != '\0'; cp++)
 		if ((*cp <= '\x2c') ||
 		    (*cp == '\x2f') ||
 		    ((*cp >= '\x3b') && (*cp <= '\x40')) ||
