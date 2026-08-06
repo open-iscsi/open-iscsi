@@ -61,6 +61,25 @@ static void iscsid_startup(void)
 
 #define MAXSLEEP 128
 
+static int ipc_verify_root_peer(int fd)
+{
+	struct ucred peercred = {0};
+	socklen_t so_len = sizeof(peercred);
+
+	if (getsockopt(fd, SOL_SOCKET, SO_PEERCRED, &peercred, &so_len) != 0 ||
+	    so_len != sizeof(peercred)) {
+		log_error("Could not verify IPC peer credentials (%d)", errno);
+		return ISCSI_ERR_ISCSID_NOTCONN;
+	}
+
+	if (peercred.uid != 0) {
+		log_error("Refusing IPC peer with UID=%u", peercred.uid);
+		return ISCSI_ERR_ISCSID_NOTCONN;
+	}
+
+	return ISCSI_SUCCESS;
+}
+
 static int ipc_connect(int *fd, char *unix_sock_name, int start_iscsid)
 {
 	int nsec, addr_len;
@@ -78,9 +97,16 @@ static int ipc_connect(int *fd, char *unix_sock_name, int start_iscsid)
 	 * Trying to connect with exponential backoff
 	 */
 	for (nsec = 1; nsec <= MAXSLEEP; nsec <<= 1) {
-		if (connect(*fd, (struct sockaddr *) &addr, addr_len) == 0)
+		if (connect(*fd, (struct sockaddr *) &addr, addr_len) == 0) {
+			int vrc = ipc_verify_root_peer(*fd);
+			if (vrc) {
+				close(*fd);
+				*fd = -1;
+				return vrc;
+			}
 			/* Connection established */
 			return ISCSI_SUCCESS;
+		}
 
 		/* If iscsid isn't there, there's no sense
 		 * in retrying. */
