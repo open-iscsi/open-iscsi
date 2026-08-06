@@ -1479,6 +1479,12 @@ udp_input:
 	   work. If the application sets uip_slen, it has a packet to
 	   send. */
 #if UIP_UDP_CHECKSUMS
+	if (ustack->uip_len < uip_ip_udph_len) {
+		++ustack->stats.udp.drop;
+		ILOG_DEBUG(PFX "udp: invalid IPv4 total length %u (< %u).",
+		           ustack->uip_len, uip_ip_udph_len);
+		goto drop;
+	}
 	ustack->uip_len = ustack->uip_len - uip_ip_udph_len;
 	ustack->uip_appdata = ustack->network_layer + uip_ip_udph_len;
 	if (UDPBUF(ustack)->udpchksum != 0 && uip_udpchksum(ustack) != 0xffff) {
@@ -1845,6 +1851,12 @@ found:
 	/* uip_len will contain the length of the actual TCP data. This is
 	   calculated by subtracing the length of the TCP header (in
 	   c) and the length of the IP header (20 bytes). */
+	if (ustack->uip_len < (u16_t)(c + uip_iph_len)) {
+		++ustack->stats.tcp.drop;
+		ILOG_DEBUG(PFX "tcp: invalid IPv4 total length %u (hdr=%u).",
+		           ustack->uip_len, (u16_t)(c + uip_iph_len));
+		goto drop;
+	}
 	ustack->uip_len = ustack->uip_len - c - uip_iph_len;
 
 	/* First, check if the sequence number of the incoming packet is
