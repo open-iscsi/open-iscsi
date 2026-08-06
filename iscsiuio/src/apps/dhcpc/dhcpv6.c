@@ -319,7 +319,8 @@ static void dhcpv6_handle_advertise(struct dhcpv6_context *context,
 	context->dhcpv6_state = DHCPV6_STATE_ADV_RCVD;
 
 	i = 0;
-	while (i < (dhcpv6_len - sizeof(union dhcpv6_hdr))) {
+	while (i + (int)sizeof(struct dhcpv6_opt_hdr) <=
+	       (int)(dhcpv6_len - sizeof(union dhcpv6_hdr))) {
 		opt = (struct dhcpv6_opt_hdr *)((u8_t *)dhcpv6 +
 						sizeof(union dhcpv6_hdr) + i);
 		opt_len = NET_TO_HOST16(opt->length);
