@@ -258,6 +258,7 @@ void ipv6_udp_handle_dhcp(struct dhcpv6_context *context)
 {
 	union dhcpv6_hdr *dhcpv6;
 	u16_t dhcpv6_len;
+	u16_t udp_len = NET_TO_HOST16(context->udp->length);
 
 	if (context->dhcpv6_done == TRUE)
 		return;
@@ -273,8 +274,12 @@ void ipv6_udp_handle_dhcp(struct dhcpv6_context *context)
 		return;
 	}
 
-	dhcpv6_len =
-	    NET_TO_HOST16(context->udp->length) - sizeof(struct udp_hdr);
+	if (udp_len < sizeof(struct udp_hdr))
+		return;
+	dhcpv6_len = udp_len - sizeof(struct udp_hdr);
+
+	if (dhcpv6_len < sizeof(union dhcpv6_hdr))
+		return;
 
 	switch (dhcpv6->dhcpv6_type) {
 	case DHCPV6_ADVERTISE:

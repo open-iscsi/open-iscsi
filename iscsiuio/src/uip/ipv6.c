@@ -1261,6 +1261,8 @@ static void ipv6_udp_rx(struct ipv6_context *context)
 	struct udp_hdr *udp = (struct udp_hdr *)((u8_t *)ipv6 +
 						sizeof(struct ipv6_hdr));
 	struct dhcpv6_context *dhcpv6c;
+	u16_t payload_len = NET_TO_HOST16(ipv6->ipv6_plen);
+	u16_t udp_length = NET_TO_HOST16(udp->length);
 
 	/*
 	 * We only care about DHCPv6 packets from the DHCPv6 server.  We drop
@@ -1269,6 +1271,14 @@ static void ipv6_udp_rx(struct ipv6_context *context)
 	if (!(context->flags & IPV6_FLAGS_DISABLE_DHCPV6)) {
 		if ((udp->src_port == HOST_TO_NET16(DHCPV6_SERVER_PORT)) &&
 		    (udp->dest_port == HOST_TO_NET16(DHCPV6_CLIENT_PORT))) {
+			/* Require minimal UDP + DHCPv6 fixed header and consistency */
+			if (payload_len < sizeof(struct udp_hdr) + sizeof(union dhcpv6_hdr))
+				return;
+			if (udp_length < sizeof(struct udp_hdr) + sizeof(union dhcpv6_hdr))
+				return;
+			if (udp_length > payload_len)
+				return;
+
 			dhcpv6c = context->dhcpv6_context;
 			dhcpv6c->eth = eth;
 			dhcpv6c->ipv6 = ipv6;
