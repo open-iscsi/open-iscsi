@@ -259,7 +259,7 @@ acl_chk_string(const char *s, unsigned int max_len, unsigned int *out_len)
 static int
 acl_str_index(const char *s, int c)
 {
-	char *str = strchr(s, c);
+	const char *str = strchr(s, c);
 
 	if (str)
 		return (str - s);
