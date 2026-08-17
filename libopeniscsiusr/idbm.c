@@ -777,8 +777,7 @@ unknown_value:
 			goto out;
 		}
 	}
-	_error(ctx, "Unknown parameter name %s", name);
-	rc = LIBISCSI_ERR_INVAL;
+	_warn(ctx, "Ignoring unknown parameter name %s", name);
 	goto out;
 
 updated:
