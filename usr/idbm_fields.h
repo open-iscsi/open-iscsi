@@ -49,6 +49,8 @@
 #define SESSION_SCAN		"node.session.scan"
 #define SESSION_REOPEN_MAX	"node.session.reopen_max"
 #define SESSION_REOPEN_LOG_FREQ "node.session.sess_reopen_log_freq"
+/* deprecated alias for backward compatibility */
+#define CONN_REOPEN_LOG_FREQ	"node.session.conn_reopen_log_freq"
 
 /* connections fields */
 #define CONN_ADDR		"node.conn[%d].address"

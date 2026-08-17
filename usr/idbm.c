@@ -528,6 +528,9 @@ idbm_recinfo_node(node_rec_t *r, recinfo_t *ri)
 			session.reopen_max, IDBM_SHOW, num, 1);
 	__recinfo_int(SESSION_REOPEN_LOG_FREQ, ri, r,
 			session.sess_reopen_log_freq, IDBM_SHOW, num, 1);
+	/* deprecated alias for backward compatibility */
+	__recinfo_int(CONN_REOPEN_LOG_FREQ, ri, r,
+			session.sess_reopen_log_freq, IDBM_SHOW, num, 1);
 
 	for (i = 0; i < ISCSI_CONN_MAX; i++) {
 		char key[NAME_MAXVAL];
