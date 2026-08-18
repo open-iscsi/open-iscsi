@@ -852,21 +852,47 @@ static void ipv6_icmp_handle_router_adv(struct ipv6_context *context)
 	struct icmpv6_opt_hdr *icmp_opt;
 	u16_t opt_len;
 	u16_t len;
+	u16_t plen;
+	u16_t step;
 	char addr_str[INET6_ADDRSTRLEN];
 
 	if (context->flags & IPV6_FLAGS_ROUTER_ADV_RECEIVED)
 		return;
 
-	opt_len = HOST_TO_NET16(ipv6->ipv6_plen) -
-		  sizeof(struct icmpv6_router_advert);
+	plen = HOST_TO_NET16(ipv6->ipv6_plen);
+
+	/* Validate minimum payload length to prevent underflow */
+	if (plen < sizeof(struct icmpv6_router_advert)) {
+		ILOG_DEBUG("IPv6: RA payload too short (%u < %zu)",
+			   plen, sizeof(struct icmpv6_router_advert));
+		return;
+	}
+
+	opt_len = plen - sizeof(struct icmpv6_router_advert);
 
 	icmp_opt = (struct icmpv6_opt_hdr *)((u8_t *)icmp +
 				      sizeof(struct icmpv6_router_advert));
 	len = 0;
-	while (len < opt_len) {
+	/* Ensure there's space for option header before accessing it */
+	while (len + sizeof(struct icmpv6_opt_hdr) <= opt_len) {
 		icmp_opt = (struct icmpv6_opt_hdr *)((u8_t *)icmp +
 					sizeof(struct icmpv6_router_advert) +
 					len);
+
+		/* Reject zero-length options to prevent infinite loop */
+		if (icmp_opt->len == 0) {
+			ILOG_DEBUG("IPv6: RA option with zero length, stopping parse");
+			break;
+		}
+
+		/* Calculate step size (option length is in units of 8 bytes) */
+		step = icmp_opt->len * 8;
+
+		/* Validate step doesn't exceed remaining option space */
+		if (len + step > opt_len) {
+			ILOG_DEBUG("IPv6: RA option extends beyond payload");
+			break;
+		}
 
 		switch (icmp_opt->type) {
 		case IPV6_ICMP_OPTION_PREFIX:
@@ -879,7 +905,7 @@ static void ipv6_icmp_handle_router_adv(struct ipv6_context *context)
 			break;
 		}
 
-		len += icmp_opt->len * 8;
+		len += step;
 	}
 
 	if (context->flags & IPV6_FLAGS_ROUTER_ADV_RECEIVED) {
