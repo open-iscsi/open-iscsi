@@ -135,13 +135,11 @@ bool _file_exists(const char *path)
 
 static bool _is_eth(struct iscsi_context *ctx, const char *if_name)
 {
-	struct ifreq ifr;
+	struct ifreq ifr = {0};
 	int sockfd = -1;
 	char strerr_buff[_STRERR_BUFF_LEN];
 
 	assert(if_name != NULL);
-
-	memset(&ifr, 0, sizeof(ifr));
 
 	_strncpy(ifr.ifr_name, if_name, IFNAMSIZ);
 
@@ -174,16 +172,13 @@ static int _eth_driver_get(struct iscsi_context *ctx, const char *if_name,
 			   char *driver_name)
 {
 	int sockfd = -1;
-	struct ethtool_drvinfo drvinfo;
-	struct ifreq ifr;
+	struct ethtool_drvinfo drvinfo = {0};
+	struct ifreq ifr = {0};
 	char strerr_buff[_STRERR_BUFF_LEN];
 
 	assert(ctx != NULL);
 	assert(if_name != NULL);
 	assert(driver_name != NULL);
-
-	memset(&ifr, 0, sizeof(ifr));
-	memset(&drvinfo, 0, sizeof(drvinfo));
 
 	_strncpy(ifr.ifr_name, if_name, IFNAMSIZ);
 	drvinfo.cmd = ETHTOOL_GDRVINFO;
