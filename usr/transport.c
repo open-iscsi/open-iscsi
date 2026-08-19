@@ -21,6 +21,7 @@
 #include <errno.h>
 #include <libkmod.h>
 #include <net/if.h>
+#include <net/if_arp.h>
 #include <sys/ioctl.h>
 #include <sys/socket.h>
 #include <sys/types.h>
@@ -144,7 +145,7 @@ int transport_probe_for_offload(void)
 	struct if_nameindex *ifni;
 	char transport_name[ISCSI_TRANSPORT_NAME_MAXLEN];
 	int i, sockfd;
-	struct ifreq if_hwaddr;
+	struct ifreq if_hwaddr = {0};
 
 	ifni = if_nameindex();
 	if (!ifni) {
@@ -170,7 +171,7 @@ int transport_probe_for_offload(void)
 			continue;
 
 		/* check for ARPHRD_ETHER (ethernet) */
-		if (if_hwaddr.ifr_hwaddr.sa_family != 1)
+		if (if_hwaddr.ifr_hwaddr.sa_family != ARPHRD_ETHER)
 			continue;
 
 		if (net_get_transport_name_from_netdev(n->if_name,
