@@ -1285,12 +1285,23 @@ void uip_process(struct uip_stack *ustack, u8_t flag)
 
 	if (is_ipv6(ustack)) {
 		u16_t len = ntohs(ipv6_hdr->ip6_plen);
-		if (len > ustack->uip_len) {
+		u16_t l2_len = (u16_t)(ustack->network_layer - ustack->data_link_layer);
+		u16_t avail_payload;
+
+		if (ustack->uip_len < (u16_t)(l2_len + UIP_IPv6_H_LEN)) {
+			ILOG_DEBUG(PFX "ip: IPv6 frame too short");
+			goto drop;
+		}
+
+		avail_payload = (u16_t)(ustack->uip_len - l2_len - UIP_IPv6_H_LEN);
+		if (len > avail_payload) {
 			ILOG_DEBUG(
 			    PFX "ip: packet shorter than reported in IP header:IPv6_BUF(ustack)->len: %d ustack->uip_len: %d",
 			    len, ustack->uip_len);
 			goto drop;
 		}
+		/* Normalize to validated IPv6 packet size (without L2 header). */
+		ustack->uip_len = (u16_t)(UIP_IPv6_H_LEN + len);
 	} else {
 		if ((tcp_ipv4_hdr->len[0] << 8) +
 		    tcp_ipv4_hdr->len[1] <= ustack->uip_len) {
