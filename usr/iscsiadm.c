@@ -154,7 +154,7 @@ static struct option const long_options[] =
 	{"no_wait", no_argument, NULL, 'W'},
 	{NULL, 0, NULL, 0},
 };
-static char *short_options = "RlDVhm:a:b:c:C:p:P:T:H:i:I:U:k:L:d:r:n:v:o:sSt:ux:A:W";
+static char *short_options = ":RlDVhm:a:b:c:C:p:P:T:H:i:I:U:k:L:d:r:n:v:o:sSt:ux:A:W";
 
 static void usage(int status)
 {
@@ -3728,7 +3728,7 @@ main(int argc, char **argv)
 
 	sysfs_init();
 
-	optopt = 0;
+	opterr = 0;
 	while ((ch = getopt_long(argc, argv, short_options,
 				 long_options, &longindex)) >= 0) {
 		switch (ch) {
@@ -3883,6 +3883,20 @@ main(int argc, char **argv)
 			break;
 		case 'h':
 			usage(0);
+			break;
+		case '?':
+			if (optopt)
+				log_error("unrecognized option '-%c'", optopt);
+			else
+				log_error("unrecognized option");
+			rc = ISCSI_ERR_INVAL;
+			goto out;
+		case ':':
+			log_error("option '-%c' requires an argument", optopt);
+			rc = ISCSI_ERR_INVAL;
+			goto out;
+		default:
+			break;
 		}
 
 		if (name && value) {
@@ -3896,12 +3910,6 @@ main(int argc, char **argv)
 			name = NULL;
 			value = NULL;
 		}
-	}
-
-	if (optopt) {
-		log_error("unrecognized character '%c'", optopt);
-		rc = ISCSI_ERR_INVAL;
-		goto out;
 	}
 
 	if (killiscsid >= 0) {
