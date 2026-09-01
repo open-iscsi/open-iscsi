@@ -324,6 +324,14 @@ static void dhcpv6_handle_advertise(struct dhcpv6_context *context,
 						sizeof(union dhcpv6_hdr) + i);
 		opt_len = NET_TO_HOST16(opt->length);
 
+		/* Validate option length doesn't exceed remaining packet bytes */
+		int remaining = (dhcpv6_len - sizeof(union dhcpv6_hdr)) - i;
+		if (opt_len > remaining) {
+			ILOG_WARN("DHCPv6: option type %d length %d exceeds remaining %d bytes",
+				  NET_TO_HOST16(opt->type), opt_len, remaining);
+			break;
+		}
+
 		type = NET_TO_HOST16(opt->type);
 
 		/* We only care about some of the options */
@@ -403,18 +411,32 @@ static int dhcpv6_process_opt_ia_na(struct dhcpv6_context *context,
 	struct dhcpv6_option *opt;
 	int len;
 	int addr_cnt;
-	opt_len = NET_TO_HOST16(opt_hdr->length) -
-		  sizeof(struct dhcpv6_opt_id_assoc_na);
+	u16_t ia_na_len = NET_TO_HOST16(opt_hdr->length);
+
+	/* Validate IA_NA option is large enough for its fixed header */
+	if (ia_na_len < sizeof(struct dhcpv6_opt_id_assoc_na)) {
+		ILOG_WARN("DHCPv6: IA_NA option length %d too small", ia_na_len);
+		return 0;
+	}
+
+	opt_len = ia_na_len - sizeof(struct dhcpv6_opt_id_assoc_na);
 
 	i = 0;
 	addr_cnt = 0;
-	while (i < opt_len) {
+	while (i + (int)sizeof(struct dhcpv6_opt_hdr) <= opt_len) {
 		opt =
 		    (struct dhcpv6_option *)((u8_t *)opt_hdr +
 				     sizeof(struct dhcpv6_opt_hdr) +
 				     sizeof(struct dhcpv6_opt_id_assoc_na) + i);
 
 		len = NET_TO_HOST16(opt->hdr.length);
+
+		/* Validate sub-option length doesn't exceed remaining space */
+		if (len > opt_len - i) {
+			ILOG_WARN("DHCPv6: IA_NA sub-option length %d exceeds remaining %d bytes",
+				  len, opt_len - i);
+			break;
+		}
 		switch (NET_TO_HOST16(opt->hdr.type)) {
 		case DHCPV6_OPT_IAADDR:
 			if (len >
