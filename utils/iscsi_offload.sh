@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/sh
 #
 # iscsi_offload
 #
@@ -50,26 +50,22 @@
 # cxgb3 is using one PCI device for everything.
 #
 iscsi_macaddress_from_pcidevice()
-{
-    local path=$1
-    local if=$2
-    local h
-    local host
+(
 
-    for h in $path/host* ; do
+    for h in "$1"/host* ; do
 	if [ -d "$h" ] ; then
 	    host=${h##*/}
-	    read netdev < /sys/class/iscsi_host/$host/netdev
+	    read -r netdev < "/sys/class/iscsi_host/$host/netdev"
 	    if [ "$netdev" = "$IFNAME" ] ; then
-		read mac < /sys/class/iscsi_host/$host/hwaddress
+		read -r mac < "/sys/class/iscsi_host/$host/hwaddress"
 		if [ "$mac" != "00:00:00:00:00:00" ] ; then
 		    echo "$mac"
 		fi
-		break;
+		break
 	    fi
 	fi
     done
-}
+)
 
 #
 # Figure out the MAC address of the iSCSI offload engine
@@ -79,47 +75,41 @@ iscsi_macaddress_from_pcidevice()
 # Suitable for be2iscsi and qla4xxx
 #
 iscsi_macaddress_from_pcifn()
-{
-    local path=$1
-    local if=$2
-    local h
-    local host
-    local ifmac
-    local olemacoffset=$3
+(
 
-    ifmac=$(ip addr show dev $if | sed -n 's/ *link\/ether \(.*\) brd.*/\1/p')
+    ifmac=$(ip addr show dev "$2" | sed -n 's/ *link\/ether \(.*\) brd.*/\1/p')
     m5=$(( 0x${ifmac##*:} ))
-    m5=$(( $m5 + $olemacoffset ))
-    ifmac=$(printf "%s:%02x" ${ifmac%:*} $m5)
+    m5=$((m5 + $3))
+    ifmac=$(printf '%s:%02x' "${ifmac%:*}" "$m5")
     for host in /sys/class/iscsi_host/host* ; do
 	if [ -L "$host" ] ; then
-	    read mac < $host/hwaddress
+	    read -r mac < "$host/hwaddress"
 	    if [ "$mac" = "$ifmac" ] ; then
 		echo "$mac"
-		break;
+		break
 	    fi
 	fi
     done
-}
+)
 
-update_iface_setting() {
-    local iface="$1"
-    local name="$2"
-    local value="$3"
+update_iface_setting() (
+    iface=$1
+    name=$2
+    value=$3
 
-    iface_value=$(iscsiadm -m iface -I $iface | sed -n "s/$name = \(.*\)/\1/p")
+    iface_value=$(iscsiadm -m iface -I "$iface" | sed -n "s/$name = \(.*\)/\1/p")
     if [ "$iface_value" = "<empty>" ] ; then
 	iface_value=
     fi
     if [ "$iface_value" != "$value" ] ; then
-	if ! iscsiadm -m iface -I $iface -o update -n "$name" -v "$value" ; then
+	if ! iscsiadm -m iface -I "$iface" -o update -n "$name" -v "$value" ; then
 	    return 1
 	fi
     fi
     return 0
-}
+)
 
-while getopts di:t options ; do
+while getopts dfi:t options ; do
     case $options in
 	d ) mode=dhcp;;
 	i ) mode=static
@@ -127,11 +117,11 @@ while getopts di:t options ; do
 	    ;;
 	f ) mode=firmware;;
 	t ) dry_run=1;;
-	?)  printf "Usage: %s [-d|-t|-i ipaddr|-f] ifname\n" $0
+	?)  printf "Usage: %s [-d|-t|-i ipaddr|-f] ifname\n" "$0"
 	    exit 1;;
     esac
 done
-shift $(($OPTIND - 1))
+shift $((OPTIND - 1))
 
 IFNAME=$1
 ibft_mode="none"
@@ -151,12 +141,12 @@ if [ "$dry_run" ] ; then
     fi
 fi
 
-if [ ! -L /sys/class/net/$IFNAME ] ; then
+if [ ! -L "/sys/class/net/$IFNAME" ] ; then
     echo "Interface $IFNAME not found"
     exit 1
 fi
 
-if [ "$optaddr" ] && ! ip route get $optaddr ; then
+if [ -n "$optaddr" ] && ! ip route get "$optaddr" ; then
     echo "Invalid IP address $optaddr"
     exit 1
 fi
@@ -165,11 +155,11 @@ if [ "$dry_run" ] ; then
 fi
 
 
-ifpath=$(cd -P /sys/class/net/$IFNAME; echo $PWD)
-pcipath=$(cd -P $ifpath/device; echo $PWD)
+ifpath=$(cd -P "/sys/class/net/$IFNAME" && pwd)
+pcipath=$(cd -P "$ifpath/device" && pwd)
 
-if [ -d $pcipath ] ; then
-    drvlink=$(readlink $pcipath/driver)
+if [ -d "$pcipath" ] ; then
+    drvlink=$(readlink "$pcipath/driver")
     driver=${drvlink##*/}
 fi
 
@@ -204,7 +194,7 @@ fi
 # Check if the required modules are already loaded
 loaded=$(sed -n "/^$mod/p" /proc/modules)
 if [ -z "$loaded" ] ; then
-    modprobe $mod
+    modprobe "$mod"
 fi
 
 loaded=$(sed -n "/^$mod/p" /proc/modules)
@@ -215,15 +205,15 @@ fi
 
 # Get the correct MAC address for the various devices
 if [ "$mod" = "bnx2i" ] ; then
-    mac=$(iscsi_macaddress_from_pcidevice $pcipath $IFNAME)
+    mac=$(iscsi_macaddress_from_pcidevice "$pcipath" "$IFNAME")
 elif [ "$mod" = "cxgb3i" ] ; then
-    mac=$(iscsi_macaddress_from_pcidevice $pcipath $IFNAME)
+    mac=$(iscsi_macaddress_from_pcidevice "$pcipath" "$IFNAME")
 elif [ "$mod" = "be2iscsi" ] ; then
-    mac=$(iscsi_macaddress_from_pcifn $pcipath $IFNAME 1)
+    mac=$(iscsi_macaddress_from_pcifn "$pcipath" "$IFNAME" 1)
 elif [ "$mod" = "qla4xxx" ] ; then
-    mac=$(iscsi_macaddress_from_pcifn $pcipath $IFNAME 1)
-elif [ "$mod" = "qede" -o "$mod" = "qedi" ] ; then
-    mac=$(iscsi_macaddress_from_pcifn $pcipath $IFNAME 4)
+    mac=$(iscsi_macaddress_from_pcifn "$pcipath" "$IFNAME" 1)
+elif [ "$mod" = "qede" ] || [ "$mod" = "qedi" ] ; then
+    mac=$(iscsi_macaddress_from_pcifn "$pcipath" "$IFNAME" 4)
 fi
 
 if [ -z "$mac" ] ; then
@@ -235,11 +225,11 @@ gen_iface="$mod.$mac"
 ioe_iface="${IFNAME}-${mod}"
 
 # Get existing settings
-if iscsiadm -m iface -I $ioe_iface > /dev/null 2>&1 ; then
-    ioe_mac=$(iscsiadm -m iface -I $ioe_iface 2> /dev/null| sed -n "s/iface\.hwaddress = \(.*\)/\1/p")
-    ioe_mod=$(iscsiadm -m iface -I $ioe_iface 2> /dev/null| sed -n "s/iface\.transport_name = \(.*\)/\1/p")
-    ipaddr=$(iscsiadm -m iface -I $ioe_iface 2> /dev/null| sed -n "s/iface\.ipaddress = \(.*\)/\1/p")
-    if [ "$ipaddr" == "<empty>" ] ; then
+if iscsiadm -m iface -I "$ioe_iface" > /dev/null 2>&1 ; then
+    ioe_mac=$(iscsiadm -m iface -I "$ioe_iface" 2> /dev/null | sed -n "s/iface\.hwaddress = \(.*\)/\1/p")
+    ioe_mod=$(iscsiadm -m iface -I "$ioe_iface" 2> /dev/null | sed -n "s/iface\.transport_name = \(.*\)/\1/p")
+    ipaddr=$(iscsiadm -m iface -I "$ioe_iface" 2> /dev/null | sed -n "s/iface\.ipaddress = \(.*\)/\1/p")
+    if [ "$ipaddr" = "<empty>" ] ; then
 	ipaddr=
     fi
 elif [ "$mod" = "be2iscsi" ] ; then
@@ -247,7 +237,7 @@ elif [ "$mod" = "be2iscsi" ] ; then
     ioe_mod=$mod
 else
     # Create new interface
-    iscsiadm -m iface -I $ioe_iface --op=new 2> /dev/null
+    iscsiadm -m iface -I "$ioe_iface" --op=new 2> /dev/null
     ioe_mac=
     ioe_mod=
     ipaddr=
@@ -258,17 +248,17 @@ if [ -z "$dry_run" ] ; then
 	if [ -n "$ioe_mac" ] ; then
 	    echo "Warning: Updating MAC address on iface $ioe_iface"
 	fi
-	update_iface_setting $ioe_iface iface.hwaddress "$mac"
+	update_iface_setting "$ioe_iface" iface.hwaddress "$mac"
     fi
 
     if [ "$ioe_mod" != "$mod" ] ; then
 	if [ -n "$ioe_mod" ] ; then
 	    echo "Warning: Update transport on iface $ioe_iface"
 	fi
-	update_iface_setting $ioe_iface iface.transport_name "$mod"
+	update_iface_setting "$ioe_iface" iface.transport_name "$mod"
     fi
 elif [ -z "$ipaddr" ] ; then
-    ipaddr=$(iscsiadm -m iface -I $gen_iface 2> /dev/null| sed -n "s/iface\.ipaddress = \(.*\)/\1/p")
+    ipaddr=$(iscsiadm -m iface -I "$gen_iface" 2> /dev/null | sed -n "s/iface\.ipaddress = \(.*\)/\1/p")
     if [ "$ipaddr" = "<empty>" ] ; then
 	ipaddr=
     fi
@@ -278,23 +268,23 @@ fi
 
 # Check iBFT setting
 for d in /sys/firmware/* ; do
-    [ -d $d ] || continue
-    [ -d $d/ethernet0 ] || continue
+    [ -d "$d" ] || continue
+    [ -d "$d/ethernet0" ] || continue
     iboot_dir=$d
 done
 if [ -n "$iboot_dir" ] && [ -d "$iboot_dir" ] ; then
-    for if in ${iboot_dir}/ethernet* ; do
-	read ibft_mac < $if/mac
+    for if in "$iboot_dir"/ethernet* ; do
+	read -r ibft_mac < "$if/mac"
 	[ "$ibft_mac" = "$mac" ] || continue
 	ibft_origin=0
-	[ -f ${if}/origin ] && read ibft_origin < $if/origin
+	[ -f "$if/origin" ] && read -r ibft_origin < "$if/origin"
 	if [ "$ibft_origin" -eq 1 ] ; then
 	    ibft_mode="static"
 	elif [ "$ibft_origin" -eq 3 ] ; then
 	    ibft_mode="dhcp"
 	fi
-	[ -f $if/dhcp ] && read ibft_dhcp < $if/dhcp
-	if [ -n "$ibft_dhcp" -a "$ibft_mode" != "dhcp" ] ; then
+	[ -f "$if/dhcp" ] && read -r ibft_dhcp < "$if/dhcp"
+	if [ -n "$ibft_dhcp" ] && [ "$ibft_mode" != "dhcp" ] ; then
 	    ibft_mode=dhcp
 	fi
 	if [ "$ibft_mode" = "dhcp" ] ; then
@@ -303,9 +293,9 @@ if [ -n "$iboot_dir" ] && [ -d "$iboot_dir" ] ; then
 	    ibft_mask=
 	    break
 	fi
-	[ -f $if/ip-addr ] && read ibft_ipaddr < $if/ip-addr
-	[ -f $if/gateway ] && read ibft_gateway < $if/gateway
-	[ -f $if/subnet-mask ] && read ibft_mask < $if/subnet-mask
+	[ -f "$if/ip-addr" ] && read -r ibft_ipaddr < "$if/ip-addr"
+	[ -f "$if/gateway" ] && read -r ibft_gateway < "$if/gateway"
+	[ -f "$if/subnet-mask" ] && read -r ibft_mask < "$if/subnet-mask"
 	break
     done
 fi
@@ -346,39 +336,38 @@ if [ "$mod" = "be2iscsi" ] ; then
     exit 4
 fi
 
-if ! update_iface_setting $ioe_iface iface.ipaddress "$optaddr" ; then
+if ! update_iface_setting "$ioe_iface" iface.ipaddress "$optaddr" ; then
     echo "Failed to set IP address: $?"
     exit 1
 fi
-if ! update_iface_setting $gen_iface iface.ipaddress "$optaddr" ; then
+if ! update_iface_setting "$gen_iface" iface.ipaddress "$optaddr" ; then
     echo "Failed to set IP address for generic interface: $?"
     exit 1
 fi
 
-if ! update_iface_setting $ioe_iface iface.gateway "$ibft_gateway" ; then
+if ! update_iface_setting "$ioe_iface" iface.gateway "$ibft_gateway" ; then
     echo "Failed to set gateway address: $?"
     exit 1
 fi
 
-if ! update_iface_setting $gen_iface iface.gateway "$ibft_gateway" ; then
+if ! update_iface_setting "$gen_iface" iface.gateway "$ibft_gateway" ; then
     echo "Failed to set gateway address for generic interface: $?"
     exit 1
 fi
 
-if ! update_iface_setting $ioe_iface iface.subnet_mask "$ibft_mask" ; then
+if ! update_iface_setting "$ioe_iface" iface.subnet_mask "$ibft_mask" ; then
     echo "Failed to set subnet mask: $?"
     exit 1
 fi
 
-if ! update_iface_setting $gen_iface iface.subnet_mask "$ibft_mask" ; then
+if ! update_iface_setting "$gen_iface" iface.subnet_mask "$ibft_mask" ; then
     echo "Failed to set subnet mask for generic interface: $?"
     exit 1
 fi
 
 if [ "$mod" = "qla4xxx" ] ; then
-    iscsiadm -m iface -H $mac -o applyall
+    iscsiadm -m iface -H "$mac" -o applyall
 fi
-ip link set dev $IFNAME up
+ip link set dev "$IFNAME" up
 
 exit 0
-
