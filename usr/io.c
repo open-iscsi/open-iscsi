@@ -255,7 +255,8 @@ iscsi_conn_iface_has_ip(char *iface_name, int expected_family)
 	return status;
 }
 
-static int bind_conn_to_iface(iscsi_conn_t *conn, struct iface_rec *iface, int expected_family)
+static int bind_conn_to_iface(iscsi_conn_t *conn, struct iface_rec *iface,
+			      int expected_family)
 {
 	struct iscsi_session *session = conn->session;
 
@@ -326,17 +327,18 @@ iscsi_io_tcp_connect(iscsi_conn_t *conn, int non_blocking)
 		return -1;
 	}
 
-	if (bind_conn_to_iface(conn, &conn->session->nrec.iface, ss->ss_family))
-		return -1;
+	if (bind_conn_to_iface(conn, &conn->session->nrec.iface,
+			       ss->ss_family)) {
+		rc = -1;
+		goto close_sock;
+	}
 
 	onearg = 1;
 	rc = setsockopt(conn->socket_fd, IPPROTO_TCP, TCP_NODELAY, &onearg,
 			sizeof (onearg));
 	if (rc < 0) {
 		log_error("cannot set TCP_NODELAY option on socket");
-		close(conn->socket_fd);
-		conn->socket_fd = -1;
-		return rc;
+		goto close_sock;
 	}
 
 	/* optionally set the window sizes */
@@ -396,6 +398,11 @@ iscsi_io_tcp_connect(iscsi_conn_t *conn, int non_blocking)
 	if (non_blocking)
 		set_non_blocking(conn->socket_fd);
 	rc = connect(conn->socket_fd, (struct sockaddr *) ss, sizeof (*ss));
+	return rc;
+
+close_sock:
+	close(conn->socket_fd);
+	conn->socket_fd = -1;
 	return rc;
 }
 
