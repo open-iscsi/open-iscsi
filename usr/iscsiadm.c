@@ -1374,7 +1374,7 @@ verify_mode_params(int argc, char **argv, enum iscsiadm_mode mode, const char *m
 	int tmp = optind;
 
 	if (mode > MODE_FW || mode < MODE_DISCOVERY) {
-		log_error("%s mode is unkonwn/unsupported", mode_str);
+		log_error("%s mode is unknown/unsupported", mode_str);
 		return ISCSI_ERR_INVAL;
 	}
 
