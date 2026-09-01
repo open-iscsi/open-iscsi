@@ -1,10 +1,7 @@
-#!/bin/bash
+#!/bin/sh
 #
 # build the build_date.c and build_date.h files
 #
-# (bash required for getopts)
-#
-
 THIS_CMD=${0##*/}
 
 usage()
@@ -20,11 +17,13 @@ usage()
 generate_source_file()
 {
     outfile="$1"
-    if [ -n "$SOURCE_DATE_EPOCH" ] ; then
-	echo 'char *build_date = "'`LC_ALL=C.UTF-8 date --date=@$SOURCE_DATE_EPOCH -u`'";' >"$outfile"
+    if [ -n "${SOURCE_DATE_EPOCH:-}" ]; then
+	build_date=$(LC_ALL=C.UTF-8 date --date="@$SOURCE_DATE_EPOCH" -u)
     else
-	echo 'char *build_date = "'`date`'";' >"$outfile"
+	build_date=$(date)
     fi
+
+    printf 'char *build_date = "%s";\n' "$build_date" >"$outfile"
 }
 
 generate_include_file()
@@ -47,8 +46,8 @@ while getopts :c:i:S:h opt; do
 done
 
 if [ -n "$do_source" ]; then
-   generate_source_file $do_source
+   generate_source_file "$do_source"
 fi
 if [ -n "$do_include" ]; then
-    generate_include_file $do_include
+    generate_include_file "$do_include"
 fi
