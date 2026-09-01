@@ -8,6 +8,7 @@
 # config:  /etc/iscsi/iscsid.conf
 
 # Source function library.
+# shellcheck disable=SC1091
 . /etc/init.d/functions
 
 PATH=/sbin:/bin:/usr/sbin:/usr/bin
@@ -16,16 +17,16 @@ RETVAL=0
 
 start()
 {
-	echo -n $"Starting iSCSI initiator service: "
+	printf '%s' 'Starting iSCSI initiator service: '
 	daemon iscsid
 	RETVAL=$?
 	success
 	echo
-	[ $RETVAL -eq 0 ] || return
+	[ "$RETVAL" -eq 0 ] || return
 
 	touch /run/lock/subsys/open-iscsi
 
-	echo -n $"Setting up iSCSI targets: "
+	printf '%s' 'Setting up iSCSI targets: '
 	iscsiadm -m node --loginall=automatic
 	success
 	echo
@@ -34,24 +35,26 @@ start()
 
 stop()
 {
-	echo -n $"Stopping iSCSI initiator service: "
+	printf '%s' 'Stopping iSCSI initiator service: '
 	sync
 	iscsiadm -m node --logoutall=all
 	RETVAL=$?
-	if [ $RETVAL -ne 0 ]; then
+	if [ "$RETVAL" -ne 0 ]; then
 		echo "Could not logout from all nodes, try again later"
-		return $RETVAL
+		return "$RETVAL"
 	fi
 	iscsiadm -k 0
 	rm -f /run/iscsid.pid
 	[ $RETVAL -eq 0 ] && rm -f /run/lock/subsys/open-iscsi
 	status=0
 	modprobe -r iscsi_tcp 2>/dev/null
-	if [ "$?" -ne "0" -a "$?" -ne "1" ]; then
+	ret=$?
+	if [ "$ret" -ne 0 ] && [ "$ret" -ne 1 ]; then
 		status=1
 	fi
 	modprobe -r ib_iser 2>/dev/null
-	if [ "$?" -ne "0" -a "$?" -ne "1" ]; then
+	ret=$?
+	if [ "$ret" -ne 0 ] && [ "$ret" -ne 1 ]; then
 		status=1
 	fi
 	if [ "$status" -eq "0" ]; then
@@ -66,9 +69,9 @@ stop()
 restart()
 {
 	stop
-	if [ $RETVAL -ne 0 ]; then
+	if [ "$RETVAL" -ne 0 ]; then
 		echo "Stopping iSCSI initiator service failed, not starting"
-		return $RETVAL
+		return "$RETVAL"
 	fi
 	start
 
@@ -83,9 +86,9 @@ case "$1" in
 			;;
 	restart)
 			stop
-			if [ $RETVAL -ne 0 ]; then
+			if [ "$RETVAL" -ne 0 ]; then
 				echo "Stopping iSCSI initiator service failed, not starting"
-				exit $RETVAL
+				exit "$RETVAL"
 			fi
 			start
 			;;
@@ -97,8 +100,8 @@ case "$1" in
 			[ -f /run/lock/subsys/open-iscsi ] && restart
 			;;
 	*)
-			echo $"Usage: $0 {start|stop|restart|status|condrestart}"
+			printf '%s\n' "Usage: $0 {start|stop|restart|status|condrestart}"
 			exit 1
 esac
 
-exit $RETVAL
+exit "$RETVAL"
