@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/sh
 #
 # Copyright (C) Voltaire Ltd. 2006.  ALL RIGHTS RESERVED.
 #
@@ -48,7 +48,9 @@ usage()
 
 dbg()
 {
-	$debug && echo $@
+	if "$debug"; then
+		printf '%s\n' "$*"
+	fi
 }
 
 initialize()
@@ -61,7 +63,7 @@ initialize()
 	#set default transport to tcp
 	transport=tcp
 	#set default port to 3260
-	port=3260;
+	port=3260
 }
 
 parse_cmdline()
@@ -72,7 +74,7 @@ parse_cmdline()
 	fi
 
 	# check if the IP address is valid
-	ip=`echo $1 | awk -F'.' '$1 != "" && $1 <=255 && $2 != "" && $2 <= 255 && $3 != "" && $3 <= 255 && $4 != "" && $4 <= 255 {print $0}'`
+	ip=$(printf '%s\n' "$1" | awk -F'.' '$1 != "" && $1 <=255 && $2 != "" && $2 <= 255 && $3 != "" && $3 <= 255 && $4 != "" && $4 <= 255 {print $0}')
 	if [ -z "$ip" ]; then
 		echo "$1 is not a vaild IP address!"
 		exit 1
@@ -97,7 +99,7 @@ parse_cmdline()
 discover()
 {
 	# If open-iscsi is already logged in to the portal, exit
-	if [ $(iscsiadm -m session | grep -c ${ip}:${port}) -ne 0 ]; then
+	if [ "$(iscsiadm -m session | grep -c "${ip}:${port}")" -ne 0 ]; then
 		echo "Please logout from all targets on ${ip}:${port} before trying to run discovery on that portal"
 		exit 2
 	fi
@@ -106,15 +108,17 @@ discover()
 	discovered=0
 
 	dbg "starting discovery to $ip"
-	disc="$(iscsiadm -m discovery --type sendtargets --portal ${ip}:${port})"
-	echo "${disc}" | while read portal target
+	disc="$(iscsiadm -m discovery --type sendtargets --portal "${ip}:${port}")"
+	while read -r portal target
 	do
 		portal=${portal%,*}
 		select_transport
-	done
+	done <<-EOF
+	$disc
+	EOF
 
-	discovered=$(echo "${disc}" | wc -l)
-	if [ ${discovered} = 0 ]; then
+	discovered=$(printf '%s\n' "$disc" | wc -l)
+	if [ "$discovered" -eq 0 ]; then
 		echo "failed to discover targets at ${ip}"
 		exit 2
 	else
@@ -125,19 +129,19 @@ discover()
 try_login()
 {
 	if [ "$startup_manual" != "1" ]; then
-		iscsiadm -m node --targetname ${target} --portal ${portal} --op update -n node.conn[0].startup -v automatic
+		iscsiadm -m node --targetname "$target" --portal "$portal" --op update -n node.conn[0].startup -v automatic
 	fi
-	iscsiadm -m node --targetname ${target} --portal ${portal} --login >/dev/null 2>&1
+	iscsiadm -m node --targetname "$target" --portal "$portal" --login >/dev/null 2>&1
 	ret=$?
-	if [ ${ret} = 0 ]; then
+	if [ "$ret" -eq 0 ]; then
 		echo "Set target ${target} to automatic login over ${transport} to portal ${portal}"
-		((connected++))
+		connected=$((connected + 1))
 		if [ "$log_out" = "1" ]; then
-			iscsiadm -m node --targetname ${target} --portal ${portal} --logout
+			iscsiadm -m node --targetname "$target" --portal "$portal" --logout
 		fi
 	else
 		echo "Cannot login over ${transport} to portal ${portal}"
-		iscsiadm -m node --targetname ${target} --portal ${portal} --op update -n node.conn[0].startup -v manual
+		iscsiadm -m node --targetname "$target" --portal "$portal" --op update -n node.conn[0].startup -v manual
 	fi
 	return ${ret}
 }
@@ -148,39 +152,38 @@ set_transport()
 	case "$transport" in
 	iser)
 		# iSER does not use digest
-		iscsiadm -m node --targetname ${target} --portal ${portal} \
+		iscsiadm -m node --targetname "$target" --portal "$portal" \
 			--op update -n node.conn[0].iscsi.HeaderDigest -v None
-		iscsiadm -m node --targetname ${target} --portal ${portal} \
+		iscsiadm -m node --targetname "$target" --portal "$portal" \
 			--op update -n node.conn[0].iscsi.DataDigest -v None
 		;;
 	cxgb3i)
 		# cxgb3i supports <= 16K packet (BHS + AHS + pdu payload + digests)
-		iscsiadm -m node --targetname ${target} --portal ${portal} \
+		iscsiadm -m node --targetname "$target" --portal "$portal" \
 			--op update -n node.conn[0].iscsi.MaxRecvDataSegmentLength \
 			-v 8192
 		;;
 	esac
-	transport_name=`iscsiadm  -m node -p ${portal} -T ${target} |awk '/transport_name/ {print $1}'`
-	iscsiadm -m node --targetname ${target} --portal ${portal} \
-			--op update -n ${transport_name} -v ${transport}
+	transport_name=$(iscsiadm -m node -p "$portal" -T "$target" | awk '/transport_name/ {print $1}')
+	iscsiadm -m node --targetname "$target" --portal "$portal" \
+			--op update -n "$transport_name" -v "$transport"
 }
 
 select_transport()
 {
-	set_transport $transport
+	set_transport "$transport"
 	dbg "Testing $transport-login to target ${target} portal ${portal}"
-	try_login;
-	if [ $? != 0 -a  "$force" = "0" ]; then
+	if ! try_login && [ "$force" = "0" ]; then
 		set_transport tcp
 		dbg "starting to test tcp-login to target ${target} portal ${portal}"
-		try_login;
+		try_login
 	fi
 }
 
 check_iscsid()
 {
 	#check if iscsid is running
-	pidof iscsid &>/dev/null
+	pidof iscsid >/dev/null 2>&1
 	ret=$?
 	if [ $ret -ne 0 ]; then
 		echo "iscsid is not running"
