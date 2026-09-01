@@ -1,4 +1,5 @@
 #! /bin/sh
+# shellcheck disable=SC2034
 ### BEGIN INIT INFO
 # Provides:
 # Required-Start:
@@ -15,6 +16,7 @@ PIDFILE=/run/iscsid.pid
 
 [ -x "$DAEMON" ] || exit 0
 
+# shellcheck disable=SC1091
 . /lib/lsb/init-functions
 
 if [ ! -d /sys/class/ ]; then
@@ -30,62 +32,64 @@ start() {
 	log_daemon_msg "Starting iSCSI initiator service" "iscsid"
 	modprobe -q iscsi_tcp 2>/dev/null || :
 	modprobe -q ib_iser 2>/dev/null || :
-	start-stop-daemon --start --quiet --pidfile $PIDFILE --exec $DAEMON
+	start-stop-daemon --start --quiet --pidfile "$PIDFILE" --exec "$DAEMON"
 	RETVAL=$?
-	log_end_msg $RETVAL
+	log_end_msg "$RETVAL"
 	starttargets
 }
 
 starttargets() {
 	log_daemon_msg "Setting up iSCSI targets"
-	$ADM -m node --loginall=automatic
+	"$ADM" -m node --loginall=automatic
 	log_end_msg 0
 }
 
 stoptargets() {
 	log_daemon_msg "Disconnecting iSCSI targets"
 	sync
-	$ADM -m node --logoutall=all
+	"$ADM" -m node --logoutall=all
 	RETVAL=$?
-	log_end_msg $RETVAL
+	log_end_msg "$RETVAL"
 }
 
 stop() {
 	stoptargets
-	if [ $RETVAL -ne 0 ]; then
+	if [ "$RETVAL" -ne 0 ]; then
 		log_failure_msg "Could not stop all targets, try again later"
-		return $RETVAL
+		return "$RETVAL"
 	fi
 
 	log_daemon_msg "Stopping iSCSI initiator service"
-	start-stop-daemon --stop --quiet --pidfile $PIDFILE --exec $DAEMON
-	rm -f $PIDFILE
+	start-stop-daemon --stop --quiet --pidfile "$PIDFILE" --exec "$DAEMON"
+	rm -f "$PIDFILE"
 	status=0
 	modprobe -r ib_iser 2>/dev/null
-	if [ "$?" -ne "0" -a "$?" -ne "1" ]; then
+	ret=$?
+	if [ "$ret" -ne 0 ] && [ "$ret" -ne 1 ]; then
 		status=1
 	fi
 	modprobe -r iscsi_tcp 2>/dev/null
-	if [ "$?" -ne "0" -a "$?" -ne "1" ]; then
+	ret=$?
+	if [ "$ret" -ne 0 ] && [ "$ret" -ne 1 ]; then
 		status=1
 	fi
-	log_end_msg $status
+	log_end_msg "$status"
 }
 
 restart() {
 	stop
-	if [ $RETVAL -ne 0 ]; then
+	if [ "$RETVAL" -ne 0 ]; then
 		log_failure_msg "Stopping iSCSI initiator service failed, not starting"
-		return $RETVAL
+		return "$RETVAL"
 	fi
 	start
 }
 
 restarttargets() {
 	stoptargets
-	if [ $RETVAL -ne 0 ]; then
+	if [ "$RETVAL" -ne 0 ]; then
 		log_failure_msg "Could not stop all targets, try again later"
-		return $RETVAL
+		return "$RETVAL"
 	fi
 	starttargets
 }
@@ -95,16 +99,20 @@ status() {
 	#status iscsid
 	# list active sessions
 	echo Current active iSCSI sessions:
-	$ADM -m session
+	"$ADM" -m session
 }
 
 case "$1" in
-	start|starttargets|stop|stoptargets|restart|restarttargets|status)
-		$1
-		;;
+	start) start ;;
+	starttargets) starttargets ;;
+	stop) stop ;;
+	stoptargets) stoptargets ;;
+	restart) restart ;;
+	restarttargets) restarttargets ;;
+	status) status ;;
 	*)
 		echo "Usage: $0 {start|stop|restart|status}"
 		exit 1
 		;;
 esac
-exit $RETVAL
+exit "$RETVAL"
