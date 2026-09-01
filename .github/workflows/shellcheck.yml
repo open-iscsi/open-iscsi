@@ -1,0 +1,20 @@
+name: ShellCheck
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  shellcheck:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install ShellCheck
+        run: sudo apt-get update && sudo apt-get install --yes shellcheck
+      - name: Check shell scripts
+        run: |
+          git -c color.ui=false grep -lE '^#!.*(ba)?sh([[:space:]]|$)' | \
+            xargs -r shellcheck
