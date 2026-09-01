@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/sh
 #
 # Systemd rule generator for ibft interfaces
 #
@@ -21,16 +21,16 @@ IBFT_RULE_DIR=/run/udev/rules.d
 IBFT_RULES=${IBFT_RULE_DIR}/79-ibft.rules
 
 # ensure we have a rules directory and no rules file
-if [ -d ${IBFT_RULE_DIR} ] ; then
-    rm -f ${IBFT_RULES} 2> /dev/null
+if [ -d "$IBFT_RULE_DIR" ] ; then
+    rm -f "$IBFT_RULES" 2> /dev/null
 else
-    mkdir -p ${IBFT_RULE_DIR}
+    mkdir -p "$IBFT_RULE_DIR"
 fi
 
 # create an iBFT udev rule for each iBFT NIC found
 for d in /sys/firmware/ibft/ethernet* ; do
     [ -d "$d" ] || break
     num="${d##*/ethernet}"
-    read mac < $d/mac
-    printf 'SUBSYSTEM=="net", KERNEL=="ibft*", ACTION=="add", DRIVERS=="?*", ATTR{address}=="%s", ATTR{type}=="1", NAME="ibft%s"\n' "$mac" "$num" >> $IBFT_RULES
+    read -r mac < "$d/mac"
+    printf 'SUBSYSTEM=="net", KERNEL=="ibft*", ACTION=="add", DRIVERS=="?*", ATTR{address}=="%s", ATTR{type}=="1", NAME="ibft%s"\n' "$mac" "$num" >> "$IBFT_RULES"
 done
