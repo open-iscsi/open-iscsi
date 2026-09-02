@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/sh
 #
 # iscsi_fw_login -- login to iscsi firmware targets, if any
 #
