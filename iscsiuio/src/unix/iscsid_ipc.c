@@ -271,7 +271,8 @@ static int decode_iface(struct iface_rec_decode *ird, struct iface_rec *rec)
 				memcpy(&ird->ipv6_addr, all_zeroes_addr6,
 				       sizeof(struct in6_addr));
 			/* Subnet mask priority: CIDR, then rec */
-			if (!ird->ipv6_subnet_mask.s6_addr)
+			if (!memcmp(&ird->ipv6_subnet_mask, all_zeroes_addr6,
+				    sizeof(struct in6_addr)))
 				inet_pton(AF_INET6, rec->subnet_mask,
 					  &ird->ipv6_subnet_mask);
 
