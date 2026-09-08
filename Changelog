@@ -1,4 +1,37 @@
- > open-iscsi-2.1.11 - open-iscsi-2.1.12 (Jul 2026))
+-> open-iscsi-2.1.12 - open-iscsi-2.1.13 (Sep 2026)
+
+Autumn Mahoney (1):
+      fix typo in user-facing error message in verify_mode_params() (#548)
+
+Cav4ever (1):
+      usr: Fix -Wdiscarded-qualifiers warning in iqn_name_valid (#537)
+
+Chris Leech (9):
+      Fixes for CVEs CVE-2026-18724 - CVE-2026-18728 (#544)
+      iscsi_net_util: fix broken VLAN support in find_vlan_dev (#545)
+      usr: network code ioctl handling improvements
+      iscsiuio: validate DHCPv6 IA_NA option lengths to prevent OOB reads
+      iscsiuio: strengthen DHCPv6 option parsing loop bound check
+      iscsiuio: strengthen IPv6 payload length validation in uip_process()
+      login: fix infinite redirect loops with configurable limits
+      usr: verify IPC peer credentials before sending data
+      iscsiuio: fix incorrect comparison of IPv6 subnet mask
+
+Jesse Taube (1):
+      iscsiuio: Fix -Waddress-of-packed-member (#534)
+
+Lee Duncan (2):
+      usr: fix "-Wdiscarded-qualifiers" warning in auth.c (#539)
+      Fix reopen log freq change (#542)
+
+Natanael Copa (2):
+      iscsiadm: handle getopt errors directly (#551)
+      gitignore: ignore generated build artifacts (#550)
+
+mikechristie (1):
+      Fix iscsi_conn_iface_has_ip error handling (#531)
+
+-> open-iscsi-2.1.11 - open-iscsi-2.1.12 (Jul 2026)
 
 Cav4ever (1):
       avoid possible double free of found in idbm_rec_update_param (#528)

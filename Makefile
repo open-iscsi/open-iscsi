@@ -7,7 +7,7 @@
 DESTDIR ?=
 
 # our VERSION String
-ISCSI_VERSION_STR ?= 2.1.12
+ISCSI_VERSION_STR ?= 2.1.13
 
 prefix = /usr
 exec_prefix =
