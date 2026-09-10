@@ -1,8 +1,6 @@
-#!/bin/bash
+#!/bin/sh
 #
 # build the build_date.c and build_date.h files
-#
-# (bash required for getopts)
 #
 
 THIS_CMD=${0##*/}

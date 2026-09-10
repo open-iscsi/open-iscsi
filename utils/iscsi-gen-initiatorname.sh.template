@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/sh
 #
 # iscsi-gen-initiatorname
 #
@@ -88,13 +88,16 @@ usage_and_exit()
 #
 kernel_supplied_initiatorname()
 {
-    kcl="$(</proc/cmdline)"
-    if [[ "$kcl" =~ rd.initiatorname ]] ; then
+    kcl="$(cat /proc/cmdline)"
+    case "$kcl" in
+    *rd.initiatorname*)
 	kcl=${kcl##*rd.initiatorname=}
 	echo ${kcl%% *}
-    else
+	;;
+    *)
 	echo ""
-    fi
+	;;
+    esac
 }
 
 #
@@ -116,7 +119,7 @@ if [ "$#" -gt 0 ] ; then
     usage_and_exit 1
 fi
 
-if [ "$EUID" -ne 0 ] ; then
+if [ "$(id -u)" -ne 0 ] ; then
     echo "Error: You must be root to run this command" 1>&2
     usage_and_exit 1
 fi
@@ -134,7 +137,7 @@ KERNEL_INAME="$(kernel_supplied_initiatorname)"
 [ -r "$INAME_FILE" ] && . "$INAME_FILE"
 
 # if we have a local initiator name and "force" is not set end it now
-if [ "$InitiatorName" -a -z "$FORCE" ] ; then
+if [ "$InitiatorName" ] && [ -z "$FORCE" ] ; then
     echo "Error: you cannot overwrite the current InitiatorName unless 'force' is set." 1>&2
     usage_and_exit 1
 fi
@@ -155,7 +158,7 @@ fi
 
 # if we have both iBFT and kernel command line initiator names that
 # do not match end it now
-if [ "$IBFT_INAME" -a "$KERNEL_INAME" -a "$IBFT_INAME" != "$KERNEL_INAME" ] ; then
+if [ "$IBFT_INAME" ] && [ "$KERNEL_INAME" ] && [ "$IBFT_INAME" != "$KERNEL_INAME" ] ; then
     echo "Error: Kernel cmdline Initiator Name: $KERNEL_INAME" 1>&2
     echo "  does not match iBFT Initiator Name: $IBFT_INAME" 1>&2
     echo "Please ensure they both match, or remove the kernel parameter, then" 1>&2

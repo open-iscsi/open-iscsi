@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/sh
 #
 # iscsi_offload
 #
@@ -50,11 +50,8 @@
 # cxgb3 is using one PCI device for everything.
 #
 iscsi_macaddress_from_pcidevice()
-{
-    local path=$1
-    local if=$2
-    local h
-    local host
+(
+    path=$1
 
     for h in $path/host* ; do
 	if [ -d "$h" ] ; then
@@ -69,7 +66,7 @@ iscsi_macaddress_from_pcidevice()
 	    fi
 	fi
     done
-}
+)
 
 #
 # Figure out the MAC address of the iSCSI offload engine
@@ -79,15 +76,12 @@ iscsi_macaddress_from_pcidevice()
 # Suitable for be2iscsi and qla4xxx
 #
 iscsi_macaddress_from_pcifn()
-{
-    local path=$1
-    local if=$2
-    local h
-    local host
-    local ifmac
-    local olemacoffset=$3
+(
+    path=$1
+    interface=$2
+    olemacoffset=$3
 
-    ifmac=$(ip addr show dev $if | sed -n 's/ *link\/ether \(.*\) brd.*/\1/p')
+    ifmac=$(ip addr show dev $interface | sed -n 's/ *link\/ether \(.*\) brd.*/\1/p')
     m5=$(( 0x${ifmac##*:} ))
     m5=$(( $m5 + $olemacoffset ))
     ifmac=$(printf "%s:%02x" ${ifmac%:*} $m5)
@@ -100,12 +94,12 @@ iscsi_macaddress_from_pcifn()
 	    fi
 	fi
     done
-}
+)
 
-update_iface_setting() {
-    local iface="$1"
-    local name="$2"
-    local value="$3"
+update_iface_setting() (
+    iface="$1"
+    name="$2"
+    value="$3"
 
     iface_value=$(iscsiadm -m iface -I $iface | sed -n "s/$name = \(.*\)/\1/p")
     if [ "$iface_value" = "<empty>" ] ; then
@@ -117,7 +111,7 @@ update_iface_setting() {
 	fi
     fi
     return 0
-}
+)
 
 while getopts di:t options ; do
     case $options in
@@ -222,7 +216,7 @@ elif [ "$mod" = "be2iscsi" ] ; then
     mac=$(iscsi_macaddress_from_pcifn $pcipath $IFNAME 1)
 elif [ "$mod" = "qla4xxx" ] ; then
     mac=$(iscsi_macaddress_from_pcifn $pcipath $IFNAME 1)
-elif [ "$mod" = "qede" -o "$mod" = "qedi" ] ; then
+elif [ "$mod" = "qede" ] || [ "$mod" = "qedi" ] ; then
     mac=$(iscsi_macaddress_from_pcifn $pcipath $IFNAME 4)
 fi
 
@@ -239,7 +233,7 @@ if iscsiadm -m iface -I $ioe_iface > /dev/null 2>&1 ; then
     ioe_mac=$(iscsiadm -m iface -I $ioe_iface 2> /dev/null| sed -n "s/iface\.hwaddress = \(.*\)/\1/p")
     ioe_mod=$(iscsiadm -m iface -I $ioe_iface 2> /dev/null| sed -n "s/iface\.transport_name = \(.*\)/\1/p")
     ipaddr=$(iscsiadm -m iface -I $ioe_iface 2> /dev/null| sed -n "s/iface\.ipaddress = \(.*\)/\1/p")
-    if [ "$ipaddr" == "<empty>" ] ; then
+    if [ "$ipaddr" = "<empty>" ] ; then
 	ipaddr=
     fi
 elif [ "$mod" = "be2iscsi" ] ; then
@@ -294,7 +288,7 @@ if [ -n "$iboot_dir" ] && [ -d "$iboot_dir" ] ; then
 	    ibft_mode="dhcp"
 	fi
 	[ -f $if/dhcp ] && read ibft_dhcp < $if/dhcp
-	if [ -n "$ibft_dhcp" -a "$ibft_mode" != "dhcp" ] ; then
+	if [ -n "$ibft_dhcp" ] && [ "$ibft_mode" != "dhcp" ] ; then
 	    ibft_mode=dhcp
 	fi
 	if [ "$ibft_mode" = "dhcp" ] ; then
@@ -381,4 +375,3 @@ fi
 ip link set dev $IFNAME up
 
 exit 0
-
