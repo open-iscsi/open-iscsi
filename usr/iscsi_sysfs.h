@@ -90,7 +90,14 @@ extern void iscsi_sysfs_get_negotiated_session_conf(int sid,
 				struct iscsi_session_operational_config *conf);
 extern void iscsi_sysfs_get_negotiated_conn_conf(int sid,
 				struct iscsi_conn_operational_config *conf);
-extern pid_t iscsi_sysfs_scan_host(int hostno, int sid, int async, bool rescan);
+/* iscsi_sysfs_scan_host() flags */
+#define ISCSI_SCAN_NONE		0x0	/* nothing to do */
+#define ISCSI_SCAN_NEW_LUNS	0x1	/* scan for luns we have not seen yet */
+#define ISCSI_SCAN_ONLINE_DEVS	0x2	/* bring the session's devices online */
+#define ISCSI_SCAN_RESCAN_DEVS	0x4	/* rescan devices for size changes */
+
+extern pid_t iscsi_sysfs_scan_host(int hostno, int sid, int async,
+				   unsigned int scan_flags);
 extern int iscsi_sysfs_get_session_state(char *state, int sid);
 extern int iscsi_sysfs_get_host_state(char *state, int host_no);
 extern int iscsi_sysfs_get_device_state(char *state, int host_no, int target,

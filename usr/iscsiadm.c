@@ -878,11 +878,9 @@ static int rescan_portal(void *data, struct session_info *info)
 		log_error("Could not rescan session sid %d.", info->sid);
 		return err;
 	}
-	/* rescan each device to pick up size changes */
-	iscsi_sysfs_for_each_device(NULL, host_no, info->sid,
-				    iscsi_sysfs_rescan_device);
-	/* now scan for new devices */
-	iscsi_sysfs_scan_host(host_no, info->sid, 0, false);
+	/* rescan for size changes, then scan for new devices */
+	iscsi_sysfs_scan_host(host_no, info->sid, 0,
+			      ISCSI_SCAN_RESCAN_DEVS | ISCSI_SCAN_NEW_LUNS);
 	return 0;
 }
 
