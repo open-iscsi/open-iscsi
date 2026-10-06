@@ -223,7 +223,8 @@ static int sync_session(__attribute__((unused))void *data,
 		}
 
 		if (idbm_session_autoscan(NULL))
-			iscsi_sysfs_scan_host(host_no, info->sid, 0, false);
+			iscsi_sysfs_scan_host(host_no, info->sid, 0,
+					      ISCSI_SCAN_NEW_LUNS);
 		return 0;
 	}
 

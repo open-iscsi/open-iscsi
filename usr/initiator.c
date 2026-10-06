@@ -1037,24 +1037,39 @@ void free_initiator(void)
 	free_transports();
 }
 
+/*
+ * Attaching a lun we have not seen before honors node.session.scan at every
+ * trigger: startup, login and AEN.
+ */
+static unsigned int session_autoscan_flag(struct iscsi_session *session)
+{
+	return idbm_session_autoscan(session) ? ISCSI_SCAN_NEW_LUNS :
+						ISCSI_SCAN_NONE;
+}
+
+/*
+ * session is NULL for sessions the HBA firmware created, which iscsid has no
+ * record of, so the sid is passed separately.
+ */
 static void session_scan_host(struct iscsi_session *session, int hostno,
-			      queue_task_t *qtask, bool rescan)
+			      int sid, queue_task_t *qtask,
+			      unsigned int scan_flags)
 {
 	pid_t pid;
 
-	if (!rescan && !idbm_session_autoscan(session)) {
+	if (scan_flags == ISCSI_SCAN_NONE) {
 		mgmt_ipc_write_rsp(qtask, ISCSI_SUCCESS);
 		return;
 	}
 
-	pid = iscsi_sysfs_scan_host(hostno, session->id, 1, rescan);
+	pid = iscsi_sysfs_scan_host(hostno, sid, 1, scan_flags);
 	if (pid == 0) {
 		mgmt_ipc_write_rsp(qtask, ISCSI_SUCCESS);
 
 		if (session)
 			iscsi_sysfs_for_each_device(
 					&session->nrec.session.queue_depth,
-					hostno, session->id,
+					hostno, sid,
 					iscsi_sysfs_set_queue_depth);
 		exit(0);
 	} else if (pid > 0) {
@@ -1097,8 +1112,9 @@ setup_full_feature_phase(iscsi_conn_t *conn)
 		 * don't want to re-scan it on recovery.
 		 */
 		if (conn->id == 0)
-			session_scan_host(session, session->hostno, c->qtask,
-					   false);
+			session_scan_host(session, session->hostno, session->id,
+					  c->qtask,
+					  session_autoscan_flag(session));
 
 		log_warning("Connection%d:%d to [target: %s, portal: %s,%d] "
 			    "through [iface: %s] is operational now",
@@ -1109,7 +1125,9 @@ setup_full_feature_phase(iscsi_conn_t *conn)
 	} else {
 		session->notify_qtask = NULL;
 
-		session_scan_host(session, session->hostno, NULL, true);
+		session_scan_host(session, session->hostno, session->id,
+				  NULL, ISCSI_SCAN_ONLINE_DEVS |
+				  ISCSI_SCAN_RESCAN_DEVS);
 		mgmt_ipc_write_rsp(c->qtask, ISCSI_SUCCESS);
 		log_warning("connection%d:%d is operational after recovery "
 			    "(%d attempts)", session->id, conn->id,
@@ -1260,9 +1278,14 @@ static void iscsi_recv_async_msg(iscsi_conn_t *conn, struct iscsi_hdr *hdr)
 			break;
 		}
 
-		if (sshdr.asc == 0x3f && sshdr.ascq == 0x0e
-		    && idbm_session_autoscan(session))
-			session_scan_host(session, session->hostno, NULL, true);
+		if (sshdr.asc == 0x3f && sshdr.ascq == 0x0e)
+			/*
+			 * REPORT LUNS DATA HAS CHANGED. The nexus is
+			 * intact, so just refresh what we have.
+			 */
+			session_scan_host(session, session->hostno, session->id,
+					  NULL, ISCSI_SCAN_RESCAN_DEVS |
+					  session_autoscan_flag(session));
 		break;
 	case ISCSI_ASYNC_MSG_REQUEST_LOGOUT:
 		conn_warn(conn, "Target requests logout within %u seconds" , ntohs(async_hdr->param3));
@@ -1754,7 +1777,8 @@ static void session_conn_process_login(void *data)
 		 * scan host is one-time deal. We
 		 * don't want to re-scan it on recovery.
 		 */
-		session_scan_host(session, session->hostno, c->qtask, false);
+		session_scan_host(session, session->hostno, session->id,
+				  c->qtask, session_autoscan_flag(session));
 		session->notify_qtask = NULL;
 
 		log_warning("Connection%d:%d to [target: %s, portal: %s,%d] "
@@ -1764,7 +1788,9 @@ static void session_conn_process_login(void *data)
 			    session->nrec.conn[conn->id].port,
 			    session->nrec.iface.name);
 	} else {
-		session_scan_host(session, session->hostno, NULL, true);
+		session_scan_host(session, session->hostno, session->id,
+				  NULL, ISCSI_SCAN_ONLINE_DEVS |
+				  ISCSI_SCAN_RESCAN_DEVS);
 		session->notify_qtask = NULL;
 		mgmt_ipc_write_rsp(c->qtask, ISCSI_SUCCESS);
 	}
@@ -2263,7 +2289,8 @@ static void iscsi_async_session_creation(uint32_t host_no, uint32_t sid)
 
 	log_debug(3, "session created sid %u host no %d", sid, host_no);
 	session_online_devs(host_no, sid);
-	session_scan_host(NULL, host_no, NULL, false);
+	session_scan_host(NULL, host_no, sid, NULL,
+			  session_autoscan_flag(NULL));
 }
 
 static void iscsi_async_session_destruction(uint32_t host_no, uint32_t sid)

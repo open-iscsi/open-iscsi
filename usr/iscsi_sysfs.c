@@ -1979,7 +1979,8 @@ void iscsi_sysfs_rescan_device(__attribute__((unused))void *data,
 			strlen(write_buf));
 }
 
-pid_t iscsi_sysfs_scan_host(int hostno, int sid, int async, bool rescan)
+pid_t iscsi_sysfs_scan_host(int hostno, int sid, int async,
+			    unsigned int scan_flags)
 {
 	char id[NAME_SIZE];
 	char *write_buf = "- - -";
@@ -1998,14 +1999,17 @@ pid_t iscsi_sysfs_scan_host(int hostno, int sid, int async, bool rescan)
 		 */
 		set_thread_io_flusher(0);
 
-		if (rescan) {
+		if (scan_flags & ISCSI_SCAN_ONLINE_DEVS)
 			iscsi_sysfs_for_each_device(NULL, hostno, sid,
 					iscsi_sysfs_set_device_online);
 
+		if (scan_flags & ISCSI_SCAN_RESCAN_DEVS)
 			/* rescan each device to pick up size changes */
 		        iscsi_sysfs_for_each_device(NULL, hostno, sid,
 						    iscsi_sysfs_rescan_device);
-		} else {
+
+		/* last, so new luns are not rescanned right after appearing */
+		if (scan_flags & ISCSI_SCAN_NEW_LUNS) {
 			snprintf(id, sizeof(id), ISCSI_HOST_ID, hostno);
 			sysfs_set_param(id, SCSI_HOST_SUBSYS, "scan", write_buf,
 					strlen(write_buf));
