@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/sh
 #
 # list man pages found given one or more ??? passed in
 #

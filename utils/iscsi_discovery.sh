@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/sh
 #
 # Copyright (C) Voltaire Ltd. 2006.  ALL RIGHTS RESERVED.
 #
@@ -131,7 +131,7 @@ try_login()
 	ret=$?
 	if [ ${ret} = 0 ]; then
 		echo "Set target ${target} to automatic login over ${transport} to portal ${portal}"
-		((connected++))
+		connected=$((connected + 1))
 		if [ "$log_out" = "1" ]; then
 			iscsiadm -m node --targetname ${target} --portal ${portal} --logout
 		fi
@@ -170,7 +170,7 @@ select_transport()
 	set_transport $transport
 	dbg "Testing $transport-login to target ${target} portal ${portal}"
 	try_login;
-	if [ $? != 0 -a  "$force" = "0" ]; then
+	if [ $? != 0 ] && [ "$force" = "0" ]; then
 		set_transport tcp
 		dbg "starting to test tcp-login to target ${target} portal ${portal}"
 		try_login;
@@ -180,7 +180,7 @@ select_transport()
 check_iscsid()
 {
 	#check if iscsid is running
-	pidof iscsid &>/dev/null
+	pidof iscsid >/dev/null 2>&1
 	ret=$?
 	if [ $ret -ne 0 ]; then
 		echo "iscsid is not running"

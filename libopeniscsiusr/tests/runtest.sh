@@ -1,6 +1,6 @@
-#!/bin/bash
+#!/bin/sh
 
-if [ "CHK$TESTS"  == "CHK" ];then
+if [ "CHK$TESTS" = "CHK" ];then
     echo "# No test cases defined"
     exit 1
 fi
@@ -10,7 +10,7 @@ VALGRIND_OPTS="--quiet --leak-check=full \
                --show-reachable=no --show-possibly-lost=no \
                --trace-children=yes --error-exitcode=$VALGRIND_ERR_RC"
 
-TEST_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+TEST_DIR="$( cd "$( dirname "$0" )" && pwd )"
 
 for TEST in $TESTS; do
     echo
