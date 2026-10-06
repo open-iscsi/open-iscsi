@@ -1039,7 +1039,7 @@ void free_initiator(void)
 
 /*
  * Attaching a lun we have not seen before honors node.session.scan at every
- * trigger: startup, login and AEN.
+ * trigger: startup, login, relogin after nexus loss, and AEN.
  */
 static unsigned int session_autoscan_flag(struct iscsi_session *session)
 {
@@ -1107,10 +1107,7 @@ setup_full_feature_phase(iscsi_conn_t *conn)
 	conn->state = ISCSI_CONN_STATE_LOGGED_IN;
 	if (session->r_stage == R_STAGE_NO_CHANGE ||
 	    session->r_stage == R_STAGE_SESSION_REDIRECT) {
-		/*
-		 * scan host is one-time deal. We
-		 * don't want to re-scan it on recovery.
-		 */
+		/* first login: no nexus to restore, just scan */
 		if (conn->id == 0)
 			session_scan_host(session, session->hostno, session->id,
 					  c->qtask,
@@ -1126,8 +1123,8 @@ setup_full_feature_phase(iscsi_conn_t *conn)
 		session->notify_qtask = NULL;
 
 		session_scan_host(session, session->hostno, session->id,
-				  NULL, ISCSI_SCAN_ONLINE_DEVS |
-				  ISCSI_SCAN_RESCAN_DEVS);
+				  NULL, ISCSI_SCAN_NEXUS_RESTORED |
+				  session_autoscan_flag(session));
 		mgmt_ipc_write_rsp(c->qtask, ISCSI_SUCCESS);
 		log_warning("connection%d:%d is operational after recovery "
 			    "(%d attempts)", session->id, conn->id,
@@ -1773,10 +1770,7 @@ static void session_conn_process_login(void *data)
 
 	if (session->r_stage == R_STAGE_NO_CHANGE ||
 	    session->r_stage == R_STAGE_SESSION_REDIRECT) {
-		/*
-		 * scan host is one-time deal. We
-		 * don't want to re-scan it on recovery.
-		 */
+		/* first login: no nexus to restore, just scan */
 		session_scan_host(session, session->hostno, session->id,
 				  c->qtask, session_autoscan_flag(session));
 		session->notify_qtask = NULL;
@@ -1789,8 +1783,8 @@ static void session_conn_process_login(void *data)
 			    session->nrec.iface.name);
 	} else {
 		session_scan_host(session, session->hostno, session->id,
-				  NULL, ISCSI_SCAN_ONLINE_DEVS |
-				  ISCSI_SCAN_RESCAN_DEVS);
+				  NULL, ISCSI_SCAN_NEXUS_RESTORED |
+				  session_autoscan_flag(session));
 		session->notify_qtask = NULL;
 		mgmt_ipc_write_rsp(c->qtask, ISCSI_SUCCESS);
 	}
