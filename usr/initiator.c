@@ -2179,26 +2179,33 @@ int session_logout_task(int sid, queue_task_t *qtask)
 	conn = &session->conn[0];
 
 	/*
-	 * If syncing up, in XPT_WAIT, and REOPENing, then return
-	 * an informative error, since the target for this session
-	 * is likely not connected
+	 * An explicit logout supersedes a sync/reopen request that is still
+	 * pending in session->notify_qtask. The sync client would wait
+	 * forever if we simply tore the session down, so complete that
+	 * request with an error first. session->notify_qtask must be cleared
+	 * *before* mgmt_ipc_write_rsp() because it frees the qtask.
+	 *
+	 * This is deliberately limited to the sync/reopen stage. During the
+	 * initial login (R_STAGE_NO_CHANGE/R_STAGE_SESSION_REDIRECT) the
+	 * pending login qtask is still owned by conn->login_context.qtask
+	 * (for offloaded logins session->notify_qtask aliases it), so it must
+	 * stay pending; the check below still refuses that logout.
 	 */
 	if (session->notify_qtask &&
-	    (conn->state == ISCSI_CONN_STATE_XPT_WAIT) &&
-	    (session->r_stage == R_STAGE_SESSION_REOPEN)) {
-		log_warning("session %d cannot be terminted because "
-			    "it's trying to reconnect: try again later",
-			session->id);
-		return ISCSI_ERR_SESSION_NOT_CONNECTED;
+	    session->r_stage == R_STAGE_SESSION_REOPEN) {
+		queue_task_t *notify = session->notify_qtask;
+
+		session->notify_qtask = NULL;
+		log_warning("session %d: pending sync request superseded by "
+			    "logout", session->id);
+		mgmt_ipc_write_rsp(notify, ISCSI_ERR_SESSION_NOT_CONNECTED);
 	}
 
 	/*
-	 * If syncing up and not reconnecting,
-	 * or if this is the initial login and mgmt_ipc
-	 * has not been notified of that result fail the logout request
+	 * If this is the initial login and mgmt_ipc has not been notified
+	 * of that result fail the logout request
 	 */
-	if (session->notify_qtask ||
-	    ((conn->state == ISCSI_CONN_STATE_XPT_WAIT ||
+	if (((conn->state == ISCSI_CONN_STATE_XPT_WAIT ||
 	      conn->state == ISCSI_CONN_STATE_IN_LOGIN) &&
 	    (session->r_stage == R_STAGE_NO_CHANGE ||
 	     session->r_stage == R_STAGE_SESSION_REDIRECT))) {

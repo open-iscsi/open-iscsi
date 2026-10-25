@@ -180,6 +180,28 @@ foreach a,v: test_arr
   test('test ' + a, e)
 endforeach
 
+# Forward compatibility regression test: a node record written by a newer
+# open-iscsi must not be invalidated by a parameter name this version does
+# not know.  The test creates its own node record, so link it against a
+# private copy of the library whose DB root is inside the build directory.
+idbm_test_dbroot = meson.current_build_dir() / 'libopeniscsiusr-test-db'
+libiscsi_usr_idbm_test = static_library('openiscsiusr_idbm_test',
+  libiscsi_usr_srcs,
+  include_directories: [libiscsi_usr_private_includes,
+                        libiscsi_usr_public_includes],
+  dependencies: kmod_dep,
+  c_args: genl_cargs + ['-UISCSI_DB_ROOT',
+                        '-DISCSI_DB_ROOT="@0@"'.format(idbm_test_dbroot)])
+
+e = executable('test_unknown_param',
+  files('libopeniscsiusr/tests/test_unknown_param.c'),
+  include_directories: [lib_inc],
+  link_with: libiscsi_usr_idbm_test,
+  dependencies: kmod_dep,
+  c_args: genl_cargs)
+test('test unknown_param', e,
+  env: ['ISCSI_TEST_DBROOT=' + idbm_test_dbroot])
+
 # set up usr dependences and link args
 usr_deps = [kmod_dep, crypto_dep, mount_dep, sysdeps_dep, fwparam_dep, libiscsi_usr_dep]
 if not no_systemd

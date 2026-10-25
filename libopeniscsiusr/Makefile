@@ -47,7 +47,14 @@ HEADERS = libopeniscsiusr/libopeniscsiusr.h \
 TESTS = tests/test_context tests/test_session tests/test_iface tests/test_node
 EXTRA_MAN_FILE = libopeniscsiusr.h.3
 
+# Forward compatibility regression test.  It creates node records, so it is
+# built against a private copy of the library whose ISCSI_DB_ROOT points
+# inside the source tree instead of $(DBROOT).
+UNKNOWN_PARAM_TEST = tests/test_unknown_param
+UNKNOWN_PARAM_TEST_DBROOT ?= $(CURDIR)/tests/test-db
+
 OBJS = context.o misc.o session.o sysfs.o iface.o idbm.o node.o default.o
+SRCS = $(OBJS:.o=.c)
 
 CFLAGS ?= -O2 -g
 CFLAGS += -Wall -Werror -Wextra -fvisibility=hidden -fPIC
@@ -70,14 +77,24 @@ $(LIBS_MAJOR): $(LIBS)
 	ln -sf $(LIBS) $@
 
 clean:
-	$(RM) vgcore* core *.a *.o *.so *.so.* $(TESTS)
+	$(RM) vgcore* core *.a *.o *.so *.so.* $(TESTS) $(UNKNOWN_PARAM_TEST)
 	$(RM) -r docs/man
+	$(RM) -r $(UNKNOWN_PARAM_TEST_DBROOT)
 
 distclean: ;
 
 $(TESTS): $(LIBS)
 $(TESTS): CFLAGS += -I$(TOPDIR)/libopeniscsiusr -g
 $(TESTS): LDFLAGS += $(LIBADD) -L$(TOPDIR)/libopeniscsiusr -lopeniscsiusr
+
+$(UNKNOWN_PARAM_TEST): tests/test_unknown_param.c $(SRCS)
+	$(CC) $(CFLAGS) -I$(TOPDIR)/libopeniscsiusr -UISCSI_DB_ROOT \
+		-DISCSI_DB_ROOT=\"$(UNKNOWN_PARAM_TEST_DBROOT)\" \
+		-o $@ tests/test_unknown_param.c $(SRCS) $(LDFLAGS)
+
+check-unknown-param: $(UNKNOWN_PARAM_TEST)
+	ISCSI_TEST_DBROOT=$(UNKNOWN_PARAM_TEST_DBROOT) \
+		$(UNKNOWN_PARAM_TEST)
 
 check: $(LIBS) $(TESTS)
 	sudo env LD_LIBRARY_PATH=$(LIBISCSI_USR_DIR) TESTS="$(TESTS)" \
@@ -122,4 +139,4 @@ docs/man/$(EXTRA_MAN_FILE): $(HEADERS)
 	find docs/man -type f -name \*[0-9]
 
 .PHONY: all install clean distclean doc install_pkg_files install_docs \
-	install_libs check
+	install_libs check check-unknown-param

@@ -777,6 +777,13 @@ unknown_value:
 			goto out;
 		}
 	}
+	/*
+	 * Do not treat an unknown parameter name as an error: the record may
+	 * have been written by a newer open-iscsi which knows parameters this
+	 * version does not.  Failing here makes _idbm_recs_read() reject the
+	 * whole record, so all nodes disappear from "iscsiadm -m node"
+	 * (ISCSI_ERR_NO_OBJS_FOUND).  Skip it and keep the rest.
+	 */
 	_warn(ctx, "Ignoring unknown parameter name %s", name);
 	goto out;
 
