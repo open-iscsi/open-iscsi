@@ -96,6 +96,13 @@ extern void iscsi_sysfs_get_negotiated_conn_conf(int sid,
 #define ISCSI_SCAN_ONLINE_DEVS	0x2	/* bring the session's devices online */
 #define ISCSI_SCAN_RESCAN_DEVS	0x4	/* rescan devices for size changes */
 
+/*
+ * I_T nexus regained. Restore the devices we already have whatever
+ * node.session.scan says; callers OR in ISCSI_SCAN_NEW_LUNS to re-enumerate.
+ */
+#define ISCSI_SCAN_NEXUS_RESTORED	(ISCSI_SCAN_ONLINE_DEVS | \
+					 ISCSI_SCAN_RESCAN_DEVS)
+
 extern pid_t iscsi_sysfs_scan_host(int hostno, int sid, int async,
 				   unsigned int scan_flags);
 extern int iscsi_sysfs_get_session_state(char *state, int sid);
