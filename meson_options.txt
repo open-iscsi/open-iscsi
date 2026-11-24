@@ -12,6 +12,10 @@ option('systemddir', type: 'string', value: '/usr/lib/systemd',
 option('isns', type: 'feature', value: 'enabled',
   description: 'Use open-isns to allow target discovery via iSNS')
 
+# build iscsiuio?
+option('iscsiuio', type: 'boolean', value: true,
+  description: 'Build iscsiuio subproject.')
+
 # these are in the 'sysconfigdir' (/etc by default) unless overridden
 option('homedir', type: 'string', value: 'iscsi',
   description: 'Set the HOME directory [/etc/iscsi]')

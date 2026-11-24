@@ -59,6 +59,14 @@ conf.set('HOMEDIR', home_dir)
 conf.set('DBROOT', db_root)
 conf.set('IQN_PREFIX', iqn_prefix)
 
+# only reference iscsiuio in iscsid.service when iscsiuio is built
+if get_option('iscsiuio')
+  conf.set('ISCSIUIO_SERVICE', 'iscsiuio.service ')
+  conf.set('ISCSIUIO_MAN', 'man:iscsiuio(8) ')
+else
+  conf.set('ISCSIUIO_SERVICE', '')
+  conf.set('ISCSIUIO_MAN', '')
+endif
 
 # set up general C args
 genl_cargs = [
@@ -307,4 +315,6 @@ install_man(iscsi_doc_man_pages_static)
 # lastly, build iscsiuio, which does not rely on anything outside itself -- all
 #   the work is done in the meson.build file there
 #
-subdir('iscsiuio')
+if get_option('iscsiuio')
+  subdir('iscsiuio')
+endif
