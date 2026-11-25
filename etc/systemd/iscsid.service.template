@@ -1,8 +1,8 @@
 [Unit]
 Description=Open-iSCSI
-Documentation=man:iscsid(8) man:iscsiuio(8) man:iscsiadm(8)
+Documentation=man:iscsid(8) @ISCSIUIO_MAN@man:iscsiadm(8)
 DefaultDependencies=no
-After=network-online.target iscsiuio.service iscsi-init.service
+After=network-online.target @ISCSIUIO_SERVICE@iscsi-init.service
 Before=remote-fs-pre.target
 Wants=remote-fs-pre.target
 Requires=iscsi-init.service
