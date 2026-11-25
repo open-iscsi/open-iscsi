@@ -15,4 +15,4 @@ SuccessExitStatus=21 15
 RemainAfterExit=true
 
 [Install]
-WantedBy=remote-fs.target
+Also=iscsi-starter.service
